@@ -1,0 +1,25 @@
+{
+  "name": "@soundkit/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@better-auth/expo": "catalog:",
+    "@soundkit/db": "workspace:*",
+    "@soundkit/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@soundkit/config": "workspace:*",
+    "typescript": "^5"
+  }
+}

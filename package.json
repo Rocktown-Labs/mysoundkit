@@ -1,0 +1,61 @@
+{
+  "name": "soundkit",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "dotenv": "^17.2.2",
+      "zod": "^4.1.13",
+      "@types/node": "^22.13.14",
+      "@cloudflare/workers-types": "^4.20251213.0",
+      "better-auth": "1.5.5",
+      "ai": "^6.0.3",
+      "alchemy": "^0.90.0",
+      "wrangler": "^4.77.0",
+      "lucide-react": "^0.546.0",
+      "next-themes": "^0.4.6",
+      "sonner": "^2.0.5",
+      "tailwindcss": "^4.1.18",
+      "@tanstack/react-form": "^1.28.0",
+      "@ai-sdk/react": "^3.0.3",
+      "@types/react-dom": "^19.2.3",
+      "@better-auth/expo": "1.5.5"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:native": "turbo -F native dev",
+    "dev:web": "turbo -F web dev",
+    "dev:server": "turbo -F server dev",
+    "db:push": "turbo -F @soundkit/db db:push",
+    "db:studio": "turbo -F @soundkit/db db:studio",
+    "db:generate": "turbo -F @soundkit/db db:generate",
+    "db:migrate": "turbo -F @soundkit/db db:migrate",
+    "deploy": "turbo -F @soundkit/infra deploy",
+    "destroy": "turbo -F @soundkit/infra destroy",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
+  },
+  "dependencies": {
+    "@soundkit/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@soundkit/config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxfmt": "latest",
+    "oxlint": "latest",
+    "turbo": "^2.8.12",
+    "typescript": "^5",
+    "ultracite": "7.4.4"
+  },
+  "packageManager": "bun@1.3.10"
+}
