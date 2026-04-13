@@ -22,8 +22,9 @@ export interface RouterAppContext {}
 const SITE_NAME = 'SoundKit'
 const SITE_URL = 'https://soundkit-web.rocktown-labs.workers.dev'
 const SITE_DESCRIPTION =
-  'SoundKit is the music streaming platform for discovering artists, streaming tracks, joining listening parties, and tuning into live battles and creator-led streams.'
-const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.svg`
+  'Stream music, discover artists, join listening parties, and tune into live battles and creator streams on SoundKit.'
+const SITE_TITLE = 'SoundKit | Stream music and join live moments'
+const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.png`
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
@@ -53,7 +54,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         content: "width=device-width, initial-scale=1",
         name: "viewport",
       },
-      { title: `${SITE_NAME} | Stream music, join listening parties, and watch live battles` },
+      { title: SITE_TITLE },
       {
         content: SITE_DESCRIPTION,
         name: "description",
@@ -64,14 +65,14 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       { content: SITE_NAME, property: 'og:site_name' },
       { content: 'website', property: 'og:type' },
       { content: SITE_URL, property: 'og:url' },
-      { content: `${SITE_NAME} | Stream music, join listening parties, and watch live battles`, property: 'og:title' },
+      { content: SITE_TITLE, property: 'og:title' },
       { content: SITE_DESCRIPTION, property: 'og:description' },
       { content: SOCIAL_IMAGE_URL, property: 'og:image' },
       { content: '1200', property: 'og:image:width' },
       { content: '630', property: 'og:image:height' },
       { content: 'summary_large_image', name: 'twitter:card' },
       { content: '@soundkit', name: 'twitter:site' },
-      { content: `${SITE_NAME} | Stream music, join listening parties, and watch live battles`, name: 'twitter:title' },
+      { content: SITE_TITLE, name: 'twitter:title' },
       { content: SITE_DESCRIPTION, name: 'twitter:description' },
       { content: SOCIAL_IMAGE_URL, name: 'twitter:image' },
     ],
