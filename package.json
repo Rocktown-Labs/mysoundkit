@@ -27,7 +27,9 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo run dev --filter=web --filter=server",
+    "dev:all": "turbo run dev",
+    "dev:infra": "turbo -F @soundkit/infra dev",
     "build": "turbo build",
     "check-types": "turbo check-types",
     "dev:native": "turbo -F native dev",
@@ -38,6 +40,7 @@
     "db:generate": "turbo -F @soundkit/db db:generate",
     "db:migrate": "turbo -F @soundkit/db db:migrate",
     "deploy": "turbo -F @soundkit/infra deploy",
+    "deploy:prod": "turbo -F @soundkit/infra deploy",
     "destroy": "turbo -F @soundkit/infra destroy",
     "check": "ultracite check",
     "fix": "ultracite fix"

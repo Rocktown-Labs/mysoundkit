@@ -40,6 +40,11 @@ lerna-debug.log*
 # Better-T-Stack
 .alchemy
 
+# Website generated outputs
+apps/website/.nitro
+apps/website/.output
+apps/website/.wrangler
+
 # Testing
 coverage
 .nyc_output
