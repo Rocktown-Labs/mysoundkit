@@ -19,10 +19,29 @@ import appCss from "./globals.css?url";
 
 export interface RouterAppContext {}
 
+const SITE_NAME = 'SoundKit'
+const SITE_URL = 'https://soundkit-web.rocktown-labs.workers.dev'
+const SITE_DESCRIPTION =
+  'SoundKit is the music streaming platform for discovering artists, streaming tracks, joining listening parties, and tuning into live battles and creator-led streams.'
+const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.svg`
+
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
   head: () => ({
     links: [
+      {
+        href: `${SITE_URL}/`,
+        rel: 'canonical',
+      },
+      {
+        href: '/icon.svg',
+        rel: 'icon',
+        type: 'image/svg+xml',
+      },
+      {
+        href: '/apple-icon.png',
+        rel: 'apple-touch-icon',
+      },
       {
         href: appCss,
         rel: "stylesheet",
@@ -34,11 +53,64 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         content: "width=device-width, initial-scale=1",
         name: "viewport",
       },
-      { title: "SoundKit - Music Collaboration Platform" },
+      { title: `${SITE_NAME} | Stream music, join listening parties, and watch live battles` },
       {
-        content:
-          "Professional music file sharing and collaboration platform for producers and artists",
+        content: SITE_DESCRIPTION,
         name: "description",
+      },
+      { content: SITE_NAME, name: 'application-name' },
+      { content: '#000000', name: 'theme-color' },
+      { content: 'index,follow', name: 'robots' },
+      { content: SITE_NAME, property: 'og:site_name' },
+      { content: 'website', property: 'og:type' },
+      { content: SITE_URL, property: 'og:url' },
+      { content: `${SITE_NAME} | Stream music, join listening parties, and watch live battles`, property: 'og:title' },
+      { content: SITE_DESCRIPTION, property: 'og:description' },
+      { content: SOCIAL_IMAGE_URL, property: 'og:image' },
+      { content: '1200', property: 'og:image:width' },
+      { content: '630', property: 'og:image:height' },
+      { content: 'summary_large_image', name: 'twitter:card' },
+      { content: '@soundkit', name: 'twitter:site' },
+      { content: `${SITE_NAME} | Stream music, join listening parties, and watch live battles`, name: 'twitter:title' },
+      { content: SITE_DESCRIPTION, name: 'twitter:description' },
+      { content: SOCIAL_IMAGE_URL, name: 'twitter:image' },
+    ],
+    scripts: [
+      {
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: SITE_NAME,
+          url: SITE_URL,
+          description: SITE_DESCRIPTION,
+        }),
+        type: 'application/ld+json',
+      },
+      {
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          logo: SOCIAL_IMAGE_URL,
+          name: SITE_NAME,
+          url: SITE_URL,
+        }),
+        type: 'application/ld+json',
+      },
+      {
+        children: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'WebApplication',
+          applicationCategory: 'MusicApplication',
+          description: SITE_DESCRIPTION,
+          name: SITE_NAME,
+          offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+          },
+          url: SITE_URL,
+        }),
+        type: 'application/ld+json',
       },
     ],
   }),

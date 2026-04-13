@@ -9,8 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './app/__root'
+import { Route as SitemapDotxmlRouteImport } from './app/sitemap[.]xml'
 import { Route as SignupRouteImport } from './app/signup'
 import { Route as LoginRouteImport } from './app/login'
+import { Route as LlmsDottxtRouteImport } from './app/llms[.]txt'
 import { Route as DashboardRouteImport } from './app/dashboard'
 import { Route as ExploreRouteImport } from './app/_explore'
 import { Route as DashboardIndexRouteImport } from './app/dashboard/index'
@@ -65,6 +67,11 @@ import { Route as ExploreLibraryPlaylistsIndexRouteImport } from './app/_explore
 import { Route as DashboardTracksIdEditRouteImport } from './app/dashboard/tracks/$id/edit'
 import { Route as ExploreLibraryPlaylistsIdIndexRouteImport } from './app/_explore/library/playlists/$id/index'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -73,6 +80,11 @@ const SignupRoute = SignupRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -354,8 +366,10 @@ const ExploreLibraryPlaylistsIdIndexRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ExploreIndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
@@ -408,8 +422,10 @@ export interface FileRoutesByFullPath {
   '/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
@@ -466,8 +482,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_explore': typeof ExploreRouteWithChildren
   '/dashboard': typeof DashboardRouteWithChildren
+  '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRouteWithChildren
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
@@ -525,8 +543,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/llms.txt'
     | '/login'
     | '/signup'
+    | '/sitemap.xml'
     | '/new-releases'
     | '/dashboard/collaborators'
     | '/dashboard/messages'
@@ -579,8 +599,10 @@ export interface FileRouteTypes {
     | '/library/playlists/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/llms.txt'
     | '/login'
     | '/signup'
+    | '/sitemap.xml'
     | '/new-releases'
     | '/dashboard/collaborators'
     | '/dashboard/messages'
@@ -636,8 +658,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_explore'
     | '/dashboard'
+    | '/llms.txt'
     | '/login'
     | '/signup'
+    | '/sitemap.xml'
     | '/_explore/new-releases'
     | '/dashboard/collaborators'
     | '/dashboard/messages'
@@ -694,12 +718,21 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRouteWithChildren
   DashboardRoute: typeof DashboardRouteWithChildren
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRouteWithChildren
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -712,6 +745,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -1221,8 +1261,10 @@ const SignupRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
+  LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRouteWithChildren,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
