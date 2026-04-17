@@ -31,13 +31,13 @@ export const web = await TanStackStart("web", {
         logs: {
           enabled: true,
           head_sampling_rate: 1,
-          persist: true,
           invocation_logs: true,
+          persist: true,
         },
         traces: {
           enabled: true,
-          persist: true,
           head_sampling_rate: 1,
+          persist: true,
         },
       },
     }),

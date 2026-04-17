@@ -16,15 +16,22 @@ export default function NotFoundScreen() {
         <View style={styles.container}>
           <View style={styles.content}>
             <Text style={styles.emoji}>🤔</Text>
-            <Text style={[styles.title, { color: theme.text }]}>Page Not Found</Text>
-            <Text style={[styles.subtitle, { color: theme.text, opacity: 0.7 }]}>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Page Not Found
+            </Text>
+            <Text
+              style={[styles.subtitle, { color: theme.text, opacity: 0.7 }]}
+            >
               Sorry, the page you're looking for doesn't exist.
             </Text>
             <Link href="/" asChild>
               <Text
                 style={[
                   styles.link,
-                  { color: theme.primary, backgroundColor: `${theme.primary}1a` },
+                  {
+                    backgroundColor: `${theme.primary}1a`,
+                    color: theme.primary,
+                  },
                 ]}
               >
                 Go to Home
@@ -39,9 +46,9 @@ export default function NotFoundScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: "center",
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
     padding: 16,
   },
   content: {
@@ -51,18 +58,18 @@ const styles = StyleSheet.create({
     fontSize: 48,
     marginBottom: 16,
   },
+  link: {
+    padding: 12,
+  },
+  subtitle: {
+    fontSize: 14,
+    marginBottom: 24,
+    textAlign: "center",
+  },
   title: {
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 8,
     textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  link: {
-    padding: 12,
   },
 });

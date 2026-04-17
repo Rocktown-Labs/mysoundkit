@@ -36,7 +36,8 @@ export const createAuth = () => {
       organization({
         allowUserToCreateOrganization: true,
         requireEmailVerificationOnInvitation: false,
-        sendInvitationEmail: (data) => Promise.resolve(
+        sendInvitationEmail: (data) =>
+          Promise.resolve(
             console.log(
               `Organization invite for ${data.email}: ${env.BETTER_AUTH_URL}/invite/${data.id}`
             )

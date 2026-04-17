@@ -1,5 +1,10 @@
 import "@/polyfills";
-import { DarkTheme, DefaultTheme, type Theme, ThemeProvider } from "@react-navigation/native";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import type { Theme } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet } from "react-native";
@@ -37,7 +42,10 @@ export default function RootLayout() {
         <GestureHandlerRootView style={styles.container}>
           <Stack>
             <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ title: "Modal", presentation: "modal" }} />
+            <Stack.Screen
+              name="modal"
+              options={{ presentation: "modal", title: "Modal" }}
+            />
           </Stack>
         </GestureHandlerRootView>
       </ThemeProvider>

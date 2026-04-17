@@ -259,7 +259,11 @@ Typed tool parts also use different property names:
       case "text":
         return <div key={`${message.id}-${i}`}>{part.text}</div>;
       case "tool-invocation": // deprecated: use typed tool parts instead
-        return <pre key={`${message.id}-${i}`}>{JSON.stringify(part.toolInvocation, null, 2)}</pre>;
+        return (
+          <pre key={`${message.id}-${i}`}>
+            {JSON.stringify(part.toolInvocation, null, 2)}
+          </pre>
+        );
     }
   });
 }

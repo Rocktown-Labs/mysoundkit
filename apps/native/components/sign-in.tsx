@@ -15,12 +15,21 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const signInSchema = z.object({
-  email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"),
-  password: z.string().min(1, "Password is required").min(8, "Use at least 8 characters"),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Enter a valid email address"),
+  password: z
+    .string()
+    .min(1, "Password is required")
+    .min(8, "Use at least 8 characters"),
 });
 
 function getErrorMessage(error: unknown): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   if (typeof error === "string") {
     return error;
@@ -56,9 +65,6 @@ function SignIn() {
       email: "",
       password: "",
     },
-    validators: {
-      onSubmit: signInSchema,
-    },
     onSubmit: async ({ value, formApi }) => {
       await authClient.signIn.email(
         {
@@ -73,13 +79,21 @@ function SignIn() {
             setError(null);
             formApi.reset();
           },
-        },
+        }
       );
+    },
+    validators: {
+      onSubmit: signInSchema,
     },
   });
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.title, { color: theme.text }]}>Sign In</Text>
 
       <form.Subscribe
@@ -95,9 +109,16 @@ function SignIn() {
             <>
               {formError ? (
                 <View
-                  style={[styles.errorContainer, { backgroundColor: theme.notification + "20" }]}
+                  style={[
+                    styles.errorContainer,
+                    { backgroundColor: theme.notification + "20" },
+                  ]}
                 >
-                  <Text style={[styles.errorText, { color: theme.notification }]}>{formError}</Text>
+                  <Text
+                    style={[styles.errorText, { color: theme.notification }]}
+                  >
+                    {formError}
+                  </Text>
                 </View>
               ) : null}
 
@@ -107,9 +128,9 @@ function SignIn() {
                     style={[
                       styles.input,
                       {
-                        color: theme.text,
-                        borderColor: theme.border,
                         backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        color: theme.text,
                       },
                     ]}
                     placeholder="Email"
@@ -134,9 +155,9 @@ function SignIn() {
                     style={[
                       styles.input,
                       {
-                        color: theme.text,
-                        borderColor: theme.border,
                         backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        color: theme.text,
                       },
                     ]}
                     placeholder="Password"
@@ -181,15 +202,19 @@ function SignIn() {
 }
 
 const styles = StyleSheet.create({
+  button: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontSize: 16,
+  },
   card: {
+    borderWidth: 1,
     marginTop: 16,
     padding: 16,
-    borderWidth: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 12,
   },
   errorContainer: {
     marginBottom: 12,
@@ -200,18 +225,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    padding: 12,
     fontSize: 16,
     marginBottom: 12,
-  },
-  button: {
     padding: 12,
-    alignItems: "center",
-    justifyContent: "center",
   },
-  buttonText: {
-    color: "#ffffff",
-    fontSize: 16,
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12,
   },
 });
 

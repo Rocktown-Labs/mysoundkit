@@ -15,13 +15,26 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const signUpSchema = z.object({
-  name: z.string().trim().min(1, "Name is required").min(2, "Name must be at least 2 characters"),
-  email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"),
-  password: z.string().min(1, "Password is required").min(8, "Use at least 8 characters"),
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Enter a valid email address"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is required")
+    .min(2, "Name must be at least 2 characters"),
+  password: z
+    .string()
+    .min(1, "Password is required")
+    .min(8, "Use at least 8 characters"),
 });
 
 function getErrorMessage(error: unknown): string | null {
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
 
   if (typeof error === "string") {
     return error;
@@ -54,18 +67,15 @@ function SignUp() {
 
   const form = useForm({
     defaultValues: {
-      name: "",
       email: "",
+      name: "",
       password: "",
-    },
-    validators: {
-      onSubmit: signUpSchema,
     },
     onSubmit: async ({ value, formApi }) => {
       await authClient.signUp.email(
         {
-          name: value.name.trim(),
           email: value.email.trim(),
+          name: value.name.trim(),
           password: value.password,
         },
         {
@@ -76,13 +86,21 @@ function SignUp() {
             setError(null);
             formApi.reset();
           },
-        },
+        }
       );
+    },
+    validators: {
+      onSubmit: signUpSchema,
     },
   });
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.border },
+      ]}
+    >
       <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
 
       <form.Subscribe
@@ -98,9 +116,16 @@ function SignUp() {
             <>
               {formError ? (
                 <View
-                  style={[styles.errorContainer, { backgroundColor: theme.notification + "20" }]}
+                  style={[
+                    styles.errorContainer,
+                    { backgroundColor: theme.notification + "20" },
+                  ]}
                 >
-                  <Text style={[styles.errorText, { color: theme.notification }]}>{formError}</Text>
+                  <Text
+                    style={[styles.errorText, { color: theme.notification }]}
+                  >
+                    {formError}
+                  </Text>
                 </View>
               ) : null}
 
@@ -110,9 +135,9 @@ function SignUp() {
                     style={[
                       styles.input,
                       {
-                        color: theme.text,
-                        borderColor: theme.border,
                         backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        color: theme.text,
                       },
                     ]}
                     placeholder="Name"
@@ -135,9 +160,9 @@ function SignUp() {
                     style={[
                       styles.input,
                       {
-                        color: theme.text,
-                        borderColor: theme.border,
                         backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        color: theme.text,
                       },
                     ]}
                     placeholder="Email"
@@ -162,9 +187,9 @@ function SignUp() {
                     style={[
                       styles.input,
                       {
-                        color: theme.text,
-                        borderColor: theme.border,
                         backgroundColor: theme.background,
+                        borderColor: theme.border,
+                        color: theme.text,
                       },
                     ]}
                     placeholder="Password"
@@ -209,15 +234,19 @@ function SignUp() {
 }
 
 const styles = StyleSheet.create({
+  button: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontSize: 16,
+  },
   card: {
+    borderWidth: 1,
     marginTop: 16,
     padding: 16,
-    borderWidth: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 12,
   },
   errorContainer: {
     marginBottom: 12,
@@ -228,18 +257,14 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    padding: 12,
     fontSize: 16,
     marginBottom: 12,
-  },
-  button: {
     padding: 12,
-    alignItems: "center",
-    justifyContent: "center",
   },
-  buttonText: {
-    color: "#ffffff",
-    fontSize: 16,
+  title: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12,
   },
 });
 

@@ -10,13 +10,13 @@ export function useColorScheme() {
     setColorScheme: () => {
       // Color scheme is managed by the system in bare mode
       console.warn(
-        "setColorScheme is not available in bare mode. Color scheme is managed by the system.",
+        "setColorScheme is not available in bare mode. Color scheme is managed by the system."
       );
     },
     toggleColorScheme: () => {
       // Color scheme is managed by the system in bare mode
       console.warn(
-        "toggleColorScheme is not available in bare mode. Color scheme is managed by the system.",
+        "toggleColorScheme is not available in bare mode. Color scheme is managed by the system."
       );
     },
   };

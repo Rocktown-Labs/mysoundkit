@@ -22,7 +22,9 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 const generateAPIUrl = (relativePath: string) => {
   const serverUrl = env.EXPO_PUBLIC_SERVER_URL;
   if (!serverUrl) {
-    throw new Error("EXPO_PUBLIC_SERVER_URL environment variable is not defined");
+    throw new Error(
+      "EXPO_PUBLIC_SERVER_URL environment variable is not defined"
+    );
   }
   const path = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
   return serverUrl.concat(path);
@@ -33,11 +35,11 @@ export default function AIScreen() {
   const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
   const [input, setInput] = useState("");
   const { messages, error, sendMessage } = useChat({
-    transport: new DefaultChatTransport({
-      fetch: expoFetch as unknown as typeof globalThis.fetch,
-      api: generateAPIUrl("/ai"),
-    }),
     onError: (error) => console.error(error, "AI Chat Error"),
+    transport: new DefaultChatTransport({
+      api: generateAPIUrl("/ai"),
+      fetch: expoFetch as unknown as typeof globalThis.fetch,
+    }),
   });
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -60,13 +62,18 @@ export default function AIScreen() {
           <View
             style={[
               styles.errorCard,
-              { backgroundColor: theme.notification + "20", borderColor: theme.notification },
+              {
+                backgroundColor: theme.notification + "20",
+                borderColor: theme.notification,
+              },
             ]}
           >
             <Text style={[styles.errorTitle, { color: theme.notification }]}>
               Error: {error.message}
             </Text>
-            <Text style={[styles.errorText, { color: theme.text, opacity: 0.7 }]}>
+            <Text
+              style={[styles.errorText, { color: theme.text, opacity: 0.7 }]}
+            >
               Please check your connection and try again.
             </Text>
           </View>
@@ -83,8 +90,15 @@ export default function AIScreen() {
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={[styles.headerTitle, { color: theme.text }]}>AI Chat</Text>
-            <Text style={[styles.headerSubtitle, { color: theme.text, opacity: 0.7 }]}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>
+              AI Chat
+            </Text>
+            <Text
+              style={[
+                styles.headerSubtitle,
+                { color: theme.text, opacity: 0.7 },
+              ]}
+            >
               Chat with our AI assistant
             </Text>
           </View>
@@ -95,7 +109,12 @@ export default function AIScreen() {
           >
             {messages.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Text style={[styles.emptyText, { color: theme.text, opacity: 0.7 }]}>
+                <Text
+                  style={[
+                    styles.emptyText,
+                    { color: theme.text, opacity: 0.7 },
+                  ]}
+                >
                   Ask me anything to get started!
                 </Text>
               </View>
@@ -107,10 +126,13 @@ export default function AIScreen() {
                     style={[
                       styles.messageCard,
                       {
+                        alignSelf:
+                          message.role === "user" ? "flex-end" : "flex-start",
                         backgroundColor:
-                          message.role === "user" ? theme.primary + "20" : theme.card,
+                          message.role === "user"
+                            ? theme.primary + "20"
+                            : theme.card,
                         borderColor: theme.border,
-                        alignSelf: message.role === "user" ? "flex-end" : "flex-start",
                         marginLeft: message.role === "user" ? 32 : 0,
                         marginRight: message.role === "user" ? 0 : 32,
                       },
@@ -135,7 +157,7 @@ export default function AIScreen() {
                           >
                             {JSON.stringify(part)}
                           </Text>
-                        ),
+                        )
                       )}
                     </View>
                   </View>
@@ -143,7 +165,9 @@ export default function AIScreen() {
               </View>
             )}
           </ScrollView>
-          <View style={[styles.inputContainer, { borderTopColor: theme.border }]}>
+          <View
+            style={[styles.inputContainer, { borderTopColor: theme.border }]}
+          >
             <View style={styles.inputRow}>
               <TextInput
                 value={input}
@@ -153,9 +177,9 @@ export default function AIScreen() {
                 style={[
                   styles.input,
                   {
-                    color: theme.text,
-                    borderColor: theme.border,
                     backgroundColor: theme.background,
+                    borderColor: theme.border,
+                    color: theme.text,
                   },
                 ]}
                 onSubmitEditing={(e) => {
@@ -171,7 +195,9 @@ export default function AIScreen() {
                 style={[
                   styles.sendButton,
                   {
-                    backgroundColor: input.trim() ? theme.primary : theme.border,
+                    backgroundColor: input.trim()
+                      ? theme.primary
+                      : theme.border,
                     opacity: input.trim() ? 1 : 0.5,
                   },
                 ]}
@@ -194,82 +220,28 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  header: {
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-  },
-  scrollView: {
-    flex: 1,
-    marginBottom: 16,
-  },
   emptyContainer: {
+    alignItems: "center",
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
   },
   emptyText: {
     fontSize: 16,
     textAlign: "center",
   },
-  messagesList: {
-    gap: 8,
-    paddingBottom: 16,
-  },
-  messageCard: {
-    borderWidth: 1,
-    padding: 12,
-    maxWidth: "80%",
-  },
-  messageRole: {
-    fontSize: 12,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  messageParts: {
-    gap: 4,
-  },
-  messageText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  inputContainer: {
-    borderTopWidth: 1,
-    paddingTop: 12,
-  },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    padding: 8,
-    fontSize: 14,
-    minHeight: 36,
-    maxHeight: 100,
-  },
-  sendButton: {
-    padding: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
   errorCard: {
     borderWidth: 1,
     padding: 16,
+  },
+  errorContainer: {
+    alignItems: "center",
+    flex: 1,
+    justifyContent: "center",
+    padding: 16,
+  },
+  errorText: {
+    fontSize: 14,
+    textAlign: "center",
   },
   errorTitle: {
     fontSize: 16,
@@ -277,8 +249,62 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-  errorText: {
+  header: {
+    marginBottom: 16,
+  },
+  headerSubtitle: {
     fontSize: 14,
-    textAlign: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    flex: 1,
+    fontSize: 14,
+    maxHeight: 100,
+    minHeight: 36,
+    padding: 8,
+  },
+  inputContainer: {
+    borderTopWidth: 1,
+    paddingTop: 12,
+  },
+  inputRow: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    gap: 8,
+  },
+  messageCard: {
+    borderWidth: 1,
+    maxWidth: "80%",
+    padding: 12,
+  },
+  messageParts: {
+    gap: 4,
+  },
+  messageRole: {
+    fontSize: 12,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  messageText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  messagesList: {
+    gap: 8,
+    paddingBottom: 16,
+  },
+  scrollView: {
+    flex: 1,
+    marginBottom: 16,
+  },
+  sendButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
   },
 });
