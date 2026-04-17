@@ -35,6 +35,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { SoundKitBrand } from "@/components/soundkit-brand";
 
 const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard", icon: Home, name: "Dashboard" },
@@ -107,15 +108,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Music className="size-4" />
-                </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold">SoundKit</span>
-                  <span className="text-xs text-muted-foreground">
-                    Music Platform
-                  </span>
-                </div>
+                <SoundKitBrand />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

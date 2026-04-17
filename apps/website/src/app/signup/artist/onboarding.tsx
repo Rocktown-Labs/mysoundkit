@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Music,
   User,
   MapPin,
   Users,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { SoundKitBrand } from "@/components/soundkit-brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,10 +39,11 @@ function ArtistOnboardingPage() {
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Music className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold font-notable">SoundKit</span>
-          </div>
+          <SoundKitBrand
+            className="mb-4"
+            variant="wordmark"
+            wordmarkClassName="h-12"
+          />
           <h1 className="text-2xl font-bold mb-2">
             Set Up Your Artist Profile
           </h1>

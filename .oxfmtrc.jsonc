@@ -6,6 +6,7 @@
   "bracketSameLine": false,
   "bracketSpacing": true,
   "endOfLine": "lf",
+  "ignorePatterns": ["apps/website/src/routeTree.gen.ts"],
   "experimentalSortImports": {
     "ignoreCase": true,
     "newlinesBetween": true,

@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Music, ArrowLeft, Mail } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { useState } from "react";
 
+import { SoundKitBrand } from "@/components/soundkit-brand";
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,10 +35,11 @@ function FanCredentialsPage() {
             <ArrowLeft className="h-4 w-4" />
             <span>Back</span>
           </Link>
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Music className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold font-notable">SoundKit</span>
-          </div>
+          <SoundKitBrand
+            className="mb-4"
+            variant="wordmark"
+            wordmarkClassName="h-12"
+          />
           <h1 className="text-2xl font-bold mb-2">Create Fan Account</h1>
           <p className="text-muted-foreground">
             Choose how you want to sign up

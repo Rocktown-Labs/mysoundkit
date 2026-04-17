@@ -24,6 +24,7 @@ const SITE_URL = "https://soundkit-web.rocktown-labs.workers.dev";
 const SITE_DESCRIPTION =
   "Stream music, discover artists, join listening parties, and tune into live battles and creator streams on SoundKit.";
 const SITE_TITLE = "SoundKit | Stream music and join live moments";
+const SITE_ICON_URL = `${SITE_URL}/android-chrome-512x512.png`;
 const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.png`;
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
@@ -35,13 +36,33 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         rel: "canonical",
       },
       {
-        href: "/icon.svg",
+        href: "/favicon.ico",
+        rel: "icon",
+      },
+      {
+        href: "/soundkit-mark.svg",
         rel: "icon",
         type: "image/svg+xml",
       },
       {
-        href: "/apple-icon.png",
+        href: "/favicon-32x32.png",
+        rel: "icon",
+        sizes: "32x32",
+        type: "image/png",
+      },
+      {
+        href: "/favicon-16x16.png",
+        rel: "icon",
+        sizes: "16x16",
+        type: "image/png",
+      },
+      {
+        href: "/apple-touch-icon.png",
         rel: "apple-touch-icon",
+      },
+      {
+        href: "/site.webmanifest",
+        rel: "manifest",
       },
       {
         href: appCss,
@@ -91,7 +112,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "Organization",
-          logo: SOCIAL_IMAGE_URL,
+          logo: SITE_ICON_URL,
           name: SITE_NAME,
           url: SITE_URL,
         }),
