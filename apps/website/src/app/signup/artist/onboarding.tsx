@@ -1,22 +1,38 @@
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Music, User, MapPin, Users, Music2, LinkIcon, Share2, Check } from "lucide-react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { Progress } from "@/components/ui/progress"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  Music,
+  User,
+  MapPin,
+  Users,
+  Music2,
+  LinkIcon,
+  Share2,
+  Check,
+} from "lucide-react";
+import { useState } from "react";
 
-export const Route = createFileRoute('/signup/artist/onboarding')({
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export const Route = createFileRoute("/signup/artist/onboarding")({
   component: ArtistOnboardingPage,
-})
+});
 
 function ArtistOnboardingPage() {
-  const [step, setStep] = useState(1)
-  const totalSteps = 6
+  const [step, setStep] = useState(1);
+  const totalSteps = 6;
 
-  const progress = (step / totalSteps) * 100
+  const progress = (step / totalSteps) * 100;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -27,7 +43,9 @@ function ArtistOnboardingPage() {
             <Music className="h-8 w-8 text-primary" />
             <span className="text-2xl font-bold font-notable">SoundKit</span>
           </div>
-          <h1 className="text-2xl font-bold mb-2">Set Up Your Artist Profile</h1>
+          <h1 className="text-2xl font-bold mb-2">
+            Set Up Your Artist Profile
+          </h1>
           <p className="text-muted-foreground">
             Step {step} of {totalSteps}
           </p>
@@ -44,12 +62,20 @@ function ArtistOnboardingPage() {
                     <User className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">Choose Your Username</h2>
-                  <p className="text-muted-foreground text-sm mt-2">This is how fans will find you</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    This is how fans will find you
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
-                  <Input id="username" placeholder="@yourartistname" className="text-lg" />
-                  <p className="text-xs text-muted-foreground">Can only contain letters, numbers, and underscores</p>
+                  <Input
+                    id="username"
+                    placeholder="@yourartistname"
+                    className="text-lg"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Can only contain letters, numbers, and underscores
+                  </p>
                 </div>
                 <Button onClick={() => setStep(2)} className="w-full" size="lg">
                   Continue
@@ -64,8 +90,12 @@ function ArtistOnboardingPage() {
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
                     <MapPin className="size-8 text-primary" />
                   </div>
-                  <h2 className="text-xl font-bold">Where Do You Make Music?</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Help fans discover local talent</p>
+                  <h2 className="text-xl font-bold">
+                    Where Do You Make Music?
+                  </h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Help fans discover local talent
+                  </p>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -88,10 +118,19 @@ function ArtistOnboardingPage() {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(1)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(1)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
-                  <Button onClick={() => setStep(3)} className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(3)}
+                    className="flex-1"
+                    size="lg"
+                  >
                     Continue
                   </Button>
                 </div>
@@ -106,26 +145,45 @@ function ArtistOnboardingPage() {
                     <Users className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">Invite Your Team</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Collaborate with producers, managers, and more</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Collaborate with producers, managers, and more
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="email1">Team Member Email</Label>
-                    <Input id="email1" type="email" placeholder="producer@example.com" />
+                    <Input
+                      id="email1"
+                      type="email"
+                      placeholder="producer@example.com"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email2">Team Member Email</Label>
-                    <Input id="email2" type="email" placeholder="manager@example.com" />
+                    <Input
+                      id="email2"
+                      type="email"
+                      placeholder="manager@example.com"
+                    />
                   </div>
                 </div>
                 <Button variant="outline" className="w-full bg-transparent">
                   + Add Another
                 </Button>
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(2)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(2)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
-                  <Button onClick={() => setStep(4)} className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(4)}
+                    className="flex-1"
+                    size="lg"
+                  >
                     Continue
                   </Button>
                 </div>
@@ -140,7 +198,9 @@ function ArtistOnboardingPage() {
                     <Music2 className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">What's Your Genre?</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Help fans find your style</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Help fans find your style
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="genre">Primary Genre</Label>
@@ -159,10 +219,19 @@ function ArtistOnboardingPage() {
                   </Select>
                 </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(3)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(3)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
-                  <Button onClick={() => setStep(5)} className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(5)}
+                    className="flex-1"
+                    size="lg"
+                  >
                     Continue
                   </Button>
                 </div>
@@ -177,27 +246,47 @@ function ArtistOnboardingPage() {
                     <LinkIcon className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">Connect Your Music</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Link your streaming profiles (optional)</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Link your streaming profiles (optional)
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label htmlFor="spotify">Spotify Artist URL</Label>
-                    <Input id="spotify" placeholder="https://open.spotify.com/artist/..." />
+                    <Input
+                      id="spotify"
+                      placeholder="https://open.spotify.com/artist/..."
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="apple">Apple Music URL</Label>
-                    <Input id="apple" placeholder="https://music.apple.com/artist/..." />
+                    <Input
+                      id="apple"
+                      placeholder="https://music.apple.com/artist/..."
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="youtube">YouTube Channel URL</Label>
-                    <Input id="youtube" placeholder="https://youtube.com/@..." />
+                    <Input
+                      id="youtube"
+                      placeholder="https://youtube.com/@..."
+                    />
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(4)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(4)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
-                  <Button onClick={() => setStep(6)} className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(6)}
+                    className="flex-1"
+                    size="lg"
+                  >
                     Continue
                   </Button>
                 </div>
@@ -212,7 +301,9 @@ function ArtistOnboardingPage() {
                     <Share2 className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">Connect Your Socials</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Link your social media (optional)</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Link your social media (optional)
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
@@ -238,7 +329,9 @@ function ArtistOnboardingPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <h4 className="font-semibold">Free Account</h4>
-                            <p className="text-sm text-muted-foreground">Basic features to get started</p>
+                            <p className="text-sm text-muted-foreground">
+                              Basic features to get started
+                            </p>
                           </div>
                           <span className="font-bold">$0/mo</span>
                         </div>
@@ -254,7 +347,9 @@ function ArtistOnboardingPage() {
                                 Recommended
                               </span>
                             </h4>
-                            <p className="text-sm text-muted-foreground">Unlimited uploads, analytics, and more</p>
+                            <p className="text-sm text-muted-foreground">
+                              Unlimited uploads, analytics, and more
+                            </p>
                           </div>
                           <span className="font-bold">$9.99/mo</span>
                         </div>
@@ -264,7 +359,12 @@ function ArtistOnboardingPage() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(5)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(5)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
                   <Link to="/dashboard" className="flex-1">
@@ -280,5 +380,5 @@ function ArtistOnboardingPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

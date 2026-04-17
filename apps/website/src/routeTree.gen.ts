@@ -8,1170 +8,1341 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './app/__root'
-import { Route as SitemapDotxmlRouteImport } from './app/sitemap[.]xml'
-import { Route as SignupRouteImport } from './app/signup'
-import { Route as LoginRouteImport } from './app/login'
-import { Route as LlmsDottxtRouteImport } from './app/llms[.]txt'
-import { Route as DashboardRouteImport } from './app/dashboard'
-import { Route as ExploreRouteImport } from './app/_explore'
-import { Route as DashboardIndexRouteImport } from './app/dashboard/index'
-import { Route as ExploreIndexRouteImport } from './app/_explore/index'
-import { Route as DashboardTeamRouteImport } from './app/dashboard/team'
-import { Route as DashboardProfileRouteImport } from './app/dashboard/profile'
-import { Route as DashboardMusicRouteImport } from './app/dashboard/music'
-import { Route as DashboardMessagesRouteImport } from './app/dashboard/messages'
-import { Route as DashboardCollaboratorsRouteImport } from './app/dashboard/collaborators'
-import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
-import { Route as DashboardTracksIndexRouteImport } from './app/dashboard/tracks/index'
-import { Route as DashboardProjectsIndexRouteImport } from './app/dashboard/projects/index'
-import { Route as DashboardBattlesIndexRouteImport } from './app/dashboard/battles/index'
-import { Route as ExploreTracksIndexRouteImport } from './app/_explore/tracks/index'
-import { Route as ExploreLibraryIndexRouteImport } from './app/_explore/library/index'
-import { Route as ExploreGenresIndexRouteImport } from './app/_explore/genres/index'
-import { Route as ExploreBattlesIndexRouteImport } from './app/_explore/battles/index'
-import { Route as ExploreArtistIndexRouteImport } from './app/_explore/artist/index'
-import { Route as SignupFanOnboardingRouteImport } from './app/signup/fan/onboarding'
-import { Route as SignupFanCredentialsRouteImport } from './app/signup/fan/credentials'
-import { Route as SignupArtistOnboardingRouteImport } from './app/signup/artist/onboarding'
-import { Route as SignupArtistCredentialsRouteImport } from './app/signup/artist/credentials'
-import { Route as DashboardTracksNewRouteImport } from './app/dashboard/tracks/new'
-import { Route as DashboardProjectsNewRouteImport } from './app/dashboard/projects/new'
-import { Route as DashboardProjectsIdRouteImport } from './app/dashboard/projects/$id'
-import { Route as DashboardCareerSettingsRouteImport } from './app/dashboard/career/settings'
-import { Route as DashboardCareerProfileRouteImport } from './app/dashboard/career/profile'
-import { Route as DashboardCareerAnalyticsRouteImport } from './app/dashboard/career/analytics'
-import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/career/ai-studio'
-import { Route as DashboardBattlesUpcomingRouteImport } from './app/dashboard/battles/upcoming'
-import { Route as DashboardBattlesMyKitRouteImport } from './app/dashboard/battles/my-kit'
-import { Route as DashboardBattlesFindRouteImport } from './app/dashboard/battles/find'
-import { Route as DashboardBattlesChallengeRouteImport } from './app/dashboard/battles/challenge'
-import { Route as ExploreTracksIdRouteImport } from './app/_explore/tracks/$id'
-import { Route as ExploreLibrarySettingsRouteImport } from './app/_explore/library/settings'
-import { Route as ExploreGenresIdRouteImport } from './app/_explore/genres/$id'
-import { Route as ExploreBattlesUpcomingRouteImport } from './app/_explore/battles/upcoming'
-import { Route as ExploreBattlesMustSeeRouteImport } from './app/_explore/battles/must-see'
-import { Route as ExploreBattlesLiveRouteImport } from './app/_explore/battles/live'
-import { Route as ExploreBattlesLeaderboardRouteImport } from './app/_explore/battles/leaderboard'
-import { Route as ExploreBattlesIdRouteImport } from './app/_explore/battles/$id'
-import { Route as ExploreArtistTopRouteImport } from './app/_explore/artist/top'
-import { Route as ExploreArtistRisingStarsRouteImport } from './app/_explore/artist/rising-stars'
-import { Route as ExploreArtistNewRouteImport } from './app/_explore/artist/new'
-import { Route as ExploreArtistUsernameRouteImport } from './app/_explore/artist/$username'
-import { Route as DashboardTracksIdIndexRouteImport } from './app/dashboard/tracks/$id/index'
-import { Route as DashboardBattlesMyStatsIndexRouteImport } from './app/dashboard/battles/my-stats/index'
-import { Route as ExploreLibrarySavedIndexRouteImport } from './app/_explore/library/saved/index'
-import { Route as ExploreLibraryRecentIndexRouteImport } from './app/_explore/library/recent/index'
-import { Route as ExploreLibraryPurchasedIndexRouteImport } from './app/_explore/library/purchased/index'
-import { Route as ExploreLibraryPlaylistsIndexRouteImport } from './app/_explore/library/playlists/index'
-import { Route as DashboardTracksIdEditRouteImport } from './app/dashboard/tracks/$id/edit'
-import { Route as ExploreLibraryPlaylistsIdIndexRouteImport } from './app/_explore/library/playlists/$id/index'
+import { Route as rootRouteImport } from "./app/__root";
+import { Route as ExploreRouteImport } from "./app/_explore";
+import { Route as ExploreArtistUsernameRouteImport } from "./app/_explore/artist/$username";
+import { Route as ExploreArtistIndexRouteImport } from "./app/_explore/artist/index";
+import { Route as ExploreArtistNewRouteImport } from "./app/_explore/artist/new";
+import { Route as ExploreArtistRisingStarsRouteImport } from "./app/_explore/artist/rising-stars";
+import { Route as ExploreArtistTopRouteImport } from "./app/_explore/artist/top";
+import { Route as ExploreGenresIdRouteImport } from "./app/_explore/genres/$id";
+import { Route as ExploreGenresIndexRouteImport } from "./app/_explore/genres/index";
+import { Route as ExploreIndexRouteImport } from "./app/_explore/index";
+import { Route as ExploreLibraryIndexRouteImport } from "./app/_explore/library/index";
+import { Route as ExploreLibraryPlaylistsIdIndexRouteImport } from "./app/_explore/library/playlists/$id/index";
+import { Route as ExploreLibraryPlaylistsIndexRouteImport } from "./app/_explore/library/playlists/index";
+import { Route as ExploreLibraryPurchasedIndexRouteImport } from "./app/_explore/library/purchased/index";
+import { Route as ExploreLibraryRecentIndexRouteImport } from "./app/_explore/library/recent/index";
+import { Route as ExploreLibrarySavedIndexRouteImport } from "./app/_explore/library/saved/index";
+import { Route as ExploreLibrarySettingsRouteImport } from "./app/_explore/library/settings";
+import { Route as ExploreLiveRouteImport } from "./app/_explore/live";
+import { Route as ExploreLiveBattlesIdRouteImport } from "./app/_explore/live/battles/$id";
+import { Route as ExploreLiveBattlesIndexRouteImport } from "./app/_explore/live/battles/index";
+import { Route as ExploreLiveBattlesLeaderboardRouteImport } from "./app/_explore/live/battles/leaderboard";
+import { Route as ExploreLiveBattlesMustSeeRouteImport } from "./app/_explore/live/battles/must-see";
+import { Route as ExploreLiveBattlesUpcomingRouteImport } from "./app/_explore/live/battles/upcoming";
+import { Route as ExploreLiveIndexRouteImport } from "./app/_explore/live/index";
+import { Route as ExploreLivePartiesIdRouteImport } from "./app/_explore/live/parties/$id";
+import { Route as ExploreLivePartiesIndexRouteImport } from "./app/_explore/live/parties/index";
+import { Route as ExploreLiveStreamsIdRouteImport } from "./app/_explore/live/streams/$id";
+import { Route as ExploreLiveStreamsIndexRouteImport } from "./app/_explore/live/streams/index";
+import { Route as ExploreNewReleasesRouteImport } from "./app/_explore/new-releases";
+import { Route as ExploreTracksIdRouteImport } from "./app/_explore/tracks/$id";
+import { Route as ExploreTracksIndexRouteImport } from "./app/_explore/tracks/index";
+import { Route as DashboardRouteImport } from "./app/dashboard";
+import { Route as DashboardCareerAiStudioRouteImport } from "./app/dashboard/career/ai-studio";
+import { Route as DashboardCareerAnalyticsRouteImport } from "./app/dashboard/career/analytics";
+import { Route as DashboardCareerProfileRouteImport } from "./app/dashboard/career/profile";
+import { Route as DashboardCareerSettingsRouteImport } from "./app/dashboard/career/settings";
+import { Route as DashboardCollaboratorsRouteImport } from "./app/dashboard/collaborators";
+import { Route as DashboardIndexRouteImport } from "./app/dashboard/index";
+import { Route as DashboardLiveChallengeRouteImport } from "./app/dashboard/live/challenge";
+import { Route as DashboardLiveFindRouteImport } from "./app/dashboard/live/find";
+import { Route as DashboardLiveIndexRouteImport } from "./app/dashboard/live/index";
+import { Route as DashboardLiveMyKitRouteImport } from "./app/dashboard/live/my-kit";
+import { Route as DashboardLiveMyStatsIndexRouteImport } from "./app/dashboard/live/my-stats/index";
+import { Route as DashboardLivePartiesRouteImport } from "./app/dashboard/live/parties";
+import { Route as DashboardLiveStreamsRouteImport } from "./app/dashboard/live/streams";
+import { Route as DashboardLiveUpcomingRouteImport } from "./app/dashboard/live/upcoming";
+import { Route as DashboardMessagesRouteImport } from "./app/dashboard/messages";
+import { Route as DashboardMusicRouteImport } from "./app/dashboard/music";
+import { Route as DashboardProfileRouteImport } from "./app/dashboard/profile";
+import { Route as DashboardProjectsIdRouteImport } from "./app/dashboard/projects/$id";
+import { Route as DashboardProjectsIndexRouteImport } from "./app/dashboard/projects/index";
+import { Route as DashboardProjectsNewRouteImport } from "./app/dashboard/projects/new";
+import { Route as DashboardTeamRouteImport } from "./app/dashboard/team";
+import { Route as DashboardTracksIdEditRouteImport } from "./app/dashboard/tracks/$id/edit";
+import { Route as DashboardTracksIdIndexRouteImport } from "./app/dashboard/tracks/$id/index";
+import { Route as DashboardTracksIndexRouteImport } from "./app/dashboard/tracks/index";
+import { Route as DashboardTracksNewRouteImport } from "./app/dashboard/tracks/new";
+import { Route as LlmsDottxtRouteImport } from "./app/llms[.]txt";
+import { Route as LoginRouteImport } from "./app/login";
+import { Route as PricingRouteImport } from "./app/pricing";
+import { Route as SignupRouteImport } from "./app/signup";
+import { Route as SignupArtistCredentialsRouteImport } from "./app/signup/artist/credentials";
+import { Route as SignupArtistOnboardingRouteImport } from "./app/signup/artist/onboarding";
+import { Route as SignupFanCredentialsRouteImport } from "./app/signup/fan/credentials";
+import { Route as SignupFanOnboardingRouteImport } from "./app/signup/fan/onboarding";
+import { Route as SitemapDotxmlRouteImport } from "./app/sitemap[.]xml";
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+  id: "/sitemap.xml",
+  path: "/sitemap.xml",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
+  id: "/signup",
+  path: "/signup",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
+const PricingRoute = PricingRouteImport.update({
+  id: "/pricing",
+  path: "/pricing",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+  id: "/login",
+  path: "/login",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
-  id: '/llms.txt',
-  path: '/llms.txt',
+  id: "/llms.txt",
+  path: "/llms.txt",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+  id: "/dashboard",
+  path: "/dashboard",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ExploreRoute = ExploreRouteImport.update({
-  id: '/_explore',
+  id: "/_explore",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const ExploreIndexRoute = ExploreIndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const DashboardTeamRoute = DashboardTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
+  id: "/team",
+  path: "/team",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardProfileRoute = DashboardProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
+  id: "/profile",
+  path: "/profile",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardMusicRoute = DashboardMusicRouteImport.update({
-  id: '/music',
-  path: '/music',
+  id: "/music",
+  path: "/music",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardMessagesRoute = DashboardMessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
+  id: "/messages",
+  path: "/messages",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardCollaboratorsRoute = DashboardCollaboratorsRouteImport.update({
-  id: '/collaborators',
-  path: '/collaborators',
+  id: "/collaborators",
+  path: "/collaborators",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const ExploreNewReleasesRoute = ExploreNewReleasesRouteImport.update({
-  id: '/new-releases',
-  path: '/new-releases',
+  id: "/new-releases",
+  path: "/new-releases",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
+const ExploreLiveRoute = ExploreLiveRouteImport.update({
+  id: "/live",
+  path: "/live",
+  getParentRoute: () => ExploreRoute,
+} as any);
 const DashboardTracksIndexRoute = DashboardTracksIndexRouteImport.update({
-  id: '/tracks/',
-  path: '/tracks/',
+  id: "/tracks/",
+  path: "/tracks/",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardProjectsIndexRoute = DashboardProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
+  id: "/projects/",
+  path: "/projects/",
   getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardBattlesIndexRoute = DashboardBattlesIndexRouteImport.update({
-  id: '/battles/',
-  path: '/battles/',
+} as any);
+const DashboardLiveIndexRoute = DashboardLiveIndexRouteImport.update({
+  id: "/live/",
+  path: "/live/",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const ExploreTracksIndexRoute = ExploreTracksIndexRouteImport.update({
-  id: '/tracks/',
-  path: '/tracks/',
+  id: "/tracks/",
+  path: "/tracks/",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
+const ExploreLiveIndexRoute = ExploreLiveIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
 const ExploreLibraryIndexRoute = ExploreLibraryIndexRouteImport.update({
-  id: '/library/',
-  path: '/library/',
+  id: "/library/",
+  path: "/library/",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreGenresIndexRoute = ExploreGenresIndexRouteImport.update({
-  id: '/genres/',
-  path: '/genres/',
+  id: "/genres/",
+  path: "/genres/",
   getParentRoute: () => ExploreRoute,
-} as any)
-const ExploreBattlesIndexRoute = ExploreBattlesIndexRouteImport.update({
-  id: '/battles/',
-  path: '/battles/',
-  getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreArtistIndexRoute = ExploreArtistIndexRouteImport.update({
-  id: '/artist/',
-  path: '/artist/',
+  id: "/artist/",
+  path: "/artist/",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const SignupFanOnboardingRoute = SignupFanOnboardingRouteImport.update({
-  id: '/fan/onboarding',
-  path: '/fan/onboarding',
+  id: "/fan/onboarding",
+  path: "/fan/onboarding",
   getParentRoute: () => SignupRoute,
-} as any)
+} as any);
 const SignupFanCredentialsRoute = SignupFanCredentialsRouteImport.update({
-  id: '/fan/credentials',
-  path: '/fan/credentials',
+  id: "/fan/credentials",
+  path: "/fan/credentials",
   getParentRoute: () => SignupRoute,
-} as any)
+} as any);
 const SignupArtistOnboardingRoute = SignupArtistOnboardingRouteImport.update({
-  id: '/artist/onboarding',
-  path: '/artist/onboarding',
+  id: "/artist/onboarding",
+  path: "/artist/onboarding",
   getParentRoute: () => SignupRoute,
-} as any)
+} as any);
 const SignupArtistCredentialsRoute = SignupArtistCredentialsRouteImport.update({
-  id: '/artist/credentials',
-  path: '/artist/credentials',
+  id: "/artist/credentials",
+  path: "/artist/credentials",
   getParentRoute: () => SignupRoute,
-} as any)
+} as any);
 const DashboardTracksNewRoute = DashboardTracksNewRouteImport.update({
-  id: '/tracks/new',
-  path: '/tracks/new',
+  id: "/tracks/new",
+  path: "/tracks/new",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardProjectsNewRoute = DashboardProjectsNewRouteImport.update({
-  id: '/projects/new',
-  path: '/projects/new',
+  id: "/projects/new",
+  path: "/projects/new",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardProjectsIdRoute = DashboardProjectsIdRouteImport.update({
-  id: '/projects/$id',
-  path: '/projects/$id',
+  id: "/projects/$id",
+  path: "/projects/$id",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
+const DashboardLiveUpcomingRoute = DashboardLiveUpcomingRouteImport.update({
+  id: "/live/upcoming",
+  path: "/live/upcoming",
+  getParentRoute: () => DashboardRoute,
+} as any);
+const DashboardLiveStreamsRoute = DashboardLiveStreamsRouteImport.update({
+  id: "/live/streams",
+  path: "/live/streams",
+  getParentRoute: () => DashboardRoute,
+} as any);
+const DashboardLivePartiesRoute = DashboardLivePartiesRouteImport.update({
+  id: "/live/parties",
+  path: "/live/parties",
+  getParentRoute: () => DashboardRoute,
+} as any);
+const DashboardLiveMyKitRoute = DashboardLiveMyKitRouteImport.update({
+  id: "/live/my-kit",
+  path: "/live/my-kit",
+  getParentRoute: () => DashboardRoute,
+} as any);
+const DashboardLiveFindRoute = DashboardLiveFindRouteImport.update({
+  id: "/live/find",
+  path: "/live/find",
+  getParentRoute: () => DashboardRoute,
+} as any);
+const DashboardLiveChallengeRoute = DashboardLiveChallengeRouteImport.update({
+  id: "/live/challenge",
+  path: "/live/challenge",
+  getParentRoute: () => DashboardRoute,
+} as any);
 const DashboardCareerSettingsRoute = DashboardCareerSettingsRouteImport.update({
-  id: '/career/settings',
-  path: '/career/settings',
+  id: "/career/settings",
+  path: "/career/settings",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardCareerProfileRoute = DashboardCareerProfileRouteImport.update({
-  id: '/career/profile',
-  path: '/career/profile',
+  id: "/career/profile",
+  path: "/career/profile",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
 const DashboardCareerAnalyticsRoute =
   DashboardCareerAnalyticsRouteImport.update({
-    id: '/career/analytics',
-    path: '/career/analytics',
+    id: "/career/analytics",
+    path: "/career/analytics",
     getParentRoute: () => DashboardRoute,
-  } as any)
+  } as any);
 const DashboardCareerAiStudioRoute = DashboardCareerAiStudioRouteImport.update({
-  id: '/career/ai-studio',
-  path: '/career/ai-studio',
+  id: "/career/ai-studio",
+  path: "/career/ai-studio",
   getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardBattlesUpcomingRoute =
-  DashboardBattlesUpcomingRouteImport.update({
-    id: '/battles/upcoming',
-    path: '/battles/upcoming',
-    getParentRoute: () => DashboardRoute,
-  } as any)
-const DashboardBattlesMyKitRoute = DashboardBattlesMyKitRouteImport.update({
-  id: '/battles/my-kit',
-  path: '/battles/my-kit',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardBattlesFindRoute = DashboardBattlesFindRouteImport.update({
-  id: '/battles/find',
-  path: '/battles/find',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardBattlesChallengeRoute =
-  DashboardBattlesChallengeRouteImport.update({
-    id: '/battles/challenge',
-    path: '/battles/challenge',
-    getParentRoute: () => DashboardRoute,
-  } as any)
+} as any);
 const ExploreTracksIdRoute = ExploreTracksIdRouteImport.update({
-  id: '/tracks/$id',
-  path: '/tracks/$id',
+  id: "/tracks/$id",
+  path: "/tracks/$id",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreLibrarySettingsRoute = ExploreLibrarySettingsRouteImport.update({
-  id: '/library/settings',
-  path: '/library/settings',
+  id: "/library/settings",
+  path: "/library/settings",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreGenresIdRoute = ExploreGenresIdRouteImport.update({
-  id: '/genres/$id',
-  path: '/genres/$id',
+  id: "/genres/$id",
+  path: "/genres/$id",
   getParentRoute: () => ExploreRoute,
-} as any)
-const ExploreBattlesUpcomingRoute = ExploreBattlesUpcomingRouteImport.update({
-  id: '/battles/upcoming',
-  path: '/battles/upcoming',
-  getParentRoute: () => ExploreRoute,
-} as any)
-const ExploreBattlesMustSeeRoute = ExploreBattlesMustSeeRouteImport.update({
-  id: '/battles/must-see',
-  path: '/battles/must-see',
-  getParentRoute: () => ExploreRoute,
-} as any)
-const ExploreBattlesLiveRoute = ExploreBattlesLiveRouteImport.update({
-  id: '/battles/live',
-  path: '/battles/live',
-  getParentRoute: () => ExploreRoute,
-} as any)
-const ExploreBattlesLeaderboardRoute =
-  ExploreBattlesLeaderboardRouteImport.update({
-    id: '/battles/leaderboard',
-    path: '/battles/leaderboard',
-    getParentRoute: () => ExploreRoute,
-  } as any)
-const ExploreBattlesIdRoute = ExploreBattlesIdRouteImport.update({
-  id: '/battles/$id',
-  path: '/battles/$id',
-  getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreArtistTopRoute = ExploreArtistTopRouteImport.update({
-  id: '/artist/top',
-  path: '/artist/top',
+  id: "/artist/top",
+  path: "/artist/top",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreArtistRisingStarsRoute =
   ExploreArtistRisingStarsRouteImport.update({
-    id: '/artist/rising-stars',
-    path: '/artist/rising-stars',
+    id: "/artist/rising-stars",
+    path: "/artist/rising-stars",
     getParentRoute: () => ExploreRoute,
-  } as any)
+  } as any);
 const ExploreArtistNewRoute = ExploreArtistNewRouteImport.update({
-  id: '/artist/new',
-  path: '/artist/new',
+  id: "/artist/new",
+  path: "/artist/new",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const ExploreArtistUsernameRoute = ExploreArtistUsernameRouteImport.update({
-  id: '/artist/$username',
-  path: '/artist/$username',
+  id: "/artist/$username",
+  path: "/artist/$username",
   getParentRoute: () => ExploreRoute,
-} as any)
+} as any);
 const DashboardTracksIdIndexRoute = DashboardTracksIdIndexRouteImport.update({
-  id: '/tracks/$id/',
-  path: '/tracks/$id/',
+  id: "/tracks/$id/",
+  path: "/tracks/$id/",
   getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardBattlesMyStatsIndexRoute =
-  DashboardBattlesMyStatsIndexRouteImport.update({
-    id: '/battles/my-stats/',
-    path: '/battles/my-stats/',
+} as any);
+const DashboardLiveMyStatsIndexRoute =
+  DashboardLiveMyStatsIndexRouteImport.update({
+    id: "/live/my-stats/",
+    path: "/live/my-stats/",
     getParentRoute: () => DashboardRoute,
-  } as any)
+  } as any);
+const ExploreLiveStreamsIndexRoute = ExploreLiveStreamsIndexRouteImport.update({
+  id: "/streams/",
+  path: "/streams/",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
+const ExploreLivePartiesIndexRoute = ExploreLivePartiesIndexRouteImport.update({
+  id: "/parties/",
+  path: "/parties/",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
+const ExploreLiveBattlesIndexRoute = ExploreLiveBattlesIndexRouteImport.update({
+  id: "/battles/",
+  path: "/battles/",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
 const ExploreLibrarySavedIndexRoute =
   ExploreLibrarySavedIndexRouteImport.update({
-    id: '/library/saved/',
-    path: '/library/saved/',
+    id: "/library/saved/",
+    path: "/library/saved/",
     getParentRoute: () => ExploreRoute,
-  } as any)
+  } as any);
 const ExploreLibraryRecentIndexRoute =
   ExploreLibraryRecentIndexRouteImport.update({
-    id: '/library/recent/',
-    path: '/library/recent/',
+    id: "/library/recent/",
+    path: "/library/recent/",
     getParentRoute: () => ExploreRoute,
-  } as any)
+  } as any);
 const ExploreLibraryPurchasedIndexRoute =
   ExploreLibraryPurchasedIndexRouteImport.update({
-    id: '/library/purchased/',
-    path: '/library/purchased/',
+    id: "/library/purchased/",
+    path: "/library/purchased/",
     getParentRoute: () => ExploreRoute,
-  } as any)
+  } as any);
 const ExploreLibraryPlaylistsIndexRoute =
   ExploreLibraryPlaylistsIndexRouteImport.update({
-    id: '/library/playlists/',
-    path: '/library/playlists/',
+    id: "/library/playlists/",
+    path: "/library/playlists/",
     getParentRoute: () => ExploreRoute,
-  } as any)
+  } as any);
 const DashboardTracksIdEditRoute = DashboardTracksIdEditRouteImport.update({
-  id: '/tracks/$id/edit',
-  path: '/tracks/$id/edit',
+  id: "/tracks/$id/edit",
+  path: "/tracks/$id/edit",
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any);
+const ExploreLiveStreamsIdRoute = ExploreLiveStreamsIdRouteImport.update({
+  id: "/streams/$id",
+  path: "/streams/$id",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
+const ExploreLivePartiesIdRoute = ExploreLivePartiesIdRouteImport.update({
+  id: "/parties/$id",
+  path: "/parties/$id",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
+const ExploreLiveBattlesUpcomingRoute =
+  ExploreLiveBattlesUpcomingRouteImport.update({
+    id: "/battles/upcoming",
+    path: "/battles/upcoming",
+    getParentRoute: () => ExploreLiveRoute,
+  } as any);
+const ExploreLiveBattlesMustSeeRoute =
+  ExploreLiveBattlesMustSeeRouteImport.update({
+    id: "/battles/must-see",
+    path: "/battles/must-see",
+    getParentRoute: () => ExploreLiveRoute,
+  } as any);
+const ExploreLiveBattlesLeaderboardRoute =
+  ExploreLiveBattlesLeaderboardRouteImport.update({
+    id: "/battles/leaderboard",
+    path: "/battles/leaderboard",
+    getParentRoute: () => ExploreLiveRoute,
+  } as any);
+const ExploreLiveBattlesIdRoute = ExploreLiveBattlesIdRouteImport.update({
+  id: "/battles/$id",
+  path: "/battles/$id",
+  getParentRoute: () => ExploreLiveRoute,
+} as any);
 const ExploreLibraryPlaylistsIdIndexRoute =
   ExploreLibraryPlaylistsIdIndexRouteImport.update({
-    id: '/library/playlists/$id/',
-    path: '/library/playlists/$id/',
+    id: "/library/playlists/$id/",
+    path: "/library/playlists/$id/",
     getParentRoute: () => ExploreRoute,
-  } as any)
+  } as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof ExploreIndexRoute
-  '/dashboard': typeof DashboardRouteWithChildren
-  '/llms.txt': typeof LlmsDottxtRoute
-  '/login': typeof LoginRoute
-  '/signup': typeof SignupRouteWithChildren
-  '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/new-releases': typeof ExploreNewReleasesRoute
-  '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
-  '/dashboard/messages': typeof DashboardMessagesRoute
-  '/dashboard/music': typeof DashboardMusicRoute
-  '/dashboard/profile': typeof DashboardProfileRoute
-  '/dashboard/team': typeof DashboardTeamRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/artist/$username': typeof ExploreArtistUsernameRoute
-  '/artist/new': typeof ExploreArtistNewRoute
-  '/artist/rising-stars': typeof ExploreArtistRisingStarsRoute
-  '/artist/top': typeof ExploreArtistTopRoute
-  '/battles/$id': typeof ExploreBattlesIdRoute
-  '/battles/leaderboard': typeof ExploreBattlesLeaderboardRoute
-  '/battles/live': typeof ExploreBattlesLiveRoute
-  '/battles/must-see': typeof ExploreBattlesMustSeeRoute
-  '/battles/upcoming': typeof ExploreBattlesUpcomingRoute
-  '/genres/$id': typeof ExploreGenresIdRoute
-  '/library/settings': typeof ExploreLibrarySettingsRoute
-  '/tracks/$id': typeof ExploreTracksIdRoute
-  '/dashboard/battles/challenge': typeof DashboardBattlesChallengeRoute
-  '/dashboard/battles/find': typeof DashboardBattlesFindRoute
-  '/dashboard/battles/my-kit': typeof DashboardBattlesMyKitRoute
-  '/dashboard/battles/upcoming': typeof DashboardBattlesUpcomingRoute
-  '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
-  '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
-  '/dashboard/career/profile': typeof DashboardCareerProfileRoute
-  '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
-  '/dashboard/projects/$id': typeof DashboardProjectsIdRoute
-  '/dashboard/projects/new': typeof DashboardProjectsNewRoute
-  '/dashboard/tracks/new': typeof DashboardTracksNewRoute
-  '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
-  '/signup/artist/onboarding': typeof SignupArtistOnboardingRoute
-  '/signup/fan/credentials': typeof SignupFanCredentialsRoute
-  '/signup/fan/onboarding': typeof SignupFanOnboardingRoute
-  '/artist/': typeof ExploreArtistIndexRoute
-  '/battles/': typeof ExploreBattlesIndexRoute
-  '/genres/': typeof ExploreGenresIndexRoute
-  '/library/': typeof ExploreLibraryIndexRoute
-  '/tracks/': typeof ExploreTracksIndexRoute
-  '/dashboard/battles/': typeof DashboardBattlesIndexRoute
-  '/dashboard/projects/': typeof DashboardProjectsIndexRoute
-  '/dashboard/tracks/': typeof DashboardTracksIndexRoute
-  '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
-  '/library/playlists/': typeof ExploreLibraryPlaylistsIndexRoute
-  '/library/purchased/': typeof ExploreLibraryPurchasedIndexRoute
-  '/library/recent/': typeof ExploreLibraryRecentIndexRoute
-  '/library/saved/': typeof ExploreLibrarySavedIndexRoute
-  '/dashboard/battles/my-stats/': typeof DashboardBattlesMyStatsIndexRoute
-  '/dashboard/tracks/$id/': typeof DashboardTracksIdIndexRoute
-  '/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
+  "/": typeof ExploreIndexRoute;
+  "/dashboard": typeof DashboardRouteWithChildren;
+  "/llms.txt": typeof LlmsDottxtRoute;
+  "/login": typeof LoginRoute;
+  "/pricing": typeof PricingRoute;
+  "/signup": typeof SignupRouteWithChildren;
+  "/sitemap.xml": typeof SitemapDotxmlRoute;
+  "/live": typeof ExploreLiveRouteWithChildren;
+  "/new-releases": typeof ExploreNewReleasesRoute;
+  "/dashboard/collaborators": typeof DashboardCollaboratorsRoute;
+  "/dashboard/messages": typeof DashboardMessagesRoute;
+  "/dashboard/music": typeof DashboardMusicRoute;
+  "/dashboard/profile": typeof DashboardProfileRoute;
+  "/dashboard/team": typeof DashboardTeamRoute;
+  "/dashboard/": typeof DashboardIndexRoute;
+  "/artist/$username": typeof ExploreArtistUsernameRoute;
+  "/artist/new": typeof ExploreArtistNewRoute;
+  "/artist/rising-stars": typeof ExploreArtistRisingStarsRoute;
+  "/artist/top": typeof ExploreArtistTopRoute;
+  "/genres/$id": typeof ExploreGenresIdRoute;
+  "/library/settings": typeof ExploreLibrarySettingsRoute;
+  "/tracks/$id": typeof ExploreTracksIdRoute;
+  "/dashboard/career/ai-studio": typeof DashboardCareerAiStudioRoute;
+  "/dashboard/career/analytics": typeof DashboardCareerAnalyticsRoute;
+  "/dashboard/career/profile": typeof DashboardCareerProfileRoute;
+  "/dashboard/career/settings": typeof DashboardCareerSettingsRoute;
+  "/dashboard/live/challenge": typeof DashboardLiveChallengeRoute;
+  "/dashboard/live/find": typeof DashboardLiveFindRoute;
+  "/dashboard/live/my-kit": typeof DashboardLiveMyKitRoute;
+  "/dashboard/live/parties": typeof DashboardLivePartiesRoute;
+  "/dashboard/live/streams": typeof DashboardLiveStreamsRoute;
+  "/dashboard/live/upcoming": typeof DashboardLiveUpcomingRoute;
+  "/dashboard/projects/$id": typeof DashboardProjectsIdRoute;
+  "/dashboard/projects/new": typeof DashboardProjectsNewRoute;
+  "/dashboard/tracks/new": typeof DashboardTracksNewRoute;
+  "/signup/artist/credentials": typeof SignupArtistCredentialsRoute;
+  "/signup/artist/onboarding": typeof SignupArtistOnboardingRoute;
+  "/signup/fan/credentials": typeof SignupFanCredentialsRoute;
+  "/signup/fan/onboarding": typeof SignupFanOnboardingRoute;
+  "/artist/": typeof ExploreArtistIndexRoute;
+  "/genres/": typeof ExploreGenresIndexRoute;
+  "/library/": typeof ExploreLibraryIndexRoute;
+  "/live/": typeof ExploreLiveIndexRoute;
+  "/tracks/": typeof ExploreTracksIndexRoute;
+  "/dashboard/live/": typeof DashboardLiveIndexRoute;
+  "/dashboard/projects/": typeof DashboardProjectsIndexRoute;
+  "/dashboard/tracks/": typeof DashboardTracksIndexRoute;
+  "/live/battles/$id": typeof ExploreLiveBattlesIdRoute;
+  "/live/battles/leaderboard": typeof ExploreLiveBattlesLeaderboardRoute;
+  "/live/battles/must-see": typeof ExploreLiveBattlesMustSeeRoute;
+  "/live/battles/upcoming": typeof ExploreLiveBattlesUpcomingRoute;
+  "/live/parties/$id": typeof ExploreLivePartiesIdRoute;
+  "/live/streams/$id": typeof ExploreLiveStreamsIdRoute;
+  "/dashboard/tracks/$id/edit": typeof DashboardTracksIdEditRoute;
+  "/library/playlists/": typeof ExploreLibraryPlaylistsIndexRoute;
+  "/library/purchased/": typeof ExploreLibraryPurchasedIndexRoute;
+  "/library/recent/": typeof ExploreLibraryRecentIndexRoute;
+  "/library/saved/": typeof ExploreLibrarySavedIndexRoute;
+  "/live/battles/": typeof ExploreLiveBattlesIndexRoute;
+  "/live/parties/": typeof ExploreLivePartiesIndexRoute;
+  "/live/streams/": typeof ExploreLiveStreamsIndexRoute;
+  "/dashboard/live/my-stats/": typeof DashboardLiveMyStatsIndexRoute;
+  "/dashboard/tracks/$id/": typeof DashboardTracksIdIndexRoute;
+  "/library/playlists/$id/": typeof ExploreLibraryPlaylistsIdIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/llms.txt': typeof LlmsDottxtRoute
-  '/login': typeof LoginRoute
-  '/signup': typeof SignupRouteWithChildren
-  '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/new-releases': typeof ExploreNewReleasesRoute
-  '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
-  '/dashboard/messages': typeof DashboardMessagesRoute
-  '/dashboard/music': typeof DashboardMusicRoute
-  '/dashboard/profile': typeof DashboardProfileRoute
-  '/dashboard/team': typeof DashboardTeamRoute
-  '/': typeof ExploreIndexRoute
-  '/dashboard': typeof DashboardIndexRoute
-  '/artist/$username': typeof ExploreArtistUsernameRoute
-  '/artist/new': typeof ExploreArtistNewRoute
-  '/artist/rising-stars': typeof ExploreArtistRisingStarsRoute
-  '/artist/top': typeof ExploreArtistTopRoute
-  '/battles/$id': typeof ExploreBattlesIdRoute
-  '/battles/leaderboard': typeof ExploreBattlesLeaderboardRoute
-  '/battles/live': typeof ExploreBattlesLiveRoute
-  '/battles/must-see': typeof ExploreBattlesMustSeeRoute
-  '/battles/upcoming': typeof ExploreBattlesUpcomingRoute
-  '/genres/$id': typeof ExploreGenresIdRoute
-  '/library/settings': typeof ExploreLibrarySettingsRoute
-  '/tracks/$id': typeof ExploreTracksIdRoute
-  '/dashboard/battles/challenge': typeof DashboardBattlesChallengeRoute
-  '/dashboard/battles/find': typeof DashboardBattlesFindRoute
-  '/dashboard/battles/my-kit': typeof DashboardBattlesMyKitRoute
-  '/dashboard/battles/upcoming': typeof DashboardBattlesUpcomingRoute
-  '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
-  '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
-  '/dashboard/career/profile': typeof DashboardCareerProfileRoute
-  '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
-  '/dashboard/projects/$id': typeof DashboardProjectsIdRoute
-  '/dashboard/projects/new': typeof DashboardProjectsNewRoute
-  '/dashboard/tracks/new': typeof DashboardTracksNewRoute
-  '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
-  '/signup/artist/onboarding': typeof SignupArtistOnboardingRoute
-  '/signup/fan/credentials': typeof SignupFanCredentialsRoute
-  '/signup/fan/onboarding': typeof SignupFanOnboardingRoute
-  '/artist': typeof ExploreArtistIndexRoute
-  '/battles': typeof ExploreBattlesIndexRoute
-  '/genres': typeof ExploreGenresIndexRoute
-  '/library': typeof ExploreLibraryIndexRoute
-  '/tracks': typeof ExploreTracksIndexRoute
-  '/dashboard/battles': typeof DashboardBattlesIndexRoute
-  '/dashboard/projects': typeof DashboardProjectsIndexRoute
-  '/dashboard/tracks': typeof DashboardTracksIndexRoute
-  '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
-  '/library/playlists': typeof ExploreLibraryPlaylistsIndexRoute
-  '/library/purchased': typeof ExploreLibraryPurchasedIndexRoute
-  '/library/recent': typeof ExploreLibraryRecentIndexRoute
-  '/library/saved': typeof ExploreLibrarySavedIndexRoute
-  '/dashboard/battles/my-stats': typeof DashboardBattlesMyStatsIndexRoute
-  '/dashboard/tracks/$id': typeof DashboardTracksIdIndexRoute
-  '/library/playlists/$id': typeof ExploreLibraryPlaylistsIdIndexRoute
+  "/llms.txt": typeof LlmsDottxtRoute;
+  "/login": typeof LoginRoute;
+  "/pricing": typeof PricingRoute;
+  "/signup": typeof SignupRouteWithChildren;
+  "/sitemap.xml": typeof SitemapDotxmlRoute;
+  "/new-releases": typeof ExploreNewReleasesRoute;
+  "/dashboard/collaborators": typeof DashboardCollaboratorsRoute;
+  "/dashboard/messages": typeof DashboardMessagesRoute;
+  "/dashboard/music": typeof DashboardMusicRoute;
+  "/dashboard/profile": typeof DashboardProfileRoute;
+  "/dashboard/team": typeof DashboardTeamRoute;
+  "/": typeof ExploreIndexRoute;
+  "/dashboard": typeof DashboardIndexRoute;
+  "/artist/$username": typeof ExploreArtistUsernameRoute;
+  "/artist/new": typeof ExploreArtistNewRoute;
+  "/artist/rising-stars": typeof ExploreArtistRisingStarsRoute;
+  "/artist/top": typeof ExploreArtistTopRoute;
+  "/genres/$id": typeof ExploreGenresIdRoute;
+  "/library/settings": typeof ExploreLibrarySettingsRoute;
+  "/tracks/$id": typeof ExploreTracksIdRoute;
+  "/dashboard/career/ai-studio": typeof DashboardCareerAiStudioRoute;
+  "/dashboard/career/analytics": typeof DashboardCareerAnalyticsRoute;
+  "/dashboard/career/profile": typeof DashboardCareerProfileRoute;
+  "/dashboard/career/settings": typeof DashboardCareerSettingsRoute;
+  "/dashboard/live/challenge": typeof DashboardLiveChallengeRoute;
+  "/dashboard/live/find": typeof DashboardLiveFindRoute;
+  "/dashboard/live/my-kit": typeof DashboardLiveMyKitRoute;
+  "/dashboard/live/parties": typeof DashboardLivePartiesRoute;
+  "/dashboard/live/streams": typeof DashboardLiveStreamsRoute;
+  "/dashboard/live/upcoming": typeof DashboardLiveUpcomingRoute;
+  "/dashboard/projects/$id": typeof DashboardProjectsIdRoute;
+  "/dashboard/projects/new": typeof DashboardProjectsNewRoute;
+  "/dashboard/tracks/new": typeof DashboardTracksNewRoute;
+  "/signup/artist/credentials": typeof SignupArtistCredentialsRoute;
+  "/signup/artist/onboarding": typeof SignupArtistOnboardingRoute;
+  "/signup/fan/credentials": typeof SignupFanCredentialsRoute;
+  "/signup/fan/onboarding": typeof SignupFanOnboardingRoute;
+  "/artist": typeof ExploreArtistIndexRoute;
+  "/genres": typeof ExploreGenresIndexRoute;
+  "/library": typeof ExploreLibraryIndexRoute;
+  "/live": typeof ExploreLiveIndexRoute;
+  "/tracks": typeof ExploreTracksIndexRoute;
+  "/dashboard/live": typeof DashboardLiveIndexRoute;
+  "/dashboard/projects": typeof DashboardProjectsIndexRoute;
+  "/dashboard/tracks": typeof DashboardTracksIndexRoute;
+  "/live/battles/$id": typeof ExploreLiveBattlesIdRoute;
+  "/live/battles/leaderboard": typeof ExploreLiveBattlesLeaderboardRoute;
+  "/live/battles/must-see": typeof ExploreLiveBattlesMustSeeRoute;
+  "/live/battles/upcoming": typeof ExploreLiveBattlesUpcomingRoute;
+  "/live/parties/$id": typeof ExploreLivePartiesIdRoute;
+  "/live/streams/$id": typeof ExploreLiveStreamsIdRoute;
+  "/dashboard/tracks/$id/edit": typeof DashboardTracksIdEditRoute;
+  "/library/playlists": typeof ExploreLibraryPlaylistsIndexRoute;
+  "/library/purchased": typeof ExploreLibraryPurchasedIndexRoute;
+  "/library/recent": typeof ExploreLibraryRecentIndexRoute;
+  "/library/saved": typeof ExploreLibrarySavedIndexRoute;
+  "/live/battles": typeof ExploreLiveBattlesIndexRoute;
+  "/live/parties": typeof ExploreLivePartiesIndexRoute;
+  "/live/streams": typeof ExploreLiveStreamsIndexRoute;
+  "/dashboard/live/my-stats": typeof DashboardLiveMyStatsIndexRoute;
+  "/dashboard/tracks/$id": typeof DashboardTracksIdIndexRoute;
+  "/library/playlists/$id": typeof ExploreLibraryPlaylistsIdIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/_explore': typeof ExploreRouteWithChildren
-  '/dashboard': typeof DashboardRouteWithChildren
-  '/llms.txt': typeof LlmsDottxtRoute
-  '/login': typeof LoginRoute
-  '/signup': typeof SignupRouteWithChildren
-  '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/_explore/new-releases': typeof ExploreNewReleasesRoute
-  '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
-  '/dashboard/messages': typeof DashboardMessagesRoute
-  '/dashboard/music': typeof DashboardMusicRoute
-  '/dashboard/profile': typeof DashboardProfileRoute
-  '/dashboard/team': typeof DashboardTeamRoute
-  '/_explore/': typeof ExploreIndexRoute
-  '/dashboard/': typeof DashboardIndexRoute
-  '/_explore/artist/$username': typeof ExploreArtistUsernameRoute
-  '/_explore/artist/new': typeof ExploreArtistNewRoute
-  '/_explore/artist/rising-stars': typeof ExploreArtistRisingStarsRoute
-  '/_explore/artist/top': typeof ExploreArtistTopRoute
-  '/_explore/battles/$id': typeof ExploreBattlesIdRoute
-  '/_explore/battles/leaderboard': typeof ExploreBattlesLeaderboardRoute
-  '/_explore/battles/live': typeof ExploreBattlesLiveRoute
-  '/_explore/battles/must-see': typeof ExploreBattlesMustSeeRoute
-  '/_explore/battles/upcoming': typeof ExploreBattlesUpcomingRoute
-  '/_explore/genres/$id': typeof ExploreGenresIdRoute
-  '/_explore/library/settings': typeof ExploreLibrarySettingsRoute
-  '/_explore/tracks/$id': typeof ExploreTracksIdRoute
-  '/dashboard/battles/challenge': typeof DashboardBattlesChallengeRoute
-  '/dashboard/battles/find': typeof DashboardBattlesFindRoute
-  '/dashboard/battles/my-kit': typeof DashboardBattlesMyKitRoute
-  '/dashboard/battles/upcoming': typeof DashboardBattlesUpcomingRoute
-  '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
-  '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
-  '/dashboard/career/profile': typeof DashboardCareerProfileRoute
-  '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
-  '/dashboard/projects/$id': typeof DashboardProjectsIdRoute
-  '/dashboard/projects/new': typeof DashboardProjectsNewRoute
-  '/dashboard/tracks/new': typeof DashboardTracksNewRoute
-  '/signup/artist/credentials': typeof SignupArtistCredentialsRoute
-  '/signup/artist/onboarding': typeof SignupArtistOnboardingRoute
-  '/signup/fan/credentials': typeof SignupFanCredentialsRoute
-  '/signup/fan/onboarding': typeof SignupFanOnboardingRoute
-  '/_explore/artist/': typeof ExploreArtistIndexRoute
-  '/_explore/battles/': typeof ExploreBattlesIndexRoute
-  '/_explore/genres/': typeof ExploreGenresIndexRoute
-  '/_explore/library/': typeof ExploreLibraryIndexRoute
-  '/_explore/tracks/': typeof ExploreTracksIndexRoute
-  '/dashboard/battles/': typeof DashboardBattlesIndexRoute
-  '/dashboard/projects/': typeof DashboardProjectsIndexRoute
-  '/dashboard/tracks/': typeof DashboardTracksIndexRoute
-  '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
-  '/_explore/library/playlists/': typeof ExploreLibraryPlaylistsIndexRoute
-  '/_explore/library/purchased/': typeof ExploreLibraryPurchasedIndexRoute
-  '/_explore/library/recent/': typeof ExploreLibraryRecentIndexRoute
-  '/_explore/library/saved/': typeof ExploreLibrarySavedIndexRoute
-  '/dashboard/battles/my-stats/': typeof DashboardBattlesMyStatsIndexRoute
-  '/dashboard/tracks/$id/': typeof DashboardTracksIdIndexRoute
-  '/_explore/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
+  __root__: typeof rootRouteImport;
+  "/_explore": typeof ExploreRouteWithChildren;
+  "/dashboard": typeof DashboardRouteWithChildren;
+  "/llms.txt": typeof LlmsDottxtRoute;
+  "/login": typeof LoginRoute;
+  "/pricing": typeof PricingRoute;
+  "/signup": typeof SignupRouteWithChildren;
+  "/sitemap.xml": typeof SitemapDotxmlRoute;
+  "/_explore/live": typeof ExploreLiveRouteWithChildren;
+  "/_explore/new-releases": typeof ExploreNewReleasesRoute;
+  "/dashboard/collaborators": typeof DashboardCollaboratorsRoute;
+  "/dashboard/messages": typeof DashboardMessagesRoute;
+  "/dashboard/music": typeof DashboardMusicRoute;
+  "/dashboard/profile": typeof DashboardProfileRoute;
+  "/dashboard/team": typeof DashboardTeamRoute;
+  "/_explore/": typeof ExploreIndexRoute;
+  "/dashboard/": typeof DashboardIndexRoute;
+  "/_explore/artist/$username": typeof ExploreArtistUsernameRoute;
+  "/_explore/artist/new": typeof ExploreArtistNewRoute;
+  "/_explore/artist/rising-stars": typeof ExploreArtistRisingStarsRoute;
+  "/_explore/artist/top": typeof ExploreArtistTopRoute;
+  "/_explore/genres/$id": typeof ExploreGenresIdRoute;
+  "/_explore/library/settings": typeof ExploreLibrarySettingsRoute;
+  "/_explore/tracks/$id": typeof ExploreTracksIdRoute;
+  "/dashboard/career/ai-studio": typeof DashboardCareerAiStudioRoute;
+  "/dashboard/career/analytics": typeof DashboardCareerAnalyticsRoute;
+  "/dashboard/career/profile": typeof DashboardCareerProfileRoute;
+  "/dashboard/career/settings": typeof DashboardCareerSettingsRoute;
+  "/dashboard/live/challenge": typeof DashboardLiveChallengeRoute;
+  "/dashboard/live/find": typeof DashboardLiveFindRoute;
+  "/dashboard/live/my-kit": typeof DashboardLiveMyKitRoute;
+  "/dashboard/live/parties": typeof DashboardLivePartiesRoute;
+  "/dashboard/live/streams": typeof DashboardLiveStreamsRoute;
+  "/dashboard/live/upcoming": typeof DashboardLiveUpcomingRoute;
+  "/dashboard/projects/$id": typeof DashboardProjectsIdRoute;
+  "/dashboard/projects/new": typeof DashboardProjectsNewRoute;
+  "/dashboard/tracks/new": typeof DashboardTracksNewRoute;
+  "/signup/artist/credentials": typeof SignupArtistCredentialsRoute;
+  "/signup/artist/onboarding": typeof SignupArtistOnboardingRoute;
+  "/signup/fan/credentials": typeof SignupFanCredentialsRoute;
+  "/signup/fan/onboarding": typeof SignupFanOnboardingRoute;
+  "/_explore/artist/": typeof ExploreArtistIndexRoute;
+  "/_explore/genres/": typeof ExploreGenresIndexRoute;
+  "/_explore/library/": typeof ExploreLibraryIndexRoute;
+  "/_explore/live/": typeof ExploreLiveIndexRoute;
+  "/_explore/tracks/": typeof ExploreTracksIndexRoute;
+  "/dashboard/live/": typeof DashboardLiveIndexRoute;
+  "/dashboard/projects/": typeof DashboardProjectsIndexRoute;
+  "/dashboard/tracks/": typeof DashboardTracksIndexRoute;
+  "/_explore/live/battles/$id": typeof ExploreLiveBattlesIdRoute;
+  "/_explore/live/battles/leaderboard": typeof ExploreLiveBattlesLeaderboardRoute;
+  "/_explore/live/battles/must-see": typeof ExploreLiveBattlesMustSeeRoute;
+  "/_explore/live/battles/upcoming": typeof ExploreLiveBattlesUpcomingRoute;
+  "/_explore/live/parties/$id": typeof ExploreLivePartiesIdRoute;
+  "/_explore/live/streams/$id": typeof ExploreLiveStreamsIdRoute;
+  "/dashboard/tracks/$id/edit": typeof DashboardTracksIdEditRoute;
+  "/_explore/library/playlists/": typeof ExploreLibraryPlaylistsIndexRoute;
+  "/_explore/library/purchased/": typeof ExploreLibraryPurchasedIndexRoute;
+  "/_explore/library/recent/": typeof ExploreLibraryRecentIndexRoute;
+  "/_explore/library/saved/": typeof ExploreLibrarySavedIndexRoute;
+  "/_explore/live/battles/": typeof ExploreLiveBattlesIndexRoute;
+  "/_explore/live/parties/": typeof ExploreLivePartiesIndexRoute;
+  "/_explore/live/streams/": typeof ExploreLiveStreamsIndexRoute;
+  "/dashboard/live/my-stats/": typeof DashboardLiveMyStatsIndexRoute;
+  "/dashboard/tracks/$id/": typeof DashboardTracksIdIndexRoute;
+  "/_explore/library/playlists/$id/": typeof ExploreLibraryPlaylistsIdIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/dashboard'
-    | '/llms.txt'
-    | '/login'
-    | '/signup'
-    | '/sitemap.xml'
-    | '/new-releases'
-    | '/dashboard/collaborators'
-    | '/dashboard/messages'
-    | '/dashboard/music'
-    | '/dashboard/profile'
-    | '/dashboard/team'
-    | '/dashboard/'
-    | '/artist/$username'
-    | '/artist/new'
-    | '/artist/rising-stars'
-    | '/artist/top'
-    | '/battles/$id'
-    | '/battles/leaderboard'
-    | '/battles/live'
-    | '/battles/must-see'
-    | '/battles/upcoming'
-    | '/genres/$id'
-    | '/library/settings'
-    | '/tracks/$id'
-    | '/dashboard/battles/challenge'
-    | '/dashboard/battles/find'
-    | '/dashboard/battles/my-kit'
-    | '/dashboard/battles/upcoming'
-    | '/dashboard/career/ai-studio'
-    | '/dashboard/career/analytics'
-    | '/dashboard/career/profile'
-    | '/dashboard/career/settings'
-    | '/dashboard/projects/$id'
-    | '/dashboard/projects/new'
-    | '/dashboard/tracks/new'
-    | '/signup/artist/credentials'
-    | '/signup/artist/onboarding'
-    | '/signup/fan/credentials'
-    | '/signup/fan/onboarding'
-    | '/artist/'
-    | '/battles/'
-    | '/genres/'
-    | '/library/'
-    | '/tracks/'
-    | '/dashboard/battles/'
-    | '/dashboard/projects/'
-    | '/dashboard/tracks/'
-    | '/dashboard/tracks/$id/edit'
-    | '/library/playlists/'
-    | '/library/purchased/'
-    | '/library/recent/'
-    | '/library/saved/'
-    | '/dashboard/battles/my-stats/'
-    | '/dashboard/tracks/$id/'
-    | '/library/playlists/$id/'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/dashboard"
+    | "/llms.txt"
+    | "/login"
+    | "/pricing"
+    | "/signup"
+    | "/sitemap.xml"
+    | "/live"
+    | "/new-releases"
+    | "/dashboard/collaborators"
+    | "/dashboard/messages"
+    | "/dashboard/music"
+    | "/dashboard/profile"
+    | "/dashboard/team"
+    | "/dashboard/"
+    | "/artist/$username"
+    | "/artist/new"
+    | "/artist/rising-stars"
+    | "/artist/top"
+    | "/genres/$id"
+    | "/library/settings"
+    | "/tracks/$id"
+    | "/dashboard/career/ai-studio"
+    | "/dashboard/career/analytics"
+    | "/dashboard/career/profile"
+    | "/dashboard/career/settings"
+    | "/dashboard/live/challenge"
+    | "/dashboard/live/find"
+    | "/dashboard/live/my-kit"
+    | "/dashboard/live/parties"
+    | "/dashboard/live/streams"
+    | "/dashboard/live/upcoming"
+    | "/dashboard/projects/$id"
+    | "/dashboard/projects/new"
+    | "/dashboard/tracks/new"
+    | "/signup/artist/credentials"
+    | "/signup/artist/onboarding"
+    | "/signup/fan/credentials"
+    | "/signup/fan/onboarding"
+    | "/artist/"
+    | "/genres/"
+    | "/library/"
+    | "/live/"
+    | "/tracks/"
+    | "/dashboard/live/"
+    | "/dashboard/projects/"
+    | "/dashboard/tracks/"
+    | "/live/battles/$id"
+    | "/live/battles/leaderboard"
+    | "/live/battles/must-see"
+    | "/live/battles/upcoming"
+    | "/live/parties/$id"
+    | "/live/streams/$id"
+    | "/dashboard/tracks/$id/edit"
+    | "/library/playlists/"
+    | "/library/purchased/"
+    | "/library/recent/"
+    | "/library/saved/"
+    | "/live/battles/"
+    | "/live/parties/"
+    | "/live/streams/"
+    | "/dashboard/live/my-stats/"
+    | "/dashboard/tracks/$id/"
+    | "/library/playlists/$id/";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/llms.txt'
-    | '/login'
-    | '/signup'
-    | '/sitemap.xml'
-    | '/new-releases'
-    | '/dashboard/collaborators'
-    | '/dashboard/messages'
-    | '/dashboard/music'
-    | '/dashboard/profile'
-    | '/dashboard/team'
-    | '/'
-    | '/dashboard'
-    | '/artist/$username'
-    | '/artist/new'
-    | '/artist/rising-stars'
-    | '/artist/top'
-    | '/battles/$id'
-    | '/battles/leaderboard'
-    | '/battles/live'
-    | '/battles/must-see'
-    | '/battles/upcoming'
-    | '/genres/$id'
-    | '/library/settings'
-    | '/tracks/$id'
-    | '/dashboard/battles/challenge'
-    | '/dashboard/battles/find'
-    | '/dashboard/battles/my-kit'
-    | '/dashboard/battles/upcoming'
-    | '/dashboard/career/ai-studio'
-    | '/dashboard/career/analytics'
-    | '/dashboard/career/profile'
-    | '/dashboard/career/settings'
-    | '/dashboard/projects/$id'
-    | '/dashboard/projects/new'
-    | '/dashboard/tracks/new'
-    | '/signup/artist/credentials'
-    | '/signup/artist/onboarding'
-    | '/signup/fan/credentials'
-    | '/signup/fan/onboarding'
-    | '/artist'
-    | '/battles'
-    | '/genres'
-    | '/library'
-    | '/tracks'
-    | '/dashboard/battles'
-    | '/dashboard/projects'
-    | '/dashboard/tracks'
-    | '/dashboard/tracks/$id/edit'
-    | '/library/playlists'
-    | '/library/purchased'
-    | '/library/recent'
-    | '/library/saved'
-    | '/dashboard/battles/my-stats'
-    | '/dashboard/tracks/$id'
-    | '/library/playlists/$id'
+    | "/llms.txt"
+    | "/login"
+    | "/pricing"
+    | "/signup"
+    | "/sitemap.xml"
+    | "/new-releases"
+    | "/dashboard/collaborators"
+    | "/dashboard/messages"
+    | "/dashboard/music"
+    | "/dashboard/profile"
+    | "/dashboard/team"
+    | "/"
+    | "/dashboard"
+    | "/artist/$username"
+    | "/artist/new"
+    | "/artist/rising-stars"
+    | "/artist/top"
+    | "/genres/$id"
+    | "/library/settings"
+    | "/tracks/$id"
+    | "/dashboard/career/ai-studio"
+    | "/dashboard/career/analytics"
+    | "/dashboard/career/profile"
+    | "/dashboard/career/settings"
+    | "/dashboard/live/challenge"
+    | "/dashboard/live/find"
+    | "/dashboard/live/my-kit"
+    | "/dashboard/live/parties"
+    | "/dashboard/live/streams"
+    | "/dashboard/live/upcoming"
+    | "/dashboard/projects/$id"
+    | "/dashboard/projects/new"
+    | "/dashboard/tracks/new"
+    | "/signup/artist/credentials"
+    | "/signup/artist/onboarding"
+    | "/signup/fan/credentials"
+    | "/signup/fan/onboarding"
+    | "/artist"
+    | "/genres"
+    | "/library"
+    | "/live"
+    | "/tracks"
+    | "/dashboard/live"
+    | "/dashboard/projects"
+    | "/dashboard/tracks"
+    | "/live/battles/$id"
+    | "/live/battles/leaderboard"
+    | "/live/battles/must-see"
+    | "/live/battles/upcoming"
+    | "/live/parties/$id"
+    | "/live/streams/$id"
+    | "/dashboard/tracks/$id/edit"
+    | "/library/playlists"
+    | "/library/purchased"
+    | "/library/recent"
+    | "/library/saved"
+    | "/live/battles"
+    | "/live/parties"
+    | "/live/streams"
+    | "/dashboard/live/my-stats"
+    | "/dashboard/tracks/$id"
+    | "/library/playlists/$id";
   id:
-    | '__root__'
-    | '/_explore'
-    | '/dashboard'
-    | '/llms.txt'
-    | '/login'
-    | '/signup'
-    | '/sitemap.xml'
-    | '/_explore/new-releases'
-    | '/dashboard/collaborators'
-    | '/dashboard/messages'
-    | '/dashboard/music'
-    | '/dashboard/profile'
-    | '/dashboard/team'
-    | '/_explore/'
-    | '/dashboard/'
-    | '/_explore/artist/$username'
-    | '/_explore/artist/new'
-    | '/_explore/artist/rising-stars'
-    | '/_explore/artist/top'
-    | '/_explore/battles/$id'
-    | '/_explore/battles/leaderboard'
-    | '/_explore/battles/live'
-    | '/_explore/battles/must-see'
-    | '/_explore/battles/upcoming'
-    | '/_explore/genres/$id'
-    | '/_explore/library/settings'
-    | '/_explore/tracks/$id'
-    | '/dashboard/battles/challenge'
-    | '/dashboard/battles/find'
-    | '/dashboard/battles/my-kit'
-    | '/dashboard/battles/upcoming'
-    | '/dashboard/career/ai-studio'
-    | '/dashboard/career/analytics'
-    | '/dashboard/career/profile'
-    | '/dashboard/career/settings'
-    | '/dashboard/projects/$id'
-    | '/dashboard/projects/new'
-    | '/dashboard/tracks/new'
-    | '/signup/artist/credentials'
-    | '/signup/artist/onboarding'
-    | '/signup/fan/credentials'
-    | '/signup/fan/onboarding'
-    | '/_explore/artist/'
-    | '/_explore/battles/'
-    | '/_explore/genres/'
-    | '/_explore/library/'
-    | '/_explore/tracks/'
-    | '/dashboard/battles/'
-    | '/dashboard/projects/'
-    | '/dashboard/tracks/'
-    | '/dashboard/tracks/$id/edit'
-    | '/_explore/library/playlists/'
-    | '/_explore/library/purchased/'
-    | '/_explore/library/recent/'
-    | '/_explore/library/saved/'
-    | '/dashboard/battles/my-stats/'
-    | '/dashboard/tracks/$id/'
-    | '/_explore/library/playlists/$id/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/_explore"
+    | "/dashboard"
+    | "/llms.txt"
+    | "/login"
+    | "/pricing"
+    | "/signup"
+    | "/sitemap.xml"
+    | "/_explore/live"
+    | "/_explore/new-releases"
+    | "/dashboard/collaborators"
+    | "/dashboard/messages"
+    | "/dashboard/music"
+    | "/dashboard/profile"
+    | "/dashboard/team"
+    | "/_explore/"
+    | "/dashboard/"
+    | "/_explore/artist/$username"
+    | "/_explore/artist/new"
+    | "/_explore/artist/rising-stars"
+    | "/_explore/artist/top"
+    | "/_explore/genres/$id"
+    | "/_explore/library/settings"
+    | "/_explore/tracks/$id"
+    | "/dashboard/career/ai-studio"
+    | "/dashboard/career/analytics"
+    | "/dashboard/career/profile"
+    | "/dashboard/career/settings"
+    | "/dashboard/live/challenge"
+    | "/dashboard/live/find"
+    | "/dashboard/live/my-kit"
+    | "/dashboard/live/parties"
+    | "/dashboard/live/streams"
+    | "/dashboard/live/upcoming"
+    | "/dashboard/projects/$id"
+    | "/dashboard/projects/new"
+    | "/dashboard/tracks/new"
+    | "/signup/artist/credentials"
+    | "/signup/artist/onboarding"
+    | "/signup/fan/credentials"
+    | "/signup/fan/onboarding"
+    | "/_explore/artist/"
+    | "/_explore/genres/"
+    | "/_explore/library/"
+    | "/_explore/live/"
+    | "/_explore/tracks/"
+    | "/dashboard/live/"
+    | "/dashboard/projects/"
+    | "/dashboard/tracks/"
+    | "/_explore/live/battles/$id"
+    | "/_explore/live/battles/leaderboard"
+    | "/_explore/live/battles/must-see"
+    | "/_explore/live/battles/upcoming"
+    | "/_explore/live/parties/$id"
+    | "/_explore/live/streams/$id"
+    | "/dashboard/tracks/$id/edit"
+    | "/_explore/library/playlists/"
+    | "/_explore/library/purchased/"
+    | "/_explore/library/recent/"
+    | "/_explore/library/saved/"
+    | "/_explore/live/battles/"
+    | "/_explore/live/parties/"
+    | "/_explore/live/streams/"
+    | "/dashboard/live/my-stats/"
+    | "/dashboard/tracks/$id/"
+    | "/_explore/library/playlists/$id/";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  ExploreRoute: typeof ExploreRouteWithChildren
-  DashboardRoute: typeof DashboardRouteWithChildren
-  LlmsDottxtRoute: typeof LlmsDottxtRoute
-  LoginRoute: typeof LoginRoute
-  SignupRoute: typeof SignupRouteWithChildren
-  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ExploreRoute: typeof ExploreRouteWithChildren;
+  DashboardRoute: typeof DashboardRouteWithChildren;
+  LlmsDottxtRoute: typeof LlmsDottxtRoute;
+  LoginRoute: typeof LoginRoute;
+  PricingRoute: typeof PricingRoute;
+  SignupRoute: typeof SignupRouteWithChildren;
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/llms.txt': {
-      id: '/llms.txt'
-      path: '/llms.txt'
-      fullPath: '/llms.txt'
-      preLoaderRoute: typeof LlmsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_explore': {
-      id: '/_explore'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof ExploreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard/': {
-      id: '/dashboard/'
-      path: '/'
-      fullPath: '/dashboard/'
-      preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_explore/': {
-      id: '/_explore/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof ExploreIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/dashboard/team': {
-      id: '/dashboard/team'
-      path: '/team'
-      fullPath: '/dashboard/team'
-      preLoaderRoute: typeof DashboardTeamRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/profile': {
-      id: '/dashboard/profile'
-      path: '/profile'
-      fullPath: '/dashboard/profile'
-      preLoaderRoute: typeof DashboardProfileRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/music': {
-      id: '/dashboard/music'
-      path: '/music'
-      fullPath: '/dashboard/music'
-      preLoaderRoute: typeof DashboardMusicRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/messages': {
-      id: '/dashboard/messages'
-      path: '/messages'
-      fullPath: '/dashboard/messages'
-      preLoaderRoute: typeof DashboardMessagesRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/collaborators': {
-      id: '/dashboard/collaborators'
-      path: '/collaborators'
-      fullPath: '/dashboard/collaborators'
-      preLoaderRoute: typeof DashboardCollaboratorsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_explore/new-releases': {
-      id: '/_explore/new-releases'
-      path: '/new-releases'
-      fullPath: '/new-releases'
-      preLoaderRoute: typeof ExploreNewReleasesRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/dashboard/tracks/': {
-      id: '/dashboard/tracks/'
-      path: '/tracks'
-      fullPath: '/dashboard/tracks/'
-      preLoaderRoute: typeof DashboardTracksIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/projects/': {
-      id: '/dashboard/projects/'
-      path: '/projects'
-      fullPath: '/dashboard/projects/'
-      preLoaderRoute: typeof DashboardProjectsIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/battles/': {
-      id: '/dashboard/battles/'
-      path: '/battles'
-      fullPath: '/dashboard/battles/'
-      preLoaderRoute: typeof DashboardBattlesIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_explore/tracks/': {
-      id: '/_explore/tracks/'
-      path: '/tracks'
-      fullPath: '/tracks/'
-      preLoaderRoute: typeof ExploreTracksIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/library/': {
-      id: '/_explore/library/'
-      path: '/library'
-      fullPath: '/library/'
-      preLoaderRoute: typeof ExploreLibraryIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/genres/': {
-      id: '/_explore/genres/'
-      path: '/genres'
-      fullPath: '/genres/'
-      preLoaderRoute: typeof ExploreGenresIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/battles/': {
-      id: '/_explore/battles/'
-      path: '/battles'
-      fullPath: '/battles/'
-      preLoaderRoute: typeof ExploreBattlesIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/artist/': {
-      id: '/_explore/artist/'
-      path: '/artist'
-      fullPath: '/artist/'
-      preLoaderRoute: typeof ExploreArtistIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/signup/fan/onboarding': {
-      id: '/signup/fan/onboarding'
-      path: '/fan/onboarding'
-      fullPath: '/signup/fan/onboarding'
-      preLoaderRoute: typeof SignupFanOnboardingRouteImport
-      parentRoute: typeof SignupRoute
-    }
-    '/signup/fan/credentials': {
-      id: '/signup/fan/credentials'
-      path: '/fan/credentials'
-      fullPath: '/signup/fan/credentials'
-      preLoaderRoute: typeof SignupFanCredentialsRouteImport
-      parentRoute: typeof SignupRoute
-    }
-    '/signup/artist/onboarding': {
-      id: '/signup/artist/onboarding'
-      path: '/artist/onboarding'
-      fullPath: '/signup/artist/onboarding'
-      preLoaderRoute: typeof SignupArtistOnboardingRouteImport
-      parentRoute: typeof SignupRoute
-    }
-    '/signup/artist/credentials': {
-      id: '/signup/artist/credentials'
-      path: '/artist/credentials'
-      fullPath: '/signup/artist/credentials'
-      preLoaderRoute: typeof SignupArtistCredentialsRouteImport
-      parentRoute: typeof SignupRoute
-    }
-    '/dashboard/tracks/new': {
-      id: '/dashboard/tracks/new'
-      path: '/tracks/new'
-      fullPath: '/dashboard/tracks/new'
-      preLoaderRoute: typeof DashboardTracksNewRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/projects/new': {
-      id: '/dashboard/projects/new'
-      path: '/projects/new'
-      fullPath: '/dashboard/projects/new'
-      preLoaderRoute: typeof DashboardProjectsNewRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/projects/$id': {
-      id: '/dashboard/projects/$id'
-      path: '/projects/$id'
-      fullPath: '/dashboard/projects/$id'
-      preLoaderRoute: typeof DashboardProjectsIdRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/career/settings': {
-      id: '/dashboard/career/settings'
-      path: '/career/settings'
-      fullPath: '/dashboard/career/settings'
-      preLoaderRoute: typeof DashboardCareerSettingsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/career/profile': {
-      id: '/dashboard/career/profile'
-      path: '/career/profile'
-      fullPath: '/dashboard/career/profile'
-      preLoaderRoute: typeof DashboardCareerProfileRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/career/analytics': {
-      id: '/dashboard/career/analytics'
-      path: '/career/analytics'
-      fullPath: '/dashboard/career/analytics'
-      preLoaderRoute: typeof DashboardCareerAnalyticsRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/career/ai-studio': {
-      id: '/dashboard/career/ai-studio'
-      path: '/career/ai-studio'
-      fullPath: '/dashboard/career/ai-studio'
-      preLoaderRoute: typeof DashboardCareerAiStudioRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/battles/upcoming': {
-      id: '/dashboard/battles/upcoming'
-      path: '/battles/upcoming'
-      fullPath: '/dashboard/battles/upcoming'
-      preLoaderRoute: typeof DashboardBattlesUpcomingRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/battles/my-kit': {
-      id: '/dashboard/battles/my-kit'
-      path: '/battles/my-kit'
-      fullPath: '/dashboard/battles/my-kit'
-      preLoaderRoute: typeof DashboardBattlesMyKitRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/battles/find': {
-      id: '/dashboard/battles/find'
-      path: '/battles/find'
-      fullPath: '/dashboard/battles/find'
-      preLoaderRoute: typeof DashboardBattlesFindRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/battles/challenge': {
-      id: '/dashboard/battles/challenge'
-      path: '/battles/challenge'
-      fullPath: '/dashboard/battles/challenge'
-      preLoaderRoute: typeof DashboardBattlesChallengeRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_explore/tracks/$id': {
-      id: '/_explore/tracks/$id'
-      path: '/tracks/$id'
-      fullPath: '/tracks/$id'
-      preLoaderRoute: typeof ExploreTracksIdRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/library/settings': {
-      id: '/_explore/library/settings'
-      path: '/library/settings'
-      fullPath: '/library/settings'
-      preLoaderRoute: typeof ExploreLibrarySettingsRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/genres/$id': {
-      id: '/_explore/genres/$id'
-      path: '/genres/$id'
-      fullPath: '/genres/$id'
-      preLoaderRoute: typeof ExploreGenresIdRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/battles/upcoming': {
-      id: '/_explore/battles/upcoming'
-      path: '/battles/upcoming'
-      fullPath: '/battles/upcoming'
-      preLoaderRoute: typeof ExploreBattlesUpcomingRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/battles/must-see': {
-      id: '/_explore/battles/must-see'
-      path: '/battles/must-see'
-      fullPath: '/battles/must-see'
-      preLoaderRoute: typeof ExploreBattlesMustSeeRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/battles/live': {
-      id: '/_explore/battles/live'
-      path: '/battles/live'
-      fullPath: '/battles/live'
-      preLoaderRoute: typeof ExploreBattlesLiveRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/battles/leaderboard': {
-      id: '/_explore/battles/leaderboard'
-      path: '/battles/leaderboard'
-      fullPath: '/battles/leaderboard'
-      preLoaderRoute: typeof ExploreBattlesLeaderboardRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/battles/$id': {
-      id: '/_explore/battles/$id'
-      path: '/battles/$id'
-      fullPath: '/battles/$id'
-      preLoaderRoute: typeof ExploreBattlesIdRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/artist/top': {
-      id: '/_explore/artist/top'
-      path: '/artist/top'
-      fullPath: '/artist/top'
-      preLoaderRoute: typeof ExploreArtistTopRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/artist/rising-stars': {
-      id: '/_explore/artist/rising-stars'
-      path: '/artist/rising-stars'
-      fullPath: '/artist/rising-stars'
-      preLoaderRoute: typeof ExploreArtistRisingStarsRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/artist/new': {
-      id: '/_explore/artist/new'
-      path: '/artist/new'
-      fullPath: '/artist/new'
-      preLoaderRoute: typeof ExploreArtistNewRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/artist/$username': {
-      id: '/_explore/artist/$username'
-      path: '/artist/$username'
-      fullPath: '/artist/$username'
-      preLoaderRoute: typeof ExploreArtistUsernameRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/dashboard/tracks/$id/': {
-      id: '/dashboard/tracks/$id/'
-      path: '/tracks/$id'
-      fullPath: '/dashboard/tracks/$id/'
-      preLoaderRoute: typeof DashboardTracksIdIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/dashboard/battles/my-stats/': {
-      id: '/dashboard/battles/my-stats/'
-      path: '/battles/my-stats'
-      fullPath: '/dashboard/battles/my-stats/'
-      preLoaderRoute: typeof DashboardBattlesMyStatsIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_explore/library/saved/': {
-      id: '/_explore/library/saved/'
-      path: '/library/saved'
-      fullPath: '/library/saved/'
-      preLoaderRoute: typeof ExploreLibrarySavedIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/library/recent/': {
-      id: '/_explore/library/recent/'
-      path: '/library/recent'
-      fullPath: '/library/recent/'
-      preLoaderRoute: typeof ExploreLibraryRecentIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/library/purchased/': {
-      id: '/_explore/library/purchased/'
-      path: '/library/purchased'
-      fullPath: '/library/purchased/'
-      preLoaderRoute: typeof ExploreLibraryPurchasedIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/_explore/library/playlists/': {
-      id: '/_explore/library/playlists/'
-      path: '/library/playlists'
-      fullPath: '/library/playlists/'
-      preLoaderRoute: typeof ExploreLibraryPlaylistsIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
-    '/dashboard/tracks/$id/edit': {
-      id: '/dashboard/tracks/$id/edit'
-      path: '/tracks/$id/edit'
-      fullPath: '/dashboard/tracks/$id/edit'
-      preLoaderRoute: typeof DashboardTracksIdEditRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_explore/library/playlists/$id/': {
-      id: '/_explore/library/playlists/$id/'
-      path: '/library/playlists/$id'
-      fullPath: '/library/playlists/$id/'
-      preLoaderRoute: typeof ExploreLibraryPlaylistsIdIndexRouteImport
-      parentRoute: typeof ExploreRoute
-    }
+    "/sitemap.xml": {
+      id: "/sitemap.xml";
+      path: "/sitemap.xml";
+      fullPath: "/sitemap.xml";
+      preLoaderRoute: typeof SitemapDotxmlRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/signup": {
+      id: "/signup";
+      path: "/signup";
+      fullPath: "/signup";
+      preLoaderRoute: typeof SignupRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/pricing": {
+      id: "/pricing";
+      path: "/pricing";
+      fullPath: "/pricing";
+      preLoaderRoute: typeof PricingRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/login": {
+      id: "/login";
+      path: "/login";
+      fullPath: "/login";
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/llms.txt": {
+      id: "/llms.txt";
+      path: "/llms.txt";
+      fullPath: "/llms.txt";
+      preLoaderRoute: typeof LlmsDottxtRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dashboard": {
+      id: "/dashboard";
+      path: "/dashboard";
+      fullPath: "/dashboard";
+      preLoaderRoute: typeof DashboardRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/_explore": {
+      id: "/_explore";
+      path: "";
+      fullPath: "/";
+      preLoaderRoute: typeof ExploreRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dashboard/": {
+      id: "/dashboard/";
+      path: "/";
+      fullPath: "/dashboard/";
+      preLoaderRoute: typeof DashboardIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/_explore/": {
+      id: "/_explore/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof ExploreIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/dashboard/team": {
+      id: "/dashboard/team";
+      path: "/team";
+      fullPath: "/dashboard/team";
+      preLoaderRoute: typeof DashboardTeamRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/profile": {
+      id: "/dashboard/profile";
+      path: "/profile";
+      fullPath: "/dashboard/profile";
+      preLoaderRoute: typeof DashboardProfileRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/music": {
+      id: "/dashboard/music";
+      path: "/music";
+      fullPath: "/dashboard/music";
+      preLoaderRoute: typeof DashboardMusicRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/messages": {
+      id: "/dashboard/messages";
+      path: "/messages";
+      fullPath: "/dashboard/messages";
+      preLoaderRoute: typeof DashboardMessagesRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/collaborators": {
+      id: "/dashboard/collaborators";
+      path: "/collaborators";
+      fullPath: "/dashboard/collaborators";
+      preLoaderRoute: typeof DashboardCollaboratorsRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/_explore/new-releases": {
+      id: "/_explore/new-releases";
+      path: "/new-releases";
+      fullPath: "/new-releases";
+      preLoaderRoute: typeof ExploreNewReleasesRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/live": {
+      id: "/_explore/live";
+      path: "/live";
+      fullPath: "/live";
+      preLoaderRoute: typeof ExploreLiveRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/dashboard/tracks/": {
+      id: "/dashboard/tracks/";
+      path: "/tracks";
+      fullPath: "/dashboard/tracks/";
+      preLoaderRoute: typeof DashboardTracksIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/projects/": {
+      id: "/dashboard/projects/";
+      path: "/projects";
+      fullPath: "/dashboard/projects/";
+      preLoaderRoute: typeof DashboardProjectsIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/": {
+      id: "/dashboard/live/";
+      path: "/live";
+      fullPath: "/dashboard/live/";
+      preLoaderRoute: typeof DashboardLiveIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/_explore/tracks/": {
+      id: "/_explore/tracks/";
+      path: "/tracks";
+      fullPath: "/tracks/";
+      preLoaderRoute: typeof ExploreTracksIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/live/": {
+      id: "/_explore/live/";
+      path: "/";
+      fullPath: "/live/";
+      preLoaderRoute: typeof ExploreLiveIndexRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/library/": {
+      id: "/_explore/library/";
+      path: "/library";
+      fullPath: "/library/";
+      preLoaderRoute: typeof ExploreLibraryIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/genres/": {
+      id: "/_explore/genres/";
+      path: "/genres";
+      fullPath: "/genres/";
+      preLoaderRoute: typeof ExploreGenresIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/artist/": {
+      id: "/_explore/artist/";
+      path: "/artist";
+      fullPath: "/artist/";
+      preLoaderRoute: typeof ExploreArtistIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/signup/fan/onboarding": {
+      id: "/signup/fan/onboarding";
+      path: "/fan/onboarding";
+      fullPath: "/signup/fan/onboarding";
+      preLoaderRoute: typeof SignupFanOnboardingRouteImport;
+      parentRoute: typeof SignupRoute;
+    };
+    "/signup/fan/credentials": {
+      id: "/signup/fan/credentials";
+      path: "/fan/credentials";
+      fullPath: "/signup/fan/credentials";
+      preLoaderRoute: typeof SignupFanCredentialsRouteImport;
+      parentRoute: typeof SignupRoute;
+    };
+    "/signup/artist/onboarding": {
+      id: "/signup/artist/onboarding";
+      path: "/artist/onboarding";
+      fullPath: "/signup/artist/onboarding";
+      preLoaderRoute: typeof SignupArtistOnboardingRouteImport;
+      parentRoute: typeof SignupRoute;
+    };
+    "/signup/artist/credentials": {
+      id: "/signup/artist/credentials";
+      path: "/artist/credentials";
+      fullPath: "/signup/artist/credentials";
+      preLoaderRoute: typeof SignupArtistCredentialsRouteImport;
+      parentRoute: typeof SignupRoute;
+    };
+    "/dashboard/tracks/new": {
+      id: "/dashboard/tracks/new";
+      path: "/tracks/new";
+      fullPath: "/dashboard/tracks/new";
+      preLoaderRoute: typeof DashboardTracksNewRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/projects/new": {
+      id: "/dashboard/projects/new";
+      path: "/projects/new";
+      fullPath: "/dashboard/projects/new";
+      preLoaderRoute: typeof DashboardProjectsNewRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/projects/$id": {
+      id: "/dashboard/projects/$id";
+      path: "/projects/$id";
+      fullPath: "/dashboard/projects/$id";
+      preLoaderRoute: typeof DashboardProjectsIdRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/upcoming": {
+      id: "/dashboard/live/upcoming";
+      path: "/live/upcoming";
+      fullPath: "/dashboard/live/upcoming";
+      preLoaderRoute: typeof DashboardLiveUpcomingRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/streams": {
+      id: "/dashboard/live/streams";
+      path: "/live/streams";
+      fullPath: "/dashboard/live/streams";
+      preLoaderRoute: typeof DashboardLiveStreamsRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/parties": {
+      id: "/dashboard/live/parties";
+      path: "/live/parties";
+      fullPath: "/dashboard/live/parties";
+      preLoaderRoute: typeof DashboardLivePartiesRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/my-kit": {
+      id: "/dashboard/live/my-kit";
+      path: "/live/my-kit";
+      fullPath: "/dashboard/live/my-kit";
+      preLoaderRoute: typeof DashboardLiveMyKitRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/find": {
+      id: "/dashboard/live/find";
+      path: "/live/find";
+      fullPath: "/dashboard/live/find";
+      preLoaderRoute: typeof DashboardLiveFindRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/challenge": {
+      id: "/dashboard/live/challenge";
+      path: "/live/challenge";
+      fullPath: "/dashboard/live/challenge";
+      preLoaderRoute: typeof DashboardLiveChallengeRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/career/settings": {
+      id: "/dashboard/career/settings";
+      path: "/career/settings";
+      fullPath: "/dashboard/career/settings";
+      preLoaderRoute: typeof DashboardCareerSettingsRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/career/profile": {
+      id: "/dashboard/career/profile";
+      path: "/career/profile";
+      fullPath: "/dashboard/career/profile";
+      preLoaderRoute: typeof DashboardCareerProfileRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/career/analytics": {
+      id: "/dashboard/career/analytics";
+      path: "/career/analytics";
+      fullPath: "/dashboard/career/analytics";
+      preLoaderRoute: typeof DashboardCareerAnalyticsRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/career/ai-studio": {
+      id: "/dashboard/career/ai-studio";
+      path: "/career/ai-studio";
+      fullPath: "/dashboard/career/ai-studio";
+      preLoaderRoute: typeof DashboardCareerAiStudioRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/_explore/tracks/$id": {
+      id: "/_explore/tracks/$id";
+      path: "/tracks/$id";
+      fullPath: "/tracks/$id";
+      preLoaderRoute: typeof ExploreTracksIdRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/library/settings": {
+      id: "/_explore/library/settings";
+      path: "/library/settings";
+      fullPath: "/library/settings";
+      preLoaderRoute: typeof ExploreLibrarySettingsRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/genres/$id": {
+      id: "/_explore/genres/$id";
+      path: "/genres/$id";
+      fullPath: "/genres/$id";
+      preLoaderRoute: typeof ExploreGenresIdRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/artist/top": {
+      id: "/_explore/artist/top";
+      path: "/artist/top";
+      fullPath: "/artist/top";
+      preLoaderRoute: typeof ExploreArtistTopRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/artist/rising-stars": {
+      id: "/_explore/artist/rising-stars";
+      path: "/artist/rising-stars";
+      fullPath: "/artist/rising-stars";
+      preLoaderRoute: typeof ExploreArtistRisingStarsRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/artist/new": {
+      id: "/_explore/artist/new";
+      path: "/artist/new";
+      fullPath: "/artist/new";
+      preLoaderRoute: typeof ExploreArtistNewRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/artist/$username": {
+      id: "/_explore/artist/$username";
+      path: "/artist/$username";
+      fullPath: "/artist/$username";
+      preLoaderRoute: typeof ExploreArtistUsernameRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/dashboard/tracks/$id/": {
+      id: "/dashboard/tracks/$id/";
+      path: "/tracks/$id";
+      fullPath: "/dashboard/tracks/$id/";
+      preLoaderRoute: typeof DashboardTracksIdIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/dashboard/live/my-stats/": {
+      id: "/dashboard/live/my-stats/";
+      path: "/live/my-stats";
+      fullPath: "/dashboard/live/my-stats/";
+      preLoaderRoute: typeof DashboardLiveMyStatsIndexRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/_explore/live/streams/": {
+      id: "/_explore/live/streams/";
+      path: "/streams";
+      fullPath: "/live/streams/";
+      preLoaderRoute: typeof ExploreLiveStreamsIndexRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/parties/": {
+      id: "/_explore/live/parties/";
+      path: "/parties";
+      fullPath: "/live/parties/";
+      preLoaderRoute: typeof ExploreLivePartiesIndexRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/battles/": {
+      id: "/_explore/live/battles/";
+      path: "/battles";
+      fullPath: "/live/battles/";
+      preLoaderRoute: typeof ExploreLiveBattlesIndexRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/library/saved/": {
+      id: "/_explore/library/saved/";
+      path: "/library/saved";
+      fullPath: "/library/saved/";
+      preLoaderRoute: typeof ExploreLibrarySavedIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/library/recent/": {
+      id: "/_explore/library/recent/";
+      path: "/library/recent";
+      fullPath: "/library/recent/";
+      preLoaderRoute: typeof ExploreLibraryRecentIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/library/purchased/": {
+      id: "/_explore/library/purchased/";
+      path: "/library/purchased";
+      fullPath: "/library/purchased/";
+      preLoaderRoute: typeof ExploreLibraryPurchasedIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/_explore/library/playlists/": {
+      id: "/_explore/library/playlists/";
+      path: "/library/playlists";
+      fullPath: "/library/playlists/";
+      preLoaderRoute: typeof ExploreLibraryPlaylistsIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
+    "/dashboard/tracks/$id/edit": {
+      id: "/dashboard/tracks/$id/edit";
+      path: "/tracks/$id/edit";
+      fullPath: "/dashboard/tracks/$id/edit";
+      preLoaderRoute: typeof DashboardTracksIdEditRouteImport;
+      parentRoute: typeof DashboardRoute;
+    };
+    "/_explore/live/streams/$id": {
+      id: "/_explore/live/streams/$id";
+      path: "/streams/$id";
+      fullPath: "/live/streams/$id";
+      preLoaderRoute: typeof ExploreLiveStreamsIdRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/parties/$id": {
+      id: "/_explore/live/parties/$id";
+      path: "/parties/$id";
+      fullPath: "/live/parties/$id";
+      preLoaderRoute: typeof ExploreLivePartiesIdRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/battles/upcoming": {
+      id: "/_explore/live/battles/upcoming";
+      path: "/battles/upcoming";
+      fullPath: "/live/battles/upcoming";
+      preLoaderRoute: typeof ExploreLiveBattlesUpcomingRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/battles/must-see": {
+      id: "/_explore/live/battles/must-see";
+      path: "/battles/must-see";
+      fullPath: "/live/battles/must-see";
+      preLoaderRoute: typeof ExploreLiveBattlesMustSeeRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/battles/leaderboard": {
+      id: "/_explore/live/battles/leaderboard";
+      path: "/battles/leaderboard";
+      fullPath: "/live/battles/leaderboard";
+      preLoaderRoute: typeof ExploreLiveBattlesLeaderboardRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/live/battles/$id": {
+      id: "/_explore/live/battles/$id";
+      path: "/battles/$id";
+      fullPath: "/live/battles/$id";
+      preLoaderRoute: typeof ExploreLiveBattlesIdRouteImport;
+      parentRoute: typeof ExploreLiveRoute;
+    };
+    "/_explore/library/playlists/$id/": {
+      id: "/_explore/library/playlists/$id/";
+      path: "/library/playlists/$id";
+      fullPath: "/library/playlists/$id/";
+      preLoaderRoute: typeof ExploreLibraryPlaylistsIdIndexRouteImport;
+      parentRoute: typeof ExploreRoute;
+    };
   }
 }
 
+interface ExploreLiveRouteChildren {
+  ExploreLiveIndexRoute: typeof ExploreLiveIndexRoute;
+  ExploreLiveBattlesIdRoute: typeof ExploreLiveBattlesIdRoute;
+  ExploreLiveBattlesLeaderboardRoute: typeof ExploreLiveBattlesLeaderboardRoute;
+  ExploreLiveBattlesMustSeeRoute: typeof ExploreLiveBattlesMustSeeRoute;
+  ExploreLiveBattlesUpcomingRoute: typeof ExploreLiveBattlesUpcomingRoute;
+  ExploreLivePartiesIdRoute: typeof ExploreLivePartiesIdRoute;
+  ExploreLiveStreamsIdRoute: typeof ExploreLiveStreamsIdRoute;
+  ExploreLiveBattlesIndexRoute: typeof ExploreLiveBattlesIndexRoute;
+  ExploreLivePartiesIndexRoute: typeof ExploreLivePartiesIndexRoute;
+  ExploreLiveStreamsIndexRoute: typeof ExploreLiveStreamsIndexRoute;
+}
+
+const ExploreLiveRouteChildren: ExploreLiveRouteChildren = {
+  ExploreLiveIndexRoute: ExploreLiveIndexRoute,
+  ExploreLiveBattlesIdRoute: ExploreLiveBattlesIdRoute,
+  ExploreLiveBattlesLeaderboardRoute: ExploreLiveBattlesLeaderboardRoute,
+  ExploreLiveBattlesMustSeeRoute: ExploreLiveBattlesMustSeeRoute,
+  ExploreLiveBattlesUpcomingRoute: ExploreLiveBattlesUpcomingRoute,
+  ExploreLivePartiesIdRoute: ExploreLivePartiesIdRoute,
+  ExploreLiveStreamsIdRoute: ExploreLiveStreamsIdRoute,
+  ExploreLiveBattlesIndexRoute: ExploreLiveBattlesIndexRoute,
+  ExploreLivePartiesIndexRoute: ExploreLivePartiesIndexRoute,
+  ExploreLiveStreamsIndexRoute: ExploreLiveStreamsIndexRoute,
+};
+
+const ExploreLiveRouteWithChildren = ExploreLiveRoute._addFileChildren(
+  ExploreLiveRouteChildren
+);
+
 interface ExploreRouteChildren {
-  ExploreNewReleasesRoute: typeof ExploreNewReleasesRoute
-  ExploreIndexRoute: typeof ExploreIndexRoute
-  ExploreArtistUsernameRoute: typeof ExploreArtistUsernameRoute
-  ExploreArtistNewRoute: typeof ExploreArtistNewRoute
-  ExploreArtistRisingStarsRoute: typeof ExploreArtistRisingStarsRoute
-  ExploreArtistTopRoute: typeof ExploreArtistTopRoute
-  ExploreBattlesIdRoute: typeof ExploreBattlesIdRoute
-  ExploreBattlesLeaderboardRoute: typeof ExploreBattlesLeaderboardRoute
-  ExploreBattlesLiveRoute: typeof ExploreBattlesLiveRoute
-  ExploreBattlesMustSeeRoute: typeof ExploreBattlesMustSeeRoute
-  ExploreBattlesUpcomingRoute: typeof ExploreBattlesUpcomingRoute
-  ExploreGenresIdRoute: typeof ExploreGenresIdRoute
-  ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute
-  ExploreTracksIdRoute: typeof ExploreTracksIdRoute
-  ExploreArtistIndexRoute: typeof ExploreArtistIndexRoute
-  ExploreBattlesIndexRoute: typeof ExploreBattlesIndexRoute
-  ExploreGenresIndexRoute: typeof ExploreGenresIndexRoute
-  ExploreLibraryIndexRoute: typeof ExploreLibraryIndexRoute
-  ExploreTracksIndexRoute: typeof ExploreTracksIndexRoute
-  ExploreLibraryPlaylistsIndexRoute: typeof ExploreLibraryPlaylistsIndexRoute
-  ExploreLibraryPurchasedIndexRoute: typeof ExploreLibraryPurchasedIndexRoute
-  ExploreLibraryRecentIndexRoute: typeof ExploreLibraryRecentIndexRoute
-  ExploreLibrarySavedIndexRoute: typeof ExploreLibrarySavedIndexRoute
-  ExploreLibraryPlaylistsIdIndexRoute: typeof ExploreLibraryPlaylistsIdIndexRoute
+  ExploreLiveRoute: typeof ExploreLiveRouteWithChildren;
+  ExploreNewReleasesRoute: typeof ExploreNewReleasesRoute;
+  ExploreIndexRoute: typeof ExploreIndexRoute;
+  ExploreArtistUsernameRoute: typeof ExploreArtistUsernameRoute;
+  ExploreArtistNewRoute: typeof ExploreArtistNewRoute;
+  ExploreArtistRisingStarsRoute: typeof ExploreArtistRisingStarsRoute;
+  ExploreArtistTopRoute: typeof ExploreArtistTopRoute;
+  ExploreGenresIdRoute: typeof ExploreGenresIdRoute;
+  ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute;
+  ExploreTracksIdRoute: typeof ExploreTracksIdRoute;
+  ExploreArtistIndexRoute: typeof ExploreArtistIndexRoute;
+  ExploreGenresIndexRoute: typeof ExploreGenresIndexRoute;
+  ExploreLibraryIndexRoute: typeof ExploreLibraryIndexRoute;
+  ExploreTracksIndexRoute: typeof ExploreTracksIndexRoute;
+  ExploreLibraryPlaylistsIndexRoute: typeof ExploreLibraryPlaylistsIndexRoute;
+  ExploreLibraryPurchasedIndexRoute: typeof ExploreLibraryPurchasedIndexRoute;
+  ExploreLibraryRecentIndexRoute: typeof ExploreLibraryRecentIndexRoute;
+  ExploreLibrarySavedIndexRoute: typeof ExploreLibrarySavedIndexRoute;
+  ExploreLibraryPlaylistsIdIndexRoute: typeof ExploreLibraryPlaylistsIdIndexRoute;
 }
 
 const ExploreRouteChildren: ExploreRouteChildren = {
+  ExploreLiveRoute: ExploreLiveRouteWithChildren,
   ExploreNewReleasesRoute: ExploreNewReleasesRoute,
   ExploreIndexRoute: ExploreIndexRoute,
   ExploreArtistUsernameRoute: ExploreArtistUsernameRoute,
   ExploreArtistNewRoute: ExploreArtistNewRoute,
   ExploreArtistRisingStarsRoute: ExploreArtistRisingStarsRoute,
   ExploreArtistTopRoute: ExploreArtistTopRoute,
-  ExploreBattlesIdRoute: ExploreBattlesIdRoute,
-  ExploreBattlesLeaderboardRoute: ExploreBattlesLeaderboardRoute,
-  ExploreBattlesLiveRoute: ExploreBattlesLiveRoute,
-  ExploreBattlesMustSeeRoute: ExploreBattlesMustSeeRoute,
-  ExploreBattlesUpcomingRoute: ExploreBattlesUpcomingRoute,
   ExploreGenresIdRoute: ExploreGenresIdRoute,
   ExploreLibrarySettingsRoute: ExploreLibrarySettingsRoute,
   ExploreTracksIdRoute: ExploreTracksIdRoute,
   ExploreArtistIndexRoute: ExploreArtistIndexRoute,
-  ExploreBattlesIndexRoute: ExploreBattlesIndexRoute,
   ExploreGenresIndexRoute: ExploreGenresIndexRoute,
   ExploreLibraryIndexRoute: ExploreLibraryIndexRoute,
   ExploreTracksIndexRoute: ExploreTracksIndexRoute,
@@ -1180,35 +1351,37 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreLibraryRecentIndexRoute: ExploreLibraryRecentIndexRoute,
   ExploreLibrarySavedIndexRoute: ExploreLibrarySavedIndexRoute,
   ExploreLibraryPlaylistsIdIndexRoute: ExploreLibraryPlaylistsIdIndexRoute,
-}
+};
 
 const ExploreRouteWithChildren =
-  ExploreRoute._addFileChildren(ExploreRouteChildren)
+  ExploreRoute._addFileChildren(ExploreRouteChildren);
 
 interface DashboardRouteChildren {
-  DashboardCollaboratorsRoute: typeof DashboardCollaboratorsRoute
-  DashboardMessagesRoute: typeof DashboardMessagesRoute
-  DashboardMusicRoute: typeof DashboardMusicRoute
-  DashboardProfileRoute: typeof DashboardProfileRoute
-  DashboardTeamRoute: typeof DashboardTeamRoute
-  DashboardIndexRoute: typeof DashboardIndexRoute
-  DashboardBattlesChallengeRoute: typeof DashboardBattlesChallengeRoute
-  DashboardBattlesFindRoute: typeof DashboardBattlesFindRoute
-  DashboardBattlesMyKitRoute: typeof DashboardBattlesMyKitRoute
-  DashboardBattlesUpcomingRoute: typeof DashboardBattlesUpcomingRoute
-  DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute
-  DashboardCareerAnalyticsRoute: typeof DashboardCareerAnalyticsRoute
-  DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute
-  DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute
-  DashboardProjectsIdRoute: typeof DashboardProjectsIdRoute
-  DashboardProjectsNewRoute: typeof DashboardProjectsNewRoute
-  DashboardTracksNewRoute: typeof DashboardTracksNewRoute
-  DashboardBattlesIndexRoute: typeof DashboardBattlesIndexRoute
-  DashboardProjectsIndexRoute: typeof DashboardProjectsIndexRoute
-  DashboardTracksIndexRoute: typeof DashboardTracksIndexRoute
-  DashboardTracksIdEditRoute: typeof DashboardTracksIdEditRoute
-  DashboardBattlesMyStatsIndexRoute: typeof DashboardBattlesMyStatsIndexRoute
-  DashboardTracksIdIndexRoute: typeof DashboardTracksIdIndexRoute
+  DashboardCollaboratorsRoute: typeof DashboardCollaboratorsRoute;
+  DashboardMessagesRoute: typeof DashboardMessagesRoute;
+  DashboardMusicRoute: typeof DashboardMusicRoute;
+  DashboardProfileRoute: typeof DashboardProfileRoute;
+  DashboardTeamRoute: typeof DashboardTeamRoute;
+  DashboardIndexRoute: typeof DashboardIndexRoute;
+  DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute;
+  DashboardCareerAnalyticsRoute: typeof DashboardCareerAnalyticsRoute;
+  DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute;
+  DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute;
+  DashboardLiveChallengeRoute: typeof DashboardLiveChallengeRoute;
+  DashboardLiveFindRoute: typeof DashboardLiveFindRoute;
+  DashboardLiveMyKitRoute: typeof DashboardLiveMyKitRoute;
+  DashboardLivePartiesRoute: typeof DashboardLivePartiesRoute;
+  DashboardLiveStreamsRoute: typeof DashboardLiveStreamsRoute;
+  DashboardLiveUpcomingRoute: typeof DashboardLiveUpcomingRoute;
+  DashboardProjectsIdRoute: typeof DashboardProjectsIdRoute;
+  DashboardProjectsNewRoute: typeof DashboardProjectsNewRoute;
+  DashboardTracksNewRoute: typeof DashboardTracksNewRoute;
+  DashboardLiveIndexRoute: typeof DashboardLiveIndexRoute;
+  DashboardProjectsIndexRoute: typeof DashboardProjectsIndexRoute;
+  DashboardTracksIndexRoute: typeof DashboardTracksIndexRoute;
+  DashboardTracksIdEditRoute: typeof DashboardTracksIdEditRoute;
+  DashboardLiveMyStatsIndexRoute: typeof DashboardLiveMyStatsIndexRoute;
+  DashboardTracksIdIndexRoute: typeof DashboardTracksIdIndexRoute;
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
@@ -1218,34 +1391,36 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardProfileRoute: DashboardProfileRoute,
   DashboardTeamRoute: DashboardTeamRoute,
   DashboardIndexRoute: DashboardIndexRoute,
-  DashboardBattlesChallengeRoute: DashboardBattlesChallengeRoute,
-  DashboardBattlesFindRoute: DashboardBattlesFindRoute,
-  DashboardBattlesMyKitRoute: DashboardBattlesMyKitRoute,
-  DashboardBattlesUpcomingRoute: DashboardBattlesUpcomingRoute,
   DashboardCareerAiStudioRoute: DashboardCareerAiStudioRoute,
   DashboardCareerAnalyticsRoute: DashboardCareerAnalyticsRoute,
   DashboardCareerProfileRoute: DashboardCareerProfileRoute,
   DashboardCareerSettingsRoute: DashboardCareerSettingsRoute,
+  DashboardLiveChallengeRoute: DashboardLiveChallengeRoute,
+  DashboardLiveFindRoute: DashboardLiveFindRoute,
+  DashboardLiveMyKitRoute: DashboardLiveMyKitRoute,
+  DashboardLivePartiesRoute: DashboardLivePartiesRoute,
+  DashboardLiveStreamsRoute: DashboardLiveStreamsRoute,
+  DashboardLiveUpcomingRoute: DashboardLiveUpcomingRoute,
   DashboardProjectsIdRoute: DashboardProjectsIdRoute,
   DashboardProjectsNewRoute: DashboardProjectsNewRoute,
   DashboardTracksNewRoute: DashboardTracksNewRoute,
-  DashboardBattlesIndexRoute: DashboardBattlesIndexRoute,
+  DashboardLiveIndexRoute: DashboardLiveIndexRoute,
   DashboardProjectsIndexRoute: DashboardProjectsIndexRoute,
   DashboardTracksIndexRoute: DashboardTracksIndexRoute,
   DashboardTracksIdEditRoute: DashboardTracksIdEditRoute,
-  DashboardBattlesMyStatsIndexRoute: DashboardBattlesMyStatsIndexRoute,
+  DashboardLiveMyStatsIndexRoute: DashboardLiveMyStatsIndexRoute,
   DashboardTracksIdIndexRoute: DashboardTracksIdIndexRoute,
-}
+};
 
 const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
-  DashboardRouteChildren,
-)
+  DashboardRouteChildren
+);
 
 interface SignupRouteChildren {
-  SignupArtistCredentialsRoute: typeof SignupArtistCredentialsRoute
-  SignupArtistOnboardingRoute: typeof SignupArtistOnboardingRoute
-  SignupFanCredentialsRoute: typeof SignupFanCredentialsRoute
-  SignupFanOnboardingRoute: typeof SignupFanOnboardingRoute
+  SignupArtistCredentialsRoute: typeof SignupArtistCredentialsRoute;
+  SignupArtistOnboardingRoute: typeof SignupArtistOnboardingRoute;
+  SignupFanCredentialsRoute: typeof SignupFanCredentialsRoute;
+  SignupFanOnboardingRoute: typeof SignupFanOnboardingRoute;
 }
 
 const SignupRouteChildren: SignupRouteChildren = {
@@ -1253,28 +1428,30 @@ const SignupRouteChildren: SignupRouteChildren = {
   SignupArtistOnboardingRoute: SignupArtistOnboardingRoute,
   SignupFanCredentialsRoute: SignupFanCredentialsRoute,
   SignupFanOnboardingRoute: SignupFanOnboardingRoute,
-}
+};
 
 const SignupRouteWithChildren =
-  SignupRoute._addFileChildren(SignupRouteChildren)
+  SignupRoute._addFileChildren(SignupRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
+  PricingRoute: PricingRoute,
   SignupRoute: SignupRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
+import type { createStart } from "@tanstack/react-start";
+
+import type { getRouter } from "./router.tsx";
+declare module "@tanstack/react-start" {
   interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
   }
 }

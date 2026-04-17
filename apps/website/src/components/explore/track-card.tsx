@@ -1,20 +1,28 @@
+import { Link } from "@tanstack/react-router";
+import { Play, Clock } from "lucide-react";
 
-import { Link } from "@tanstack/react-router"
-import { Card, CardContent } from "@/components/ui/card"
-import { AppImage } from "@/components/ui/app-image"
-import { Play, Clock } from "lucide-react"
+import { AppImage } from "@/components/ui/app-image";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface TrackCardProps {
-  id: string
-  title: string
-  artist: string
-  artistSlug: string
-  cover: string
-  plays: string
-  duration: string
+  id: string;
+  title: string;
+  artist: string;
+  artistSlug: string;
+  cover: string;
+  plays: string;
+  duration: string;
 }
 
-export function TrackCard({ id, title, artist, artistSlug, cover, plays, duration }: TrackCardProps) {
+export function TrackCard({
+  id,
+  title,
+  artist,
+  artistSlug,
+  cover,
+  plays,
+  duration,
+}: TrackCardProps) {
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all group w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px] flex-shrink-0 p-0">
       <CardContent className="p-0 space-y-0">
@@ -56,5 +64,5 @@ export function TrackCard({ id, title, artist, artistSlug, cover, plays, duratio
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,65 +1,68 @@
-import { Clock, ArrowLeft } from "lucide-react"
-import { columns, type RecentTrack } from "./-columns"
-import { DataTable } from "./-data-table"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Clock, ArrowLeft } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+import { columns } from "./-columns";
+import type { RecentTrack } from "./-columns";
+import { DataTable } from "./-data-table";
 
 const recentTracks: RecentTrack[] = [
   {
-    id: "1",
-    title: "Midnight Vibes",
     artist: "Luna Eclipse",
     artistSlug: "luna-eclipse",
     cover: "/placeholder.svg?height=80&width=80",
     duration: "3:45",
-    timesPlayed: 24,
+    id: "1",
     lastPlayed: "2 hours ago",
+    timesPlayed: 24,
+    title: "Midnight Vibes",
   },
   {
-    id: "2",
-    title: "Electric Dreams",
     artist: "Neon Pulse",
     artistSlug: "neon-pulse",
     cover: "/placeholder.svg?height=80&width=80",
     duration: "4:20",
-    timesPlayed: 18,
+    id: "2",
     lastPlayed: "5 hours ago",
+    timesPlayed: 18,
+    title: "Electric Dreams",
   },
   {
-    id: "3",
-    title: "Street Poetry",
     artist: "Street Poet",
     artistSlug: "street-poet",
     cover: "/placeholder.svg?height=80&width=80",
     duration: "3:15",
-    timesPlayed: 32,
+    id: "3",
     lastPlayed: "Yesterday",
+    timesPlayed: 32,
+    title: "Street Poetry",
   },
   {
-    id: "4",
-    title: "Voltage",
     artist: "Voltage Dreams",
     artistSlug: "voltage-dreams",
     cover: "/placeholder.svg?height=80&width=80",
     duration: "3:58",
-    timesPlayed: 15,
+    id: "4",
     lastPlayed: "Yesterday",
+    timesPlayed: 15,
+    title: "Voltage",
   },
   {
-    id: "5",
-    title: "Metro Life",
     artist: "Metro Flow",
     artistSlug: "metro-flow",
     cover: "/placeholder.svg?height=80&width=80",
     duration: "4:12",
-    timesPlayed: 41,
+    id: "5",
     lastPlayed: "2 days ago",
+    timesPlayed: 41,
+    title: "Metro Life",
   },
-]
+];
 
-export const Route = createFileRoute('/_explore/library/recent/')({
+export const Route = createFileRoute("/_explore/library/recent/")({
   component: RecentlyPlayedPage,
-})
+});
 
 function RecentlyPlayedPage() {
   return (
@@ -76,10 +79,12 @@ function RecentlyPlayedPage() {
           <Clock className="size-8 text-primary" />
           Recently Played
         </h1>
-        <p className="text-muted-foreground text-sm md:text-base">Your listening history</p>
+        <p className="text-muted-foreground text-sm md:text-base">
+          Your listening history
+        </p>
       </div>
 
       <DataTable columns={columns} data={recentTracks} />
     </div>
-  )
+  );
 }

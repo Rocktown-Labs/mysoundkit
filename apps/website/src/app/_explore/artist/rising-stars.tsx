@@ -1,83 +1,101 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router"
-import { ArrowLeft, TrendingUp } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ArtistCard } from "@/components/explore/artist-card"
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, TrendingUp } from "lucide-react";
 
-export const Route = createFileRoute('/_explore/artist/rising-stars')({
+import { ArtistCard } from "@/components/explore/artist-card";
+import { Button } from "@/components/ui/button";
+
+export const Route = createFileRoute("/_explore/artist/rising-stars")({
   component: RisingStarsPage,
-})
+});
 
 function RisingStarsPage() {
-  const router = useRouter()
+  const router = useRouter();
 
   const artists = [
     {
-      slug: "luna-eclipse",
-      name: "Luna Eclipse",
       avatar: "/diverse-user-avatars.png",
-      genre: "R&B/Soul",
       followers: "124K",
+      genre: "R&B/Soul",
+      name: "Luna Eclipse",
+      slug: "luna-eclipse",
       verified: true,
     },
     {
-      slug: "neon-pulse",
-      name: "Neon Pulse",
       avatar: "/diverse-user-avatars.png",
-      genre: "Electronic",
       followers: "89K",
+      genre: "Electronic",
+      name: "Neon Pulse",
+      slug: "neon-pulse",
     },
     {
-      slug: "street-poet",
-      name: "Street Poet",
       avatar: "/diverse-user-avatars.png",
-      genre: "Hip-Hop",
       followers: "256K",
+      genre: "Hip-Hop",
+      name: "Street Poet",
+      slug: "street-poet",
       verified: true,
     },
     {
-      slug: "voltage-dreams",
-      name: "Voltage Dreams",
       avatar: "/diverse-user-avatars.png",
-      genre: "Synthwave",
       followers: "67K",
+      genre: "Synthwave",
+      name: "Voltage Dreams",
+      slug: "voltage-dreams",
     },
     {
-      slug: "metro-flow",
-      name: "Metro Flow",
       avatar: "/diverse-user-avatars.png",
-      genre: "Hip-Hop",
       followers: "198K",
-      verified: true,
-    },
-    { slug: "ocean-drive", name: "Ocean Drive", avatar: "/diverse-user-avatars.png", genre: "Pop", followers: "145K" },
-    {
-      slug: "cosmic-wave",
-      name: "Cosmic Wave",
-      avatar: "/diverse-user-avatars.png",
-      genre: "Electronic",
-      followers: "103K",
-    },
-    { slug: "rhythm-soul", name: "Rhythm Soul", avatar: "/diverse-user-avatars.png", genre: "R&B", followers: "78K" },
-    {
-      slug: "beat-master",
-      name: "Beat Master",
-      avatar: "/diverse-user-avatars.png",
       genre: "Hip-Hop",
-      followers: "156K",
+      name: "Metro Flow",
+      slug: "metro-flow",
       verified: true,
     },
     {
-      slug: "sound-wave",
-      name: "Sound Wave",
       avatar: "/diverse-user-avatars.png",
-      genre: "Electronic",
-      followers: "92K",
+      followers: "145K",
+      genre: "Pop",
+      name: "Ocean Drive",
+      slug: "ocean-drive",
     },
-  ]
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "103K",
+      genre: "Electronic",
+      name: "Cosmic Wave",
+      slug: "cosmic-wave",
+    },
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "78K",
+      genre: "R&B",
+      name: "Rhythm Soul",
+      slug: "rhythm-soul",
+    },
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "156K",
+      genre: "Hip-Hop",
+      name: "Beat Master",
+      slug: "beat-master",
+      verified: true,
+    },
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "92K",
+      genre: "Electronic",
+      name: "Sound Wave",
+      slug: "sound-wave",
+    },
+  ];
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-      <Button variant="ghost" size="sm" onClick={() => router.history.back()} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.history.back()}
+        className="mb-4"
+      >
         <ArrowLeft className="size-4 mr-2" />
         Back
       </Button>
@@ -87,7 +105,9 @@ function RisingStarsPage() {
           <TrendingUp className="size-6 md:size-8 text-primary" />
           Rising Stars
         </h1>
-        <p className="text-muted-foreground text-sm md:text-base">Artists on the rise with growing momentum</p>
+        <p className="text-muted-foreground text-sm md:text-base">
+          Artists on the rise with growing momentum
+        </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
@@ -104,5 +124,5 @@ function RisingStarsPage() {
         ))}
       </div>
     </div>
-  )
+  );
 }

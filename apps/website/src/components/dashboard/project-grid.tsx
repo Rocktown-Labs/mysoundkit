@@ -1,90 +1,108 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { AppImage } from "@/components/ui/app-image"
-import { Clock, CheckCircle, Download, MoreHorizontal, Play } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Link } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router";
+import {
+  Clock,
+  CheckCircle,
+  Download,
+  MoreHorizontal,
+  Play,
+} from "lucide-react";
+
+import { AppImage } from "@/components/ui/app-image";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Progress } from "@/components/ui/progress";
 
 const mockProjects = [
   {
-    id: 1,
-    name: "Summer Vibes",
-    description: "Upbeat track for summer playlist",
-    status: "complete",
-    lastUpdated: "2 hours ago",
-    progress: 100,
-    files: {
-      instrumental: true,
-      vocals: true,
-      adlibs: true,
-      session: true,
-      coverArt: true,
-      reference: true,
-    },
-    mixed: true,
-    mastered: true,
     coverArt: "/summer-music-album-cover.png",
-  },
-  {
-    id: 2,
-    name: "Late Night Sessions",
-    description: "Moody R&B collaboration",
-    status: "in-progress",
-    lastUpdated: "1 day ago",
-    progress: 70,
+    description: "Upbeat track for summer playlist",
     files: {
-      instrumental: true,
-      vocals: true,
-      adlibs: false,
-      session: true,
-      coverArt: false,
-      reference: true,
-    },
-    mixed: false,
-    mastered: false,
-    coverArt: "/night-music-album-cover.png",
-  },
-  {
-    id: 3,
-    name: "Collaboration Track",
-    description: "Hip-hop beat with guest vocals",
-    status: "in-progress",
-    lastUpdated: "3 days ago",
-    progress: 45,
-    files: {
-      instrumental: true,
-      vocals: false,
-      adlibs: false,
-      session: false,
+      adlibs: true,
       coverArt: true,
-      reference: false,
+      instrumental: true,
+      reference: true,
+      session: true,
+      vocals: true,
     },
-    mixed: false,
-    mastered: false,
-    coverArt: "/hip-hop-album-cover.png",
+    id: 1,
+    lastUpdated: "2 hours ago",
+    mastered: true,
+    mixed: true,
+    name: "Summer Vibes",
+    progress: 100,
+    status: "complete",
   },
   {
-    id: 4,
-    name: "Acoustic Demo",
-    description: "Simple acoustic guitar and vocals",
-    status: "draft",
-    lastUpdated: "1 week ago",
-    progress: 25,
+    coverArt: "/night-music-album-cover.png",
+    description: "Moody R&B collaboration",
     files: {
-      instrumental: false,
-      vocals: true,
       adlibs: false,
-      session: false,
       coverArt: false,
-      reference: false,
+      instrumental: true,
+      reference: true,
+      session: true,
+      vocals: true,
     },
-    mixed: false,
+    id: 2,
+    lastUpdated: "1 day ago",
     mastered: false,
-    coverArt: "/acoustic-guitar-album.png",
+    mixed: false,
+    name: "Late Night Sessions",
+    progress: 70,
+    status: "in-progress",
   },
-]
+  {
+    coverArt: "/hip-hop-album-cover.png",
+    description: "Hip-hop beat with guest vocals",
+    files: {
+      adlibs: false,
+      coverArt: true,
+      instrumental: true,
+      reference: false,
+      session: false,
+      vocals: false,
+    },
+    id: 3,
+    lastUpdated: "3 days ago",
+    mastered: false,
+    mixed: false,
+    name: "Collaboration Track",
+    progress: 45,
+    status: "in-progress",
+  },
+  {
+    coverArt: "/acoustic-guitar-album.png",
+    description: "Simple acoustic guitar and vocals",
+    files: {
+      adlibs: false,
+      coverArt: false,
+      instrumental: false,
+      reference: false,
+      session: false,
+      vocals: true,
+    },
+    id: 4,
+    lastUpdated: "1 week ago",
+    mastered: false,
+    mixed: false,
+    name: "Acoustic Demo",
+    progress: 25,
+    status: "draft",
+  },
+];
 
 export function ProjectGrid() {
   return (
@@ -105,7 +123,11 @@ export function ProjectGrid() {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <Button size="sm" variant="secondary" className="bg-white/20 backdrop-blur-sm">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="bg-white/20 backdrop-blur-sm"
+                >
                   <Play className="h-4 w-4" />
                 </Button>
               </div>
@@ -113,15 +135,24 @@ export function ProjectGrid() {
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-lg font-[family-name:var(--font-playfair)] truncate">
-                  <Link to={`/dashboard/projects/${project.id}`} className="hover:text-primary transition-colors">
+                  <Link
+                    to={`/dashboard/projects/${project.id}`}
+                    className="hover:text-primary transition-colors"
+                  >
                     {project.name}
                   </Link>
                 </CardTitle>
-                <CardDescription className="text-sm mt-1">{project.description}</CardDescription>
+                <CardDescription className="text-sm mt-1">
+                  {project.description}
+                </CardDescription>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -129,7 +160,9 @@ export function ProjectGrid() {
                   <DropdownMenuItem>Edit Project</DropdownMenuItem>
                   <DropdownMenuItem>Download All</DropdownMenuItem>
                   <DropdownMenuItem>Share</DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive">
+                    Delete
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -142,16 +175,16 @@ export function ProjectGrid() {
                   variant={
                     project.status === "complete"
                       ? "default"
-                      : project.status === "in-progress"
+                      : (project.status === "in-progress"
                         ? "secondary"
-                        : "outline"
+                        : "outline")
                   }
                   className={
                     project.status === "complete"
                       ? "bg-primary/20 text-primary border-primary/30"
-                      : project.status === "in-progress"
+                      : (project.status === "in-progress"
                         ? "bg-accent/20 text-accent border-accent/30"
-                        : "bg-muted/20 text-muted-foreground border-muted/30"
+                        : "bg-muted/20 text-muted-foreground border-muted/30")
                   }
                 >
                   {project.status === "complete" ? (
@@ -159,51 +192,68 @@ export function ProjectGrid() {
                   ) : (
                     <Clock className="h-3 w-3 mr-1" />
                   )}
-                  {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+                  {project.status.charAt(0).toUpperCase() +
+                    project.status.slice(1)}
                 </Badge>
-                <span className="text-xs text-muted-foreground">{project.lastUpdated}</span>
+                <span className="text-xs text-muted-foreground">
+                  {project.lastUpdated}
+                </span>
               </div>
               <Progress value={project.progress} className="h-2" />
             </div>
 
             {/* File Status */}
             <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Files</div>
+              <div className="text-xs font-medium text-muted-foreground">
+                Files
+              </div>
               <div className="grid grid-cols-2 gap-1 text-xs">
                 <div
                   className={`flex items-center space-x-1 ${project.files.instrumental ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${project.files.instrumental ? "bg-primary" : "bg-muted"}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${project.files.instrumental ? "bg-primary" : "bg-muted"}`}
+                  />
                   <span>Instrumental</span>
                 </div>
                 <div
                   className={`flex items-center space-x-1 ${project.files.vocals ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${project.files.vocals ? "bg-primary" : "bg-muted"}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${project.files.vocals ? "bg-primary" : "bg-muted"}`}
+                  />
                   <span>Vocals</span>
                 </div>
                 <div
                   className={`flex items-center space-x-1 ${project.files.adlibs ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${project.files.adlibs ? "bg-primary" : "bg-muted"}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${project.files.adlibs ? "bg-primary" : "bg-muted"}`}
+                  />
                   <span>Adlibs</span>
                 </div>
                 <div
                   className={`flex items-center space-x-1 ${project.files.session ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${project.files.session ? "bg-primary" : "bg-muted"}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${project.files.session ? "bg-primary" : "bg-muted"}`}
+                  />
                   <span>Session</span>
                 </div>
                 <div
                   className={`flex items-center space-x-1 ${project.files.coverArt ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${project.files.coverArt ? "bg-primary" : "bg-muted"}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${project.files.coverArt ? "bg-primary" : "bg-muted"}`}
+                  />
                   <span>Cover Art</span>
                 </div>
                 <div
                   className={`flex items-center space-x-1 ${project.files.reference ? "text-primary" : "text-muted-foreground"}`}
                 >
-                  <div className={`w-2 h-2 rounded-full ${project.files.reference ? "bg-primary" : "bg-muted"}`} />
+                  <div
+                    className={`w-2 h-2 rounded-full ${project.files.reference ? "bg-primary" : "bg-muted"}`}
+                  />
                   <span>Reference</span>
                 </div>
               </div>
@@ -214,13 +264,17 @@ export function ProjectGrid() {
               <div
                 className={`flex items-center space-x-1 ${project.mixed ? "text-primary" : "text-muted-foreground"}`}
               >
-                <CheckCircle className={`h-3 w-3 ${project.mixed ? "text-primary" : "text-muted"}`} />
+                <CheckCircle
+                  className={`h-3 w-3 ${project.mixed ? "text-primary" : "text-muted"}`}
+                />
                 <span>Mixed</span>
               </div>
               <div
                 className={`flex items-center space-x-1 ${project.mastered ? "text-primary" : "text-muted-foreground"}`}
               >
-                <CheckCircle className={`h-3 w-3 ${project.mastered ? "text-primary" : "text-muted"}`} />
+                <CheckCircle
+                  className={`h-3 w-3 ${project.mastered ? "text-primary" : "text-muted"}`}
+                />
                 <span>Mastered</span>
               </div>
             </div>
@@ -228,7 +282,11 @@ export function ProjectGrid() {
             {/* Actions */}
             <div className="flex items-center space-x-2 pt-2">
               <Link to={`/dashboard/projects/${project.id}`} className="flex-1">
-                <Button variant="outline" size="sm" className="w-full bg-transparent">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full bg-transparent"
+                >
                   View Details
                 </Button>
               </Link>
@@ -240,5 +298,5 @@ export function ProjectGrid() {
         </Card>
       ))}
     </div>
-  )
+  );
 }

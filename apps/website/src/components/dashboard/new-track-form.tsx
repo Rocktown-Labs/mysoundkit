@@ -1,122 +1,153 @@
+import { useRouter } from "@tanstack/react-router";
+import { Plus, X } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
 
-import type React from "react"
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileUploadZone } from "@/components/dashboard/file-upload-zone"
-import { Plus, X } from "lucide-react"
-import { useRouter } from "@tanstack/react-router"
-import { Switch } from "@/components/ui/switch"
+import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 interface TrackFormData {
-  name: string
-  genre: string
-  description: string
-  bpm: string
-  key: string
-  productionStatus: "demo" | "mixed" | "mastered" | "complete"
-  coverArt?: File
-  isForSale: boolean
-  price: string
-  isPublic: boolean
+  name: string;
+  genre: string;
+  description: string;
+  bpm: string;
+  key: string;
+  productionStatus: "demo" | "mixed" | "mastered" | "complete";
+  coverArt?: File;
+  isForSale: boolean;
+  price: string;
+  isPublic: boolean;
 }
 
 interface VerseFile {
-  id: string
-  verseNumber: number
-  file: File | null
-  uploaded: boolean
+  id: string;
+  verseNumber: number;
+  file: File | null;
+  uploaded: boolean;
 }
 
 interface TrackVariant {
-  id: string
-  type: "clean" | "dirty" | "acapella"
+  id: string;
+  type: "clean" | "dirty" | "acapella";
   files: {
-    instrumental?: File
-    verses: VerseFile[]
-    adlibs: File[]
-  }
+    instrumental?: File;
+    verses: VerseFile[];
+    adlibs: File[];
+  };
 }
 
-export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boolean; trackId?: string }) {
-  const router = useRouter()
+export function NewTrackForm({
+  isEditing = false,
+  trackId,
+}: {
+  isEditing?: boolean;
+  trackId?: string;
+}) {
+  const router = useRouter();
   const [formData, setFormData] = useState<TrackFormData>({
-    name: "",
-    genre: "",
-    description: "",
     bpm: "",
-    key: "",
-    productionStatus: "demo",
+    description: "",
+    genre: "",
     isForSale: false,
-    price: "",
     isPublic: true,
-  })
+    key: "",
+    name: "",
+    price: "",
+    productionStatus: "demo",
+  });
 
-  const [verses, setVerses] = useState<VerseFile[]>([{ id: "1", verseNumber: 1, file: null, uploaded: false }])
-  const [adlibs, setAdlibs] = useState<File[]>([])
-  const [variants, setVariants] = useState<TrackVariant[]>([])
-  const [collaborators, setCollaborators] = useState<string[]>([])
-  const [collaboratorEmail, setCollaboratorEmail] = useState("")
+  const [verses, setVerses] = useState<VerseFile[]>([
+    { file: null, id: "1", uploaded: false, verseNumber: 1 },
+  ]);
+  const [adlibs, setAdlibs] = useState<File[]>([]);
+  const [variants, setVariants] = useState<TrackVariant[]>([]);
+  const [collaborators, setCollaborators] = useState<string[]>([]);
+  const [collaboratorEmail, setCollaboratorEmail] = useState("");
 
   const handleInputChange = (field: keyof TrackFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const addVerse = () => {
-    const newVerseNumber = verses.length + 1
-    setVerses([...verses, { id: Date.now().toString(), verseNumber: newVerseNumber, file: null, uploaded: false }])
-  }
+    const newVerseNumber = verses.length + 1;
+    setVerses([
+      ...verses,
+      {
+        file: null,
+        id: Date.now().toString(),
+        uploaded: false,
+        verseNumber: newVerseNumber,
+      },
+    ]);
+  };
 
   const removeVerse = (id: string) => {
     if (verses.length > 1) {
-      setVerses(verses.filter((v) => v.id !== id))
+      setVerses(verses.filter((v) => v.id !== id));
     }
-  }
+  };
 
   const addVariant = (type: "clean" | "dirty" | "acapella") => {
     setVariants([
       ...variants,
       {
+        files: {
+          adlibs: [],
+          verses: [{ file: null, id: "1", uploaded: false, verseNumber: 1 }],
+        },
         id: Date.now().toString(),
         type,
-        files: {
-          verses: [{ id: "1", verseNumber: 1, file: null, uploaded: false }],
-          adlibs: [],
-        },
       },
-    ])
-  }
+    ]);
+  };
 
   const addCollaborator = () => {
     if (collaboratorEmail && !collaborators.includes(collaboratorEmail)) {
-      setCollaborators([...collaborators, collaboratorEmail])
-      setCollaboratorEmail("")
+      setCollaborators([...collaborators, collaboratorEmail]);
+      setCollaboratorEmail("");
     }
-  }
+  };
 
   const removeCollaborator = (email: string) => {
-    setCollaborators(collaborators.filter((c) => c !== email))
-  }
+    setCollaborators(collaborators.filter((c) => c !== email));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    router.navigate({ to: "/dashboard/tracks" })
-  }
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    router.navigate({ to: "/dashboard/tracks" });
+  };
 
-  const isFormValid = formData.name.trim() !== "" && formData.genre.trim() !== ""
+  const isFormValid =
+    formData.name.trim() !== "" && formData.genre.trim() !== "";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Card className="bg-card/50 backdrop-blur-sm border-border/40">
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-playfair)]">Track Details</CardTitle>
+          <CardTitle className="font-[family-name:var(--font-playfair)]">
+            Track Details
+          </CardTitle>
           <CardDescription>Basic information about your track</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -129,7 +160,7 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
               acceptedTypes=".png,.jpg,.jpeg"
               onFileUpload={(files) => {
                 if (files[0]) {
-                  setFormData((prev) => ({ ...prev, coverArt: files[0] }))
+                  setFormData((prev) => ({ ...prev, coverArt: files[0] }));
                 }
               }}
               optional
@@ -202,7 +233,9 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
               <Label htmlFor="status">Production Status</Label>
               <Select
                 value={formData.productionStatus}
-                onValueChange={(value: any) => handleInputChange("productionStatus", value)}
+                onValueChange={(value: any) =>
+                  handleInputChange("productionStatus", value)
+                }
               >
                 <SelectTrigger className="bg-input/50 border-border/60">
                   <SelectValue />
@@ -221,22 +254,30 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Public Track</Label>
-                <p className="text-sm text-muted-foreground">Make this track visible on your profile</p>
+                <p className="text-sm text-muted-foreground">
+                  Make this track visible on your profile
+                </p>
               </div>
               <Switch
                 checked={formData.isPublic}
-                onCheckedChange={(checked) => handleInputChange("isPublic", checked.toString())}
+                onCheckedChange={(checked) =>
+                  handleInputChange("isPublic", checked.toString())
+                }
               />
             </div>
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Sell This Track</Label>
-                <p className="text-sm text-muted-foreground">Allow others to purchase this track</p>
+                <p className="text-sm text-muted-foreground">
+                  Allow others to purchase this track
+                </p>
               </div>
               <Switch
                 checked={formData.isForSale}
-                onCheckedChange={(checked) => handleInputChange("isForSale", checked.toString())}
+                onCheckedChange={(checked) =>
+                  handleInputChange("isForSale", checked.toString())
+                }
               />
             </div>
 
@@ -260,7 +301,9 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
 
       <Card className="bg-card/50 backdrop-blur-sm border-border/40">
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-playfair)]">Track Files</CardTitle>
+          <CardTitle className="font-[family-name:var(--font-playfair)]">
+            Track Files
+          </CardTitle>
           <CardDescription>Upload your track components</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -279,7 +322,12 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Verse Vocals</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addVerse}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addVerse}
+              >
                 <Plus className="h-4 w-4 mr-1" />
                 Add Verse
               </Button>
@@ -291,11 +339,18 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
                     title={`Verse ${verse.verseNumber}`}
                     description="WAV, MP3, AIFF"
                     acceptedTypes=".wav,.mp3,.aiff"
-                    onFileUpload={(files) => console.log(`Verse ${verse.verseNumber}:`, files)}
+                    onFileUpload={(files) =>
+                      console.log(`Verse ${verse.verseNumber}:`, files)
+                    }
                   />
                 </div>
                 {verses.length > 1 && (
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeVerse(verse.id)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeVerse(verse.id)}
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 )}
@@ -344,33 +399,57 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
       {/* Track Variants */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/40">
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-playfair)]">Track Variants</CardTitle>
-          <CardDescription>Create clean, dirty, or acapella versions</CardDescription>
+          <CardTitle className="font-[family-name:var(--font-playfair)]">
+            Track Variants
+          </CardTitle>
+          <CardDescription>
+            Create clean, dirty, or acapella versions
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => addVariant("clean")}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addVariant("clean")}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Clean Version
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addVariant("dirty")}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addVariant("dirty")}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Dirty Version
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addVariant("acapella")}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addVariant("acapella")}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Acapella
             </Button>
           </div>
           {variants.map((variant) => (
-            <div key={variant.id} className="p-4 border border-border/40 rounded-lg space-y-3">
+            <div
+              key={variant.id}
+              className="p-4 border border-border/40 rounded-lg space-y-3"
+            >
               <div className="flex items-center justify-between">
                 <Badge variant="secondary">{variant.type.toUpperCase()}</Badge>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setVariants(variants.filter((v) => v.id !== variant.id))}
+                  onClick={() =>
+                    setVariants(variants.filter((v) => v.id !== variant.id))
+                  }
                 >
                   Remove
                 </Button>
@@ -389,8 +468,12 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
       {/* Collaborators */}
       <Card className="bg-card/50 backdrop-blur-sm border-border/40">
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-playfair)]">Collaborators</CardTitle>
-          <CardDescription>Invite others to collaborate on this track</CardDescription>
+          <CardTitle className="font-[family-name:var(--font-playfair)]">
+            Collaborators
+          </CardTitle>
+          <CardDescription>
+            Invite others to collaborate on this track
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
@@ -407,9 +490,17 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
           {collaborators.length > 0 && (
             <div className="space-y-2">
               {collaborators.map((email) => (
-                <div key={email} className="flex items-center justify-between p-2 bg-accent/20 rounded-lg">
+                <div
+                  key={email}
+                  className="flex items-center justify-between p-2 bg-accent/20 rounded-lg"
+                >
                   <span className="text-sm">{email}</span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeCollaborator(email)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeCollaborator(email)}
+                  >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -421,13 +512,21 @@ export function NewTrackForm({ isEditing = false, trackId }: { isEditing?: boole
 
       {/* Submit */}
       <div className="flex items-center justify-end space-x-4">
-        <Button type="button" variant="outline" onClick={() => router.history.back()}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.history.back()}
+        >
           Cancel
         </Button>
-        <Button type="submit" disabled={!isFormValid} className="bg-primary hover:bg-primary/90">
+        <Button
+          type="submit"
+          disabled={!isFormValid}
+          className="bg-primary hover:bg-primary/90"
+        >
           {isEditing ? "Update Track" : "Create Track"}
         </Button>
       </div>
     </form>
-  )
+  );
 }

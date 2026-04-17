@@ -1,24 +1,31 @@
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Music, User, MapPin, Music2, Check } from "lucide-react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { Progress } from "@/components/ui/progress"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Music, User, MapPin, Music2, Check } from "lucide-react";
+import { useState } from "react";
 
-export const Route = createFileRoute('/signup/fan/onboarding')({
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export const Route = createFileRoute("/signup/fan/onboarding")({
   component: FanOnboardingPage,
-})
+});
 
 function FanOnboardingPage() {
-  const [step, setStep] = useState(1)
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([])
-  const totalSteps = 4
+  const [step, setStep] = useState(1);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const totalSteps = 4;
 
-  const progress = (step / totalSteps) * 100
+  const progress = (step / totalSteps) * 100;
 
   const genres = [
     "Hip-Hop",
@@ -33,11 +40,13 @@ function FanOnboardingPage() {
     "Reggae",
     "Indie",
     "Metal",
-  ]
+  ];
 
   const toggleGenre = (genre: string) => {
-    setSelectedGenres((prev) => (prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]))
-  }
+    setSelectedGenres((prev) =>
+      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -48,7 +57,9 @@ function FanOnboardingPage() {
             <Music className="h-8 w-8 text-primary" />
             <span className="text-2xl font-bold font-notable">SoundKit</span>
           </div>
-          <h1 className="text-2xl font-bold mb-2">Personalize Your Experience</h1>
+          <h1 className="text-2xl font-bold mb-2">
+            Personalize Your Experience
+          </h1>
           <p className="text-muted-foreground">
             Step {step} of {totalSteps}
           </p>
@@ -65,12 +76,20 @@ function FanOnboardingPage() {
                     <User className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">Choose Your Username</h2>
-                  <p className="text-muted-foreground text-sm mt-2">How you'll appear to others</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    How you'll appear to others
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
-                  <Input id="username" placeholder="@musicfan" className="text-lg" />
-                  <p className="text-xs text-muted-foreground">Can only contain letters, numbers, and underscores</p>
+                  <Input
+                    id="username"
+                    placeholder="@musicfan"
+                    className="text-lg"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Can only contain letters, numbers, and underscores
+                  </p>
                 </div>
                 <Button onClick={() => setStep(2)} className="w-full" size="lg">
                   Continue
@@ -85,14 +104,20 @@ function FanOnboardingPage() {
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
                     <Music2 className="size-8 text-primary" />
                   </div>
-                  <h2 className="text-xl font-bold">What Do You Like to Listen To?</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Select at least 3 genres</p>
+                  <h2 className="text-xl font-bold">
+                    What Do You Like to Listen To?
+                  </h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Select at least 3 genres
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {genres.map((genre) => (
                     <Badge
                       key={genre}
-                      variant={selectedGenres.includes(genre) ? "default" : "outline"}
+                      variant={
+                        selectedGenres.includes(genre) ? "default" : "outline"
+                      }
                       className="cursor-pointer text-sm py-2 px-4"
                       onClick={() => toggleGenre(genre)}
                     >
@@ -101,10 +126,20 @@ function FanOnboardingPage() {
                   ))}
                 </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(1)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(1)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
-                  <Button onClick={() => setStep(3)} className="flex-1" size="lg" disabled={selectedGenres.length < 3}>
+                  <Button
+                    onClick={() => setStep(3)}
+                    className="flex-1"
+                    size="lg"
+                    disabled={selectedGenres.length < 3}
+                  >
                     Continue
                   </Button>
                 </div>
@@ -119,7 +154,9 @@ function FanOnboardingPage() {
                     <MapPin className="size-8 text-primary" />
                   </div>
                   <h2 className="text-xl font-bold">Where Are You Located?</h2>
-                  <p className="text-muted-foreground text-sm mt-2">Discover local artists and events</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Discover local artists and events
+                  </p>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -142,10 +179,19 @@ function FanOnboardingPage() {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => setStep(2)} variant="outline" className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(2)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
                     Back
                   </Button>
-                  <Button onClick={() => setStep(4)} className="flex-1" size="lg">
+                  <Button
+                    onClick={() => setStep(4)}
+                    className="flex-1"
+                    size="lg"
+                  >
                     Continue
                   </Button>
                 </div>
@@ -157,7 +203,9 @@ function FanOnboardingPage() {
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <h2 className="text-xl font-bold">Choose Your Plan</h2>
-                  <p className="text-muted-foreground text-sm mt-2">You can always upgrade later</p>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    You can always upgrade later
+                  </p>
                 </div>
                 <div className="grid gap-4">
                   <Card className="border-2 cursor-pointer hover:border-primary transition-colors">
@@ -166,7 +214,10 @@ function FanOnboardingPage() {
                         <div>
                           <h4 className="font-bold text-lg">Free</h4>
                           <p className="text-3xl font-bold mt-2">
-                            $0<span className="text-sm font-normal text-muted-foreground">/month</span>
+                            $0
+                            <span className="text-sm font-normal text-muted-foreground">
+                              /month
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -185,7 +236,11 @@ function FanOnboardingPage() {
                         </li>
                       </ul>
                       <Link to="/explore">
-                        <Button variant="outline" className="w-full mt-6 bg-transparent" size="lg">
+                        <Button
+                          variant="outline"
+                          className="w-full mt-6 bg-transparent"
+                          size="lg"
+                        >
                           Start Free
                         </Button>
                       </Link>
@@ -200,7 +255,10 @@ function FanOnboardingPage() {
                         <div>
                           <h4 className="font-bold text-lg">Premium</h4>
                           <p className="text-3xl font-bold mt-2">
-                            $4.99<span className="text-sm font-normal text-muted-foreground">/month</span>
+                            $4.99
+                            <span className="text-sm font-normal text-muted-foreground">
+                              /month
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -234,7 +292,11 @@ function FanOnboardingPage() {
                     </CardContent>
                   </Card>
                 </div>
-                <Button onClick={() => setStep(3)} variant="ghost" className="w-full">
+                <Button
+                  onClick={() => setStep(3)}
+                  variant="ghost"
+                  className="w-full"
+                >
                   Back
                 </Button>
               </div>
@@ -243,5 +305,5 @@ function FanOnboardingPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

@@ -1,67 +1,80 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ArtistCard } from "@/components/explore/artist-card"
-import { TrackCard } from "@/components/explore/track-card"
-import { BattleCard } from "@/components/explore/battle-card"
-import { SectionHeader } from "@/components/explore/section-header"
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { ArrowLeft } from "lucide-react";
 
-const genreData: Record<string, { name: string; emoji: string; description: string }> = {
-  "hip-hop": {
-    name: "Hip-Hop",
-    emoji: "🎤",
-    description: "Beats, rhymes, and culture",
-  },
-  "rb-soul": {
-    name: "R&B/Soul",
-    emoji: "🎵",
-    description: "Smooth vibes and soulful vocals",
+import { ArtistCard } from "@/components/explore/artist-card";
+import { BattleCard } from "@/components/explore/battle-card";
+import { SectionHeader } from "@/components/explore/section-header";
+import { TrackCard } from "@/components/explore/track-card";
+import { Button } from "@/components/ui/button";
+
+const genreData: Record<
+  string,
+  { name: string; emoji: string; description: string }
+> = {
+  afrobeats: {
+    description: "African rhythms and melodies",
+    emoji: "🥁",
+    name: "Afrobeats",
   },
   electronic: {
-    name: "Electronic",
-    emoji: "🎹",
     description: "Digital sounds and beats",
+    emoji: "🎹",
+    name: "Electronic",
   },
-  pop: {
-    name: "Pop",
-    emoji: "⭐",
-    description: "Chart-topping hits",
-  },
-  rock: {
-    name: "Rock",
-    emoji: "🎸",
-    description: "Guitar-driven anthems",
+  "hip-hop": {
+    description: "Beats, rhymes, and culture",
+    emoji: "🎤",
+    name: "Hip-Hop",
   },
   jazz: {
-    name: "Jazz",
-    emoji: "🎺",
     description: "Improvisation and swing",
-  },
-  afrobeats: {
-    name: "Afrobeats",
-    emoji: "🥁",
-    description: "African rhythms and melodies",
+    emoji: "🎺",
+    name: "Jazz",
   },
   latin: {
-    name: "Latin",
-    emoji: "💃",
     description: "Latin rhythms and passion",
+    emoji: "💃",
+    name: "Latin",
   },
-}
+  pop: {
+    description: "Chart-topping hits",
+    emoji: "⭐",
+    name: "Pop",
+  },
+  "rb-soul": {
+    description: "Smooth vibes and soulful vocals",
+    emoji: "🎵",
+    name: "R&B/Soul",
+  },
+  rock: {
+    description: "Guitar-driven anthems",
+    emoji: "🎸",
+    name: "Rock",
+  },
+};
 
-export const Route = createFileRoute('/_explore/genres/$id')({
+export const Route = createFileRoute("/_explore/genres/$id")({
   component: GenreDetailPage,
-})
+});
 
 function GenreDetailPage() {
-  const { id } = Route.useParams()
-  const router = useRouter()
-  const genre = genreData[id] || { name: "Genre", emoji: "🎵", description: "" }
+  const { id } = Route.useParams();
+  const router = useRouter();
+  const genre = genreData[id] || {
+    description: "",
+    emoji: "🎵",
+    name: "Genre",
+  };
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 space-y-8 md:space-y-10">
       {/* Back Button */}
-      <Button variant="ghost" size="sm" onClick={() => router.history.back()} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.history.back()}
+        className="mb-4"
+      >
         <ArrowLeft className="size-4 mr-2" />
         Back
       </Button>
@@ -71,15 +84,22 @@ function GenreDetailPage() {
         <div className="flex items-center gap-4 mb-2">
           <div className="text-5xl md:text-6xl">{genre.emoji}</div>
           <div>
-            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">{genre.name}</h1>
-            <p className="text-muted-foreground text-sm md:text-base">{genre.description}</p>
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">
+              {genre.name}
+            </h1>
+            <p className="text-muted-foreground text-sm md:text-base">
+              {genre.description}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Top Tracks */}
       <section>
-        <SectionHeader title={`Top ${genre.name} Tracks`} description="Most popular this week" />
+        <SectionHeader
+          title={`Top ${genre.name} Tracks`}
+          description="Most popular this week"
+        />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
             <TrackCard
@@ -142,7 +162,10 @@ function GenreDetailPage() {
 
       {/* New Tracks */}
       <section>
-        <SectionHeader title={`New ${genre.name} Tracks`} description="Fresh releases this week" />
+        <SectionHeader
+          title={`New ${genre.name} Tracks`}
+          description="Fresh releases this week"
+        />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
             <TrackCard
@@ -196,7 +219,10 @@ function GenreDetailPage() {
 
       {/* Top Artists */}
       <section>
-        <SectionHeader title={`Top ${genre.name} Artists`} description="Leading artists in this genre" />
+        <SectionHeader
+          title={`Top ${genre.name} Artists`}
+          description="Leading artists in this genre"
+        />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
             <ArtistCard
@@ -257,16 +283,16 @@ function GenreDetailPage() {
               id="battle-1"
               title={`${genre.name} Showdown`}
               track1={{
-                title: "Track One",
                 artist: "Artist A",
-                votes: 1247,
                 cover: "/summer-music-album-cover.png",
+                title: "Track One",
+                votes: 1247,
               }}
               track2={{
-                title: "Track Two",
                 artist: "Artist B",
-                votes: 1089,
                 cover: "/night-music-album-cover.png",
+                title: "Track Two",
+                votes: 1089,
               }}
               endsIn="2h 34m"
               genre={genre.name}
@@ -276,16 +302,16 @@ function GenreDetailPage() {
               id="battle-2"
               title={`${genre.name} Challenge`}
               track1={{
-                title: "Track Three",
                 artist: "Artist C",
-                votes: 892,
                 cover: "/hip-hop-album-cover.png",
+                title: "Track Three",
+                votes: 892,
               }}
               track2={{
-                title: "Track Four",
                 artist: "Artist D",
-                votes: 756,
                 cover: "/summer-music-album-cover.png",
+                title: "Track Four",
+                votes: 756,
               }}
               endsIn="1h 18m"
               genre={genre.name}
@@ -295,16 +321,16 @@ function GenreDetailPage() {
               id="battle-3"
               title="Beat Battle"
               track1={{
-                title: "Rhythm Fire",
                 artist: "Luna Eclipse",
-                votes: 654,
                 cover: "/night-music-album-cover.png",
+                title: "Rhythm Fire",
+                votes: 654,
               }}
               track2={{
-                title: "Bass Drop",
                 artist: "Neon Pulse",
-                votes: 589,
                 cover: "/hip-hop-album-cover.png",
+                title: "Bass Drop",
+                votes: 589,
               }}
               endsIn="45m"
               genre={genre.name}
@@ -316,23 +342,26 @@ function GenreDetailPage() {
 
       {/* Upcoming Battles */}
       <section>
-        <SectionHeader title="Upcoming Battles" description="Get ready to vote" />
+        <SectionHeader
+          title="Upcoming Battles"
+          description="Get ready to vote"
+        />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
             <BattleCard
               id="battle-4"
               title={`${genre.name} Finals`}
               track1={{
-                title: "Champion Sound",
                 artist: "Street Poet",
-                votes: 0,
                 cover: "/summer-music-album-cover.png",
+                title: "Champion Sound",
+                votes: 0,
               }}
               track2={{
-                title: "Victory Lap",
                 artist: "Voltage Dreams",
-                votes: 0,
                 cover: "/night-music-album-cover.png",
+                title: "Victory Lap",
+                votes: 0,
               }}
               startsIn="3h 20m"
               genre={genre.name}
@@ -341,16 +370,16 @@ function GenreDetailPage() {
               id="battle-5"
               title="Producer Clash"
               track1={{
-                title: "Beat Master",
                 artist: "Cosmic Waves",
-                votes: 0,
                 cover: "/hip-hop-album-cover.png",
+                title: "Beat Master",
+                votes: 0,
               }}
               track2={{
-                title: "Rhythm King",
                 artist: "Rhythm Master",
-                votes: 0,
                 cover: "/summer-music-album-cover.png",
+                title: "Rhythm King",
+                votes: 0,
               }}
               startsIn="6h 45m"
               genre={genre.name}
@@ -361,23 +390,26 @@ function GenreDetailPage() {
 
       {/* Must See Battles */}
       <section>
-        <SectionHeader title="Must See Battles" description="Most watched battles" />
+        <SectionHeader
+          title="Must See Battles"
+          description="Most watched battles"
+        />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
             <BattleCard
               id="battle-6"
               title="Epic Clash"
               track1={{
-                title: "Legendary",
                 artist: "Luna Eclipse",
-                votes: 15234,
                 cover: "/night-music-album-cover.png",
+                title: "Legendary",
+                votes: 15_234,
               }}
               track2={{
-                title: "Immortal",
                 artist: "Street Poet",
-                votes: 14876,
                 cover: "/hip-hop-album-cover.png",
+                title: "Immortal",
+                votes: 14_876,
               }}
               views="245K"
               genre={genre.name}
@@ -386,16 +418,16 @@ function GenreDetailPage() {
               id="battle-7"
               title="Battle of the Year"
               track1={{
-                title: "Unstoppable",
                 artist: "Neon Pulse",
-                votes: 12456,
                 cover: "/summer-music-album-cover.png",
+                title: "Unstoppable",
+                votes: 12_456,
               }}
               track2={{
-                title: "Invincible",
                 artist: "Voltage Dreams",
-                votes: 11987,
                 cover: "/night-music-album-cover.png",
+                title: "Invincible",
+                votes: 11_987,
               }}
               views="189K"
               genre={genre.name}
@@ -404,16 +436,16 @@ function GenreDetailPage() {
               id="battle-8"
               title="Greatest Hits"
               track1={{
-                title: "Classic",
                 artist: "Cosmic Waves",
-                votes: 9876,
                 cover: "/hip-hop-album-cover.png",
+                title: "Classic",
+                votes: 9876,
               }}
               track2={{
-                title: "Timeless",
                 artist: "Rhythm Master",
-                votes: 9543,
                 cover: "/summer-music-album-cover.png",
+                title: "Timeless",
+                votes: 9543,
               }}
               views="167K"
               genre={genre.name}
@@ -422,5 +454,5 @@ function GenreDetailPage() {
         </div>
       </section>
     </div>
-  )
+  );
 }

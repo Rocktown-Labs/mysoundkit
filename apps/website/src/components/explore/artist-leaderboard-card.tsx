@@ -1,56 +1,68 @@
+import { Link } from "@tanstack/react-router";
+import { TrendingUp, Users, Trophy } from "lucide-react";
 
-import { Link } from "@tanstack/react-router"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { TrendingUp, Users, Trophy } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface Artist {
-  rank: number
-  slug: string
-  name: string
-  avatar: string
-  genre: string
-  location: string
+  rank: number;
+  slug: string;
+  name: string;
+  avatar: string;
+  genre: string;
+  location: string;
   stats: {
-    plays?: string
-    followers?: string
-    battleWins?: number
-  }
-  verified?: boolean
+    plays?: string;
+    followers?: string;
+    battleWins?: number;
+  };
+  verified?: boolean;
 }
 
 interface ArtistLeaderboardCardProps {
-  artists: Artist[]
-  type: "rising" | "new" | "top"
-  showBorder?: boolean
+  artists: Artist[];
+  type: "rising" | "new" | "top";
+  showBorder?: boolean;
 }
 
-export function ArtistLeaderboardCard({ artists, type, showBorder = true }: ArtistLeaderboardCardProps) {
+export function ArtistLeaderboardCard({
+  artists,
+  type,
+  showBorder = true,
+}: ArtistLeaderboardCardProps) {
   const getStatIcon = () => {
     switch (type) {
-      case "rising":
-        return <TrendingUp className="size-3 text-primary" />
-      case "new":
-        return <Users className="size-3 text-green-500" />
-      case "top":
-        return <Trophy className="size-3 text-amber-500" />
+      case "rising": {
+        return <TrendingUp className="size-3 text-primary" />;
+      }
+      case "new": {
+        return <Users className="size-3 text-green-500" />;
+      }
+      case "top": {
+        return <Trophy className="size-3 text-amber-500" />;
+      }
     }
-  }
+  };
 
   const getStatLabel = (artist: Artist) => {
     switch (type) {
-      case "rising":
-        return `${artist.stats.plays} plays this week`
-      case "new":
-        return `Joined recently • ${artist.stats.followers} followers`
-      case "top":
-        return `${artist.stats.followers} followers • ${artist.stats.battleWins} wins`
+      case "rising": {
+        return `${artist.stats.plays} plays this week`;
+      }
+      case "new": {
+        return `Joined recently • ${artist.stats.followers} followers`;
+      }
+      case "top": {
+        return `${artist.stats.followers} followers • ${artist.stats.battleWins} wins`;
+      }
     }
-  }
+  };
 
   return (
-    <div className={showBorder ? "bg-card rounded-lg p-4 space-y-3" : "space-y-3"}>
+    <div
+      className={showBorder ? "bg-card rounded-lg p-4 space-y-3" : "space-y-3"}
+    >
       {artists.map((artist) => (
         <Link
           key={artist.slug}
@@ -64,7 +76,7 @@ export function ArtistLeaderboardCard({ artists, type, showBorder = true }: Arti
               artist.rank === 1 && "bg-amber-500/20 text-amber-500",
               artist.rank === 2 && "bg-zinc-400/20 text-zinc-400",
               artist.rank === 3 && "bg-orange-600/20 text-orange-600",
-              artist.rank > 3 && "bg-muted text-muted-foreground",
+              artist.rank > 3 && "bg-muted text-muted-foreground"
             )}
           >
             {artist.rank}
@@ -72,8 +84,13 @@ export function ArtistLeaderboardCard({ artists, type, showBorder = true }: Arti
 
           {/* Avatar */}
           <Avatar className="size-12 flex-shrink-0 rounded-lg">
-            <AvatarImage src={artist.avatar || "/placeholder.svg"} alt={artist.name} />
-            <AvatarFallback>{artist.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+            <AvatarImage
+              src={artist.avatar || "/placeholder.svg"}
+              alt={artist.name}
+            />
+            <AvatarFallback>
+              {artist.name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
 
           {/* Info */}
@@ -83,20 +100,29 @@ export function ArtistLeaderboardCard({ artists, type, showBorder = true }: Arti
                 {artist.name}
               </h4>
               {artist.verified && (
-                <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1 py-0 h-4"
+                >
                   ✓
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground truncate">{artist.genre}</p>
-            <p className="text-xs text-muted-foreground truncate">{artist.location}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {artist.genre}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {artist.location}
+            </p>
             <div className="flex items-center gap-1 mt-1">
               {getStatIcon()}
-              <span className="text-[10px] text-muted-foreground">{getStatLabel(artist)}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {getStatLabel(artist)}
+              </span>
             </div>
           </div>
         </Link>
       ))}
     </div>
-  )
+  );
 }

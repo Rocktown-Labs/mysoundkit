@@ -1,24 +1,23 @@
-import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, Play, Trash2 } from "lucide-react"
-import { AppImage } from "@/components/ui/app-image"
-import { Button } from "@/components/ui/button"
+import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowUpDown, Play, Trash2 } from "lucide-react";
 
-import { Link } from "@tanstack/react-router"
+import { AppImage } from "@/components/ui/app-image";
+import { Button } from "@/components/ui/button";
 
-export type PlaylistTrack = {
-  id: string
-  title: string
-  artist: string
-  artistSlug: string
-  cover: string
-  duration: string
-  addedAt: string
+export interface PlaylistTrack {
+  id: string;
+  title: string;
+  artist: string;
+  artistSlug: string;
+  cover: string;
+  duration: string;
+  addedAt: string;
 }
 
 export const columns: ColumnDef<PlaylistTrack>[] = [
   {
     accessorKey: "cover",
-    header: "Cover",
     cell: ({ row }) => (
       <div className="relative size-12 flex-shrink-0 group">
         <AppImage
@@ -34,39 +33,48 @@ export const columns: ColumnDef<PlaylistTrack>[] = [
         </button>
       </div>
     ),
-    enableSorting: false,
     enableHiding: false,
+    enableSorting: false,
+    header: "Cover",
   },
   {
     accessorKey: "title",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Song Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
     cell: ({ row }) => (
-      <Link to={`/tracks/${row.original.id}`} className="font-medium hover:text-primary">
+      <Link
+        to={`/tracks/${row.original.id}`}
+        className="font-medium hover:text-primary"
+      >
         {row.getValue("title")}
       </Link>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Song Name
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
   },
   {
     accessorKey: "artist",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Artist
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
     cell: ({ row }) => (
-      <Link to={`/artist/${row.original.artistSlug}`} className="hover:text-primary">
+      <Link
+        to={`/artist/${row.original.artistSlug}`}
+        className="hover:text-primary"
+      >
         {row.getValue("artist")}
       </Link>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Artist
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
   },
   {
@@ -75,23 +83,26 @@ export const columns: ColumnDef<PlaylistTrack>[] = [
   },
   {
     accessorKey: "addedAt",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Date Added
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Date Added
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
+    cell: ({ row }) => (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-destructive hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    ),
     id: "actions",
-    cell: ({ row }) => {
-      return (
-        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      )
-    },
   },
-]
+];

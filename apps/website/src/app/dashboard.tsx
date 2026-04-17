@@ -1,12 +1,13 @@
-import { Outlet, createFileRoute } from '@tanstack/react-router'
-import { SidebarProvider } from '@/components/ui/sidebar'
-import { AppSidebar } from '@/components/dashboard/app-sidebar'
-import { DashboardHeader } from '@/components/dashboard/dashboard-header'
-import { MobileNav } from '@/components/dashboard/mobile-nav'
+import { Outlet, createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/dashboard')({
+import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { SidebarProvider } from "@/components/ui/sidebar";
+
+export const Route = createFileRoute("/dashboard")({
   component: DashboardLayout,
-})
+});
 
 function DashboardLayout() {
   return (
@@ -22,5 +23,5 @@ function DashboardLayout() {
       </div>
       <MobileNav />
     </SidebarProvider>
-  )
+  );
 }

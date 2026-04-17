@@ -1,50 +1,55 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, Send } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { useState } from "react"
+import { createFileRoute } from "@tanstack/react-router";
+import { Search, Send } from "lucide-react";
+import { useState } from "react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 const conversations = [
   {
-    id: 1,
-    name: "Sarah Johnson",
     avatar: "/diverse-user-avatars.png",
+    id: 1,
     lastMessage: "Hey! I added the vocals to the track",
+    name: "Sarah Johnson",
     timestamp: "2m ago",
     unread: 2,
   },
   {
-    id: 2,
-    name: "Mike Chen",
     avatar: "/diverse-user-avatars.png",
+    id: 2,
     lastMessage: "Can you check the mix on 'Summer Vibes'?",
+    name: "Mike Chen",
     timestamp: "1h ago",
     unread: 0,
   },
   {
-    id: 3,
-    name: "Alex Rivera",
     avatar: "/diverse-user-avatars.png",
+    id: 3,
     lastMessage: "The session file is ready for download",
+    name: "Alex Rivera",
     timestamp: "3h ago",
     unread: 1,
   },
-]
+];
 
-export const Route = createFileRoute('/dashboard/messages')({
+export const Route = createFileRoute("/dashboard/messages")({
   component: MessagesPage,
-})
+});
 
 function MessagesPage() {
-  const [selectedConversation, setSelectedConversation] = useState(conversations[0])
+  const [selectedConversation, setSelectedConversation] = useState(
+    conversations[0]
+  );
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">Messages</h1>
+        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+          Messages
+        </h1>
         <p className="text-muted-foreground">Chat with your collaborators</p>
       </div>
 
@@ -64,20 +69,32 @@ function MessagesPage() {
                   key={conversation.id}
                   onClick={() => setSelectedConversation(conversation)}
                   className={`w-full flex items-center gap-3 p-4 hover:bg-accent transition-colors ${
-                    selectedConversation.id === conversation.id ? "bg-accent" : ""
+                    selectedConversation.id === conversation.id
+                      ? "bg-accent"
+                      : ""
                   }`}
                 >
                   <Avatar>
-                    <AvatarImage src={conversation.avatar || "/placeholder.svg"} />
+                    <AvatarImage
+                      src={conversation.avatar || "/placeholder.svg"}
+                    />
                     <AvatarFallback>{conversation.name[0]}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 text-left min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold text-sm truncate">{conversation.name}</p>
-                      {conversation.unread > 0 && <Badge className="ml-2">{conversation.unread}</Badge>}
+                      <p className="font-semibold text-sm truncate">
+                        {conversation.name}
+                      </p>
+                      {conversation.unread > 0 && (
+                        <Badge className="ml-2">{conversation.unread}</Badge>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{conversation.lastMessage}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{conversation.timestamp}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {conversation.lastMessage}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {conversation.timestamp}
+                    </p>
                   </div>
                 </button>
               ))}
@@ -90,11 +107,15 @@ function MessagesPage() {
           <CardHeader className="border-b">
             <div className="flex items-center gap-3">
               <Avatar>
-                <AvatarImage src={selectedConversation.avatar || "/placeholder.svg"} />
+                <AvatarImage
+                  src={selectedConversation.avatar || "/placeholder.svg"}
+                />
                 <AvatarFallback>{selectedConversation.name[0]}</AvatarFallback>
               </Avatar>
               <div>
-                <CardTitle className="text-lg">{selectedConversation.name}</CardTitle>
+                <CardTitle className="text-lg">
+                  {selectedConversation.name}
+                </CardTitle>
                 <p className="text-xs text-muted-foreground">Active now</p>
               </div>
             </div>
@@ -103,17 +124,25 @@ function MessagesPage() {
             <div className="space-y-4">
               <div className="flex gap-3">
                 <Avatar className="size-8">
-                  <AvatarImage src={selectedConversation.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{selectedConversation.name[0]}</AvatarFallback>
+                  <AvatarImage
+                    src={selectedConversation.avatar || "/placeholder.svg"}
+                  />
+                  <AvatarFallback>
+                    {selectedConversation.name[0]}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="bg-muted rounded-lg p-3 max-w-[70%]">
-                  <p className="text-sm">Hey! I added the vocals to the track. Can you check it out?</p>
+                  <p className="text-sm">
+                    Hey! I added the vocals to the track. Can you check it out?
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">2m ago</p>
                 </div>
               </div>
               <div className="flex gap-3 justify-end">
                 <div className="bg-primary text-primary-foreground rounded-lg p-3 max-w-[70%]">
-                  <p className="text-sm">Sounds great! I'll review it tonight.</p>
+                  <p className="text-sm">
+                    Sounds great! I'll review it tonight.
+                  </p>
                   <p className="text-xs opacity-70 mt-1">Just now</p>
                 </div>
               </div>
@@ -130,5 +159,5 @@ function MessagesPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
 
 const llmsText = `# SoundKit
 
@@ -19,18 +19,17 @@ const llmsText = `# SoundKit
 
 ## Platform Summary
 SoundKit combines music streaming, artist discovery, live events, and fan community features in one platform. Fans can explore new releases, save tracks, follow artists, and join live moments. Artists can publish tracks, grow their audience, and host experiences that go beyond passive listening.
-`
+`;
 
-export const Route = createFileRoute('/llms.txt')({
+export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
-      GET: async () => {
-        return new Response(llmsText, {
+      GET: async () =>
+        new Response(llmsText, {
           headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
+            "Content-Type": "text/plain; charset=utf-8",
           },
-        })
-      },
+        }),
     },
   },
-})
+});

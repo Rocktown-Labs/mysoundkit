@@ -1,26 +1,25 @@
-import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, Play, Download } from "lucide-react"
-import { AppImage } from "@/components/ui/app-image"
-import { Button } from "@/components/ui/button"
+import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowUpDown, Play, Download } from "lucide-react";
 
-import { Link } from "@tanstack/react-router"
+import { AppImage } from "@/components/ui/app-image";
+import { Button } from "@/components/ui/button";
 
-export type PurchasedTrack = {
-  id: string
-  title: string
-  artist: string
-  artistSlug: string
-  cover: string
-  duration: string
-  price: string
-  purchasedAt: string
-  downloadUrl: string
+export interface PurchasedTrack {
+  id: string;
+  title: string;
+  artist: string;
+  artistSlug: string;
+  cover: string;
+  duration: string;
+  price: string;
+  purchasedAt: string;
+  downloadUrl: string;
 }
 
 export const columns: ColumnDef<PurchasedTrack>[] = [
   {
     accessorKey: "cover",
-    header: "Cover",
     cell: ({ row }) => (
       <div className="relative size-12 flex-shrink-0 group">
         <AppImage
@@ -36,51 +35,61 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
         </button>
       </div>
     ),
-    enableSorting: false,
     enableHiding: false,
+    enableSorting: false,
+    header: "Cover",
   },
   {
     accessorKey: "title",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Song Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
     cell: ({ row }) => (
-      <Link to={`/tracks/${row.original.id}`} className="font-medium hover:text-primary">
+      <Link
+        to={`/tracks/${row.original.id}`}
+        className="font-medium hover:text-primary"
+      >
         {row.getValue("title")}
       </Link>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Song Name
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
   },
   {
     accessorKey: "artist",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Artist
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
     cell: ({ row }) => (
-      <Link to={`/artist/${row.original.artistSlug}`} className="hover:text-primary">
+      <Link
+        to={`/artist/${row.original.artistSlug}`}
+        className="hover:text-primary"
+      >
         {row.getValue("artist")}
       </Link>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Artist
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
   },
   {
     accessorKey: "price",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Price
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Price
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
     accessorKey: "duration",
@@ -88,24 +97,23 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
   },
   {
     accessorKey: "purchasedAt",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Purchase Date
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Purchase Date
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
+    cell: ({ row }) => (
+      <Button size="sm" variant="outline">
+        <Download className="mr-2 h-4 w-4" />
+        Download
+      </Button>
+    ),
     id: "actions",
-    cell: ({ row }) => {
-      return (
-        <Button size="sm" variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Download
-        </Button>
-      )
-    },
   },
-]
+];

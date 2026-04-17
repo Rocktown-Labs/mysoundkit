@@ -1,26 +1,27 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AppImage } from "@/components/ui/app-image"
-import { Calendar } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Calendar } from "lucide-react";
+
+import { AppImage } from "@/components/ui/app-image";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const upcomingReleases = [
   {
+    coverArt: "/summer-music-album-cover.png",
+    daysUntil: 3,
     id: 1,
+    releaseDate: "2025-01-15",
     title: "Midnight Dreams",
     type: "Album",
-    releaseDate: "2025-01-15",
-    daysUntil: 3,
-    coverArt: "/summer-music-album-cover.png",
   },
   {
+    coverArt: "/night-music-album-cover.png",
+    daysUntil: 10,
     id: 2,
+    releaseDate: "2025-01-22",
     title: "Summer Vibes EP",
     type: "EP",
-    releaseDate: "2025-01-22",
-    daysUntil: 10,
-    coverArt: "/night-music-album-cover.png",
   },
-]
+];
 
 export function UpcomingReleases() {
   return (
@@ -58,7 +59,9 @@ export function UpcomingReleases() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-primary">{release.daysUntil} days</p>
+                <p className="text-sm font-semibold text-primary">
+                  {release.daysUntil} days
+                </p>
                 <p className="text-xs text-muted-foreground">until release</p>
               </div>
             </div>
@@ -66,5 +69,5 @@ export function UpcomingReleases() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

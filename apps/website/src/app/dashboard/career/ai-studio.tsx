@@ -1,25 +1,39 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Sparkles, ImageIcon, Video, Wand2, Download, Copy } from "lucide-react"
-import { useState } from "react"
+import { createFileRoute } from "@tanstack/react-router";
+import {
+  Sparkles,
+  ImageIcon,
+  Video,
+  Wand2,
+  Download,
+  Copy,
+} from "lucide-react";
+import { useState } from "react";
 
-export const Route = createFileRoute('/dashboard/career/ai-studio')({
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+
+export const Route = createFileRoute("/dashboard/career/ai-studio")({
   component: AIStudioPage,
-})
+});
 
 function AIStudioPage() {
-  const [generating, setGenerating] = useState(false)
+  const [generating, setGenerating] = useState(false);
 
   const handleGenerate = () => {
-    setGenerating(true)
-    setTimeout(() => setGenerating(false), 3000)
-  }
+    setGenerating(true);
+    setTimeout(() => setGenerating(false), 3000);
+  };
 
   return (
     <div className="space-y-6">
@@ -28,7 +42,9 @@ function AIStudioPage() {
           <Sparkles className="size-6 text-primary" />
           AI Studio
         </h1>
-        <p className="text-muted-foreground">Generate cover art, videos, and promotional content with AI</p>
+        <p className="text-muted-foreground">
+          Generate cover art, videos, and promotional content with AI
+        </p>
       </div>
 
       <Tabs defaultValue="cover-art" className="w-full">
@@ -47,7 +63,9 @@ function AIStudioPage() {
                   <ImageIcon className="size-5" />
                   Generate Cover Art
                 </CardTitle>
-                <CardDescription>Create unique album and track covers with AI</CardDescription>
+                <CardDescription>
+                  Create unique album and track covers with AI
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -86,7 +104,11 @@ function AIStudioPage() {
                   </div>
                 </div>
 
-                <Button className="w-full" onClick={handleGenerate} disabled={generating}>
+                <Button
+                  className="w-full"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
                   {generating ? (
                     <>
                       <Wand2 className="size-4 mr-2 animate-spin" />
@@ -135,19 +157,24 @@ function AIStudioPage() {
                 <div className="pt-4 border-t">
                   <h4 className="font-semibold mb-2">Generation History</h4>
                   <div className="space-y-2">
-                    {["Summer Vibes - Abstract", "Night Drive - Minimalist", "City Lights - Futuristic"].map(
-                      (title, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-accent">
-                          <div className="flex items-center gap-3">
-                            <div className="size-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
-                            <span className="text-sm">{title}</span>
-                          </div>
-                          <Button size="sm" variant="ghost">
-                            View
-                          </Button>
+                    {[
+                      "Summer Vibes - Abstract",
+                      "Night Drive - Minimalist",
+                      "City Lights - Futuristic",
+                    ].map((title, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between p-2 rounded hover:bg-accent"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="size-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
+                          <span className="text-sm">{title}</span>
                         </div>
-                      ),
-                    )}
+                        <Button size="sm" variant="ghost">
+                          View
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </CardContent>
@@ -163,7 +190,9 @@ function AIStudioPage() {
                   <Video className="size-5" />
                   Generate Video Content
                 </CardTitle>
-                <CardDescription>Create music visualizers and promotional videos</CardDescription>
+                <CardDescription>
+                  Create music visualizers and promotional videos
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -222,14 +251,32 @@ function AIStudioPage() {
               <CardContent>
                 <div className="space-y-4">
                   {[
-                    { title: "Summer Vibes - Visualizer", status: "completed", progress: 100 },
-                    { title: "Night Drive - Lyric Video", status: "processing", progress: 67 },
-                    { title: "City Lights - Teaser", status: "queued", progress: 0 },
+                    {
+                      progress: 100,
+                      status: "completed",
+                      title: "Summer Vibes - Visualizer",
+                    },
+                    {
+                      progress: 67,
+                      status: "processing",
+                      title: "Night Drive - Lyric Video",
+                    },
+                    {
+                      progress: 0,
+                      status: "queued",
+                      title: "City Lights - Teaser",
+                    },
                   ].map((video, i) => (
                     <div key={i} className="space-y-2 p-3 rounded-lg border">
                       <div className="flex items-center justify-between">
                         <p className="font-semibold text-sm">{video.title}</p>
-                        <Badge variant={video.status === "completed" ? "default" : "outline"}>{video.status}</Badge>
+                        <Badge
+                          variant={
+                            video.status === "completed" ? "default" : "outline"
+                          }
+                        >
+                          {video.status}
+                        </Badge>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
@@ -238,7 +285,11 @@ function AIStudioPage() {
                         />
                       </div>
                       {video.status === "completed" && (
-                        <Button size="sm" variant="outline" className="w-full bg-transparent">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full bg-transparent"
+                        >
                           <Download className="size-4 mr-2" />
                           Download
                         </Button>
@@ -258,7 +309,9 @@ function AIStudioPage() {
                 <Sparkles className="size-5" />
                 Social Media Content
               </CardTitle>
-              <CardDescription>Generate posts, captions, and promotional content</CardDescription>
+              <CardDescription>
+                Generate posts, captions, and promotional content
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-6">
@@ -309,24 +362,39 @@ function AIStudioPage() {
 
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg border bg-muted/50">
-                    <p className="text-sm font-semibold mb-2">Generated Caption:</p>
+                    <p className="text-sm font-semibold mb-2">
+                      Generated Caption:
+                    </p>
                     <p className="text-sm">
-                      🎵 New track alert! "Summer Vibes" is out now on all platforms. This one's been cooking for a
-                      while and I can't wait for you to hear it. Link in bio! 🔥
+                      🎵 New track alert! "Summer Vibes" is out now on all
+                      platforms. This one's been cooking for a while and I can't
+                      wait for you to hear it. Link in bio! 🔥
                       <br />
                       <br />
                       #NewMusic #SummerVibes #IndieArtist #MusicProducer
                     </p>
-                    <Button size="sm" variant="outline" className="w-full mt-4 bg-transparent">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-4 bg-transparent"
+                    >
                       <Copy className="size-4 mr-2" />
                       Copy Caption
                     </Button>
                   </div>
 
                   <div className="p-4 rounded-lg border">
-                    <p className="text-sm font-semibold mb-2">Suggested Hashtags:</p>
+                    <p className="text-sm font-semibold mb-2">
+                      Suggested Hashtags:
+                    </p>
                     <div className="flex flex-wrap gap-2">
-                      {["#NewMusic", "#IndieArtist", "#MusicProducer", "#SummerVibes", "#NowPlaying"].map((tag) => (
+                      {[
+                        "#NewMusic",
+                        "#IndieArtist",
+                        "#MusicProducer",
+                        "#SummerVibes",
+                        "#NowPlaying",
+                      ].map((tag) => (
                         <Badge key={tag} variant="outline">
                           {tag}
                         </Badge>
@@ -340,5 +408,5 @@ function AIStudioPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

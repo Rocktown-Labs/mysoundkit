@@ -1,11 +1,13 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 export function ProjectFilters() {
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border/40">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-[family-name:var(--font-playfair)]">Filters</CardTitle>
+        <CardTitle className="text-lg font-[family-name:var(--font-playfair)]">
+          Filters
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Status Filter */}
@@ -13,12 +15,20 @@ export function ProjectFilters() {
           <h3 className="text-sm font-medium mb-3">Status</h3>
           <div className="space-y-2">
             <label className="flex items-center space-x-2 text-sm">
-              <input type="checkbox" className="rounded border-border" defaultChecked />
+              <input
+                type="checkbox"
+                className="rounded border-border"
+                defaultChecked
+              />
               <span>Complete</span>
               <span className="ml-auto text-xs text-muted-foreground">3</span>
             </label>
             <label className="flex items-center space-x-2 text-sm">
-              <input type="checkbox" className="rounded border-border" defaultChecked />
+              <input
+                type="checkbox"
+                className="rounded border-border"
+                defaultChecked
+              />
               <span>In Progress</span>
               <span className="ml-auto text-xs text-muted-foreground">5</span>
             </label>
@@ -79,24 +89,41 @@ export function ProjectFilters() {
           <h3 className="text-sm font-medium mb-3">Last Updated</h3>
           <div className="space-y-2">
             <label className="flex items-center space-x-2 text-sm">
-              <input type="radio" name="date" className="rounded-full border-border" />
+              <input
+                type="radio"
+                name="date"
+                className="rounded-full border-border"
+              />
               <span>Today</span>
             </label>
             <label className="flex items-center space-x-2 text-sm">
-              <input type="radio" name="date" className="rounded-full border-border" />
+              <input
+                type="radio"
+                name="date"
+                className="rounded-full border-border"
+              />
               <span>This Week</span>
             </label>
             <label className="flex items-center space-x-2 text-sm">
-              <input type="radio" name="date" className="rounded-full border-border" />
+              <input
+                type="radio"
+                name="date"
+                className="rounded-full border-border"
+              />
               <span>This Month</span>
             </label>
             <label className="flex items-center space-x-2 text-sm">
-              <input type="radio" name="date" className="rounded-full border-border" defaultChecked />
+              <input
+                type="radio"
+                name="date"
+                className="rounded-full border-border"
+                defaultChecked
+              />
               <span>All Time</span>
             </label>
           </div>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

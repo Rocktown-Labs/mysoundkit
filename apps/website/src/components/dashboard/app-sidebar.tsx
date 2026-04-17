@@ -1,6 +1,5 @@
-
-import { Link } from "@tanstack/react-router"
-import { useRouterState } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import {
   Home,
   Music,
@@ -12,59 +11,94 @@ import {
   BarChart3,
   Sparkles,
   Trophy,
-  Swords,
-  Calendar,
-  SearchIcon,
-  Target,
-} from "lucide-react"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-} from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+  Radio,
+  Headphones,
+} from "lucide-react";
+
+import { SidebarNavGroup } from '@/components/sidebar-nav-group';
+import type { SidebarNavItem } from '@/components/sidebar-nav-group';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from "@/components/ui/sidebar";
 
-const myMusicNavigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Tracks", href: "/dashboard/tracks", icon: Music },
-  { name: "Projects", href: "/dashboard/projects", icon: FolderOpen },
-  { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
-  { name: "Team", href: "/dashboard/team", icon: Users },
-]
+const myMusicNavigation: SidebarNavItem[] = [
+  { href: "/dashboard", icon: Home, name: "Dashboard" },
+  { href: "/dashboard/tracks", icon: Music, name: "Tracks" },
+  { href: "/dashboard/projects", icon: FolderOpen, name: "Projects" },
+  { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
+  { href: "/dashboard/team", icon: Users, name: "Team" },
+].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
-const careerNavigation = [
-  { name: "Profile", href: "/dashboard/career/profile", icon: User },
-  { name: "Analytics", href: "/dashboard/career/analytics", icon: BarChart3 },
-  { name: "AI Studio", href: "/dashboard/career/ai-studio", icon: Sparkles },
-  { name: "Settings", href: "/dashboard/career/settings", icon: Settings },
-]
-
-const battleHubNavigation = [
-  { name: "Home", href: "/dashboard/battles", icon: Trophy },
-  { name: "Find Battle", href: "/dashboard/battles/find", icon: SearchIcon },
-  { name: "Upcoming", href: "/dashboard/battles/upcoming", icon: Calendar },
-  { name: "My Kit", href: "/dashboard/battles/my-kit", icon: Target },
-  { name: "Challenge", href: "/dashboard/battles/challenge", icon: Swords },
-  { name: "My Stats", href: "/dashboard/battles/my-stats", icon: BarChart3 },
-]
+const careerNavigation: SidebarNavItem[] = [
+  { href: "/dashboard/career/profile", icon: User, name: "Profile" },
+  { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
+  { href: "/dashboard/career/ai-studio", icon: Sparkles, name: "AI Studio" },
+  { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
+].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
 export function AppSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isLiveRoute = pathname.startsWith("/dashboard/live");
+  const isBattleLiveRoute =
+    isLiveRoute &&
+    !pathname.startsWith("/dashboard/live/parties") &&
+    !pathname.startsWith("/dashboard/live/streams");
+
+  const isRouteActive = (href: string) =>
+    href === "/dashboard"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(`${href}/`);
+
+  const resolvedMyMusicNavigation = myMusicNavigation.map((item) => ({
+    ...item,
+    isActive: isRouteActive(item.url ?? "/dashboard"),
+  }));
+
+  const resolvedCareerNavigation = careerNavigation.map((item) => ({
+    ...item,
+    isActive: isRouteActive(item.url ?? "/dashboard"),
+  }));
+
+  const liveNavigation: SidebarNavItem[] = [
+    {
+      icon: Trophy,
+      isActive: isLiveRoute,
+      items: [
+        {
+          isActive: isBattleLiveRoute,
+          title: "Battles",
+          url: "/dashboard/live",
+        },
+        {
+          isActive: isRouteActive("/dashboard/live/parties"),
+          title: "Parties",
+          url: "/dashboard/live/parties",
+        },
+        {
+          isActive: isRouteActive("/dashboard/live/streams"),
+          title: "Streams",
+          url: "/dashboard/live/streams",
+        },
+      ],
+      title: "Live",
+      url: "/dashboard/live",
+    },
+  ];
 
   return (
     <Sidebar collapsible="icon">
@@ -78,7 +112,9 @@ export function AppSidebar() {
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold">SoundKit</span>
-                  <span className="text-xs text-muted-foreground">Music Platform</span>
+                  <span className="text-xs text-muted-foreground">
+                    Music Platform
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -86,59 +122,9 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>My Music</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {myMusicNavigation.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.name}>
-                    <Link to={item.href}>
-                      <item.icon />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>My Career</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {careerNavigation.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.name}>
-                    <Link to={item.href}>
-                      <item.icon />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Battle Hub</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {battleHubNavigation.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.name}>
-                    <Link to={item.href}>
-                      <item.icon />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <SidebarNavGroup label="My Music" items={resolvedMyMusicNavigation} />
+        <SidebarNavGroup label="My Career" items={resolvedCareerNavigation} />
+        <SidebarNavGroup label="Live" items={liveNavigation} />
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
@@ -152,7 +138,9 @@ export function AppSidebar() {
                   </Avatar>
                   <div className="flex flex-col gap-0.5 leading-none">
                     <span className="font-semibold">John Doe</span>
-                    <span className="text-xs text-muted-foreground">john@example.com</span>
+                    <span className="text-xs text-muted-foreground">
+                      john@example.com
+                    </span>
                   </div>
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -184,5 +172,5 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

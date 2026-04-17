@@ -1,27 +1,27 @@
+import { Link } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
+import { Search } from "lucide-react";
+import { Suspense } from "react";
 
-import { Search } from "lucide-react"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Link } from "@tanstack/react-router"
-import { useRouterState } from "@tanstack/react-router"
-import { Suspense } from "react"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export function ExploreHeader() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const getSearchPlaceholder = () => {
     if (pathname.startsWith("/artist")) {
-      return "Search artists..."
-    } else if (pathname.startsWith("/battles")) {
-      return "Search battles..."
+      return "Search artists...";
+    } else if (pathname.startsWith("/live")) {
+      return "Search battles...";
     } else if (pathname.startsWith("/tracks")) {
-      return "Search songs..."
+      return "Search songs...";
     } else if (pathname.startsWith("/genres")) {
-      return "Search genres..."
+      return "Search genres...";
     }
-    return "Search artists, tracks, battles..."
-  }
+    return "Search artists, tracks, battles...";
+  };
 
   return (
     <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 md:gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
@@ -51,5 +51,5 @@ export function ExploreHeader() {
         </Link>
       </div>
     </header>
-  )
+  );
 }

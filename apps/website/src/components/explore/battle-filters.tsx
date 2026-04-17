@@ -1,98 +1,104 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const northAmericaLocations = [
-  { value: "all", label: "All North America" },
-  { value: "us-alabama", label: "Alabama, US" },
-  { value: "us-alaska", label: "Alaska, US" },
-  { value: "us-arizona", label: "Arizona, US" },
-  { value: "us-arkansas", label: "Arkansas, US" },
-  { value: "us-california", label: "California, US" },
-  { value: "us-colorado", label: "Colorado, US" },
-  { value: "us-connecticut", label: "Connecticut, US" },
-  { value: "us-delaware", label: "Delaware, US" },
-  { value: "us-florida", label: "Florida, US" },
-  { value: "us-georgia", label: "Georgia, US" },
-  { value: "us-hawaii", label: "Hawaii, US" },
-  { value: "us-idaho", label: "Idaho, US" },
-  { value: "us-illinois", label: "Illinois, US" },
-  { value: "us-indiana", label: "Indiana, US" },
-  { value: "us-iowa", label: "Iowa, US" },
-  { value: "us-kansas", label: "Kansas, US" },
-  { value: "us-kentucky", label: "Kentucky, US" },
-  { value: "us-louisiana", label: "Louisiana, US" },
-  { value: "us-maine", label: "Maine, US" },
-  { value: "us-maryland", label: "Maryland, US" },
-  { value: "us-massachusetts", label: "Massachusetts, US" },
-  { value: "us-michigan", label: "Michigan, US" },
-  { value: "us-minnesota", label: "Minnesota, US" },
-  { value: "us-mississippi", label: "Mississippi, US" },
-  { value: "us-missouri", label: "Missouri, US" },
-  { value: "us-montana", label: "Montana, US" },
-  { value: "us-nebraska", label: "Nebraska, US" },
-  { value: "us-nevada", label: "Nevada, US" },
-  { value: "us-new-hampshire", label: "New Hampshire, US" },
-  { value: "us-new-jersey", label: "New Jersey, US" },
-  { value: "us-new-mexico", label: "New Mexico, US" },
-  { value: "us-new-york", label: "New York, US" },
-  { value: "us-north-carolina", label: "North Carolina, US" },
-  { value: "us-north-dakota", label: "North Dakota, US" },
-  { value: "us-ohio", label: "Ohio, US" },
-  { value: "us-oklahoma", label: "Oklahoma, US" },
-  { value: "us-oregon", label: "Oregon, US" },
-  { value: "us-pennsylvania", label: "Pennsylvania, US" },
-  { value: "us-rhode-island", label: "Rhode Island, US" },
-  { value: "us-south-carolina", label: "South Carolina, US" },
-  { value: "us-south-dakota", label: "South Dakota, US" },
-  { value: "us-tennessee", label: "Tennessee, US" },
-  { value: "us-texas", label: "Texas, US" },
-  { value: "us-utah", label: "Utah, US" },
-  { value: "us-vermont", label: "Vermont, US" },
-  { value: "us-virginia", label: "Virginia, US" },
-  { value: "us-washington", label: "Washington, US" },
-  { value: "us-west-virginia", label: "West Virginia, US" },
-  { value: "us-wisconsin", label: "Wisconsin, US" },
-  { value: "us-wyoming", label: "Wyoming, US" },
-  { value: "canada", label: "Canada" },
-  { value: "mexico", label: "Mexico" },
-]
+  { label: "All North America", value: "all" },
+  { label: "Alabama, US", value: "us-alabama" },
+  { label: "Alaska, US", value: "us-alaska" },
+  { label: "Arizona, US", value: "us-arizona" },
+  { label: "Arkansas, US", value: "us-arkansas" },
+  { label: "California, US", value: "us-california" },
+  { label: "Colorado, US", value: "us-colorado" },
+  { label: "Connecticut, US", value: "us-connecticut" },
+  { label: "Delaware, US", value: "us-delaware" },
+  { label: "Florida, US", value: "us-florida" },
+  { label: "Georgia, US", value: "us-georgia" },
+  { label: "Hawaii, US", value: "us-hawaii" },
+  { label: "Idaho, US", value: "us-idaho" },
+  { label: "Illinois, US", value: "us-illinois" },
+  { label: "Indiana, US", value: "us-indiana" },
+  { label: "Iowa, US", value: "us-iowa" },
+  { label: "Kansas, US", value: "us-kansas" },
+  { label: "Kentucky, US", value: "us-kentucky" },
+  { label: "Louisiana, US", value: "us-louisiana" },
+  { label: "Maine, US", value: "us-maine" },
+  { label: "Maryland, US", value: "us-maryland" },
+  { label: "Massachusetts, US", value: "us-massachusetts" },
+  { label: "Michigan, US", value: "us-michigan" },
+  { label: "Minnesota, US", value: "us-minnesota" },
+  { label: "Mississippi, US", value: "us-mississippi" },
+  { label: "Missouri, US", value: "us-missouri" },
+  { label: "Montana, US", value: "us-montana" },
+  { label: "Nebraska, US", value: "us-nebraska" },
+  { label: "Nevada, US", value: "us-nevada" },
+  { label: "New Hampshire, US", value: "us-new-hampshire" },
+  { label: "New Jersey, US", value: "us-new-jersey" },
+  { label: "New Mexico, US", value: "us-new-mexico" },
+  { label: "New York, US", value: "us-new-york" },
+  { label: "North Carolina, US", value: "us-north-carolina" },
+  { label: "North Dakota, US", value: "us-north-dakota" },
+  { label: "Ohio, US", value: "us-ohio" },
+  { label: "Oklahoma, US", value: "us-oklahoma" },
+  { label: "Oregon, US", value: "us-oregon" },
+  { label: "Pennsylvania, US", value: "us-pennsylvania" },
+  { label: "Rhode Island, US", value: "us-rhode-island" },
+  { label: "South Carolina, US", value: "us-south-carolina" },
+  { label: "South Dakota, US", value: "us-south-dakota" },
+  { label: "Tennessee, US", value: "us-tennessee" },
+  { label: "Texas, US", value: "us-texas" },
+  { label: "Utah, US", value: "us-utah" },
+  { label: "Vermont, US", value: "us-vermont" },
+  { label: "Virginia, US", value: "us-virginia" },
+  { label: "Washington, US", value: "us-washington" },
+  { label: "West Virginia, US", value: "us-west-virginia" },
+  { label: "Wisconsin, US", value: "us-wisconsin" },
+  { label: "Wyoming, US", value: "us-wyoming" },
+  { label: "Canada", value: "canada" },
+  { label: "Mexico", value: "mexico" },
+];
 
 const globalLocations = [
-  { value: "all", label: "All Global" },
-  { value: "africa", label: "Africa" },
-  { value: "asia", label: "Asia" },
-  { value: "europe", label: "Europe" },
-  { value: "south-america", label: "South America" },
-  { value: "australia", label: "Australia & Oceania" },
-  { value: "antarctica", label: "Antarctica" },
-]
+  { label: "All Global", value: "all" },
+  { label: "Africa", value: "africa" },
+  { label: "Asia", value: "asia" },
+  { label: "Europe", value: "europe" },
+  { label: "South America", value: "south-america" },
+  { label: "Australia & Oceania", value: "australia" },
+  { label: "Antarctica", value: "antarctica" },
+];
 
 const genres = [
-  { value: "all", label: "All Genres" },
-  { value: "hip-hop", label: "Hip-Hop" },
-  { value: "rb-soul", label: "R&B/Soul" },
-  { value: "electronic", label: "Electronic" },
-  { value: "pop", label: "Pop" },
-  { value: "rock", label: "Rock" },
-  { value: "jazz", label: "Jazz" },
-  { value: "afrobeats", label: "Afrobeats" },
-  { value: "latin", label: "Latin" },
-  { value: "country", label: "Country" },
-  { value: "reggae", label: "Reggae" },
-  { value: "indie", label: "Indie" },
-  { value: "metal", label: "Metal" },
-]
+  { label: "All Genres", value: "all" },
+  { label: "Hip-Hop", value: "hip-hop" },
+  { label: "R&B/Soul", value: "rb-soul" },
+  { label: "Electronic", value: "electronic" },
+  { label: "Pop", value: "pop" },
+  { label: "Rock", value: "rock" },
+  { label: "Jazz", value: "jazz" },
+  { label: "Afrobeats", value: "afrobeats" },
+  { label: "Latin", value: "latin" },
+  { label: "Country", value: "country" },
+  { label: "Reggae", value: "reggae" },
+  { label: "Indie", value: "indie" },
+  { label: "Metal", value: "metal" },
+];
 
 interface BattleFiltersProps {
-  regionType: "north-america" | "global"
-  region: string
-  genre: string
-  sort: string
-  onRegionTypeChange: (value: "north-america" | "global") => void
-  onRegionChange: (value: string) => void
-  onGenreChange: (value: string) => void
-  onSortChange: (value: string) => void
-  sortOptions: { value: string; label: string }[]
+  regionType: "north-america" | "global";
+  region: string;
+  genre: string;
+  sort: string;
+  onRegionTypeChange: (value: "north-america" | "global") => void;
+  onRegionChange: (value: string) => void;
+  onGenreChange: (value: string) => void;
+  onSortChange: (value: string) => void;
+  sortOptions: { value: string; label: string }[];
 }
 
 export function BattleFilters({
@@ -117,12 +123,15 @@ export function BattleFilters({
           <Select
             value={regionType === "north-america" ? region : ""}
             onValueChange={(value) => {
-              onRegionTypeChange("north-america")
-              onRegionChange(value)
+              onRegionTypeChange("north-america");
+              onRegionChange(value);
             }}
             disabled={regionType === "global"}
           >
-            <SelectTrigger id="north-america" className={regionType === "global" ? "opacity-50" : ""}>
+            <SelectTrigger
+              id="north-america"
+              className={regionType === "global" ? "opacity-50" : ""}
+            >
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
             <SelectContent>
@@ -143,12 +152,15 @@ export function BattleFilters({
           <Select
             value={regionType === "global" ? region : ""}
             onValueChange={(value) => {
-              onRegionTypeChange("global")
-              onRegionChange(value)
+              onRegionTypeChange("global");
+              onRegionChange(value);
             }}
             disabled={regionType === "north-america"}
           >
-            <SelectTrigger id="global" className={regionType === "north-america" ? "opacity-50" : ""}>
+            <SelectTrigger
+              id="global"
+              className={regionType === "north-america" ? "opacity-50" : ""}
+            >
               <SelectValue placeholder="Select continent" />
             </SelectTrigger>
             <SelectContent>
@@ -200,5 +212,5 @@ export function BattleFilters({
         </div>
       </div>
     </div>
-  )
+  );
 }

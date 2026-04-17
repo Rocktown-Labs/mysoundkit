@@ -1,63 +1,71 @@
+import { Upload, FileAudio, ImageIcon, File } from "lucide-react";
+import type React from "react";
+import { useState, useRef } from "react";
 
-import type React from "react"
-
-import { useState, useRef } from "react"
-import { Card } from "@/components/ui/card"
-import { Upload, FileAudio, ImageIcon, File } from "lucide-react"
+import { Card } from "@/components/ui/card";
 
 interface FileUploadZoneProps {
-  title: string
-  description: string
-  acceptedTypes: string
-  onFileUpload: (files: FileList) => void
-  optional?: boolean
+  title: string;
+  description: string;
+  acceptedTypes: string;
+  onFileUpload: (files: FileList) => void;
+  optional?: boolean;
 }
 
-export function FileUploadZone({ title, description, acceptedTypes, onFileUpload, optional }: FileUploadZoneProps) {
-  const [isDragOver, setIsDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+export function FileUploadZone({
+  title,
+  description,
+  acceptedTypes,
+  onFileUpload,
+  optional,
+}: FileUploadZoneProps) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }
+    e.preventDefault();
+    setIsDragOver(true);
+  };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-  }
+    e.preventDefault();
+    setIsDragOver(false);
+  };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    const files = e.dataTransfer.files
+    e.preventDefault();
+    setIsDragOver(false);
+    const { files } = e.dataTransfer;
     if (files.length > 0) {
-      onFileUpload(files)
+      onFileUpload(files);
     }
-  }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
+    const { files } = e.target;
     if (files && files.length > 0) {
-      onFileUpload(files)
+      onFileUpload(files);
     }
-  }
+  };
 
   const handleClick = () => {
-    fileInputRef.current?.click()
-  }
+    fileInputRef.current?.click();
+  };
 
   const getIcon = () => {
-    if (title.toLowerCase().includes("cover") || title.toLowerCase().includes("art")) {
-      return ImageIcon
+    if (
+      title.toLowerCase().includes("cover") ||
+      title.toLowerCase().includes("art")
+    ) {
+      return ImageIcon;
     }
     if (title.toLowerCase().includes("session")) {
-      return File
+      return File;
     }
-    return FileAudio
-  }
+    return FileAudio;
+  };
 
-  const IconComponent = getIcon()
+  const IconComponent = getIcon();
 
   return (
     <Card
@@ -78,7 +86,11 @@ export function FileUploadZone({ title, description, acceptedTypes, onFileUpload
         <div>
           <h3 className="font-medium">
             {title}
-            {optional && <span className="text-muted-foreground text-sm ml-1">(Optional)</span>}
+            {optional && (
+              <span className="text-muted-foreground text-sm ml-1">
+                (Optional)
+              </span>
+            )}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">{description}</p>
         </div>
@@ -86,7 +98,9 @@ export function FileUploadZone({ title, description, acceptedTypes, onFileUpload
           <Upload className="h-3 w-3" />
           <span>Click or drag files here</span>
         </div>
-        <div className="text-xs text-muted-foreground">Accepted: {acceptedTypes.replace(/\./g, "").toUpperCase()}</div>
+        <div className="text-xs text-muted-foreground">
+          Accepted: {acceptedTypes.replaceAll(".", "").toUpperCase()}
+        </div>
       </div>
       <input
         ref={fileInputRef}
@@ -97,5 +111,5 @@ export function FileUploadZone({ title, description, acceptedTypes, onFileUpload
         multiple
       />
     </Card>
-  )
+  );
 }

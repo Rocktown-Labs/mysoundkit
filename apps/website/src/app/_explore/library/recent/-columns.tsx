@@ -1,25 +1,24 @@
-import type { ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, Play } from "lucide-react"
-import { AppImage } from "@/components/ui/app-image"
-import { Button } from "@/components/ui/button"
+import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowUpDown, Play } from "lucide-react";
 
-import { Link } from "@tanstack/react-router"
+import { AppImage } from "@/components/ui/app-image";
+import { Button } from "@/components/ui/button";
 
-export type RecentTrack = {
-  id: string
-  title: string
-  artist: string
-  artistSlug: string
-  cover: string
-  duration: string
-  timesPlayed: number
-  lastPlayed: string
+export interface RecentTrack {
+  id: string;
+  title: string;
+  artist: string;
+  artistSlug: string;
+  cover: string;
+  duration: string;
+  timesPlayed: number;
+  lastPlayed: string;
 }
 
 export const columns: ColumnDef<RecentTrack>[] = [
   {
     accessorKey: "cover",
-    header: "Cover",
     cell: ({ row }) => (
       <div className="relative size-12 flex-shrink-0 group">
         <AppImage
@@ -35,65 +34,76 @@ export const columns: ColumnDef<RecentTrack>[] = [
         </button>
       </div>
     ),
-    enableSorting: false,
     enableHiding: false,
+    enableSorting: false,
+    header: "Cover",
   },
   {
     accessorKey: "title",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Song Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
     cell: ({ row }) => (
-      <Link to={`/tracks/${row.original.id}`} className="font-medium hover:text-primary">
+      <Link
+        to={`/tracks/${row.original.id}`}
+        className="font-medium hover:text-primary"
+      >
         {row.getValue("title")}
       </Link>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Song Name
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
   },
   {
     accessorKey: "artist",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Artist
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
     cell: ({ row }) => (
-      <Link to={`/artist/${row.original.artistSlug}`} className="hover:text-primary">
+      <Link
+        to={`/artist/${row.original.artistSlug}`}
+        className="hover:text-primary"
+      >
         {row.getValue("artist")}
       </Link>
+    ),
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Artist
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
     ),
   },
   {
     accessorKey: "timesPlayed",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Times Played
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Times Played
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
     accessorKey: "lastPlayed",
-    header: ({ column }) => {
-      return (
-        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Last Played
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Last Played
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
     accessorKey: "duration",
     header: "Duration",
   },
-]
+];

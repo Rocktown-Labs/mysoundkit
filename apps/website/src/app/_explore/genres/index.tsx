@@ -1,31 +1,36 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+import { Card, CardContent } from "@/components/ui/card";
 
 const genres = [
-  { id: "hip-hop", name: "Hip-Hop", emoji: "🎤", count: "2.5K" },
-  { id: "rb-soul", name: "R&B/Soul", emoji: "🎵", count: "1.8K" },
-  { id: "electronic", name: "Electronic", emoji: "🎹", count: "1.2K" },
-  { id: "pop", name: "Pop", emoji: "⭐", count: "3.1K" },
-  { id: "rock", name: "Rock", emoji: "🎸", count: "1.5K" },
-  { id: "jazz", name: "Jazz", emoji: "🎺", count: "892" },
-  { id: "afrobeats", name: "Afrobeats", emoji: "🥁", count: "1.4K" },
-  { id: "latin", name: "Latin", emoji: "💃", count: "1.1K" },
-  { id: "country", name: "Country", emoji: "🤠", count: "956" },
-  { id: "reggae", name: "Reggae", emoji: "🌴", count: "743" },
-  { id: "indie", name: "Indie", emoji: "🎧", count: "2.2K" },
-  { id: "metal", name: "Metal", emoji: "🤘", count: "876" },
-]
+  { count: "2.5K", emoji: "🎤", id: "hip-hop", name: "Hip-Hop" },
+  { count: "1.8K", emoji: "🎵", id: "rb-soul", name: "R&B/Soul" },
+  { count: "1.2K", emoji: "🎹", id: "electronic", name: "Electronic" },
+  { count: "3.1K", emoji: "⭐", id: "pop", name: "Pop" },
+  { count: "1.5K", emoji: "🎸", id: "rock", name: "Rock" },
+  { count: "892", emoji: "🎺", id: "jazz", name: "Jazz" },
+  { count: "1.4K", emoji: "🥁", id: "afrobeats", name: "Afrobeats" },
+  { count: "1.1K", emoji: "💃", id: "latin", name: "Latin" },
+  { count: "956", emoji: "🤠", id: "country", name: "Country" },
+  { count: "743", emoji: "🌴", id: "reggae", name: "Reggae" },
+  { count: "2.2K", emoji: "🎧", id: "indie", name: "Indie" },
+  { count: "876", emoji: "🤘", id: "metal", name: "Metal" },
+];
 
-export const Route = createFileRoute('/_explore/genres/')({
+export const Route = createFileRoute("/_explore/genres/")({
   component: GenresPage,
-})
+});
 
 function GenresPage() {
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">Browse Genres</h1>
-        <p className="text-muted-foreground text-sm md:text-base">Explore music by genre</p>
+        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2">
+          Browse Genres
+        </h1>
+        <p className="text-muted-foreground text-sm md:text-base">
+          Explore music by genre
+        </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
@@ -38,7 +43,9 @@ function GenresPage() {
                   <h3 className="font-semibold text-sm md:text-base group-hover:text-primary transition-colors">
                     {genre.name}
                   </h3>
-                  <p className="text-xs text-muted-foreground">{genre.count} tracks</p>
+                  <p className="text-xs text-muted-foreground">
+                    {genre.count} tracks
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -46,5 +53,5 @@ function GenresPage() {
         ))}
       </div>
     </div>
-  )
+  );
 }

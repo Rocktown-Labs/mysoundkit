@@ -1,21 +1,26 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Music, FolderOpen, Plus, Play } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Music, FolderOpen, Plus, Play } from "lucide-react";
 
-export const Route = createFileRoute('/dashboard/music')({
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export const Route = createFileRoute("/dashboard/music")({
   component: MusicPage,
-})
+});
 
 function MusicPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">My Music</h1>
-          <p className="text-muted-foreground">Manage your tracks and projects</p>
+          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+            My Music
+          </h1>
+          <p className="text-muted-foreground">
+            Manage your tracks and projects
+          </p>
         </div>
         <div className="flex gap-2">
           <Button asChild>
@@ -57,7 +62,9 @@ function MusicPage() {
                     </div>
                   </div>
                   <h3 className="font-semibold mb-1">Track Title {i}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">Released Jan 2025</p>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Released Jan 2025
+                  </p>
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1">
                       <Badge variant="outline" className="text-xs">
@@ -89,14 +96,24 @@ function MusicPage() {
                     <div className="flex-1">
                       <h3 className="font-semibold mb-1">Project Title {i}</h3>
                       <p className="text-sm text-muted-foreground mb-2">
-                        {i % 2 === 0 ? "Album" : "EP"} • {i % 2 === 0 ? "12" : "6"} tracks
+                        {i % 2 === 0 ? "Album" : "EP"} •{" "}
+                        {i % 2 === 0 ? "12" : "6"} tracks
                       </p>
                       <div className="flex items-center gap-2 mb-3">
-                        <Badge variant="outline">{i % 2 === 0 ? "Album" : "EP"}</Badge>
+                        <Badge variant="outline">
+                          {i % 2 === 0 ? "Album" : "EP"}
+                        </Badge>
                         <Badge variant="outline">In Progress</Badge>
                       </div>
-                      <Button size="sm" variant="outline" asChild className="w-full bg-transparent">
-                        <Link to={`/dashboard/projects/${i}`}>View Project</Link>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        asChild
+                        className="w-full bg-transparent"
+                      >
+                        <Link to={`/dashboard/projects/${i}`}>
+                          View Project
+                        </Link>
                       </Button>
                     </div>
                   </div>
@@ -107,5 +124,5 @@ function MusicPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

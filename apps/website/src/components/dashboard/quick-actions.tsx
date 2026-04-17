@@ -1,7 +1,13 @@
-import { Button } from "@/components/ui/button"
-import { Plus, Music, FolderPlus } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Link } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router";
+import { Plus, Music, FolderPlus } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function QuickActions() {
   return (
@@ -19,7 +25,9 @@ export function QuickActions() {
               <Music className="mr-2 h-4 w-4" />
               <div>
                 <p className="font-medium">New Track</p>
-                <p className="text-xs text-muted-foreground">Create a single song</p>
+                <p className="text-xs text-muted-foreground">
+                  Create a single song
+                </p>
               </div>
             </Link>
           </DropdownMenuItem>
@@ -28,12 +36,14 @@ export function QuickActions() {
               <FolderPlus className="mr-2 h-4 w-4" />
               <div>
                 <p className="font-medium">New Project</p>
-                <p className="text-xs text-muted-foreground">Create an Album or EP</p>
+                <p className="text-xs text-muted-foreground">
+                  Create an Album or EP
+                </p>
               </div>
             </Link>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-  )
+  );
 }

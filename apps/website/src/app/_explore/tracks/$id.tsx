@@ -1,9 +1,5 @@
-import { useRouter } from "@tanstack/react-router"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AppImage } from "@/components/ui/app-image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Play,
   Heart,
@@ -15,45 +11,55 @@ import {
   CheckCircle2,
   ShoppingCart,
   ArrowLeft,
-} from "lucide-react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { TrackCard } from "@/components/explore/track-card"
+} from "lucide-react";
 
-export const Route = createFileRoute('/_explore/tracks/$id')({
+import { TrackCard } from "@/components/explore/track-card";
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+
+export const Route = createFileRoute("/_explore/tracks/$id")({
   component: TrackPage,
-})
+});
 
 function TrackPage() {
-  const { id } = Route.useParams()
-  const router = useRouter()
+  const { id } = Route.useParams();
+  const router = useRouter();
 
   // Mock data
   const track = {
-    id,
-    title: "Summer Nights",
     artist: "Luna Eclipse",
     artistSlug: "luna-eclipse",
-    cover: "/summer-music-album-cover.png",
-    genre: "R&B/Soul",
-    duration: "3:24",
-    releaseDate: "December 15, 2024",
-    plays: "2.4M",
-    likes: "89K",
     bpm: 128,
-    key: "Am",
+    cover: "/summer-music-album-cover.png",
     description:
       "A smooth R&B track perfect for late-night drives and summer evenings. Featuring silky vocals and atmospheric production.",
-    price: "$2.99",
+    duration: "3:24",
+    genre: "R&B/Soul",
+    id,
     isFree: false,
-    verified: true,
+    key: "Am",
+    likes: "89K",
+    plays: "2.4M",
+    price: "$2.99",
+    releaseDate: "December 15, 2024",
+    title: "Summer Nights",
     variants: ["Clean", "Explicit", "Instrumental"],
-  }
+    verified: true,
+  };
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="px-4 md:px-6 pt-4">
-        <Button variant="ghost" size="icon" onClick={() => router.history.back()} className="shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.history.back()}
+          className="shrink-0"
+        >
           <ArrowLeft className="size-5" />
         </Button>
       </div>
@@ -65,26 +71,44 @@ function TrackPage() {
             {/* Hero Section - Spotify/Apple Music Style */}
             <div className="flex flex-col md:flex-row gap-6 md:gap-8">
               <div className="relative w-full md:w-64 aspect-square rounded-lg overflow-hidden shadow-2xl shrink-0">
-                <AppImage src={track.cover || "/placeholder.svg"} alt={track.title} width={512} height={512} layout="constrained" className="w-full h-full object-cover" />
+                <AppImage
+                  src={track.cover || "/placeholder.svg"}
+                  alt={track.title}
+                  width={512}
+                  height={512}
+                  layout="constrained"
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               <div className="flex flex-col justify-end">
                 <Badge variant="secondary" className="w-fit mb-4">
                   {track.genre}
                 </Badge>
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">{track.title}</h1>
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
+                  {track.title}
+                </h1>
 
-                <Link to={`/${track.artistSlug}`} className="flex items-center gap-3 mb-6 group w-fit">
+                <Link
+                  to={`/${track.artistSlug}`}
+                  className="flex items-center gap-3 mb-6 group w-fit"
+                >
                   <Avatar className="size-12">
                     <AvatarImage src="/diverse-user-avatars.png" />
                     <AvatarFallback>{track.artist[0]}</AvatarFallback>
                   </Avatar>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-lg group-hover:text-primary">{track.artist}</span>
-                      {track.verified && <CheckCircle2 className="size-4 text-primary" />}
+                      <span className="font-semibold text-lg group-hover:text-primary">
+                        {track.artist}
+                      </span>
+                      {track.verified && (
+                        <CheckCircle2 className="size-4 text-primary" />
+                      )}
                     </div>
-                    <span className="text-sm text-muted-foreground">{track.releaseDate}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {track.releaseDate}
+                    </span>
                   </div>
                 </Link>
 
@@ -93,7 +117,11 @@ function TrackPage() {
                     <Play className="size-5 fill-current" />
                     Play
                   </Button>
-                  <Button size="lg" variant="outline" className="gap-2 bg-transparent">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="gap-2 bg-transparent"
+                  >
                     <ShoppingCart className="size-5" />
                     Buy {track.price}
                   </Button>
@@ -126,7 +154,9 @@ function TrackPage() {
             <Card>
               <CardContent className="p-6">
                 <h3 className="font-semibold text-lg mb-4">About This Track</h3>
-                <p className="text-muted-foreground mb-6">{track.description}</p>
+                <p className="text-muted-foreground mb-6">
+                  {track.description}
+                </p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
@@ -142,7 +172,9 @@ function TrackPage() {
                     <p className="font-medium">{track.key}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Duration</p>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Duration
+                    </p>
                     <p className="font-medium">{track.duration}</p>
                   </div>
                 </div>
@@ -152,7 +184,9 @@ function TrackPage() {
             {/* Available Variants */}
             <Card>
               <CardContent className="p-6">
-                <h3 className="font-semibold text-lg mb-4">Available Versions</h3>
+                <h3 className="font-semibold text-lg mb-4">
+                  Available Versions
+                </h3>
                 <div className="grid gap-3">
                   {track.variants.map((variant) => (
                     <div
@@ -196,7 +230,11 @@ function TrackPage() {
                       title={`Track ${i}`}
                       artist={track.artist}
                       artistSlug={track.artistSlug}
-                      cover={i % 2 === 0 ? "/night-music-album-cover.png" : "/hip-hop-album-cover.png"}
+                      cover={
+                        i % 2 === 0
+                          ? "/night-music-album-cover.png"
+                          : "/hip-hop-album-cover.png"
+                      }
                       plays={`${i}.${i}M`}
                       duration="3:24"
                     />
@@ -218,10 +256,16 @@ function TrackPage() {
                   </Avatar>
                   <div className="text-center">
                     <div className="flex items-center justify-center gap-2 mb-2">
-                      <h4 className="font-semibold text-lg group-hover:text-primary">{track.artist}</h4>
-                      {track.verified && <CheckCircle2 className="size-4 text-primary" />}
+                      <h4 className="font-semibold text-lg group-hover:text-primary">
+                        {track.artist}
+                      </h4>
+                      {track.verified && (
+                        <CheckCircle2 className="size-4 text-primary" />
+                      )}
                     </div>
-                    <p className="text-sm text-muted-foreground mb-4">124K followers</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      124K followers
+                    </p>
                     <Button className="w-full">Follow</Button>
                   </div>
                 </Link>
@@ -234,16 +278,31 @@ function TrackPage() {
                 <h4 className="font-semibold mb-4">You Might Also Like</h4>
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
-                    <Link key={i} to={`/tracks/track-${i}`} className="flex gap-3 group">
+                    <Link
+                      key={i}
+                      to={`/tracks/track-${i}`}
+                      className="flex gap-3 group"
+                    >
                       <div className="relative size-16 rounded-md overflow-hidden shrink-0">
-                        <AppImage src="/summer-music-album-cover.png" alt="Track" width={64} height={64} layout="fixed" className="w-full h-full object-cover" />
+                        <AppImage
+                          src="/summer-music-album-cover.png"
+                          alt="Track"
+                          width={64}
+                          height={64}
+                          layout="fixed"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h5 className="font-medium text-sm mb-1 truncate group-hover:text-primary">
                           Similar Track {i}
                         </h5>
-                        <p className="text-xs text-muted-foreground truncate">Artist Name</p>
-                        <p className="text-xs text-muted-foreground">1.2M plays</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          Artist Name
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          1.2M plays
+                        </p>
                       </div>
                     </Link>
                   ))}
@@ -254,5 +313,5 @@ function TrackPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

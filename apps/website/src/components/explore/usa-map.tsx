@@ -1,16 +1,15 @@
+import { useState } from "react";
+import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 
-import { useState } from "react"
-import { ComposableMap, Geographies, Geography } from "react-simple-maps"
-
-const geoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"
+const geoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
 
 interface USAMapProps {
-  selectedState: string | null
-  onStateSelect: (state: string) => void
+  selectedState: string | null;
+  onStateSelect: (state: string) => void;
 }
 
 export function USAMap({ selectedState, onStateSelect }: USAMapProps) {
-  const [hoveredState, setHoveredState] = useState<string | null>(null)
+  const [hoveredState, setHoveredState] = useState<string | null>(null);
 
   return (
     <div className="relative w-full max-w-full bg-muted/30 rounded-lg overflow-hidden">
@@ -20,11 +19,13 @@ export function USAMap({ selectedState, onStateSelect }: USAMapProps) {
           <Geographies geography={geoUrl}>
             {({ geographies }) =>
               geographies.map((geo) => {
-                const stateName = geo.properties?.name || geo.id
-                if (!stateName) return null
+                const stateName = geo.properties?.name || geo.id;
+                if (!stateName) {
+                  return null;
+                }
 
-                const isSelected = selectedState === stateName
-                const isHovered = hoveredState === stateName
+                const isSelected = selectedState === stateName;
+                const isHovered = hoveredState === stateName;
 
                 return (
                   <Geography
@@ -36,26 +37,26 @@ export function USAMap({ selectedState, onStateSelect }: USAMapProps) {
                     style={{
                       default: {
                         fill: isSelected ? "hsl(271 91% 65%)" : "#1a1a1a",
+                        outline: "none",
                         stroke: isSelected ? "hsl(271 91% 65%)" : "#2a2a2a",
                         strokeWidth: isSelected ? 2 : 0.5,
-                        outline: "none",
                       },
                       hover: {
+                        cursor: "pointer",
                         fill: isSelected ? "hsl(271 91% 65%)" : "#2a2a2a",
+                        outline: "none",
                         stroke: "hsl(271 91% 65%)",
                         strokeWidth: 2,
-                        outline: "none",
-                        cursor: "pointer",
                       },
                       pressed: {
                         fill: "hsl(271 91% 65%)",
+                        outline: "none",
                         stroke: "hsl(271 91% 65%)",
                         strokeWidth: 2,
-                        outline: "none",
                       },
                     }}
                   />
-                )
+                );
               })
             }
           </Geographies>
@@ -100,5 +101,5 @@ export function USAMap({ selectedState, onStateSelect }: USAMapProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }

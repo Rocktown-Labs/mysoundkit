@@ -1,24 +1,35 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, Save } from "lucide-react"
+import { createFileRoute } from "@tanstack/react-router";
+import { Upload, Save } from "lucide-react";
 
-export const Route = createFileRoute('/dashboard/career/settings')({
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+
+export const Route = createFileRoute("/dashboard/career/settings")({
   component: SettingsPage,
-})
+});
 
 function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and profile settings</p>
+        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+          Settings
+        </h1>
+        <p className="text-muted-foreground">
+          Manage your account and profile settings
+        </p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
@@ -33,7 +44,9 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Artist Profile</CardTitle>
-              <CardDescription>This information will be displayed on your public profile</CardDescription>
+              <CardDescription>
+                This information will be displayed on your public profile
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Profile Picture */}
@@ -47,7 +60,9 @@ function SettingsPage() {
                     <Upload className="size-4 mr-2" />
                     Upload Photo
                   </Button>
-                  <p className="text-xs text-muted-foreground">JPG, PNG or GIF. Max 5MB.</p>
+                  <p className="text-xs text-muted-foreground">
+                    JPG, PNG or GIF. Max 5MB.
+                  </p>
                 </div>
               </div>
 
@@ -82,11 +97,19 @@ function SettingsPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="location">Location</Label>
-                    <Input id="location" placeholder="Los Angeles, CA" defaultValue="Los Angeles, CA" />
+                    <Input
+                      id="location"
+                      placeholder="Los Angeles, CA"
+                      defaultValue="Los Angeles, CA"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="genre">Primary Genre</Label>
-                    <Input id="genre" placeholder="Hip-Hop" defaultValue="Hip-Hop" />
+                    <Input
+                      id="genre"
+                      placeholder="Hip-Hop"
+                      defaultValue="Hip-Hop"
+                    />
                   </div>
                 </div>
               </div>
@@ -96,20 +119,34 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Music Platform Links</CardTitle>
-              <CardDescription>Connect your music streaming profiles</CardDescription>
+              <CardDescription>
+                Connect your music streaming profiles
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="spotify">Spotify Artist URL</Label>
-                <Input id="spotify" placeholder="https://open.spotify.com/artist/..." type="url" />
+                <Input
+                  id="spotify"
+                  placeholder="https://open.spotify.com/artist/..."
+                  type="url"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="apple-music">Apple Music Artist URL</Label>
-                <Input id="apple-music" placeholder="https://music.apple.com/artist/..." type="url" />
+                <Input
+                  id="apple-music"
+                  placeholder="https://music.apple.com/artist/..."
+                  type="url"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="youtube">YouTube Channel URL</Label>
-                <Input id="youtube" placeholder="https://youtube.com/@..." type="url" />
+                <Input
+                  id="youtube"
+                  placeholder="https://youtube.com/@..."
+                  type="url"
+                />
               </div>
             </CardContent>
           </Card>
@@ -117,7 +154,9 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Social Media Links</CardTitle>
-              <CardDescription>Connect your social media accounts</CardDescription>
+              <CardDescription>
+                Connect your social media accounts
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -159,7 +198,11 @@ function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
-                <Input id="email" type="email" defaultValue="john@example.com" />
+                <Input
+                  id="email"
+                  type="email"
+                  defaultValue="john@example.com"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -178,7 +221,9 @@ function SettingsPage() {
               <div className="flex items-center justify-between p-4 rounded-lg border">
                 <div>
                   <p className="font-semibold">Premium Plan</p>
-                  <p className="text-sm text-muted-foreground">$19/month • Renews on Feb 15, 2025</p>
+                  <p className="text-sm text-muted-foreground">
+                    $19/month • Renews on Feb 15, 2025
+                  </p>
                 </div>
                 <Button variant="outline">Manage Plan</Button>
               </div>
@@ -194,7 +239,9 @@ function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold">Delete Account</p>
-                  <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
+                  <p className="text-sm text-muted-foreground">
+                    Permanently delete your account and all data
+                  </p>
                 </div>
                 <Button variant="destructive">Delete Account</Button>
               </div>
@@ -206,20 +253,40 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>Choose what emails you want to receive</CardDescription>
+              <CardDescription>
+                Choose what emails you want to receive
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { title: "New Followers", description: "Get notified when someone follows you" },
-                { title: "Track Plays", description: "Weekly summary of your track plays" },
-                { title: "Comments", description: "Get notified when someone comments on your tracks" },
-                { title: "Collaborations", description: "Get notified about collaboration requests" },
-                { title: "Sales", description: "Get notified when someone purchases your music" },
+                {
+                  description: "Get notified when someone follows you",
+                  title: "New Followers",
+                },
+                {
+                  description: "Weekly summary of your track plays",
+                  title: "Track Plays",
+                },
+                {
+                  description:
+                    "Get notified when someone comments on your tracks",
+                  title: "Comments",
+                },
+                {
+                  description: "Get notified about collaboration requests",
+                  title: "Collaborations",
+                },
+                {
+                  description: "Get notified when someone purchases your music",
+                  title: "Sales",
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
                   </div>
                   <Switch defaultChecked={i < 3} />
                 </div>
@@ -230,18 +297,32 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Push Notifications</CardTitle>
-              <CardDescription>Manage push notifications on your devices</CardDescription>
+              <CardDescription>
+                Manage push notifications on your devices
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { title: "Messages", description: "Get notified about new messages" },
-                { title: "Mentions", description: "Get notified when someone mentions you" },
-                { title: "Releases", description: "Get notified about new releases from artists you follow" },
+                {
+                  description: "Get notified about new messages",
+                  title: "Messages",
+                },
+                {
+                  description: "Get notified when someone mentions you",
+                  title: "Mentions",
+                },
+                {
+                  description:
+                    "Get notified about new releases from artists you follow",
+                  title: "Releases",
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
                   </div>
                   <Switch defaultChecked />
                 </div>
@@ -254,19 +335,36 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Profile Privacy</CardTitle>
-              <CardDescription>Control who can see your profile and content</CardDescription>
+              <CardDescription>
+                Control who can see your profile and content
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {[
-                { title: "Public Profile", description: "Make your profile visible at mysoundkit.com/johndoe" },
-                { title: "Show Track Count", description: "Display number of tracks on your profile" },
-                { title: "Show Followers", description: "Display your follower count publicly" },
-                { title: "Show Collaborators", description: "Display who you've collaborated with" },
+                {
+                  description:
+                    "Make your profile visible at mysoundkit.com/johndoe",
+                  title: "Public Profile",
+                },
+                {
+                  description: "Display number of tracks on your profile",
+                  title: "Show Track Count",
+                },
+                {
+                  description: "Display your follower count publicly",
+                  title: "Show Followers",
+                },
+                {
+                  description: "Display who you've collaborated with",
+                  title: "Show Collaborators",
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.description}
+                    </p>
                   </div>
                   <Switch defaultChecked />
                 </div>
@@ -277,13 +375,17 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Data & Privacy</CardTitle>
-              <CardDescription>Manage your data and privacy settings</CardDescription>
+              <CardDescription>
+                Manage your data and privacy settings
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Analytics Tracking</Label>
-                  <p className="text-sm text-muted-foreground">Allow us to collect analytics data</p>
+                  <p className="text-sm text-muted-foreground">
+                    Allow us to collect analytics data
+                  </p>
                 </div>
                 <Switch defaultChecked />
               </div>
@@ -295,5 +397,5 @@ function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

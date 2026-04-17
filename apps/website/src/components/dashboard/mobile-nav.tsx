@@ -1,8 +1,15 @@
+import { Link } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
+import {
+  Home,
+  Music,
+  FolderOpen,
+  MessageSquare,
+  Plus,
+  BarChart3,
+} from "lucide-react";
+import { useState } from "react";
 
-import { Link } from "@tanstack/react-router"
-import { useRouterState } from "@tanstack/react-router"
-import { Home, Music, FolderOpen, MessageSquare, Plus, BarChart3 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
@@ -10,19 +17,19 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { useState } from "react"
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Home", href: "/dashboard", icon: Home },
-  { name: "Music", href: "/dashboard/music", icon: Music },
-  { name: "Analytics", href: "/dashboard/career/analytics", icon: BarChart3 },
-  { name: "Messages", href: "/dashboard/messages", icon: MessageSquare },
-]
+  { href: "/dashboard", icon: Home, name: "Home" },
+  { href: "/dashboard/music", icon: Music, name: "Music" },
+  { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
+  { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
+];
 
 export function MobileNav() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const [open, setOpen] = useState(false)
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [open, setOpen] = useState(false);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">
@@ -35,9 +42,10 @@ export function MobileNav() {
               "flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs transition-colors",
               pathname === item.href ||
                 (item.href === "/dashboard/music" &&
-                  (pathname.startsWith("/dashboard/tracks") || pathname.startsWith("/dashboard/projects")))
+                  (pathname.startsWith("/dashboard/tracks") ||
+                    pathname.startsWith("/dashboard/projects")))
                 ? "text-primary"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <item.icon className="size-5" />
@@ -56,7 +64,9 @@ export function MobileNav() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New</DialogTitle>
-              <DialogDescription>Choose what you'd like to create</DialogDescription>
+              <DialogDescription>
+                Choose what you'd like to create
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <Link
@@ -67,7 +77,9 @@ export function MobileNav() {
                 <Music className="size-8 text-primary" />
                 <div>
                   <p className="font-semibold">New Track</p>
-                  <p className="text-sm text-muted-foreground">Create a single song</p>
+                  <p className="text-sm text-muted-foreground">
+                    Create a single song
+                  </p>
                 </div>
               </Link>
               <Link
@@ -78,7 +90,9 @@ export function MobileNav() {
                 <FolderOpen className="size-8 text-primary" />
                 <div>
                   <p className="font-semibold">New Project</p>
-                  <p className="text-sm text-muted-foreground">Create an Album or EP</p>
+                  <p className="text-sm text-muted-foreground">
+                    Create an Album or EP
+                  </p>
                 </div>
               </Link>
             </div>
@@ -92,9 +106,10 @@ export function MobileNav() {
             className={cn(
               "flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs transition-colors",
               pathname === item.href ||
-                (item.href === "/dashboard/career/analytics" && pathname.startsWith("/dashboard/career"))
+                (item.href === "/dashboard/career/analytics" &&
+                  pathname.startsWith("/dashboard/career"))
                 ? "text-primary"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <item.icon className="size-5" />
@@ -103,5 +118,5 @@ export function MobileNav() {
         ))}
       </div>
     </nav>
-  )
+  );
 }

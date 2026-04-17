@@ -19,12 +19,12 @@ import appCss from "./globals.css?url";
 
 export interface RouterAppContext {}
 
-const SITE_NAME = 'SoundKit'
-const SITE_URL = 'https://soundkit-web.rocktown-labs.workers.dev'
+const SITE_NAME = "SoundKit";
+const SITE_URL = "https://soundkit-web.rocktown-labs.workers.dev";
 const SITE_DESCRIPTION =
-  'Stream music, discover artists, join listening parties, and tune into live battles and creator streams on SoundKit.'
-const SITE_TITLE = 'SoundKit | Stream music and join live moments'
-const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.png`
+  "Stream music, discover artists, join listening parties, and tune into live battles and creator streams on SoundKit.";
+const SITE_TITLE = "SoundKit | Stream music and join live moments";
+const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.png`;
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
@@ -32,16 +32,16 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     links: [
       {
         href: `${SITE_URL}/`,
-        rel: 'canonical',
+        rel: "canonical",
       },
       {
-        href: '/icon.svg',
-        rel: 'icon',
-        type: 'image/svg+xml',
+        href: "/icon.svg",
+        rel: "icon",
+        type: "image/svg+xml",
       },
       {
-        href: '/apple-icon.png',
-        rel: 'apple-touch-icon',
+        href: "/apple-icon.png",
+        rel: "apple-touch-icon",
       },
       {
         href: appCss,
@@ -59,59 +59,59 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         content: SITE_DESCRIPTION,
         name: "description",
       },
-      { content: SITE_NAME, name: 'application-name' },
-      { content: '#000000', name: 'theme-color' },
-      { content: 'index,follow', name: 'robots' },
-      { content: SITE_NAME, property: 'og:site_name' },
-      { content: 'website', property: 'og:type' },
-      { content: SITE_URL, property: 'og:url' },
-      { content: SITE_TITLE, property: 'og:title' },
-      { content: SITE_DESCRIPTION, property: 'og:description' },
-      { content: SOCIAL_IMAGE_URL, property: 'og:image' },
-      { content: '1200', property: 'og:image:width' },
-      { content: '630', property: 'og:image:height' },
-      { content: 'summary_large_image', name: 'twitter:card' },
-      { content: '@soundkit', name: 'twitter:site' },
-      { content: SITE_TITLE, name: 'twitter:title' },
-      { content: SITE_DESCRIPTION, name: 'twitter:description' },
-      { content: SOCIAL_IMAGE_URL, name: 'twitter:image' },
+      { content: SITE_NAME, name: "application-name" },
+      { content: "#000000", name: "theme-color" },
+      { content: "index,follow", name: "robots" },
+      { content: SITE_NAME, property: "og:site_name" },
+      { content: "website", property: "og:type" },
+      { content: SITE_URL, property: "og:url" },
+      { content: SITE_TITLE, property: "og:title" },
+      { content: SITE_DESCRIPTION, property: "og:description" },
+      { content: SOCIAL_IMAGE_URL, property: "og:image" },
+      { content: "1200", property: "og:image:width" },
+      { content: "630", property: "og:image:height" },
+      { content: "summary_large_image", name: "twitter:card" },
+      { content: "@soundkit", name: "twitter:site" },
+      { content: SITE_TITLE, name: "twitter:title" },
+      { content: SITE_DESCRIPTION, name: "twitter:description" },
+      { content: SOCIAL_IMAGE_URL, name: "twitter:image" },
     ],
     scripts: [
       {
         children: JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'WebSite',
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          description: SITE_DESCRIPTION,
           name: SITE_NAME,
           url: SITE_URL,
-          description: SITE_DESCRIPTION,
         }),
-        type: 'application/ld+json',
+        type: "application/ld+json",
       },
       {
         children: JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'Organization',
+          "@context": "https://schema.org",
+          "@type": "Organization",
           logo: SOCIAL_IMAGE_URL,
           name: SITE_NAME,
           url: SITE_URL,
         }),
-        type: 'application/ld+json',
+        type: "application/ld+json",
       },
       {
         children: JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': 'WebApplication',
-          applicationCategory: 'MusicApplication',
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          applicationCategory: "MusicApplication",
           description: SITE_DESCRIPTION,
           name: SITE_NAME,
           offers: {
-            '@type': 'Offer',
-            price: '0',
-            priceCurrency: 'USD',
+            "@type": "Offer",
+            price: "0",
+            priceCurrency: "USD",
           },
           url: SITE_URL,
         }),
-        type: 'application/ld+json',
+        type: "application/ld+json",
       },
     ],
   }),

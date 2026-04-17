@@ -1,49 +1,63 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { Clock, Heart, Music, ShoppingBag, ListMusic, Settings } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  Clock,
+  Heart,
+  Music,
+  ShoppingBag,
+  ListMusic,
+  Settings,
+} from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 const libraryCategories = [
   {
-    title: "Recently Played",
-    description: "Your listening history",
-    icon: Clock,
-    href: "/library/recent",
     color: "text-blue-500",
+    description: "Your listening history",
+    href: "/library/recent",
+    icon: Clock,
+    title: "Recently Played",
   },
   {
-    title: "Playlists",
-    description: "Your custom playlists",
-    icon: ListMusic,
-    href: "/library/playlists",
     color: "text-purple-500",
+    description: "Your custom playlists",
+    href: "/library/playlists",
+    icon: ListMusic,
+    title: "Playlists",
   },
   {
-    title: "Saved Tracks",
-    description: "Songs you've favorited",
-    icon: Heart,
-    href: "/library/saved",
     color: "text-red-500",
+    description: "Songs you've favorited",
+    href: "/library/saved",
+    icon: Heart,
+    title: "Saved Tracks",
   },
   {
-    title: "Purchased",
-    description: "Tracks you own",
-    icon: ShoppingBag,
-    href: "/library/purchased",
     color: "text-green-500",
+    description: "Tracks you own",
+    href: "/library/purchased",
+    icon: ShoppingBag,
+    title: "Purchased",
   },
   {
-    title: "Account",
-    description: "Manage your settings",
-    icon: Settings,
-    href: "/library/settings",
     color: "text-orange-500",
+    description: "Manage your settings",
+    href: "/library/settings",
+    icon: Settings,
+    title: "Account",
   },
-]
+];
 
-export const Route = createFileRoute('/_explore/library/')({
+export const Route = createFileRoute("/_explore/library/")({
   component: LibraryPage,
-})
+});
 
 function LibraryPage() {
   return (
@@ -60,7 +74,7 @@ function LibraryPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {libraryCategories.map((category) => {
-          const Icon = category.icon
+          const Icon = category.icon;
           return (
             <Link key={category.href} to={category.href}>
               <Card className="hover:border-primary transition-colors cursor-pointer h-full">
@@ -71,19 +85,24 @@ function LibraryPage() {
                     </div>
                     <CardTitle className="text-xl">{category.title}</CardTitle>
                   </div>
-                  <CardDescription className="text-base">{category.description}</CardDescription>
+                  <CardDescription className="text-base">
+                    {category.description}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button variant="ghost" className="w-full justify-start text-primary">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-primary"
+                  >
                     View {category.title}
                     <Music className="ml-auto size-4" />
                   </Button>
                 </CardContent>
               </Card>
             </Link>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

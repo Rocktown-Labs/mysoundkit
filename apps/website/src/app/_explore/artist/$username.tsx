@@ -1,10 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { useRouter } from "@tanstack/react-router"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AppImage } from "@/components/ui/app-image"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { createFileRoute } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import {
   MapPin,
   CheckCircle2,
@@ -16,97 +11,112 @@ import {
   ArrowLeft,
   Grid3x3,
   Music,
-} from "lucide-react"
-import { PostDetailModal } from "@/components/explore/post-detail-modal"
-import { useState } from "react"
+} from "lucide-react";
+import { useState } from "react";
 
-export const Route = createFileRoute('/_explore/artist/$username')({
+import { PostDetailModal } from "@/components/explore/post-detail-modal";
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
-})
+});
 
 function ArtistProfilePage() {
-  const { username } = Route.useParams()
-  const router = useRouter()
+  const { username } = Route.useParams();
+  const router = useRouter();
 
-  const [selectedPost, setSelectedPost] = useState<any>(null)
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedPost, setSelectedPost] = useState<any>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const artist = {
-    username,
-    name: "Luna Eclipse",
     avatar: "/diverse-user-avatars.png",
-    coverImage: "/summer-music-album-cover.png",
+    battles: 4,
     bio: "R&B/Soul artist from Los Angeles. Creating vibes for late nights and summer days. 🌙✨",
-    genre: "R&B/Soul",
-    location: "Los Angeles, CA",
-    verified: true,
+    coverImage: "/summer-music-album-cover.png",
     followers: "124K",
     following: "892",
-    tracks: 24,
-    projects: 3,
-    battles: 4,
-    media: 6,
+    genre: "R&B/Soul",
     links: {
-      spotify: "https://spotify.com",
       apple: "https://music.apple.com",
-      youtube: "https://youtube.com",
       instagram: "https://instagram.com",
+      spotify: "https://spotify.com",
       twitter: "https://twitter.com",
+      youtube: "https://youtube.com",
     },
-  }
+    location: "Los Angeles, CA",
+    media: 6,
+    name: "Luna Eclipse",
+    projects: 3,
+    tracks: 24,
+    username,
+    verified: true,
+  };
 
   const allPosts = [
     ...Array.from({ length: 8 }, (_, i) => ({
-      id: `track-${i + 1}`,
-      type: "track" as const,
-      image: i % 2 === 0 ? "/summer-music-album-cover.png" : "/night-music-album-cover.png",
-      title: `Summer Track ${i + 1}`,
-      description: "New single out now! 🎵",
-      likes: Math.floor(Math.random() * 10000) + 1000,
-      comments: Math.floor(Math.random() * 500) + 50,
       artist: {
-        name: artist.name,
         avatar: artist.avatar,
+        name: artist.name,
         username: artist.username,
       },
+      comments: Math.floor(Math.random() * 500) + 50,
+      description: "New single out now! 🎵",
+      id: `track-${i + 1}`,
+      image:
+        i % 2 === 0
+          ? "/summer-music-album-cover.png"
+          : "/night-music-album-cover.png",
+      likes: Math.floor(Math.random() * 10_000) + 1000,
+      title: `Summer Track ${i + 1}`,
+      type: "track" as const,
     })),
     ...Array.from({ length: 3 }, (_, i) => ({
-      id: `project-${i + 1}`,
-      type: "project" as const,
-      image: "/hip-hop-album-cover.png",
-      title: `Project ${i + 1}`,
-      description: "New album available now!",
-      likes: Math.floor(Math.random() * 15000) + 2000,
-      comments: Math.floor(Math.random() * 800) + 100,
       artist: {
-        name: artist.name,
         avatar: artist.avatar,
+        name: artist.name,
         username: artist.username,
       },
+      comments: Math.floor(Math.random() * 800) + 100,
+      description: "New album available now!",
+      id: `project-${i + 1}`,
+      image: "/hip-hop-album-cover.png",
+      likes: Math.floor(Math.random() * 15_000) + 2000,
+      title: `Project ${i + 1}`,
+      type: "project" as const,
     })),
-  ]
+  ];
 
-  const tracks = allPosts.filter((p) => p.type === "track")
-  const projects = allPosts.filter((p) => p.type === "project")
+  const tracks = allPosts.filter((p) => p.type === "track");
+  const projects = allPosts.filter((p) => p.type === "project");
 
   const handlePostClick = (post: any, index: number) => {
-    setSelectedPost(post)
-    setSelectedIndex(index)
-    setIsModalOpen(true)
-  }
+    setSelectedPost(post);
+    setSelectedIndex(index);
+    setIsModalOpen(true);
+  };
 
   const handleNavigate = (direction: "prev" | "next") => {
-    const newIndex = direction === "prev" ? selectedIndex - 1 : selectedIndex + 1
-    setSelectedIndex(newIndex)
-    setSelectedPost(allPosts[newIndex])
-  }
+    const newIndex =
+      direction === "prev" ? selectedIndex - 1 : selectedIndex + 1;
+    setSelectedIndex(newIndex);
+    setSelectedPost(allPosts[newIndex]);
+  };
 
   return (
     <>
       <div className="min-h-screen bg-background pb-20 md:pb-8">
         <div className="px-4 md:px-6 pt-4">
-          <Button variant="ghost" size="icon" onClick={() => router.history.back()} className="shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.history.back()}
+            className="shrink-0"
+          >
             <ArrowLeft className="size-5" />
           </Button>
         </div>
@@ -136,8 +146,12 @@ function ArtistProfilePage() {
               <div className="flex-1 md:pb-4">
                 <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
                   <div className="flex items-center gap-2">
-                    <h1 className="text-2xl md:text-3xl font-bold">{artist.name}</h1>
-                    {artist.verified && <CheckCircle2 className="size-6 text-primary" />}
+                    <h1 className="text-2xl md:text-3xl font-bold">
+                      {artist.name}
+                    </h1>
+                    {artist.verified && (
+                      <CheckCircle2 className="size-6 text-primary" />
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 md:ml-auto">
@@ -323,5 +337,5 @@ function ArtistProfilePage() {
         onNavigate={handleNavigate}
       />
     </>
-  )
+  );
 }

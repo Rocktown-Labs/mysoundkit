@@ -1,30 +1,45 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, Edit, Share, Download, CheckCircle, Clock } from "lucide-react"
-import { Link } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  Edit,
+  Share,
+  Download,
+  CheckCircle,
+  Clock,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 interface ProjectDetailsProps {
-  projectId: string
+  projectId: string;
 }
 
 // Mock data - in real app this would come from API
 const mockProject = {
-  id: 1,
-  name: "Summer Vibes",
-  description: "Upbeat track for summer playlist with tropical influences and catchy hooks",
-  status: "complete",
-  createdAt: "2024-01-15",
-  lastUpdated: "2 hours ago",
-  progress: 100,
-  mixed: true,
-  mastered: true,
-  collaborators: ["You", "Producer Mike"],
-  genre: "Pop",
   bpm: 128,
+  collaborators: ["You", "Producer Mike"],
+  createdAt: "2024-01-15",
+  description:
+    "Upbeat track for summer playlist with tropical influences and catchy hooks",
+  genre: "Pop",
+  id: 1,
   key: "C Major",
-}
+  lastUpdated: "2 hours ago",
+  mastered: true,
+  mixed: true,
+  name: "Summer Vibes",
+  progress: 100,
+  status: "complete",
+};
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   return (
@@ -44,9 +59,13 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-2">
-                <CardTitle className="text-2xl font-[family-name:var(--font-playfair)]">{mockProject.name}</CardTitle>
+                <CardTitle className="text-2xl font-[family-name:var(--font-playfair)]">
+                  {mockProject.name}
+                </CardTitle>
                 <Badge
-                  variant={mockProject.status === "complete" ? "default" : "secondary"}
+                  variant={
+                    mockProject.status === "complete" ? "default" : "secondary"
+                  }
                   className={
                     mockProject.status === "complete"
                       ? "bg-primary/20 text-primary border-primary/30"
@@ -58,10 +77,13 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   ) : (
                     <Clock className="h-3 w-3 mr-1" />
                   )}
-                  {mockProject.status.charAt(0).toUpperCase() + mockProject.status.slice(1)}
+                  {mockProject.status.charAt(0).toUpperCase() +
+                    mockProject.status.slice(1)}
                 </Badge>
               </div>
-              <CardDescription className="text-base">{mockProject.description}</CardDescription>
+              <CardDescription className="text-base">
+                {mockProject.description}
+              </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
               <Button variant="outline">
@@ -84,7 +106,9 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Project Progress</span>
-              <span className="text-sm text-muted-foreground">{mockProject.progress}%</span>
+              <span className="text-sm text-muted-foreground">
+                {mockProject.progress}%
+              </span>
             </div>
             <Progress value={mockProject.progress} className="h-3" />
           </div>
@@ -114,23 +138,33 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
             <div
               className={`flex items-center space-x-2 ${mockProject.mixed ? "text-primary" : "text-muted-foreground"}`}
             >
-              <CheckCircle className={`h-4 w-4 ${mockProject.mixed ? "text-primary" : "text-muted"}`} />
+              <CheckCircle
+                className={`h-4 w-4 ${mockProject.mixed ? "text-primary" : "text-muted"}`}
+              />
               <span className="font-medium">Mixed</span>
             </div>
             <div
               className={`flex items-center space-x-2 ${mockProject.mastered ? "text-primary" : "text-muted-foreground"}`}
             >
-              <CheckCircle className={`h-4 w-4 ${mockProject.mastered ? "text-primary" : "text-muted"}`} />
+              <CheckCircle
+                className={`h-4 w-4 ${mockProject.mastered ? "text-primary" : "text-muted"}`}
+              />
               <span className="font-medium">Mastered</span>
             </div>
           </div>
 
           {/* Collaborators */}
           <div>
-            <div className="text-sm text-muted-foreground mb-2">Collaborators</div>
+            <div className="text-sm text-muted-foreground mb-2">
+              Collaborators
+            </div>
             <div className="flex items-center space-x-2">
               {mockProject.collaborators.map((collaborator, index) => (
-                <Badge key={index} variant="outline" className="bg-background/50">
+                <Badge
+                  key={index}
+                  variant="outline"
+                  className="bg-background/50"
+                >
                   {collaborator}
                 </Badge>
               ))}
@@ -139,5 +173,5 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

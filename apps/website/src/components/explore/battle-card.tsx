@@ -1,35 +1,36 @@
+import { Link } from "@tanstack/react-router";
+import { Clock, TrendingUp, Users, Lock } from "lucide-react";
+import { useState, useEffect } from "react";
 
-import { useState, useEffect } from "react"
-import { Link } from "@tanstack/react-router"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { AppImage } from "@/components/ui/app-image"
-import { Clock, TrendingUp, Users } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
+import { AppImage } from "@/components/ui/app-image";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 
 interface BattleCardProps {
-  id: string
-  title: string
+  id: string;
+  title: string;
   track1: {
-    title: string
-    artist: string
-    votes: number
-    cover: string
-  }
+    title: string;
+    artist: string;
+    votes: number;
+    cover: string;
+  };
   track2: {
-    title: string
-    artist: string
-    votes: number
-    cover: string
-  }
-  endsIn: string
-  genre: string
-  isLive?: boolean
-  currentRound?: number
-  totalRounds?: number
-  isVoting?: boolean
-  queueSize?: number
+    title: string;
+    artist: string;
+    votes: number;
+    cover: string;
+  };
+  endsIn: string;
+  genre: string;
+  isLive?: boolean;
+  currentRound?: number;
+  totalRounds?: number;
+  isVoting?: boolean;
+  queueSize?: number;
+  isPremiumUser?: boolean;
 }
 
 export function BattleCard({
@@ -44,35 +45,40 @@ export function BattleCard({
   totalRounds = 3,
   isVoting = false,
   queueSize = 0,
+  isPremiumUser = false,
 }: BattleCardProps) {
-  const totalVotes = track1.votes + track2.votes
-  const track1Percentage = (track1.votes / totalVotes) * 100
-  const track2Percentage = (track2.votes / totalVotes) * 100
+  const totalVotes = track1.votes + track2.votes;
+  const track1Percentage = (track1.votes / totalVotes) * 100;
+  const track2Percentage = (track2.votes / totalVotes) * 100;
 
-  const [roundProgress, setRoundProgress] = useState(0)
-  const [timeRemaining, setTimeRemaining] = useState(180) // 3 minutes in seconds
+  const [roundProgress, setRoundProgress] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
 
   useEffect(() => {
-    if (!isLive) return
+    if (!isLive) {
+      return;
+    }
 
     const interval = setInterval(() => {
       setTimeRemaining((prev) => {
-        if (prev <= 0) return isVoting ? 60 : 180
-        const newTime = prev - 1
+        if (prev <= 0) {
+          return isVoting ? 60 : 180;
+        }
+        const newTime = prev - 1;
 
         // Calculate progress (0-100) for the current phase
-        const totalTime = isVoting ? 60 : 180
-        const progress = ((totalTime - newTime) / totalTime) * 100
-        setRoundProgress(progress)
+        const totalTime = isVoting ? 60 : 180;
+        const progress = ((totalTime - newTime) / totalTime) * 100;
+        setRoundProgress(progress);
 
-        return newTime
-      })
-    }, 1000)
+        return newTime;
+      });
+    }, 1000);
 
-    return () => clearInterval(interval)
-  }, [isLive, isVoting])
+    return () => clearInterval(interval);
+  }, [isLive, isVoting]);
 
-  const canJoinNow = isLive && timeRemaining > 60 && !isVoting
+  const canJoinNow = isLive && timeRemaining > 60 && !isVoting;
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow group min-w-[280px] md:min-w-0 w-[280px] md:w-auto">
@@ -90,7 +96,10 @@ export function BattleCard({
                 {isVoting ? "Voting" : `Round ${currentRound}/${totalRounds}`}
               </Badge>
               <div className="w-full max-w-[120px]">
-                <Progress value={roundProgress} className={`h-1.5 ${isVoting ? "[&>div]:bg-green-600" : ""}`} />
+                <Progress
+                  value={roundProgress}
+                  className={`h-1.5 ${isVoting ? "[&>div]:bg-green-600" : ""}`}
+                />
               </div>
             </div>
           ) : (
@@ -108,15 +117,30 @@ export function BattleCard({
         {/* Track 1 */}
         <div className="flex items-center gap-2 md:gap-3 mb-2">
           <div className="relative size-10 md:size-12 rounded-md overflow-hidden shrink-0">
-            <AppImage src={track1.cover || "/placeholder.svg"} alt={track1.title} width={48} height={48} layout="fixed" className="w-full h-full object-cover" />
+            <AppImage
+              src={track1.cover || "/placeholder.svg"}
+              alt={track1.title}
+              width={48}
+              height={48}
+              layout="fixed"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-xs md:text-sm truncate">{track1.title}</p>
-            <p className="text-[10px] md:text-xs text-muted-foreground truncate">{track1.artist}</p>
+            <p className="font-medium text-xs md:text-sm truncate">
+              {track1.title}
+            </p>
+            <p className="text-[10px] md:text-xs text-muted-foreground truncate">
+              {track1.artist}
+            </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xs md:text-sm font-semibold">{track1Percentage.toFixed(0)}%</p>
-            <p className="text-[9px] md:text-xs text-muted-foreground">{track1.votes.toLocaleString()}</p>
+            <p className="text-xs md:text-sm font-semibold">
+              {track1Percentage.toFixed(0)}%
+            </p>
+            <p className="text-[9px] md:text-xs text-muted-foreground">
+              {track1.votes.toLocaleString()}
+            </p>
           </div>
         </div>
 
@@ -127,42 +151,71 @@ export function BattleCard({
         {/* Track 2 */}
         <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
           <div className="relative size-10 md:size-12 rounded-md overflow-hidden shrink-0">
-            <AppImage src={track2.cover || "/placeholder.svg"} alt={track2.title} width={48} height={48} layout="fixed" className="w-full h-full object-cover" />
+            <AppImage
+              src={track2.cover || "/placeholder.svg"}
+              alt={track2.title}
+              width={48}
+              height={48}
+              layout="fixed"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-xs md:text-sm truncate">{track2.title}</p>
-            <p className="text-[10px] md:text-xs text-muted-foreground truncate">{track2.artist}</p>
+            <p className="font-medium text-xs md:text-sm truncate">
+              {track2.title}
+            </p>
+            <p className="text-[10px] md:text-xs text-muted-foreground truncate">
+              {track2.artist}
+            </p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xs md:text-sm font-semibold">{track2Percentage.toFixed(0)}%</p>
-            <p className="text-[9px] md:text-xs text-muted-foreground">{track2.votes.toLocaleString()}</p>
+            <p className="text-xs md:text-sm font-semibold">
+              {track2Percentage.toFixed(0)}%
+            </p>
+            <p className="text-[9px] md:text-xs text-muted-foreground">
+              {track2.votes.toLocaleString()}
+            </p>
           </div>
         </div>
 
         {isLive ? (
           <div className="space-y-2">
-            {canJoinNow ? (
-              <Link to={`/battles/${id}`} className="block">
+            {!isPremiumUser ? (
+              <Link to="/pricing" className="block">
+                <Button className="w-full" size="sm" variant="secondary">
+                  <Lock className="size-3 mr-2" />
+                  Upgrade to Watch
+                </Button>
+              </Link>
+            ) : (canJoinNow ? (
+              <Link to={`/live/battles/${id}`} className="block">
                 <Button className="w-full" size="sm">
                   Watch Live
                 </Button>
               </Link>
             ) : (
-              <Button className="w-full bg-transparent" size="sm" variant="outline" disabled={queueSize > 100}>
+              <Button
+                className="w-full bg-transparent"
+                size="sm"
+                variant="outline"
+                disabled={queueSize > 100}
+              >
                 <Users className="size-3 mr-1" />
                 Join Queue ({queueSize})
               </Button>
-            )}
+            ))}
           </div>
         ) : (
-          <Link to={`/battles/${id}`}>
+          <Link to={`/live/battles/${id}`}>
             <div className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors">
               <TrendingUp className="size-3" />
-              <span className="text-[10px] md:text-xs">{totalVotes.toLocaleString()} total votes</span>
+              <span className="text-[10px] md:text-xs">
+                {totalVotes.toLocaleString()} total votes
+              </span>
             </div>
           </Link>
         )}
       </CardContent>
     </Card>
-  )
+  );
 }

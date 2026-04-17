@@ -1,24 +1,31 @@
-import { useState } from 'react'
-import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Music, ArrowLeft, Mic, Users } from 'lucide-react'
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { Music, ArrowLeft, Mic, Users } from "lucide-react";
+import { useState } from "react";
 
-export const Route = createFileRoute('/signup')({
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+export const Route = createFileRoute("/signup")({
   component: SignupPage,
-})
+});
 
 function SignupPage() {
-  const router = useRouter()
-  const [accountType, setAccountType] = useState<'artist' | 'fan' | null>(null)
+  const router = useRouter();
+  const [accountType, setAccountType] = useState<"artist" | "fan" | null>(null);
 
-  if (accountType === 'artist') {
-    router.navigate({ to: '/signup/artist/credentials' })
-    return null
+  if (accountType === "artist") {
+    router.navigate({ to: "/signup/artist/credentials" });
+    return null;
   }
-  if (accountType === 'fan') {
-    router.navigate({ to: '/signup/fan/credentials' })
-    return null
+  if (accountType === "fan") {
+    router.navigate({ to: "/signup/fan/credentials" });
+    return null;
   }
 
   return (
@@ -37,13 +44,15 @@ function SignupPage() {
             <span className="text-2xl font-bold font-notable">SoundKit</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Join SoundKit</h1>
-          <p className="text-muted-foreground text-lg">Choose how you want to use the platform</p>
+          <p className="text-muted-foreground text-lg">
+            Choose how you want to use the platform
+          </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
           <Card
             className="group hover:border-primary transition-all cursor-pointer"
-            onClick={() => setAccountType('artist')}
+            onClick={() => setAccountType("artist")}
           >
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -56,18 +65,29 @@ function SignupPage() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center"><span className="mr-2">✓</span>Upload and sell your tracks</li>
-                <li className="flex items-center"><span className="mr-2">✓</span>Compete in live battles</li>
-                <li className="flex items-center"><span className="mr-2">✓</span>Build your artist profile</li>
-                <li className="flex items-center"><span className="mr-2">✓</span>Access artist dashboard & analytics</li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Upload and sell your tracks
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Compete in live battles
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Build your artist profile
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Access artist dashboard &
+                  analytics
+                </li>
               </ul>
-              <Button className="w-full mt-6" size="lg">Continue as Artist</Button>
+              <Button className="w-full mt-6" size="lg">
+                Continue as Artist
+              </Button>
             </CardContent>
           </Card>
 
           <Card
             className="group hover:border-primary transition-all cursor-pointer"
-            onClick={() => setAccountType('fan')}
+            onClick={() => setAccountType("fan")}
           >
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -80,25 +100,39 @@ function SignupPage() {
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center"><span className="mr-2">✓</span>Discover and stream music</li>
-                <li className="flex items-center"><span className="mr-2">✓</span>Watch and vote in battles</li>
-                <li className="flex items-center"><span className="mr-2">✓</span>Create playlists and save tracks</li>
-                <li className="flex items-center"><span className="mr-2">✓</span>Purchase and support artists</li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Discover and stream music
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Watch and vote in battles
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Create playlists and save
+                  tracks
+                </li>
+                <li className="flex items-center">
+                  <span className="mr-2">✓</span>Purchase and support artists
+                </li>
               </ul>
-              <Button className="w-full mt-6" size="lg">Continue as Fan</Button>
+              <Button className="w-full mt-6" size="lg">
+                Continue as Fan
+              </Button>
             </CardContent>
           </Card>
         </div>
 
         <div className="text-center mt-8">
           <p className="text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:text-primary/80 font-medium">
+            Already have an account?{" "}
+            <Link
+              to="/login"
+              className="text-primary hover:text-primary/80 font-medium"
+            >
               Sign in
             </Link>
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }

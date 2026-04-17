@@ -1,53 +1,89 @@
+import { Link } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
+import {
+  MapPin,
+  Trophy,
+  Users,
+  Music,
+  Clock,
+  Heart,
+  ShoppingBag,
+  Settings,
+} from "lucide-react";
 
-import { Link } from "@tanstack/react-router"
-import { useRouterState } from "@tanstack/react-router"
-import { MapPin, Trophy, Users, Music, Clock, Heart, ShoppingBag, Settings } from "lucide-react"
+import { SidebarNavGroup } from "@/components/sidebar-nav-group";
+import type { SidebarNavItem } from "@/components/sidebar-nav-group";
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
-const discoverLinks = [
-  { href: "/", label: "Home", icon: MapPin },
-  { href: "/tracks", label: "Songs", icon: Music },
-  { href: "/artist", label: "Artists", icon: Users },
-  { href: "/battles", label: "Live Battles", icon: Trophy },
-  { href: "/genres", label: "Genres", icon: Music },
-]
+const discoverLinks: SidebarNavItem[] = [
+  { href: "/", icon: MapPin, label: "Home" },
+  { href: "/tracks", icon: Music, label: "Songs" },
+  { href: "/artist", icon: Users, label: "Artists" },
+  { href: "/genres", icon: Music, label: "Genres" },
+].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
-const libraryLinks = [
-  { href: "/library/recent", label: "Recently Played", icon: Clock },
-  { href: "/library/playlists", label: "Playlists", icon: Music },
-  { href: "/library/saved", label: "Saved Tracks", icon: Heart },
-  { href: "/library/purchased", label: "Purchased", icon: ShoppingBag },
-  { href: "/library/settings", label: "Account", icon: Settings },
-]
-
-const genres = [
-  { id: "hip-hop", name: "Hip-Hop" },
-  { id: "rb-soul", name: "R&B/Soul" },
-  { id: "electronic", name: "Electronic" },
-  { id: "pop", name: "Pop" },
-  { id: "rock", name: "Rock" },
-  { id: "jazz", name: "Jazz" },
-  { id: "afrobeats", name: "Afrobeats" },
-  { id: "latin", name: "Latin" },
-  { id: "country", name: "Country" },
-  { id: "reggae", name: "Reggae" },
-  { id: "indie", name: "Indie" },
-  { id: "metal", name: "Metal" },
-]
+const libraryLinks: SidebarNavItem[] = [
+  { href: "/library/recent", icon: Clock, label: "Recently Played" },
+  { href: "/library/playlists", icon: Music, label: "Playlists" },
+  { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
+  { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
+  { href: "/library/settings", icon: Settings, label: "Account" },
+].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
 export function ExploreAppSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isRouteActive = (href: string) =>
+    href === "/"
+      ? pathname === "/"
+      : pathname === href || pathname.startsWith(`${href}/`);
+  const isLiveRoute = pathname.startsWith("/live");
+
+  const resolvedDiscoverLinks: SidebarNavItem[] = [
+    ...discoverLinks.slice(0, 3).map((item) => ({
+      ...item,
+      isActive: isRouteActive(item.url ?? "/"),
+    })),
+    {
+      icon: Trophy,
+      isActive: isLiveRoute,
+      items: [
+        {
+          isActive: isRouteActive("/live/battles"),
+          title: "Battles",
+          url: "/live/battles",
+        },
+        {
+          isActive: isRouteActive("/live/parties"),
+          title: "Parties",
+          url: "/live/parties",
+        },
+        {
+          isActive: isRouteActive("/live/streams"),
+          title: "Streams",
+          url: "/live/streams",
+        },
+      ],
+      title: "Live",
+      url: "/live",
+    },
+    {
+      ...discoverLinks[3],
+      isActive: isRouteActive(discoverLinks[3]?.url ?? "/genres"),
+    },
+  ];
+
+  const resolvedLibraryLinks = libraryLinks.map((item) => ({
+    ...item,
+    isActive: isRouteActive(item.url ?? "/library"),
+  }));
 
   return (
     <Sidebar collapsible="icon">
@@ -61,7 +97,9 @@ export function ExploreAppSidebar() {
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold">SoundKit</span>
-                  <span className="text-xs text-muted-foreground">Discover Music</span>
+                  <span className="text-xs text-muted-foreground">
+                    Discover Music
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -69,43 +107,10 @@ export function ExploreAppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Discover</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {discoverLinks.map((item) => (
-                <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                    <Link to={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>My SoundKit</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {libraryLinks.map((item) => (
-                <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.label}>
-                    <Link to={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <SidebarNavGroup label="Discover" items={resolvedDiscoverLinks} />
+        <SidebarNavGroup label="My SoundKit" items={resolvedLibraryLinks} />
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

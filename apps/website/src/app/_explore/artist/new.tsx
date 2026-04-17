@@ -1,86 +1,92 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router"
-import { ArrowLeft, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ArtistCard } from "@/components/explore/artist-card"
-import { Badge } from "@/components/ui/badge"
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Sparkles } from "lucide-react";
 
-export const Route = createFileRoute('/_explore/artist/new')({
+import { ArtistCard } from "@/components/explore/artist-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+export const Route = createFileRoute("/_explore/artist/new")({
   component: NewArtistsPage,
-})
+});
 
 function NewArtistsPage() {
-  const router = useRouter()
+  const router = useRouter();
 
   const artists = [
     {
-      slug: "fresh-start",
-      name: "Fresh Start",
       avatar: "/diverse-user-avatars.png",
-      genre: "Hip-Hop",
       followers: "2.3K",
+      genre: "Hip-Hop",
       joinedDays: 3,
+      name: "Fresh Start",
+      slug: "fresh-start",
     },
     {
-      slug: "rookie-beats",
-      name: "Rookie Beats",
       avatar: "/diverse-user-avatars.png",
-      genre: "Electronic",
       followers: "1.8K",
+      genre: "Electronic",
       joinedDays: 5,
+      name: "Rookie Beats",
+      slug: "rookie-beats",
     },
     {
-      slug: "new-horizon",
-      name: "New Horizon",
       avatar: "/diverse-user-avatars.png",
-      genre: "R&B",
       followers: "3.1K",
+      genre: "R&B",
       joinedDays: 2,
+      name: "New Horizon",
+      slug: "new-horizon",
     },
     {
-      slug: "first-verse",
-      name: "First Verse",
       avatar: "/diverse-user-avatars.png",
-      genre: "Pop",
       followers: "4.5K",
-      joinedDays: 7,
-    },
-    {
-      slug: "debut-sound",
-      name: "Debut Sound",
-      avatar: "/diverse-user-avatars.png",
-      genre: "Afrobeats",
-      followers: "2.9K",
-      joinedDays: 4,
-    },
-    {
-      slug: "starting-line",
-      name: "Starting Line",
-      avatar: "/diverse-user-avatars.png",
-      genre: "Rock",
-      followers: "1.6K",
-      joinedDays: 6,
-    },
-    {
-      slug: "new-wave-artist",
-      name: "New Wave",
-      avatar: "/diverse-user-avatars.png",
-      genre: "Indie",
-      followers: "3.7K",
-      joinedDays: 1,
-    },
-    {
-      slug: "rookie-star",
-      name: "Rookie Star",
-      avatar: "/diverse-user-avatars.png",
       genre: "Pop",
-      followers: "2.1K",
-      joinedDays: 8,
+      joinedDays: 7,
+      name: "First Verse",
+      slug: "first-verse",
     },
-  ]
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "2.9K",
+      genre: "Afrobeats",
+      joinedDays: 4,
+      name: "Debut Sound",
+      slug: "debut-sound",
+    },
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "1.6K",
+      genre: "Rock",
+      joinedDays: 6,
+      name: "Starting Line",
+      slug: "starting-line",
+    },
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "3.7K",
+      genre: "Indie",
+      joinedDays: 1,
+      name: "New Wave",
+      slug: "new-wave-artist",
+    },
+    {
+      avatar: "/diverse-user-avatars.png",
+      followers: "2.1K",
+      genre: "Pop",
+      joinedDays: 8,
+      name: "Rookie Star",
+      slug: "rookie-star",
+    },
+  ];
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-      <Button variant="ghost" size="sm" onClick={() => router.history.back()} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => router.history.back()}
+        className="mb-4"
+      >
         <ArrowLeft className="size-4 mr-2" />
         Back
       </Button>
@@ -90,14 +96,19 @@ function NewArtistsPage() {
           <Sparkles className="size-6 md:size-8 text-primary" />
           New Artists
         </h1>
-        <p className="text-muted-foreground text-sm md:text-base">Fresh talent just joined the platform</p>
+        <p className="text-muted-foreground text-sm md:text-base">
+          Fresh talent just joined the platform
+        </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
         {artists.map((artist) => (
           <div key={artist.slug} className="relative">
             {artist.joinedDays <= 3 && (
-              <Badge className="absolute -top-2 -right-2 z-10 text-xs" variant="default">
+              <Badge
+                className="absolute -top-2 -right-2 z-10 text-xs"
+                variant="default"
+              >
                 New
               </Badge>
             )}
@@ -112,5 +123,5 @@ function NewArtistsPage() {
         ))}
       </div>
     </div>
-  )
+  );
 }

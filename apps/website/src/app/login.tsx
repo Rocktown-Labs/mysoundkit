@@ -1,14 +1,21 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Music, ArrowLeft } from 'lucide-react'
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Music, ArrowLeft } from "lucide-react";
 
-export const Route = createFileRoute('/login')({
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+
+export const Route = createFileRoute("/login")({
   component: LoginPage,
-})
+});
 
 function LoginPage() {
   return (
@@ -24,16 +31,24 @@ function LoginPage() {
           </Link>
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Music className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold font-[family-name:var(--font-playfair)]">SoundKit</span>
+            <span className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+              SoundKit
+            </span>
           </div>
-          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)] mb-2">Welcome back</h1>
-          <p className="text-muted-foreground">Sign in to your music collaboration workspace</p>
+          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)] mb-2">
+            Welcome back
+          </h1>
+          <p className="text-muted-foreground">
+            Sign in to your music collaboration workspace
+          </p>
         </div>
 
         <Card className="bg-card/50 backdrop-blur-sm border-border/40">
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Sign in</CardTitle>
-            <CardDescription>Enter your credentials to access your projects</CardDescription>
+            <CardDescription>
+              Enter your credentials to access your projects
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form className="space-y-4">
@@ -62,16 +77,24 @@ function LoginPage() {
                     id="remember"
                     className="w-4 h-4 text-primary bg-input border-border rounded focus:ring-primary"
                   />
-                  <Label htmlFor="remember" className="text-sm text-muted-foreground">
+                  <Label
+                    htmlFor="remember"
+                    className="text-sm text-muted-foreground"
+                  >
                     Remember me
                   </Label>
                 </div>
-                <Link to="/" className="text-sm text-primary hover:text-primary/80">
+                <Link
+                  to="/"
+                  className="text-sm text-primary hover:text-primary/80"
+                >
                   Forgot password?
                 </Link>
               </div>
               <Link to="/dashboard">
-                <Button className="w-full bg-primary hover:bg-primary/90">Sign In</Button>
+                <Button className="w-full bg-primary hover:bg-primary/90">
+                  Sign In
+                </Button>
               </Link>
             </form>
 
@@ -79,8 +102,11 @@ function LoginPage() {
 
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
-                Don't have an account?{' '}
-                <Link to="/signup" className="text-primary hover:text-primary/80 font-medium">
+                Don't have an account?{" "}
+                <Link
+                  to="/signup"
+                  className="text-primary hover:text-primary/80 font-medium"
+                >
                   Sign up
                 </Link>
               </p>
@@ -90,11 +116,12 @@ function LoginPage() {
 
         <div className="mt-6 p-4 bg-accent/10 border border-accent/20 rounded-lg">
           <p className="text-sm text-center text-muted-foreground">
-            <span className="text-accent font-medium">Demo Mode:</span> This is a mockup interface. Authentication is
-            simulated for demonstration purposes.
+            <span className="text-accent font-medium">Demo Mode:</span> This is
+            a mockup interface. Authentication is simulated for demonstration
+            purposes.
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }

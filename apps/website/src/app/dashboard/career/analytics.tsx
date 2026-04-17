@@ -1,8 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { createFileRoute } from "@tanstack/react-router";
 import {
   TrendingUp,
   TrendingDown,
@@ -14,18 +10,33 @@ import {
   Eye,
   ArrowUpRight,
   Calendar,
-} from "lucide-react"
+} from "lucide-react";
 
-export const Route = createFileRoute('/dashboard/career/analytics')({
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
-})
+});
 
 function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">Analytics</h1>
-        <p className="text-muted-foreground">Track your music performance and earnings</p>
+        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+          Analytics
+        </h1>
+        <p className="text-muted-foreground">
+          Track your music performance and earnings
+        </p>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -40,7 +51,9 @@ function AnalyticsPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Plays</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Plays
+                </CardTitle>
                 <Play className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -82,7 +95,9 @@ function AnalyticsPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Earnings
+                </CardTitle>
                 <DollarSign className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -100,11 +115,15 @@ function AnalyticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Plays Over Time</CardTitle>
-                <CardDescription>Your track plays in the last 30 days</CardDescription>
+                <CardDescription>
+                  Your track plays in the last 30 days
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[200px] flex items-end justify-between gap-2">
-                  {[40, 60, 45, 80, 55, 90, 70, 85, 95, 75, 100, 85, 90, 110].map((height, i) => (
+                  {[
+                    40, 60, 45, 80, 55, 90, 70, 85, 95, 75, 100, 85, 90, 110,
+                  ].map((height, i) => (
                     <div
                       key={i}
                       className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t"
@@ -118,15 +137,17 @@ function AnalyticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Top Tracks</CardTitle>
-                <CardDescription>Your most played tracks this month</CardDescription>
+                <CardDescription>
+                  Your most played tracks this month
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {[
-                    { title: "Summer Vibes", plays: 3421, trend: "up" },
-                    { title: "Night Drive", plays: 2847, trend: "up" },
-                    { title: "City Lights", plays: 2134, trend: "down" },
-                    { title: "Midnight Dreams", plays: 1876, trend: "up" },
+                    { plays: 3421, title: "Summer Vibes", trend: "up" },
+                    { plays: 2847, title: "Night Drive", trend: "up" },
+                    { plays: 2134, title: "City Lights", trend: "down" },
+                    { plays: 1876, title: "Midnight Dreams", trend: "up" },
                   ].map((track, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -135,7 +156,9 @@ function AnalyticsPage() {
                         </div>
                         <div>
                           <p className="font-semibold text-sm">{track.title}</p>
-                          <p className="text-xs text-muted-foreground">{track.plays.toLocaleString()} plays</p>
+                          <p className="text-xs text-muted-foreground">
+                            {track.plays.toLocaleString()} plays
+                          </p>
                         </div>
                       </div>
                       {track.trend === "up" ? (
@@ -159,19 +182,28 @@ function AnalyticsPage() {
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { country: "United States", percentage: 45, listeners: 5643 },
-                  { country: "United Kingdom", percentage: 18, listeners: 2258 },
-                  { country: "Canada", percentage: 12, listeners: 1505 },
-                  { country: "Australia", percentage: 8, listeners: 1003 },
-                  { country: "Germany", percentage: 7, listeners: 878 },
+                  { country: "United States", listeners: 5643, percentage: 45 },
+                  {
+                    country: "United Kingdom",
+                    listeners: 2258,
+                    percentage: 18,
+                  },
+                  { country: "Canada", listeners: 1505, percentage: 12 },
+                  { country: "Australia", listeners: 1003, percentage: 8 },
+                  { country: "Germany", listeners: 878, percentage: 7 },
                 ].map((location, i) => (
                   <div key={i} className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium">{location.country}</span>
-                      <span className="text-muted-foreground">{location.listeners.toLocaleString()} listeners</span>
+                      <span className="text-muted-foreground">
+                        {location.listeners.toLocaleString()} listeners
+                      </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${location.percentage}%` }} />
+                      <div
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${location.percentage}%` }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -184,32 +216,47 @@ function AnalyticsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Track Performance</CardTitle>
-              <CardDescription>Detailed analytics for each track</CardDescription>
+              <CardDescription>
+                Detailed analytics for each track
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-lg border">
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-4 rounded-lg border"
+                  >
                     <div className="flex items-center gap-4">
                       <div className="size-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded flex items-center justify-center">
                         <Music className="size-8 text-white/50" />
                       </div>
                       <div>
                         <h3 className="font-semibold">Track Title {i}</h3>
-                        <p className="text-sm text-muted-foreground">Released Jan 2025</p>
+                        <p className="text-sm text-muted-foreground">
+                          Released Jan 2025
+                        </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-8">
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{(Math.random() * 5000).toFixed(0)}</p>
+                        <p className="text-2xl font-bold">
+                          {(Math.random() * 5000).toFixed(0)}
+                        </p>
                         <p className="text-xs text-muted-foreground">Plays</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold">{(Math.random() * 1000).toFixed(0)}</p>
-                        <p className="text-xs text-muted-foreground">Downloads</p>
+                        <p className="text-2xl font-bold">
+                          {(Math.random() * 1000).toFixed(0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Downloads
+                        </p>
                       </div>
                       <div className="text-center">
-                        <p className="text-2xl font-bold">${(Math.random() * 500).toFixed(2)}</p>
+                        <p className="text-2xl font-bold">
+                          ${(Math.random() * 500).toFixed(2)}
+                        </p>
                         <p className="text-xs text-muted-foreground">Earned</p>
                       </div>
                       <Button variant="ghost" size="sm">
@@ -229,12 +276,16 @@ function AnalyticsPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Available Balance
+                </CardTitle>
                 <DollarSign className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">$2,847.32</div>
-                <p className="text-xs text-muted-foreground mt-1">Ready to withdraw</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ready to withdraw
+                </p>
                 <Button className="w-full mt-4" size="sm">
                   Withdraw Funds
                 </Button>
@@ -243,18 +294,24 @@ function AnalyticsPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Earnings</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Pending Earnings
+                </CardTitle>
                 <Calendar className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">$543.21</div>
-                <p className="text-xs text-muted-foreground mt-1">Available in 7 days</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Available in 7 days
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Earned
+                </CardTitle>
                 <TrendingUp className="size-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -268,28 +325,59 @@ function AnalyticsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Transaction History</CardTitle>
-              <CardDescription>Your recent earnings and withdrawals</CardDescription>
+              <CardDescription>
+                Your recent earnings and withdrawals
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { type: "sale", track: "Summer Vibes", amount: 9.99, date: "2 hours ago", status: "completed" },
-                  { type: "sale", track: "Night Drive", amount: 4.99, date: "5 hours ago", status: "completed" },
                   {
-                    type: "withdrawal",
-                    track: "Bank Transfer",
-                    amount: -500.0,
+                    amount: 9.99,
+                    date: "2 hours ago",
+                    status: "completed",
+                    track: "Summer Vibes",
+                    type: "sale",
+                  },
+                  {
+                    amount: 4.99,
+                    date: "5 hours ago",
+                    status: "completed",
+                    track: "Night Drive",
+                    type: "sale",
+                  },
+                  {
+                    amount: -500,
                     date: "1 day ago",
                     status: "completed",
+                    track: "Bank Transfer",
+                    type: "withdrawal",
                   },
-                  { type: "sale", track: "City Lights", amount: 9.99, date: "2 days ago", status: "completed" },
-                  { type: "sale", track: "Midnight Dreams", amount: 0.0, date: "3 days ago", status: "completed" },
+                  {
+                    amount: 9.99,
+                    date: "2 days ago",
+                    status: "completed",
+                    track: "City Lights",
+                    type: "sale",
+                  },
+                  {
+                    amount: 0,
+                    date: "3 days ago",
+                    status: "completed",
+                    track: "Midnight Dreams",
+                    type: "sale",
+                  },
                 ].map((transaction, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-lg border">
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-4 rounded-lg border"
+                  >
                     <div className="flex items-center gap-4">
                       <div
                         className={`size-10 rounded-full flex items-center justify-center ${
-                          transaction.type === "sale" ? "bg-green-500/10" : "bg-blue-500/10"
+                          transaction.type === "sale"
+                            ? "bg-green-500/10"
+                            : "bg-blue-500/10"
                         }`}
                       >
                         {transaction.type === "sale" ? (
@@ -300,12 +388,17 @@ function AnalyticsPage() {
                       </div>
                       <div>
                         <p className="font-semibold">{transaction.track}</p>
-                        <p className="text-sm text-muted-foreground">{transaction.date}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {transaction.date}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-bold ${transaction.amount >= 0 ? "text-green-500" : "text-blue-500"}`}>
-                        {transaction.amount >= 0 ? "+" : ""}${Math.abs(transaction.amount).toFixed(2)}
+                      <p
+                        className={`font-bold ${transaction.amount >= 0 ? "text-green-500" : "text-blue-500"}`}
+                      >
+                        {transaction.amount >= 0 ? "+" : ""}$
+                        {Math.abs(transaction.amount).toFixed(2)}
                       </p>
                       <Badge variant="outline" className="mt-1">
                         {transaction.status}
@@ -319,5 +412,5 @@ function AnalyticsPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

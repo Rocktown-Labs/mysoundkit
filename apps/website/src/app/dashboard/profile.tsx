@@ -1,84 +1,97 @@
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AppImage } from "@/components/ui/app-image"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MapPin, CheckCircle2, Instagram, Twitter, Youtube, Share2, Settings, Grid3x3, Music, Play } from "lucide-react"
-import { PostDetailModal } from "@/components/explore/post-detail-modal"
-import { useState } from "react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  MapPin,
+  CheckCircle2,
+  Instagram,
+  Twitter,
+  Youtube,
+  Share2,
+  Settings,
+  Grid3x3,
+  Music,
+  Play,
+} from "lucide-react";
+import { useState } from "react";
 
-export const Route = createFileRoute('/dashboard/profile')({
+import { PostDetailModal } from "@/components/explore/post-detail-modal";
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export const Route = createFileRoute("/dashboard/profile")({
   component: ProfilePage,
-})
+});
 
 function ProfilePage() {
-  const [selectedPost, setSelectedPost] = useState<any>(null)
-  const [selectedIndex, setSelectedIndex] = useState(0)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedPost, setSelectedPost] = useState<any>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const user = {
-    username: "johndoe",
-    name: "John Doe",
     avatar: "/diverse-user-avatars.png",
-    coverImage: "/hip-hop-album-cover.png",
     bio: "Hip-hop producer and artist based in LA. Creating vibes since 2020.",
-    genre: "Hip-Hop",
-    location: "Los Angeles, CA",
-    verified: false,
+    coverImage: "/hip-hop-album-cover.png",
     followers: "5.2K",
     following: "342",
-    tracks: 12,
-    projects: 2,
+    genre: "Hip-Hop",
     links: {
       instagram: "https://instagram.com",
       twitter: "https://twitter.com",
       youtube: "https://youtube.com",
     },
-  }
+    location: "Los Angeles, CA",
+    name: "John Doe",
+    projects: 2,
+    tracks: 12,
+    username: "johndoe",
+    verified: false,
+  };
 
-  const allPosts = [
-    ...Array.from({ length: 12 }, (_, i) => ({
-      id: `track-${i + 1}`,
-      type: "track" as const,
-      image:
-        i % 3 === 0
-          ? "/summer-music-album-cover.png"
-          : i % 3 === 1
-            ? "/night-music-album-cover.png"
-            : "/hip-hop-album-cover.png",
-      title: `Track ${i + 1}`,
-      description: "Check out my latest track! 🎵",
-      likes: Math.floor(Math.random() * 5000) + 500,
-      comments: Math.floor(Math.random() * 200) + 20,
-      artist: {
-        name: user.name,
-        avatar: user.avatar,
-        username: user.username,
-      },
-    })),
-  ]
+  const allPosts = Array.from({ length: 12 }, (_, i) => ({
+    artist: {
+      avatar: user.avatar,
+      name: user.name,
+      username: user.username,
+    },
+    comments: Math.floor(Math.random() * 200) + 20,
+    description: "Check out my latest track! 🎵",
+    id: `track-${i + 1}`,
+    image:
+      i % 3 === 0
+        ? "/summer-music-album-cover.png"
+        : i % 3 === 1
+          ? "/night-music-album-cover.png"
+          : "/hip-hop-album-cover.png",
+    likes: Math.floor(Math.random() * 5000) + 500,
+    title: `Track ${i + 1}`,
+    type: "track" as const,
+  }));
 
-  const tracks = allPosts.filter((p) => p.type === "track")
+  const tracks = allPosts.filter((p) => p.type === "track");
 
   const handlePostClick = (post: any, index: number) => {
-    setSelectedPost(post)
-    setSelectedIndex(index)
-    setIsModalOpen(true)
-  }
+    setSelectedPost(post);
+    setSelectedIndex(index);
+    setIsModalOpen(true);
+  };
 
   const handleNavigate = (direction: "prev" | "next") => {
-    const newIndex = direction === "prev" ? selectedIndex - 1 : selectedIndex + 1
-    setSelectedIndex(newIndex)
-    setSelectedPost(allPosts[newIndex])
-  }
+    const newIndex =
+      direction === "prev" ? selectedIndex - 1 : selectedIndex + 1;
+    setSelectedIndex(newIndex);
+    setSelectedPost(allPosts[newIndex]);
+  };
 
   return (
     <>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold mb-2">Profile</h1>
-          <p className="text-muted-foreground">Manage your public artist profile</p>
+          <p className="text-muted-foreground">
+            Manage your public artist profile
+          </p>
         </div>
 
         {/* Cover Image */}
@@ -105,8 +118,12 @@ function ProfilePage() {
             <div className="flex-1 md:pb-4">
               <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl md:text-3xl font-bold">{user.name}</h1>
-                  {user.verified && <CheckCircle2 className="size-6 text-primary" />}
+                  <h1 className="text-2xl md:text-3xl font-bold">
+                    {user.name}
+                  </h1>
+                  {user.verified && (
+                    <CheckCircle2 className="size-6 text-primary" />
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 md:ml-auto">
@@ -204,7 +221,14 @@ function ProfilePage() {
                   className="relative aspect-square cursor-pointer group overflow-hidden"
                   onClick={() => handlePostClick(post, index)}
                 >
-                  <AppImage src={post.image || "/placeholder.svg"} alt={post.title} width={640} height={640} layout="constrained" className="w-full h-full object-cover" />
+                  <AppImage
+                    src={post.image || "/placeholder.svg"}
+                    alt={post.title}
+                    width={640}
+                    height={640}
+                    layout="constrained"
+                    className="w-full h-full object-cover"
+                  />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 text-white">
                     <span className="flex items-center gap-1">
                       <Play className="size-5 fill-current" />
@@ -224,7 +248,14 @@ function ProfilePage() {
                   className="relative aspect-square cursor-pointer group overflow-hidden"
                   onClick={() => handlePostClick(post, index)}
                 >
-                  <AppImage src={post.image || "/placeholder.svg"} alt={post.title} width={640} height={640} layout="constrained" className="w-full h-full object-cover" />
+                  <AppImage
+                    src={post.image || "/placeholder.svg"}
+                    alt={post.title}
+                    width={640}
+                    height={640}
+                    layout="constrained"
+                    className="w-full h-full object-cover"
+                  />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 text-white">
                     <span className="flex items-center gap-1">
                       <Play className="size-5 fill-current" />
@@ -248,5 +279,5 @@ function ProfilePage() {
         onNavigate={handleNavigate}
       />
     </>
-  )
+  );
 }

@@ -1,43 +1,59 @@
+import {
+  Heart,
+  MessageCircle,
+  Send,
+  Bookmark,
+  MoreHorizontal,
+  X,
+} from "lucide-react";
+import { useState } from "react";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AppImage } from "@/components/ui/app-image"
-import { Button } from "@/components/ui/button"
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, X } from "lucide-react"
-import { useState } from "react"
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface Post {
-  id: string
-  type: "track" | "project" | "media" | "battle"
-  image: string
-  title?: string
-  description?: string
-  likes: number
-  comments: number
+  id: string;
+  type: "track" | "project" | "media" | "battle";
+  image: string;
+  title?: string;
+  description?: string;
+  likes: number;
+  comments: number;
   artist: {
-    name: string
-    avatar: string
-    username: string
-  }
+    name: string;
+    avatar: string;
+    username: string;
+  };
 }
 
 interface PostDetailModalProps {
-  post: Post | null
-  isOpen: boolean
-  onClose: () => void
-  allPosts: Post[]
-  currentIndex: number
-  onNavigate: (direction: "prev" | "next") => void
+  post: Post | null;
+  isOpen: boolean;
+  onClose: () => void;
+  allPosts: Post[];
+  currentIndex: number;
+  onNavigate: (direction: "prev" | "next") => void;
 }
 
-export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex, onNavigate }: PostDetailModalProps) {
-  const [isLiked, setIsLiked] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
+export function PostDetailModal({
+  post,
+  isOpen,
+  onClose,
+  allPosts,
+  currentIndex,
+  onNavigate,
+}: PostDetailModalProps) {
+  const [isLiked, setIsLiked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
-  if (!post) return null
+  if (!post) {
+    return null;
+  }
 
-  const hasPrev = currentIndex > 0
-  const hasNext = currentIndex < allPosts.length - 1
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < allPosts.length - 1;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -97,7 +113,9 @@ export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex,
                 </Avatar>
                 <div>
                   <p className="font-semibold text-sm">{post.artist.name}</p>
-                  <p className="text-xs text-muted-foreground">@{post.artist.username}</p>
+                  <p className="text-xs text-muted-foreground">
+                    @{post.artist.username}
+                  </p>
                 </div>
               </div>
               <Button variant="ghost" size="icon">
@@ -110,11 +128,15 @@ export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex,
               {post.description && (
                 <div className="flex gap-3">
                   <Avatar className="size-8">
-                    <AvatarImage src={post.artist.avatar || "/placeholder.svg"} />
+                    <AvatarImage
+                      src={post.artist.avatar || "/placeholder.svg"}
+                    />
                     <AvatarFallback>{post.artist.name[0]}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <span className="font-semibold text-sm">{post.artist.name}</span>{" "}
+                    <span className="font-semibold text-sm">
+                      {post.artist.name}
+                    </span>{" "}
                     <span className="text-sm">{post.description}</span>
                   </div>
                 </div>
@@ -131,7 +153,9 @@ export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex,
                     <div>
                       <span className="font-semibold text-sm">user{i}</span>{" "}
                       <span className="text-sm">This is amazing! 🔥</span>
-                      <p className="text-xs text-muted-foreground mt-1">2h ago</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        2h ago
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -148,7 +172,9 @@ export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex,
                     onClick={() => setIsLiked(!isLiked)}
                     className={isLiked ? "text-red-500" : ""}
                   >
-                    <Heart className={`size-6 ${isLiked ? "fill-current" : ""}`} />
+                    <Heart
+                      className={`size-6 ${isLiked ? "fill-current" : ""}`}
+                    />
                   </Button>
                   <Button variant="ghost" size="icon">
                     <MessageCircle className="size-6" />
@@ -157,13 +183,21 @@ export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex,
                     <Send className="size-6" />
                   </Button>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setIsSaved(!isSaved)}>
-                  <Bookmark className={`size-6 ${isSaved ? "fill-current" : ""}`} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSaved(!isSaved)}
+                >
+                  <Bookmark
+                    className={`size-6 ${isSaved ? "fill-current" : ""}`}
+                  />
                 </Button>
               </div>
 
               <div>
-                <p className="font-semibold text-sm">{post.likes.toLocaleString()} likes</p>
+                <p className="font-semibold text-sm">
+                  {post.likes.toLocaleString()} likes
+                </p>
                 <p className="text-xs text-muted-foreground">2 days ago</p>
               </div>
             </div>
@@ -171,5 +205,5 @@ export function PostDetailModal({ post, isOpen, onClose, allPosts, currentIndex,
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

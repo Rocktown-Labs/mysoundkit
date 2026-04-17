@@ -1,56 +1,74 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Music, Clock, CheckCircle, Download, MoreHorizontal } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Music,
+  Clock,
+  CheckCircle,
+  Download,
+  MoreHorizontal,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const mockProjects = [
   {
+    files: {
+      adlibs: true,
+      coverArt: true,
+      instrumental: true,
+      session: true,
+      vocals: true,
+    },
     id: 1,
+    lastUpdated: "2 hours ago",
+    mastered: true,
+    mixed: true,
     name: "Summer Vibes",
     status: "complete",
-    lastUpdated: "2 hours ago",
-    files: {
-      instrumental: true,
-      vocals: true,
-      adlibs: true,
-      session: true,
-      coverArt: true,
-    },
-    mixed: true,
-    mastered: true,
   },
   {
+    files: {
+      adlibs: false,
+      coverArt: false,
+      instrumental: true,
+      session: true,
+      vocals: true,
+    },
     id: 2,
+    lastUpdated: "1 day ago",
+    mastered: false,
+    mixed: false,
     name: "Late Night Sessions",
     status: "in-progress",
-    lastUpdated: "1 day ago",
-    files: {
-      instrumental: true,
-      vocals: true,
-      adlibs: false,
-      session: true,
-      coverArt: false,
-    },
-    mixed: false,
-    mastered: false,
   },
   {
+    files: {
+      adlibs: false,
+      coverArt: true,
+      instrumental: true,
+      session: false,
+      vocals: false,
+    },
     id: 3,
+    lastUpdated: "3 days ago",
+    mastered: false,
+    mixed: false,
     name: "Collaboration Track",
     status: "in-progress",
-    lastUpdated: "3 days ago",
-    files: {
-      instrumental: true,
-      vocals: false,
-      adlibs: false,
-      session: false,
-      coverArt: true,
-    },
-    mixed: false,
-    mastered: false,
   },
-]
+];
 
 export function ProjectsOverview() {
   return (
@@ -58,7 +76,9 @@ export function ProjectsOverview() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="font-[family-name:var(--font-playfair)]">Recent Projects</CardTitle>
+            <CardTitle className="font-[family-name:var(--font-playfair)]">
+              Recent Projects
+            </CardTitle>
             <CardDescription>Your latest music collaborations</CardDescription>
           </div>
           <Button variant="outline" size="sm">
@@ -80,7 +100,9 @@ export function ProjectsOverview() {
                 <h3 className="font-medium">{project.name}</h3>
                 <div className="flex items-center space-x-2 mt-1">
                   <Badge
-                    variant={project.status === "complete" ? "default" : "secondary"}
+                    variant={
+                      project.status === "complete" ? "default" : "secondary"
+                    }
                     className={
                       project.status === "complete"
                         ? "bg-primary/20 text-primary border-primary/30"
@@ -94,7 +116,9 @@ export function ProjectsOverview() {
                     )}
                     {project.status === "complete" ? "Complete" : "In Progress"}
                   </Badge>
-                  <span className="text-sm text-muted-foreground">{project.lastUpdated}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {project.lastUpdated}
+                  </span>
                 </div>
               </div>
             </div>
@@ -103,11 +127,21 @@ export function ProjectsOverview() {
               {/* File Status Indicators */}
               <div className="hidden sm:flex items-center space-x-2">
                 <div className="flex items-center space-x-1">
-                  {project.files.instrumental && <div className="w-2 h-2 bg-primary rounded-full" />}
-                  {project.files.vocals && <div className="w-2 h-2 bg-primary rounded-full" />}
-                  {project.files.adlibs && <div className="w-2 h-2 bg-primary rounded-full" />}
-                  {project.files.session && <div className="w-2 h-2 bg-primary rounded-full" />}
-                  {project.files.coverArt && <div className="w-2 h-2 bg-primary rounded-full" />}
+                  {project.files.instrumental && (
+                    <div className="w-2 h-2 bg-primary rounded-full" />
+                  )}
+                  {project.files.vocals && (
+                    <div className="w-2 h-2 bg-primary rounded-full" />
+                  )}
+                  {project.files.adlibs && (
+                    <div className="w-2 h-2 bg-primary rounded-full" />
+                  )}
+                  {project.files.session && (
+                    <div className="w-2 h-2 bg-primary rounded-full" />
+                  )}
+                  {project.files.coverArt && (
+                    <div className="w-2 h-2 bg-primary rounded-full" />
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   {Object.values(project.files).filter(Boolean).length}/5 files
@@ -127,7 +161,9 @@ export function ProjectsOverview() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem>Edit Project</DropdownMenuItem>
                     <DropdownMenuItem>Share</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive">
+                      Delete
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -136,5 +172,5 @@ export function ProjectsOverview() {
         ))}
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -1,14 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { ProjectDetails } from "@/components/dashboard/project-details"
-import { ProjectFiles } from "@/components/dashboard/project-files"
-import { ProjectActivity } from "@/components/dashboard/project-activity"
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/dashboard/projects/$id')({
+import { ProjectActivity } from "@/components/dashboard/project-activity";
+import { ProjectDetails } from "@/components/dashboard/project-details";
+import { ProjectFiles } from "@/components/dashboard/project-files";
+
+export const Route = createFileRoute("/dashboard/projects/$id")({
   component: ProjectDetailPage,
-})
+});
 
 function ProjectDetailPage() {
-  const { id } = Route.useParams()
+  const { id } = Route.useParams();
   return (
     <div className="space-y-6">
       <ProjectDetails projectId={id} />
@@ -21,5 +22,5 @@ function ProjectDetailPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

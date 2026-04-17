@@ -1,20 +1,37 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Trophy, Music, BarChart3, Swords, MapPin, TrendingUp, Award, Target } from "lucide-react"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { Badge } from "@/components/ui/badge"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  Trophy,
+  Music,
+  BarChart3,
+  Swords,
+  MapPin,
+  TrendingUp,
+  Award,
+  Target,
+} from "lucide-react";
 
-export const Route = createFileRoute('/dashboard/battles/')({
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+export const Route = createFileRoute("/dashboard/live/")({
   component: BattleHubPage,
-})
+});
 
 function BattleHubPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div>
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">Battle Hub</h1>
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">Live</h1>
         <p className="text-muted-foreground">
-          Manage your battle kits, track performance, and compete with other artists
+          Manage battles today, then branch into listening parties and creator
+          streams from the new live menu.
         </p>
       </div>
 
@@ -39,13 +56,17 @@ function BattleHubPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">67%</div>
-            <p className="text-xs text-muted-foreground">16 wins out of 24 battles</p>
+            <p className="text-xs text-muted-foreground">
+              16 wins out of 24 battles
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Streak</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Current Streak
+            </CardTitle>
             <TrendingUp className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -56,7 +77,9 @@ function BattleHubPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Leaderboard Rank</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Leaderboard Rank
+            </CardTitle>
             <Award className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -73,10 +96,12 @@ function BattleHubPage() {
           <CardHeader>
             <Music className="size-8 text-primary mb-2" />
             <CardTitle>My Kit</CardTitle>
-            <CardDescription>Organize tracks for best of 3, 5, and 7 battles</CardDescription>
+            <CardDescription>
+              Organize tracks for best of 3, 5, and 7 battles
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/dashboard/battles/my-kit">
+            <Link to="/dashboard/live/my-kit">
               <Button className="w-full">Manage Kits</Button>
             </Link>
           </CardContent>
@@ -86,10 +111,12 @@ function BattleHubPage() {
           <CardHeader>
             <BarChart3 className="size-8 text-primary mb-2" />
             <CardTitle>My Stats</CardTitle>
-            <CardDescription>View wins, losses, and track performance</CardDescription>
+            <CardDescription>
+              View wins, losses, and track performance
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/dashboard/battles/my-stats">
+            <Link to="/dashboard/live/my-stats">
               <Button className="w-full">View Stats</Button>
             </Link>
           </CardContent>
@@ -99,10 +126,12 @@ function BattleHubPage() {
           <CardHeader>
             <MapPin className="size-8 text-primary mb-2" />
             <CardTitle>Explore Battles</CardTitle>
-            <CardDescription>Discover live battles and upcoming events</CardDescription>
+            <CardDescription>
+              Discover live battles and upcoming events
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/battles">
+            <Link to="/live">
               <Button className="w-full">Explore</Button>
             </Link>
           </CardContent>
@@ -125,10 +154,12 @@ function BattleHubPage() {
                   <p className="font-semibold">Hip-Hop Showdown</p>
                   <Badge variant="destructive">Live Now</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">vs. DJ Shadow • Best of 5</p>
+                <p className="text-sm text-muted-foreground">
+                  vs. DJ Shadow • Best of 5
+                </p>
                 <p className="text-xs text-muted-foreground">Round 3 of 5</p>
               </div>
-              <Link to="/battles/1">
+              <Link to="/live/battles/1">
                 <Button className="w-full sm:w-auto">Join Battle</Button>
               </Link>
             </div>
@@ -139,10 +170,17 @@ function BattleHubPage() {
                   <p className="font-semibold">R&B Challenge</p>
                   <Badge variant="secondary">Upcoming</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">vs. Smooth Beats • Best of 3</p>
-                <p className="text-xs text-muted-foreground">Starts in 2 hours</p>
+                <p className="text-sm text-muted-foreground">
+                  vs. Smooth Beats • Best of 3
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Starts in 2 hours
+                </p>
               </div>
-              <Button variant="outline" className="w-full sm:w-auto bg-transparent">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto bg-transparent"
+              >
                 View Details
               </Button>
             </div>
@@ -153,10 +191,17 @@ function BattleHubPage() {
                   <p className="font-semibold">Electronic Battle</p>
                   <Badge variant="outline">Scheduled</Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">vs. BeatMaster • Best of 7</p>
-                <p className="text-xs text-muted-foreground">Tomorrow at 8:00 PM</p>
+                <p className="text-sm text-muted-foreground">
+                  vs. BeatMaster • Best of 7
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tomorrow at 8:00 PM
+                </p>
               </div>
-              <Button variant="outline" className="w-full sm:w-auto bg-transparent">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto bg-transparent"
+              >
                 View Details
               </Button>
             </div>
@@ -177,21 +222,27 @@ function BattleHubPage() {
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div className="space-y-1">
                 <p className="font-semibold text-sm">Pop Showdown</p>
-                <p className="text-xs text-muted-foreground">vs. Melody Queen • Best of 3</p>
+                <p className="text-xs text-muted-foreground">
+                  vs. Melody Queen • Best of 3
+                </p>
               </div>
               <Badge className="bg-green-600">Won 2-1</Badge>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div className="space-y-1">
                 <p className="font-semibold text-sm">Jazz Battle</p>
-                <p className="text-xs text-muted-foreground">vs. Smooth Jazz • Best of 5</p>
+                <p className="text-xs text-muted-foreground">
+                  vs. Smooth Jazz • Best of 5
+                </p>
               </div>
               <Badge variant="destructive">Lost 2-3</Badge>
             </div>
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div className="space-y-1">
                 <p className="font-semibold text-sm">Rock Challenge</p>
-                <p className="text-xs text-muted-foreground">vs. Guitar Hero • Best of 3</p>
+                <p className="text-xs text-muted-foreground">
+                  vs. Guitar Hero • Best of 3
+                </p>
               </div>
               <Badge className="bg-green-600">Won 2-0</Badge>
             </div>
@@ -199,5 +250,5 @@ function BattleHubPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,15 +1,23 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { AppImage } from "@/components/ui/app-image"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Music, Play, Download, ExternalLink, MapPin, Calendar } from "lucide-react"
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  Music,
+  Play,
+  Download,
+  ExternalLink,
+  MapPin,
+  Calendar,
+} from "lucide-react";
 
-export const Route = createFileRoute('/dashboard/career/profile')({
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export const Route = createFileRoute("/dashboard/career/profile")({
   component: ProfilePage,
-})
+});
 
 function ProfilePage() {
   return (
@@ -30,7 +38,9 @@ function ProfilePage() {
             <div className="flex-1 space-y-4">
               <div className="flex flex-col md:flex-row md:items-center gap-4">
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">John Doe</h1>
+                  <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+                    John Doe
+                  </h1>
                   <p className="text-muted-foreground">@johndoe</p>
                 </div>
                 <div className="flex gap-2">
@@ -38,7 +48,11 @@ function ProfilePage() {
                     <Link to="/dashboard/career/settings">Edit Profile</Link>
                   </Button>
                   <Button variant="outline" asChild>
-                    <a href="https://mysoundkit.com/johndoe" target="_blank" rel="noopener noreferrer">
+                    <a
+                      href="https://mysoundkit.com/johndoe"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <ExternalLink className="size-4 mr-2" />
                       View Public
                     </a>
@@ -64,7 +78,10 @@ function ProfilePage() {
 
               {/* Bio */}
               <div className="space-y-2">
-                <p className="text-sm">Hip-hop producer and artist based in LA. Creating vibes since 2020. 🎵</p>
+                <p className="text-sm">
+                  Hip-hop producer and artist based in LA. Creating vibes since
+                  2020. 🎵
+                </p>
                 <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <MapPin className="size-4" />
@@ -80,17 +97,29 @@ function ProfilePage() {
               {/* Music Platform Links */}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <a href="https://spotify.com" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://spotify.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     Spotify
                   </a>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="https://music.apple.com" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://music.apple.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     Apple Music
                   </a>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="https://youtube.com" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://youtube.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     YouTube
                   </a>
                 </Button>
@@ -127,7 +156,9 @@ function ProfilePage() {
                     </div>
                   </div>
                   <h3 className="font-semibold mb-1">Track Title {i}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">Released Jan 2025</p>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Released Jan 2025
+                  </p>
                   <div className="flex items-center justify-between">
                     <Badge variant="outline">Public</Badge>
                     <Button size="sm" variant="ghost">
@@ -151,7 +182,9 @@ function ProfilePage() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold mb-1">Album Title {i}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">12 tracks • Released 2025</p>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        12 tracks • Released 2025
+                      </p>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">Album</Badge>
                         <Badge variant="outline">Public</Badge>
@@ -167,7 +200,10 @@ function ProfilePage() {
         <TabsContent value="photos" className="mt-6">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="aspect-square bg-muted rounded-lg overflow-hidden">
+              <div
+                key={i}
+                className="aspect-square bg-muted rounded-lg overflow-hidden"
+              >
                 <AppImage
                   src={`/music-photo-.jpg?height=300&width=300&query=music photo ${i}`}
                   alt={`Photo ${i}`}
@@ -203,7 +239,9 @@ function ProfilePage() {
                   </div>
                   <div className="p-4">
                     <h3 className="font-semibold mb-1">Video Title {i}</h3>
-                    <p className="text-sm text-muted-foreground">2.4K views • 2 days ago</p>
+                    <p className="text-sm text-muted-foreground">
+                      2.4K views • 2 days ago
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -212,5 +250,5 @@ function ProfilePage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

@@ -1,8 +1,9 @@
-import { Music, Plus, ArrowLeft } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { createFileRoute, Link } from "@tanstack/react-router"
-import { useState } from "react"
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Music, Plus, ArrowLeft } from "lucide-react";
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -11,48 +12,51 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
-export const Route = createFileRoute('/_explore/library/playlists/')({
+export const Route = createFileRoute("/_explore/library/playlists/")({
   component: PlaylistsPage,
-})
+});
 
 function PlaylistsPage() {
-  const [open, setOpen] = useState(false)
-  const [playlistName, setPlaylistName] = useState("")
-  const [playlistDescription, setPlaylistDescription] = useState("")
+  const [open, setOpen] = useState(false);
+  const [playlistName, setPlaylistName] = useState("");
+  const [playlistDescription, setPlaylistDescription] = useState("");
 
   const playlists = [
     {
+      description: "Your most played tracks",
       id: "1",
       name: "My Favorites",
       trackCount: 42,
-      description: "Your most played tracks",
     },
     {
+      description: "High energy tracks",
       id: "2",
       name: "Workout Vibes",
       trackCount: 28,
-      description: "High energy tracks",
     },
     {
+      description: "Relax and unwind",
       id: "3",
       name: "Chill Sessions",
       trackCount: 35,
-      description: "Relax and unwind",
     },
-  ]
+  ];
 
   const handleCreatePlaylist = () => {
     // Handle playlist creation
-    console.log("[v0] Creating playlist:", { playlistName, playlistDescription })
-    setOpen(false)
-    setPlaylistName("")
-    setPlaylistDescription("")
-  }
+    console.log("[v0] Creating playlist:", {
+      playlistDescription,
+      playlistName,
+    });
+    setOpen(false);
+    setPlaylistName("");
+    setPlaylistDescription("");
+  };
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -69,7 +73,9 @@ function PlaylistsPage() {
             <Music className="size-8 text-primary" />
             My Playlists
           </h1>
-          <p className="text-muted-foreground text-sm md:text-base">Your curated collections</p>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Your curated collections
+          </p>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
@@ -83,7 +89,8 @@ function PlaylistsPage() {
             <DialogHeader>
               <DialogTitle>Create New Playlist</DialogTitle>
               <DialogDescription>
-                Give your playlist a name and description. You can add songs after creating it.
+                Give your playlist a name and description. You can add songs
+                after creating it.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -111,7 +118,10 @@ function PlaylistsPage() {
               <Button variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreatePlaylist} disabled={!playlistName.trim()}>
+              <Button
+                onClick={handleCreatePlaylist}
+                disabled={!playlistName.trim()}
+              >
                 Create Playlist
               </Button>
             </DialogFooter>
@@ -126,17 +136,21 @@ function PlaylistsPage() {
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-2">
                   <Music className="size-10 text-primary flex-shrink-0" />
-                  <span className="text-sm text-muted-foreground">{playlist.trackCount} tracks</span>
+                  <span className="text-sm text-muted-foreground">
+                    {playlist.trackCount} tracks
+                  </span>
                 </div>
                 <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">
                   {playlist.name}
                 </h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">{playlist.description}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {playlist.description}
+                </p>
               </CardContent>
             </Card>
           </Link>
         ))}
       </div>
     </div>
-  )
+  );
 }

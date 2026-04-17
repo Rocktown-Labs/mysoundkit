@@ -1,49 +1,65 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { UserPlus, Mail, MoreVertical } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { createFileRoute } from "@tanstack/react-router";
+import { UserPlus, Mail, MoreVertical } from "lucide-react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const teamMembers = [
   {
+    avatar: "/diverse-user-avatars.png",
+    email: "jessica@example.com",
     id: 1,
     name: "Jessica Martinez",
-    email: "jessica@example.com",
     role: "Manager",
-    avatar: "/diverse-user-avatars.png",
     status: "Active",
   },
   {
+    avatar: "/diverse-user-avatars.png",
+    email: "david@example.com",
     id: 2,
     name: "David Kim",
-    email: "david@example.com",
     role: "Social Media Manager",
-    avatar: "/diverse-user-avatars.png",
     status: "Active",
   },
   {
+    avatar: "/diverse-user-avatars.png",
+    email: "emma@example.com",
     id: 3,
     name: "Emma Wilson",
-    email: "emma@example.com",
     role: "Marketing",
-    avatar: "/diverse-user-avatars.png",
     status: "Active",
   },
-]
+];
 
-export const Route = createFileRoute('/dashboard/team')({
+export const Route = createFileRoute("/dashboard/team")({
   component: TeamPage,
-})
+});
 
 function TeamPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">Team</h1>
-          <p className="text-muted-foreground">Manage your team members and their roles</p>
+          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+            Team
+          </h1>
+          <p className="text-muted-foreground">
+            Manage your team members and their roles
+          </p>
         </div>
         <Button>
           <UserPlus className="mr-2 size-4" />
@@ -55,13 +71,17 @@ function TeamPage() {
         <CardHeader>
           <CardTitle>Team Members</CardTitle>
           <CardDescription>
-            Team members have access to help manage your music career (managers, social media, marketing, etc.)
+            Team members have access to help manage your music career (managers,
+            social media, marketing, etc.)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {teamMembers.map((member) => (
-              <div key={member.id} className="flex items-center justify-between p-4 rounded-lg border">
+              <div
+                key={member.id}
+                className="flex items-center justify-between p-4 rounded-lg border"
+              >
                 <div className="flex items-center gap-4">
                   <Avatar className="size-12">
                     <AvatarImage src={member.avatar || "/placeholder.svg"} />
@@ -71,13 +91,18 @@ function TeamPage() {
                     <p className="font-semibold">{member.name}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Mail className="size-3 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">{member.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {member.email}
+                      </p>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <Badge variant="secondary">{member.role}</Badge>
-                  <Badge variant="outline" className="text-green-500 border-green-500">
+                  <Badge
+                    variant="outline"
+                    className="text-green-500 border-green-500"
+                  >
                     {member.status}
                   </Badge>
                   <DropdownMenu>
@@ -89,7 +114,9 @@ function TeamPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem>Edit Role</DropdownMenuItem>
                       <DropdownMenuItem>View Activity</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Remove</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">
+                        Remove
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -107,19 +134,21 @@ function TeamPage() {
           <div className="p-4 rounded-lg border">
             <h3 className="font-semibold mb-2">Team Members</h3>
             <p className="text-sm text-muted-foreground">
-              Team members help manage your music career. They have broader access to your account and can help with
-              management, marketing, social media, and other business aspects.
+              Team members help manage your music career. They have broader
+              access to your account and can help with management, marketing,
+              social media, and other business aspects.
             </p>
           </div>
           <div className="p-4 rounded-lg border">
             <h3 className="font-semibold mb-2">Collaborators</h3>
             <p className="text-sm text-muted-foreground">
-              Collaborators are artists you work with on specific tracks or projects. They only have access to the
-              tracks/projects they're invited to, with read and write permissions (but cannot delete).
+              Collaborators are artists you work with on specific tracks or
+              projects. They only have access to the tracks/projects they're
+              invited to, with read and write permissions (but cannot delete).
             </p>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

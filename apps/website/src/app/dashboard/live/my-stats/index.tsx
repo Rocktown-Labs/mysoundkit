@@ -1,72 +1,83 @@
-import { createFileRoute } from "@tanstack/react-router"
-import { DataTable } from "./-data-table"
-import { columns, type BattleStats } from "./-columns"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { createFileRoute } from "@tanstack/react-router";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import { columns } from "./-columns";
+import type { BattleStats } from "./-columns";
+import { DataTable } from "./-data-table";
 
 // Mock data
 const data: BattleStats[] = [
   {
+    downloads: 156,
+    losses: 3,
+    purchases: 45,
+    saves: 234,
     trackId: "1",
     trackName: "Summer Vibes",
-    wins: 12,
-    losses: 3,
     winRate: 80,
-    saves: 234,
-    downloads: 156,
-    purchases: 45,
+    wins: 12,
   },
   {
+    downloads: 98,
+    losses: 7,
+    purchases: 32,
+    saves: 189,
     trackId: "2",
     trackName: "Night Drive",
-    wins: 8,
-    losses: 7,
     winRate: 53,
-    saves: 189,
-    downloads: 98,
-    purchases: 32,
+    wins: 8,
   },
   {
+    downloads: 234,
+    losses: 2,
+    purchases: 78,
+    saves: 345,
     trackId: "3",
     trackName: "Midnight Dreams",
-    wins: 15,
-    losses: 2,
     winRate: 88,
-    saves: 345,
-    downloads: 234,
-    purchases: 78,
+    wins: 15,
   },
   {
+    downloads: 134,
+    losses: 5,
+    purchases: 56,
+    saves: 198,
     trackId: "4",
     trackName: "City Lights",
-    wins: 10,
-    losses: 5,
     winRate: 67,
-    saves: 198,
-    downloads: 134,
-    purchases: 56,
+    wins: 10,
   },
   {
+    downloads: 87,
+    losses: 9,
+    purchases: 23,
+    saves: 156,
     trackId: "5",
     trackName: "Ocean Breeze",
-    wins: 6,
-    losses: 9,
     winRate: 40,
-    saves: 156,
-    downloads: 87,
-    purchases: 23,
+    wins: 6,
   },
-]
+];
 
-export const Route = createFileRoute('/dashboard/battles/my-stats/')({
+export const Route = createFileRoute("/dashboard/live/my-stats/")({
   component: MyStatsPage,
-})
+});
 
 function MyStatsPage() {
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">My Battle Stats</h1>
-        <p className="text-muted-foreground">Track performance of your songs in battles</p>
+        <p className="text-muted-foreground">
+          Track performance of your songs in battles
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -103,7 +114,9 @@ function MyStatsPage() {
             <CardTitle className="text-3xl">$234</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">From battle purchases</p>
+            <p className="text-xs text-muted-foreground">
+              From battle purchases
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -111,12 +124,14 @@ function MyStatsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Track Battle Statistics</CardTitle>
-          <CardDescription>Performance breakdown for each track</CardDescription>
+          <CardDescription>
+            Performance breakdown for each track
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable columns={columns} data={data} />
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
