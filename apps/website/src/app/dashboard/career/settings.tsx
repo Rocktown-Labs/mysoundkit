@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Upload, Save } from "lucide-react";
+import { Save } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProfileMediaUpload } from "@/components/dashboard/profile-media-upload";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,21 +49,17 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Profile Picture */}
-              <div className="flex items-center gap-6">
-                <Avatar className="size-24">
-                  <AvatarImage src="/diverse-user-avatars.png" />
-                  <AvatarFallback>JD</AvatarFallback>
-                </Avatar>
-                <div className="space-y-2">
-                  <Button variant="outline" size="sm">
-                    <Upload className="size-4 mr-2" />
-                    Upload Photo
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    JPG, PNG or GIF. Max 5MB.
-                  </p>
-                </div>
+              <div className="space-y-4">
+                <ProfileMediaUpload
+                  description="Upload a cover image that frames your artist page. JPG or PNG up to 10MB."
+                  kind="header"
+                  title="Upload Header Image"
+                />
+                <ProfileMediaUpload
+                  description="JPG or PNG up to 10MB. This image is stored in SoundKit media storage."
+                  kind="avatar"
+                  title="Upload Profile Photo"
+                />
               </div>
 
               {/* Basic Info */}

@@ -1,7 +1,28 @@
+"use client";
+
 import { useRouter } from "@tanstack/react-router";
-import { Plus, X, Music, ImageIcon, Video } from "lucide-react";
-import type React from "react";
-import { useState } from "react";
+import { 
+  Plus, 
+  X, 
+  Music, 
+  ChevronRight, 
+  ChevronLeft, 
+  Check, 
+  FolderPlus, 
+  Calendar, 
+  Users,
+  CloudUpload,
+  ListMusic,
+  LayoutGrid,
+  GripVertical,
+  Trash2,
+  Mic2,
+  Disc
+} from "lucide-react";
+import { useState, useMemo } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import { Badge } from "@/components/ui/badge";
@@ -24,367 +45,559 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
-interface ProjectFormData {
-  name: string;
-  type: "album" | "ep";
-  description: string;
-  releaseDate: string;
-  coverArt?: File;
-}
+const collaboratorSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  role: z.enum(["featured", "producer", "writer", "engineer"]).default("featured"),
+});
 
-interface SelectedTrack {
-  id: string;
-  name: string;
-  genre: string;
-  duration: string;
-}
+const projectFormSchema = z.object({
+  name: z.string().min(2, "Project name is required"),
+  type: z.enum(["album", "ep", "single"]).default("album"),
+  description: z.string().optional(),
+  releaseDate: z.string().optional(),
+  selectedExistingTracks: z.array(z.string()).default([]),
+  newTracks: z.array(z.object({
+    name: z.string().min(1, "Track name is required"),
+    genre: z.string().min(1, "Genre is required"),
+    file: z.any().optional(),
+  })).default([]),
+  collaborators: z.array(collaboratorSchema).default([]),
+});
 
-const mockTracks: SelectedTrack[] = [
-  { duration: "3:24", genre: "Hip-Hop", id: "1", name: "Summer Vibes" },
-  { duration: "4:12", genre: "R&B", id: "2", name: "Night Drive" },
-  { duration: "3:45", genre: "Pop", id: "3", name: "City Lights" },
-  { duration: "3:58", genre: "Hip-Hop", id: "4", name: "Midnight Dreams" },
+type ProjectFormValues = z.infer<typeof projectFormSchema>;
+
+const mockExistingTracks = [
+  { duration: "3:24", genre: "Hip-Hop", id: "t1", name: "Midnight Vibes" },
+  { duration: "4:12", genre: "R&B", id: "t2", name: "Night Drive" },
+  { duration: "3:45", genre: "Pop", id: "t3", name: "City Lights" },
+  { duration: "3:58", genre: "Hip-Hop", id: "t4", name: "Summer Rain" },
 ];
 
 export function NewProjectForm() {
   const router = useRouter();
-  const [formData, setFormData] = useState<ProjectFormData>({
-    description: "",
-    name: "",
-    releaseDate: "",
-    type: "album",
+  const [step, setStep] = useState("identity");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCollabName, setNewCollabName] = useState("");
+  const [newCollabRole, setNewCollabRole] = useState<"featured" | "producer" | "writer" | "engineer">("featured");
+
+  const form = useForm<ProjectFormValues>({
+    resolver: zodResolver(projectFormSchema),
+    defaultValues: {
+      name: "",
+      type: "album",
+      description: "",
+      releaseDate: "",
+      selectedExistingTracks: [],
+      newTracks: [],
+      collaborators: [],
+    },
   });
 
-  const [selectedTracks, setSelectedTracks] = useState<string[]>([]);
-  const [collaborators, setCollaborators] = useState<string[]>([]);
-  const [collaboratorEmail, setCollaboratorEmail] = useState("");
-  const [mediaFiles, setMediaFiles] = useState<{
-    photos: File[];
-    videos: File[];
-  }>({ photos: [], videos: [] });
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "newTracks",
+  });
 
-  const handleInputChange = (field: keyof ProjectFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const onSubmit = async (values: ProjectFormValues) => {
+    if (values.selectedExistingTracks.length === 0 && values.newTracks.length === 0) {
+      toast({
+        title: "No tracks added",
+        description: "Please select existing tracks or upload new ones.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const toggleTrack = (trackId: string) => {
-    setSelectedTracks((prev) =>
-      prev.includes(trackId)
-        ? prev.filter((id) => id !== trackId)
-        : [...prev, trackId]
-    );
-  };
-
-  const addCollaborator = () => {
-    if (collaboratorEmail && !collaborators.includes(collaboratorEmail)) {
-      setCollaborators([...collaborators, collaboratorEmail]);
-      setCollaboratorEmail("");
+    setIsSubmitting(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      toast({
+        title: "Project Created",
+        description: `${values.name} has been queued for processing.`,
+      });
+      router.navigate({ to: "/dashboard/projects" });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create project. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const removeCollaborator = (email: string) => {
-    setCollaborators(collaborators.filter((c) => c !== email));
+  const toggleExistingTrack = (trackId: string) => {
+    const current = form.getValues("selectedExistingTracks");
+    const updated = current.includes(trackId)
+      ? current.filter(id => id !== trackId)
+      : [...current, trackId];
+    form.setValue("selectedExistingTracks", updated);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    router.navigate({ to: "/dashboard/projects" });
+  const handleNewUpload = (files: FileList | File[]) => {
+    Array.from(files).forEach(file => {
+      append({
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        genre: "Hip-Hop",
+        file: file
+      });
+    });
   };
 
-  const maxTracks = formData.type === "ep" ? 6 : Number.POSITIVE_INFINITY;
-  const canAddMoreTracks = selectedTracks.length < maxTracks;
-  const isFormValid = formData.name.trim() !== "" && selectedTracks.length > 0;
+  const addCollaborator = () => {
+    if (!newCollabName.trim()) return;
+    
+    const current = form.getValues("collaborators");
+    form.setValue("collaborators", [
+      ...current,
+      { name: newCollabName.trim(), role: newCollabRole }
+    ]);
+    setNewCollabName("");
+  };
+
+  const removeCollaborator = (index: number) => {
+    const current = form.getValues("collaborators");
+    form.setValue("collaborators", current.filter((_, i) => i !== index));
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card className="bg-card/50 backdrop-blur-sm border-border/40">
-        <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-playfair)]">
-            Project Details
-          </CardTitle>
-          <CardDescription>
-            Basic information about your album or EP
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Cover Art */}
-          <div className="space-y-2">
-            <Label>Cover Art (Optional)</Label>
-            <FileUploadZone
-              title="Upload Cover Art"
-              description="PNG, JPG up to 10MB"
-              acceptedTypes=".png,.jpg,.jpeg"
-              onFileUpload={(files) => {
-                if (files[0]) {
-                  setFormData((prev) => ({ ...prev, coverArt: files[0] }));
-                }
-              }}
-              optional
-            />
-          </div>
+    <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      <div className="flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          onClick={() => router.history.back()}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="mr-2 size-4" />
+          Back
+        </Button>
+        <Badge variant="outline" className="bg-emerald-500/5 text-emerald-500 border-emerald-500/20">
+          Collection Workflow
+        </Badge>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Project Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                placeholder="Enter project name"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                className="bg-input/50 border-border/60 focus:border-primary"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="type">
-                Project Type <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value: any) => handleInputChange("type", value)}
-              >
-                <SelectTrigger className="bg-input/50 border-border/60">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ep">EP (Max 6 tracks)</SelectItem>
-                  <SelectItem value="album">Album</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+      <div className="space-y-2 text-center">
+        <h1 className="text-4xl font-bold font-[family-name:var(--font-playfair)] tracking-tight">
+          Create New Project
+        </h1>
+        <p className="text-muted-foreground max-w-lg mx-auto">
+          Bundle your tracks into a cohesive release. Manage artwork, credits, and multi-track distribution.
+        </p>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              placeholder="Describe your project..."
-              value={formData.description}
-              onChange={(e) => handleInputChange("description", e.target.value)}
-              className="bg-input/50 border-border/60 focus:border-primary min-h-[80px]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="releaseDate">Release Date (Optional)</Label>
-            <Input
-              id="releaseDate"
-              type="date"
-              value={formData.releaseDate}
-              onChange={(e) => handleInputChange("releaseDate", e.target.value)}
-              className="bg-input/50 border-border/60 focus:border-primary"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card/50 backdrop-blur-sm border-border/40">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="font-[family-name:var(--font-playfair)]">
-                Select Tracks
-              </CardTitle>
-              <CardDescription>
-                Choose existing tracks or create new ones
-                {formData.type === "ep" &&
-                  ` (${selectedTracks.length}/6 selected)`}
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.navigate({ to: "/dashboard/tracks/new" })}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Create New Track
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {mockTracks.map((track) => {
-            const isSelected = selectedTracks.includes(track.id);
-            const isDisabled = !isSelected && !canAddMoreTracks;
-
-            return (
-              <div
-                key={track.id}
-                className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                  isSelected
-                    ? "border-primary bg-primary/5"
-                    : (isDisabled
-                      ? "border-border/40 bg-muted/20 opacity-50"
-                      : "border-border/40 bg-background/50 hover:border-primary/50")
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => toggleTrack(track.id)}
-                    disabled={isDisabled}
-                  />
-                  <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
-                    <Music className="h-5 w-5 text-primary" />
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <Accordion 
+            type="single" 
+            collapsible 
+            value={step} 
+            onValueChange={setStep}
+            className="space-y-4"
+          >
+            {/* STEP 1: IDENTITY */}
+            <AccordionItem value="identity" className="border border-border/40 bg-card/40 backdrop-blur-md rounded-2xl px-6 py-2 overflow-hidden">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <div className="flex items-center gap-4 text-left">
+                  <div className={cn(
+                    "size-10 rounded-xl flex items-center justify-center border transition-colors",
+                    step === "identity" ? "bg-emerald-500 text-white border-emerald-500" : "bg-muted text-muted-foreground border-border/40"
+                  )}>
+                    <LayoutGrid className="size-5" />
                   </div>
                   <div>
-                    <div className="font-medium">{track.name}</div>
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <Badge variant="outline" className="text-xs">
-                        {track.genre}
-                      </Badge>
-                      <span>{track.duration}</span>
-                    </div>
+                    <h3 className="font-bold text-lg">Project Identity</h3>
+                    <p className="text-xs text-muted-foreground font-normal">Global metadata and collection artwork</p>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-6 space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Main Artwork</Label>
+                  <FileUploadZone
+                    title="Upload Project Cover"
+                    description="Used for the entire collection"
+                    acceptedTypes=".png,.jpg,.jpeg"
+                    onFileUpload={() => {}}
+                    optional
+                  />
+                </div>
 
-          {selectedTracks.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <Music className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No tracks selected yet</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Name <span className="text-destructive">*</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g. Summer Sessions" {...field} className="bg-background/50" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Project Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="album">Full Album</SelectItem>
+                            <SelectItem value="ep">EP (Extended Play)</SelectItem>
+                            <SelectItem value="single">Single Release</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-      <Card className="bg-card/50 backdrop-blur-sm border-border/40">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="font-[family-name:var(--font-playfair)]">
-                Additional Media
-              </CardTitle>
-              <CardDescription>
-                Add photos and videos to your project
-              </CardDescription>
-            </div>
-            <Badge variant="secondary" className="bg-primary/20 text-primary">
-              Premium
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Photos</Label>
-            <FileUploadZone
-              title="Upload Photos"
-              description="Behind-the-scenes, promotional images"
-              acceptedTypes=".png,.jpg,.jpeg"
-              onFileUpload={(files) => {
-                setMediaFiles((prev) => ({
-                  ...prev,
-                  photos: [...prev.photos, ...[...files]],
-                }));
-              }}
-              optional
-            />
-          </div>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project Description</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="What's the vibe of this project? Credits, inspiration..." 
+                          className="bg-background/50 min-h-[100px] resize-none" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-          <div className="space-y-2">
-            <Label>Videos</Label>
-            <FileUploadZone
-              title="Upload Videos"
-              description="Music videos, social media content (MP4, MOV, MKV)"
-              acceptedTypes=".mp4,.mov,.mkv"
-              onFileUpload={(files) => {
-                setMediaFiles((prev) => ({
-                  ...prev,
-                  videos: [...prev.videos, ...[...files]],
-                }));
-              }}
-              optional
-            />
-          </div>
-
-          {(mediaFiles.photos.length > 0 || mediaFiles.videos.length > 0) && (
-            <div className="pt-4 border-t border-border/40">
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                {mediaFiles.photos.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    <span>{mediaFiles.photos.length} photo(s)</span>
-                  </div>
-                )}
-                {mediaFiles.videos.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Video className="h-4 w-4" />
-                    <span>{mediaFiles.videos.length} video(s)</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Collaborators */}
-      <Card className="bg-card/50 backdrop-blur-sm border-border/40">
-        <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-playfair)]">
-            Collaborators
-          </CardTitle>
-          <CardDescription>
-            Invite others to collaborate on this project
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter email address"
-              value={collaboratorEmail}
-              onChange={(e) => setCollaboratorEmail(e.target.value)}
-              className="bg-input/50 border-border/60"
-            />
-            <Button type="button" onClick={addCollaborator}>
-              Add
-            </Button>
-          </div>
-          {collaborators.length > 0 && (
-            <div className="space-y-2">
-              {collaborators.map((email) => (
-                <div
-                  key={email}
-                  className="flex items-center justify-between p-2 bg-accent/20 rounded-lg"
-                >
-                  <span className="text-sm">{email}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeCollaborator(email)}
-                  >
-                    <X className="h-4 w-4" />
+                <div className="flex justify-end pt-4">
+                  <Button type="button" onClick={() => setStep("tracks")} className="bg-emerald-500 hover:bg-emerald-600 group text-white">
+                    Next: Manage Tracklist
+                    <ChevronRight className="ml-2 size-4 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </AccordionContent>
+            </AccordionItem>
 
-      {/* Submit */}
-      <div className="flex items-center justify-end space-x-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.history.back()}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={!isFormValid}
-          className="bg-primary hover:bg-primary/90"
-        >
-          Create Project
-        </Button>
-      </div>
-    </form>
+            {/* STEP 2: TRACKLIST */}
+            <AccordionItem value="tracks" className="border border-border/40 bg-card/40 backdrop-blur-md rounded-2xl px-6 py-2 overflow-hidden">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <div className="flex items-center gap-4 text-left">
+                  <div className={cn(
+                    "size-10 rounded-xl flex items-center justify-center border transition-colors",
+                    step === "tracks" ? "bg-emerald-500 text-white border-emerald-500" : "bg-muted text-muted-foreground border-border/40"
+                  )}>
+                    <ListMusic className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Tracklist</h3>
+                    <p className="text-xs text-muted-foreground font-normal">Select existing or upload new songs</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-6 space-y-8">
+                {/* NEW UPLOADS */}
+                <div className="space-y-4">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Upload New Tracks</Label>
+                  <FileUploadZone
+                    title="Add New Audio Files"
+                    description="Drag multiple files here. Each will become a track."
+                    acceptedTypes=".wav,.mp3,.aiff"
+                    onFileUpload={handleNewUpload}
+                  />
+                  
+                  {fields.length > 0 && (
+                    <div className="space-y-3 mt-4">
+                      {fields.map((field, index) => (
+                        <div key={field.id} className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <Music className="size-4 text-emerald-500" />
+                              <span className="text-sm font-bold">New Track {index + 1}</span>
+                            </div>
+                            <Button variant="ghost" size="icon" className="size-7 rounded-full text-destructive hover:bg-destructive/10" onClick={() => remove(index)}>
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.name`}
+                              render={({ field: nameField }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[10px]">Track Name</FormLabel>
+                                  <FormControl>
+                                    <Input {...nameField} className="h-8 text-sm bg-background/50" />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.genre`}
+                              render={({ field: genreField }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[10px]">Genre</FormLabel>
+                                  <FormControl>
+                                    <Input {...genreField} className="h-8 text-sm bg-background/50" />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* EXISTING TRACKS */}
+                <div className="space-y-4">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Select From Library</Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {mockExistingTracks.map((track) => {
+                      const isSelected = form.watch("selectedExistingTracks").includes(track.id);
+                      return (
+                        <div
+                          key={track.id}
+                          className={cn(
+                            "flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group",
+                            isSelected 
+                              ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm" 
+                              : "border-border/40 bg-background/40 hover:border-emerald-500/30"
+                          )}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleExistingTrack(track.id);
+                          }}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "size-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                              isSelected ? "bg-emerald-500 border-emerald-500" : "border-border/60 group-hover:border-emerald-500/40"
+                            )}>
+                              {isSelected && <Check className="size-3 text-white" strokeWidth={4} />}
+                            </div>
+                            <div className="size-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-emerald-500 transition-colors">
+                              <Music className="size-5" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-sm">{track.name}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <Badge variant="outline" className="text-[9px] uppercase h-4 px-1">{track.genre}</Badge>
+                                <span className="text-[10px] text-muted-foreground font-mono">{track.duration}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-4">
+                  <Button type="button" variant="ghost" onClick={() => setStep("identity")}>
+                    Back
+                  </Button>
+                  <Button type="button" onClick={() => setStep("distribution")} className="bg-emerald-500 hover:bg-emerald-600 group text-white">
+                    Next: Distribution
+                    <ChevronRight className="ml-2 size-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* STEP 3: DISTRIBUTION */}
+            <AccordionItem value="distribution" className="border border-border/40 bg-card/40 backdrop-blur-md rounded-2xl px-6 py-2 overflow-hidden">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <div className="flex items-center gap-4 text-left">
+                  <div className={cn(
+                    "size-10 rounded-xl flex items-center justify-center border transition-colors",
+                    step === "distribution" ? "bg-emerald-500 text-white border-emerald-500" : "bg-muted text-muted-foreground border-border/40"
+                  )}>
+                    <Calendar className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Release Plan</h3>
+                    <p className="text-xs text-muted-foreground font-normal">Date, additional media and promo</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-6 space-y-8">
+                <FormField
+                  control={form.control}
+                  name="releaseDate"
+                  render={({ field }) => (
+                    <FormItem className="max-w-[250px]">
+                      <FormLabel>Project Release Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} className="bg-background/50" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">EPK / Promo Photos</Label>
+                    <FileUploadZone
+                      title="Promotional Media"
+                      description="Behind-the-scenes content"
+                      acceptedTypes=".png,.jpg,.jpeg"
+                      onFileUpload={() => {}}
+                      optional
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Social Teasers</Label>
+                    <FileUploadZone
+                      title="Vertical Videos"
+                      description="Trailers, snippets, teasers"
+                      acceptedTypes=".mp4,.mov"
+                      onFileUpload={() => {}}
+                      optional
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-4">
+                  <Button type="button" variant="ghost" onClick={() => setStep("tracks")}>
+                    Back
+                  </Button>
+                  <Button type="button" onClick={() => setStep("collaboration")} className="bg-emerald-500 hover:bg-emerald-600 group text-white">
+                    Next: Credits & Team
+                    <ChevronRight className="ml-2 size-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* STEP 4: COLLABORATION (METADATA / TAGGING) */}
+            <AccordionItem value="collaboration" className="border border-border/40 bg-card/40 backdrop-blur-md rounded-2xl px-6 py-2 overflow-hidden">
+              <AccordionTrigger className="hover:no-underline py-4">
+                <div className="flex items-center gap-4 text-left">
+                  <div className={cn(
+                    "size-10 rounded-xl flex items-center justify-center border transition-colors",
+                    step === "collaboration" ? "bg-emerald-500 text-white border-emerald-500" : "bg-muted text-muted-foreground border-border/40"
+                  )}>
+                    <Users className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Credits & Collaboration</h3>
+                    <p className="text-xs text-muted-foreground font-normal">Tag featured artists, producers and team</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-2 pb-6 space-y-6">
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1">
+                      <Input 
+                        placeholder="Search or type name..." 
+                        value={newCollabName}
+                        onChange={(e) => setNewCollabName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCollaborator())}
+                        className="bg-background/50"
+                      />
+                    </div>
+                    <Select value={newCollabRole} onValueChange={(v: any) => setNewCollabRole(v)}>
+                      <SelectTrigger className="w-full sm:w-[150px] bg-background/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="featured">Featured Artist</SelectItem>
+                        <SelectItem value="producer">Producer</SelectItem>
+                        <SelectItem value="writer">Writer</SelectItem>
+                        <SelectItem value="engineer">Engineer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button type="button" onClick={addCollaborator} className="bg-emerald-500 hover:bg-emerald-600">
+                      <Plus className="size-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                    {form.watch("collaborators").map((collab, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-muted/20 group hover:border-emerald-500/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="size-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                            {collab.role === 'producer' ? <Disc className="size-4" /> : <Mic2 className="size-4" />}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold">{collab.name}</p>
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{collab.role}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          className="size-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeCollaborator(index)}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                    {form.watch("collaborators").length === 0 && (
+                      <div className="sm:col-span-2 text-xs text-center text-muted-foreground py-8 border-2 border-dashed border-border/20 rounded-xl">
+                        No collaborators tagged yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between pt-4">
+                  <Button type="button" variant="ghost" onClick={() => setStep("distribution")}>
+                    Back
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <LoaderCircle className="mr-2 size-4 animate-spin" />
+                        Creating Project...
+                      </>
+                    ) : (
+                      <>
+                        Launch Project
+                        <Check className="ml-2 size-4" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </form>
+      </Form>
+    </div>
   );
 }
+
+import { LoaderCircle as LucideLoader } from "lucide-react";

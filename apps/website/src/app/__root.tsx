@@ -1,4 +1,3 @@
-import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import {
   HeadContent,
   Outlet,
@@ -6,26 +5,75 @@ import {
   Link,
   createRootRouteWithContext,
 } from "@tanstack/react-router";
-import {
-  TanStackRouterDevtoolsPanel,
-  TanStackRouterDevtools,
-} from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
 
-import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
+import { AppProviders } from "@/components/app-providers";
+import {
+  SITE_DESCRIPTION,
+  SITE_ICON_URL,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+  SOCIAL_IMAGE_URL,
+} from "@/lib/site";
 
 import appCss from "./globals.css?url";
 
-export interface RouterAppContext {}
+export type RouterAppContext = Record<string, never>;
 
-const SITE_NAME = "SoundKit";
-const SITE_URL = "https://soundkit-web.rocktown-labs.workers.dev";
-const SITE_DESCRIPTION =
-  "Stream music, discover artists, join listening parties, and tune into live battles and creator streams on SoundKit.";
-const SITE_TITLE = "SoundKit | Stream music and join live moments";
-const SITE_ICON_URL = `${SITE_URL}/android-chrome-512x512.png`;
-const SOCIAL_IMAGE_URL = `${SITE_URL}/soundkit-social-card.png`;
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <html lang="en" className="dark">
+      <head>
+        <HeadContent />
+      </head>
+      <body className="font-sans bg-background text-foreground antialiased">
+        <AppProviders>
+          {children}
+          <Scripts />
+        </AppProviders>
+      </body>
+    </html>
+  );
+}
+
+function RootComponent() {
+  return (
+    <RootDocument>
+      <Outlet />
+    </RootDocument>
+  );
+}
+
+function NotFoundComponent() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+        <p className="font-notable text-sm uppercase tracking-[0.3em] text-muted-foreground">
+          404
+        </p>
+        <h1 className="mt-4 text-3xl font-bold">Page not found</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          The page you requested does not exist or may have been moved.
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <Link
+            to="/"
+            className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+          >
+            Go home
+          </Link>
+          <Link
+            to="/tracks"
+            className="rounded-full border border-border px-5 py-2 text-sm font-medium transition hover:bg-muted"
+          >
+            Browse tracks
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
@@ -138,75 +186,3 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   }),
   notFoundComponent: NotFoundComponent,
 });
-
-function RootComponent() {
-  return (
-    <RootDocument>
-      <Outlet />
-    </RootDocument>
-  );
-}
-
-function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <html lang="en" className="dark">
-      <head>
-        <HeadContent />
-      </head>
-      <body className="font-sans bg-background text-foreground antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-        >
-          {children}
-          <Toaster />
-          <TanStackRouterDevtools
-            position="bottom-left"
-            plugins={[
-              {
-                name: "TanStack Query",
-                render: <ReactQueryDevtoolsPanel />,
-              },
-              {
-                name: "TanStack Router",
-                render: <TanStackRouterDevtoolsPanel />,
-              },
-            ]}
-          />
-          <Scripts />
-        </ThemeProvider>
-      </body>
-    </html>
-  );
-}
-
-function NotFoundComponent() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-        <p className="font-notable text-sm uppercase tracking-[0.3em] text-muted-foreground">
-          404
-        </p>
-        <h1 className="mt-4 text-3xl font-bold">Page not found</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          The page you requested does not exist or may have been moved.
-        </p>
-        <div className="mt-6 flex justify-center gap-3">
-          <Link
-            to="/"
-            className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
-          >
-            Go home
-          </Link>
-          <Link
-            to="/tracks"
-            className="rounded-full border border-border px-5 py-2 text-sm font-medium transition hover:bg-muted"
-          >
-            Browse tracks
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}

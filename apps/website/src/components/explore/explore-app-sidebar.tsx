@@ -5,6 +5,7 @@ import {
   Trophy,
   Users,
   Music,
+  Video,
   Clock,
   Heart,
   ShoppingBag,
@@ -27,6 +28,7 @@ import { SoundKitBrand } from "@/components/soundkit-brand";
 const discoverLinks: SidebarNavItem[] = [
   { href: "/", icon: MapPin, label: "Home" },
   { href: "/tracks", icon: Music, label: "Songs" },
+  { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
   { href: "/genres", icon: Music, label: "Genres" },
 ].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
@@ -53,6 +55,10 @@ export function ExploreAppSidebar() {
       isActive: isRouteActive(item.url ?? "/"),
     })),
     {
+      ...discoverLinks[3],
+      isActive: isRouteActive(discoverLinks[3]?.url ?? "/artist"),
+    },
+    {
       icon: Trophy,
       isActive: isLiveRoute,
       items: [
@@ -76,8 +82,8 @@ export function ExploreAppSidebar() {
       url: "/live",
     },
     {
-      ...discoverLinks[3],
-      isActive: isRouteActive(discoverLinks[3]?.url ?? "/genres"),
+      ...discoverLinks[4],
+      isActive: isRouteActive(discoverLinks[4]?.url ?? "/genres"),
     },
   ];
 

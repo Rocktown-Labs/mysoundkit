@@ -5,6 +5,7 @@ import {
   Trophy,
   Users,
   Music,
+  Video,
   Clock,
   Heart,
   ShoppingBag,
@@ -17,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 const discoverLinks = [
   { href: "/", icon: MapPin, label: "Home" },
   { href: "/tracks", icon: Music, label: "Songs" },
+  { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
   { href: "/live", icon: Trophy, label: "Live" },
 ];

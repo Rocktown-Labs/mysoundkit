@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Flame, LocateFixed, Music, Users } from "lucide-react";
+import { Flame, LocateFixed, Music, Users, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
 import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
+import { VideoCard } from "@/components/explore/video-card";
 import { USAMap } from "@/components/explore/usa-map";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { mockVideos } from "@/lib/mock-videos";
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
@@ -36,6 +38,9 @@ function ExplorePage() {
   const artistsHref = selectedState
     ? `/artist?location=${selectedState}`
     : "/artist";
+  const videosHref = selectedState
+    ? `/videos?location=${selectedState}`
+    : "/videos";
 
   const requestLocation = () => {
     setIsLoadingLocation(true);
@@ -159,6 +164,28 @@ function ExplorePage() {
           </section>
 
           <div className="space-y-6 md:space-y-8 lg:space-y-10 pb-8 md:pb-10 lg:pb-12">
+            <section>
+              <SectionHeader
+                title={
+                  isNationalView
+                    ? "Featured Videos Across the USA"
+                    : `Featured Videos in ${activeRegion}`
+                }
+                description={
+                  isNationalView
+                    ? "Official music videos, battle replays, and live recordings worth watching"
+                    : "Watch official drops and replays from your region"
+                }
+                icon={<Video className="size-5 md:size-6 text-primary" />}
+                viewAllHref={videosHref}
+              />
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {mockVideos.slice(0, 3).map((video) => (
+                  <VideoCard key={video.id} video={video} />
+                ))}
+              </div>
+            </section>
+
             <section>
               <SectionHeader
                 title={

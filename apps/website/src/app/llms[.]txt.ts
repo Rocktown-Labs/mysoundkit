@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { SITE_URL } from "@/lib/site";
+
 const llmsText = `# SoundKit
 
 > SoundKit is a music streaming platform for discovering artists, streaming songs, joining listening parties, and tuning into live battles and artist-led streams.
@@ -11,11 +13,11 @@ const llmsText = `# SoundKit
 - Hosts live experiences including battles, listening parties, and creator streams
 
 ## Core Pages
-- Home: https://soundkit-web.rocktown-labs.workers.dev/
-- Tracks: https://soundkit-web.rocktown-labs.workers.dev/tracks
-- Artists: https://soundkit-web.rocktown-labs.workers.dev/artist
-- Battles: https://soundkit-web.rocktown-labs.workers.dev/battles
-- Genres: https://soundkit-web.rocktown-labs.workers.dev/genres
+- Home: ${SITE_URL}/
+- Tracks: ${SITE_URL}/tracks
+- Artists: ${SITE_URL}/artist
+- Live: ${SITE_URL}/live
+- Genres: ${SITE_URL}/genres
 
 ## Platform Summary
 SoundKit combines music streaming, artist discovery, live events, and fan community features in one platform. Fans can explore new releases, save tracks, follow artists, and join live moments. Artists can publish tracks, grow their audience, and host experiences that go beyond passive listening.

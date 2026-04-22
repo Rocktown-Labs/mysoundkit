@@ -3,6 +3,7 @@ import { useRouterState } from "@tanstack/react-router";
 import {
   Home,
   Music,
+  Film,
   FolderOpen,
   MessageSquare,
   Users,
@@ -41,6 +42,7 @@ const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard", icon: Home, name: "Dashboard" },
   { href: "/dashboard/tracks", icon: Music, name: "Tracks" },
   { href: "/dashboard/projects", icon: FolderOpen, name: "Projects" },
+  { href: "/dashboard/videos", icon: Film, name: "Videos" },
   { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
   { href: "/dashboard/team", icon: Users, name: "Team" },
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));

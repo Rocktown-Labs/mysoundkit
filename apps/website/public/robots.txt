@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://soundkit-web.rocktown-labs.workers.dev/sitemap.xml
+Sitemap: https://mysoundkit.com/sitemap.xml

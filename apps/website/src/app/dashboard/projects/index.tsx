@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Download, MoreVertical, Music } from "lucide-react";
+import { Plus, Download, MoreVertical, Music, FolderOpen, CheckCircle2, Clock, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { StatsGrid } from "@/components/dashboard/stats-grid";
 
 const mockProjects = [
   {
@@ -56,42 +57,72 @@ export const Route = createFileRoute("/dashboard/projects/")({
 });
 
 function ProjectsPage() {
+  const projectStats = [
+    {
+      title: "Total Projects",
+      value: "8",
+      description: "Albums, EPs and Singles",
+      icon: FolderOpen,
+    },
+    {
+      title: "Completed",
+      value: "3",
+      description: "Ready for distribution",
+      icon: CheckCircle2,
+    },
+    {
+      title: "In Progress",
+      value: "5",
+      description: "Active recording sessions",
+      icon: Clock,
+    },
+    {
+      title: "Collaborators",
+      value: "12",
+      description: "Across all active projects",
+      icon: Users,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
+          <h1 className="text-3xl font-bold font-[family-name:var(--font-playfair)] tracking-tight">
             Projects
           </h1>
-          <p className="text-muted-foreground">Manage your albums and EPs</p>
+          <p className="text-muted-foreground mt-1">Manage your albums and EPs</p>
         </div>
         <Link to="/dashboard/projects/new">
-          <Button className="bg-primary hover:bg-primary/90">
+          <Button className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all hover:scale-[1.02]">
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>
         </Link>
       </div>
 
+      {/* Stats Grid */}
+      <StatsGrid stats={projectStats} />
+
       {/* Project Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {mockProjects.map((project) => (
           <Card
             key={project.id}
-            className="bg-card/50 backdrop-blur-sm border-border/40 hover:border-primary/50 transition-colors"
+            className="bg-card/50 backdrop-blur-sm border-border/40 hover:border-primary/50 transition-all group overflow-hidden"
           >
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-3">
                   <div
-                    className="w-16 h-16 rounded-lg bg-cover bg-center"
+                    className="w-16 h-16 rounded-lg bg-cover bg-center border border-border/20 group-hover:scale-105 transition-transform"
                     style={{ backgroundImage: `url(${project.coverArt})` }}
                   />
                   <div>
-                    <h3 className="font-semibold">{project.name}</h3>
+                    <h3 className="font-semibold group-hover:text-primary transition-colors">{project.name}</h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider h-5">
                         {project.type.toUpperCase()}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
@@ -102,7 +133,7 @@ function ProjectsPage() {
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" className="text-muted-foreground">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -129,10 +160,10 @@ function ProjectsPage() {
                     }
                     className={
                       project.status === "complete"
-                        ? "bg-primary/20 text-primary"
+                        ? "bg-primary/20 text-primary border-primary/20"
                         : (project.status === "in-progress"
-                          ? "bg-accent/20 text-accent"
-                          : "bg-muted")
+                          ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                          : "bg-muted/50")
                     }
                   >
                     {project.status}
@@ -141,16 +172,19 @@ function ProjectsPage() {
                 {project.releaseDate && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Release</span>
-                    <span>
+                    <span className="font-medium">
                       {new Date(project.releaseDate).toLocaleDateString()}
                     </span>
                   </div>
                 )}
               </div>
 
-              <div className="pt-3 border-t border-border/40">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{project.collaborators.length} collaborator(s)</span>
+              <div className="pt-3 border-t border-border/20">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="size-3" />
+                    {project.collaborators.length} collaborator(s)
+                  </span>
                   <span>{project.updatedAt}</span>
                 </div>
               </div>
@@ -162,10 +196,12 @@ function ProjectsPage() {
       {/* Empty State */}
       {mockProjects.length === 0 && (
         <Card className="bg-card/50 backdrop-blur-sm border-border/40">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Music className="h-16 w-16 text-muted-foreground/50 mb-4" />
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Music className="h-8 w-8 text-primary" />
+            </div>
             <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
-            <p className="text-muted-foreground text-center mb-6 max-w-md">
+            <p className="text-muted-foreground text-center mb-6 max-w-md mx-auto">
               Create your first album or EP project to organize your tracks and
               collaborate with your team.
             </p>

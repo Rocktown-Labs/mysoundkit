@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-const baseUrl = "https://soundkit-web.rocktown-labs.workers.dev";
+import { SITE_URL } from "@/lib/site";
 
 const routes = [
   "/",
@@ -22,7 +22,7 @@ const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 ${routes
   .map(
     (route) => `  <url>
-    <loc>${baseUrl}${route}</loc>
+    <loc>${SITE_URL}${route}</loc>
   </url>`
   )
   .join("\n")}
