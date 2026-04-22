@@ -26,9 +26,32 @@ export const workspaceSummarySchema = z.object({
   workspaceType: z.enum(["artist_team", "fan_family"]),
 });
 
+export const entitlementSummarySchema = z.object({
+  activePlanCode: z.string().nullable(),
+  canCreateLiveBattles: z.boolean(),
+  canHostLiveStreams: z.boolean(),
+  canViewLiveBattles: z.boolean(),
+  canVoteLiveBattles: z.boolean(),
+  canWatchCreatorStreams: z.boolean(),
+  isPremium: z.boolean(),
+  referenceId: z.string().nullable(),
+  status: z.string().nullable(),
+});
+
 export const meResponseSchema = z.object({
   activeWorkspace: workspaceSummarySchema.nullable(),
   user: userSummarySchema,
+});
+
+export const profileUpdateBodySchema = z.object({
+  avatarObjectKey: z.string().optional(),
+  avatarUrl: z.string().url().optional(),
+  bio: z.string().optional(),
+  city: z.string().optional(),
+  displayName: z.string().optional(),
+  headerObjectKey: z.string().optional(),
+  headerUrl: z.string().url().optional(),
+  state: z.string().optional(),
 });
 
 export const planSchema = z.object({
@@ -60,6 +83,8 @@ export const trackSummarySchema = z.object({
   isForSale: z.boolean(),
   plays: z.number(),
   price: z.number().nullable(),
+  releaseAt: z.string().nullable().optional(),
+  releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   slug: z.string(),
   title: z.string(),
 });
@@ -74,11 +99,16 @@ export const projectSummarySchema = z.object({
 });
 
 export const videoSummarySchema = z.object({
+  externalPlaybackUrl: z.string().url().nullable().optional(),
   id: z.string(),
   muxPlaybackId: z.string().nullable(),
   playbackPolicy: z.enum(["public", "signed"]),
+  sourceProjectId: z.string().nullable().optional(),
+  sourceProvider: z.enum(["mux", "external"]).default("mux"),
+  sourceTrackId: z.string().nullable().optional(),
   status: z.string(),
   title: z.string(),
+  verifiedOnPlatform: z.boolean().default(false),
   videoKind: z.enum([
     "music_video",
     "promo",
@@ -177,6 +207,8 @@ export const createTrackBodySchema = z.object({
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
   productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
+  releaseAt: z.string().datetime().optional(),
+  releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   title: z.string().min(1),
 });
 
@@ -190,8 +222,11 @@ export const createProjectBodySchema = z.object({
 
 export const createVideoBodySchema = z.object({
   description: z.string().optional(),
+  externalPlaybackUrl: z.url().optional(),
+  playbackPolicy: z.enum(["public", "signed"]).default("public"),
   sourceProjectId: z.string().optional(),
   sourceTrackId: z.string().optional(),
+  sourceProvider: z.enum(["mux", "external"]).default("mux"),
   title: z.string().min(1),
   videoKind: z.enum([
     "music_video",
@@ -201,6 +236,21 @@ export const createVideoBodySchema = z.object({
     "battle_clip",
     "live_recording",
   ]),
+});
+
+export const directVideoUploadBodySchema = z.object({
+  description: z.string().optional(),
+  playbackPolicy: z.enum(["public", "signed"]).default("public"),
+  sourceProjectId: z.string().optional(),
+  sourceTrackId: z.string().min(1),
+  title: z.string().min(1),
+});
+
+export const directVideoUploadResponseSchema = z.object({
+  status: z.enum(["pending", "uploading", "uploaded", "processing", "ready"]),
+  uploadId: z.string(),
+  uploadUrl: z.url(),
+  videoId: z.string(),
 });
 
 export const createPlaylistBodySchema = z.object({

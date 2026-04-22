@@ -32,6 +32,11 @@ export const trackProductionStatusEnum = pgEnum("track_production_status", [
   "mastered",
   "complete",
 ]);
+export const releaseStrategyEnum = pgEnum("release_strategy", [
+  "private",
+  "publish_when_ready",
+  "scheduled",
+]);
 export const assetStorageProviderEnum = pgEnum("asset_storage_provider", [
   "r2",
   "mux",
@@ -102,6 +107,10 @@ export const videoKindEnum = pgEnum("video_kind", [
 export const videoPlaybackPolicyEnum = pgEnum("video_playback_policy", [
   "public",
   "signed",
+]);
+export const videoSourceProviderEnum = pgEnum("video_source_provider", [
+  "mux",
+  "external",
 ]);
 export const postKindEnum = pgEnum("post_kind", [
   "track",
@@ -201,11 +210,15 @@ export const userProfiles = pgTable(
   "user_profiles",
   {
     accountType: accountTypeEnum("account_type").notNull(),
+    avatarObjectKey: text("avatar_object_key"),
+    avatarUrl: text("avatar_url"),
     bio: text("bio"),
     city: text("city"),
     country: text("country"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     displayName: text("display_name"),
+    headerObjectKey: text("header_object_key"),
+    headerUrl: text("header_url"),
     onboardingCompletedAt: timestamp("onboarding_completed_at"),
     state: text("state"),
     updatedAt: timestamp("updated_at")
@@ -373,6 +386,10 @@ export const tracks = pgTable(
       .default("demo")
       .notNull(),
     publishedAt: timestamp("published_at"),
+    releaseAt: timestamp("release_at"),
+    releaseStrategy: releaseStrategyEnum("release_strategy")
+      .default("private")
+      .notNull(),
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")
@@ -570,6 +587,7 @@ export const videos = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
     durationMs: integer("duration_ms"),
+    externalPlaybackUrl: text("external_playback_url"),
     id: text("id").primaryKey(),
     isPublic: boolean("is_public").default(true).notNull(),
     muxAssetId: text("mux_asset_id"),
@@ -589,6 +607,9 @@ export const videos = pgTable(
     sourceProjectId: text("source_project_id").references(() => projects.id, {
       onDelete: "set null",
     }),
+    sourceProvider: videoSourceProviderEnum("source_provider")
+      .default("mux")
+      .notNull(),
     sourceTrackId: text("source_track_id").references(() => tracks.id, {
       onDelete: "set null",
     }),
@@ -598,6 +619,9 @@ export const videos = pgTable(
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())
+      .notNull(),
+    verifiedOnPlatform: boolean("verified_on_platform")
+      .default(false)
       .notNull(),
     videoKind: videoKindEnum("video_kind").notNull(),
   },

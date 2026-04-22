@@ -3,6 +3,13 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import {
+  forbiddenMessage,
+  isAuthenticatedSession,
+  isAuthenticatedUser,
+  resolveEntitlements,
+  unauthorizedMessage,
+} from "@/lib/entitlements";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleSummarySchema,
@@ -68,10 +75,39 @@ app.openapi(
         messageResponseSchema,
         "Battle challenge created"
       ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Premium artist access required"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
     },
     tags: ["Battles"],
   }),
-  (c) => {
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+
+    if (!entitlements.canCreateLiveBattles) {
+      return c.json(
+        forbiddenMessage(
+          "A premium artist subscription is required to create live battles."
+        ),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
     const body = c.req.valid("json");
     return c.json(
       { message: `Challenge created for ${body.opponentUsername}` },

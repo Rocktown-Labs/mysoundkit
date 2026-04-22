@@ -42,7 +42,7 @@ app.use(
     origin: env.CORS_ORIGIN,
   })
 );
-app.use("/api/v1/*", sessionMiddleware);
+app.use("/v1/*", sessionMiddleware);
 
 app.doc("/api/openapi.json", {
   info: {
@@ -79,25 +79,25 @@ app.get("/health", (c) =>
   })
 );
 
-app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth().handler(c.req.raw));
+app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
 const apiRoutes = app
-  .route("/api/v1/me", meRoutes)
-  .route("/api/v1/onboarding", onboardingRoutes)
-  .route("/api/v1/discover", discoverRoutes)
-  .route("/api/v1/artists", artistsRoutes)
-  .route("/api/v1/tracks", tracksRoutes)
-  .route("/api/v1/projects", projectsRoutes)
-  .route("/api/v1/videos", videosRoutes)
-  .route("/api/v1/library", libraryRoutes)
-  .route("/api/v1/playlists", playlistsRoutes)
-  .route("/api/v1/social", socialRoutes)
-  .route("/api/v1/messages", messagesRoutes)
-  .route("/api/v1/analytics", analyticsRoutes)
-  .route("/api/v1/billing", billingRoutes)
-  .route("/api/v1/battles", battlesRoutes)
-  .route("/api/v1/uploads", uploadsRoutes)
-  .route("/api/v1/webhooks", webhookRoutes);
+  .route("/v1/me", meRoutes)
+  .route("/v1/onboarding", onboardingRoutes)
+  .route("/v1/discover", discoverRoutes)
+  .route("/v1/artists", artistsRoutes)
+  .route("/v1/tracks", tracksRoutes)
+  .route("/v1/projects", projectsRoutes)
+  .route("/v1/videos", videosRoutes)
+  .route("/v1/library", libraryRoutes)
+  .route("/v1/playlists", playlistsRoutes)
+  .route("/v1/social", socialRoutes)
+  .route("/v1/messages", messagesRoutes)
+  .route("/v1/analytics", analyticsRoutes)
+  .route("/v1/billing", billingRoutes)
+  .route("/v1/battles", battlesRoutes)
+  .route("/v1/uploads", uploadsRoutes)
+  .route("/v1/webhooks", webhookRoutes);
 
 app.notFound(notFound);
 app.onError(onError);

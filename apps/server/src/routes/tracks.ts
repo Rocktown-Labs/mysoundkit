@@ -50,6 +50,8 @@ app.openapi(
         isForSale: body.isForSale,
         plays: 0,
         price: body.price ?? null,
+        releaseAt: body.releaseAt ?? null,
+        releaseStrategy: body.releaseStrategy,
         slug: body.title.toLowerCase().replaceAll(" ", "-"),
         title: body.title,
       },

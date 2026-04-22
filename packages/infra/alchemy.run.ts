@@ -1,4 +1,5 @@
 import alchemy from "alchemy";
+import { R2Bucket } from "alchemy/cloudflare";
 import { TanStackStart } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
 import { config } from "dotenv";
@@ -8,19 +9,39 @@ config({ path: "../../apps/website/.env" });
 config({ path: "../../apps/server/.env" });
 
 const app = await alchemy("soundkit");
+const SITE_URL = "https://mysoundkit.com";
+const API_URL = "https://api.mysoundkit.com";
+const MEDIA_URL = "https://media.mysoundkit.com";
+
+const media = await R2Bucket("media", {
+  adopt: true,
+  cors: [
+    {
+      allowed: {
+        headers: ["*"],
+        methods: ["GET", "HEAD", "PUT", "POST"],
+        origins: [SITE_URL, API_URL],
+      },
+    },
+  ],
+  domains: [{ adopt: true, domain: "media.mysoundkit.com" }],
+  name: "soundkit-media",
+});
 
 export const web = await TanStackStart("web", {
   adopt: true,
   bindings: {
     BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
-    BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,
-    CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
+    BETTER_AUTH_URL: API_URL,
+    CORS_ORIGIN: SITE_URL,
     DATABASE_URL: alchemy.secret.env.DATABASE_URL!,
     GOOGLE_GENERATIVE_AI_API_KEY:
       alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
-    VITE_SERVER_URL: alchemy.env.VITE_SERVER_URL!,
+    VITE_MEDIA_URL: MEDIA_URL,
+    VITE_SERVER_URL: API_URL,
   },
   cwd: "../../apps/website",
+  domains: [{ adopt: true, domainName: "mysoundkit.com" }],
   name: "soundkit-web",
   wrangler: {
     transform: (spec) => ({
@@ -48,17 +69,24 @@ export const server = await Worker("server", {
   adopt: true,
   bindings: {
     BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
-    BETTER_AUTH_URL: alchemy.env.BETTER_AUTH_URL!,
-    CORS_ORIGIN: alchemy.env.CORS_ORIGIN!,
+    BETTER_AUTH_URL: API_URL,
+    CORS_ORIGIN: SITE_URL,
     DATABASE_URL: alchemy.secret.env.DATABASE_URL!,
     GOOGLE_GENERATIVE_AI_API_KEY:
       alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+    MEDIA_BUCKET: media,
+    MEDIA_PUBLIC_URL: MEDIA_URL,
+    MUX_TOKEN_ID: alchemy.secret.env.MUX_TOKEN_ID!,
+    MUX_TOKEN_SECRET: alchemy.secret.env.MUX_TOKEN_SECRET!,
+    MUX_WEBHOOK_SECRET: alchemy.secret.env.MUX_WEBHOOK_SECRET!,
+    UPLOAD_BUCKET_NAME: media.name,
   },
   compatibility: "node",
   cwd: "../../apps/server",
   dev: {
     port: 3000,
   },
+  domains: [{ adopt: true, domainName: "api.mysoundkit.com" }],
   entrypoint: "src/index.ts",
   name: "soundkit-server",
 });

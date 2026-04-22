@@ -106,6 +106,8 @@ export const sampleTracks = [
     isForSale: true,
     plays: 12_543,
     price: 2.99,
+    releaseAt: null,
+    releaseStrategy: "publish_when_ready" as const,
     slug: "midnight-vibes",
     title: "Midnight Vibes",
   },
@@ -117,6 +119,8 @@ export const sampleTracks = [
     isForSale: true,
     plays: 8241,
     price: 2.49,
+    releaseAt: "2026-05-10T17:00:00.000Z",
+    releaseStrategy: "scheduled" as const,
     slug: "electric-dreams",
     title: "Electric Dreams",
   },
@@ -135,11 +139,16 @@ export const sampleProjects = [
 
 export const sampleVideos = [
   {
+    externalPlaybackUrl: null,
     id: "video_midnight_vibes_mv",
     muxPlaybackId: null,
     playbackPolicy: "public" as const,
+    sourceProjectId: "project_after_dark",
+    sourceProvider: "mux" as const,
+    sourceTrackId: "track_midnight_vibes",
     status: "processing",
     title: "Midnight Vibes Official Video",
+    verifiedOnPlatform: true,
     videoKind: "music_video" as const,
   },
 ];

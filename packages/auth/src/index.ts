@@ -12,18 +12,17 @@ export const createAuth = () => {
 
   return betterAuth({
     advanced: {
+      crossSubDomainCookies: {
+        domain: "mysoundkit.com",
+        enabled: true,
+      },
       defaultCookieAttributes: {
         httpOnly: true,
-        sameSite: "none",
+        sameSite: "lax",
         secure: true,
       },
-      // uncomment crossSubDomainCookies setting when ready to deploy and replace <your-workers-subdomain> with your actual workers subdomain
-      // https://developers.cloudflare.com/workers/wrangler/configuration/#workersdev
-      // crossSubDomainCookies: {
-      //   enabled: true,
-      //   domain: "<your-workers-subdomain>",
-      // },
     },
+    basePath: "/auth",
     baseURL: env.BETTER_AUTH_URL,
     database: drizzleAdapter(db, {
       provider: "pg",
@@ -49,15 +48,9 @@ export const createAuth = () => {
       expo(),
     ],
     secret: env.BETTER_AUTH_SECRET,
-    // uncomment cookieCache setting when ready to deploy to Cloudflare using *.workers.dev domains
-    // session: {
-    //   cookieCache: {
-    //     enabled: true,
-    //     maxAge: 60,
-    //   },
-    // },
     trustedOrigins: [
       env.CORS_ORIGIN,
+      env.BETTER_AUTH_URL,
       "soundkit://",
       ...(isDevelopment
         ? [
