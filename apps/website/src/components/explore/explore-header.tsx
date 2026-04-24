@@ -1,14 +1,17 @@
-import { Link } from "@tanstack/react-router";
-import { useRouterState } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Search, ShoppingCart } from "lucide-react";
 import { Suspense } from "react";
 
+import { CartDrawer } from "@/components/cart-drawer";
+import { useCart } from "@/components/cart-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export function ExploreHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { cart, setIsCartOpen } = useCart();
 
   const getSearchPlaceholder = () => {
     if (pathname.startsWith("/artist")) {
@@ -41,6 +44,21 @@ export function ExploreHeader() {
       </div>
 
       <div className="hidden sm:flex items-center gap-2 shrink-0 ml-auto">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="relative"
+          onClick={() => setIsCartOpen(true)}
+        >
+          <ShoppingCart className="size-4" />
+          <span className="sr-only">Open cart</span>
+          {cart.itemCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-black text-primary-foreground">
+              {cart.itemCount}
+            </span>
+          )}
+        </Button>
         <Link to="/login">
           <Button variant="ghost" size="sm">
             Log In
@@ -50,6 +68,7 @@ export function ExploreHeader() {
           <Button size="sm">Sign Up</Button>
         </Link>
       </div>
+      <CartDrawer />
     </header>
   );
 }

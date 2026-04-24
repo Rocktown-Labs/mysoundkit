@@ -15,6 +15,7 @@ import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
 import battlesRoutes from "@/routes/battles";
 import billingRoutes from "@/routes/billing";
+import cartRoutes from "@/routes/cart";
 import discoverRoutes from "@/routes/discover";
 import libraryRoutes from "@/routes/library";
 import meRoutes from "@/routes/me";
@@ -93,6 +94,7 @@ const apiRoutes = app
   .route("/v1/playlists", playlistsRoutes)
   .route("/v1/social", socialRoutes)
   .route("/v1/messages", messagesRoutes)
+  .route("/v1/cart", cartRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/billing", billingRoutes)
   .route("/v1/battles", battlesRoutes)

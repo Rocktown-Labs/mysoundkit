@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   User,
   MapPin,
@@ -7,6 +8,7 @@ import {
   LinkIcon,
   Share2,
   Check,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -23,16 +25,63 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { API_V1_URL } from "@/lib/api";
+
+type ArtistRole = "musician" | "producer";
 
 export const Route = createFileRoute("/signup/artist/onboarding")({
   component: ArtistOnboardingPage,
 });
 
 function ArtistOnboardingPage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
-  const totalSteps = 6;
+  const [roles, setRoles] = useState<ArtistRole[]>(["musician"]);
+  const [username, setUsername] = useState("");
+  const [city, setCity] = useState("");
+  const [stateValue, setStateValue] = useState("");
+  const [primaryGenre, setPrimaryGenre] = useState("");
+  const [selectedPlanCode, setSelectedPlanCode] = useState("artist_lite_ads");
+  const totalSteps = 7;
 
   const progress = (step / totalSteps) * 100;
+  const toggleRole = (role: ArtistRole) => {
+    setRoles((currentRoles) => {
+      if (currentRoles.includes(role) && currentRoles.length > 1) {
+        return currentRoles.filter((currentRole) => currentRole !== role);
+      }
+
+      if (currentRoles.includes(role)) {
+        return currentRoles;
+      }
+
+      return [...currentRoles, role];
+    });
+  };
+  const completeOnboarding = async () => {
+    try {
+      await fetch(`${API_V1_URL}/onboarding/artist`, {
+        body: JSON.stringify({
+          city: city || "Los Angeles",
+          primaryGenre: primaryGenre || "Hip-Hop",
+          roles,
+          selectedPlanCode,
+          state: stateValue || "ca",
+          teamInviteEmails: [],
+          username: username || "soundkit-artist",
+        }),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+    } catch {
+      // The mock onboarding UI still advances when the API is offline.
+    }
+
+    router.navigate({ to: "/dashboard" });
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -55,8 +104,58 @@ function ArtistOnboardingPage() {
 
         <Card className="bg-card/50 backdrop-blur-sm border-border/40">
           <CardContent className="p-6 md:p-8">
-            {/* Step 1: Username */}
+            {/* Step 1: Artist Roles */}
             {step === 1 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <SlidersHorizontal className="size-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold">What Do You Create?</h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Choose one or both. The dashboard stays the same.
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    className={`rounded-lg border p-4 text-left transition ${
+                      roles.includes("musician")
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background/50"
+                    }`}
+                    onClick={() => toggleRole("musician")}
+                  >
+                    <Music2 className="mb-3 size-6 text-primary" />
+                    <p className="font-bold">Musician</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Release songs, albums, EPs, videos, and battle tracks.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-lg border p-4 text-left transition ${
+                      roles.includes("producer")
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background/50"
+                    }`}
+                    onClick={() => toggleRole("producer")}
+                  >
+                    <SlidersHorizontal className="mb-3 size-6 text-primary" />
+                    <p className="font-bold">Producer</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Sell or stream beats, license instrumentals, and battle.
+                    </p>
+                  </button>
+                </div>
+                <Button onClick={() => setStep(2)} className="w-full" size="lg">
+                  Continue
+                </Button>
+              </div>
+            )}
+
+            {/* Step 2: Username */}
+            {step === 2 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -73,19 +172,21 @@ function ArtistOnboardingPage() {
                     id="username"
                     placeholder="@yourartistname"
                     className="text-lg"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
                     Can only contain letters, numbers, and underscores
                   </p>
                 </div>
-                <Button onClick={() => setStep(2)} className="w-full" size="lg">
+                <Button onClick={() => setStep(3)} className="w-full" size="lg">
                   Continue
                 </Button>
               </div>
             )}
 
-            {/* Step 2: Location */}
-            {step === 2 && (
+            {/* Step 3: Location */}
+            {step === 3 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -101,11 +202,16 @@ function ArtistOnboardingPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="city">City</Label>
-                    <Input id="city" placeholder="Los Angeles" />
+                    <Input
+                      id="city"
+                      placeholder="Los Angeles"
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="state">State</Label>
-                    <Select>
+                    <Select value={stateValue} onValueChange={setStateValue}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select state" />
                       </SelectTrigger>
@@ -120,7 +226,7 @@ function ArtistOnboardingPage() {
                 </div>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(2)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
@@ -128,7 +234,7 @@ function ArtistOnboardingPage() {
                     Back
                   </Button>
                   <Button
-                    onClick={() => setStep(3)}
+                    onClick={() => setStep(4)}
                     className="flex-1"
                     size="lg"
                   >
@@ -138,8 +244,8 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 3: Team Invites */}
-            {step === 3 && (
+            {/* Step 4: Team Invites */}
+            {step === 4 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -173,54 +279,6 @@ function ArtistOnboardingPage() {
                 </Button>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(2)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => setStep(4)}
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Genre */}
-            {step === 4 && (
-              <div className="space-y-6">
-                <div className="text-center mb-6">
-                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Music2 className="size-8 text-primary" />
-                  </div>
-                  <h2 className="text-xl font-bold">What's Your Genre?</h2>
-                  <p className="text-muted-foreground text-sm mt-2">
-                    Help fans find your style
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="genre">Primary Genre</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select genre" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hip-hop">Hip-Hop</SelectItem>
-                      <SelectItem value="rb">R&B/Soul</SelectItem>
-                      <SelectItem value="pop">Pop</SelectItem>
-                      <SelectItem value="electronic">Electronic</SelectItem>
-                      <SelectItem value="rock">Rock</SelectItem>
-                      <SelectItem value="afrobeats">Afrobeats</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-3">
-                  <Button
                     onClick={() => setStep(3)}
                     variant="outline"
                     className="flex-1"
@@ -239,8 +297,56 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 5: Streaming Links */}
+            {/* Step 5: Genre */}
             {step === 5 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Music2 className="size-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold">What's Your Genre?</h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Help fans find your style
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="genre">Primary Genre</Label>
+                  <Select value={primaryGenre} onValueChange={setPrimaryGenre}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select genre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hip-hop">Hip-Hop</SelectItem>
+                      <SelectItem value="rb">R&B/Soul</SelectItem>
+                      <SelectItem value="pop">Pop</SelectItem>
+                      <SelectItem value="electronic">Electronic</SelectItem>
+                      <SelectItem value="rock">Rock</SelectItem>
+                      <SelectItem value="afrobeats">Afrobeats</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setStep(4)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={() => setStep(6)}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Continue
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 6: Streaming Links */}
+            {step === 6 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -276,7 +382,7 @@ function ArtistOnboardingPage() {
                 </div>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(4)}
+                    onClick={() => setStep(5)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
@@ -284,7 +390,7 @@ function ArtistOnboardingPage() {
                     Back
                   </Button>
                   <Button
-                    onClick={() => setStep(6)}
+                    onClick={() => setStep(7)}
                     className="flex-1"
                     size="lg"
                   >
@@ -294,8 +400,8 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 6: Social Links + Subscription */}
-            {step === 6 && (
+            {/* Step 7: Social Links + Subscription */}
+            {step === 7 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -325,7 +431,10 @@ function ArtistOnboardingPage() {
                 <div className="border-t pt-6 mt-6">
                   <h3 className="font-bold text-lg mb-4">Choose Your Plan</h3>
                   <div className="grid gap-4">
-                    <Card className="border-2 cursor-pointer hover:border-primary transition-colors">
+                    <Card
+                      className="border-2 cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => setSelectedPlanCode("artist_free")}
+                    >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div>
@@ -338,7 +447,10 @@ function ArtistOnboardingPage() {
                         </div>
                       </CardContent>
                     </Card>
-                    <Card className="border-2 border-primary cursor-pointer">
+                    <Card
+                      className="border-2 border-primary cursor-pointer"
+                      onClick={() => setSelectedPlanCode("artist_lite_ads")}
+                    >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div>
@@ -361,19 +473,21 @@ function ArtistOnboardingPage() {
 
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(5)}
+                    onClick={() => setStep(6)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
                   >
                     Back
                   </Button>
-                  <Link to="/dashboard" className="flex-1">
-                    <Button className="w-full" size="lg">
-                      <Check className="mr-2 size-5" />
-                      Complete Setup
-                    </Button>
-                  </Link>
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    onClick={() => void completeOnboarding()}
+                  >
+                    <Check className="mr-2 size-5" />
+                    Complete Setup
+                  </Button>
                 </div>
               </div>
             )}

@@ -15,6 +15,7 @@ import {
 import { organization, subscription, user } from "./auth";
 
 export const accountTypeEnum = pgEnum("account_type", ["artist", "fan"]);
+export const artistRoleEnum = pgEnum("artist_role", ["musician", "producer"]);
 export const workspaceTypeEnum = pgEnum("workspace_type", [
   "artist_team",
   "fan_family",
@@ -31,6 +32,15 @@ export const trackProductionStatusEnum = pgEnum("track_production_status", [
   "mixed",
   "mastered",
   "complete",
+]);
+export const catalogItemTypeEnum = pgEnum("catalog_item_type", [
+  "single",
+  "beat",
+  "instrumental",
+]);
+export const purchaseModeEnum = pgEnum("purchase_mode", [
+  "digital_download",
+  "license",
 ]);
 export const releaseStrategyEnum = pgEnum("release_strategy", [
   "private",
@@ -61,6 +71,16 @@ export const trackVariantTypeEnum = pgEnum("track_variant_type", [
 ]);
 export const trackAssetKindEnum = pgEnum("track_asset_kind", [
   "cover_art",
+  "master",
+  "clean",
+  "alternate_mix",
+  "artwork",
+  "booklet",
+  "tagged_mp3",
+  "untagged_wav",
+  "stems",
+  "midi",
+  "license_pdf",
   "instrumental",
   "verse_vocal",
   "adlib",
@@ -127,7 +147,11 @@ export const orderStatusEnum = pgEnum("order_status", [
   "refunded",
   "canceled",
 ]);
-export const productTypeEnum = pgEnum("product_type", ["track", "video"]);
+export const productTypeEnum = pgEnum("product_type", [
+  "track",
+  "project",
+  "video",
+]);
 export const conversationTypeEnum = pgEnum("conversation_type", [
   "direct",
   "group",
@@ -270,6 +294,18 @@ export const artistProfiles = pgTable(
   ]
 );
 
+export const artistProfileRoles = pgTable(
+  "artist_profile_roles",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    role: artistRoleEnum("role").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => artistProfiles.userId, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.role] })]
+);
+
 export const fanProfiles = pgTable("fan_profiles", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   favoriteArtistCount: integer("favorite_artist_count").default(0).notNull(),
@@ -365,6 +401,9 @@ export const tracks = pgTable(
   "tracks",
   {
     bpm: integer("bpm"),
+    catalogItemType: catalogItemTypeEnum("catalog_item_type")
+      .default("single")
+      .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
@@ -382,10 +421,14 @@ export const tracks = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     price: numeric("price", { precision: 10, scale: 2 }),
+    priceCents: integer("price_cents"),
     productionStatus: trackProductionStatusEnum("production_status")
       .default("demo")
       .notNull(),
     publishedAt: timestamp("published_at"),
+    purchaseMode: purchaseModeEnum("purchase_mode")
+      .default("digital_download")
+      .notNull(),
     releaseAt: timestamp("release_at"),
     releaseStrategy: releaseStrategyEnum("release_strategy")
       .default("private")
@@ -402,6 +445,29 @@ export const tracks = pgTable(
     index("tracks_owner_user_id_idx").on(table.ownerUserId),
     index("tracks_organization_id_idx").on(table.organizationId),
   ]
+);
+
+export const trackLicenseOptions = pgTable(
+  "track_license_options",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    includesStems: boolean("includes_stems").default(false).notNull(),
+    isExclusive: boolean("is_exclusive").default(false).notNull(),
+    name: text("name").notNull(),
+    priceCents: integer("price_cents").notNull(),
+    rightsSummary: jsonb("rights_summary").$type<string[]>().notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("track_license_options_track_id_idx").on(table.trackId)]
 );
 
 export const trackVariants = pgTable(
@@ -486,8 +552,10 @@ export const projects = pgTable(
   "projects",
   {
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
     description: text("description"),
     id: text("id").primaryKey(),
+    isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
@@ -495,7 +563,11 @@ export const projects = pgTable(
     ownerUserId: text("owner_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    priceCents: integer("price_cents"),
     projectType: projectTypeEnum("project_type").notNull(),
+    purchaseMode: purchaseModeEnum("purchase_mode")
+      .default("digital_download")
+      .notNull(),
     releaseDate: timestamp("release_date"),
     slug: text("slug").notNull(),
     status: projectStatusEnum("status").default("draft").notNull(),
@@ -791,11 +863,71 @@ export const orders = pgTable(
   (table) => [index("orders_buyer_user_id_idx").on(table.buyerUserId)]
 );
 
+export const carts = pgTable(
+  "carts",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [uniqueIndex("carts_user_id_idx").on(table.userId)]
+);
+
+export const cartItems = pgTable(
+  "cart_items",
+  {
+    cartId: text("cart_id")
+      .notNull()
+      .references(() => carts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    licenseOptionId: text("license_option_id").references(
+      () => trackLicenseOptions.id,
+      { onDelete: "set null" }
+    ),
+    priceCentsSnapshot: integer("price_cents_snapshot").notNull(),
+    productType: productTypeEnum("product_type").notNull(),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    quantity: integer("quantity").default(1).notNull(),
+    sellerUserId: text("seller_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    titleSnapshot: text("title_snapshot").notNull(),
+    trackId: text("track_id").references(() => tracks.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("cart_items_cart_id_idx").on(table.cartId),
+    index("cart_items_track_id_idx").on(table.trackId),
+    index("cart_items_project_id_idx").on(table.projectId),
+  ]
+);
+
 export const orderItems = pgTable(
   "order_items",
   {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
+    licenseOptionId: text("license_option_id").references(
+      () => trackLicenseOptions.id,
+      {
+        onDelete: "set null",
+      }
+    ),
     orderId: text("order_id")
       .notNull()
       .references(() => orders.id, { onDelete: "cascade" }),
@@ -804,6 +936,9 @@ export const orderItems = pgTable(
       scale: 2,
     }).notNull(),
     productType: productTypeEnum("product_type").notNull(),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
     quantity: integer("quantity").default(1).notNull(),
     titleSnapshot: text("title_snapshot").notNull(),
     trackId: text("track_id").references(() => tracks.id, {
@@ -828,6 +963,9 @@ export const purchases = pgTable(
     orderItemId: text("order_item_id")
       .notNull()
       .references(() => orderItems.id, { onDelete: "cascade" }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
     purchasedAt: timestamp("purchased_at").defaultNow().notNull(),
     trackId: text("track_id").references(() => tracks.id, {
       onDelete: "set null",

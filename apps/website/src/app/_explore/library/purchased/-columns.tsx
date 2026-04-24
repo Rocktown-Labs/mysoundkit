@@ -1,3 +1,4 @@
+/* eslint-disable react-perf/jsx-no-new-function-as-prop */
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Play, Download } from "lucide-react";
@@ -11,16 +12,20 @@ export interface PurchasedTrack {
   artist: string;
   artistSlug: string;
   cover: string;
-  duration: string;
-  price: string;
+  duration?: string | null;
+  licenseName?: string | null;
+  priceCents?: number;
+  priceLabel: string;
+  productType?: "track" | "project";
+  purchaseMode?: "digital_download" | "license";
   purchasedAt: string;
-  downloadUrl: string;
+  downloadUrl?: string | null;
 }
 
 export const columns: ColumnDef<PurchasedTrack>[] = [
   {
     accessorKey: "cover",
-    cell: ({ row }) => (
+    cell: () => (
       <div className="relative size-12 flex-shrink-0 group">
         <AppImage
           src={row.getValue("cover") || "/placeholder.svg"}
@@ -30,7 +35,10 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
           layout="fixed"
           className="size-full rounded object-cover"
         />
-        <button className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        >
           <Play className="size-4 text-white fill-white" />
         </button>
       </div>
@@ -41,7 +49,7 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
   },
   {
     accessorKey: "title",
-    cell: ({ row }) => (
+    cell: () => (
       <Link
         to={`/tracks/${row.original.id}`}
         className="font-medium hover:text-primary"
@@ -80,7 +88,7 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     ),
   },
   {
-    accessorKey: "price",
+    accessorKey: "priceLabel",
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -96,6 +104,14 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     header: "Duration",
   },
   {
+    accessorKey: "purchaseMode",
+    cell: ({ row }) =>
+      row.original.purchaseMode === "license"
+        ? (row.original.licenseName ?? "License")
+        : "Digital Download",
+    header: "Type",
+  },
+  {
     accessorKey: "purchasedAt",
     header: ({ column }) => (
       <Button
@@ -108,7 +124,7 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     ),
   },
   {
-    cell: ({ row }) => (
+    cell: () => (
       <Button size="sm" variant="outline">
         <Download className="mr-2 h-4 w-4" />
         Download
