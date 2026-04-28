@@ -35,6 +35,7 @@ const discoverLinks: SidebarNavItem[] = [
 
 const libraryLinks: SidebarNavItem[] = [
   { href: "/library/recent", icon: Clock, label: "Recently Played" },
+  { href: "/library/watched", icon: Video, label: "Recently Watched" },
   { href: "/library/playlists", icon: Music, label: "Playlists" },
   { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
   { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
