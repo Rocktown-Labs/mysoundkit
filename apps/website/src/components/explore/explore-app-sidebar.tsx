@@ -1,15 +1,16 @@
-import { Link } from "@tanstack/react-router";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   MapPin,
-  Trophy,
   Users,
   Music,
   Video,
-  Clock,
   Heart,
   ShoppingBag,
   Settings,
+  ListMusic,
+  ListVideo,
+  ListPlus,
+  TvMinimalPlay,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -34,9 +35,9 @@ const discoverLinks: SidebarNavItem[] = [
 ].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
 const libraryLinks: SidebarNavItem[] = [
-  { href: "/library/recent", icon: Clock, label: "Recently Played" },
-  { href: "/library/watched", icon: Video, label: "Recently Watched" },
-  { href: "/library/playlists", icon: Music, label: "Playlists" },
+  { href: "/library/recent", icon: ListMusic, label: "Recently Played" },
+  { href: "/library/watched", icon: ListVideo, label: "Recently Watched" },
+  { href: "/library/playlists", icon: ListPlus, label: "Playlists" },
   { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
   { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
   { href: "/library/settings", icon: Settings, label: "Account" },
@@ -60,7 +61,7 @@ export function ExploreAppSidebar() {
       isActive: isRouteActive(discoverLinks[3]?.url ?? "/artist"),
     },
     {
-      icon: Trophy,
+      icon: TvMinimalPlay,
       isActive: isLiveRoute,
       items: [
         {
