@@ -6,6 +6,7 @@ import {
   ShoppingBag,
   ListMusic,
   Settings,
+  Video,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,13 @@ const libraryCategories = [
     title: "Purchased",
   },
   {
+    color: "text-cyan-500",
+    description: "Watch again or resume",
+    href: "/library/watched",
+    icon: Video,
+    title: "Recently Watched",
+  },
+  {
     color: "text-orange-500",
     description: "Manage your settings",
     href: "/library/settings",
@@ -72,24 +80,26 @@ function LibraryPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {libraryCategories.map((category) => {
           const Icon = category.icon;
           return (
             <Link key={category.href} to={category.href}>
               <Card className="hover:border-primary transition-colors cursor-pointer h-full">
-                <CardHeader>
-                  <div className="flex items-center gap-3 mb-2">
+                <CardHeader className="p-4 md:p-6">
+                  <div className="flex flex-col items-center text-center md:items-start md:text-left gap-3 mb-2">
                     <div className="p-2 rounded-lg bg-muted">
                       <Icon className={`size-6 ${category.color}`} />
                     </div>
-                    <CardTitle className="text-xl">{category.title}</CardTitle>
+                    <CardTitle className="text-lg md:text-xl">
+                      {category.title}
+                    </CardTitle>
                   </div>
-                  <CardDescription className="text-base">
+                  <CardDescription className="hidden md:block text-base">
                     {category.description}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="hidden md:block">
                   <Button
                     variant="ghost"
                     className="w-full justify-start text-primary"

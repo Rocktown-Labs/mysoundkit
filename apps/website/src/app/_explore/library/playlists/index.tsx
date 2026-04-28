@@ -3,7 +3,6 @@ import { Music, Plus, ArrowLeft } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +15,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+import { columns } from "./-columns";
+import { DataTable } from "./-data-table";
 
 export const Route = createFileRoute("/_explore/library/playlists/")({
   component: PlaylistsPage,
@@ -129,28 +131,11 @@ function PlaylistsPage() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {playlists.map((playlist) => (
-          <Link key={playlist.id} to={`/library/playlists/${playlist.id}`}>
-            <Card className="group hover:bg-accent transition-colors">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-2">
-                  <Music className="size-10 text-primary flex-shrink-0" />
-                  <span className="text-sm text-muted-foreground">
-                    {playlist.trackCount} tracks
-                  </span>
-                </div>
-                <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">
-                  {playlist.name}
-                </h3>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {playlist.description}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <DataTable
+        columns={columns}
+        data={playlists}
+        filterPlaceholder="Search playlists..."
+      />
     </div>
   );
 }
