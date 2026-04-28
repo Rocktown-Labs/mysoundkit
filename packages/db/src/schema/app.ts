@@ -11,6 +11,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { vector } from "drizzle-orm/pg-core/columns/vector_extension/vector";
 
 import { organization, subscription, user } from "./auth";
 
@@ -72,6 +73,7 @@ export const trackVariantTypeEnum = pgEnum("track_variant_type", [
 export const trackAssetKindEnum = pgEnum("track_asset_kind", [
   "cover_art",
   "master",
+  "vocal_stem",
   "clean",
   "alternate_mix",
   "artwork",
@@ -87,6 +89,40 @@ export const trackAssetKindEnum = pgEnum("track_asset_kind", [
   "session_file",
   "reference_audio",
   "variant_audio",
+]);
+export const sellerOnboardingStatusEnum = pgEnum("seller_onboarding_status", [
+  "not_started",
+  "pending",
+  "restricted",
+  "enabled",
+  "rejected",
+]);
+export const stemJobStatusEnum = pgEnum("stem_job_status", [
+  "queued",
+  "submitted",
+  "processing",
+  "completed",
+  "failed",
+  "expired",
+]);
+export const stemOutputTypeEnum = pgEnum("stem_output_type", [
+  "VOCALS",
+  "INSTRUMENTAL",
+  "BOTH",
+  "FOUR_STEMS",
+  "SIX_STEMS",
+]);
+export const stemOutputFormatEnum = pgEnum("stem_output_format", [
+  "MP3",
+  "WAV",
+  "FLAC",
+]);
+export const searchableEntityTypeEnum = pgEnum("searchable_entity_type", [
+  "artist",
+  "track",
+  "project",
+  "video",
+  "lyrics",
 ]);
 export const collaboratorRoleEnum = pgEnum("collaborator_role", [
   "artist",
@@ -209,6 +245,7 @@ export const workflowJobStatusEnum = pgEnum("workflow_job_status", [
 export const webhookProviderEnum = pgEnum("webhook_provider", [
   "stripe",
   "mux",
+  "stemsplit",
   "battle_service",
 ]);
 export const webhookStatusEnum = pgEnum("webhook_status", [
@@ -334,6 +371,40 @@ export const workspaceProfiles = pgTable("workspace_profiles", {
     .notNull(),
   workspaceType: workspaceTypeEnum("workspace_type").notNull(),
 });
+
+export const sellerAccounts = pgTable(
+  "seller_accounts",
+  {
+    chargesEnabled: boolean("charges_enabled").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    detailsSubmitted: boolean("details_submitted").default(false).notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    onboardingStatus: sellerOnboardingStatusEnum("onboarding_status")
+      .default("not_started")
+      .notNull(),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "cascade",
+    }),
+    payoutsEnabled: boolean("payouts_enabled").default(false).notNull(),
+    requirementsDue: jsonb("requirements_due").$type<string[]>(),
+    stripeAccountId: text("stripe_account_id").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("seller_accounts_stripe_account_id_idx").on(
+      table.stripeAccountId
+    ),
+    index("seller_accounts_user_id_idx").on(table.userId),
+    index("seller_accounts_organization_id_idx").on(table.organizationId),
+  ]
+);
 
 export const profileLinks = pgTable(
   "profile_links",
@@ -519,7 +590,69 @@ export const trackAssets = pgTable(
   (table) => [
     index("track_assets_track_id_idx").on(table.trackId),
     index("track_assets_variant_id_idx").on(table.trackVariantId),
+    uniqueIndex("track_assets_storage_object_idx").on(
+      table.storageProvider,
+      table.objectKey
+    ),
   ]
+);
+
+export const trackStemJobs = pgTable(
+  "track_stem_jobs",
+  {
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    creditsCharged: integer("credits_charged"),
+    creditsRequired: integer("credits_required"),
+    error: jsonb("error"),
+    id: text("id").primaryKey(),
+    inputAssetId: text("input_asset_id")
+      .notNull()
+      .references(() => trackAssets.id, { onDelete: "cascade" }),
+    outputFormat: stemOutputFormatEnum("output_format")
+      .default("MP3")
+      .notNull(),
+    outputType: stemOutputTypeEnum("output_type").default("BOTH").notNull(),
+    progress: integer("progress").default(0).notNull(),
+    sourceUrlExpiresAt: timestamp("source_url_expires_at"),
+    status: stemJobStatusEnum("status").default("queued").notNull(),
+    stemsplitJobId: text("stemsplit_job_id"),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    workflowInstanceId: text("workflow_instance_id"),
+  },
+  (table) => [
+    index("track_stem_jobs_track_id_idx").on(table.trackId),
+    index("track_stem_jobs_input_asset_id_idx").on(table.inputAssetId),
+    index("track_stem_jobs_stemsplit_job_id_idx").on(table.stemsplitJobId),
+  ]
+);
+
+export const trackLyrics = pgTable(
+  "track_lyrics",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    language: text("language"),
+    metadata: jsonb("metadata"),
+    sourceAssetId: text("source_asset_id").references(() => trackAssets.id, {
+      onDelete: "set null",
+    }),
+    text: text("text").notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("track_lyrics_track_id_idx").on(table.trackId)]
 );
 
 export const trackCollaborators = pgTable(
@@ -1311,12 +1444,16 @@ export const planCatalog = pgTable(
     code: text("code").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
+    featureLimits: jsonb("feature_limits").$type<Record<string, number>>(),
     id: text("id").primaryKey(),
+    maxSeats: integer("max_seats"),
     monthlyPrice: numeric("monthly_price", {
       precision: 10,
       scale: 2,
     }).notNull(),
     name: text("name").notNull(),
+    stripeAnnualPriceId: text("stripe_annual_price_id"),
+    stripeMonthlyPriceId: text("stripe_monthly_price_id"),
     supportsWorkspaceSeats: boolean("supports_workspace_seats")
       .default(false)
       .notNull(),
@@ -1339,5 +1476,37 @@ export const subscriptionEntitlements = pgTable(
     index("subscription_entitlements_subscription_id_idx").on(
       table.subscriptionId
     ),
+  ]
+);
+
+export const searchEmbeddings = pgTable(
+  "search_embeddings",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    dimensions: integer("dimensions").default(1536).notNull(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    entityId: text("entity_id").notNull(),
+    entityType: searchableEntityTypeEnum("entity_type").notNull(),
+    id: text("id").primaryKey(),
+    indexedAt: timestamp("indexed_at").defaultNow().notNull(),
+    metadata: jsonb("metadata"),
+    model: text("model").notNull(),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "cascade",
+    }),
+    textHash: text("text_hash").notNull(),
+    textSnapshot: text("text_snapshot").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("search_embeddings_entity_idx").on(
+      table.entityType,
+      table.entityId,
+      table.model
+    ),
+    index("search_embeddings_organization_id_idx").on(table.organizationId),
   ]
 );

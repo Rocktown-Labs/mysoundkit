@@ -75,7 +75,12 @@ function MusicPage() {
                       </Badge>
                     </div>
                     <Button size="sm" variant="ghost" asChild>
-                      <Link to={`/dashboard/tracks/${i}`}>View</Link>
+                      <Link
+                        to="/dashboard/tracks/$id"
+                        params={{ id: String(i) }}
+                      >
+                        View
+                      </Link>
                     </Button>
                   </div>
                 </CardContent>
@@ -111,7 +116,10 @@ function MusicPage() {
                         asChild
                         className="w-full bg-transparent"
                       >
-                        <Link to={`/dashboard/projects/${i}`}>
+                        <Link
+                          to="/dashboard/projects/$id"
+                          params={{ id: String(i) }}
+                        >
                           View Project
                         </Link>
                       </Button>

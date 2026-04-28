@@ -100,13 +100,17 @@ export function SoundKitVideoPlayer({
         <div className="space-y-2">
           <p className="text-lg font-semibold">Playback will appear here</p>
           <p className="max-w-md text-sm text-white/75">
-            This video is still waiting on an on-platform playback ID or an embeddable
-            external source.
+            This video is still waiting on an on-platform playback ID or an
+            embeddable external source.
           </p>
         </div>
         {externalPlaybackUrl ? (
           <Button asChild={true} variant="secondary">
-            <a href={externalPlaybackUrl} rel="noopener noreferrer" target="_blank">
+            <a
+              href={externalPlaybackUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
               <ExternalLink className="mr-2 size-4" />
               Open Source Video
             </a>

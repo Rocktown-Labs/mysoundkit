@@ -6,8 +6,8 @@ import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-c
 import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
-import { VideoCard } from "@/components/explore/video-card";
 import { USAMap } from "@/components/explore/usa-map";
+import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { mockVideos } from "@/lib/mock-videos";

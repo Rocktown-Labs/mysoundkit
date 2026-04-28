@@ -1,7 +1,12 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
+import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import {
+  createPlanCheckout as checkoutForPlan,
+  getPlanRows as getCatalogPlans,
+} from "@/lib/billing";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -35,7 +40,89 @@ app.openapi(
     },
     tags: ["Billing"],
   }),
-  (c) => c.json(samplePlans, HttpStatusCodes.OK)
+  async (c) => {
+    const plans = await getCatalogPlans();
+
+    if (plans.length === 0) {
+      return c.json(samplePlans, HttpStatusCodes.OK);
+    }
+
+    return c.json(
+      plans.map((plan) => ({
+        adsEnabled: plan.adsEnabled,
+        audience: plan.audience,
+        canViewLiveBattles: plan.canViewLiveBattles,
+        canVoteLiveBattles: plan.canVoteLiveBattles,
+        code: plan.code,
+        featureLimits: plan.featureLimits ?? null,
+        maxSeats: plan.maxSeats ?? null,
+        monthlyPrice: Number(plan.monthlyPrice),
+        name: plan.name,
+        stripeAnnualPriceId: plan.stripeAnnualPriceId ?? null,
+        stripeMonthlyPriceId: plan.stripeMonthlyPriceId ?? null,
+        supportsWorkspaceSeats: plan.supportsWorkspaceSeats,
+      })),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+const checkoutBodySchema = z.object({
+  cancelUrl: z.url(),
+  planCode: z.string(),
+  referenceId: z.string().optional(),
+  seats: z.number().int().positive().optional(),
+  successUrl: z.url(),
+});
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/checkout",
+    request: {
+      body: jsonContentRequired(checkoutBodySchema, "Checkout payload"),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          checkoutUrl: z.string().url().nullable(),
+          requiresCheckout: z.boolean(),
+          setupRequired: z.boolean(),
+        }),
+        "Checkout status"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Billing"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const body = c.req.valid("json");
+    const session = c.get("session");
+    const referenceId =
+      body.referenceId ??
+      (isAuthenticatedSession(session)
+        ? (session.activeOrganizationId ?? user.id)
+        : user.id);
+    const checkout = await checkoutForPlan({
+      cancelUrl: body.cancelUrl,
+      planCode: body.planCode,
+      referenceId,
+      request: c.req.raw,
+      seats: body.seats,
+      successUrl: body.successUrl,
+    });
+
+    return c.json(checkout, HttpStatusCodes.OK);
+  }
 );
 
 app.openapi(

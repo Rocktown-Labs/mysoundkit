@@ -26,7 +26,7 @@ export function TrackCard({
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all group w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px] flex-shrink-0 p-0">
       <CardContent className="p-0 space-y-0">
-        <Link to={`/tracks/${id}`} className="block">
+        <Link to="/tracks/$id" params={{ id }} className="block">
           <div className="relative aspect-square overflow-hidden">
             <AppImage
               src={cover || "/placeholder.svg"}
@@ -44,13 +44,14 @@ export function TrackCard({
           </div>
         </Link>
         <div className="p-2 md:p-3">
-          <Link to={`/tracks/${id}`}>
+          <Link to="/tracks/$id" params={{ id }}>
             <h3 className="font-medium text-xs md:text-sm truncate group-hover:text-primary transition-colors">
               {title}
             </h3>
           </Link>
           <Link
-            href={`/artist/${artistSlug}`}
+            to="/artist/$username"
+            params={{ username: artistSlug }}
             className="text-[10px] md:text-xs text-muted-foreground hover:text-primary truncate block"
           >
             {artist}

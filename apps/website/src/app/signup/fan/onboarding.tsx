@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { User, MapPin, Music2, Check } from "lucide-react";
 import { useState } from "react";
 
@@ -16,14 +17,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { API_V1_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/signup/fan/onboarding")({
   component: FanOnboardingPage,
 });
 
 function FanOnboardingPage() {
+  const router = useRouter();
+  const [city, setCity] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedPlanCode, setSelectedPlanCode] = useState("fan_lite_ads");
+  const [stateValue, setStateValue] = useState("");
   const [step, setStep] = useState(1);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [username, setUsername] = useState("");
   const totalSteps = 4;
 
   const progress = (step / totalSteps) * 100;
@@ -47,6 +56,51 @@ function FanOnboardingPage() {
     setSelectedGenres((prev) =>
       prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
     );
+  };
+
+  const completeOnboarding = async (planCode = selectedPlanCode) => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
+        body: JSON.stringify({
+          city: city || "Los Angeles",
+          genrePreferences: selectedGenres,
+          selectedPlanCode: planCode,
+          state: stateValue || "ca",
+          username: username || "soundkit-fan",
+        }),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      const payload = (await response.json().catch(() => null)) as {
+        checkoutUrl?: string | null;
+        message?: string;
+      } | null;
+
+      if (!response.ok) {
+        setErrorMessage(
+          payload?.message ?? "Unable to complete onboarding right now."
+        );
+        return;
+      }
+
+      if (payload?.checkoutUrl) {
+        window.location.assign(payload.checkoutUrl);
+        return;
+      }
+
+      await router.navigate({ to: "/" });
+    } catch {
+      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -88,6 +142,8 @@ function FanOnboardingPage() {
                     id="username"
                     placeholder="@musicfan"
                     className="text-lg"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
                     Can only contain letters, numbers, and underscores
@@ -163,11 +219,16 @@ function FanOnboardingPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="city">City</Label>
-                    <Input id="city" placeholder="Los Angeles" />
+                    <Input
+                      id="city"
+                      placeholder="Los Angeles"
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="state">State</Label>
-                    <Select>
+                    <Select value={stateValue} onValueChange={setStateValue}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select state" />
                       </SelectTrigger>
@@ -210,7 +271,12 @@ function FanOnboardingPage() {
                   </p>
                 </div>
                 <div className="grid gap-4">
-                  <Card className="border-2 cursor-pointer hover:border-primary transition-colors">
+                  <Card
+                    className={`border-2 cursor-pointer hover:border-primary transition-colors ${
+                      selectedPlanCode === "fan_free" ? "border-primary" : ""
+                    }`}
+                    onClick={() => setSelectedPlanCode("fan_free")}
+                  >
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div>
@@ -237,18 +303,27 @@ function FanOnboardingPage() {
                           Create playlists
                         </li>
                       </ul>
-                      <Link to="/explore">
-                        <Button
-                          variant="outline"
-                          className="w-full mt-6 bg-transparent"
-                          size="lg"
-                        >
-                          Start Free
-                        </Button>
-                      </Link>
+                      <Button
+                        variant="outline"
+                        className="w-full mt-6 bg-transparent"
+                        size="lg"
+                        onClick={() => void completeOnboarding("fan_free")}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting && selectedPlanCode === "fan_free"
+                          ? "Completing..."
+                          : "Start Free"}
+                      </Button>
                     </CardContent>
                   </Card>
-                  <Card className="border-2 border-primary cursor-pointer relative overflow-hidden">
+                  <Card
+                    className={`border-2 cursor-pointer relative overflow-hidden ${
+                      selectedPlanCode === "fan_lite_ads"
+                        ? "border-primary"
+                        : ""
+                    }`}
+                    onClick={() => setSelectedPlanCode("fan_lite_ads")}
+                  >
                     <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-semibold">
                       RECOMMENDED
                     </div>
@@ -286,14 +361,24 @@ function FanOnboardingPage() {
                           Early access to battles
                         </li>
                       </ul>
-                      <Link to="/explore">
-                        <Button className="w-full mt-6" size="lg">
-                          Start Premium
-                        </Button>
-                      </Link>
+                      <Button
+                        className="w-full mt-6"
+                        size="lg"
+                        onClick={() => void completeOnboarding("fan_lite_ads")}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting && selectedPlanCode === "fan_lite_ads"
+                          ? "Completing..."
+                          : "Start Premium"}
+                      </Button>
                     </CardContent>
                   </Card>
                 </div>
+                {errorMessage && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {errorMessage}
+                  </p>
+                )}
                 <Button
                   onClick={() => setStep(3)}
                   variant="ghost"

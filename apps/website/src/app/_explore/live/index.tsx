@@ -339,7 +339,10 @@ function LiveHubPage() {
               ].map((artist) => (
                 <Link
                   key={artist.rank}
-                  to={`/artist/${artist.name.toLowerCase().replace(" ", "-")}`}
+                  to="/artist/$username"
+                  params={{
+                    username: artist.name.toLowerCase().replace(" ", "-"),
+                  }}
                   className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <div
@@ -418,7 +421,8 @@ function LiveHubPage() {
                 ].map((battle) => (
                   <Link
                     key={battle.id}
-                    to={`/live/battles/${battle.id}`}
+                    to="/live/battles/$id"
+                    params={{ id: battle.id }}
                     className="flex-shrink-0 w-[85vw] md:w-[600px] lg:w-[700px]"
                   >
                     <Card className="overflow-hidden hover:shadow-lg transition-shadow group h-full border-border">

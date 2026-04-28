@@ -12,10 +12,13 @@
   "scripts": {},
   "dependencies": {
     "@better-auth/expo": "catalog:",
+    "@better-auth/stripe": "1.5.5",
     "@soundkit/db": "workspace:*",
     "@soundkit/env": "workspace:*",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.1",
+    "stripe": "^20.0.0",
     "zod": "catalog:"
   },
   "devDependencies": {

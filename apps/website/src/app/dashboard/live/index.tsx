@@ -159,7 +159,7 @@ function BattleHubPage() {
                 </p>
                 <p className="text-xs text-muted-foreground">Round 3 of 5</p>
               </div>
-              <Link to="/live/battles/1">
+              <Link to="/live/battles/$id" params={{ id: "1" }}>
                 <Button className="w-full sm:w-auto">Join Battle</Button>
               </Link>
             </div>

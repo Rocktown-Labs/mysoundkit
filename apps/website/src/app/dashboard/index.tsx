@@ -4,8 +4,8 @@ import { Music, FolderOpen, Users, Sparkles } from "lucide-react";
 import { ProjectsOverview } from "@/components/dashboard/projects-overview";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { UpcomingReleases } from "@/components/dashboard/upcoming-releases";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
+import { UpcomingReleases } from "@/components/dashboard/upcoming-releases";
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardPage,
@@ -14,28 +14,28 @@ export const Route = createFileRoute("/dashboard/")({
 function DashboardPage() {
   const dashboardStats = [
     {
-      title: "Total Tracks",
-      value: "24",
       description: "+3 this month",
       icon: Music,
+      title: "Total Tracks",
+      value: "24",
     },
     {
-      title: "Active Projects",
-      value: "5",
       description: "2 Albums, 3 EPs",
       icon: FolderOpen,
+      title: "Active Projects",
+      value: "5",
     },
     {
-      title: "Collaborators",
-      value: "8",
       description: "+2 this month",
       icon: Users,
+      title: "Collaborators",
+      value: "8",
     },
     {
-      title: "Profile Reach",
-      value: "12.4K",
       description: "+15% from last week",
       icon: Sparkles,
+      title: "Profile Reach",
+      value: "12.4K",
     },
   ];
 
@@ -74,7 +74,7 @@ function DashboardPage() {
         {/* Right Column - 4/12 */}
         <div className="lg:col-span-4 space-y-6">
           <RecentActivity />
-          
+
           {/* Quick Tips / Upgrade Card */}
           <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/5 to-transparent border border-primary/20 relative overflow-hidden group">
             <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-primary/20 rounded-full blur-3xl group-hover:bg-primary/30 transition-colors" />
@@ -83,9 +83,13 @@ function DashboardPage() {
               Pro Artist Tip
             </h3>
             <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-              Verified music videos get 3x more engagement from the global SoundKit community. Link your YouTube or upload directly via Mux.
+              Verified music videos get 3x more engagement from the global
+              SoundKit community. Link your YouTube or upload directly via Mux.
             </p>
-            <Button size="sm" className="w-full bg-primary/10 hover:bg-primary/20 text-primary border-none shadow-none">
+            <Button
+              size="sm"
+              className="w-full bg-primary/10 hover:bg-primary/20 text-primary border-none shadow-none"
+            >
               Explore Pro Features
             </Button>
           </div>

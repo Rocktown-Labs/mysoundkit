@@ -2,10 +2,10 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Eye, Lock, Radio, ShieldCheck, Video } from "lucide-react";
 
 import { VideoCard } from "@/components/explore/video-card";
-import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { getMockVideo, mockVideos } from "@/lib/mock-videos";
 
 export const Route = createFileRoute("/_explore/videos/$id")({
@@ -16,7 +16,9 @@ function VideoDetailPage() {
   const router = useRouter();
   const { id } = Route.useParams();
   const video = getMockVideo(id);
-  const relatedVideos = mockVideos.filter((entry) => entry.id !== video.id).slice(0, 3);
+  const relatedVideos = mockVideos
+    .filter((entry) => entry.id !== video.id)
+    .slice(0, 3);
   const isPremiumLive = video.playbackPolicy === "premium_only_live";
 
   return (
@@ -35,8 +37,12 @@ function VideoDetailPage() {
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={video.status === "live" ? "destructive" : "secondary"}>
-                {video.status === "live" ? "Live" : video.videoKind.replaceAll("_", " ")}
+              <Badge
+                variant={video.status === "live" ? "destructive" : "secondary"}
+              >
+                {video.status === "live"
+                  ? "Live"
+                  : video.videoKind.replaceAll("_", " ")}
               </Badge>
               <Badge className="bg-black/80 text-white">
                 {video.verifiedOnPlatform ? (
@@ -57,7 +63,9 @@ function VideoDetailPage() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">{video.creator.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {video.creator.name}
+              </p>
               <h1 className="text-2xl font-bold md:text-4xl">{video.title}</h1>
             </div>
 
@@ -72,15 +80,21 @@ function VideoDetailPage() {
             <div className="flex flex-wrap gap-3">
               {video.status === "live" && isPremiumLive ? (
                 <Button>Upgrade to Watch</Button>
-              ) : video.externalPlaybackUrl ? (
+              ) : (video.externalPlaybackUrl ? (
                 <Button asChild={true}>
-                  <a href={video.externalPlaybackUrl} rel="noopener noreferrer" target="_blank">
+                  <a
+                    href={video.externalPlaybackUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
                     Watch Source Video
                   </a>
                 </Button>
               ) : (
-                <Button disabled={video.muxPlaybackId === null}>Play on SoundKit</Button>
-              )}
+                <Button disabled={video.muxPlaybackId === null}>
+                  Play on SoundKit
+                </Button>
+              ))}
             </div>
           </div>
 
@@ -100,7 +114,9 @@ function VideoDetailPage() {
                   {video.duration}
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground md:text-base">{video.description}</p>
+              <p className="text-sm text-muted-foreground md:text-base">
+                {video.description}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {video.verifiedOnPlatform
                   ? "This asset was uploaded directly to SoundKit and will receive the verified treatment anywhere it appears in the app."
@@ -119,7 +135,11 @@ function VideoDetailPage() {
           </div>
           <div className="space-y-4">
             {relatedVideos.map((relatedVideo) => (
-              <VideoCard key={relatedVideo.id} compact={true} video={relatedVideo} />
+              <VideoCard
+                key={relatedVideo.id}
+                compact={true}
+                video={relatedVideo}
+              />
             ))}
           </div>
         </aside>

@@ -21,11 +21,11 @@ import {
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { href: "/dashboard", icon: Home, name: "Home" },
-  { href: "/dashboard/music", icon: Music, name: "Music" },
-  { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
-  { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
-];
+  { icon: Home, name: "Home", to: "/dashboard" },
+  { icon: Music, name: "Music", to: "/dashboard/music" },
+  { icon: BarChart3, name: "Analytics", to: "/dashboard/career/analytics" },
+  { icon: MessageSquare, name: "Messages", to: "/dashboard/messages" },
+] as const;
 
 export function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -37,11 +37,11 @@ export function MobileNav() {
         {navigation.slice(0, 2).map((item) => (
           <Link
             key={item.name}
-            href={item.href}
+            to={item.to}
             className={cn(
               "flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs transition-colors",
-              pathname === item.href ||
-                (item.href === "/dashboard/music" &&
+              pathname === item.to ||
+                (item.to === "/dashboard/music" &&
                   (pathname.startsWith("/dashboard/tracks") ||
                     pathname.startsWith("/dashboard/projects")))
                 ? "text-primary"
@@ -70,7 +70,7 @@ export function MobileNav() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <Link
-                href="/dashboard/tracks/new"
+                to="/dashboard/tracks/new"
                 className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors"
                 onClick={() => setOpen(false)}
               >
@@ -83,7 +83,7 @@ export function MobileNav() {
                 </div>
               </Link>
               <Link
-                href="/dashboard/projects/new"
+                to="/dashboard/projects/new"
                 className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors"
                 onClick={() => setOpen(false)}
               >
@@ -102,11 +102,11 @@ export function MobileNav() {
         {navigation.slice(2).map((item) => (
           <Link
             key={item.name}
-            href={item.href}
+            to={item.to}
             className={cn(
               "flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs transition-colors",
-              pathname === item.href ||
-                (item.href === "/dashboard/career/analytics" &&
+              pathname === item.to ||
+                (item.to === "/dashboard/career/analytics" &&
                   pathname.startsWith("/dashboard/career"))
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"

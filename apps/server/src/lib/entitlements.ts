@@ -1,8 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
-
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { planCatalog, subscriptionEntitlements } from "@soundkit/db/schema/app";
 import { member, subscription } from "@soundkit/db/schema/auth";
+import { and, eq, inArray } from "drizzle-orm";
 
 import type { AppEnv, AuthenticatedSession, AuthenticatedUser } from "./types";
 
@@ -106,8 +105,8 @@ const compareReferencePriority = (
 };
 
 const compareStatusPriority = (left: string, right: string) => {
-  const leftPriority = left === "active" ? 0 : left === "trialing" ? 1 : 2;
-  const rightPriority = right === "active" ? 0 : right === "trialing" ? 1 : 2;
+  const leftPriority = left === "active" ? 0 : (left === "trialing" ? 1 : 2);
+  const rightPriority = right === "active" ? 0 : (right === "trialing" ? 1 : 2);
 
   return leftPriority - rightPriority;
 };
@@ -132,9 +131,11 @@ export const resolveEntitlements = async ({
     .where(eq(member.userId, user.id));
 
   const candidateReferenceIds = uniq(
-    [session?.activeOrganizationId ?? null, user.id, ...memberships.map(({ organizationId }) => organizationId)].filter(
-      (value): value is string => Boolean(value)
-    )
+    [
+      session?.activeOrganizationId ?? null,
+      user.id,
+      ...memberships.map(({ organizationId }) => organizationId),
+    ].filter((value): value is string => Boolean(value))
   );
 
   if (candidateReferenceIds.length === 0) {
@@ -161,7 +162,7 @@ export const resolveEntitlements = async ({
       )
     );
 
-  const activeSubscription = subscriptions.sort((left, right) => {
+  const activeSubscription = subscriptions.toSorted((left, right) => {
     const referencePriority = compareReferencePriority(
       candidateReferenceIds,
       left.referenceId,
@@ -185,7 +186,12 @@ export const resolveEntitlements = async ({
       value: subscriptionEntitlements.entitlementValue,
     })
     .from(subscriptionEntitlements)
-    .where(eq(subscriptionEntitlements.subscriptionId, activeSubscription.subscriptionId));
+    .where(
+      eq(
+        subscriptionEntitlements.subscriptionId,
+        activeSubscription.subscriptionId
+      )
+    );
 
   const entitlementMap = new Map(
     entitlementRows.map(({ key, value }) => [key, value] as const)

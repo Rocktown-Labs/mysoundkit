@@ -1,6 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Download, MoreVertical, Music, FolderOpen, CheckCircle2, Clock, Users } from "lucide-react";
+import {
+  Plus,
+  Download,
+  MoreVertical,
+  Music,
+  FolderOpen,
+  CheckCircle2,
+  Clock,
+  Users,
+} from "lucide-react";
 
+import { StatsGrid } from "@/components/dashboard/stats-grid";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +20,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { StatsGrid } from "@/components/dashboard/stats-grid";
 
 const mockProjects = [
   {
@@ -59,28 +68,28 @@ export const Route = createFileRoute("/dashboard/projects/")({
 function ProjectsPage() {
   const projectStats = [
     {
-      title: "Total Projects",
-      value: "8",
       description: "Albums, EPs and Singles",
       icon: FolderOpen,
+      title: "Total Projects",
+      value: "8",
     },
     {
-      title: "Completed",
-      value: "3",
       description: "Ready for distribution",
       icon: CheckCircle2,
+      title: "Completed",
+      value: "3",
     },
     {
-      title: "In Progress",
-      value: "5",
       description: "Active recording sessions",
       icon: Clock,
+      title: "In Progress",
+      value: "5",
     },
     {
-      title: "Collaborators",
-      value: "12",
       description: "Across all active projects",
       icon: Users,
+      title: "Collaborators",
+      value: "12",
     },
   ];
 
@@ -92,7 +101,9 @@ function ProjectsPage() {
           <h1 className="text-3xl font-bold font-[family-name:var(--font-playfair)] tracking-tight">
             Projects
           </h1>
-          <p className="text-muted-foreground mt-1">Manage your albums and EPs</p>
+          <p className="text-muted-foreground mt-1">
+            Manage your albums and EPs
+          </p>
         </div>
         <Link to="/dashboard/projects/new">
           <Button className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all hover:scale-[1.02]">
@@ -120,9 +131,14 @@ function ProjectsPage() {
                     style={{ backgroundImage: `url(${project.coverArt})` }}
                   />
                   <div>
-                    <h3 className="font-semibold group-hover:text-primary transition-colors">{project.name}</h3>
+                    <h3 className="font-semibold group-hover:text-primary transition-colors">
+                      {project.name}
+                    </h3>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider h-5">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] uppercase tracking-wider h-5"
+                      >
                         {project.type.toUpperCase()}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
@@ -133,7 +149,11 @@ function ProjectsPage() {
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-muted-foreground">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground"
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>

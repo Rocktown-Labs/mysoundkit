@@ -14,6 +14,7 @@ import {
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
 import type { SidebarNavItem } from "@/components/sidebar-nav-group";
+import { SoundKitBrand } from "@/components/soundkit-brand";
 import {
   Sidebar,
   SidebarContent,
@@ -23,7 +24,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { SoundKitBrand } from "@/components/soundkit-brand";
 
 const discoverLinks: SidebarNavItem[] = [
   { href: "/", icon: MapPin, label: "Home" },

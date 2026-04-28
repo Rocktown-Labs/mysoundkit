@@ -1,12 +1,14 @@
-import Mux from "@mux/mux-node";
-import { and, eq, or } from "drizzle-orm";
+/* eslint-disable complexity */
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { Mux } from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { videos, webhookEvents } from "@soundkit/db/schema/app";
+import { trackStemJobs, videos, webhookEvents } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
+import { and, eq, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import { processCompletedStemSplitJob } from "@/lib/audio-processing";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -67,12 +69,48 @@ const getEventData = (event: unknown) => {
 const getStringValue = (value: unknown) =>
   typeof value === "string" && value.length > 0 ? value : null;
 
+const getEnvValue = (key: string) =>
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+
+const bytesToHex = (bytes: Uint8Array) =>
+  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+const verifyStemSplitSignature = async ({
+  rawBody,
+  signature,
+}: {
+  rawBody: string;
+  signature: null | string;
+}) => {
+  const secret = getEnvValue("STEMSPLIT_WEBHOOK_SECRET");
+
+  if (!secret || !signature) {
+    return false;
+  }
+
+  const signatureHex = signature.replace(/^sha256=/, "");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { hash: "SHA-256", name: "HMAC" },
+    false,
+    ["sign"]
+  );
+  const digest = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(rawBody)
+  );
+
+  return bytesToHex(new Uint8Array(digest)) === signatureHex;
+};
+
 const getPlaybackId = (value: unknown) => {
   if (!Array.isArray(value) || value.length === 0) {
     return null;
   }
 
-  const firstPlaybackId = value[0];
+  const [firstPlaybackId] = value;
 
   if (
     typeof firstPlaybackId === "object" &&
@@ -101,9 +139,12 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
 
   const assetId =
     getStringValue(eventData.asset_id) ??
-    (eventType.startsWith("video.asset.") ? getStringValue(eventData.id) : null);
-  const uploadId =
-    eventType.startsWith("video.upload.") ? getStringValue(eventData.id) : null;
+    (eventType.startsWith("video.asset.")
+      ? getStringValue(eventData.id)
+      : null);
+  const uploadId = eventType.startsWith("video.upload.")
+    ? getStringValue(eventData.id)
+    : null;
   const passthrough =
     getStringValue(eventData.passthrough) ??
     getStringValue(
@@ -120,9 +161,8 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
     assetId ? eq(videos.muxAssetId, assetId) : null,
   ] as const;
   const clauses = candidateClauses.filter(
-    (
-      clause
-    ): clause is Exclude<(typeof candidateClauses)[number], null> => clause !== null
+    (clause): clause is Exclude<(typeof candidateClauses)[number], null> =>
+      clause !== null
   );
 
   if (clauses.length === 0) {
@@ -330,6 +370,187 @@ app.openapi(
     tags: ["Webhooks"],
   }),
   (c) => c.json({ message: "Stripe webhook accepted" }, HttpStatusCodes.OK)
+);
+
+const getStemSplitEventId = (payload: Record<string, unknown>) => {
+  const eventId = getStringValue(payload.id);
+
+  if (eventId) {
+    return eventId;
+  }
+
+  const data = getEventData(payload);
+  const jobId = data ? getStringValue(data.jobId) : null;
+  const event = getStringValue(payload.event);
+
+  return jobId && event ? `${event}:${jobId}` : null;
+};
+
+const handleStemSplitWebhookPayload = async (
+  payload: Record<string, unknown>
+) => {
+  if (!isDatabaseConfigured()) {
+    return "ignored" as const;
+  }
+
+  const event = getStringValue(payload.event);
+  const data = getEventData(payload);
+  const jobId = data ? getStringValue(data.jobId) : null;
+
+  if (!event || !data || !jobId) {
+    return "ignored" as const;
+  }
+
+  const db = createDb();
+  const [stemJob] = await db
+    .select()
+    .from(trackStemJobs)
+    .where(eq(trackStemJobs.stemsplitJobId, jobId))
+    .limit(1);
+
+  if (!stemJob) {
+    return "ignored" as const;
+  }
+
+  if (event === "job.failed") {
+    await db
+      .update(trackStemJobs)
+      .set({
+        error: data,
+        status: "failed",
+        updatedAt: new Date(),
+      })
+      .where(eq(trackStemJobs.id, stemJob.id));
+
+    return "processed" as const;
+  }
+
+  if (event !== "job.completed") {
+    return "ignored" as const;
+  }
+
+  await processCompletedStemSplitJob({
+    assetId: stemJob.inputAssetId,
+    job: {
+      audioMetadata:
+        typeof data.audioMetadata === "object" && data.audioMetadata !== null
+          ? (data.audioMetadata as { bpm?: number; key?: string })
+          : undefined,
+      creditsCharged:
+        typeof data.creditsCharged === "number"
+          ? data.creditsCharged
+          : undefined,
+      id: jobId,
+      outputs:
+        typeof data.outputs === "object" && data.outputs !== null
+          ? (data.outputs as {
+              instrumental?: { expiresAt?: string; url?: string };
+              vocals?: { expiresAt?: string; url?: string };
+            })
+          : undefined,
+      progress: 100,
+      status: "COMPLETED",
+    },
+    trackId: stemJob.trackId,
+  });
+
+  return "processed" as const;
+};
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/stemsplit",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "StemSplit webhook accepted"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "StemSplit webhook secret unavailable"
+      ),
+    },
+    tags: ["Webhooks"],
+  }),
+  async (c) => {
+    if (!getEnvValue("STEMSPLIT_WEBHOOK_SECRET")) {
+      return c.json(
+        { message: "StemSplit webhook verification is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const rawBody = await c.req.raw.text();
+    const signature = c.req.raw.headers.get("X-Webhook-Signature");
+    const verified = await verifyStemSplitSignature({ rawBody, signature });
+
+    if (!verified) {
+      return c.json(
+        { message: "Invalid StemSplit webhook signature." },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const payload = JSON.parse(rawBody) as Record<string, unknown>;
+    const externalEventId = getStemSplitEventId(payload);
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "StemSplit webhook accepted." },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    const [existingEvent] = externalEventId
+      ? await db
+          .select({
+            id: webhookEvents.id,
+          })
+          .from(webhookEvents)
+          .where(
+            and(
+              eq(webhookEvents.provider, "stemsplit"),
+              eq(webhookEvents.externalEventId, externalEventId)
+            )
+          )
+      : [];
+
+    if (existingEvent) {
+      return c.json(
+        { message: "StemSplit webhook already processed." },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const eventRowId = crypto.randomUUID();
+    const eventType = getStringValue(payload.event) ?? "unknown";
+
+    await db.insert(webhookEvents).values({
+      eventType,
+      externalEventId,
+      id: eventRowId,
+      payload,
+      provider: "stemsplit",
+      status: "received",
+    });
+
+    const status = await handleStemSplitWebhookPayload(payload);
+
+    await db
+      .update(webhookEvents)
+      .set({
+        processedAt: new Date(),
+        status,
+      })
+      .where(eq(webhookEvents.id, eventRowId));
+
+    return c.json(
+      { message: "StemSplit webhook accepted." },
+      HttpStatusCodes.OK
+    );
+  }
 );
 
 app.openapi(

@@ -2,6 +2,7 @@
 
 import { Upload, Download, Edit, Music, ChevronRight } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,53 +10,52 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const mockActivity = [
   {
     action: "uploaded vocals for",
+    bg: "bg-blue-500/10",
+    color: "text-blue-500",
     icon: Upload,
     id: 1,
     project: "Summer Vibes",
     time: "2h ago",
     type: "upload",
     user: "You",
-    color: "text-blue-500",
-    bg: "bg-blue-500/10"
   },
   {
     action: "downloaded stems from",
+    bg: "bg-emerald-500/10",
+    color: "text-emerald-500",
     icon: Download,
     id: 2,
     project: "Late Night Sessions",
     time: "1d ago",
     type: "download",
     user: "David Kim",
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10"
   },
   {
     action: "edited metadata for",
+    bg: "bg-amber-500/10",
+    color: "text-amber-500",
     icon: Edit,
     id: 3,
     project: "Collaboration Track",
     time: "2d ago",
     type: "edit",
     user: "You",
-    color: "text-amber-500",
-    bg: "bg-amber-500/10"
   },
   {
     action: "created project",
+    bg: "bg-primary/10",
+    color: "text-primary",
     icon: Music,
     id: 4,
     project: "Untitled Track",
     time: "3d ago",
     type: "create",
     user: "You",
-    color: "text-primary",
-    bg: "bg-primary/10"
   },
 ];
 
@@ -67,7 +67,11 @@ export function RecentActivity() {
           <CardTitle className="font-[family-name:var(--font-playfair)] text-lg">
             Activity
           </CardTitle>
-          <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase tracking-widest font-bold">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-[10px] uppercase tracking-widest font-bold"
+          >
             Full Log
           </Button>
         </div>
@@ -76,23 +80,32 @@ export function RecentActivity() {
         <div className="relative">
           {/* Connecting Line */}
           <div className="absolute left-[27px] top-4 bottom-4 w-px bg-gradient-to-b from-border/40 via-border/20 to-transparent" />
-          
+
           <div className="p-4 space-y-6">
             {mockActivity.map((activity) => {
               const IconComponent = activity.icon;
               return (
-                <div key={activity.id} className="flex items-start gap-4 group relative">
-                  <div className={cn(
-                    "size-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-transform group-hover:scale-110 border border-border/20 shadow-sm",
-                    activity.bg,
-                    activity.color
-                  )}>
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-4 group relative"
+                >
+                  <div
+                    className={cn(
+                      "size-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-transform group-hover:scale-110 border border-border/20 shadow-sm",
+                      activity.bg,
+                      activity.color
+                    )}
+                  >
                     <IconComponent className="size-3.5" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs leading-relaxed">
-                      <span className="font-bold text-foreground/90">{activity.user}</span>{" "}
-                      <span className="text-muted-foreground/80">{activity.action}</span>{" "}
+                      <span className="font-bold text-foreground/90">
+                        {activity.user}
+                      </span>{" "}
+                      <span className="text-muted-foreground/80">
+                        {activity.action}
+                      </span>{" "}
                       <span className="font-semibold text-primary hover:underline cursor-pointer">
                         {activity.project}
                       </span>

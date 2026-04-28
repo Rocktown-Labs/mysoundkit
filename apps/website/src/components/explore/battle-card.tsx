@@ -23,9 +23,12 @@ interface BattleCardProps {
     votes: number;
     cover: string;
   };
-  endsIn: string;
+  endsIn?: string;
   genre: string;
   isLive?: boolean;
+  live?: boolean;
+  startsIn?: string;
+  views?: string;
   currentRound?: number;
   totalRounds?: number;
   isVoting?: boolean;
@@ -41,12 +44,17 @@ export function BattleCard({
   endsIn,
   genre,
   isLive = false,
+  live = false,
+  startsIn,
+  views,
   currentRound = 1,
   totalRounds = 3,
   isVoting = false,
   queueSize = 0,
   isPremiumUser = false,
 }: BattleCardProps) {
+  const battleIsLive = isLive || live;
+  const timeLabel = endsIn ?? startsIn ?? views ?? "";
   const totalVotes = track1.votes + track2.votes;
   const track1Percentage = (track1.votes / totalVotes) * 100;
   const track2Percentage = (track2.votes / totalVotes) * 100;
@@ -55,7 +63,7 @@ export function BattleCard({
   const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
 
   useEffect(() => {
-    if (!isLive) {
+    if (!battleIsLive) {
       return;
     }
 
@@ -76,9 +84,9 @@ export function BattleCard({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isLive, isVoting]);
+  }, [battleIsLive, isVoting]);
 
-  const canJoinNow = isLive && timeRemaining > 60 && !isVoting;
+  const canJoinNow = battleIsLive && timeRemaining > 60 && !isVoting;
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow group min-w-[280px] md:min-w-0 w-[280px] md:w-auto">
@@ -87,7 +95,7 @@ export function BattleCard({
           <Badge variant="secondary" className="text-[10px] md:text-xs">
             {genre}
           </Badge>
-          {isLive ? (
+          {battleIsLive ? (
             <div className="flex flex-col items-end gap-1 flex-1 ml-2">
               <Badge
                 variant={isVoting ? "default" : "secondary"}
@@ -105,7 +113,7 @@ export function BattleCard({
           ) : (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="size-3" />
-              <span className="text-[10px] md:text-xs">{endsIn}</span>
+              <span className="text-[10px] md:text-xs">{timeLabel}</span>
             </div>
           )}
         </div>
@@ -178,7 +186,7 @@ export function BattleCard({
           </div>
         </div>
 
-        {isLive ? (
+        {battleIsLive ? (
           <div className="space-y-2">
             {!isPremiumUser ? (
               <Link to="/pricing" className="block">
@@ -188,7 +196,7 @@ export function BattleCard({
                 </Button>
               </Link>
             ) : (canJoinNow ? (
-              <Link to={`/live/battles/${id}`} className="block">
+              <Link to="/live/battles/$id" params={{ id }} className="block">
                 <Button className="w-full" size="sm">
                   Watch Live
                 </Button>
@@ -206,7 +214,7 @@ export function BattleCard({
             ))}
           </div>
         ) : (
-          <Link to={`/live/battles/${id}`}>
+          <Link to="/live/battles/$id" params={{ id }}>
             <div className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors">
               <TrendingUp className="size-3" />
               <span className="text-[10px] md:text-xs">

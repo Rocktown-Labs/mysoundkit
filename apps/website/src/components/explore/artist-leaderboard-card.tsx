@@ -66,7 +66,8 @@ export function ArtistLeaderboardCard({
       {artists.map((artist) => (
         <Link
           key={artist.slug}
-          href={`/artist/${artist.slug}`}
+          to="/artist/$username"
+          params={{ username: artist.slug }}
           className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors group"
         >
           {/* Rank Badge */}

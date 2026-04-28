@@ -2,11 +2,16 @@
 
 import { useUploadFiles } from "@better-upload/client";
 import { ImageIcon, LoaderCircle, Upload } from "lucide-react";
-import { useId, useState, type ChangeEvent } from "react";
+import { useId, useState } from 'react';
+import type { ChangeEvent } from 'react';
 
-import { API_V1_URL, MEDIA_BASE_URL, PROFILE_MEDIA_UPLOAD_URL } from "@/lib/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  API_V1_URL,
+  MEDIA_BASE_URL,
+  PROFILE_MEDIA_UPLOAD_URL,
+} from "@/lib/api";
 
 export function ProfileMediaUpload({
   description,
@@ -47,11 +52,9 @@ export function ProfileMediaUpload({
       method: "PATCH",
     });
 
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          message?: string;
-        }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
 
     setStatusMessage(payload?.message ?? "Upload saved.");
   };
@@ -66,7 +69,9 @@ export function ProfileMediaUpload({
       const [file] = files;
 
       if (!file) {
-        setStatusMessage("No uploaded file was returned from SoundKit storage.");
+        setStatusMessage(
+          "No uploaded file was returned from SoundKit storage."
+        );
         return;
       }
 
@@ -159,8 +164,12 @@ export function ProfileMediaUpload({
         </p>
       ) : null}
 
-      {statusMessage ? <p className="text-xs text-muted-foreground">{statusMessage}</p> : null}
-      {error ? <p className="text-xs text-destructive">{error.message}</p> : null}
+      {statusMessage ? (
+        <p className="text-xs text-muted-foreground">{statusMessage}</p>
+      ) : null}
+      {error ? (
+        <p className="text-xs text-destructive">{error.message}</p>
+      ) : null}
     </div>
   );
 }

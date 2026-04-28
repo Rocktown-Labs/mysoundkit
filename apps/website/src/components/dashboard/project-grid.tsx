@@ -136,7 +136,8 @@ export function ProjectGrid() {
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-lg font-[family-name:var(--font-playfair)] truncate">
                   <Link
-                    to={`/dashboard/projects/${project.id}`}
+                    to="/dashboard/projects/$id"
+                    params={{ id: String(project.id) }}
                     className="hover:text-primary transition-colors"
                   >
                     {project.name}
@@ -281,7 +282,11 @@ export function ProjectGrid() {
 
             {/* Actions */}
             <div className="flex items-center space-x-2 pt-2">
-              <Link to={`/dashboard/projects/${project.id}`} className="flex-1">
+              <Link
+                to="/dashboard/projects/$id"
+                params={{ id: String(project.id) }}
+                className="flex-1"
+              >
                 <Button
                   variant="outline"
                   size="sm"

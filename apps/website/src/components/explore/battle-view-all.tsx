@@ -1,5 +1,4 @@
-import { useRouter, useRouterState } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, Trophy, TrendingUp, Music2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
@@ -217,7 +216,6 @@ export function BattleViewAll({
   title,
   description,
 }: BattleViewAllProps) {
-  const router = useRouter();
   const locationSearch = useRouterState({ select: (s) => s.location.search });
   const searchParams = new URLSearchParams(
     typeof locationSearch === "string" ? locationSearch : ""
@@ -272,16 +270,11 @@ export function BattleViewAll({
       return;
     }
 
-    router.navigate({
-      replace: true,
-      search: { genre, region, regionType, sort },
-    });
-
     window.localStorage.setItem(
       "battleFilters",
       JSON.stringify({ genre, region, regionType, sort })
     );
-  }, [regionType, region, genre, sort, router]);
+  }, [regionType, region, genre, sort]);
 
   const data =
     type === "live"
@@ -390,7 +383,11 @@ export function BattleViewAll({
       {type === "must-see" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {(data as ReturnType<typeof generateMustSeeBattles>).map((battle) => (
-            <Link key={battle.id} to={`/live/battles/${battle.id}`}>
+            <Link
+              key={battle.id}
+              to="/live/battles/$id"
+              params={{ id: battle.id }}
+            >
               <Card className="group hover:bg-accent transition-colors cursor-pointer h-full">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">

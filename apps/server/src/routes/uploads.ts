@@ -67,15 +67,13 @@ const createUploadRouter = (): Router | null => {
           const userId = await requireUploadUser(req);
 
           return {
-            generateObjectInfo: ({ file }) => {
-              return {
+            generateObjectInfo: ({ file }) => ({
                 key: createObjectKey({
                   fileName: file.name,
                   prefix: "uploads",
                   userId,
                 }),
-              };
-            },
+              }),
           };
         },
       }),
@@ -181,11 +179,7 @@ app.openapi(
 );
 
 const handleUploadRoute = (
-  uploadPath:
-    | "/media"
-    | "/profile-media"
-    | "/project-assets"
-    | "/track-source"
+  uploadPath: "/media" | "/profile-media" | "/project-assets" | "/track-source"
 ) =>
   app.on(["GET", "POST"], uploadPath, (c) => {
     const uploadRouter = createUploadRouter();

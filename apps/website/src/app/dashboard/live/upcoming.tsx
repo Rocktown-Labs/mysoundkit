@@ -118,7 +118,10 @@ function UpcomingBattlesPage() {
 
                 <div className="flex flex-col gap-2 lg:min-w-[140px]">
                   <Button asChild className="w-full">
-                    <Link to={`/dashboard/live/my-kit?battle=${battle.id}`}>
+                    <Link
+                      to="/dashboard/live/my-kit"
+                      search={{ battle: battle.id }}
+                    >
                       <Trophy className="mr-2 size-4" />
                       Prep Kit
                     </Link>

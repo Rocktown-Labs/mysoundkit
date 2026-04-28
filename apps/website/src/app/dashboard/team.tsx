@@ -1,19 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { 
-  UserPlus, 
-  Mail, 
-  MoreVertical, 
-  ShieldCheck, 
-  Users, 
-  UserCheck, 
-  Clock, 
-  ArrowUpDown,
-  Search,
-  Settings2,
-  Trash2,
-  ExternalLink
-} from "lucide-react";
-import { useState, useMemo } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -21,9 +6,26 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-  type ColumnDef,
 } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import {
+  UserPlus,
+  Mail,
+  MoreVertical,
+  ShieldCheck,
+  Users,
+  UserCheck,
+  Clock,
+  ArrowUpDown,
+  Search,
+  Settings2,
+  Trash2,
+  ExternalLink,
+} from "lucide-react";
+import { useState, useMemo } from "react";
 
+import { StatsGrid } from "@/components/dashboard/stats-grid";
+import { InviteMemberDialog } from "@/components/dashboard/team/invite-member-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,8 +45,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { StatsGrid } from "@/components/dashboard/stats-grid";
-import { InviteMemberDialog } from "@/components/dashboard/team/invite-member-dialog";
 import { cn } from "@/lib/utils";
 
 interface TeamMember {
@@ -60,44 +60,44 @@ interface TeamMember {
 
 const teamData: TeamMember[] = [
   {
-    id: "1",
-    name: "Jessica Martinez",
-    email: "jessica@soundkit.app",
-    role: "Admin",
-    status: "active",
     avatar: "/diverse-user-avatars.png",
+    email: "jessica@soundkit.app",
+    id: "1",
     joinedAt: "2023-10-12",
     lastActive: "2 minutes ago",
+    name: "Jessica Martinez",
+    role: "Admin",
+    status: "active",
   },
   {
-    id: "2",
-    name: "David Kim",
-    email: "david@soundkit.app",
-    role: "Manager",
-    status: "active",
     avatar: "/diverse-user-avatars.png",
+    email: "david@soundkit.app",
+    id: "2",
     joinedAt: "2023-11-05",
     lastActive: "1 hour ago",
+    name: "David Kim",
+    role: "Manager",
+    status: "active",
   },
   {
-    id: "3",
-    name: "Emma Wilson",
-    email: "emma@soundkit.app",
-    role: "Editor",
-    status: "pending",
     avatar: "/diverse-user-avatars.png",
+    email: "emma@soundkit.app",
+    id: "3",
     joinedAt: "2024-04-18",
     lastActive: "Never",
+    name: "Emma Wilson",
+    role: "Editor",
+    status: "pending",
   },
   {
-    id: "4",
-    name: "Marcus Thorne",
-    email: "marcus@soundkit.app",
-    role: "Viewer",
-    status: "inactive",
     avatar: "/diverse-user-avatars.png",
+    email: "marcus@soundkit.app",
+    id: "4",
     joinedAt: "2024-01-20",
     lastActive: "2 weeks ago",
+    name: "Marcus Thorne",
+    role: "Viewer",
+    status: "inactive",
   },
 ];
 
@@ -107,149 +107,173 @@ export const Route = createFileRoute("/dashboard/team")({
 
 function TeamPage() {
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [sorting, setSorting] = useState([]);
+  const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
 
   const teamStats = [
     {
-      title: "Team Seats",
-      value: "4 / 10",
       description: "6 seats available on Pro+ plan",
       icon: Users,
+      title: "Team Seats",
+      value: "4 / 10",
     },
     {
-      title: "Active Members",
-      value: "2",
       description: "Currently online or active",
       icon: UserCheck,
+      title: "Active Members",
+      value: "2",
     },
     {
-      title: "Pending Invites",
-      value: "1",
       description: "Awaiting confirmation",
       icon: Clock,
+      title: "Pending Invites",
+      value: "1",
     },
     {
-      title: "Admin Roles",
-      value: "1",
       description: "Full management access",
       icon: ShieldCheck,
+      title: "Admin Roles",
+      value: "1",
     },
   ];
 
-  const columns = useMemo<ColumnDef<TeamMember>[]>(() => [
-    {
-      accessorKey: "name",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="p-0 hover:bg-transparent font-semibold uppercase text-[10px] tracking-widest text-muted-foreground"
-        >
-          Member
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => {
-        const member = row.original;
-        return (
-          <div className="flex items-center gap-3 py-1">
-            <Avatar className="size-9 border border-border/40">
-              <AvatarImage src={member.avatar} />
-              <AvatarFallback>{member.name[0]}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col min-w-0">
-              <span className="font-semibold text-sm truncate">{member.name}</span>
-              <span className="text-[11px] text-muted-foreground truncate">{member.email}</span>
+  const columns = useMemo<ColumnDef<TeamMember>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        cell: ({ row }) => {
+          const member = row.original;
+          return (
+            <div className="flex items-center gap-3 py-1">
+              <Avatar className="size-9 border border-border/40">
+                <AvatarImage src={member.avatar} />
+                <AvatarFallback>{member.name[0]}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="font-semibold text-sm truncate">
+                  {member.name}
+                </span>
+                <span className="text-[11px] text-muted-foreground truncate">
+                  {member.email}
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "role",
-      header: () => <span className="font-semibold uppercase text-[10px] tracking-widest text-muted-foreground">Role</span>,
-      cell: ({ row }) => (
-        <Badge variant="secondary" className="bg-muted/50 text-[10px] uppercase tracking-wider h-5 font-bold">
-          {row.getValue("role")}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: () => <span className="font-semibold uppercase text-[10px] tracking-widest text-muted-foreground">Status</span>,
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return (
-          <Badge
-            variant="outline"
-            className={cn(
-              "text-[10px] uppercase tracking-wider h-5",
-              status === "active" ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" :
-              status === "pending" ? "text-amber-500 border-amber-500/20 bg-amber-500/5" :
-              "text-muted-foreground border-border/40"
-            )}
+          );
+        },
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="p-0 hover:bg-transparent font-semibold uppercase text-[10px] tracking-widest text-muted-foreground"
           >
-            {status}
-          </Badge>
-        );
+            Member
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
       },
-    },
-    {
-      accessorKey: "lastActive",
-      header: () => <span className="font-semibold uppercase text-[10px] tracking-widest text-muted-foreground">Last Active</span>,
-      cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
-          {row.getValue("lastActive")}
-        </span>
-      ),
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-8">
-                <MoreVertical className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Settings2 className="mr-2 size-4" />
-                Edit Role
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <ExternalLink className="mr-2 size-4" />
-                View Profile
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <Trash2 className="mr-2 size-4" />
-                Remove Member
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ),
-    },
-  ], []);
+      {
+        accessorKey: "role",
+        cell: ({ row }) => (
+          <Badge
+            variant="secondary"
+            className="bg-muted/50 text-[10px] uppercase tracking-wider h-5 font-bold"
+          >
+            {row.getValue("role")}
+          </Badge>
+        ),
+        header: () => (
+          <span className="font-semibold uppercase text-[10px] tracking-widest text-muted-foreground">
+            Role
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        cell: ({ row }) => {
+          const status = row.getValue("status") as string;
+          return (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px] uppercase tracking-wider h-5",
+                status === "active"
+                  ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5"
+                  : (status === "pending"
+                    ? "text-amber-500 border-amber-500/20 bg-amber-500/5"
+                    : "text-muted-foreground border-border/40")
+              )}
+            >
+              {status}
+            </Badge>
+          );
+        },
+        header: () => (
+          <span className="font-semibold uppercase text-[10px] tracking-widest text-muted-foreground">
+            Status
+          </span>
+        ),
+      },
+      {
+        accessorKey: "lastActive",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.getValue("lastActive")}
+          </span>
+        ),
+        header: () => (
+          <span className="font-semibold uppercase text-[10px] tracking-widest text-muted-foreground">
+            Last Active
+          </span>
+        ),
+      },
+      {
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-8">
+                  <MoreVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <Settings2 className="mr-2 size-4" />
+                  Edit Role
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <ExternalLink className="mr-2 size-4" />
+                  View Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive">
+                  <Trash2 className="mr-2 size-4" />
+                  Remove Member
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+        id: "actions",
+      },
+    ],
+    []
+  );
 
   const table = useReactTable({
-    data: teamData,
     columns,
-    state: {
-      sorting,
-      globalFilter,
-    },
-    onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    data: teamData,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onGlobalFilterChange: setGlobalFilter,
+    onSortingChange: setSorting,
+    state: {
+      globalFilter,
+      sorting,
+    },
   });
 
   return (
@@ -264,7 +288,7 @@ function TeamPage() {
             Manage your professional circle and account seats.
           </p>
         </div>
-        <Button 
+        <Button
           onClick={() => setIsInviteOpen(true)}
           className="shadow-lg shadow-primary/20 transition-all hover:scale-[1.02]"
         >
@@ -288,8 +312,8 @@ function TeamPage() {
             </div>
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input 
-                placeholder="Filter members..." 
+              <Input
+                placeholder="Filter members..."
                 className="pl-9 bg-muted/30 border-none"
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
@@ -304,8 +328,8 @@ function TeamPage() {
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
-                      <th 
-                        key={header.id} 
+                      <th
+                        key={header.id}
                         className="px-6 py-4 text-left font-medium"
                       >
                         {header.isPlaceholder
@@ -321,7 +345,10 @@ function TeamPage() {
               </thead>
               <tbody className="divide-y divide-border/10">
                 {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-white/[0.02] transition-colors group">
+                  <tr
+                    key={row.id}
+                    className="hover:bg-white/[0.02] transition-colors group"
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="px-6 py-4">
                         {flexRender(
@@ -340,7 +367,8 @@ function TeamPage() {
               <Users className="size-12 text-muted-foreground/20 mx-auto mb-4" />
               <h3 className="text-lg font-medium">No team members yet</h3>
               <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                Start building your professional team by inviting your first collaborator.
+                Start building your professional team by inviting your first
+                collaborator.
               </p>
             </div>
           )}
@@ -361,7 +389,8 @@ function TeamPage() {
             <p className="text-xs text-muted-foreground leading-relaxed">
               Team members help manage your music career. They have broader
               access to your account and can help with management, marketing,
-              social media, and other business aspects. They occupy a "seat" on your plan.
+              social media, and other business aspects. They occupy a "seat" on
+              your plan.
             </p>
           </CardContent>
         </Card>
@@ -376,15 +405,15 @@ function TeamPage() {
           <CardContent>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Collaborators are artists you work with on specific tracks or
-              projects. They only have access to what they're invited to, with 
+              projects. They only have access to what they're invited to, with
               limited permissions. They do not occupy team seats.
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <InviteMemberDialog 
-        isOpen={isInviteOpen} 
+      <InviteMemberDialog
+        isOpen={isInviteOpen}
         onOpenChange={setIsInviteOpen}
         seatsUsed={4}
         totalSeats={10}

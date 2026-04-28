@@ -1,9 +1,9 @@
-import Mux from "@mux/mux-node";
-import { desc, eq } from "drizzle-orm";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import Mux from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { videos } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
+import { desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -41,7 +41,8 @@ const getMuxClient = () => {
 const getSampleVideoFallback = (
   videoId?: string
 ): (typeof sampleVideos)[number] => {
-  const fallback = sampleVideos.find((entry) => entry.id === videoId) ?? sampleVideos[0];
+  const fallback =
+    sampleVideos.find((entry) => entry.id === videoId) ?? sampleVideos[0];
 
   if (!fallback) {
     throw new Error("Sample video fallback is missing.");
@@ -71,7 +72,7 @@ const mapVideo = (
           | "battle_clip"
           | "live_recording";
       }
-    | typeof sampleVideos[number]
+    | (typeof sampleVideos)[number]
 ) => ({
   externalPlaybackUrl: video.externalPlaybackUrl ?? null,
   id: video.id,
@@ -188,14 +189,15 @@ app.openapi(
         description: body.description,
         externalPlaybackUrl:
           body.sourceProvider === "external"
-            ? body.externalPlaybackUrl ?? null
+            ? (body.externalPlaybackUrl ?? null)
             : null,
         id: videoId,
         isPublic:
           body.sourceProvider === "external" ||
           body.playbackPolicy === "public",
-        organizationId:
-          isAuthenticatedSession(session) ? session.activeOrganizationId ?? null : null,
+        organizationId: isAuthenticatedSession(session)
+          ? (session.activeOrganizationId ?? null)
+          : null,
         ownerUserId: user.id,
         playbackPolicy: body.playbackPolicy,
         sourceProjectId: body.sourceProjectId ?? null,
@@ -304,8 +306,9 @@ app.openapi(
       isPublic: body.playbackPolicy === "public",
       muxPassthrough: passthrough,
       muxUploadId: upload.id,
-      organizationId:
-        isAuthenticatedSession(session) ? session.activeOrganizationId ?? null : null,
+      organizationId: isAuthenticatedSession(session)
+        ? (session.activeOrganizationId ?? null)
+        : null,
       ownerUserId: user.id,
       playbackPolicy: body.playbackPolicy,
       sourceProjectId: body.sourceProjectId ?? null,
@@ -350,7 +353,10 @@ app.openapi(
     const { videoId } = c.req.valid("param");
 
     if (!isDatabaseConfigured()) {
-      return c.json(mapVideo(getSampleVideoFallback(videoId)), HttpStatusCodes.OK);
+      return c.json(
+        mapVideo(getSampleVideoFallback(videoId)),
+        HttpStatusCodes.OK
+      );
     }
 
     const db = createDb();
@@ -361,7 +367,10 @@ app.openapi(
       .limit(1);
 
     if (!video) {
-      return c.json(mapVideo(getSampleVideoFallback(videoId)), HttpStatusCodes.OK);
+      return c.json(
+        mapVideo(getSampleVideoFallback(videoId)),
+        HttpStatusCodes.OK
+      );
     }
 
     return c.json(mapVideo(video), HttpStatusCodes.OK);

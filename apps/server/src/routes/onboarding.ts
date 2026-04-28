@@ -4,22 +4,98 @@ import {
   artistProfileRoles,
   artistProfiles,
   fanProfiles,
+  genres,
+  profileLinks,
   userProfiles,
+  userGenrePreferences,
 } from "@soundkit/db/schema/app";
-import { eq } from "drizzle-orm";
+import { subscription } from "@soundkit/db/schema/auth";
+import { and, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import {
   messageResponseSchema,
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
+  onboardingResponseSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { ensureWorkspaceForUser, slugify } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const ensureGenre = async (name: string) => {
+  const db = createDb();
+  const slug = slugify(name);
+  const [existing] = await db
+    .select({ id: genres.id })
+    .from(genres)
+    .where(eq(genres.slug, slug))
+    .limit(1);
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const genreId = crypto.randomUUID();
+  await db.insert(genres).values({
+    id: genreId,
+    name,
+    slug,
+  });
+
+  return genreId;
+};
+
+const ensureFreeSubscription = async ({
+  planCode,
+  referenceId,
+}: {
+  planCode: string;
+  referenceId: string;
+}) => {
+  if (!isFreePlan(planCode)) {
+    return;
+  }
+
+  const db = createDb();
+  const [existing] = await db
+    .select({ id: subscription.id })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.referenceId, referenceId),
+        eq(subscription.plan, planCode),
+        eq(subscription.status, "active")
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    return;
+  }
+
+  await db.insert(subscription).values({
+    id: crypto.randomUUID(),
+    plan: planCode,
+    referenceId,
+    status: "active",
+  });
+};
+
+const onboardingUrls = (request: Request) => {
+  const url = new URL(request.url);
+  const { origin } = url;
+
+  return {
+    cancelUrl: `${origin}/signup`,
+    successUrl: `${origin}/dashboard`,
+  };
+};
 
 app.openapi(
   createRoute({
@@ -33,7 +109,7 @@ app.openapi(
     },
     responses: {
       [HttpStatusCodes.CREATED]: jsonContent(
-        messageResponseSchema,
+        onboardingResponseSchema,
         "Artist onboarding saved"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -54,6 +130,12 @@ app.openapi(
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
       const db = createDb();
       const now = new Date();
+      const genreId = await ensureGenre(body.primaryGenre);
+      const workspaceId = await ensureWorkspaceForUser({
+        accountType: "artist",
+        displayName: user.name ?? body.username,
+        user,
+      });
 
       await db
         .insert(userProfiles)
@@ -82,12 +164,16 @@ app.openapi(
       await db
         .insert(artistProfiles)
         .values({
+          primaryGenreId: genreId,
+          primaryOrganizationId: workspaceId,
           stageName: user.name ?? body.username,
           updatedAt: now,
           userId: user.id,
         })
         .onConflictDoUpdate({
           set: {
+            primaryGenreId: genreId,
+            primaryOrganizationId: workspaceId,
             stageName: user.name ?? body.username,
             updatedAt: now,
           },
@@ -104,10 +190,68 @@ app.openapi(
           userId: user.id,
         }))
       );
+
+      const linkInputs = [
+        ["instagram", body.instagramHandle],
+        ["tiktok", body.tiktokHandle],
+        ["twitter", body.twitterHandle],
+        ["spotify", body.spotifyUrl],
+        ["apple_music", body.appleMusicUrl],
+        ["youtube", body.youtubeUrl],
+      ] as const;
+
+      await db.delete(profileLinks).where(eq(profileLinks.userId, user.id));
+
+      const links = linkInputs
+        .filter(([, value]) => Boolean(value))
+        .map(([platform, value], index) => ({
+          handle: value?.startsWith("http") ? null : value,
+          id: crypto.randomUUID(),
+          platform,
+          sortOrder: index,
+          url: value?.startsWith("http")
+            ? value
+            : `https://${platform}.com/${value}`,
+          userId: user.id,
+        }));
+
+      if (links.length > 0) {
+        await db.insert(profileLinks).values(links);
+      }
+
+      await ensureFreeSubscription({
+        planCode: body.selectedPlanCode,
+        referenceId: workspaceId,
+      });
+
+      const checkout = await createPlanCheckout({
+        ...onboardingUrls(c.req.raw),
+        planCode: body.selectedPlanCode,
+        referenceId: workspaceId,
+        request: c.req.raw,
+        seats: Math.max(1, body.teamInviteEmails.length + 1),
+      });
+
+      return c.json(
+        {
+          checkoutUrl: checkout.checkoutUrl,
+          message: `Artist onboarding captured for ${body.username}`,
+          requiresCheckout: Boolean(checkout.requiresCheckout),
+          setupRequired: Boolean(checkout.setupRequired),
+          workspaceId,
+        },
+        HttpStatusCodes.CREATED
+      );
     }
 
     return c.json(
-      { message: `Artist onboarding captured for ${body.username}` },
+      {
+        checkoutUrl: null,
+        message: `Artist onboarding captured for ${body.username}`,
+        requiresCheckout: false,
+        setupRequired: true,
+        workspaceId: null,
+      },
       HttpStatusCodes.CREATED
     );
   }
@@ -125,7 +269,7 @@ app.openapi(
     },
     responses: {
       [HttpStatusCodes.CREATED]: jsonContent(
-        messageResponseSchema,
+        onboardingResponseSchema,
         "Fan onboarding saved"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -146,6 +290,11 @@ app.openapi(
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
       const db = createDb();
       const now = new Date();
+      const workspaceId = await ensureWorkspaceForUser({
+        accountType: "fan",
+        displayName: user.name ?? body.username,
+        user,
+      });
 
       await db
         .insert(userProfiles)
@@ -183,10 +332,56 @@ app.openapi(
           },
           target: fanProfiles.userId,
         });
+
+      await db
+        .delete(userGenrePreferences)
+        .where(eq(userGenrePreferences.userId, user.id));
+
+      const genreIds = [];
+      for (const genre of body.genrePreferences) {
+        genreIds.push(await ensureGenre(genre));
+      }
+
+      await db.insert(userGenrePreferences).values(
+        genreIds.map((genreId) => ({
+          genreId,
+          userId: user.id,
+        }))
+      );
+
+      await ensureFreeSubscription({
+        planCode: body.selectedPlanCode,
+        referenceId: workspaceId,
+      });
+
+      const checkout = await createPlanCheckout({
+        ...onboardingUrls(c.req.raw),
+        planCode: body.selectedPlanCode,
+        referenceId: workspaceId,
+        request: c.req.raw,
+        seats: 1,
+      });
+
+      return c.json(
+        {
+          checkoutUrl: checkout.checkoutUrl,
+          message: `Fan onboarding captured for ${body.username}`,
+          requiresCheckout: Boolean(checkout.requiresCheckout),
+          setupRequired: Boolean(checkout.setupRequired),
+          workspaceId,
+        },
+        HttpStatusCodes.CREATED
+      );
     }
 
     return c.json(
-      { message: `Fan onboarding captured for ${body.username}` },
+      {
+        checkoutUrl: null,
+        message: `Fan onboarding captured for ${body.username}`,
+        requiresCheckout: false,
+        setupRequired: true,
+        workspaceId: null,
+      },
       HttpStatusCodes.CREATED
     );
   }

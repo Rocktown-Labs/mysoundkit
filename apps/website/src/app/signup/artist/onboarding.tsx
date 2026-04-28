@@ -39,6 +39,8 @@ function ArtistOnboardingPage() {
   const [roles, setRoles] = useState<ArtistRole[]>(["musician"]);
   const [username, setUsername] = useState("");
   const [city, setCity] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [stateValue, setStateValue] = useState("");
   const [primaryGenre, setPrimaryGenre] = useState("");
   const [selectedPlanCode, setSelectedPlanCode] = useState("artist_lite_ads");
@@ -59,8 +61,11 @@ function ArtistOnboardingPage() {
     });
   };
   const completeOnboarding = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
     try {
-      await fetch(`${API_V1_URL}/onboarding/artist`, {
+      const response = await fetch(`${API_V1_URL}/onboarding/artist`, {
         body: JSON.stringify({
           city: city || "Los Angeles",
           primaryGenre: primaryGenre || "Hip-Hop",
@@ -76,11 +81,30 @@ function ArtistOnboardingPage() {
         },
         method: "POST",
       });
-    } catch {
-      // The mock onboarding UI still advances when the API is offline.
-    }
 
-    router.navigate({ to: "/dashboard" });
+      const payload = (await response.json().catch(() => null)) as {
+        checkoutUrl?: string | null;
+        message?: string;
+      } | null;
+
+      if (!response.ok) {
+        setErrorMessage(
+          payload?.message ?? "Unable to complete onboarding right now."
+        );
+        return;
+      }
+
+      if (payload?.checkoutUrl) {
+        window.location.assign(payload.checkoutUrl);
+        return;
+      }
+
+      await router.navigate({ to: "/dashboard" });
+    } catch {
+      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -432,7 +456,11 @@ function ArtistOnboardingPage() {
                   <h3 className="font-bold text-lg mb-4">Choose Your Plan</h3>
                   <div className="grid gap-4">
                     <Card
-                      className="border-2 cursor-pointer hover:border-primary transition-colors"
+                      className={`border-2 cursor-pointer hover:border-primary transition-colors ${
+                        selectedPlanCode === "artist_free"
+                          ? "border-primary"
+                          : ""
+                      }`}
                       onClick={() => setSelectedPlanCode("artist_free")}
                     >
                       <CardContent className="p-4">
@@ -448,7 +476,11 @@ function ArtistOnboardingPage() {
                       </CardContent>
                     </Card>
                     <Card
-                      className="border-2 border-primary cursor-pointer"
+                      className={`border-2 cursor-pointer ${
+                        selectedPlanCode === "artist_lite_ads"
+                          ? "border-primary"
+                          : ""
+                      }`}
                       onClick={() => setSelectedPlanCode("artist_lite_ads")}
                     >
                       <CardContent className="p-4">
@@ -471,6 +503,12 @@ function ArtistOnboardingPage() {
                   </div>
                 </div>
 
+                {errorMessage && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {errorMessage}
+                  </p>
+                )}
+
                 <div className="flex gap-3">
                   <Button
                     onClick={() => setStep(6)}
@@ -482,11 +520,12 @@ function ArtistOnboardingPage() {
                   </Button>
                   <Button
                     className="flex-1"
+                    disabled={isSubmitting}
                     size="lg"
                     onClick={() => void completeOnboarding()}
                   >
                     <Check className="mr-2 size-5" />
-                    Complete Setup
+                    {isSubmitting ? "Completing..." : "Complete Setup"}
                   </Button>
                 </div>
               </div>

@@ -7,7 +7,6 @@ export const Route = createFileRoute("/dashboard/tracks/$id/edit")({
 });
 
 function EditTrackPage() {
-  const { id } = Route.useParams();
   return (
     <div className="space-y-6">
       <div>
@@ -18,7 +17,7 @@ function EditTrackPage() {
           Update your track details and files
         </p>
       </div>
-      <NewTrackForm isEditing trackId={id} />
+      <NewTrackForm />
     </div>
   );
 }

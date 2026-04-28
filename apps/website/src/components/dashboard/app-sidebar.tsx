@@ -16,8 +16,9 @@ import {
   Headphones,
 } from "lucide-react";
 
-import { SidebarNavGroup } from '@/components/sidebar-nav-group';
-import type { SidebarNavItem } from '@/components/sidebar-nav-group';
+import { SidebarNavGroup } from "@/components/sidebar-nav-group";
+import type { SidebarNavItem } from "@/components/sidebar-nav-group";
+import { SoundKitBrand } from "@/components/soundkit-brand";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -36,7 +37,6 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { SoundKitBrand } from "@/components/soundkit-brand";
 
 const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard", icon: Home, name: "Dashboard" },
@@ -147,7 +147,7 @@ export function AppSidebar() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/dashboard/settings">
+                  <Link to="/dashboard/career/settings">
                     <Settings className="mr-2 size-4" />
                     Settings
                   </Link>

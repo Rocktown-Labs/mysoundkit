@@ -46,7 +46,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
     <div className="space-y-6">
       {/* Back Navigation */}
       <Link
-        href="/dashboard/projects"
+        to="/dashboard/projects"
         className="inline-flex items-center space-x-2 text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />

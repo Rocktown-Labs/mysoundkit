@@ -1,7 +1,5 @@
 import alchemy from "alchemy";
-import { R2Bucket } from "alchemy/cloudflare";
-import { TanStackStart } from "alchemy/cloudflare";
-import { Worker } from "alchemy/cloudflare";
+import { R2Bucket, TanStackStart, Worker, Workflow } from "alchemy/cloudflare";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -12,6 +10,14 @@ const app = await alchemy("soundkit");
 const SITE_URL = "https://mysoundkit.com";
 const API_URL = "https://api.mysoundkit.com";
 const MEDIA_URL = "https://media.mysoundkit.com";
+
+const requiredSecret = <T>(value: T | undefined, name: string) => {
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  return value;
+};
 
 const media = await R2Bucket("media", {
   adopt: true,
@@ -28,15 +34,28 @@ const media = await R2Bucket("media", {
   name: "soundkit-media",
 });
 
+const trackProcessingWorkflow = Workflow("track-processing", {
+  className: "TrackProcessingWorkflow",
+  workflowName: "soundkit-track-processing",
+});
+
 export const web = await TanStackStart("web", {
   adopt: true,
   bindings: {
-    BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
+    BETTER_AUTH_SECRET: requiredSecret(
+      alchemy.secret.env.BETTER_AUTH_SECRET,
+      "BETTER_AUTH_SECRET"
+    ),
     BETTER_AUTH_URL: API_URL,
     CORS_ORIGIN: SITE_URL,
-    DATABASE_URL: alchemy.secret.env.DATABASE_URL!,
-    GOOGLE_GENERATIVE_AI_API_KEY:
-      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+    DATABASE_URL: requiredSecret(
+      alchemy.secret.env.DATABASE_URL,
+      "DATABASE_URL"
+    ),
+    GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
+      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      "GOOGLE_GENERATIVE_AI_API_KEY"
+    ),
     VITE_MEDIA_URL: MEDIA_URL,
     VITE_SERVER_URL: API_URL,
   },
@@ -68,17 +87,51 @@ export const web = await TanStackStart("web", {
 export const server = await Worker("server", {
   adopt: true,
   bindings: {
-    BETTER_AUTH_SECRET: alchemy.secret.env.BETTER_AUTH_SECRET!,
+    BETTER_AUTH_SECRET: requiredSecret(
+      alchemy.secret.env.BETTER_AUTH_SECRET,
+      "BETTER_AUTH_SECRET"
+    ),
     BETTER_AUTH_URL: API_URL,
     CORS_ORIGIN: SITE_URL,
-    DATABASE_URL: alchemy.secret.env.DATABASE_URL!,
-    GOOGLE_GENERATIVE_AI_API_KEY:
-      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+    DATABASE_URL: requiredSecret(
+      alchemy.secret.env.DATABASE_URL,
+      "DATABASE_URL"
+    ),
+    GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
+      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      "GOOGLE_GENERATIVE_AI_API_KEY"
+    ),
     MEDIA_BUCKET: media,
     MEDIA_PUBLIC_URL: MEDIA_URL,
-    MUX_TOKEN_ID: alchemy.secret.env.MUX_TOKEN_ID!,
-    MUX_TOKEN_SECRET: alchemy.secret.env.MUX_TOKEN_SECRET!,
-    MUX_WEBHOOK_SECRET: alchemy.secret.env.MUX_WEBHOOK_SECRET!,
+    MUX_TOKEN_ID: requiredSecret(
+      alchemy.secret.env.MUX_TOKEN_ID,
+      "MUX_TOKEN_ID"
+    ),
+    MUX_TOKEN_SECRET: requiredSecret(
+      alchemy.secret.env.MUX_TOKEN_SECRET,
+      "MUX_TOKEN_SECRET"
+    ),
+    MUX_WEBHOOK_SECRET: requiredSecret(
+      alchemy.secret.env.MUX_WEBHOOK_SECRET,
+      "MUX_WEBHOOK_SECRET"
+    ),
+    STEMSPLIT_API_KEY: requiredSecret(
+      alchemy.secret.env.STEMSPLIT_API_KEY,
+      "STEMSPLIT_API_KEY"
+    ),
+    STEMSPLIT_WEBHOOK_SECRET: requiredSecret(
+      alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
+      "STEMSPLIT_WEBHOOK_SECRET"
+    ),
+    STRIPE_SECRET_KEY: requiredSecret(
+      alchemy.secret.env.STRIPE_SECRET_KEY,
+      "STRIPE_SECRET_KEY"
+    ),
+    STRIPE_WEBHOOK_SECRET: requiredSecret(
+      alchemy.secret.env.STRIPE_WEBHOOK_SECRET,
+      "STRIPE_WEBHOOK_SECRET"
+    ),
+    TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
     UPLOAD_BUCKET_NAME: media.name,
   },
   compatibility: "node",

@@ -11,6 +11,7 @@ export interface AuthenticatedUser {
 }
 
 export interface AppVariables {
+  requestId: string;
   session: AuthenticatedSession | null;
   user: AuthenticatedUser | null;
 }

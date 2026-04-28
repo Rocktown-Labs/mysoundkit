@@ -1,5 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop */
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Mail } from "lucide-react";
+import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { SoundKitBrand } from "@/components/soundkit-brand";
@@ -15,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/signup/fan/credentials")({
   component: FanCredentialsPage,
@@ -22,6 +25,42 @@ export const Route = createFileRoute("/signup/fan/credentials")({
 
 function FanCredentialsPage() {
   const [authMethod, setAuthMethod] = useState<"email" | "oauth" | null>(null);
+  const router = useRouter();
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [password, setPassword] = useState("");
+
+  const handleEmailSignup = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const result = await authClient.signUp.email({
+        email,
+        name: email.split("@")[0] ?? "Fan",
+        password,
+      });
+
+      if (result.error) {
+        setErrorMessage(result.error.message ?? "Unable to create account.");
+        return;
+      }
+
+      await router.navigate({ to: "/signup/fan/onboarding" });
+    } catch {
+      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -56,57 +95,25 @@ function FanCredentialsPage() {
           <CardContent className="space-y-4">
             {/* OAuth Options */}
             <div className="space-y-3">
-              <Link to="/signup/fan/onboarding">
+              {["Google", "Spotify", "Apple"].map((provider) => (
                 <Button
+                  key={provider}
                   variant="outline"
                   className="w-full justify-start h-12 bg-transparent"
                   size="lg"
+                  disabled
                 >
                   <AppImage
                     src="/placeholder.svg?height=24&width=24"
-                    alt="Google"
+                    alt={provider}
                     width={24}
                     height={24}
                     layout="fixed"
                     className="mr-3"
                   />
-                  Continue with Google
+                  {provider} setup required
                 </Button>
-              </Link>
-              <Link to="/signup/fan/onboarding">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start h-12 bg-transparent"
-                  size="lg"
-                >
-                  <AppImage
-                    src="/placeholder.svg?height=24&width=24"
-                    alt="Spotify"
-                    width={24}
-                    height={24}
-                    layout="fixed"
-                    className="mr-3"
-                  />
-                  Continue with Spotify
-                </Button>
-              </Link>
-              <Link to="/signup/fan/onboarding">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start h-12 bg-transparent"
-                  size="lg"
-                >
-                  <AppImage
-                    src="/placeholder.svg?height=24&width=24"
-                    alt="Apple"
-                    width={24}
-                    height={24}
-                    layout="fixed"
-                    className="mr-3"
-                  />
-                  Continue with Apple
-                </Button>
-              </Link>
+              ))}
             </div>
 
             <Separator className="my-6">
@@ -129,54 +136,71 @@ function FanCredentialsPage() {
             )}
 
             {authMethod === "email" && (
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleEmailSignup}>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
+                    autoComplete="email"
                     type="email"
                     placeholder="fan@example.com"
                     className="bg-input/50 border-border/60 focus:border-primary"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
+                    autoComplete="new-password"
                     type="password"
                     placeholder="Create a strong password"
                     className="bg-input/50 border-border/60 focus:border-primary"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
+                    autoComplete="new-password"
                     type="password"
                     placeholder="Confirm your password"
                     className="bg-input/50 border-border/60 focus:border-primary"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    required
                   />
                 </div>
-                <Link to="/signup/fan/onboarding">
-                  <Button
-                    className="w-full bg-primary hover:bg-primary/90"
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
-                </Link>
+                {errorMessage && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {errorMessage}
+                  </p>
+                )}
+                <Button
+                  className="w-full bg-primary hover:bg-primary/90"
+                  disabled={isSubmitting}
+                  size="lg"
+                  type="submit"
+                >
+                  {isSubmitting ? "Creating account..." : "Continue"}
+                </Button>
               </form>
             )}
 
             <div className="text-center text-xs text-muted-foreground mt-4">
               By continuing, you agree to our{" "}
-              <Link to="#" className="text-primary hover:underline">
+              <a href="/terms" className="text-primary hover:underline">
                 Terms
-              </Link>{" "}
+              </a>{" "}
               and{" "}
-              <Link to="#" className="text-primary hover:underline">
+              <a href="/privacy" className="text-primary hover:underline">
                 Privacy Policy
-              </Link>
+              </a>
             </div>
           </CardContent>
         </Card>

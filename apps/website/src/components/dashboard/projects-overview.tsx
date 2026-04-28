@@ -6,7 +6,7 @@ import {
   CheckCircle,
   Download,
   MoreHorizontal,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -82,9 +82,15 @@ export function ProjectsOverview() {
             <CardTitle className="font-[family-name:var(--font-playfair)] text-xl">
               Recent Projects
             </CardTitle>
-            <CardDescription className="text-xs">Your latest music collaborations and uploads</CardDescription>
+            <CardDescription className="text-xs">
+              Your latest music collaborations and uploads
+            </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" className="text-xs hover:bg-white/5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs hover:bg-white/5"
+          >
             View All
             <ChevronRight className="ml-1 size-3.5" />
           </Button>
@@ -109,7 +115,9 @@ export function ProjectsOverview() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors truncate">{project.name}</h3>
+                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
+                    {project.name}
+                  </h3>
                   <div className="flex flex-wrap items-center gap-x-2 mt-1">
                     <Badge
                       variant={
@@ -136,8 +144,8 @@ export function ProjectsOverview() {
                 <div className="flex items-center gap-3">
                   <div className="flex items-center -space-x-1.5">
                     {Object.entries(project.files).map(([key, value], idx) => (
-                      <div 
-                        key={key} 
+                      <div
+                        key={key}
                         className={cn(
                           "size-2.5 rounded-full border border-card shadow-sm transition-transform hover:scale-125 hover:z-10",
                           value ? "bg-primary" : "bg-muted-foreground/20"
@@ -152,12 +160,20 @@ export function ProjectsOverview() {
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="size-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+                  >
                     <Download className="h-4 w-4" />
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="size-8 rounded-full">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 rounded-full"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>

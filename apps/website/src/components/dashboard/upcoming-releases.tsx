@@ -4,8 +4,14 @@ import { Calendar, Play, Clock } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 
 const upcomingReleases = [
   {
@@ -36,9 +42,15 @@ export function UpcomingReleases() {
               <Calendar className="size-5 text-primary" />
               Upcoming Releases
             </CardTitle>
-            <CardDescription className="text-xs">Scheduled drops and distribution dates</CardDescription>
+            <CardDescription className="text-xs">
+              Scheduled drops and distribution dates
+            </CardDescription>
           </div>
-          <Button variant="outline" size="sm" className="h-8 text-xs bg-card/50">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs bg-card/50"
+          >
             Calendar View
           </Button>
         </div>
@@ -63,16 +75,24 @@ export function UpcomingReleases() {
                   <Play className="size-6 text-white fill-current" />
                 </div>
               </div>
-              
+
               <div className="flex-1 min-w-0 text-center sm:text-left">
-                <p className="font-bold text-base sm:text-sm truncate group-hover:text-primary transition-colors">{release.title}</p>
+                <p className="font-bold text-base sm:text-sm truncate group-hover:text-primary transition-colors">
+                  {release.title}
+                </p>
                 <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
-                  <Badge variant="secondary" className="text-[9px] uppercase tracking-widest px-1.5 h-4 font-bold bg-muted/50">
+                  <Badge
+                    variant="secondary"
+                    className="text-[9px] uppercase tracking-widest px-1.5 h-4 font-bold bg-muted/50"
+                  >
                     {release.type}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                     <Clock className="size-3" />
-                    {new Date(release.releaseDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {new Date(release.releaseDate).toLocaleDateString(
+                      undefined,
+                      { day: "numeric", month: "short", year: "numeric" }
+                    )}
                   </span>
                 </div>
               </div>
@@ -88,11 +108,13 @@ export function UpcomingReleases() {
             </div>
           ))}
         </div>
-        
+
         {upcomingReleases.length === 0 && (
           <div className="p-12 text-center">
             <Calendar className="size-10 text-muted-foreground/20 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">No upcoming releases scheduled.</p>
+            <p className="text-sm text-muted-foreground">
+              No upcoming releases scheduled.
+            </p>
           </div>
         )}
       </CardContent>

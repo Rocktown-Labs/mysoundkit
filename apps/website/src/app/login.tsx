@@ -1,5 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 
 import { SoundKitBrand } from "@/components/soundkit-brand";
 import { Button } from "@/components/ui/button";
@@ -13,12 +16,43 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
 function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [password, setPassword] = useState("");
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const result = await authClient.signIn.email({
+        email,
+        password,
+      });
+
+      if (result.error) {
+        setErrorMessage(result.error.message ?? "Unable to sign in.");
+        return;
+      }
+
+      await router.navigate({ to: "/dashboard" });
+    } catch {
+      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -51,25 +85,38 @@ function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form className="space-y-4">
+            <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
+                  autoComplete="email"
                   type="email"
                   placeholder="your@email.com"
                   className="bg-input/50 border-border/60 focus:border-primary"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
+                  autoComplete="current-password"
                   type="password"
                   placeholder="Enter your password"
                   className="bg-input/50 border-border/60 focus:border-primary"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
                 />
               </div>
+              {errorMessage && (
+                <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {errorMessage}
+                </p>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <input
@@ -91,11 +138,13 @@ function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Link to="/dashboard">
-                <Button className="w-full bg-primary hover:bg-primary/90">
-                  Sign In
-                </Button>
-              </Link>
+              <Button
+                className="w-full bg-primary hover:bg-primary/90"
+                disabled={isSubmitting}
+                type="submit"
+              >
+                {isSubmitting ? "Signing in..." : "Sign In"}
+              </Button>
             </form>
 
             <Separator className="my-6" />
@@ -113,14 +162,6 @@ function LoginPage() {
             </div>
           </CardContent>
         </Card>
-
-        <div className="mt-6 p-4 bg-accent/10 border border-accent/20 rounded-lg">
-          <p className="text-sm text-center text-muted-foreground">
-            <span className="text-accent font-medium">Demo Mode:</span> This is
-            a mockup interface. Authentication is simulated for demonstration
-            purposes.
-          </p>
-        </div>
       </div>
     </div>
   );

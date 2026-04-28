@@ -23,13 +23,19 @@ export function QuickActions() {
             Quickstart
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64 p-2 bg-card/95 backdrop-blur-xl border-border/40">
+        <DropdownMenuContent
+          align="end"
+          className="w-64 p-2 bg-card/95 backdrop-blur-xl border-border/40"
+        >
           <DropdownMenuLabel className="text-xs uppercase tracking-widest text-muted-foreground font-bold px-2 py-1.5">
             Create New
           </DropdownMenuLabel>
           <DropdownMenuSeparator className="bg-border/20" />
-          
-          <DropdownMenuItem asChild className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary">
+
+          <DropdownMenuItem
+            asChild
+            className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary"
+          >
             <Link to="/dashboard/tracks/new" className="flex items-center p-2">
               <div className="size-8 rounded-md bg-indigo-500/10 flex items-center justify-center mr-3 text-indigo-500">
                 <Music className="h-4 w-4" />
@@ -43,8 +49,14 @@ export function QuickActions() {
             </Link>
           </DropdownMenuItem>
 
-          <DropdownMenuItem asChild className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary mt-1">
-            <Link to="/dashboard/projects/new" className="flex items-center p-2">
+          <DropdownMenuItem
+            asChild
+            className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary mt-1"
+          >
+            <Link
+              to="/dashboard/projects/new"
+              className="flex items-center p-2"
+            >
               <div className="size-8 rounded-md bg-emerald-500/10 flex items-center justify-center mr-3 text-emerald-500">
                 <FolderPlus className="h-4 w-4" />
               </div>
@@ -57,7 +69,10 @@ export function QuickActions() {
             </Link>
           </DropdownMenuItem>
 
-          <DropdownMenuItem asChild className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary mt-1">
+          <DropdownMenuItem
+            asChild
+            className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary mt-1"
+          >
             <Link to="/dashboard/videos/new" className="flex items-center p-2">
               <div className="size-8 rounded-md bg-amber-500/10 flex items-center justify-center mr-3 text-amber-500">
                 <Film className="h-4 w-4" />

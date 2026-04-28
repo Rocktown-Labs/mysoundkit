@@ -396,7 +396,8 @@ function BattlePage() {
 
             <div className="flex items-center justify-between mb-4">
               <Link
-                to={`/artist/${battle.artist1.slug}`}
+                to="/artist/$username"
+                params={{ username: battle.artist1.slug }}
                 className="flex items-center gap-3 hover:opacity-80"
               >
                 <Avatar className="size-12">
@@ -421,7 +422,8 @@ function BattlePage() {
               <div className="text-2xl font-bold text-muted-foreground">VS</div>
 
               <Link
-                to={`/artist/${battle.artist2.slug}`}
+                to="/artist/$username"
+                params={{ username: battle.artist2.slug }}
                 className="flex items-center gap-3 hover:opacity-80"
               >
                 <div className="text-right">

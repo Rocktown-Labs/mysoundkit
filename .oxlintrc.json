@@ -4,10 +4,10 @@
     "./node_modules/ultracite/config/oxlint/core/.oxlintrc.json",
     "./node_modules/ultracite/config/oxlint/react/.oxlintrc.json"
   ],
-  "ignorePatterns": [
-    "apps/website/src/routeTree.gen.ts"
-  ],
+  "ignorePatterns": ["apps/website/src/routeTree.gen.ts"],
   "rules": {
-    "func-style": "off"
+    "func-style": "off",
+    "no-use-before-define": "off",
+    "react-perf/jsx-no-new-function-as-prop": "off"
   }
 }

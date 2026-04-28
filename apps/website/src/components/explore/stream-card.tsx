@@ -32,7 +32,10 @@ export function StreamCard({
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow group flex-shrink-0 w-[280px] md:w-[320px] bg-card border-border">
       <CardContent className="p-0">
-        <Link to={isPremiumUser ? `/live/streams/${id}` : "/pricing"}>
+        <Link
+          to={isPremiumUser ? "/live/streams/$id" : "/pricing"}
+          params={isPremiumUser ? { id } : undefined}
+        >
           <div className="relative aspect-video overflow-hidden">
             <AppImage
               src={thumbnailUrl}

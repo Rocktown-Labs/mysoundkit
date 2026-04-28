@@ -87,7 +87,7 @@ export function ListeningPartyCard({
         </div>
 
         <div className="p-4 pt-0 flex gap-2">
-          <Link to={`/live/parties/${id}`} className="flex-1">
+          <Link to="/live/parties/$id" params={{ id }} className="flex-1">
             <Button className="w-full bg-primary/10 text-primary hover:bg-primary/20">
               Join Party
             </Button>

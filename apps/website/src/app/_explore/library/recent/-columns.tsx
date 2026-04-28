@@ -42,7 +42,8 @@ export const columns: ColumnDef<RecentTrack>[] = [
     accessorKey: "title",
     cell: ({ row }) => (
       <Link
-        to={`/tracks/${row.original.id}`}
+        to="/tracks/$id"
+        params={{ id: row.original.id }}
         className="font-medium hover:text-primary"
       >
         {row.getValue("title")}
@@ -62,7 +63,8 @@ export const columns: ColumnDef<RecentTrack>[] = [
     accessorKey: "artist",
     cell: ({ row }) => (
       <Link
-        to={`/artist/${row.original.artistSlug}`}
+        to="/artist/$username"
+        params={{ username: row.original.artistSlug }}
         className="hover:text-primary"
       >
         {row.getValue("artist")}

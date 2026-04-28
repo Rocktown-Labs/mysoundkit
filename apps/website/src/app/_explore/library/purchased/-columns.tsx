@@ -25,7 +25,7 @@ export interface PurchasedTrack {
 export const columns: ColumnDef<PurchasedTrack>[] = [
   {
     accessorKey: "cover",
-    cell: () => (
+    cell: ({ row }) => (
       <div className="relative size-12 flex-shrink-0 group">
         <AppImage
           src={row.getValue("cover") || "/placeholder.svg"}
@@ -49,9 +49,10 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
   },
   {
     accessorKey: "title",
-    cell: () => (
+    cell: ({ row }) => (
       <Link
-        to={`/tracks/${row.original.id}`}
+        to="/tracks/$id"
+        params={{ id: row.original.id }}
         className="font-medium hover:text-primary"
       >
         {row.getValue("title")}
@@ -71,7 +72,8 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     accessorKey: "artist",
     cell: ({ row }) => (
       <Link
-        to={`/artist/${row.original.artistSlug}`}
+        to="/artist/$username"
+        params={{ username: row.original.artistSlug }}
         className="hover:text-primary"
       >
         {row.getValue("artist")}

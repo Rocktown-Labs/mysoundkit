@@ -450,7 +450,8 @@ function TrackPage() {
                     {item.title}
                   </h1>
                   <Link
-                    to={`/artist/${item.artist.handle}`}
+                    to="/artist/$username"
+                    params={{ username: item.artist.handle }}
                     className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors group mt-4"
                   >
                     <span className="font-black text-xl uppercase tracking-tighter">
@@ -662,7 +663,8 @@ function TrackPage() {
             <Card className="bg-card/20 border-border/40 rounded-none overflow-hidden">
               <CardContent className="p-8 space-y-8">
                 <Link
-                  to={`/artist/${item.artist.handle}`}
+                  to="/artist/$username"
+                  params={{ username: item.artist.handle }}
                   className="flex flex-col items-center group"
                 >
                   <div className="relative mb-6">

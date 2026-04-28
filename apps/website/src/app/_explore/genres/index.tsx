@@ -35,7 +35,7 @@ function GenresPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
         {genres.map((genre) => (
-          <Link key={genre.id} to={`/genres/${genre.id}`}>
+          <Link key={genre.id} to="/genres/$id" params={{ id: genre.id }}>
             <Card className="group hover:bg-accent transition-colors cursor-pointer h-full">
               <CardContent className="p-4 md:p-6 flex flex-col items-center justify-center text-center gap-2 md:gap-3 h-full">
                 <div className="text-4xl md:text-5xl mb-1">{genre.emoji}</div>

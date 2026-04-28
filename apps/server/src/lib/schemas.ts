@@ -11,10 +11,16 @@ export const messageResponseSchema = z.object({
   message: z.string(),
 });
 
+export const setupRequiredResponseSchema = z.object({
+  code: z.literal("setup_required"),
+  message: z.string(),
+});
+
 export const userSummarySchema = z.object({
   accountType: z.enum(["artist", "fan"]),
   displayName: z.string(),
   id: z.string(),
+  onboardingCompletedAt: z.string().nullable().optional(),
   username: z.string(),
 });
 
@@ -71,8 +77,12 @@ export const planSchema = z.object({
   canViewLiveBattles: z.boolean(),
   canVoteLiveBattles: z.boolean(),
   code: z.string(),
+  featureLimits: z.record(z.string(), z.number()).nullable().optional(),
+  maxSeats: z.number().int().nullable().optional(),
   monthlyPrice: z.number(),
   name: z.string(),
+  stripeAnnualPriceId: z.string().nullable().optional(),
+  stripeMonthlyPriceId: z.string().nullable().optional(),
   supportsWorkspaceSeats: z.boolean(),
 });
 
@@ -89,19 +99,76 @@ export const artistSummarySchema = z.object({
 
 export const trackSummarySchema = z.object({
   artistName: z.string(),
+  artistUsername: z.string().nullable().optional(),
+  assetStatus: z.string().nullable().optional(),
+  bpm: z.number().int().nullable().optional(),
   catalogItemType: catalogItemTypeSchema.optional(),
+  collaboratorCount: z.number().int().default(0),
+  coverArtUrl: z.string().nullable().optional(),
   duration: z.string(),
+  fileAvailability: z
+    .object({
+      adlibs: z.boolean(),
+      coverArt: z.boolean(),
+      instrumental: z.boolean(),
+      master: z.boolean(),
+      reference: z.boolean(),
+      session: z.boolean(),
+      vocals: z.number().int(),
+    })
+    .optional(),
   genre: z.string(),
   id: z.string(),
   isForSale: z.boolean(),
+  isPublic: z.boolean().optional(),
+  musicalKey: z.string().nullable().optional(),
+  organizationId: z.string().nullable().optional(),
+  playbackUrl: z.string().nullable().optional(),
   plays: z.number(),
   price: z.number().nullable(),
   priceCents: z.number().int().nullable().optional(),
+  productionStatus: z
+    .enum(["demo", "mixed", "mastered", "complete"])
+    .optional(),
   purchaseMode: purchaseModeSchema.optional(),
   releaseAt: z.string().nullable().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   slug: z.string(),
   title: z.string(),
+  updatedAt: z.string().optional(),
+});
+
+export const dashboardAssetSchema = z.object({
+  assetKind: z.string(),
+  bucketName: z.string().nullable(),
+  durationMs: z.number().int().nullable(),
+  id: z.string(),
+  metadata: z.unknown().nullable().optional(),
+  mimeType: z.string().nullable(),
+  objectKey: z.string().nullable(),
+  sizeBytes: z.number().int().nullable(),
+  status: z.string(),
+  storageProvider: z.enum(["r2", "mux", "external"]),
+});
+
+export const dashboardCollaboratorSchema = z.object({
+  avatarUrl: z.string().nullable().optional(),
+  canDelete: z.boolean(),
+  canEdit: z.boolean(),
+  canUpload: z.boolean(),
+  email: z.string().nullable().optional(),
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  role: z.string(),
+  status: z.string(),
+});
+
+export const trackDashboardDetailSchema = trackSummarySchema.extend({
+  assets: dashboardAssetSchema.array(),
+  collaborators: dashboardCollaboratorSchema.array(),
+  createdAt: z.string(),
+  description: z.string().nullable().optional(),
+  lyrics: z.string().nullable().optional(),
 });
 
 export const catalogArtistSchema = z.object({
@@ -187,15 +254,29 @@ export const trackCatalogDetailSchema = z.object({
 });
 
 export const projectSummarySchema = z.object({
+  collaboratorCount: z.number().int().default(0),
+  coverArtUrl: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
   id: z.string(),
   isPublic: z.boolean(),
+  progress: z.number().int().min(0).max(100).default(0),
   projectType: z.enum(["album", "ep", "single"]),
+  releaseDate: z.string().nullable().optional(),
   slug: z.string(),
+  status: z.enum(["draft", "scheduled", "released", "archived"]),
   title: z.string(),
   trackCount: z.number(),
+  updatedAt: z.string().optional(),
+});
+
+export const projectDashboardDetailSchema = projectSummarySchema.extend({
+  assets: dashboardAssetSchema.array(),
+  collaborators: dashboardCollaboratorSchema.array(),
+  tracks: trackSummarySchema.array(),
 });
 
 export const videoSummarySchema = z.object({
+  description: z.string().nullable().optional(),
   externalPlaybackUrl: z.string().url().nullable().optional(),
   id: z.string(),
   muxPlaybackId: z.string().nullable(),
@@ -204,6 +285,7 @@ export const videoSummarySchema = z.object({
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
   sourceTrackId: z.string().nullable().optional(),
   status: z.string(),
+  thumbnailUrl: z.string().nullable().optional(),
   title: z.string(),
   verifiedOnPlatform: z.boolean().default(false),
   videoKind: z.enum([
@@ -214,6 +296,37 @@ export const videoSummarySchema = z.object({
     "battle_clip",
     "live_recording",
   ]),
+});
+
+export const sellerStatusSchema = z.object({
+  accountLinkUrl: z.string().url().nullable(),
+  chargesEnabled: z.boolean(),
+  detailsSubmitted: z.boolean(),
+  onboardingStatus: z.enum([
+    "not_started",
+    "pending",
+    "restricted",
+    "enabled",
+    "rejected",
+  ]),
+  payoutsEnabled: z.boolean(),
+  stripeAccountId: z.string().nullable(),
+});
+
+export const sellerOnboardingResponseSchema = z.object({
+  accountLinkUrl: z.string().url(),
+  onboardingStatus: z.enum([
+    "not_started",
+    "pending",
+    "restricted",
+    "enabled",
+    "rejected",
+  ]),
+});
+
+export const createSellerAccountLinkBodySchema = z.object({
+  refreshUrl: z.url().optional(),
+  returnUrl: z.url().optional(),
 });
 
 export const playlistSchema = z.object({
@@ -304,6 +417,14 @@ export const onboardingArtistBodySchema = z.object({
   youtubeUrl: z.url().optional(),
 });
 
+export const onboardingResponseSchema = z.object({
+  checkoutUrl: z.string().url().nullable(),
+  message: z.string(),
+  requiresCheckout: z.boolean(),
+  setupRequired: z.boolean(),
+  workspaceId: z.string().nullable(),
+});
+
 export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
@@ -313,6 +434,7 @@ export const onboardingFanBodySchema = z.object({
 });
 
 export const createTrackBodySchema = z.object({
+  assetIds: z.array(z.string()).default([]),
   bpm: z.number().int().positive().optional(),
   catalogItemType: z.enum(["single", "beat", "instrumental"]).default("single"),
   description: z.string().optional(),
@@ -326,7 +448,64 @@ export const createTrackBodySchema = z.object({
   purchaseMode: purchaseModeSchema.default("digital_download"),
   releaseAt: z.string().datetime().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
+  sourceObjectKey: z.string().optional(),
   title: z.string().min(1),
+});
+
+export const updateTrackBodySchema = createTrackBodySchema.partial();
+
+export const createTrackAssetBodySchema = z.object({
+  assetKind: z.enum([
+    "cover_art",
+    "master",
+    "vocal_stem",
+    "clean",
+    "alternate_mix",
+    "artwork",
+    "booklet",
+    "tagged_mp3",
+    "untagged_wav",
+    "stems",
+    "midi",
+    "license_pdf",
+    "instrumental",
+    "verse_vocal",
+    "adlib",
+    "session_file",
+    "reference_audio",
+    "variant_audio",
+  ]),
+  bucketName: z.string().optional(),
+  durationMs: z.number().int().optional(),
+  metadata: z.unknown().optional(),
+  mimeType: z.string().optional(),
+  objectKey: z.string().min(1),
+  sizeBytes: z.number().int().optional(),
+  status: z
+    .enum([
+      "pending",
+      "uploading",
+      "uploaded",
+      "processing",
+      "ready",
+      "failed",
+      "deleted",
+    ])
+    .default("uploaded"),
+  storageProvider: z.enum(["r2", "mux", "external"]).default("r2"),
+});
+
+export const trackProcessingStatusSchema = z.object({
+  jobId: z.string().nullable(),
+  message: z.string(),
+  status: z.enum([
+    "queued",
+    "submitted",
+    "processing",
+    "completed",
+    "failed",
+    "expired",
+  ]),
 });
 
 export const cartItemSchema = z.object({
@@ -371,12 +550,26 @@ export const claimCartBodySchema = z.object({
 });
 
 export const createProjectBodySchema = z.object({
+  assetIds: z.array(z.string()).default([]),
+  collaboratorNames: z.array(z.string()).default([]),
   description: z.string().optional(),
+  isPublic: z.boolean().default(true),
+  newTracks: z
+    .array(
+      z.object({
+        assetId: z.string().optional(),
+        genre: z.string().min(1),
+        title: z.string().min(1),
+      })
+    )
+    .default([]),
   projectType: z.enum(["album", "ep", "single"]),
   releaseDate: z.string().optional(),
   title: z.string().min(1),
-  trackIds: z.array(z.string()).min(1),
+  trackIds: z.array(z.string()).default([]),
 });
+
+export const updateProjectBodySchema = createProjectBodySchema.partial();
 
 export const createVideoBodySchema = z.object({
   description: z.string().optional(),

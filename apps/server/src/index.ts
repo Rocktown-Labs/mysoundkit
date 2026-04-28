@@ -1,16 +1,21 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { createAuth } from "@soundkit/auth";
-import { isDatabaseConfigured } from "@soundkit/db";
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { env } from "@soundkit/env/server";
+import { sql } from "drizzle-orm";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
 import notFound from "stoker/middlewares/not-found";
-import onError from "stoker/middlewares/on-error";
 import defaultHook from "stoker/openapi/default-hook";
 
+import { jsonError } from "@/lib/errors";
+import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { sessionMiddleware } from "@/middleware/session";
+import {
+  logWarn,
+  structuredLoggingMiddleware,
+} from "@/middleware/structured-logging";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
 import battlesRoutes from "@/routes/battles";
@@ -23,17 +28,49 @@ import messagesRoutes from "@/routes/messages";
 import onboardingRoutes from "@/routes/onboarding";
 import playlistsRoutes from "@/routes/playlists";
 import projectsRoutes from "@/routes/projects";
+import sellerRoutes from "@/routes/seller";
 import socialRoutes from "@/routes/social";
 import tracksRoutes from "@/routes/tracks";
 import uploadsRoutes from "@/routes/uploads";
 import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
+export { TrackProcessingWorkflow } from "@/workflows/track-processing";
 
 const app = new OpenAPIHono<AppEnv>({
   defaultHook,
 });
 
-app.use(logger());
+const hasEnvValue = (key: string) =>
+  Boolean((env as unknown as Record<string, unknown>)[key]);
+
+const checkDatabaseHealth = async () => {
+  if (!isDatabaseConfigured()) {
+    return "not_configured" as const;
+  }
+
+  try {
+    await withRetry(
+      "database health check",
+      () => createDb().execute(sql`select 1`),
+      {
+        maxRetries: 1,
+        timeoutMs: 2500,
+      }
+    );
+
+    return "connected" as const;
+  } catch (error) {
+    logWarn({
+      check: "database",
+      error: error instanceof Error ? error.message : String(error),
+      status: "unhealthy",
+    });
+
+    return "unhealthy" as const;
+  }
+};
+
+app.use(structuredLoggingMiddleware);
 app.use(
   "/*",
   cors({
@@ -62,8 +99,9 @@ app.get(
   })
 );
 
-app.get("/", (c) =>
+app.get("/", async (c) =>
   c.json({
+    database: await checkDatabaseHealth(),
     databaseConfigured: isDatabaseConfigured(),
     ok: true,
     service: "soundkit-api",
@@ -71,10 +109,17 @@ app.get("/", (c) =>
   })
 );
 
-app.get("/health", (c) =>
+app.get("/health", async (c) =>
   c.json({
+    bindings: {
+      mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
+      trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
+      uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),
+    },
+    database: await checkDatabaseHealth(),
     databaseConfigured: isDatabaseConfigured(),
     ok: true,
+    requestId: c.get("requestId"),
     service: "soundkit-api",
     timestamp: new Date().toISOString(),
   })
@@ -82,7 +127,7 @@ app.get("/health", (c) =>
 
 app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
-const apiRoutes = app
+app
   .route("/v1/me", meRoutes)
   .route("/v1/onboarding", onboardingRoutes)
   .route("/v1/discover", discoverRoutes)
@@ -97,13 +142,16 @@ const apiRoutes = app
   .route("/v1/cart", cartRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/billing", billingRoutes)
+  .route("/v1/seller", sellerRoutes)
   .route("/v1/battles", battlesRoutes)
   .route("/v1/uploads", uploadsRoutes)
   .route("/v1/webhooks", webhookRoutes);
 
 app.notFound(notFound);
-app.onError(onError);
+// Hono's onError API is callback-based.
+// eslint-disable-next-line promise/prefer-await-to-callbacks
+app.onError((error, c) => jsonError(c, error));
 
-export type AppType = typeof apiRoutes;
+export type { AppType } from "./rpc-contract";
 
 export default app;

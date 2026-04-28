@@ -3,9 +3,13 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { MusicPlayer } from "@/components/explore/music-player";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { requireDashboardUser } from "@/lib/soundkit.functions";
 
+/* eslint-disable no-use-before-define */
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: () => requireDashboardUser(),
   component: DashboardLayout,
 });
 
@@ -22,6 +26,7 @@ function DashboardLayout() {
         </div>
       </div>
       <MobileNav />
+      <MusicPlayer />
     </SidebarProvider>
   );
 }

@@ -1,20 +1,22 @@
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, promise/prefer-await-to-then */
 import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
+  Laptop2,
   ListMusic,
+  Pause,
+  Play,
   Repeat,
   Shuffle,
-  Laptop2,
+  SkipBack,
+  SkipForward,
   Smartphone,
   Speaker,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,252 +35,292 @@ import {
 } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 
-interface Track {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  cover: string;
-  duration: number;
-}
-
 interface Device {
+  active: boolean;
   id: string;
   name: string;
   type: "computer" | "phone" | "speaker";
-  active: boolean;
 }
 
+const formatTime = (seconds: number) => {
+  if (!Number.isFinite(seconds)) {
+    return "0:00";
+  }
+
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+const getDeviceIcon = (type: Device["type"]) => {
+  if (type === "phone") {
+    return <Smartphone className="size-4" />;
+  }
+
+  if (type === "speaker") {
+    return <Speaker className="size-4" />;
+  }
+
+  return <Laptop2 className="size-4" />;
+};
+
 export function MusicPlayer() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [volume, setVolume] = useState(75);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isShuffled, setIsShuffled] = useState(false);
-  const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
-  const [isVisible, setIsVisible] = useState(false);
-  const [queueOpen, setQueueOpen] = useState(false);
-  const hideTimerRef = useRef<NodeJS.Timeout>();
-
-  // Mock queue data
-  const [queue, setQueue] = useState<Track[]>([
-    {
-      album: "Beach Beats",
-      artist: "DJ Cool",
-      cover: "/placeholder.svg?height=48&width=48",
-      duration: 245,
-      id: "1",
-      title: "Summer Vibes",
-    },
-    {
-      album: "City Lights",
-      artist: "Urban Sounds",
-      cover: "/placeholder.svg?height=48&width=48",
-      duration: 198,
-      id: "2",
-      title: "Night Drive",
-    },
-    {
-      album: "Morning Coffee",
-      artist: "Acoustic Beats",
-      cover: "/placeholder.svg?height=48&width=48",
-      duration: 223,
-      id: "3",
-      title: "Chill Morning",
-    },
-  ]);
-
-  // Mock devices
+  const { currentTrack, queue, setCurrentTrack, setVisible, visible } =
+    useAudioPlayer();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [devices, setDevices] = useState<Device[]>([
-    { active: true, id: "1", name: "This Computer", type: "computer" },
-    { active: false, id: "2", name: "iPhone", type: "phone" },
-    { active: false, id: "3", name: "Living Room Speaker", type: "speaker" },
+    { active: true, id: "computer", name: "This Computer", type: "computer" },
+    { active: false, id: "phone", name: "Phone", type: "phone" },
+    { active: false, id: "speaker", name: "Studio Speaker", type: "speaker" },
   ]);
+  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
+  const [volume, setVolume] = useState(75);
 
-  // Set initial track
   useEffect(() => {
-    if (queue.length > 0 && !currentTrack) {
-      setCurrentTrack(queue[0]);
-      setIsVisible(true);
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
     }
-  }, [queue, currentTrack]);
 
-  // Auto-hide after 5 minutes of inactivity when paused
+    audio.volume = isMuted ? 0 : volume / 100;
+  }, [isMuted, volume]);
+
   useEffect(() => {
-    if (!isPlaying && isVisible) {
-      hideTimerRef.current = setTimeout(() => {
-        setIsVisible(false);
-      }, 300_000); // 5 minutes
-    } else {
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current);
-      }
+    const audio = audioRef.current;
+
+    if (!(audio && currentTrack)) {
+      return;
+    }
+
+    audio.src = currentTrack.src;
+    audio.load();
+    setProgress(0);
+    setDuration(currentTrack.duration ?? 0);
+
+    if (visible) {
+      void audio.play().then(() => setIsPlaying(true));
+    }
+  }, [currentTrack, visible]);
+
+  useEffect(() => {
+    if (!(isPlaying || !visible)) {
+      hideTimerRef.current = setTimeout(() => setVisible(false), 300_000);
+    } else if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
     }
 
     return () => {
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
       }
     };
-  }, [isPlaying, isVisible]);
+  }, [isPlaying, setVisible, visible]);
 
-  // Simulate progress
   useEffect(() => {
-    if (isPlaying && currentTrack) {
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            handleNext();
-            return 0;
-          }
-          return prev + 100 / currentTrack.duration;
-        });
-      }, 1000);
+    const audio = audioRef.current;
 
-      return () => clearInterval(interval);
+    if (!audio) {
+      return;
     }
-  }, [isPlaying, currentTrack]);
+
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0);
+    const handleTimeUpdate = () => {
+      if (audio.duration > 0) {
+        setProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
+    const handleEnded = () => {
+      if (repeatMode === "one") {
+        audio.currentTime = 0;
+        void audio.play();
+        return;
+      }
+
+      handleNext();
+    };
+
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("ended", handleEnded);
+
+    return () => {
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("ended", handleEnded);
+    };
+  });
 
   const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-    setIsVisible(true);
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    setVisible(true);
+    void audio.play().then(() => setIsPlaying(true));
   };
 
   const handleNext = () => {
-    const currentIndex = queue.findIndex((t) => t.id === currentTrack?.id);
-    const nextIndex = (currentIndex + 1) % queue.length;
-    setCurrentTrack(queue[nextIndex]);
-    setProgress(0);
+    if (!(currentTrack && queue.length > 0)) {
+      setIsPlaying(false);
+      return;
+    }
+
+    const currentIndex = queue.findIndex(
+      (track) => track.id === currentTrack.id
+    );
+    const nextIndex =
+      currentIndex === -1 ? 0 : (currentIndex + 1) % queue.length;
+    setCurrentTrack(queue[nextIndex] ?? currentTrack);
   };
 
   const handlePrevious = () => {
-    const currentIndex = queue.findIndex((t) => t.id === currentTrack?.id);
-    const prevIndex = currentIndex === 0 ? queue.length - 1 : currentIndex - 1;
-    setCurrentTrack(queue[prevIndex]);
-    setProgress(0);
-  };
+    if (!(currentTrack && queue.length > 0)) {
+      return;
+    }
 
-  const handleVolumeToggle = () => {
-    setIsMuted(!isMuted);
+    const currentIndex = queue.findIndex(
+      (track) => track.id === currentTrack.id
+    );
+    const previousIndex =
+      currentIndex <= 0 ? queue.length - 1 : currentIndex - 1;
+    setCurrentTrack(queue[previousIndex] ?? currentTrack);
   };
 
   const handleRepeatToggle = () => {
     const modes: ("off" | "all" | "one")[] = ["off", "all", "one"];
     const currentIndex = modes.indexOf(repeatMode);
-    setRepeatMode(modes[(currentIndex + 1) % modes.length]);
+    setRepeatMode(modes[(currentIndex + 1) % modes.length] ?? "off");
   };
 
-  const handleDeviceChange = (deviceId: string) => {
-    setDevices(devices.map((d) => ({ ...d, active: d.id === deviceId })));
-  };
+  const handleScrub = (value: number[]) => {
+    const nextProgress = value[0] ?? 0;
+    const audio = audioRef.current;
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+    setProgress(nextProgress);
 
-  const getDeviceIcon = (type: Device["type"]) => {
-    switch (type) {
-      case "computer": {
-        return <Laptop2 className="h-4 w-4" />;
-      }
-      case "phone": {
-        return <Smartphone className="h-4 w-4" />;
-      }
-      case "speaker": {
-        return <Speaker className="h-4 w-4" />;
-      }
+    if (audio?.duration) {
+      audio.currentTime = (nextProgress / 100) * audio.duration;
     }
   };
 
-  if (!isVisible || !currentTrack) {
+  const handleClose = () => {
+    audioRef.current?.pause();
+    setIsPlaying(false);
+    setVisible(false);
+  };
+
+  if (!(visible && currentTrack)) {
     return null;
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:left-64">
+    <div className="fixed right-0 bottom-0 left-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:left-64">
+      <audio ref={audioRef} preload="metadata">
+        <track kind="captions" />
+      </audio>
       <Button
-        variant="ghost"
+        aria-label="Close player"
+        className="absolute top-2 right-2 size-6"
+        onClick={handleClose}
         size="icon"
-        className="absolute right-2 top-2 h-6 w-6 lg:hidden"
-        onClick={() => setIsVisible(false)}
+        variant="ghost"
       >
-        <X className="h-4 w-4" />
+        <X className="size-4" />
       </Button>
 
       <div className="container mx-auto px-4 py-3">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
-          {/* Track Info */}
           <div className="flex items-center gap-3 lg:w-1/4">
             <AppImage
-              src={currentTrack.cover || "/placeholder.svg"}
               alt={currentTrack.title}
-              width={48}
+              className="rounded"
               height={48}
               layout="fixed"
-              className="rounded"
+              src={currentTrack.cover || "/placeholder.svg"}
+              width={48}
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">
+              <a
+                className="block truncate text-sm font-medium transition-colors hover:text-primary"
+                href={currentTrack.trackHref ?? "#"}
+              >
                 {currentTrack.title}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
+              </a>
+              <a
+                className="block truncate text-xs text-muted-foreground transition-colors hover:text-primary"
+                href={currentTrack.artistHref ?? "/dashboard/profile"}
+              >
                 {currentTrack.artist}
-              </p>
+              </a>
             </div>
           </div>
 
-          {/* Controls */}
           <div className="flex flex-col gap-2 lg:w-1/2">
             <div className="flex items-center justify-center gap-2">
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={() => setIsShuffled(!isShuffled)}
+                size="icon"
+                variant="ghost"
               >
                 <Shuffle
-                  className={`h-4 w-4 ${isShuffled ? "text-primary" : ""}`}
+                  className={`size-4 ${isShuffled ? "text-primary" : ""}`}
                 />
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={handlePrevious}
+                size="icon"
+                variant="ghost"
               >
-                <SkipBack className="h-4 w-4" />
+                <SkipBack className="size-4" />
               </Button>
               <Button
-                variant="default"
-                size="icon"
-                className="h-10 w-10"
+                className="size-10"
                 onClick={handlePlayPause}
+                size="icon"
+                variant="default"
               >
                 {isPlaying ? (
-                  <Pause className="h-5 w-5" />
+                  <Pause className="size-5" />
                 ) : (
-                  <Play className="h-5 w-5" />
+                  <Play className="size-5" />
                 )}
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={handleNext}
+                size="icon"
+                variant="ghost"
               >
-                <SkipForward className="h-4 w-4" />
+                <SkipForward className="size-4" />
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={handleRepeatToggle}
+                size="icon"
+                variant="ghost"
               >
                 <Repeat
-                  className={`h-4 w-4 ${repeatMode !== "off" ? "text-primary" : ""}`}
+                  className={`size-4 ${repeatMode === "off" ? "" : "text-primary"}`}
                 />
                 {repeatMode === "one" && (
                   <span className="absolute text-[10px] font-bold">1</span>
@@ -286,60 +328,55 @@ export function MusicPlayer() {
               </Button>
             </div>
 
-            {/* Progress Bar */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                {formatTime((progress / 100) * currentTrack.duration)}
+                {formatTime(audioRef.current?.currentTime ?? 0)}
               </span>
               <Slider
-                value={[progress]}
-                onValueChange={(value) => setProgress(value[0])}
-                max={100}
-                step={0.1}
                 className="flex-1"
+                max={100}
+                onValueChange={handleScrub}
+                step={0.1}
+                value={[progress]}
               />
               <span className="text-xs text-muted-foreground">
-                {formatTime(currentTrack.duration)}
+                {formatTime(duration)}
               </span>
             </div>
           </div>
 
-          {/* Right Controls */}
           <div className="flex items-center justify-end gap-2 lg:w-1/4">
-            {/* Queue Drawer */}
-            <Sheet open={queueOpen} onOpenChange={setQueueOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <ListMusic className="h-4 w-4" />
+            <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
+              <SheetTrigger asChild={true}>
+                <Button className="size-8" size="icon" variant="ghost">
+                  <ListMusic className="size-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-full sm:w-96">
+              <SheetContent className="w-full sm:w-96" side="right">
                 <SheetHeader>
                   <SheetTitle>Queue</SheetTitle>
                 </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-8rem)] mt-4">
+                <ScrollArea className="mt-4 h-[calc(100vh-8rem)]">
                   <div className="space-y-2">
                     {queue.map((track, index) => (
-                      <div
-                        key={track.id}
-                        className={`flex items-center gap-3 rounded-lg p-2 hover:bg-accent cursor-pointer ${
+                      <button
+                        className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 text-left hover:bg-accent ${
                           track.id === currentTrack.id ? "bg-accent" : ""
                         }`}
-                        onClick={() => {
-                          setCurrentTrack(track);
-                          setProgress(0);
-                        }}
+                        key={track.id}
+                        onClick={() => setCurrentTrack(track)}
+                        type="button"
                       >
-                        <div className="flex h-10 w-10 items-center justify-center rounded bg-muted text-xs font-medium">
+                        <div className="flex size-10 items-center justify-center rounded bg-muted text-xs font-medium">
                           {index + 1}
                         </div>
                         <AppImage
-                          src={track.cover || "/placeholder.svg"}
                           alt={track.title}
-                          width={40}
+                          className="rounded"
                           height={40}
                           layout="fixed"
-                          className="rounded"
+                          src={track.cover || "/placeholder.svg"}
+                          width={40}
                         />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">
@@ -349,26 +386,22 @@ export function MusicPlayer() {
                             {track.artist}
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(track.duration)}
-                        </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </ScrollArea>
               </SheetContent>
             </Sheet>
 
-            {/* Device Selector */}
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger asChild={true}>
                 <Button
-                  variant="ghost"
+                  className="hidden size-8 lg:flex"
                   size="icon"
-                  className="h-8 w-8 hidden lg:flex"
+                  variant="ghost"
                 >
                   {getDeviceIcon(
-                    devices.find((d) => d.active)?.type || "computer"
+                    devices.find((device) => device.active)?.type ?? "computer"
                   )}
                 </Button>
               </DropdownMenuTrigger>
@@ -378,45 +411,53 @@ export function MusicPlayer() {
                 </div>
                 {devices.map((device) => (
                   <DropdownMenuItem
-                    key={device.id}
-                    onClick={() => handleDeviceChange(device.id)}
                     className="flex items-center gap-2"
+                    key={device.id}
+                    onClick={() =>
+                      setDevices((current) =>
+                        current.map((entry) => ({
+                          ...entry,
+                          active: entry.id === device.id,
+                        }))
+                      )
+                    }
                   >
                     {getDeviceIcon(device.type)}
                     <span className="flex-1">{device.name}</span>
                     {device.active && (
-                      <div className="h-2 w-2 rounded-full bg-primary" />
+                      <div className="size-2 rounded-full bg-primary" />
                     )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Volume Control */}
             <div className="hidden items-center gap-2 lg:flex">
               <Button
-                variant="ghost"
+                className="size-8"
+                onClick={() => setIsMuted(!isMuted)}
                 size="icon"
-                className="h-8 w-8"
-                onClick={handleVolumeToggle}
+                variant="ghost"
               >
                 {isMuted || volume === 0 ? (
-                  <VolumeX className="h-4 w-4" />
+                  <VolumeX className="size-4" />
                 ) : (
-                  <Volume2 className="h-4 w-4" />
+                  <Volume2 className="size-4" />
                 )}
               </Button>
               <Slider
-                value={[isMuted ? 0 : volume]}
+                className="w-24"
+                max={100}
                 onValueChange={(value) => {
-                  setVolume(value[0]);
-                  if (value[0] > 0) {
+                  const nextVolume = value[0] ?? 0;
+                  setVolume(nextVolume);
+
+                  if (nextVolume > 0) {
                     setIsMuted(false);
                   }
                 }}
-                max={100}
                 step={1}
-                className="w-24"
+                value={[isMuted ? 0 : volume]}
               />
             </div>
           </div>

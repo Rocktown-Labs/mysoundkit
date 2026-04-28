@@ -93,7 +93,7 @@ function TrackDetailPage() {
               <p className="text-muted-foreground">{mockTrack.genre}</p>
             </div>
             <div className="flex gap-2">
-              <Link to={`/dashboard/tracks/${id}/edit`}>
+              <Link to="/dashboard/tracks/$id/edit" params={{ id }}>
                 <Button variant="outline">
                   <Edit className="h-4 w-4 mr-2" />
                   Edit

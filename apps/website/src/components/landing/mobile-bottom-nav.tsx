@@ -17,7 +17,7 @@ export function LandingMobileNav() {
           section === "home"
             ? document.body
             : document.querySelector(`#${section}`);
-        if (element) {
+        if (element instanceof HTMLElement) {
           const offsetTop = section === "home" ? 0 : element.offsetTop;
           const offsetBottom =
             offsetTop + (section === "home" ? 500 : element.offsetHeight);
@@ -39,7 +39,7 @@ export function LandingMobileNav() {
       window.scrollTo({ behavior: "smooth", top: 0 });
     } else {
       const element = document.querySelector(`#${sectionId}`);
-      if (element) {
+      if (element instanceof HTMLElement) {
         const offsetTop = element.offsetTop - 80;
         window.scrollTo({ behavior: "smooth", top: offsetTop });
       }
@@ -50,11 +50,11 @@ export function LandingMobileNav() {
     { icon: Home, id: "home", isScroll: true, label: "Home" },
     { icon: Zap, id: "features", isScroll: true, label: "Features" },
     {
-      href: "/",
       icon: Compass,
       id: "explore",
       isScroll: false,
       label: "Explore",
+      to: "/",
     },
     { icon: DollarSign, id: "pricing", isScroll: true, label: "Pricing" },
   ];
@@ -66,11 +66,11 @@ export function LandingMobileNav() {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
 
-          if (!item.isScroll && item.href) {
+          if (!item.isScroll && "to" in item) {
             return (
               <Link
                 key={item.id}
-                href={item.href}
+                to={item.to}
                 className={cn(
                   "flex flex-col items-center justify-center flex-1 h-full space-y-1 transition-colors",
                   "text-muted-foreground hover:text-primary"

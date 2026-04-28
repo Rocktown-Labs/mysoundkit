@@ -23,7 +23,11 @@ export function ArtistCard({
   verified,
 }: ArtistCardProps) {
   return (
-    <Link to={`/artist/${slug}`} className="block w-full md:w-auto">
+    <Link
+      to="/artist/$username"
+      params={{ username: slug }}
+      className="block w-full md:w-auto"
+    >
       <Card className="overflow-hidden hover:shadow-lg transition-all group min-w-[140px] sm:min-w-[160px] md:min-w-0 md:w-[180px] lg:w-[200px] xl:w-[220px] flex-shrink-0 p-0">
         <CardContent className="p-0 space-y-0">
           <div className="relative aspect-square w-full bg-muted">

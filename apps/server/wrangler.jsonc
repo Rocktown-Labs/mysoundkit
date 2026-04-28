@@ -16,4 +16,11 @@
       "persist": true,
     },
   },
+  "workflows": [
+    {
+      "name": "soundkit-track-processing",
+      "binding": "TRACK_PROCESSING_WORKFLOW",
+      "class_name": "TrackProcessingWorkflow",
+    },
+  ],
 }

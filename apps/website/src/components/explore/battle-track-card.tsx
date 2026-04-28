@@ -85,7 +85,8 @@ export function BattleTrackCard({
                 {track.title}
               </h3>
               <Link
-                href={`/artist/${track.artistSlug}`}
+                to="/artist/$username"
+                params={{ username: track.artistSlug }}
                 className="text-sm text-muted-foreground hover:text-primary truncate block"
               >
                 {track.artist}
