@@ -8,7 +8,7 @@ import {
   createSoundKitServerClient,
   SoundKitServerError,
   soundkitServerJson,
-} from "@/lib/soundkit.server";
+} from "@/lib/soundkit-client";
 
 const currentCookie = () => getRequestHeader("cookie") ?? null;
 const currentClient = () => createSoundKitServerClient(currentCookie());

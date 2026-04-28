@@ -67,6 +67,7 @@ import { Route as DashboardLiveMyStatsIndexRouteImport } from './app/dashboard/l
 import { Route as ExploreLiveStreamsIndexRouteImport } from './app/_explore/live/streams/index'
 import { Route as ExploreLivePartiesIndexRouteImport } from './app/_explore/live/parties/index'
 import { Route as ExploreLiveBattlesIndexRouteImport } from './app/_explore/live/battles/index'
+import { Route as ExploreLibraryWatchedIndexRouteImport } from './app/_explore/library/watched/index'
 import { Route as ExploreLibrarySavedIndexRouteImport } from './app/_explore/library/saved/index'
 import { Route as ExploreLibraryRecentIndexRouteImport } from './app/_explore/library/recent/index'
 import { Route as ExploreLibraryPurchasedIndexRouteImport } from './app/_explore/library/purchased/index'
@@ -372,6 +373,12 @@ const ExploreLiveBattlesIndexRoute = ExploreLiveBattlesIndexRouteImport.update({
   path: '/battles/',
   getParentRoute: () => ExploreLiveRoute,
 } as any)
+const ExploreLibraryWatchedIndexRoute =
+  ExploreLibraryWatchedIndexRouteImport.update({
+    id: '/library/watched/',
+    path: '/library/watched/',
+    getParentRoute: () => ExploreRoute,
+  } as any)
 const ExploreLibrarySavedIndexRoute =
   ExploreLibrarySavedIndexRouteImport.update({
     id: '/library/saved/',
@@ -505,6 +512,7 @@ export interface FileRoutesByFullPath {
   '/library/purchased/': typeof ExploreLibraryPurchasedIndexRoute
   '/library/recent/': typeof ExploreLibraryRecentIndexRoute
   '/library/saved/': typeof ExploreLibrarySavedIndexRoute
+  '/library/watched/': typeof ExploreLibraryWatchedIndexRoute
   '/live/battles/': typeof ExploreLiveBattlesIndexRoute
   '/live/parties/': typeof ExploreLivePartiesIndexRoute
   '/live/streams/': typeof ExploreLiveStreamsIndexRoute
@@ -574,6 +582,7 @@ export interface FileRoutesByTo {
   '/library/purchased': typeof ExploreLibraryPurchasedIndexRoute
   '/library/recent': typeof ExploreLibraryRecentIndexRoute
   '/library/saved': typeof ExploreLibrarySavedIndexRoute
+  '/library/watched': typeof ExploreLibraryWatchedIndexRoute
   '/live/battles': typeof ExploreLiveBattlesIndexRoute
   '/live/parties': typeof ExploreLivePartiesIndexRoute
   '/live/streams': typeof ExploreLiveStreamsIndexRoute
@@ -647,6 +656,7 @@ export interface FileRoutesById {
   '/_explore/library/purchased/': typeof ExploreLibraryPurchasedIndexRoute
   '/_explore/library/recent/': typeof ExploreLibraryRecentIndexRoute
   '/_explore/library/saved/': typeof ExploreLibrarySavedIndexRoute
+  '/_explore/library/watched/': typeof ExploreLibraryWatchedIndexRoute
   '/_explore/live/battles/': typeof ExploreLiveBattlesIndexRoute
   '/_explore/live/parties/': typeof ExploreLivePartiesIndexRoute
   '/_explore/live/streams/': typeof ExploreLiveStreamsIndexRoute
@@ -720,6 +730,7 @@ export interface FileRouteTypes {
     | '/library/purchased/'
     | '/library/recent/'
     | '/library/saved/'
+    | '/library/watched/'
     | '/live/battles/'
     | '/live/parties/'
     | '/live/streams/'
@@ -789,6 +800,7 @@ export interface FileRouteTypes {
     | '/library/purchased'
     | '/library/recent'
     | '/library/saved'
+    | '/library/watched'
     | '/live/battles'
     | '/live/parties'
     | '/live/streams'
@@ -861,6 +873,7 @@ export interface FileRouteTypes {
     | '/_explore/library/purchased/'
     | '/_explore/library/recent/'
     | '/_explore/library/saved/'
+    | '/_explore/library/watched/'
     | '/_explore/live/battles/'
     | '/_explore/live/parties/'
     | '/_explore/live/streams/'
@@ -1287,6 +1300,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreLiveBattlesIndexRouteImport
       parentRoute: typeof ExploreLiveRoute
     }
+    '/_explore/library/watched/': {
+      id: '/_explore/library/watched/'
+      path: '/library/watched'
+      fullPath: '/library/watched/'
+      preLoaderRoute: typeof ExploreLibraryWatchedIndexRouteImport
+      parentRoute: typeof ExploreRoute
+    }
     '/_explore/library/saved/': {
       id: '/_explore/library/saved/'
       path: '/library/saved'
@@ -1426,6 +1446,7 @@ interface ExploreRouteChildren {
   ExploreLibraryPurchasedIndexRoute: typeof ExploreLibraryPurchasedIndexRoute
   ExploreLibraryRecentIndexRoute: typeof ExploreLibraryRecentIndexRoute
   ExploreLibrarySavedIndexRoute: typeof ExploreLibrarySavedIndexRoute
+  ExploreLibraryWatchedIndexRoute: typeof ExploreLibraryWatchedIndexRoute
   ExploreLibraryPlaylistsIdIndexRoute: typeof ExploreLibraryPlaylistsIdIndexRoute
 }
 
@@ -1451,6 +1472,7 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreLibraryPurchasedIndexRoute: ExploreLibraryPurchasedIndexRoute,
   ExploreLibraryRecentIndexRoute: ExploreLibraryRecentIndexRoute,
   ExploreLibrarySavedIndexRoute: ExploreLibrarySavedIndexRoute,
+  ExploreLibraryWatchedIndexRoute: ExploreLibraryWatchedIndexRoute,
   ExploreLibraryPlaylistsIdIndexRoute: ExploreLibraryPlaylistsIdIndexRoute,
 }
 
