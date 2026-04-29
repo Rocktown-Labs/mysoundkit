@@ -19,10 +19,14 @@ const requiredSecret = <T>(value: T | undefined, name: string) => {
   return value;
 };
 
-const optionalSecretBinding = (name: string) => {
+const requiredEnv = (name: string) => {
   const value = process.env[name];
 
-  return value ? { [name]: alchemy.secret(value, name) } : {};
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  return value;
 };
 
 const media = await R2Bucket("media", {
@@ -58,7 +62,6 @@ export const web = await TanStackStart("web", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
-    ...optionalSecretBinding("GOOGLE_GENERATIVE_AI_API_KEY"),
     VITE_MEDIA_URL: MEDIA_URL,
     VITE_SERVER_URL: API_URL,
   },
@@ -100,21 +103,65 @@ export const server = await Worker("server", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
+    GOOGLE_EMBEDDING_MODEL: requiredEnv("GOOGLE_EMBEDDING_MODEL"),
     GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
       alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
     MEDIA_BUCKET: media,
     MEDIA_PUBLIC_URL: MEDIA_URL,
-    ...optionalSecretBinding("GOOGLE_GENERATIVE_AI_API_KEY"),
-    ...optionalSecretBinding("GOOGLE_EMBEDDING_MODEL"),
-    ...optionalSecretBinding("MUX_TOKEN_ID"),
-    ...optionalSecretBinding("MUX_TOKEN_SECRET"),
-    ...optionalSecretBinding("MUX_WEBHOOK_SECRET"),
-    ...optionalSecretBinding("STEMSPLIT_API_KEY"),
-    ...optionalSecretBinding("STEMSPLIT_WEBHOOK_SECRET"),
-    ...optionalSecretBinding("STRIPE_SECRET_KEY"),
-    ...optionalSecretBinding("STRIPE_WEBHOOK_SECRET"),
+    MUX_TOKEN_ID: requiredSecret(
+      alchemy.secret.env.MUX_TOKEN_ID,
+      "MUX_TOKEN_ID"
+    ),
+    MUX_TOKEN_SECRET: requiredSecret(
+      alchemy.secret.env.MUX_TOKEN_SECRET,
+      "MUX_TOKEN_SECRET"
+    ),
+    MUX_WEBHOOK_SECRET: requiredSecret(
+      alchemy.secret.env.MUX_WEBHOOK_SECRET,
+      "MUX_WEBHOOK_SECRET"
+    ),
+    STEMSPLIT_API_KEY: requiredSecret(
+      alchemy.secret.env.STEMSPLIT_API_KEY,
+      "STEMSPLIT_API_KEY"
+    ),
+    STEMSPLIT_WEBHOOK_SECRET: requiredSecret(
+      alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
+      "STEMSPLIT_WEBHOOK_SECRET"
+    ),
+    STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID: requiredEnv(
+      "STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID"
+    ),
+    STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID: requiredEnv(
+      "STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID"
+    ),
+    STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID: requiredEnv(
+      "STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID"
+    ),
+    STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID: requiredEnv(
+      "STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"
+    ),
+    STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID: requiredEnv(
+      "STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID"
+    ),
+    STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID: requiredEnv(
+      "STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"
+    ),
+    STRIPE_FAN_LITE_ANNUAL_PRICE_ID: requiredEnv(
+      "STRIPE_FAN_LITE_ANNUAL_PRICE_ID"
+    ),
+    STRIPE_FAN_LITE_MONTHLY_PRICE_ID: requiredEnv(
+      "STRIPE_FAN_LITE_MONTHLY_PRICE_ID"
+    ),
+    STRIPE_SECRET_KEY: requiredSecret(
+      alchemy.secret.env.STRIPE_SECRET_KEY,
+      "STRIPE_SECRET_KEY"
+    ),
+    STRIPE_WEBHOOK_SECRET: requiredSecret(
+      alchemy.secret.env.STRIPE_WEBHOOK_SECRET,
+      "STRIPE_WEBHOOK_SECRET"
+    ),
     TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
     UPLOAD_BUCKET_NAME: media.name,
   },
