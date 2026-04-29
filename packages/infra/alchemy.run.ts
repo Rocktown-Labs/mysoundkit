@@ -19,6 +19,12 @@ const requiredSecret = <T>(value: T | undefined, name: string) => {
   return value;
 };
 
+const optionalSecretBinding = (name: string) => {
+  const value = process.env[name];
+
+  return value ? { [name]: alchemy.secret(value, name) } : {};
+};
+
 const media = await R2Bucket("media", {
   adopt: true,
   cors: [
@@ -52,10 +58,7 @@ export const web = await TanStackStart("web", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
-    GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
-      alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
-      "GOOGLE_GENERATIVE_AI_API_KEY"
-    ),
+    ...optionalSecretBinding("GOOGLE_GENERATIVE_AI_API_KEY"),
     VITE_MEDIA_URL: MEDIA_URL,
     VITE_SERVER_URL: API_URL,
   },
@@ -103,34 +106,15 @@ export const server = await Worker("server", {
     ),
     MEDIA_BUCKET: media,
     MEDIA_PUBLIC_URL: MEDIA_URL,
-    MUX_TOKEN_ID: requiredSecret(
-      alchemy.secret.env.MUX_TOKEN_ID,
-      "MUX_TOKEN_ID"
-    ),
-    MUX_TOKEN_SECRET: requiredSecret(
-      alchemy.secret.env.MUX_TOKEN_SECRET,
-      "MUX_TOKEN_SECRET"
-    ),
-    MUX_WEBHOOK_SECRET: requiredSecret(
-      alchemy.secret.env.MUX_WEBHOOK_SECRET,
-      "MUX_WEBHOOK_SECRET"
-    ),
-    STEMSPLIT_API_KEY: requiredSecret(
-      alchemy.secret.env.STEMSPLIT_API_KEY,
-      "STEMSPLIT_API_KEY"
-    ),
-    STEMSPLIT_WEBHOOK_SECRET: requiredSecret(
-      alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
-      "STEMSPLIT_WEBHOOK_SECRET"
-    ),
-    STRIPE_SECRET_KEY: requiredSecret(
-      alchemy.secret.env.STRIPE_SECRET_KEY,
-      "STRIPE_SECRET_KEY"
-    ),
-    STRIPE_WEBHOOK_SECRET: requiredSecret(
-      alchemy.secret.env.STRIPE_WEBHOOK_SECRET,
-      "STRIPE_WEBHOOK_SECRET"
-    ),
+    ...optionalSecretBinding("GOOGLE_GENERATIVE_AI_API_KEY"),
+    ...optionalSecretBinding("GOOGLE_EMBEDDING_MODEL"),
+    ...optionalSecretBinding("MUX_TOKEN_ID"),
+    ...optionalSecretBinding("MUX_TOKEN_SECRET"),
+    ...optionalSecretBinding("MUX_WEBHOOK_SECRET"),
+    ...optionalSecretBinding("STEMSPLIT_API_KEY"),
+    ...optionalSecretBinding("STEMSPLIT_WEBHOOK_SECRET"),
+    ...optionalSecretBinding("STRIPE_SECRET_KEY"),
+    ...optionalSecretBinding("STRIPE_WEBHOOK_SECRET"),
     TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
     UPLOAD_BUCKET_NAME: media.name,
   },
