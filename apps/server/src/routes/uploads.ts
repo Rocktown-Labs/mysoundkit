@@ -68,12 +68,12 @@ const createUploadRouter = (): Router | null => {
 
           return {
             generateObjectInfo: ({ file }) => ({
-                key: createObjectKey({
-                  fileName: file.name,
-                  prefix: "uploads",
-                  userId,
-                }),
+              key: createObjectKey({
+                fileName: file.name,
+                prefix: "uploads",
+                userId,
               }),
+            }),
           };
         },
       }),

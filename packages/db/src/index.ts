@@ -13,7 +13,22 @@ const schema = {
 let pool: Pool | null = null;
 let db: ReturnType<typeof drizzle> | null = null;
 
-const getConnectionString = () => env.DATABASE_URL?.trim() ?? "";
+const getConnectionString = () => {
+  if (env.HYPERDRIVE?.connectionString) {
+    return env.HYPERDRIVE.connectionString;
+  }
+
+  const url = env.DATABASE_URL;
+
+  if (typeof url !== "string" && url) {
+    // If it's an object (like a secret wrapper), try to get the value
+    // This is a safety check for different environment behaviors
+    const {value} = (url as unknown as { value?: string });
+    if (value) {return value;}
+  }
+
+  return url?.trim() ?? "";
+};
 
 export const isDatabaseConfigured = () => getConnectionString().length > 0;
 

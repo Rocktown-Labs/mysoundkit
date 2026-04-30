@@ -13,7 +13,7 @@ import { embed, generateText } from "ai";
 import { and, eq } from "drizzle-orm";
 
 const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1";
-const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2-preview";
+const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2";
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 
 type StemSplitJobStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
@@ -237,7 +237,7 @@ const transcribeVocals = async ({
         role: "user",
       },
     ],
-    model: google("gemini-2.5-flash"),
+    model: google("gemini-3-flash"),
   });
   const text = result.text.trim();
 
@@ -251,7 +251,7 @@ const transcribeVocals = async ({
     .values({
       id: crypto.randomUUID(),
       metadata: {
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash",
       },
       text,
       trackId,

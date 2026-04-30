@@ -1,5 +1,11 @@
 import alchemy from "alchemy";
-import { R2Bucket, TanStackStart, Worker, Workflow } from "alchemy/cloudflare";
+import {
+  Hyperdrive,
+  R2Bucket,
+  TanStackStart,
+  Worker,
+  Workflow,
+} from "alchemy/cloudflare";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -47,6 +53,12 @@ const media = await R2Bucket("media", {
 const trackProcessingWorkflow = Workflow("track-processing", {
   className: "TrackProcessingWorkflow",
   workflowName: "soundkit-track-processing",
+});
+
+const hyperdrive = await Hyperdrive("hyperdrive", {
+  adopt: true,
+  id: "02fa325c571741aca9b6acbec0b40546",
+  origin: requiredSecret(alchemy.secret.env.DATABASE_URL, "DATABASE_URL"),
 });
 
 export const web = await TanStackStart("web", {
@@ -108,6 +120,7 @@ export const server = await Worker("server", {
       alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
+    HYPERDRIVE: hyperdrive,
     MEDIA_BUCKET: media,
     MEDIA_PUBLIC_URL: MEDIA_URL,
     MUX_TOKEN_ID: requiredSecret(
@@ -173,6 +186,9 @@ export const server = await Worker("server", {
   domains: [{ adopt: true, domainName: "api.mysoundkit.com" }],
   entrypoint: "src/index.ts",
   name: "soundkit-server",
+  placement: {
+    region: "aws:us-east-1",
+  },
 });
 
 console.log(`Web    -> ${web.url}`);

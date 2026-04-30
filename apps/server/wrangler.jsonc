@@ -23,4 +23,13 @@
       "class_name": "TrackProcessingWorkflow",
     },
   ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "02fa325c571741aca9b6acbec0b40546",
+    },
+  ],
+  "placement": {
+    "region": "aws:us-east-1",
+  },
 }

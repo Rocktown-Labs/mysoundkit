@@ -126,11 +126,11 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
           `${API_V1_URL}/videos/direct-upload`,
           {
             body: JSON.stringify({
-              title: values.title,
-              sourceTrackId: values.sourceTrackId,
-              sourceProjectId: values.sourceProjectId || undefined,
-              playbackPolicy: values.playbackPolicy,
               description: values.description || undefined,
+              playbackPolicy: values.playbackPolicy,
+              sourceProjectId: values.sourceProjectId || undefined,
+              sourceTrackId: values.sourceTrackId,
+              title: values.title,
             }),
             headers: { "Content-Type": "application/json" },
             method: "POST",
