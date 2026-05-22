@@ -23,8 +23,10 @@ const getConnectionString = () => {
   if (typeof url !== "string" && url) {
     // If it's an object (like a secret wrapper), try to get the value
     // This is a safety check for different environment behaviors
-    const {value} = (url as unknown as { value?: string });
-    if (value) {return value;}
+    const { value } = url as unknown as { value?: string };
+    if (value) {
+      return value;
+    }
   }
 
   return url?.trim() ?? "";

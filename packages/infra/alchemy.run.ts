@@ -57,7 +57,7 @@ const trackProcessingWorkflow = Workflow("track-processing", {
 
 const hyperdrive = await Hyperdrive("hyperdrive", {
   adopt: true,
-  id: "02fa325c571741aca9b6acbec0b40546",
+  hyperdriveId: "02fa325c571741aca9b6acbec0b40546",
   origin: requiredSecret(alchemy.secret.env.DATABASE_URL, "DATABASE_URL"),
 });
 

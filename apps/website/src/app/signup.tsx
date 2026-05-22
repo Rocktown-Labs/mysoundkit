@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { Music, ArrowLeft, Mic, Users } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Mic, Music, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,15 +18,19 @@ export const Route = createFileRoute("/signup")({
 function SignupPage() {
   const router = useRouter();
   const [accountType, setAccountType] = useState<"artist" | "fan" | null>(null);
+  const handleSelectArtist = () => setAccountType("artist");
+  const handleSelectFan = () => setAccountType("fan");
 
-  if (accountType === "artist") {
-    router.navigate({ to: "/signup/artist/credentials" });
-    return null;
-  }
-  if (accountType === "fan") {
-    router.navigate({ to: "/signup/fan/credentials" });
-    return null;
-  }
+  useEffect(() => {
+    if (accountType === "artist") {
+      void router.navigate({ to: "/signup/artist/credentials" });
+      return;
+    }
+
+    if (accountType === "fan") {
+      void router.navigate({ to: "/signup/fan/credentials" });
+    }
+  }, [accountType, router]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -52,13 +56,13 @@ function SignupPage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card
             className="group hover:border-primary transition-all cursor-pointer"
-            onClick={() => setAccountType("artist")}
+            onClick={handleSelectArtist}
           >
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <Mic className="size-8 text-primary" />
               </div>
-              <CardTitle className="text-2xl">I'm an Artist</CardTitle>
+              <CardTitle className="text-2xl">I&apos;m an Artist</CardTitle>
               <CardDescription className="text-base">
                 Share your music, battle other artists, and grow your fanbase
               </CardDescription>
@@ -79,7 +83,12 @@ function SignupPage() {
                   analytics
                 </li>
               </ul>
-              <Button className="w-full mt-6" size="lg">
+              <Button
+                className="w-full mt-6"
+                onClick={handleSelectArtist}
+                size="lg"
+                type="button"
+              >
                 Continue as Artist
               </Button>
             </CardContent>
@@ -87,13 +96,13 @@ function SignupPage() {
 
           <Card
             className="group hover:border-primary transition-all cursor-pointer"
-            onClick={() => setAccountType("fan")}
+            onClick={handleSelectFan}
           >
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <Users className="size-8 text-primary" />
               </div>
-              <CardTitle className="text-2xl">I'm a Fan</CardTitle>
+              <CardTitle className="text-2xl">I&apos;m a Fan</CardTitle>
               <CardDescription className="text-base">
                 Discover new music, support artists, and build your library
               </CardDescription>
@@ -114,7 +123,12 @@ function SignupPage() {
                   <span className="mr-2">✓</span>Purchase and support artists
                 </li>
               </ul>
-              <Button className="w-full mt-6" size="lg">
+              <Button
+                className="w-full mt-6"
+                onClick={handleSelectFan}
+                size="lg"
+                type="button"
+              >
                 Continue as Fan
               </Button>
             </CardContent>
