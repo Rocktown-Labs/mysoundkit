@@ -11,6 +11,7 @@ import defaultHook from "stoker/openapi/default-hook";
 import { jsonError } from "@/lib/errors";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
+import { jsonBodyMiddleware } from "@/middleware/json-body";
 import { sessionMiddleware } from "@/middleware/session";
 import {
   logWarn,
@@ -80,6 +81,7 @@ app.use(
     origin: env.CORS_ORIGIN,
   })
 );
+app.use("/v1/*", jsonBodyMiddleware);
 app.use("/v1/*", sessionMiddleware);
 
 app.doc("/api/openapi.json", {

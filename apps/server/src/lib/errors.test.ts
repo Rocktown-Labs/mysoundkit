@@ -30,6 +30,19 @@ describe("error utilities", () => {
     });
   });
 
+  it("reports malformed JSON syntax as an invalid request payload", () => {
+    expect(
+      errorPayload({
+        error: new SyntaxError("Unexpected token"),
+        requestId: "req_123",
+      })
+    ).toEqual({
+      code: "bad_request",
+      message: "Invalid request payload.",
+      requestId: "req_123",
+    });
+  });
+
   it("keeps internal metadata for structured logs", () => {
     const serialized = serializeErrorForLog(
       new AppError({

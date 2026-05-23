@@ -560,4 +560,3 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
     </Dialog>
   );
 }
-

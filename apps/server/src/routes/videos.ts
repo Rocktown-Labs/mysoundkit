@@ -333,12 +333,12 @@ app.openapi(
         videoId,
       })
       .onConflictDoUpdate({
-        target: muxUploads.muxUploadId,
         set: {
           status: "waiting",
           timeoutSeconds: 60 * 60,
           videoId,
         },
+        target: muxUploads.muxUploadId,
       });
 
     return c.json(

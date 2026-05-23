@@ -86,6 +86,10 @@ const statusCodeFromError = (error: unknown) => {
     return HttpStatusCodes.BAD_REQUEST;
   }
 
+  if (error instanceof SyntaxError) {
+    return HttpStatusCodes.BAD_REQUEST;
+  }
+
   return HttpStatusCodes.INTERNAL_SERVER_ERROR;
 };
 
@@ -138,7 +142,7 @@ export const errorPayload = ({
 
   if (isAppError(error) && error.expose) {
     ({ message } = error);
-  } else if (error instanceof ZodError) {
+  } else if (error instanceof ZodError || error instanceof SyntaxError) {
     message = "Invalid request payload.";
   }
 
