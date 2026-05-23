@@ -96,6 +96,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Restore Alchemy Cloudflare profile
+        run: |
+          mkdir -p "$HOME/.alchemy/credentials/default"
+          printf '%s' "$ALCHEMY_CONFIG_JSON" > "$HOME/.alchemy/config.json"
+          printf '%s' "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON" > "$HOME/.alchemy/credentials/default/cloudflare.json"
+        env:
+          ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON: ${{ secrets.ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON }}
+          ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
+
       - name: Deploy through Alchemy
         working-directory: packages/infra
         run: bun run deploy
@@ -145,6 +154,15 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Restore Alchemy Cloudflare profile
+        run: |
+          mkdir -p "$HOME/.alchemy/credentials/default"
+          printf '%s' "$ALCHEMY_CONFIG_JSON" > "$HOME/.alchemy/config.json"
+          printf '%s' "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON" > "$HOME/.alchemy/credentials/default/cloudflare.json"
+        env:
+          ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON: ${{ secrets.ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON }}
+          ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra
@@ -198,6 +216,15 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Restore Alchemy Cloudflare profile
+        run: |
+          mkdir -p "$HOME/.alchemy/credentials/default"
+          printf '%s' "$ALCHEMY_CONFIG_JSON" > "$HOME/.alchemy/config.json"
+          printf '%s' "$ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON" > "$HOME/.alchemy/credentials/default/cloudflare.json"
+        env:
+          ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON: ${{ secrets.ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON }}
+          ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
 
       - name: Destroy preview through Alchemy
         working-directory: packages/infra
