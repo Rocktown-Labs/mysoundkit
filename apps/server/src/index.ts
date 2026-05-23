@@ -101,6 +101,10 @@ app.get(
 
 app.get("/", async (c) =>
   c.json({
+    bindings: {
+      databaseUrl: hasEnvValue("DATABASE_URL"),
+      hyperdrive: hasEnvValue("HYPERDRIVE"),
+    },
     database: await checkDatabaseHealth(),
     databaseConfigured: isDatabaseConfigured(),
     ok: true,
@@ -112,6 +116,8 @@ app.get("/", async (c) =>
 app.get("/health", async (c) =>
   c.json({
     bindings: {
+      databaseUrl: hasEnvValue("DATABASE_URL"),
+      hyperdrive: hasEnvValue("HYPERDRIVE"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
       trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
       uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),

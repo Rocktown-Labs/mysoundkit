@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown, Play, MoreVertical, Video, Sword } from "lucide-react";
 
+import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AppImage } from "@/components/ui/app-image";
 
 export interface WatchedItem {
   id: string;
@@ -126,7 +126,9 @@ export const columns: ColumnDef<WatchedItem>[] = [
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
             <Link
-              to={row.original.type === "battle" ? "/battles/$id" : "/videos/$id"}
+              to={
+                row.original.type === "battle" ? "/battles/$id" : "/videos/$id"
+              }
               params={{ id: row.original.id }}
             >
               Watch Again

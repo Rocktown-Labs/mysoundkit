@@ -10,6 +10,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    exclude: ["apps/server/src/**/*.worker.test.ts"],
     include: ["apps/server/src/**/*.test.ts"],
   },
 });

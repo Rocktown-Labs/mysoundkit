@@ -1,0 +1,17 @@
+{
+  "name": "soundkit-web-ci",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-04-12",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env",
+  ],
+  "vars": {
+    "BETTER_AUTH_SECRET": "ci-only-auth-secret-value-at-least-32-characters",
+    "BETTER_AUTH_URL": "http://127.0.0.1:3000",
+    "CORS_ORIGIN": "http://127.0.0.1:4311",
+    "DATABASE_URL": "postgresql://ci:ci@127.0.0.1:5432/soundkit",
+    "VITE_MEDIA_URL": "http://127.0.0.1:3000",
+    "VITE_SERVER_URL": "http://127.0.0.1:3000",
+  },
+}

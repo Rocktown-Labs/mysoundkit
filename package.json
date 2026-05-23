@@ -44,7 +44,11 @@
     "destroy": "turbo -F @soundkit/infra destroy",
     "check": "ultracite check",
     "fix": "ultracite fix",
-    "test": "vitest run"
+    "test": "bun run test:unit && bun run test:worker",
+    "test:all": "bun run test && bun run test:e2e",
+    "test:e2e": "playwright test",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:worker": "vitest run --config vitest.worker.config.ts"
   },
   "dependencies": {
     "@soundkit/env": "workspace:*",
@@ -52,7 +56,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.9",
     "@cloudflare/workers-types": "catalog:",
+    "@playwright/test": "^1.60.0",
     "@soundkit/config": "workspace:*",
     "@types/node": "catalog:",
     "oxfmt": "latest",

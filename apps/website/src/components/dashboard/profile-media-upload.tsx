@@ -2,8 +2,8 @@
 
 import { useUploadFiles } from "@better-upload/client";
 import { ImageIcon, LoaderCircle, Upload } from "lucide-react";
-import { useId, useState } from 'react';
-import type { ChangeEvent } from 'react';
+import { useId, useState } from "react";
+import type { ChangeEvent } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";

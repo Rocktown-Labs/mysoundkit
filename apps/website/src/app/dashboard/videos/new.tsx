@@ -112,7 +112,9 @@ function NewVideoPage() {
 
   const filteredHistory = useMemo(() => {
     const query = historySearch.toLowerCase();
-    if (!query) {return null;}
+    if (!query) {
+      return null;
+    }
     return {
       projects: mockHistory.projects.filter((p) =>
         p.name.toLowerCase().includes(query)
