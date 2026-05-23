@@ -106,6 +106,7 @@ jobs:
           ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
 
       - name: Apply production auth schema patches
+        working-directory: packages/db
         run: |
           bun --eval '
           import { Pool } from "pg";
@@ -119,9 +120,9 @@ jobs:
           const pool = new Pool({ connectionString: databaseUrl, max: 1 });
 
           try {
-            await pool.query(`alter table "user" add column if not exists "stripe_customer_id" text`);
-            await pool.query(`alter table "organization" add column if not exists "stripe_customer_id" text`);
-            await pool.query(`alter table "subscription" add column if not exists "stripe_customer_id" text`);
+            await pool.query(`alter table if exists "user" add column if not exists "stripe_customer_id" text`);
+            await pool.query(`alter table if exists "organization" add column if not exists "stripe_customer_id" text`);
+            await pool.query(`alter table if exists "subscription" add column if not exists "stripe_customer_id" text`);
           } finally {
             await pool.end();
           }
