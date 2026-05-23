@@ -140,6 +140,13 @@ Preview web, API, and media origins are stage-aware: a PR such as `#12` uses `ht
 
 Configure GitHub `production` and `preview` environments. Production protection rules can require approval before deployment. The `preview` environment should use sandbox credentials, including a non-production database and Stripe/Mux/StemSplit keys.
 
+After environment setup is complete, add these repository-level GitHub Actions variables to enable deployment jobs:
+
+- `ENABLE_PREVIEW_DEPLOYS=true`
+- `ENABLE_PRODUCTION_DEPLOYS=true`
+
+Until each flag is enabled, its deployment job is skipped while validation continues to run.
+
 Configure these GitHub Actions secrets in each deployment environment:
 
 - `ALCHEMY_PASSWORD`

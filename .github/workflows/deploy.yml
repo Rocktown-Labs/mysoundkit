@@ -76,7 +76,7 @@ jobs:
 
   deploy:
     name: Deploy Production
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' && vars.ENABLE_PRODUCTION_DEPLOYS == 'true' }}
     needs:
       - verify
       - browser
@@ -129,7 +129,7 @@ jobs:
     needs:
       - verify
       - browser
-    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     environment: preview
     permissions:
@@ -182,7 +182,7 @@ jobs:
 
   cleanup:
     name: Destroy Preview
-    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     environment: preview
     permissions:
