@@ -7,6 +7,11 @@ import alchemy from "alchemy/cloudflare/tanstack-start";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+const ciConfigPath =
+  process.env.SOUNDKIT_CI_STATIC_CONFIG === "true"
+    ? "./wrangler.ci.jsonc"
+    : undefined;
+
 export default defineConfig({
   plugins: [
     tsconfigPaths(),
@@ -18,7 +23,7 @@ export default defineConfig({
       srcDirectory: "src",
     }),
     viteReact(),
-    alchemy(),
+    alchemy({ configPath: ciConfigPath }),
   ],
   resolve: {
     alias: {
