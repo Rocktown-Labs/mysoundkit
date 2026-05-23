@@ -30,16 +30,15 @@ export function SoundKitBrand({
 
   return (
     <div className={cn("flex w-full items-center justify-center", className)}>
-      <AppImage
-        alt="SoundKit"
+      <span
         className={cn(
-          "h-8 w-auto shrink-0 group-data-[collapsible=icon]:hidden",
+          "flex h-8 shrink-0 items-center border border-white/40 px-1.5 font-notable text-[10px] leading-none text-white uppercase group-data-[collapsible=icon]:hidden",
           wordmarkClassName
         )}
-        height={100}
-        src="/soundkit-wordmark.svg"
-        width={250}
-      />
+        data-soundkit-sidebar-wordmark
+      >
+        SoundKit
+      </span>
       <AppImage
         alt="SoundKit"
         className={cn(

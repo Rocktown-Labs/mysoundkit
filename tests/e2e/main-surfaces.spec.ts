@@ -80,4 +80,21 @@ test.describe("main application surfaces", () => {
 
     await expect.poll(() => consoleErrors).toEqual([]);
   });
+
+  test("desktop sidebar uses text branding when expanded", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "Expanded sidebar branding is only visible on desktop."
+    );
+
+    await page.goto("/tracks");
+    await expect(page.locator("[data-soundkit-sidebar-wordmark]")).toHaveText(
+      "SoundKit"
+    );
+    await expect(page.locator('img[src*="soundkit-wordmark.svg"]')).toHaveCount(
+      0
+    );
+  });
 });
