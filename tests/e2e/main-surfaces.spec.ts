@@ -24,6 +24,23 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
     await expect(page.getByText("I'm a Fan")).toBeVisible();
+
+    await page.getByRole("link", { name: /continue as artist/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /create artist account/i })
+    ).toBeVisible();
+
+    await page.goto("/signup");
+    await page.getByRole("link", { name: /continue as fan/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /create fan account/i })
+    ).toBeVisible();
+
+    await page.goto("/signup/artist/credentials");
+    await expect(
+      page.getByRole("heading", { name: /create artist account/i })
+    ).toBeVisible();
+    await expect(page.getByText("I'm an Artist")).toBeHidden();
   });
 
   test("live surfaces render while realtime implementation is pending", async ({
@@ -40,5 +57,27 @@ test.describe("main application surfaces", () => {
     await page.goto("/live/parties");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/part/i).first()).toBeVisible();
+  });
+
+  test("signup surfaces load without console errors", async ({ page }) => {
+    const consoleErrors: string[] = [];
+
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+
+    await page.goto("/signup");
+    await expect(
+      page.getByRole("heading", { name: /join soundkit/i })
+    ).toBeVisible();
+
+    await page.getByRole("link", { name: /continue as artist/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /create artist account/i })
+    ).toBeVisible();
+
+    await expect.poll(() => consoleErrors).toEqual([]);
   });
 });

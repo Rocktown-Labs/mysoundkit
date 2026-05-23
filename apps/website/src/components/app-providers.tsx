@@ -18,7 +18,12 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableColorScheme={false}
+        enableSystem={false}
+      >
         <AudioPlayerProvider>
           <CartProvider>{children}</CartProvider>
         </AudioPlayerProvider>

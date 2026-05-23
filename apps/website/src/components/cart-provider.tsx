@@ -164,28 +164,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const hydrateCart = async () => {
-      try {
-        const apiCart = await requestCart();
-        if (isMounted) {
-          setCart(apiCart);
-          setIsApiCartActive(true);
-        }
-      } catch {
-        if (isMounted) {
-          setCart(readLocalCart());
-          setIsApiCartActive(false);
-        }
-      }
-    };
-
-    void hydrateCart();
-
-    return () => {
-      isMounted = false;
-    };
+    setCart(readLocalCart());
   }, []);
 
   const setLocalItems = useCallback((items: CartItem[]) => {
