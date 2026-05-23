@@ -85,7 +85,10 @@ function SignupPage() {
               </ul>
               <Button
                 className="w-full mt-6"
-                onClick={handleSelectArtist}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleSelectArtist();
+                }}
                 size="lg"
                 type="button"
               >
