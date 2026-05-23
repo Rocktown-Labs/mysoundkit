@@ -14,7 +14,7 @@ import {
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 const formatDuration = (durationMs: number | null | undefined) => {
   if (!durationMs) {
@@ -129,6 +129,7 @@ export const mapTrackSummary = ({
     id: row.id,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
+    lyricsStatus: row.lyricsStatus,
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
     playbackUrl: publicAssetUrl(primaryAudioAsset),
@@ -211,9 +212,21 @@ export const buildTrackDetail = async (
       )
       .where(eq(trackCollaborators.trackId, row.id)),
     db
-      .select({ text: trackLyrics.text })
+      .select({
+        approvedAt: trackLyrics.approvedAt,
+        id: trackLyrics.id,
+        language: trackLyrics.language,
+        sourceType: trackLyrics.sourceType,
+        status: trackLyrics.status,
+        text: trackLyrics.text,
+        timedLines: trackLyrics.timedLines,
+      })
       .from(trackLyrics)
       .where(eq(trackLyrics.trackId, row.id))
+      .orderBy(
+        sql`${trackLyrics.approvedAt} desc nulls last`,
+        sql`${trackLyrics.createdAt} desc`
+      )
       .limit(1),
   ]);
 
@@ -224,6 +237,16 @@ export const buildTrackDetail = async (
     createdAt: row.createdAt.toISOString(),
     description: row.description,
     lyrics: lyricsRows[0]?.text ?? null,
+    lyricsRevision: lyricsRows[0]
+      ? {
+          approvedAt: lyricsRows[0].approvedAt?.toISOString() ?? null,
+          id: lyricsRows[0].id,
+          language: lyricsRows[0].language,
+          sourceType: lyricsRows[0].sourceType,
+          status: lyricsRows[0].status,
+          timedLines: lyricsRows[0].timedLines ?? null,
+        }
+      : null,
   };
 };
 

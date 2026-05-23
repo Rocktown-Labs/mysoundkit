@@ -117,6 +117,25 @@ export const stemOutputFormatEnum = pgEnum("stem_output_format", [
   "WAV",
   "FLAC",
 ]);
+export const lyricsStatusEnum = pgEnum("lyrics_status", [
+  "missing",
+  "generating",
+  "pending_review",
+  "approved",
+  "failed",
+]);
+export const lyricsSourceTypeEnum = pgEnum("lyrics_source_type", [
+  "artist",
+  "collaborator",
+  "machine_transcription",
+  "fan_submission",
+  "import",
+]);
+export const lyricsRevisionStatusEnum = pgEnum("lyrics_revision_status", [
+  "pending_review",
+  "approved",
+  "rejected",
+]);
 export const searchableEntityTypeEnum = pgEnum("searchable_entity_type", [
   "artist",
   "track",
@@ -484,6 +503,9 @@ export const tracks = pgTable(
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
+    lyricsStatus: lyricsStatusEnum("lyrics_status")
+      .default("missing")
+      .notNull(),
     musicalKey: text("musical_key"),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
@@ -636,6 +658,13 @@ export const trackStemJobs = pgTable(
 export const trackLyrics = pgTable(
   "track_lyrics",
   {
+    approvedAt: timestamp("approved_at"),
+    approvedByUserId: text("approved_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    contributorUserId: text("contributor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
     language: text("language"),
@@ -643,7 +672,15 @@ export const trackLyrics = pgTable(
     sourceAssetId: text("source_asset_id").references(() => trackAssets.id, {
       onDelete: "set null",
     }),
+    sourceType: lyricsSourceTypeEnum("source_type").default("import").notNull(),
+    status: lyricsRevisionStatusEnum("status")
+      .default("pending_review")
+      .notNull(),
     text: text("text").notNull(),
+    timedLines:
+      jsonb("timed_lines").$type<
+        { endMs: number; startMs: number; text: string }[]
+      >(),
     trackId: text("track_id")
       .notNull()
       .references(() => tracks.id, { onDelete: "cascade" }),
@@ -652,7 +689,10 @@ export const trackLyrics = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("track_lyrics_track_id_idx").on(table.trackId)]
+  (table) => [
+    index("track_lyrics_track_id_idx").on(table.trackId),
+    index("track_lyrics_track_status_idx").on(table.trackId, table.status),
+  ]
 );
 
 export const trackCollaborators = pgTable(
@@ -831,6 +871,60 @@ export const videos = pgTable(
     videoKind: videoKindEnum("video_kind").notNull(),
   },
   (table) => [index("videos_owner_user_id_idx").on(table.ownerUserId)]
+);
+
+export const muxAssets = pgTable(
+  "mux_assets",
+  {
+    aspectRatio: text("aspect_ratio"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    durationSeconds: numeric("duration_seconds"),
+    liveStreamId: text("live_stream_id"),
+    muxAssetId: text("mux_asset_id").primaryKey(),
+    muxUploadId: text("mux_upload_id"),
+    passthrough: text("passthrough"),
+    playbackIds:
+      jsonb("playback_ids").$type<{ id: string; policy: string }[]>(),
+    resolutionTier: text("resolution_tier"),
+    status: text("status").default("preparing").notNull(),
+    tracks: jsonb("tracks"),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    videoId: text("video_id").references(() => videos.id, {
+      onDelete: "set null",
+    }),
+    videoQuality: text("video_quality"),
+  },
+  (table) => [
+    index("mux_assets_status_idx").on(table.status),
+    index("mux_assets_upload_id_idx").on(table.muxUploadId),
+    uniqueIndex("mux_assets_video_id_idx").on(table.videoId),
+  ]
+);
+
+export const muxUploads = pgTable(
+  "mux_uploads",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    muxAssetId: text("mux_asset_id"),
+    muxUploadId: text("mux_upload_id").primaryKey(),
+    status: text("status").default("waiting").notNull(),
+    timeoutSeconds: integer("timeout_seconds").default(3600).notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    videoId: text("video_id").references(() => videos.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("mux_uploads_status_idx").on(table.status),
+    index("mux_uploads_asset_id_idx").on(table.muxAssetId),
+    uniqueIndex("mux_uploads_video_id_idx").on(table.videoId),
+  ]
 );
 
 export const posts = pgTable(

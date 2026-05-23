@@ -168,7 +168,7 @@ export function NewTrackForm() {
           mimeType: file.type || "audio/mpeg",
           objectKey,
           sizeBytes: file.size,
-          status: "uploaded",
+          status: "ready",
           storageProvider: "r2",
         },
         param: { trackId: track.id },

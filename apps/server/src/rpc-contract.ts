@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type {
   directVideoUploadResponseSchema,
+  lyricsRevisionSchema,
   meResponseSchema,
   planSchema,
   projectDashboardDetailSchema,
@@ -17,6 +18,7 @@ import type {
 } from "./lib/schemas";
 import {
   createProjectBodySchema,
+  createLyricsRevisionBodySchema,
   createSellerAccountLinkBodySchema,
   createTrackAssetBodySchema,
   createTrackBodySchema,
@@ -27,6 +29,7 @@ import {
   onboardingResponseSchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
+  reviewLyricsRevisionBodySchema,
 } from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
@@ -77,6 +80,24 @@ export const rpcContract = new Hono()
   )
   .post("/v1/tracks/:trackId/process", (c) =>
     c.json({} as z.infer<typeof trackProcessingStatusSchema>)
+  )
+  .get("/v1/tracks/:trackId/lyrics", (c) =>
+    c.json(null as z.infer<typeof lyricsRevisionSchema> | null)
+  )
+  .post(
+    "/v1/tracks/:trackId/lyrics",
+    jsonValidator(createLyricsRevisionBodySchema),
+    (c) => c.json({} as z.infer<typeof lyricsRevisionSchema>, 201)
+  )
+  .post(
+    "/v1/tracks/:trackId/lyrics/suggestions",
+    jsonValidator(createLyricsRevisionBodySchema),
+    (c) => c.json({} as z.infer<typeof lyricsRevisionSchema>, 201)
+  )
+  .patch(
+    "/v1/tracks/:trackId/lyrics/:lyricsId",
+    jsonValidator(reviewLyricsRevisionBodySchema),
+    (c) => c.json({} as z.infer<typeof lyricsRevisionSchema>)
   )
   .get("/v1/projects/", (c) =>
     c.json([] as z.infer<typeof projectSummarySchema>[])

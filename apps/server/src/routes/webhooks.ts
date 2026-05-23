@@ -2,7 +2,13 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { Mux } from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { trackStemJobs, videos, webhookEvents } from "@soundkit/db/schema/app";
+import {
+  muxAssets,
+  muxUploads,
+  trackStemJobs,
+  videos,
+  webhookEvents,
+} from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { and, eq, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
@@ -188,6 +194,32 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
         status: "processing",
       })
       .where(eq(videos.id, video.id));
+    if (assetId) {
+      await db
+        .insert(muxAssets)
+        .values({
+          muxAssetId: assetId,
+          muxUploadId: uploadId,
+          passthrough,
+          status: "preparing",
+          videoId: video.id,
+        })
+        .onConflictDoUpdate({
+          set: {
+            muxUploadId: uploadId,
+            passthrough,
+            status: "preparing",
+            videoId: video.id,
+          },
+          target: muxAssets.muxAssetId,
+        });
+    }
+    if (uploadId) {
+      await db
+        .update(muxUploads)
+        .set({ muxAssetId: assetId, status: "asset_created" })
+        .where(eq(muxUploads.muxUploadId, uploadId));
+    }
 
     return "processed" as const;
   }
@@ -205,6 +237,45 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
         status: "ready",
       })
       .where(eq(videos.id, video.id));
+    if (assetId) {
+      await db
+        .insert(muxAssets)
+        .values({
+          aspectRatio: getStringValue(eventData.aspect_ratio),
+          durationSeconds:
+            typeof eventData.duration === "number"
+              ? String(eventData.duration)
+              : null,
+          muxAssetId: assetId,
+          passthrough,
+          playbackIds: Array.isArray(eventData.playback_ids)
+            ? (eventData.playback_ids as { id: string; policy: string }[])
+            : null,
+          resolutionTier: getStringValue(eventData.resolution_tier),
+          status: "ready",
+          tracks: eventData.tracks ?? null,
+          videoId: video.id,
+          videoQuality: getStringValue(eventData.video_quality),
+        })
+        .onConflictDoUpdate({
+          set: {
+            aspectRatio: getStringValue(eventData.aspect_ratio),
+            durationSeconds:
+              typeof eventData.duration === "number"
+                ? String(eventData.duration)
+                : null,
+            playbackIds: Array.isArray(eventData.playback_ids)
+              ? (eventData.playback_ids as { id: string; policy: string }[])
+              : null,
+            resolutionTier: getStringValue(eventData.resolution_tier),
+            status: "ready",
+            tracks: eventData.tracks ?? null,
+            videoId: video.id,
+            videoQuality: getStringValue(eventData.video_quality),
+          },
+          target: muxAssets.muxAssetId,
+        });
+    }
 
     return "processed" as const;
   }
@@ -221,6 +292,25 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
         status: "failed",
       })
       .where(eq(videos.id, video.id));
+    if (assetId) {
+      await db
+        .insert(muxAssets)
+        .values({
+          muxAssetId: assetId,
+          status: "errored",
+          videoId: video.id,
+        })
+        .onConflictDoUpdate({
+          set: { status: "errored", videoId: video.id },
+          target: muxAssets.muxAssetId,
+        });
+    }
+    if (uploadId) {
+      await db
+        .update(muxUploads)
+        .set({ status: "errored" })
+        .where(eq(muxUploads.muxUploadId, uploadId));
+    }
 
     return "processed" as const;
   }
@@ -232,6 +322,12 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
         status: "deleted",
       })
       .where(eq(videos.id, video.id));
+    if (assetId) {
+      await db
+        .update(muxAssets)
+        .set({ status: "deleted" })
+        .where(eq(muxAssets.muxAssetId, assetId));
+    }
 
     return "processed" as const;
   }
@@ -244,6 +340,19 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
         status: "uploading",
       })
       .where(eq(videos.id, video.id));
+    if (uploadId) {
+      await db
+        .insert(muxUploads)
+        .values({
+          muxUploadId: uploadId,
+          status: "waiting",
+          videoId: video.id,
+        })
+        .onConflictDoUpdate({
+          set: { status: "waiting", videoId: video.id },
+          target: muxUploads.muxUploadId,
+        });
+    }
 
     return "processed" as const;
   }

@@ -6,15 +6,16 @@ import {
   artistProfiles,
   genres,
   purchases,
-  trackStemJobs,
   trackAssets,
   trackLicenseOptions,
+  trackLyrics,
+  trackStemJobs,
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -36,7 +37,10 @@ import { sampleCatalogItems, sampleTracks } from "@/lib/sample-data";
 import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
+  createLyricsRevisionBodySchema,
+  lyricsRevisionSchema,
   messageResponseSchema,
+  reviewLyricsRevisionBodySchema,
   setupRequiredResponseSchema,
   trackCatalogDetailSchema,
   trackDashboardDetailSchema,
@@ -159,6 +163,155 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "get",
+    path: "/{trackId}/lyrics",
+    request: {
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        lyricsRevisionSchema.nullable(),
+        "Approved lyrics revision"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const { trackId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(null, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const [revision] = await db
+      .select({
+        approvedAt: trackLyrics.approvedAt,
+        id: trackLyrics.id,
+        language: trackLyrics.language,
+        sourceType: trackLyrics.sourceType,
+        status: trackLyrics.status,
+        text: trackLyrics.text,
+        timedLines: trackLyrics.timedLines,
+        trackId: trackLyrics.trackId,
+      })
+      .from(trackLyrics)
+      .innerJoin(tracks, eq(tracks.id, trackLyrics.trackId))
+      .where(
+        and(
+          eq(trackLyrics.trackId, trackId),
+          eq(trackLyrics.status, "approved"),
+          eq(tracks.isPublic, true)
+        )
+      )
+      .limit(1);
+
+    if (!revision) {
+      return c.json(null, HttpStatusCodes.OK);
+    }
+
+    return c.json(
+      {
+        ...revision,
+        approvedAt: revision.approvedAt?.toISOString() ?? null,
+        timedLines: revision.timedLines ?? null,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{trackId}/lyrics/suggestions",
+    request: {
+      body: jsonContentRequired(
+        createLyricsRevisionBodySchema,
+        "Fan lyrics suggestion payload"
+      ),
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        lyricsRevisionSchema,
+        "Fan lyrics suggestion submitted"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ message: "Database is not configured." }, 404);
+    }
+
+    const { trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const db = createDb();
+    const [track] = await db
+      .select({ id: tracks.id })
+      .from(tracks)
+      .where(and(eq(tracks.id, trackId), eq(tracks.isPublic, true)))
+      .limit(1);
+
+    if (!track) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const [revision] = await db
+      .insert(trackLyrics)
+      .values({
+        contributorUserId: user.id,
+        id: crypto.randomUUID(),
+        language: body.language,
+        sourceType: "fan_submission",
+        status: "pending_review",
+        text: body.text,
+        timedLines: body.timedLines ?? null,
+        trackId,
+      })
+      .returning();
+
+    if (!revision) {
+      throw new Error("Failed to submit lyrics suggestion.");
+    }
+
+    return c.json(
+      {
+        approvedAt: null,
+        id: revision.id,
+        language: revision.language,
+        sourceType: revision.sourceType,
+        status: revision.status,
+        text: revision.text,
+        timedLines: revision.timedLines ?? null,
+        trackId: revision.trackId,
+      },
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "post",
     path: "/",
     request: {
@@ -212,6 +365,7 @@ app.openapi(
           id: "track_new",
           isForSale: body.isForSale,
           isPublic: body.isPublic,
+          lyricsStatus: "missing" as const,
           musicalKey: body.musicalKey ?? null,
           organizationId: null,
           playbackUrl: null,
@@ -701,14 +855,14 @@ app.openapi(
           );
 
     if (job && !job.workflowInstanceId) {
-      await withRetry("mark master asset processing", () =>
+      await withRetry("mark lyrics generating", () =>
         db
-          .update(trackAssets)
+          .update(tracks)
           .set({
-            status: "processing",
+            lyricsStatus: "generating",
             updatedAt: new Date(),
           })
-          .where(eq(trackAssets.id, masterAsset.id))
+          .where(eq(tracks.id, trackId))
       );
 
       await withRetry("create workflow job row", () =>
@@ -761,6 +915,264 @@ app.openapi(
         status: "queued" as const,
       },
       HttpStatusCodes.ACCEPTED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{trackId}/lyrics",
+    request: {
+      body: jsonContentRequired(
+        createLyricsRevisionBodySchema,
+        "Lyrics revision payload"
+      ),
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        lyricsRevisionSchema,
+        "Lyrics revision submitted"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ message: "Database is not configured." }, 404);
+    }
+
+    const { trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const session = c.get("session");
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const db = createDb();
+    const [track] = await db
+      .select({ id: tracks.id })
+      .from(tracks)
+      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+      .limit(1);
+
+    if (!track) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const [revision] = await db
+      .insert(trackLyrics)
+      .values({
+        contributorUserId: user.id,
+        id: crypto.randomUUID(),
+        language: body.language,
+        sourceType: "artist",
+        status: "pending_review",
+        text: body.text,
+        timedLines: body.timedLines ?? null,
+        trackId,
+      })
+      .returning();
+
+    await db
+      .update(tracks)
+      .set({ lyricsStatus: "pending_review", updatedAt: new Date() })
+      .where(and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved")));
+
+    if (!revision) {
+      throw new Error("Failed to submit lyrics revision.");
+    }
+
+    return c.json(
+      {
+        approvedAt: null,
+        id: revision.id,
+        language: revision.language,
+        sourceType: revision.sourceType,
+        status: revision.status,
+        text: revision.text,
+        timedLines: revision.timedLines ?? null,
+        trackId: revision.trackId,
+      },
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/{trackId}/lyrics/{lyricsId}",
+    request: {
+      body: jsonContentRequired(
+        reviewLyricsRevisionBodySchema,
+        "Lyrics review payload"
+      ),
+      params: z.object({
+        lyricsId: z.string(),
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Synchronized lyrics required"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        lyricsRevisionSchema,
+        "Lyrics revision reviewed"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Lyrics revision not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ message: "Database is not configured." }, 404);
+    }
+
+    const { lyricsId, trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const session = c.get("session");
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const db = createDb();
+    const [track] = await db
+      .select({ id: tracks.id })
+      .from(tracks)
+      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+      .limit(1);
+
+    if (!track) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const [existing] = await db
+      .select()
+      .from(trackLyrics)
+      .where(
+        and(eq(trackLyrics.id, lyricsId), eq(trackLyrics.trackId, trackId))
+      )
+      .limit(1);
+
+    if (!existing) {
+      return c.json(
+        { message: "Lyrics revision not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if (
+      body.status === "approved" &&
+      (!existing.timedLines || existing.timedLines.length === 0)
+    ) {
+      return c.json(
+        { message: "Approved battle lyrics must include synchronized lines." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const approvedAt = body.status === "approved" ? new Date() : null;
+
+    if (body.status === "approved") {
+      await db
+        .update(trackLyrics)
+        .set({
+          approvedAt: null,
+          approvedByUserId: null,
+          status: "rejected",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(trackLyrics.trackId, trackId),
+            eq(trackLyrics.status, "approved")
+          )
+        );
+    }
+
+    const [revision] = await db
+      .update(trackLyrics)
+      .set({
+        approvedAt,
+        approvedByUserId: body.status === "approved" ? user.id : null,
+        status: body.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(trackLyrics.id, lyricsId))
+      .returning();
+
+    const [remainingApproved] =
+      body.status === "approved"
+        ? [revision]
+        : await db
+            .select({ id: trackLyrics.id })
+            .from(trackLyrics)
+            .where(
+              and(
+                eq(trackLyrics.trackId, trackId),
+                eq(trackLyrics.status, "approved")
+              )
+            )
+            .limit(1);
+    const nextLyricsStatus = remainingApproved ? "approved" : "missing";
+
+    await db
+      .update(tracks)
+      .set({
+        lyricsStatus: nextLyricsStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(tracks.id, trackId));
+
+    if (!revision) {
+      throw new Error("Failed to review lyrics revision.");
+    }
+
+    return c.json(
+      {
+        approvedAt: revision.approvedAt?.toISOString() ?? null,
+        id: revision.id,
+        language: revision.language,
+        sourceType: revision.sourceType,
+        status: revision.status,
+        text: revision.text,
+        timedLines: revision.timedLines ?? null,
+        trackId: revision.trackId,
+      },
+      HttpStatusCodes.OK
     );
   }
 );

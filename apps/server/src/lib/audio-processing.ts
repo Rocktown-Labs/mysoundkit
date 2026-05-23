@@ -10,7 +10,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { embed, generateText } from "ai";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 
 const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1";
 const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2";
@@ -250,9 +250,12 @@ const transcribeVocals = async ({
     .insert(trackLyrics)
     .values({
       id: crypto.randomUUID(),
+      language: "en",
       metadata: {
         model: "gemini-3-flash",
       },
+      sourceType: "machine_transcription",
+      status: "pending_review",
       text,
       trackId,
     })
@@ -388,6 +391,14 @@ export const processCompletedStemSplitJob = async ({
         trackId,
       })
     : null;
+
+  await db
+    .update(tracks)
+    .set({
+      lyricsStatus: lyrics ? "pending_review" : "failed",
+      updatedAt: now,
+    })
+    .where(and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved")));
   const [track] = await db
     .select()
     .from(tracks)
