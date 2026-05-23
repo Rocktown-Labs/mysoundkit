@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import Mux from "@mux/mux-node";
+import { Mux } from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { videos } from "@soundkit/db/schema/app";
+import { muxUploads, videos } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
@@ -292,6 +292,11 @@ app.openapi(
     const upload = await mux.video.uploads.create({
       cors_origin: env.CORS_ORIGIN,
       new_asset_settings: {
+        meta: {
+          creator_id: user.id,
+          external_id: videoId,
+          title: body.title,
+        },
         normalize_audio: true,
         passthrough,
         playback_policies: [body.playbackPolicy],
@@ -313,12 +318,28 @@ app.openapi(
       playbackPolicy: body.playbackPolicy,
       sourceProjectId: body.sourceProjectId ?? null,
       sourceProvider: "mux",
-      sourceTrackId: body.sourceTrackId,
+      sourceTrackId: body.sourceTrackId ?? null,
       status: "uploading",
       title: body.title,
       verifiedOnPlatform: true,
-      videoKind: "music_video",
+      videoKind: body.videoKind,
     });
+    await db
+      .insert(muxUploads)
+      .values({
+        muxUploadId: upload.id,
+        status: "waiting",
+        timeoutSeconds: 60 * 60,
+        videoId,
+      })
+      .onConflictDoUpdate({
+        target: muxUploads.muxUploadId,
+        set: {
+          status: "waiting",
+          timeoutSeconds: 60 * 60,
+          videoId,
+        },
+      });
 
     return c.json(
       {

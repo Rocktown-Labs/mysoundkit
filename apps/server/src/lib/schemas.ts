@@ -121,6 +121,9 @@ export const trackSummarySchema = z.object({
   id: z.string(),
   isForSale: z.boolean(),
   isPublic: z.boolean().optional(),
+  lyricsStatus: z
+    .enum(["missing", "generating", "pending_review", "approved", "failed"])
+    .default("missing"),
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
@@ -169,6 +172,68 @@ export const trackDashboardDetailSchema = trackSummarySchema.extend({
   createdAt: z.string(),
   description: z.string().nullable().optional(),
   lyrics: z.string().nullable().optional(),
+  lyricsRevision: z
+    .object({
+      approvedAt: z.string().nullable(),
+      id: z.string(),
+      language: z.string().nullable(),
+      sourceType: z.enum([
+        "artist",
+        "collaborator",
+        "machine_transcription",
+        "fan_submission",
+        "import",
+      ]),
+      status: z.enum(["pending_review", "approved", "rejected"]),
+      timedLines: z
+        .array(
+          z.object({
+            endMs: z.number().int().nonnegative(),
+            startMs: z.number().int().nonnegative(),
+            text: z.string().min(1),
+          })
+        )
+        .nullable(),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const timedLyricsLineSchema = z
+  .object({
+    endMs: z.number().int().nonnegative(),
+    startMs: z.number().int().nonnegative(),
+    text: z.string().min(1),
+  })
+  .refine((line) => line.endMs > line.startMs, {
+    message: "A lyric line must end after it starts.",
+  });
+
+export const createLyricsRevisionBodySchema = z.object({
+  language: z.string().min(2).default("en"),
+  text: z.string().min(1),
+  timedLines: z.array(timedLyricsLineSchema).optional(),
+});
+
+export const reviewLyricsRevisionBodySchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+});
+
+export const lyricsRevisionSchema = z.object({
+  approvedAt: z.string().nullable(),
+  id: z.string(),
+  language: z.string().nullable(),
+  sourceType: z.enum([
+    "artist",
+    "collaborator",
+    "machine_transcription",
+    "fan_submission",
+    "import",
+  ]),
+  status: z.enum(["pending_review", "approved", "rejected"]),
+  text: z.string(),
+  timedLines: z.array(timedLyricsLineSchema).nullable(),
+  trackId: z.string(),
 });
 
 export const catalogArtistSchema = z.object({
@@ -591,10 +656,20 @@ export const createVideoBodySchema = z.object({
 
 export const directVideoUploadBodySchema = z.object({
   description: z.string().optional(),
-  playbackPolicy: z.enum(["public", "signed"]).default("public"),
+  playbackPolicy: z.literal("public").default("public"),
   sourceProjectId: z.string().optional(),
-  sourceTrackId: z.string().min(1),
+  sourceTrackId: z.string().min(1).optional(),
   title: z.string().min(1),
+  videoKind: z
+    .enum([
+      "music_video",
+      "promo",
+      "teaser",
+      "battle_replay",
+      "battle_clip",
+      "live_recording",
+    ])
+    .default("music_video"),
 });
 
 export const directVideoUploadResponseSchema = z.object({
@@ -617,6 +692,22 @@ export const createChallengeBodySchema = z.object({
   opponentUsername: z.string().min(1),
   proposedDate: z.string().optional(),
   proposedTimeLabel: z.string().optional(),
+});
+
+export const battleEligibilityBodySchema = z.object({
+  trackIds: z.array(z.string().min(1)).min(1),
+});
+
+export const battleEligibilitySchema = z.object({
+  eligible: z.boolean(),
+  tracks: z.array(
+    z.object({
+      lyricsRevisionId: z.string().nullable(),
+      ready: z.boolean(),
+      reason: z.string().nullable(),
+      trackId: z.string(),
+    })
+  ),
 });
 
 export const createCommentBodySchema = z.object({

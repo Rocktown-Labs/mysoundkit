@@ -141,6 +141,51 @@ describe("SoundKit Worker API", () => {
     expect(body.message).toContain("Authentication");
   });
 
+  it("guards battle lyric eligibility checks behind authentication", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/battles/eligibility",
+      jsonRequest("POST", {
+        trackIds: ["track_123"],
+      })
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("guards lyric revision submission behind authentication", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/tracks/track_123/lyrics",
+      jsonRequest("POST", {
+        text: "Test lyric",
+        timedLines: [{ endMs: 1000, startMs: 0, text: "Test lyric" }],
+      })
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns no approved public lyrics when storage is not configured", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/tracks/track_123/lyrics"
+    );
+    const body = await readJson<unknown>(response);
+
+    expect(response.status).toBe(200);
+    expect(body).toBeNull();
+  });
+
+  it("guards fan lyric suggestions behind authentication", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/tracks/track_123/lyrics/suggestions",
+      jsonRequest("POST", {
+        text: "Suggested lyric",
+        timedLines: [{ endMs: 1000, startMs: 0, text: "Suggested lyric" }],
+      })
+    );
+
+    expect(response.status).toBe(401);
+  });
+
   it("guards direct video uploads behind authentication", async () => {
     const response = await SELF.fetch(
       "http://soundkit.test/v1/videos/direct-upload",

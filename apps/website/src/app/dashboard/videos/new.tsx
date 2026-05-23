@@ -1,21 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
-  Film,
   ChevronLeft,
   ChevronRight,
   Check,
-  Upload,
-  Youtube,
-  Info,
-  Play,
-  Sparkles,
-  Settings,
-  ShieldCheck,
-  LoaderCircle,
-  Search,
-  Music,
+  CloudUpload,
   FolderOpen,
+  Info,
+  LoaderCircle,
+  Music,
+  Search,
+  Settings,
+  Sparkles,
+  Upload,
+  X,
+  Youtube,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -33,7 +32,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -53,6 +51,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // Mock data for search
@@ -71,11 +70,21 @@ const mockHistory = {
 const videoFormSchema = z.object({
   description: z.string().optional(),
   genre: z.string().min(1, "Genre is required"),
-  playbackPolicy: z.enum(["public", "signed"]).default("public"),
+  playbackPolicy: z.literal("public").default("public"),
   sourceProjectId: z.string().optional(),
   sourceTrackId: z.string().optional(),
   sourceType: z.enum(["upload", "youtube"]).default("upload"),
   title: z.string().min(2, "Video title is required"),
+  videoKind: z
+    .enum([
+      "music_video",
+      "promo",
+      "teaser",
+      "battle_replay",
+      "battle_clip",
+      "live_recording",
+    ])
+    .default("music_video"),
   youtubeUrl: z
     .string()
     .url("Invalid YouTube URL")
@@ -105,6 +114,7 @@ function NewVideoPage() {
       sourceTrackId: "",
       sourceType: "upload",
       title: "",
+      videoKind: "music_video",
       youtubeUrl: "",
     },
     resolver: zodResolver(videoFormSchema),
@@ -137,7 +147,64 @@ function NewVideoPage() {
 
     setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2500));
+      if (values.sourceType === "upload" && videoFile) {
+        const createResponse = await fetch(
+          `${API_V1_URL}/videos/direct-upload`,
+          {
+            body: JSON.stringify({
+              description: values.description || undefined,
+              playbackPolicy: "public",
+              sourceProjectId: values.sourceProjectId || undefined,
+              sourceTrackId: values.sourceTrackId || undefined,
+              title: values.title,
+              videoKind: values.videoKind,
+            }),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        const createPayload = (await createResponse.json()) as {
+          message?: string;
+          uploadUrl?: string;
+        };
+
+        if (!createResponse.ok || !createPayload.uploadUrl) {
+          throw new Error(createPayload.message ?? "Failed to create upload.");
+        }
+
+        const uploadResponse = await fetch(createPayload.uploadUrl, {
+          body: videoFile,
+          headers: { "Content-Type": videoFile.type || "video/mp4" },
+          method: "PUT",
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Video upload failed before Mux could process it.");
+        }
+      } else {
+        const createResponse = await fetch(`${API_V1_URL}/videos`, {
+          body: JSON.stringify({
+            description: values.description || undefined,
+            externalPlaybackUrl: values.youtubeUrl,
+            playbackPolicy: "public",
+            sourceProjectId: values.sourceProjectId || undefined,
+            sourceProvider: "external",
+            sourceTrackId: values.sourceTrackId || undefined,
+            title: values.title,
+            videoKind: values.videoKind,
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        const payload = (await createResponse.json()) as { message?: string };
+
+        if (!createResponse.ok) {
+          throw new Error(payload.message ?? "Failed to save external video.");
+        }
+      }
+
       toast({
         description: `${values.title} is now ${values.sourceType === "upload" ? "processing" : "linked"}.`,
         title: "Video Added",
@@ -195,8 +262,8 @@ function NewVideoPage() {
           Add New Video
         </h1>
         <p className="text-muted-foreground max-w-lg mx-auto">
-          Share your music videos or live performances. We'll handle the hosting
-          or link your external sources.
+          Share your music videos or live performances. We will handle the
+          hosting or link your external sources.
         </p>
       </div>
 
@@ -297,6 +364,7 @@ function NewVideoPage() {
                               </p>
                               {filteredHistory.tracks.map((track) => (
                                 <button
+                                  type="button"
                                   key={track.id}
                                   onClick={() =>
                                     selectFromHistory(
@@ -329,6 +397,7 @@ function NewVideoPage() {
                               </p>
                               {filteredHistory.projects.map((project) => (
                                 <button
+                                  type="button"
                                   key={project.id}
                                   onClick={() =>
                                     selectFromHistory(
@@ -424,6 +493,42 @@ function NewVideoPage() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="videoKind"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Video Type</FormLabel>
+                      <Select
+                        defaultValue={field.value}
+                        onValueChange={(value) => field.onChange(value)}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="bg-background/50">
+                            <SelectValue placeholder="Select video type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="music_video">
+                            Music Video
+                          </SelectItem>
+                          <SelectItem value="promo">Promo</SelectItem>
+                          <SelectItem value="teaser">Teaser</SelectItem>
+                          <SelectItem value="battle_replay">
+                            Battle Replay
+                          </SelectItem>
+                          <SelectItem value="battle_clip">
+                            Battle Clip
+                          </SelectItem>
+                          <SelectItem value="live_recording">
+                            Live Recording
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-end pt-4">
                   <Button
@@ -472,7 +577,11 @@ function NewVideoPage() {
                       <FormControl>
                         <Tabs
                           value={field.value}
-                          onValueChange={(v: any) => field.onChange(v)}
+                          onValueChange={(value) =>
+                            field.onChange(
+                              value as VideoFormValues["sourceType"]
+                            )
+                          }
                           className="w-full"
                         >
                           <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 h-12 mb-6">
@@ -627,7 +736,7 @@ function NewVideoPage() {
                       <FormLabel>Playback Policy</FormLabel>
                       <FormControl>
                         <RadioGroup
-                          onValueChange={field.onChange}
+                          onValueChange={(value) => field.onChange(value)}
                           defaultValue={field.value}
                           className="grid grid-cols-1 md:grid-cols-2 gap-4"
                         >
@@ -645,24 +754,6 @@ function NewVideoPage() {
                                 </span>
                                 <p className="text-[10px] text-muted-foreground">
                                   Available to everyone on SoundKit.
-                                </p>
-                              </div>
-                            </FormLabel>
-                          </FormItem>
-                          <FormItem>
-                            <FormLabel className="flex items-start gap-3 rounded-xl border border-border/40 bg-background/50 p-4 hover:bg-accent cursor-pointer transition-all">
-                              <FormControl>
-                                <RadioGroupItem
-                                  value="signed"
-                                  className="mt-1"
-                                />
-                              </FormControl>
-                              <div className="space-y-1">
-                                <span className="font-bold text-sm">
-                                  Signed Access
-                                </span>
-                                <p className="text-[10px] text-muted-foreground">
-                                  Only accessible via gated/premium links.
                                 </p>
                               </div>
                             </FormLabel>
@@ -707,5 +798,3 @@ function NewVideoPage() {
     </div>
   );
 }
-
-import { CloudUpload, Calendar, X } from "lucide-react";

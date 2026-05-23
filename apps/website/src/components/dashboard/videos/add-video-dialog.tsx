@@ -2,15 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Film,
-  LoaderCircle,
-  Radio,
-  Sparkles,
-  Youtube,
-  Upload,
   ArrowLeft,
   ArrowRight,
   Check,
+  Film,
+  LoaderCircle,
+  Sparkles,
+  Upload,
+  Youtube,
 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -31,9 +30,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -42,7 +41,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
@@ -50,11 +48,12 @@ import { API_V1_URL } from "@/lib/api";
 const videoFormSchema = z.object({
   description: z.string().optional(),
   genre: z.string().min(1, "Please select a genre"),
-  playbackPolicy: z.enum(["public", "signed"]).default("public"),
+  playbackPolicy: z.literal("public").default("public"),
   sourceProjectId: z.string().optional(),
-  sourceTrackId: z.string().min(1, "Track ID is required"),
+  sourceTrackId: z.string().optional(),
   sourceType: z.enum(["upload", "youtube"]).default("upload"),
   title: z.string().min(2, "Title must be at least 2 characters"),
+  videoKind: z.literal("music_video").default("music_video"),
   youtubeUrl: z
     .string()
     .url("Invalid YouTube URL")
@@ -68,6 +67,68 @@ interface AddVideoDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const uploadDirectVideo = async (
+  values: VideoFormValues,
+  videoFile: File
+): Promise<void> => {
+  const createResponse = await fetch(`${API_V1_URL}/videos/direct-upload`, {
+    body: JSON.stringify({
+      description: values.description || undefined,
+      playbackPolicy: values.playbackPolicy,
+      sourceProjectId: values.sourceProjectId || undefined,
+      sourceTrackId: values.sourceTrackId || undefined,
+      title: values.title,
+      videoKind: values.videoKind,
+    }),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+
+  const createPayload = (await createResponse.json()) as {
+    message?: string;
+    uploadUrl?: string;
+  };
+  if (!createResponse.ok || !createPayload.uploadUrl) {
+    throw new Error(createPayload.message ?? "Failed to create upload.");
+  }
+
+  const uploadResponse = await fetch(createPayload.uploadUrl, {
+    body: videoFile,
+    headers: { "Content-Type": videoFile.type || "video/mp4" },
+    method: "PUT",
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error("Video upload failed before Mux could process it.");
+  }
+};
+
+const saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
+  const createResponse = await fetch(`${API_V1_URL}/videos`, {
+    body: JSON.stringify({
+      description: values.description || undefined,
+      externalPlaybackUrl: values.youtubeUrl,
+      playbackPolicy: "public",
+      sourceProjectId: values.sourceProjectId || undefined,
+      sourceProvider: "external",
+      sourceTrackId: values.sourceTrackId || undefined,
+      title: values.title,
+      videoKind: values.videoKind,
+    }),
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  const createPayload = (await createResponse.json()) as {
+    message?: string;
+  };
+
+  if (!createResponse.ok) {
+    throw new Error(createPayload.message ?? "Failed to save external video.");
+  }
+};
 
 export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
   const [step, setStep] = useState(1);
@@ -88,6 +149,7 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
       sourceTrackId: "",
       sourceType: "upload",
       title: "",
+      videoKind: "music_video",
       youtubeUrl: "",
     },
     resolver: zodResolver(videoFormSchema),
@@ -120,41 +182,14 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
     // Final submission
     setIsUploading(true);
     try {
-      if (values.sourceType === "upload") {
-        // Handle Mux Upload
-        const createResponse = await fetch(
-          `${API_V1_URL}/videos/direct-upload`,
-          {
-            body: JSON.stringify({
-              description: values.description || undefined,
-              playbackPolicy: values.playbackPolicy,
-              sourceProjectId: values.sourceProjectId || undefined,
-              sourceTrackId: values.sourceTrackId,
-              title: values.title,
-            }),
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-
-        const createPayload = await createResponse.json();
-        if (!createResponse.ok || !createPayload.uploadUrl) {
-          throw new Error(createPayload.message || "Failed to create upload");
-        }
-
-        await fetch(createPayload.uploadUrl, {
-          body: videoFile,
-          headers: { "Content-Type": videoFile!.type },
-          method: "PUT",
-        });
-
+      if (values.sourceType === "upload" && videoFile) {
+        await uploadDirectVideo(values, videoFile);
         toast({
           description: "Your video is being processed by Mux.",
           title: "Upload started",
         });
       } else {
-        // Handle YouTube Link
-        // In a real app, this would call an API to save the link
+        await saveExternalVideo(values);
         toast({
           description: "Your YouTube video has been linked successfully.",
           title: "Video linked",
@@ -176,6 +211,29 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
       setIsUploading(false);
     }
   };
+
+  let submitButtonContent = (
+    <>
+      Confirm & Save
+      <Check className="ml-2 size-4" />
+    </>
+  );
+  if (step === 1) {
+    submitButtonContent = (
+      <>
+        Next: Preview
+        <ArrowRight className="ml-2 size-4" />
+      </>
+    );
+  }
+  if (isUploading) {
+    submitButtonContent = (
+      <>
+        <LoaderCircle className="mr-2 size-4 animate-spin" />
+        Processing...
+      </>
+    );
+  }
 
   return (
     <Dialog
@@ -239,7 +297,7 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                           <FormItem>
                             <FormLabel>Genre</FormLabel>
                             <Select
-                              onValueChange={field.onChange}
+                              onValueChange={(value) => field.onChange(value)}
                               defaultValue={field.value}
                             >
                               <FormControl>
@@ -300,7 +358,11 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                           <FormControl>
                             <Tabs
                               defaultValue={field.value}
-                              onValueChange={(v) => field.onChange(v)}
+                              onValueChange={(value) =>
+                                field.onChange(
+                                  value as VideoFormValues["sourceType"]
+                                )
+                              }
                               className="w-full"
                             >
                               <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 h-12">
@@ -352,7 +414,9 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                                           Playback Policy
                                         </FormLabel>
                                         <Select
-                                          onValueChange={policyField.onChange}
+                                          onValueChange={(value) =>
+                                            policyField.onChange(value)
+                                          }
                                           defaultValue={policyField.value}
                                         >
                                           <FormControl>
@@ -363,9 +427,6 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                                           <SelectContent>
                                             <SelectItem value="public">
                                               Public (Everyone can view)
-                                            </SelectItem>
-                                            <SelectItem value="signed">
-                                              Signed (Gated/Premium only)
                                             </SelectItem>
                                           </SelectContent>
                                         </Select>
@@ -478,22 +539,7 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                     className="min-w-[140px]"
                     disabled={isUploading}
                   >
-                    {isUploading ? (
-                      <>
-                        <LoaderCircle className="mr-2 size-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (step === 1 ? (
-                      <>
-                        Next: Preview
-                        <ArrowRight className="ml-2 size-4" />
-                      </>
-                    ) : (
-                      <>
-                        Confirm & Save
-                        <Check className="ml-2 size-4" />
-                      </>
-                    ))}
+                    {submitButtonContent}
                   </Button>
                 </div>
               </form>
@@ -515,17 +561,3 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
   );
 }
 
-function Label({
-  className,
-  children,
-  ...props
-}: React.ComponentPropsWithoutRef<"label">) {
-  return (
-    <label
-      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className}`}
-      {...props}
-    >
-      {children}
-    </label>
-  );
-}
