@@ -94,20 +94,21 @@ Before deploying, copy and fill these files:
 
 Required for a successful deploy:
 
+- `ALCHEMY_PASSWORD`
+- `ALCHEMY_STATE_TOKEN` for shared state in CI and coordinated production deploys
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
 - `BETTER_AUTH_SECRET`
-- `BETTER_AUTH_URL`
-- `CORS_ORIGIN`
 - `DATABASE_URL`
-- `VITE_SERVER_URL`
+- `GOOGLE_EMBEDDING_MODEL`
 - `GOOGLE_GENERATIVE_AI_API_KEY`
-
-Optional for later features:
-
-- `UPLOAD_BUCKET_NAME`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `MUX_TOKEN_ID`
 - `MUX_TOKEN_SECRET`
+- `MUX_WEBHOOK_SECRET`
+- `STEMSPLIT_API_KEY`
+- `STEMSPLIT_WEBHOOK_SECRET`
 
 Recommended production values:
 
@@ -119,11 +120,59 @@ Use these commands from the repo root:
 
 - `bun run dev`: Run the website and server app dev servers through Turbo
 - `bun run dev:infra`: Run the Alchemy Cloudflare dev stack for website and server
-- `bun run deploy`: Deploy the production web and server workers
+- `bun run deploy`: Deploy the `prod` web and server workers
 - `bun run deploy:prod`: Same production deploy target, explicit name
-- `bun run destroy`: Destroy deployed Cloudflare resources managed by Alchemy
+- `bun run destroy`: Destroy the `prod` Cloudflare resources managed by Alchemy
 
 For more details, see the guide on [Deploying to Cloudflare with Alchemy](https://www.better-t-stack.dev/docs/guides/cloudflare-alchemy).
+
+### GitHub Actions
+
+`.github/workflows/deploy.yml` runs type checks, Worker/unit tests, the production build, and Playwright browser smoke tests before any deployment.
+
+- Pull requests to `master` from this repository deploy an isolated `pr-<number>` preview after checks pass and destroy it when the PR closes.
+- Pushes to `master` and manual dispatches deploy the `prod` Alchemy stage after checks pass.
+- Pull requests from forks run validation without receiving preview environment secrets or deploying infrastructure.
+
+`bun run check` is intentionally not a required workflow gate until the existing Ultracite backlog is resolved.
+
+Preview web, API, and media origins are stage-aware: a PR such as `#12` uses `https://web-pr-12.mysoundkit.com`, `https://api-pr-12.mysoundkit.com`, and `https://media-pr-12.mysoundkit.com`. The API binds the matching preview web URL as `CORS_ORIGIN`, and Better Auth receives both the preview API URL and trusted preview web origin.
+
+Configure GitHub `production` and `preview` environments. Production protection rules can require approval before deployment. The `preview` environment should use sandbox credentials, including a non-production database and Stripe/Mux/StemSplit keys.
+
+Configure these GitHub Actions secrets in each deployment environment:
+
+- `ALCHEMY_PASSWORD`
+- `ALCHEMY_STATE_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+- `BETTER_AUTH_SECRET`
+- `DATABASE_URL`
+- `GOOGLE_GENERATIVE_AI_API_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `MUX_TOKEN_ID`
+- `MUX_TOKEN_SECRET`
+- `MUX_WEBHOOK_SECRET`
+- `STEMSPLIT_API_KEY`
+- `STEMSPLIT_WEBHOOK_SECRET`
+
+Configure this GitHub Actions variable in each deployment environment:
+
+- `GOOGLE_EMBEDDING_MODEL`
+
+Configure these Stripe price variables when the environment should exercise subscription purchase flows:
+
+- `STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID`
+- `STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID`
+- `STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID`
+- `STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID`
+- `STRIPE_FAN_LITE_MONTHLY_PRICE_ID`
+- `STRIPE_FAN_LITE_ANNUAL_PRICE_ID`
+- `STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID`
+- `STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID`
+
+Alchemy uses its remote Cloudflare state store whenever `ALCHEMY_STATE_TOKEN` is present, allowing preview cleanup and production updates to run on independent GitHub Actions runners.
 
 ## Git Hooks and Formatting
 
@@ -160,5 +209,8 @@ soundkit/
 - `bun run db:studio`: Open database studio UI
 - `bun run deploy:prod`: Deploy the production web + server workers via Alchemy
 - `bun run check`: Run Oxlint and Oxfmt
+- `bun run test`: Run unit and Cloudflare Worker API tests
+- `bun run test:e2e`: Run Playwright browser smoke tests
+- `bun run test:all`: Run unit, Worker, and browser tests
 - `cd apps/docs && bun run dev`: Start documentation site
 - `cd apps/docs && bun run build`: Build documentation site

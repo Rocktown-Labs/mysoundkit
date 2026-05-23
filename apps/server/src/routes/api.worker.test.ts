@@ -39,6 +39,23 @@ describe("SoundKit Worker API", () => {
     expect(body.info.title).toBe("SoundKit API");
   });
 
+  it("allows the configured browser origin for credentialed auth requests", async () => {
+    const response = await SELF.fetch("http://soundkit.test/auth/session", {
+      headers: {
+        "access-control-request-method": "GET",
+        origin: "http://127.0.0.1:3001",
+      },
+      method: "OPTIONS",
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://127.0.0.1:3001"
+    );
+    expect(response.headers.get("access-control-allow-credentials")).toBe(
+      "true"
+    );
+  });
+
   it("returns fallback discovery and catalog read models when storage is not configured", async () => {
     const [discoverResponse, tracksResponse, videosResponse, battlesResponse] =
       await Promise.all([

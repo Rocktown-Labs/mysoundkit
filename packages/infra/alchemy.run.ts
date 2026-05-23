@@ -6,16 +6,41 @@ import {
   Worker,
   Workflow,
 } from "alchemy/cloudflare";
+import { CloudflareStateStore } from "alchemy/state";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
 config({ path: "../../apps/website/.env" });
 config({ path: "../../apps/server/.env" });
 
-const app = await alchemy("soundkit");
-const SITE_URL = "https://mysoundkit.com";
-const API_URL = "https://api.mysoundkit.com";
-const MEDIA_URL = "https://media.mysoundkit.com";
+const app = await alchemy("soundkit", {
+  stateStore: process.env.ALCHEMY_STATE_TOKEN
+    ? (scope) => new CloudflareStateStore(scope)
+    : undefined,
+});
+const isProduction = app.stage === "prod";
+const isPullRequestPreview = app.stage.startsWith("pr-");
+
+if (!(app.local || isProduction || isPullRequestPreview)) {
+  throw new Error(
+    `Unsupported remote stage "${app.stage}". Use prod or a pr-<number> preview stage.`
+  );
+}
+
+const SITE_HOST = isProduction
+  ? "mysoundkit.com"
+  : `web-${app.stage}.mysoundkit.com`;
+const API_HOST = isProduction
+  ? "api.mysoundkit.com"
+  : `api-${app.stage}.mysoundkit.com`;
+const MEDIA_HOST = isProduction
+  ? "media.mysoundkit.com"
+  : `media-${app.stage}.mysoundkit.com`;
+const SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`;
+const API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`;
+const MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`;
+const resourceName = (name: string) =>
+  isProduction ? name : `${name}-${app.stage}`;
 
 const requiredSecret = <T>(value: T | undefined, name: string) => {
   if (!value) {
@@ -35,8 +60,14 @@ const requiredEnv = (name: string) => {
   return value;
 };
 
+const optionalEnvBinding = (name: string) => {
+  const value = process.env[name];
+
+  return value ? { [name]: value } : {};
+};
+
 const media = await R2Bucket("media", {
-  adopt: true,
+  adopt: isProduction,
   cors: [
     {
       allowed: {
@@ -46,23 +77,31 @@ const media = await R2Bucket("media", {
       },
     },
   ],
-  domains: [{ adopt: true, domain: "media.mysoundkit.com" }],
-  name: "soundkit-media",
+  domains: app.local
+    ? undefined
+    : [{ adopt: isProduction, domain: MEDIA_HOST }],
+  name: resourceName("soundkit-media"),
 });
 
 const trackProcessingWorkflow = Workflow("track-processing", {
   className: "TrackProcessingWorkflow",
-  workflowName: "soundkit-track-processing",
+  workflowName: resourceName("soundkit-track-processing"),
 });
 
 const hyperdrive = await Hyperdrive("hyperdrive", {
-  adopt: true,
-  hyperdriveId: "02fa325c571741aca9b6acbec0b40546",
+  ...(isProduction
+    ? {
+        adopt: true,
+        hyperdriveId: "02fa325c571741aca9b6acbec0b40546",
+      }
+    : {
+        name: resourceName("soundkit-hyperdrive"),
+      }),
   origin: requiredSecret(alchemy.secret.env.DATABASE_URL, "DATABASE_URL"),
 });
 
 export const web = await TanStackStart("web", {
-  adopt: true,
+  adopt: isProduction,
   bindings: {
     BETTER_AUTH_SECRET: requiredSecret(
       alchemy.secret.env.BETTER_AUTH_SECRET,
@@ -78,8 +117,10 @@ export const web = await TanStackStart("web", {
     VITE_SERVER_URL: API_URL,
   },
   cwd: "../../apps/website",
-  domains: [{ adopt: true, domainName: "mysoundkit.com" }],
-  name: "soundkit-web",
+  domains: app.local
+    ? undefined
+    : [{ adopt: isProduction, domainName: SITE_HOST }],
+  name: resourceName("soundkit-web"),
   wrangler: {
     transform: (spec) => ({
       ...spec,
@@ -103,7 +144,7 @@ export const web = await TanStackStart("web", {
 });
 
 export const server = await Worker("server", {
-  adopt: true,
+  adopt: isProduction,
   bindings: {
     BETTER_AUTH_SECRET: requiredSecret(
       alchemy.secret.env.BETTER_AUTH_SECRET,
@@ -143,22 +184,14 @@ export const server = await Worker("server", {
       alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
       "STEMSPLIT_WEBHOOK_SECRET"
     ),
-    STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID:
-      process.env.STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID,
-    STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID:
-      process.env.STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID,
-    STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID:
-      process.env.STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID,
-    STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID:
-      process.env.STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID,
-    STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID:
-      process.env.STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID,
-    STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID:
-      process.env.STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID,
-    STRIPE_FAN_LITE_ANNUAL_PRICE_ID:
-      process.env.STRIPE_FAN_LITE_ANNUAL_PRICE_ID,
-    STRIPE_FAN_LITE_MONTHLY_PRICE_ID:
-      process.env.STRIPE_FAN_LITE_MONTHLY_PRICE_ID,
+    ...optionalEnvBinding("STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_FAN_LITE_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_FAN_LITE_MONTHLY_PRICE_ID"),
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,
       "STRIPE_SECRET_KEY"
@@ -175,9 +208,11 @@ export const server = await Worker("server", {
   dev: {
     port: 3000,
   },
-  domains: [{ adopt: true, domainName: "api.mysoundkit.com" }],
+  domains: app.local
+    ? undefined
+    : [{ adopt: isProduction, domainName: API_HOST }],
   entrypoint: "src/index.ts",
-  name: "soundkit-server",
+  name: resourceName("soundkit-server"),
   placement: {
     region: "aws:us-east-1",
   },
