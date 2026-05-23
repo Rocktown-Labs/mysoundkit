@@ -92,7 +92,7 @@ const hyperdrive = await Hyperdrive("hyperdrive", {
   ...(isProduction
     ? {
         adopt: true,
-        hyperdriveId: "02fa325c571741aca9b6acbec0b40546",
+        hyperdriveId: "1b900b19692a4e9f920eebd379d21d3d",
       }
     : {
         name: resourceName("soundkit-hyperdrive"),
