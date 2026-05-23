@@ -324,12 +324,22 @@ app.openapi(
       verifiedOnPlatform: true,
       videoKind: body.videoKind,
     });
-    await db.insert(muxUploads).values({
-      muxUploadId: upload.id,
-      status: "waiting",
-      timeoutSeconds: 60 * 60,
-      videoId,
-    });
+    await db
+      .insert(muxUploads)
+      .values({
+        muxUploadId: upload.id,
+        status: "waiting",
+        timeoutSeconds: 60 * 60,
+        videoId,
+      })
+      .onConflictDoUpdate({
+        target: muxUploads.muxUploadId,
+        set: {
+          status: "waiting",
+          timeoutSeconds: 60 * 60,
+          videoId,
+        },
+      });
 
     return c.json(
       {
