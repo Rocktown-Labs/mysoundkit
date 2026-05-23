@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { trackLyrics, tracks } from "@soundkit/db/schema/app";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -13,7 +13,6 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { ownedTrackWhere } from "@/lib/dashboard-mappers";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
@@ -94,50 +93,81 @@ app.openapi(
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
-    const readiness = [];
+    if (trackIds.length === 0) {
+      return c.json(
+        {
+          eligible: true,
+          tracks: [],
+        },
+        HttpStatusCodes.OK
+      );
+    }
 
-    for (const trackId of trackIds) {
-      const [track] = await db
+    const [ownedTracks, approvedLyricsRows] = await Promise.all([
+      db
         .select({ id: tracks.id })
         .from(tracks)
-        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-        .limit(1);
-
-      if (!track) {
-        readiness.push({
-          lyricsRevisionId: null,
-          ready: false,
-          reason: "Track was not found.",
-          trackId,
-        });
-        continue;
-      }
-
-      const [approvedLyrics] = await db
+        .where(
+          and(
+            inArray(tracks.id, trackIds),
+            organizationId
+              ? eq(tracks.organizationId, organizationId)
+              : eq(tracks.ownerUserId, user.id)
+          )
+        ),
+      db
         .select({
           id: trackLyrics.id,
           timedLines: trackLyrics.timedLines,
+          trackId: trackLyrics.trackId,
         })
         .from(trackLyrics)
         .where(
           and(
-            eq(trackLyrics.trackId, trackId),
+            inArray(trackLyrics.trackId, trackIds),
             eq(trackLyrics.status, "approved")
           )
-        )
-        .limit(1);
+        ),
+    ]);
+
+    const ownedTrackIds = new Set(ownedTracks.map((track) => track.id));
+    const approvedLyricsByTrackId = new Map<
+      string,
+      { id: string; timedLines: typeof trackLyrics.$inferSelect.timedLines }
+    >();
+
+    for (const approvedLyrics of approvedLyricsRows) {
+      if (!approvedLyricsByTrackId.has(approvedLyrics.trackId)) {
+        approvedLyricsByTrackId.set(approvedLyrics.trackId, {
+          id: approvedLyrics.id,
+          timedLines: approvedLyrics.timedLines,
+        });
+      }
+    }
+
+    const readiness = trackIds.map((trackId) => {
+      if (!ownedTrackIds.has(trackId)) {
+        return {
+          lyricsRevisionId: null,
+          ready: false,
+          reason: "Track was not found.",
+          trackId,
+        };
+      }
+
+      const approvedLyrics = approvedLyricsByTrackId.get(trackId);
       const hasSynchronizedLyrics =
         (approvedLyrics?.timedLines?.length ?? 0) > 0;
 
-      readiness.push({
+      return {
         lyricsRevisionId: approvedLyrics?.id ?? null,
         ready: hasSynchronizedLyrics,
         reason: hasSynchronizedLyrics
           ? null
           : "Approved synchronized lyrics are required for battle tracks.",
         trackId,
-      });
-    }
+      };
+    });
 
     return c.json(
       {
