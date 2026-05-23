@@ -1099,7 +1099,7 @@ app.openapi(
       (!existing.timedLines || existing.timedLines.length === 0)
     ) {
       return c.json(
-        { message: "Approved battle lyrics must include synchronized lines." },
+        { message: "Approved lyrics must include synchronized lines." },
         HttpStatusCodes.BAD_REQUEST
       );
     }
