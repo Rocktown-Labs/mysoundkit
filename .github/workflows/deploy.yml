@@ -105,6 +105,30 @@ jobs:
           ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON: ${{ secrets.ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON }}
           ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
 
+      - name: Apply production auth schema patches
+        run: |
+          bun --eval '
+          import { Pool } from "pg";
+
+          const databaseUrl = process.env.DATABASE_URL;
+
+          if (!databaseUrl) {
+            throw new Error("DATABASE_URL is required for production auth schema patches.");
+          }
+
+          const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+
+          try {
+            await pool.query(`alter table "user" add column if not exists "stripe_customer_id" text`);
+            await pool.query(`alter table "organization" add column if not exists "stripe_customer_id" text`);
+            await pool.query(`alter table "subscription" add column if not exists "stripe_customer_id" text`);
+          } finally {
+            await pool.end();
+          }
+          '
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Deploy through Alchemy
         working-directory: packages/infra
         run: bun run deploy
