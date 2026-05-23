@@ -561,17 +561,3 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
   );
 }
 
-function Label({
-  className,
-  children,
-  ...props
-}: React.ComponentPropsWithoutRef<"label">) {
-  return (
-    <label
-      className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className}`}
-      {...props}
-    >
-      {children}
-    </label>
-  );
-}
