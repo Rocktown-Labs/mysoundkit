@@ -13,6 +13,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { ownedTrackWhere } from "@/lib/dashboard-mappers";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
@@ -22,6 +23,7 @@ import {
   messageResponseSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -87,13 +89,18 @@ app.openapi(
     }
 
     const db = createDb();
+    const session = c.get("session");
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
     const readiness = [];
 
     for (const trackId of trackIds) {
       const [track] = await db
         .select({ id: tracks.id })
         .from(tracks)
-        .where(eq(tracks.id, trackId))
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
         .limit(1);
 
       if (!track) {
