@@ -105,28 +105,31 @@ jobs:
           ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON: ${{ secrets.ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON }}
           ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
 
-      - name: Apply production auth schema patches
+      - name: Apply production database schema
         working-directory: packages/db
         run: |
           bun --eval '
           import { Pool } from "pg";
 
-          const databaseUrl = process.env.DATABASE_URL;
+          const databaseUrl = process.env.DATABASE_URL?.replace(
+            "sslmode=verify-full",
+            "sslmode=require"
+          );
 
           if (!databaseUrl) {
-            throw new Error("DATABASE_URL is required for production auth schema patches.");
+            throw new Error("DATABASE_URL is required to apply the production database schema.");
           }
 
           const pool = new Pool({ connectionString: databaseUrl, max: 1 });
 
           try {
-            await pool.query(`alter table if exists "user" add column if not exists "stripe_customer_id" text`);
-            await pool.query(`alter table if exists "organization" add column if not exists "stripe_customer_id" text`);
-            await pool.query(`alter table if exists "subscription" add column if not exists "stripe_customer_id" text`);
+            await pool.query("create extension if not exists vector");
           } finally {
             await pool.end();
           }
           '
+          export DATABASE_URL="${DATABASE_URL/sslmode=verify-full/sslmode=require}"
+          bunx drizzle-kit push --config drizzle.config.ts --force
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -188,6 +191,34 @@ jobs:
         env:
           ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON: ${{ secrets.ALCHEMY_CLOUDFLARE_CREDENTIALS_JSON }}
           ALCHEMY_CONFIG_JSON: ${{ secrets.ALCHEMY_CONFIG_JSON }}
+
+      - name: Apply preview database schema
+        working-directory: packages/db
+        run: |
+          bun --eval '
+          import { Pool } from "pg";
+
+          const databaseUrl = process.env.DATABASE_URL?.replace(
+            "sslmode=verify-full",
+            "sslmode=require"
+          );
+
+          if (!databaseUrl) {
+            throw new Error("DATABASE_URL is required to apply the preview database schema.");
+          }
+
+          const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+
+          try {
+            await pool.query("create extension if not exists vector");
+          } finally {
+            await pool.end();
+          }
+          '
+          export DATABASE_URL="${DATABASE_URL/sslmode=verify-full/sslmode=require}"
+          bunx drizzle-kit push --config drizzle.config.ts --force
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra
