@@ -109,6 +109,83 @@ const protectedRequests: {
     label: "cart mutation",
     path: "/v1/cart/items",
   },
+  {
+    init: jsonRequest({ quantity: 2 }, "PATCH"),
+    label: "cart item quantity update",
+    path: "/v1/cart/items/cart_item_1",
+  },
+  {
+    init: { method: "DELETE" },
+    label: "cart item deletion",
+    path: "/v1/cart/items/cart_item_1",
+  },
+  {
+    init: { method: "DELETE" },
+    label: "cart clearing",
+    path: "/v1/cart",
+  },
+  {
+    init: jsonRequest({ displayName: "Test Artist" }, "PATCH"),
+    label: "profile update",
+    path: "/v1/me/profile",
+  },
+  {
+    init: jsonRequest({ title: "Updated Track" }, "PATCH"),
+    label: "track update",
+    path: "/v1/tracks/track_midnight_vibes",
+  },
+  {
+    init: { method: "DELETE" },
+    label: "track deletion",
+    path: "/v1/tracks/track_midnight_vibes",
+  },
+  {
+    init: jsonRequest(
+      {
+        assetKind: "master",
+        objectKey: "tracks/test.wav",
+      },
+      "POST"
+    ),
+    label: "track asset creation",
+    path: "/v1/tracks/track_midnight_vibes/assets",
+  },
+  {
+    init: jsonRequest({}, "POST"),
+    label: "track processing",
+    path: "/v1/tracks/track_midnight_vibes/process",
+  },
+  {
+    init: jsonRequest(
+      {
+        text: "Test lyric",
+        timedLines: [{ endMs: 1000, startMs: 0, text: "Test lyric" }],
+      },
+      "POST"
+    ),
+    label: "lyrics submission",
+    path: "/v1/tracks/track_midnight_vibes/lyrics",
+  },
+  {
+    init: jsonRequest(
+      {
+        status: "approved",
+      },
+      "PATCH"
+    ),
+    label: "lyrics review",
+    path: "/v1/tracks/track_midnight_vibes/lyrics/lyrics_1",
+  },
+  {
+    init: jsonRequest({ title: "Updated Project" }, "PATCH"),
+    label: "project update",
+    path: "/v1/projects/project_after_dark",
+  },
+  {
+    init: { method: "DELETE" },
+    label: "project deletion",
+    path: "/v1/projects/project_after_dark",
+  },
 ];
 
 describe("SoundKit API authentication boundaries", () => {

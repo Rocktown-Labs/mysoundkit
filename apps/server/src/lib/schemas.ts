@@ -25,6 +25,13 @@ export const userSummarySchema = z.object({
 });
 
 export const artistRoleSchema = z.enum(["musician", "producer"]);
+export const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(32)
+  .regex(/^[a-z0-9_]+$/);
 export const catalogItemTypeSchema = z.enum([
   "single",
   "album",
@@ -458,6 +465,17 @@ export const analyticsOverviewSchema = z.object({
   totalRevenue: z.number(),
 });
 
+export const usernameAvailabilityQuerySchema = z.object({
+  username: usernameSchema,
+});
+
+export const usernameAvailabilityResponseSchema = z.object({
+  available: z.boolean(),
+  message: z.string(),
+  reason: z.enum(["available", "reserved", "taken"]),
+  username: usernameSchema,
+});
+
 export const commentSchema = z.object({
   body: z.string(),
   createdAt: z.string(),
@@ -478,7 +496,7 @@ export const onboardingArtistBodySchema = z.object({
   teamInviteEmails: z.array(z.email()).default([]),
   tiktokHandle: z.string().optional(),
   twitterHandle: z.string().optional(),
-  username: z.string().min(3),
+  username: usernameSchema,
   youtubeUrl: z.url().optional(),
 });
 
@@ -495,7 +513,7 @@ export const onboardingFanBodySchema = z.object({
   genrePreferences: z.array(z.string()).min(3),
   selectedPlanCode: z.string(),
   state: z.string().min(1),
-  username: z.string().min(3),
+  username: usernameSchema,
 });
 
 export const createTrackBodySchema = z.object({

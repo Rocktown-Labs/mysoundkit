@@ -10,7 +10,7 @@ import {
   userGenrePreferences,
 } from "@soundkit/db/schema/app";
 import { subscription } from "@soundkit/db/schema/auth";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -22,11 +22,74 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   onboardingResponseSchema,
+  usernameAvailabilityQuerySchema,
+  usernameAvailabilityResponseSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { ensureWorkspaceForUser, slugify } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+const RESERVED_USERNAMES = new Set(["soundkit"]);
+
+type UsernameAvailability =
+  | {
+      available: true;
+      message: string;
+      reason: "available";
+      username: string;
+    }
+  | {
+      available: false;
+      message: string;
+      reason: "reserved" | "taken";
+      username: string;
+    };
+
+const checkUsernameAvailability = async (
+  username: string,
+  currentUserId?: string
+): Promise<UsernameAvailability> => {
+  if (RESERVED_USERNAMES.has(username)) {
+    return {
+      available: false,
+      message: "That username is reserved.",
+      reason: "reserved",
+      username,
+    };
+  }
+
+  if (!isDatabaseConfigured()) {
+    return {
+      available: true,
+      message: "Username is available.",
+      reason: "available",
+      username,
+    };
+  }
+
+  const db = createDb();
+  const [existing] = await db
+    .select({ userId: userProfiles.userId })
+    .from(userProfiles)
+    .where(sql`lower(${userProfiles.username}) = ${username}`)
+    .limit(1);
+
+  if (existing && existing.userId !== currentUserId) {
+    return {
+      available: false,
+      message: "That username is already taken.",
+      reason: "taken",
+      username,
+    };
+  }
+
+  return {
+    available: true,
+    message: "Username is available.",
+    reason: "available",
+    username,
+  };
+};
 
 const ensureGenre = async (name: string) => {
   const db = createDb();
@@ -99,6 +162,33 @@ const onboardingUrls = (request: Request) => {
 
 app.openapi(
   createRoute({
+    method: "get",
+    path: "/username-availability",
+    request: {
+      query: usernameAvailabilityQuerySchema,
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        usernameAvailabilityResponseSchema,
+        "Username availability"
+      ),
+    },
+    tags: ["Onboarding"],
+  }),
+  async (c) => {
+    const { username } = c.req.valid("query");
+    const user = c.get("user");
+    const availability = await checkUsernameAvailability(
+      username,
+      isAuthenticatedUser(user) ? user.id : undefined
+    );
+
+    return c.json(availability, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "post",
     path: "/artist",
     request: {
@@ -116,6 +206,10 @@ app.openapi(
         messageResponseSchema,
         "Authentication required"
       ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Username unavailable"
+      ),
     },
     tags: ["Onboarding"],
   }),
@@ -125,6 +219,18 @@ app.openapi(
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const usernameAvailability = await checkUsernameAvailability(
+      body.username,
+      isAuthenticatedUser(user) ? user.id : undefined
+    );
+
+    if (!usernameAvailability.available) {
+      return c.json(
+        { message: usernameAvailability.message },
+        HttpStatusCodes.CONFLICT
+      );
     }
 
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
@@ -276,6 +382,10 @@ app.openapi(
         messageResponseSchema,
         "Authentication required"
       ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Username unavailable"
+      ),
     },
     tags: ["Onboarding"],
   }),
@@ -285,6 +395,18 @@ app.openapi(
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const usernameAvailability = await checkUsernameAvailability(
+      body.username,
+      isAuthenticatedUser(user) ? user.id : undefined
+    );
+
+    if (!usernameAvailability.available) {
+      return c.json(
+        { message: usernameAvailability.message },
+        HttpStatusCodes.CONFLICT
+      );
     }
 
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {

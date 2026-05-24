@@ -11,6 +11,6 @@ export default defineConfig({
   test: {
     environment: "node",
     exclude: ["apps/server/src/**/*.worker.test.ts"],
-    include: ["apps/server/src/**/*.test.ts"],
+    include: ["apps/server/src/**/*.test.ts", "apps/website/src/**/*.test.ts"],
   },
 });

@@ -29,11 +29,10 @@ export default defineConfig({
   webServer: useExternalWeb
     ? undefined
     : {
-        command:
-          "bun run --cwd apps/website dev -- --host 127.0.0.1 --port 4311",
+        command: "node tests/e2e/start-dev-with-mock-api.mjs",
         env: {
-          VITE_MEDIA_URL: serverBaseUrl,
-          VITE_SERVER_URL: serverBaseUrl,
+          PLAYWRIGHT_API_URL: serverBaseUrl,
+          PLAYWRIGHT_BASE_URL: webBaseUrl,
         },
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

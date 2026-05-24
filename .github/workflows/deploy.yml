@@ -159,6 +159,7 @@ jobs:
           STRIPE_FAN_LITE_MONTHLY_PRICE_ID: ${{ vars.STRIPE_FAN_LITE_MONTHLY_PRICE_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
 
   preview:
     name: Deploy Preview
@@ -245,6 +246,7 @@ jobs:
           STRIPE_FAN_LITE_MONTHLY_PRICE_ID: ${{ vars.STRIPE_FAN_LITE_MONTHLY_PRICE_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
 
       - name: Record preview URLs
         run: |

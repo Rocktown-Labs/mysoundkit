@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 
 import { SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const API_ORIGIN = "http://soundkit.test";
 
@@ -19,6 +19,97 @@ const fetchJson = async <T>(path: string, init?: RequestInit) => {
 
   return { body, response };
 };
+
+const publicReadCases = [
+  ["/v1/artists", "array"],
+  ["/v1/artists/luna-eclipse", "object"],
+  ["/v1/tracks", "array"],
+  ["/v1/tracks/track_midnight_vibes", "object"],
+  ["/v1/tracks/track_midnight_vibes/lyrics", "nullable"],
+  ["/v1/projects", "array"],
+  ["/v1/projects/project_after_dark", "object"],
+  ["/v1/videos", "array"],
+  ["/v1/videos/video_midnight_vibes_mv", "object"],
+  ["/v1/playlists", "array"],
+  ["/v1/playlists/playlist_after_hours", "object"],
+  ["/v1/battles", "array"],
+  ["/v1/battles/battle_west_coast_showdown", "object"],
+  ["/v1/library/recent", "array"],
+  ["/v1/library/saved", "array"],
+  ["/v1/library/purchases", "array"],
+  ["/v1/messages/conversations", "array"],
+  ["/v1/messages/conversations/conv_sarah/messages", "array"],
+  ["/v1/social/posts/post_1/comments", "array"],
+  ["/v1/analytics/overview", "object"],
+] as const;
+
+const expectedOpenApiOperations = [
+  ["get", "/v1/analytics/overview"],
+  ["get", "/v1/artists"],
+  ["get", "/v1/artists/{username}"],
+  ["get", "/v1/battles"],
+  ["post", "/v1/battles/challenge"],
+  ["post", "/v1/battles/eligibility"],
+  ["get", "/v1/battles/{battleId}"],
+  ["post", "/v1/billing/checkout"],
+  ["get", "/v1/billing/plans"],
+  ["get", "/v1/billing/subscription"],
+  ["delete", "/v1/cart"],
+  ["get", "/v1/cart"],
+  ["post", "/v1/cart/claim"],
+  ["post", "/v1/cart/items"],
+  ["delete", "/v1/cart/items/{cartItemId}"],
+  ["patch", "/v1/cart/items/{cartItemId}"],
+  ["get", "/v1/discover/home"],
+  ["get", "/v1/library/overview"],
+  ["get", "/v1/library/purchases"],
+  ["get", "/v1/library/recent"],
+  ["get", "/v1/library/saved"],
+  ["get", "/v1/me"],
+  ["get", "/v1/me/entitlements"],
+  ["patch", "/v1/me/profile"],
+  ["get", "/v1/me/workspaces"],
+  ["get", "/v1/messages/conversations"],
+  ["post", "/v1/messages/conversations"],
+  ["get", "/v1/messages/conversations/{conversationId}/messages"],
+  ["post", "/v1/messages/conversations/{conversationId}/messages"],
+  ["post", "/v1/onboarding/artist"],
+  ["post", "/v1/onboarding/fan"],
+  ["get", "/v1/onboarding/username-availability"],
+  ["get", "/v1/playlists"],
+  ["post", "/v1/playlists"],
+  ["get", "/v1/playlists/{playlistId}"],
+  ["get", "/v1/projects"],
+  ["post", "/v1/projects"],
+  ["delete", "/v1/projects/{projectId}"],
+  ["get", "/v1/projects/{projectId}"],
+  ["patch", "/v1/projects/{projectId}"],
+  ["post", "/v1/seller/account-link"],
+  ["get", "/v1/seller/status"],
+  ["get", "/v1/social/posts/{postId}/comments"],
+  ["post", "/v1/social/posts/{postId}/comments"],
+  ["post", "/v1/social/posts/{postId}/likes"],
+  ["get", "/v1/tracks"],
+  ["post", "/v1/tracks"],
+  ["post", "/v1/tracks/{trackId}/assets"],
+  ["delete", "/v1/tracks/{trackId}"],
+  ["get", "/v1/tracks/{trackId}"],
+  ["patch", "/v1/tracks/{trackId}"],
+  ["get", "/v1/tracks/{trackId}/lyrics"],
+  ["post", "/v1/tracks/{trackId}/lyrics"],
+  ["post", "/v1/tracks/{trackId}/lyrics/suggestions"],
+  ["patch", "/v1/tracks/{trackId}/lyrics/{lyricsId}"],
+  ["post", "/v1/tracks/{trackId}/process"],
+  ["get", "/v1/uploads"],
+  ["get", "/v1/videos"],
+  ["post", "/v1/videos"],
+  ["post", "/v1/videos/direct-upload"],
+  ["get", "/v1/videos/{videoId}"],
+  ["post", "/v1/webhooks/battle-service"],
+  ["post", "/v1/webhooks/mux"],
+  ["post", "/v1/webhooks/stemsplit"],
+  ["post", "/v1/webhooks/stripe"],
+] as const;
 
 describe("SoundKit API HTTP contracts", () => {
   it("propagates request IDs through the structured logging middleware", async () => {
@@ -46,45 +137,130 @@ describe("SoundKit API HTTP contracts", () => {
     expect(body.message).toBe("Not Found - /v1/does-not-exist");
   });
 
-  it("documents representative public, protected, upload, and webhook routes", async () => {
+  it("documents every mounted OpenAPI operation with tags and responses", async () => {
     const { body, response } = await fetchJson<{
       paths: Record<string, Record<string, unknown>>;
     }>("/api/openapi.json");
-    const documentedOperations = [
-      ["get", "/v1/discover/home"],
-      ["post", "/v1/tracks"],
-      ["post", "/v1/projects"],
-      ["post", "/v1/videos/direct-upload"],
-      ["post", "/v1/battles/challenge"],
-      ["get", "/v1/uploads"],
-      ["post", "/v1/webhooks/mux"],
-    ] as const;
 
     expect(response.status).toBe(200);
 
-    for (const [method, path] of documentedOperations) {
-      expect(body.paths[path]).toHaveProperty(method);
+    for (const [method, path] of expectedOpenApiOperations) {
+      const operation = body.paths[path]?.[method] as
+        | { responses?: unknown; tags?: unknown[] }
+        | undefined;
+
+      expect(operation, `${method.toUpperCase()} ${path}`).toBeDefined();
+      expect(operation?.responses, `${method.toUpperCase()} ${path}`).toEqual(
+        expect.objectContaining({})
+      );
+      expect(
+        operation?.tags?.length,
+        `${method.toUpperCase()} ${path}`
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps observability request IDs on success and error responses", async () => {
+    const [success, validationError, authError, notFoundError] =
+      await Promise.all([
+        fetchJson<{ requestId: string }>("/health", {
+          headers: { "x-request-id": "rid_success" },
+        }),
+        fetchJson<{ requestId: string }>("/v1/playlists", {
+          body: "not-json",
+          headers: {
+            "content-type": "application/json",
+            "x-request-id": "rid_validation",
+          },
+          method: "POST",
+        }),
+        fetchJson<{ message: string }>("/v1/me", {
+          headers: { "x-request-id": "rid_auth" },
+        }),
+        fetchJson<{ message: string }>("/v1/not-a-route", {
+          headers: { "x-request-id": "rid_404" },
+        }),
+      ]);
+
+    expect(success.response.headers.get("x-request-id")).toBe("rid_success");
+    expect(success.body.requestId).toBe("rid_success");
+    expect(validationError.response.status).toBe(400);
+    expect(validationError.response.headers.get("x-request-id")).toBe(
+      "rid_validation"
+    );
+    expect(validationError.body.requestId).toBe("rid_validation");
+    expect(authError.response.status).toBe(401);
+    expect(authError.response.headers.get("x-request-id")).toBe("rid_auth");
+    expect(notFoundError.response.status).toBe(404);
+    expect(notFoundError.response.headers.get("x-request-id")).toBe("rid_404");
+  });
+
+  it("emits structured request logs for observability pipelines", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      const response = await SELF.fetch(`${API_ORIGIN}/health`, {
+        headers: { "x-request-id": "rid_log" },
+      });
+
+      expect(response.status).toBe(200);
+
+      const entries = logSpy.mock.calls
+        .map(([line]) => {
+          try {
+            return JSON.parse(String(line)) as Record<string, unknown>;
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+
+      const requestEntry = entries.find(
+        (entry) => entry?.requestId === "rid_log"
+      );
+
+      expect(requestEntry).toEqual(
+        expect.objectContaining({
+          level: "info",
+          durationMs: expect.any(Number),
+          method: "GET",
+          path: "/health",
+          service: "soundkit-api",
+          status: 200,
+          timestamp: expect.any(String),
+        })
+      );
+    } finally {
+      logSpy.mockRestore();
     }
   });
 });
 
 describe("SoundKit public read API", () => {
-  it.each([
-    "/v1/artists",
-    "/v1/tracks",
-    "/v1/projects",
-    "/v1/videos",
-    "/v1/playlists",
-    "/v1/battles",
-    "/v1/library/recent",
-  ])("returns a non-empty collection for GET %s", async (path) => {
-    const { body, response } = await fetchJson<unknown[]>(path);
+  it.each(publicReadCases)(
+    "returns a stable fallback read model for GET %s",
+    async (path, shape) => {
+      const { body, response } = await fetchJson<unknown>(path);
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("application/json");
-    expect(Array.isArray(body)).toBe(true);
-    expect(body.length).toBeGreaterThan(0);
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain(
+        "application/json"
+      );
+
+      if (shape === "array") {
+        expect(Array.isArray(body)).toBe(true);
+        expect((body as unknown[]).length).toBeGreaterThan(0);
+        return;
+      }
+
+      if (shape === "nullable") {
+        expect(body === null || typeof body === "object").toBe(true);
+        return;
+      }
+
+      expect(body).toEqual(expect.any(Object));
+    }
+  );
 
   it("returns the assembled discovery landing response", async () => {
     const { body, response } = await fetchJson<{
@@ -194,7 +370,7 @@ describe("SoundKit public write API", () => {
         genrePreferences: ["House", "Hip-Hop", "Soul"],
         selectedPlanCode: "fan_free",
         state: "IL",
-        username: "listener-test",
+        username: "listener_test",
       })
     );
 
@@ -204,7 +380,67 @@ describe("SoundKit public write API", () => {
       setupRequired: true,
       workspaceId: null,
     });
-    expect(body.message).toContain("listener-test");
+    expect(body.message).toContain("listener_test");
+  });
+
+  it("checks username availability and reserves SoundKit", async () => {
+    const [availableResult, reservedResult] = await Promise.all([
+      fetchJson<{
+        available: boolean;
+        reason: string;
+        username: string;
+      }>("/v1/onboarding/username-availability?username=listener_test"),
+      fetchJson<{
+        available: boolean;
+        reason: string;
+        username: string;
+      }>("/v1/onboarding/username-availability?username=SoundKit"),
+    ]);
+
+    expect(availableResult.response.status).toBe(200);
+    expect(availableResult.body).toMatchObject({
+      available: true,
+      reason: "available",
+      username: "listener_test",
+    });
+    expect(reservedResult.response.status).toBe(200);
+    expect(reservedResult.body).toMatchObject({
+      available: false,
+      reason: "reserved",
+      username: "soundkit",
+    });
+  });
+
+  it("rejects reserved usernames before accepting onboarding writes", async () => {
+    const [artistResult, fanResult] = await Promise.all([
+      fetchJson<{ message: string }>(
+        "/v1/onboarding/artist",
+        jsonRequest({
+          city: "Little Rock",
+          primaryGenre: "Hip-Hop",
+          roles: ["musician"],
+          selectedPlanCode: "artist_free",
+          state: "AR",
+          teamInviteEmails: [],
+          username: "SoundKit",
+        })
+      ),
+      fetchJson<{ message: string }>(
+        "/v1/onboarding/fan",
+        jsonRequest({
+          city: "Little Rock",
+          genrePreferences: ["Hip-Hop", "Soul", "Jazz"],
+          selectedPlanCode: "fan_free",
+          state: "AR",
+          username: "soundkit",
+        })
+      ),
+    ]);
+
+    expect(artistResult.response.status).toBe(409);
+    expect(artistResult.body.message).toBe("That username is reserved.");
+    expect(fanResult.response.status).toBe(409);
+    expect(fanResult.body.message).toBe("That username is reserved.");
   });
 });
 
@@ -214,6 +450,7 @@ describe("SoundKit API input validation", () => {
     ["/v1/social/posts/post_1/comments", { body: "" }],
     ["/v1/messages/conversations", { participantUserIds: [] }],
     ["/v1/onboarding/fan", { username: "x" }],
+    ["/v1/onboarding/artist", { username: "bad-name" }],
   ])("rejects invalid POST input for %s", async (path, body) => {
     const result = await fetchJson<{ success: boolean }>(
       path,
@@ -243,6 +480,15 @@ describe("SoundKit API input validation", () => {
       message: "Invalid request payload.",
       requestId: expect.any(String),
     });
+  });
+
+  it("validates username availability query params", async () => {
+    const { body, response } = await fetchJson<{ success: boolean }>(
+      "/v1/onboarding/username-availability?username=x"
+    );
+
+    expect(response.status).toBe(400);
+    expect(body.success).toBe(false);
   });
 });
 

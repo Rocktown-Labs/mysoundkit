@@ -5,6 +5,10 @@ import type { InferResponseType } from "hono/client";
 import { z } from "zod";
 
 import {
+  credentialsRouteForAccount,
+  signupRedirectForUser,
+} from "@/lib/onboarding-flow";
+import {
   createSoundKitServerClient,
   SoundKitServerError,
   soundkitServerJson,
@@ -19,6 +23,7 @@ const tracksGet = rpcTypeClient.v1.tracks.index.$get;
 const trackGet = rpcTypeClient.v1.tracks[":trackId"].$get;
 
 type MeResponse = InferResponseType<typeof meGet, 200>;
+const accountTypeSchema = z.enum(["artist", "fan"]);
 export type DashboardTrackSummary = InferResponseType<
   typeof tracksGet,
   200
@@ -50,6 +55,49 @@ export const requireDashboardUser = createServerFn({ method: "GET" }).handler(
     }
   }
 );
+
+export const redirectAuthedSignupUser = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ accountType: accountTypeSchema }))
+  .handler(async ({ data }) => {
+    let me: MeResponse;
+
+    try {
+      me = await getMe();
+    } catch (error) {
+      if (error instanceof SoundKitServerError && error.status === 401) {
+        return { authenticated: false };
+      }
+
+      throw error;
+    }
+
+    throw redirect({
+      to: signupRedirectForUser({
+        accountType: data.accountType,
+        user: me.user,
+      }),
+    });
+  });
+
+export const requireSignupOnboardingUser = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ accountType: accountTypeSchema }))
+  .handler(async ({ data }) => {
+    try {
+      const me = await getMe();
+
+      if (me.user.onboardingCompletedAt) {
+        throw redirect({ to: "/dashboard" });
+      }
+
+      return me;
+    } catch (error) {
+      if (error instanceof SoundKitServerError && error.status === 401) {
+        throw redirect({ to: credentialsRouteForAccount(data.accountType) });
+      }
+
+      throw error;
+    }
+  });
 
 export const getDashboardTracks = createServerFn({ method: "GET" }).handler(
   async () => {

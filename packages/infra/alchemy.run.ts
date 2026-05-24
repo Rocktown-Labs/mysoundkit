@@ -114,6 +114,7 @@ export const web = await TanStackStart("web", {
       "DATABASE_URL"
     ),
     VITE_MEDIA_URL: MEDIA_URL,
+    ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
     VITE_SERVER_URL: API_URL,
   },
   cwd: "../../apps/website",

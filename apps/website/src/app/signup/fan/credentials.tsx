@@ -18,8 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
+import { redirectAuthedSignupUser } from "@/lib/soundkit.functions";
 
 export const Route = createFileRoute("/signup/fan/credentials")({
+  beforeLoad: () => redirectAuthedSignupUser({ data: { accountType: "fan" } }),
   component: FanCredentialsPage,
 });
 

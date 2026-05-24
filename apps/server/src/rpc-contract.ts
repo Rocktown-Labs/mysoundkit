@@ -14,6 +14,7 @@ import type {
   trackDashboardDetailSchema,
   trackProcessingStatusSchema,
   trackSummarySchema,
+  usernameAvailabilityResponseSchema,
   videoSummarySchema,
 } from "./lib/schemas";
 import {
@@ -30,6 +31,7 @@ import {
   updateProjectBodySchema,
   updateTrackBodySchema,
   reviewLyricsRevisionBodySchema,
+  usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
@@ -51,6 +53,11 @@ const checkoutResponseSchema = onboardingResponseSchema.pick({
 
 export const rpcContract = new Hono()
   .get("/v1/me/", (c) => c.json({} as z.infer<typeof meResponseSchema>))
+  .get(
+    "/v1/onboarding/username-availability",
+    validator("query", (value) => usernameAvailabilityQuerySchema.parse(value)),
+    (c) => c.json({} as z.infer<typeof usernameAvailabilityResponseSchema>)
+  )
   .post(
     "/v1/onboarding/artist",
     jsonValidator(onboardingArtistBodySchema),

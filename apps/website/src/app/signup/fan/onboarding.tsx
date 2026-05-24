@@ -18,8 +18,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { API_V1_URL } from "@/lib/api";
+import { requireSignupOnboardingUser } from "@/lib/soundkit.functions";
 
 export const Route = createFileRoute("/signup/fan/onboarding")({
+  beforeLoad: () =>
+    requireSignupOnboardingUser({ data: { accountType: "fan" } }),
   component: FanOnboardingPage,
 });
 

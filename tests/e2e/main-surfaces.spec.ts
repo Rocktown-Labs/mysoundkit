@@ -98,3 +98,77 @@ test.describe("main application surfaces", () => {
     );
   });
 });
+
+test.describe("signup onboarding guards", () => {
+  test("authenticated incomplete artists resume onboarding from credentials", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: "127.0.0.1",
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+
+    await page.goto("/signup/artist/credentials");
+
+    await expect(page).toHaveURL(/\/signup\/artist\/onboarding$/);
+    await expect(
+      page.getByRole("heading", { name: /set up your artist profile/i })
+    ).toBeVisible();
+  });
+
+  test("completed users skip signup and go to the dashboard guard target", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: "127.0.0.1",
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await page.goto("/signup/artist/credentials");
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  test("artist onboarding restores the local draft after refresh", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: "127.0.0.1",
+        name: "soundkit_test_session",
+        path: "/",
+        value: "incomplete",
+      },
+    ]);
+    await page.addInitScript(() => {
+      window.localStorage.setItem(
+        "soundkit.artistOnboardingDraft.v1",
+        JSON.stringify({
+          city: "",
+          locationQuery: "",
+          primaryGenre: "",
+          roles: ["musician"],
+          selectedPlanCode: "artist_lite_ads",
+          stateValue: "",
+          step: 2,
+          username: "codex_resume",
+        })
+      );
+    });
+
+    await page.goto("/signup/artist/onboarding");
+    await expect(page.getByLabel("Username")).toHaveValue("codex_resume");
+    await expect(page.getByText("Username is available.")).toBeVisible();
+  });
+});
