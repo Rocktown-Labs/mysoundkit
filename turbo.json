@@ -1,7 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalEnv": ["SOUNDKIT_CI_STATIC_CONFIG"],
+  "globalEnv": ["SENTRY_AUTH_TOKEN", "SOUNDKIT_CI_STATIC_CONFIG"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

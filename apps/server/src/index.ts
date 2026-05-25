@@ -1,5 +1,6 @@
 import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
+import { sentry } from "@sentry/hono/cloudflare";
 import { createAuth } from "@soundkit/auth";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { env } from "@soundkit/env/server";
@@ -71,6 +72,14 @@ const checkDatabaseHealth = async () => {
   }
 };
 
+app.use(
+  sentry(app, (workerEnv) => ({
+    dsn: workerEnv.SENTRY_DSN,
+    enableLogs: true,
+    sendDefaultPii: true,
+    tracesSampleRate: 1,
+  }))
+);
 app.use(structuredLoggingMiddleware);
 app.use(
   "/*",

@@ -1,3 +1,4 @@
+import { usePostHog } from "@posthog/react";
 /* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { User, MapPin, Music2, Check } from "lucide-react";
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/signup/fan/onboarding")({
 });
 
 function FanOnboardingPage() {
+  const posthog = usePostHog();
   const router = useRouter();
   const [city, setCity] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -93,13 +95,21 @@ function FanOnboardingPage() {
         return;
       }
 
+      posthog.capture("fan_onboarding_completed", {
+        plan_code: planCode,
+        genre_count: selectedGenres.length,
+        selected_genres: selectedGenres,
+        has_checkout: Boolean(payload?.checkoutUrl),
+      });
+
       if (payload?.checkoutUrl) {
         window.location.assign(payload.checkoutUrl);
         return;
       }
 
       await router.navigate({ to: "/" });
-    } catch {
+    } catch (error) {
+      posthog.captureException(error);
       setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
     } finally {
       setIsSubmitting(false);

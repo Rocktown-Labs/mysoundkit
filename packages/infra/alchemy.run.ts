@@ -39,6 +39,12 @@ const MEDIA_HOST = isProduction
 const SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`;
 const API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`;
 const MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`;
+const SENTRY_WEB_DSN =
+  process.env.VITE_SENTRY_DSN ||
+  "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704";
+const SENTRY_SERVER_DSN =
+  process.env.SENTRY_DSN ||
+  "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208";
 const resourceName = (name: string) =>
   isProduction ? name : `${name}-${app.stage}`;
 
@@ -115,6 +121,8 @@ export const web = await TanStackStart("web", {
     ),
     VITE_MEDIA_URL: MEDIA_URL,
     ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
+    SENTRY_DSN: SENTRY_WEB_DSN,
+    VITE_SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_SERVER_URL: API_URL,
   },
   cwd: "../../apps/website",
@@ -193,6 +201,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_FAN_LITE_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_FAN_LITE_MONTHLY_PRICE_ID"),
+    SENTRY_DSN: SENTRY_SERVER_DSN,
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,
       "STRIPE_SECRET_KEY"

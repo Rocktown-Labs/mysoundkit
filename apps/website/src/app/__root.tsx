@@ -1,8 +1,9 @@
+import { PostHogProvider } from "@posthog/react";
 import {
   HeadContent,
+  Link,
   Outlet,
   Scripts,
-  Link,
   createRootRouteWithContext,
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -28,10 +29,23 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       <body className="font-sans bg-background text-foreground antialiased">
-        <AppProviders>
-          {children}
-          <Scripts />
-        </AppProviders>
+        <PostHogProvider
+          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
+          options={{
+            api_host: "/ingest",
+            ui_host:
+              import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
+              "https://us.posthog.com",
+            defaults: "2025-05-24",
+            capture_exceptions: true,
+            debug: import.meta.env.DEV,
+          }}
+        >
+          <AppProviders>
+            {children}
+            <Scripts />
+          </AppProviders>
+        </PostHogProvider>
       </body>
     </html>
   );

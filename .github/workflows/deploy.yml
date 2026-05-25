@@ -147,6 +147,8 @@ jobs:
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
           MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
           STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
           STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID: ${{ vars.STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID }}
@@ -160,6 +162,7 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
 
   preview:
     name: Deploy Preview
@@ -234,6 +237,8 @@ jobs:
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
           MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
           STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
           STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID: ${{ vars.STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID }}
@@ -247,6 +252,7 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
 
       - name: Record preview URLs
         run: |

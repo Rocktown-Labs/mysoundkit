@@ -17,5 +17,8 @@ export interface AppVariables {
 }
 
 export interface AppEnv {
+  Bindings: {
+    SENTRY_DSN?: string;
+  };
   Variables: AppVariables;
 }

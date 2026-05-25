@@ -3,6 +3,7 @@
 
 import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { usePostHog } from "@posthog/react";
 import { useRouter } from "@tanstack/react-router";
 import {
   Calendar,
@@ -99,6 +100,7 @@ interface UploadedTrackPreview {
 }
 
 export function NewTrackForm() {
+  const posthog = usePostHog();
   const router = useRouter();
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const [step, setStep] = useState("details");
@@ -190,6 +192,14 @@ export function NewTrackForm() {
       trackId: track.id,
     };
 
+    posthog.capture("track_uploaded", {
+      track_id: track.id,
+      title: track.title,
+      genre: values.genre,
+      production_status: values.productionStatus,
+      release_strategy: values.releaseStrategy,
+      is_for_sale: values.isForSale,
+    });
     setUploadedTrack(preview);
     setQueue([
       {
@@ -228,6 +238,7 @@ export function NewTrackForm() {
     api: TRACK_SOURCE_UPLOAD_URL,
     credentials: "include",
     onError: (uploadError) => {
+      posthog.captureException(uploadError);
       toast({
         description: uploadError.message,
         title: "Upload failed",

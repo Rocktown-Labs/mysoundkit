@@ -1,3 +1,4 @@
+import { usePostHog } from "@posthog/react";
 import { env } from "@soundkit/env/web";
 import { useAsyncDebouncedCallback } from "@tanstack/react-pacer";
 /* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
@@ -181,6 +182,7 @@ export const Route = createFileRoute("/signup/artist/onboarding")({
 });
 
 function ArtistOnboardingPage() {
+  const posthog = usePostHog();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [roles, setRoles] = useState<ArtistRole[]>(["musician"]);
@@ -526,6 +528,13 @@ function ArtistOnboardingPage() {
         return;
       }
 
+      posthog.capture("artist_onboarding_completed", {
+        plan_code: selectedPlanCode,
+        roles,
+        primary_genre: primaryGenre,
+        has_checkout: Boolean(payload?.checkoutUrl),
+      });
+
       if (payload?.checkoutUrl) {
         window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
         window.location.assign(payload.checkoutUrl);
@@ -534,7 +543,8 @@ function ArtistOnboardingPage() {
 
       window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
       await router.navigate({ to: "/dashboard" });
-    } catch {
+    } catch (error) {
+      posthog.captureException(error);
       setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
     } finally {
       setIsSubmitting(false);

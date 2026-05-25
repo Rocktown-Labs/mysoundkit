@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 
+import { sentryTanstackStart } from "@sentry/tanstackstart-react/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
@@ -11,6 +12,7 @@ const ciConfigPath =
   process.env.SOUNDKIT_CI_STATIC_CONFIG === "true"
     ? "./wrangler.ci.jsonc"
     : undefined;
+const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
 export default defineConfig({
   plugins: [
@@ -22,6 +24,15 @@ export default defineConfig({
       },
       srcDirectory: "src",
     }),
+    sentryTanstackStart({
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: "rocktown-labs-tq",
+      project: "soundkit-web",
+      sourcemaps: {
+        disable: hasSentryAuthToken ? false : "disable-upload",
+      },
+      telemetry: false,
+    }),
     viteReact(),
     alchemy({ configPath: ciConfigPath }),
   ],
@@ -32,5 +43,25 @@ export default defineConfig({
   },
   server: {
     port: 3001,
+    proxy: {
+      "/ingest/static": {
+        target: "https://us-assets.i.posthog.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ingest/, ""),
+        secure: false,
+      },
+      "/ingest/array": {
+        target: "https://us-assets.i.posthog.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ingest/, ""),
+        secure: false,
+      },
+      "/ingest": {
+        target: "https://us.i.posthog.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ingest/, ""),
+        secure: false,
+      },
+    },
   },
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePostHog } from "@posthog/react";
 import {
   createContext,
   useCallback,
@@ -159,6 +160,7 @@ const buildLocalCartItem = (input: AddCartItemInput): CartItem => {
 };
 
 export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
+  const posthog = usePostHog();
   const [cart, setCart] = useState<Cart>(EMPTY_CART);
   const [isApiCartActive, setIsApiCartActive] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -188,6 +190,13 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           });
           setCart(apiCart);
           setIsCartOpen(true);
+          posthog.capture("cart_item_added", {
+            product_type: input.productType,
+            purchase_mode: input.purchaseMode,
+            price_cents: input.priceCents,
+            title: input.title,
+            artist_name: input.artistName,
+          });
           return;
         } catch {
           setIsApiCartActive(false);
@@ -211,8 +220,15 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
 
       setLocalItems(nextItems);
       setIsCartOpen(true);
+      posthog.capture("cart_item_added", {
+        product_type: input.productType,
+        purchase_mode: input.purchaseMode,
+        price_cents: input.priceCents,
+        title: input.title,
+        artist_name: input.artistName,
+      });
     },
-    [cart.items, isApiCartActive, setLocalItems]
+    [cart.items, isApiCartActive, posthog, setLocalItems]
   );
 
   const updateQuantity = useCallback(
@@ -257,9 +273,18 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
         }
       }
 
+      const removed = cart.items.find((item) => item.id === cartItemId);
       setLocalItems(cart.items.filter((item) => item.id !== cartItemId));
+      if (removed) {
+        posthog.capture("cart_item_removed", {
+          product_type: removed.productType,
+          purchase_mode: removed.purchaseMode,
+          price_cents: removed.priceCents,
+          title: removed.title,
+        });
+      }
     },
-    [cart.items, isApiCartActive, setLocalItems]
+    [cart.items, isApiCartActive, posthog, setLocalItems]
   );
 
   const clearCart = useCallback(async () => {
@@ -273,8 +298,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       }
     }
 
+    posthog.capture("cart_cleared", { item_count: cart.items.length });
     setLocalItems([]);
-  }, [isApiCartActive, setLocalItems]);
+  }, [cart.items.length, isApiCartActive, posthog, setLocalItems]);
 
   const value = useMemo(
     () => ({

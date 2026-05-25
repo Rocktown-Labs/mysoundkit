@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@better-upload/client": "^3.0.17",
+    "@posthog/react": "^1.9.1",
     "@fontsource-variable/geist": "^5.2.8",
     "@fontsource-variable/geist-mono": "^5.2.7",
     "@fontsource-variable/playfair-display": "^5.2.8",
@@ -45,6 +46,7 @@
     "@radix-ui/react-toggle": "1.1.1",
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
+    "@sentry/tanstackstart-react": "^10.53.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/devtools-vite": "^0.6.0",
     "@tanstack/react-devtools": "^0.10.2",
@@ -66,6 +68,7 @@
     "input-otp": "1.4.1",
     "lucide-react": "catalog:",
     "next-themes": "catalog:",
+    "posthog-node": "^5.35.1",
     "radar-sdk-js": "^5.1.0",
     "react": "^19.2.3",
     "react-day-picker": "9.8.0",

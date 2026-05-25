@@ -11,7 +11,9 @@
     "BETTER_AUTH_URL": "http://127.0.0.1:3000",
     "CORS_ORIGIN": "http://127.0.0.1:4311",
     "DATABASE_URL": "postgresql://ci:ci@127.0.0.1:5432/soundkit",
+    "SENTRY_DSN": "",
     "VITE_MEDIA_URL": "http://127.0.0.1:3000",
+    "VITE_SENTRY_DSN": "",
     "VITE_SERVER_URL": "http://127.0.0.1:3000",
   },
 }

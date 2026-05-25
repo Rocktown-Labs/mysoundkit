@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { usePostHog } from "@posthog/react";
 import { useRouter } from "@tanstack/react-router";
 import {
   Plus,
@@ -99,6 +100,7 @@ const mockExistingTracks = [
 ];
 
 export function NewProjectForm() {
+  const posthog = usePostHog();
   const router = useRouter();
   const [step, setStep] = useState("identity");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -141,12 +143,20 @@ export function NewProjectForm() {
     setIsSubmitting(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 2000));
+      posthog.capture("project_created", {
+        project_type: values.type,
+        new_track_count: values.newTracks.length,
+        existing_track_count: values.selectedExistingTracks.length,
+        collaborator_count: values.collaborators.length,
+        has_release_date: Boolean(values.releaseDate),
+      });
       toast({
         description: `${values.name} has been queued for processing.`,
         title: "Project Created",
       });
       router.navigate({ to: "/dashboard/projects" });
-    } catch {
+    } catch (error) {
+      posthog.captureException(error);
       toast({
         description: "Failed to create project. Please try again.",
         title: "Error",

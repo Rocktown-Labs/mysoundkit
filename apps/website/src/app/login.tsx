@@ -1,3 +1,4 @@
+import { usePostHog } from "@posthog/react";
 /* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
@@ -24,6 +25,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const router = useRouter();
+  const posthog = usePostHog();
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,8 +47,12 @@ function LoginPage() {
         return;
       }
 
+      posthog.identify(email, { email });
+      posthog.capture("user_signed_in", { method: "email" });
+
       await router.navigate({ to: "/dashboard" });
-    } catch {
+    } catch (error) {
+      posthog.captureException(error);
       setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
     } finally {
       setIsSubmitting(false);
