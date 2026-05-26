@@ -1,5 +1,6 @@
 import alchemy from "alchemy";
 import {
+  DurableObjectNamespace,
   Hyperdrive,
   R2Bucket,
   TanStackStart,
@@ -94,6 +95,11 @@ const trackProcessingWorkflow = Workflow("track-processing", {
   workflowName: resourceName("soundkit-track-processing"),
 });
 
+const liveRooms = DurableObjectNamespace("live-rooms", {
+  className: "LiveRoomDurableObject",
+  sqlite: true,
+});
+
 const hyperdrive = await Hyperdrive("hyperdrive", {
   ...(isProduction
     ? {
@@ -171,6 +177,7 @@ export const server = await Worker("server", {
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
     HYPERDRIVE: hyperdrive,
+    LIVE_ROOMS: liveRooms,
     MEDIA_BUCKET: media,
     MEDIA_PUBLIC_URL: MEDIA_URL,
     MUX_TOKEN_ID: requiredSecret(

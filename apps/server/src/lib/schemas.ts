@@ -728,6 +728,92 @@ export const battleEligibilitySchema = z.object({
   ),
 });
 
+export const liveRoomChatBodySchema = z.object({
+  message: z.string().min(1).max(500),
+  userName: z.string().max(80).optional(),
+});
+
+export const liveRoomVoteBodySchema = z.object({
+  artistId: z.string().min(1),
+  roundId: z.string().min(1),
+  voterId: z.string().max(120).optional(),
+});
+
+export const liveRoomLyricsLineSchema = z.object({
+  endMs: z.number().int().nonnegative(),
+  startMs: z.number().int().nonnegative(),
+  text: z.string(),
+});
+
+export const liveRoomTrackSchema = z.object({
+  artistName: z.string(),
+  coverArtUrl: z.string(),
+  durationMs: z.number().int().positive(),
+  id: z.string(),
+  lyrics: liveRoomLyricsLineSchema.array(),
+  status: z.enum(["played", "playing", "queued"]),
+  title: z.string(),
+});
+
+export const liveRoomStateSchema = z.object({
+  battle: z
+    .object({
+      artists: z.tuple([
+        z.object({
+          avatarUrl: z.string(),
+          id: z.string(),
+          isMuted: z.boolean(),
+          name: z.string(),
+          roundsWon: z.number().int().nonnegative(),
+          stagePosition: z.enum(["left", "right"]),
+          verified: z.boolean(),
+        }),
+        z.object({
+          avatarUrl: z.string(),
+          id: z.string(),
+          isMuted: z.boolean(),
+          name: z.string(),
+          roundsWon: z.number().int().nonnegative(),
+          stagePosition: z.enum(["left", "right"]),
+          verified: z.boolean(),
+        }),
+      ]),
+      currentRoundId: z.string(),
+      rounds: z
+        .object({
+          artistATrack: liveRoomTrackSchema,
+          artistBTrack: liveRoomTrackSchema,
+          id: z.string(),
+          isTiebreaker: z.boolean(),
+          number: z.number().int().positive(),
+          status: z.enum(["complete", "live", "queued", "voting"]),
+          voteTotals: z.record(z.string(), z.number().int().nonnegative()),
+          winnerArtistId: z.string().nullable(),
+        })
+        .array(),
+      tiePolicy: z.string(),
+    })
+    .optional(),
+  chat: z
+    .object({
+      id: z.string(),
+      message: z.string(),
+      sentAt: z.string(),
+      userName: z.string(),
+    })
+    .array(),
+  createdAt: z.string(),
+  currentTrackId: z.string(),
+  hostName: z.string(),
+  id: z.string(),
+  kind: z.enum(["battle", "party", "stream"]),
+  status: z.enum(["ended", "live", "upcoming"]),
+  summary: z.string(),
+  title: z.string(),
+  tracklist: liveRoomTrackSchema.array(),
+  viewerCount: z.number().int().nonnegative(),
+});
+
 export const createCommentBodySchema = z.object({
   body: z.string().min(1),
 });

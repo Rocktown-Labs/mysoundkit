@@ -59,6 +59,34 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText(/part/i).first()).toBeVisible();
   });
 
+  test("live room detail pages expose chat, lyrics, and battle voting", async ({
+    page,
+  }) => {
+    await page.goto("/live/parties/single-album-party");
+    await expect(
+      page.getByRole("heading", { name: /single album spotlight/i })
+    ).toBeVisible();
+    await expect(page.getByText(/lyrics/i).first()).toBeVisible();
+    await expect(page.getByText(/this room is synced/i)).toBeVisible();
+
+    await page.goto("/live/battles/battle-1");
+    await expect(
+      page.getByRole("heading", { name: /west coast showdown/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /vote dj nova/i })
+    ).toBeVisible();
+    await expect(page.getByText(/muted until turn/i)).toBeVisible();
+
+    await page.goto("/live/streams/stream-1");
+    await expect(
+      page.getByRole("heading", {
+        name: /beat making from the first drum hit/i,
+      })
+    ).toBeVisible();
+    await expect(page.getByText(/cloudflare realtime ready/i)).toBeVisible();
+  });
+
   test("signup surfaces load without console errors", async ({ page }) => {
     const consoleErrors: string[] = [];
 

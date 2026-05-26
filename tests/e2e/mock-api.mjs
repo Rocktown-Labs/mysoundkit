@@ -1,3 +1,4 @@
+import { once } from "node:events";
 import { createServer } from "node:http";
 
 const json = (response, status, body, origin) => {
@@ -44,7 +45,109 @@ const mockUser = (session) => {
   return null;
 };
 
-export const createMockApiServer = ({
+const liveRoom = (roomId) => {
+  const isBattle = roomId.includes("battle");
+  const isStream = roomId.includes("stream");
+  let kind = "party";
+  let title = "Single Album Spotlight";
+
+  if (isBattle) {
+    kind = "battle";
+    title = "West Coast Showdown";
+  } else if (isStream) {
+    kind = "stream";
+    title = "Beat Making From The First Drum Hit";
+  }
+
+  const track = {
+    artistName: isBattle ? "DJ Nova" : "Luna Eclipse",
+    coverArtUrl: isStream
+      ? "/music-battle-video-thumbnail.jpg"
+      : "/summer-music-album-cover.png",
+    durationMs: 205_000,
+    id: `${roomId}-track-1`,
+    lyrics: [
+      {
+        endMs: 12_000,
+        startMs: 0,
+        text: "Sunset bleeding gold on the dashboard",
+      },
+      {
+        endMs: 24_000,
+        startMs: 12_000,
+        text: "Every chorus keeps the room glowing",
+      },
+    ],
+    status: "playing",
+    title: isStream ? "Neon Draft" : "Summer Nights",
+  };
+
+  return {
+    battle: isBattle
+      ? {
+          artists: [
+            {
+              avatarUrl: "/diverse-user-avatars.png",
+              id: "artist-dj-nova",
+              isMuted: false,
+              name: "DJ Nova",
+              roundsWon: 1,
+              stagePosition: "left",
+              verified: true,
+            },
+            {
+              avatarUrl: "/diverse-user-avatars.png",
+              id: "artist-mc-rhythm",
+              isMuted: true,
+              name: "MC Rhythm",
+              roundsWon: 1,
+              stagePosition: "right",
+              verified: false,
+            },
+          ],
+          currentRoundId: "round-1",
+          rounds: [
+            {
+              artistATrack: track,
+              artistBTrack: {
+                ...track,
+                artistName: "MC Rhythm",
+                id: `${roomId}-track-2`,
+                title: "Urban Flow",
+              },
+              id: "round-1",
+              isTiebreaker: false,
+              number: 1,
+              status: "voting",
+              voteTotals: { "artist-dj-nova": 12, "artist-mc-rhythm": 10 },
+              winnerArtistId: null,
+            },
+          ],
+          tiePolicy: "If the rounds end tied, a tiebreaker round unlocks.",
+        }
+      : undefined,
+    chat: [
+      {
+        id: `${roomId}-chat-1`,
+        message: "This room is synced.",
+        sentAt: "2026-05-26T12:00:00.000Z",
+        userName: "Listener",
+      },
+    ],
+    createdAt: "2026-05-26T12:00:00.000Z",
+    currentTrackId: track.id,
+    hostName: isStream ? "Neon Pulse" : "Luna Eclipse",
+    id: roomId,
+    kind,
+    status: "live",
+    summary: "A live room with chat, track context, and lyrics.",
+    title,
+    tracklist: [track],
+    viewerCount: 512,
+  };
+};
+
+export const createMockApiServer = async ({
   host = "127.0.0.1",
   port = 3000,
   webOrigin = "http://127.0.0.1:4311",
@@ -124,14 +227,26 @@ export const createMockApiServer = ({
       return;
     }
 
+    const liveRoomMatch = url.pathname.match(/^\/v1\/live\/rooms\/([^/]+)$/);
+
+    if (liveRoomMatch) {
+      json(response, 200, liveRoom(liveRoomMatch[1]), webOrigin);
+      return;
+    }
+
+    const liveRoomMutationMatch = url.pathname.match(
+      /^\/v1\/live\/rooms\/([^/]+)\/(chat|vote)$/
+    );
+
+    if (liveRoomMutationMatch) {
+      json(response, 200, liveRoom(liveRoomMutationMatch[1]), webOrigin);
+      return;
+    }
+
     json(response, 404, { message: `Not Found - ${url.pathname}` }, webOrigin);
   });
 
-  return new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, host, () => {
-      server.off("error", reject);
-      resolve(server);
-    });
-  });
+  server.listen(port, host);
+  await once(server, "listening");
+  return server;
 };

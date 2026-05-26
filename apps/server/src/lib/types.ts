@@ -18,6 +18,7 @@ export interface AppVariables {
 
 export interface AppEnv {
   Bindings: {
+    LIVE_ROOMS?: DurableObjectNamespace;
     SENTRY_DSN?: string;
   };
   Variables: AppVariables;

@@ -79,6 +79,45 @@ describe("SoundKit Worker API", () => {
     expect(battles.length).toBeGreaterThan(0);
   });
 
+  it("serves live room state with chat, lyrics, and battle voting metadata", async () => {
+    const partyResponse = await SELF.fetch(
+      "http://soundkit.test/v1/live/rooms/single-album-party"
+    );
+    const battleResponse = await SELF.fetch(
+      "http://soundkit.test/v1/live/rooms/battle-1"
+    );
+    const party = await readJson<{
+      chat: unknown[];
+      currentTrackId: string;
+      kind: string;
+      tracklist: { lyrics: unknown[]; status: string }[];
+    }>(partyResponse);
+    const battle = await readJson<{
+      battle: {
+        artists: { isMuted: boolean; name: string }[];
+        rounds: {
+          status: string;
+          voteTotals: Record<string, number>;
+        }[];
+        tiePolicy: string;
+      };
+      kind: string;
+    }>(battleResponse);
+
+    expect(partyResponse.status).toBe(200);
+    expect(party.kind).toBe("party");
+    expect(party.currentTrackId).toBeTruthy();
+    expect(party.chat.length).toBeGreaterThan(0);
+    expect(party.tracklist.some((track) => track.lyrics.length > 0)).toBe(true);
+    expect(battleResponse.status).toBe(200);
+    expect(battle.kind).toBe("battle");
+    expect(battle.battle.artists.some((artist) => artist.isMuted)).toBe(true);
+    expect(
+      battle.battle.rounds.some((round) => round.status === "voting")
+    ).toBe(true);
+    expect(battle.battle.tiePolicy).toContain("tiebreaker");
+  });
+
   it("keeps dashboard and commerce mutations behind authentication", async () => {
     const createTrackResponse = await SELF.fetch(
       "http://soundkit.test/v1/tracks",

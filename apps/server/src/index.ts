@@ -25,6 +25,7 @@ import billingRoutes from "@/routes/billing";
 import cartRoutes from "@/routes/cart";
 import discoverRoutes from "@/routes/discover";
 import libraryRoutes from "@/routes/library";
+import liveRoutes from "@/routes/live";
 import meRoutes from "@/routes/me";
 import messagesRoutes from "@/routes/messages";
 import onboardingRoutes from "@/routes/onboarding";
@@ -37,6 +38,7 @@ import uploadsRoutes from "@/routes/uploads";
 import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
 export { TrackProcessingWorkflow } from "@/workflows/track-processing";
+export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 
 const app = new OpenAPIHono<AppEnv>({
   defaultHook,
@@ -129,6 +131,7 @@ app.get("/health", async (c) =>
     bindings: {
       databaseUrl: hasEnvValue("DATABASE_URL"),
       hyperdrive: hasEnvValue("HYPERDRIVE"),
+      liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
       trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
       uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),
@@ -153,6 +156,7 @@ app
   .route("/v1/projects", projectsRoutes)
   .route("/v1/videos", videosRoutes)
   .route("/v1/library", libraryRoutes)
+  .route("/v1/live", liveRoutes)
   .route("/v1/playlists", playlistsRoutes)
   .route("/v1/social", socialRoutes)
   .route("/v1/messages", messagesRoutes)
