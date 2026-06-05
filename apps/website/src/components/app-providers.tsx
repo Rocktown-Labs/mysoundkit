@@ -1,16 +1,24 @@
 "use client";
 
-import { TanStackDevtools } from "@tanstack/react-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { CartProvider } from "@/components/cart-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+
+const AppDevtools = import.meta.env.DEV
+  ? lazy(async () => {
+      const { AppDevtools: DevtoolsComponent } =
+        await import("@/components/app-devtools");
+
+      return {
+        default: DevtoolsComponent,
+      };
+    })
+  : null;
 
 export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
   const [queryClient, setQueryClient] = useState(() => new QueryClient());
@@ -28,21 +36,11 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
           <CartProvider>{children}</CartProvider>
         </AudioPlayerProvider>
         <Toaster />
-        <TanStackDevtools
-          config={{
-            position: "bottom-left",
-          }}
-          plugins={[
-            {
-              name: "TanStack Query",
-              render: <ReactQueryDevtoolsPanel />,
-            },
-            {
-              name: "TanStack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        {AppDevtools ? (
+          <Suspense fallback={null}>
+            <AppDevtools />
+          </Suspense>
+        ) : null}
       </ThemeProvider>
     </QueryClientProvider>
   );
