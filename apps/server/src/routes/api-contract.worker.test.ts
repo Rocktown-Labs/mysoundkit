@@ -51,6 +51,7 @@ const expectedOpenApiOperations = [
   ["post", "/v1/battles/challenge"],
   ["post", "/v1/battles/eligibility"],
   ["get", "/v1/battles/{battleId}"],
+  ["get", "/v1/admin/finance/summary"],
   ["post", "/v1/billing/checkout"],
   ["get", "/v1/billing/plans"],
   ["get", "/v1/billing/subscription"],
@@ -60,6 +61,17 @@ const expectedOpenApiOperations = [
   ["post", "/v1/cart/items"],
   ["delete", "/v1/cart/items/{cartItemId}"],
   ["patch", "/v1/cart/items/{cartItemId}"],
+  ["post", "/v1/community-billing/checkout"],
+  ["get", "/v1/communities"],
+  ["post", "/v1/communities"],
+  ["get", "/v1/communities/{communityId}/analytics"],
+  ["get", "/v1/communities/{communityId}/members"],
+  ["delete", "/v1/communities/{communityId}/members/{userId}"],
+  ["patch", "/v1/communities/{communityId}/members/{userId}"],
+  ["get", "/v1/communities/{communityId}/messages"],
+  ["post", "/v1/communities/{communityId}/messages"],
+  ["get", "/v1/communities/{communityId}/posts"],
+  ["post", "/v1/communities/{communityId}/posts"],
   ["get", "/v1/discover/home"],
   ["get", "/v1/library/overview"],
   ["get", "/v1/library/purchases"],
@@ -78,6 +90,8 @@ const expectedOpenApiOperations = [
   ["get", "/v1/onboarding/username-availability"],
   ["get", "/v1/playlists"],
   ["post", "/v1/playlists"],
+  ["post", "/v1/payments/checkout"],
+  ["post", "/v1/payments/tips"],
   ["get", "/v1/playlists/{playlistId}"],
   ["get", "/v1/projects"],
   ["post", "/v1/projects"],
@@ -109,6 +123,7 @@ const expectedOpenApiOperations = [
   ["post", "/v1/webhooks/mux"],
   ["post", "/v1/webhooks/stemsplit"],
   ["post", "/v1/webhooks/stripe"],
+  ["post", "/v1/webhooks/stripe-commerce"],
 ] as const;
 
 describe("SoundKit API HTTP contracts", () => {
@@ -221,8 +236,8 @@ describe("SoundKit API HTTP contracts", () => {
 
       expect(requestEntry).toEqual(
         expect.objectContaining({
-          level: "info",
           durationMs: expect.any(Number),
+          level: "info",
           method: "GET",
           path: "/health",
           service: "soundkit-api",
@@ -277,7 +292,14 @@ describe("SoundKit public read API", () => {
 
   it("returns billing plans and library summaries without storage", async () => {
     const [plansResult, overviewResult, purchasesResult] = await Promise.all([
-      fetchJson<{ code: string }[]>("/v1/billing/plans"),
+      fetchJson<
+        {
+          annualPriceCents: number | null;
+          code: string;
+          maxSeats: number | null;
+          monthlyPriceCents: number;
+        }[]
+      >("/v1/billing/plans"),
       fetchJson<{ playlistCount: number; purchaseCount: number }>(
         "/v1/library/overview"
       ),
@@ -285,7 +307,38 @@ describe("SoundKit public read API", () => {
     ]);
 
     expect(plansResult.response.status).toBe(200);
-    expect(plansResult.body.map((plan) => plan.code)).toContain("artist_free");
+    expect(plansResult.body).toHaveLength(6);
+    expect(plansResult.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          annualPriceCents: 10_000,
+          code: "artist_premium",
+          maxSeats: 1,
+          monthlyPriceCents: 1499,
+        }),
+        expect.objectContaining({
+          annualPriceCents: 10_000,
+          code: "listener_premium",
+          maxSeats: 1,
+          monthlyPriceCents: 1499,
+        }),
+        expect.objectContaining({
+          annualPriceCents: null,
+          code: "artist_team",
+          maxSeats: 5,
+          monthlyPriceCents: 2499,
+        }),
+        expect.objectContaining({
+          annualPriceCents: null,
+          code: "fan_family",
+          maxSeats: 5,
+          monthlyPriceCents: 2499,
+        }),
+      ])
+    );
+    expect(plansResult.body.map((plan) => plan.code)).not.toEqual(
+      expect.arrayContaining(["artist_lite_ads", "fan_lite_ads"])
+    );
     expect(overviewResult.response.status).toBe(200);
     expect(overviewResult.body.playlistCount).toEqual(expect.any(Number));
     expect(overviewResult.body.purchaseCount).toEqual(expect.any(Number));
@@ -442,6 +495,48 @@ describe("SoundKit public write API", () => {
     expect(fanResult.response.status).toBe(409);
     expect(fanResult.body.message).toBe("That username is reserved.");
   });
+
+  it("rejects removed onboarding plan codes", async () => {
+    const [artistResult, fanResult] = await Promise.all([
+      fetchJson<{ success: boolean }>(
+        "/v1/onboarding/artist",
+        jsonRequest({
+          city: "Little Rock",
+          primaryGenre: "Hip-Hop",
+          roles: ["musician"],
+          selectedPlanCode: "artist_lite_ads",
+          state: "AR",
+          teamInviteEmails: [],
+          username: "legacy_artist",
+        })
+      ),
+      fetchJson<{ success: boolean }>(
+        "/v1/onboarding/fan",
+        jsonRequest({
+          city: "Chicago",
+          genrePreferences: ["House"],
+          selectedPlanCode: "fan_lite_ads",
+          state: "IL",
+          username: "legacy_fan",
+        })
+      ),
+    ]);
+
+    expect(artistResult.response.status).toBe(400);
+    expect(fanResult.response.status).toBe(400);
+  });
+
+  it.each([298, 10_000])(
+    "rejects community prices outside the allowed range: %i cents",
+    async (monthlyPriceCents) => {
+      const result = await fetchJson<{ success: boolean }>(
+        "/v1/communities",
+        jsonRequest({ monthlyPriceCents, name: "Invalid Price Community" })
+      );
+
+      expect(result.response.status).toBe(400);
+    }
+  );
 });
 
 describe("SoundKit API input validation", () => {

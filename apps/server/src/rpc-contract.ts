@@ -4,10 +4,15 @@ import { z } from "zod";
 
 import type {
   directVideoUploadResponseSchema,
+  listeningPartySummarySchema,
   lyricsRevisionSchema,
   meResponseSchema,
+  openVerseListingSchema,
+  openVersePageSchema,
+  openVerseSubmissionSchema,
   planSchema,
   projectDashboardDetailSchema,
+  publicSearchResultSchema,
   projectSummarySchema,
   sellerOnboardingResponseSchema,
   sellerStatusSchema,
@@ -19,7 +24,10 @@ import type {
 } from "./lib/schemas";
 import {
   createProjectBodySchema,
+  createListeningPartyBodySchema,
   createLyricsRevisionBodySchema,
+  createOpenVerseBodySchema,
+  createOpenVerseSubmissionBodySchema,
   createSellerAccountLinkBodySchema,
   createTrackAssetBodySchema,
   createTrackBodySchema,
@@ -31,6 +39,8 @@ import {
   updateProjectBodySchema,
   updateTrackBodySchema,
   reviewLyricsRevisionBodySchema,
+  openVerseQuerySchema,
+  publicSearchQuerySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
 
@@ -69,6 +79,11 @@ export const rpcContract = new Hono()
   .get("/v1/billing/plans", (c) => c.json([] as z.infer<typeof planSchema>[]))
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
+  )
+  .get(
+    "/v1/search",
+    validator("query", (value) => publicSearchQuerySchema.parse(value)),
+    (c) => c.json({} as z.infer<typeof publicSearchResultSchema>)
   )
   .get("/v1/tracks/", (c) => c.json([] as z.infer<typeof trackSummarySchema>[]))
   .post("/v1/tracks/", jsonValidator(createTrackBodySchema), (c) =>
@@ -119,6 +134,30 @@ export const rpcContract = new Hono()
     "/v1/projects/:projectId",
     jsonValidator(updateProjectBodySchema),
     (c) => c.json({} as z.infer<typeof projectDashboardDetailSchema>)
+  )
+  .get("/v1/listening-parties/", (c) =>
+    c.json([] as z.infer<typeof listeningPartySummarySchema>[])
+  )
+  .post(
+    "/v1/listening-parties/",
+    jsonValidator(createListeningPartyBodySchema),
+    (c) => c.json({} as z.infer<typeof listeningPartySummarySchema>, 201)
+  )
+  .get(
+    "/v1/open-verses/",
+    validator("query", (value) => openVerseQuerySchema.parse(value)),
+    (c) => c.json({} as z.infer<typeof openVersePageSchema>)
+  )
+  .post("/v1/open-verses/", jsonValidator(createOpenVerseBodySchema), (c) =>
+    c.json({} as z.infer<typeof openVerseListingSchema>, 201)
+  )
+  .get("/v1/open-verses/:listingId", (c) =>
+    c.json({} as z.infer<typeof openVerseListingSchema>)
+  )
+  .post(
+    "/v1/open-verses/:listingId/submissions",
+    jsonValidator(createOpenVerseSubmissionBodySchema),
+    (c) => c.json({} as z.infer<typeof openVerseSubmissionSchema>, 201)
   )
   .get("/v1/videos/", (c) => c.json([] as z.infer<typeof videoSummarySchema>[]))
   .post("/v1/videos/", jsonValidator(createVideoBodySchema), (c) =>

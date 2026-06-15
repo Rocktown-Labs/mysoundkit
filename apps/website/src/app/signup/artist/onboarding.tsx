@@ -1,7 +1,7 @@
 import { usePostHog } from "@posthog/react";
 import { env } from "@soundkit/env/web";
 import { useAsyncDebouncedCallback } from "@tanstack/react-pacer";
-/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
+/* eslint-disable complexity, no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   User,
@@ -13,9 +13,11 @@ import {
   Check,
   SlidersHorizontal,
 } from "lucide-react";
-import Radar, { type RadarAutocompleteAddress } from "radar-sdk-js";
+import RadarClient from "radar-sdk-js";
+import type { RadarAutocompleteAddress } from "radar-sdk-js";
 import { useEffect, useRef, useState } from "react";
 
+import { ArtistAvatarUpload } from "@/components/onboarding/artist-avatar-upload";
 import { SoundKitBrand } from "@/components/soundkit-brand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,10 +34,9 @@ import {
 import { API_V1_URL } from "@/lib/api";
 import {
   ARTIST_ONBOARDING_DRAFT_KEY,
-  type ArtistOnboardingDraft,
-  type ArtistRole,
   parseArtistOnboardingDraft,
 } from "@/lib/onboarding-flow";
+import type { ArtistOnboardingDraft, ArtistRole } from "@/lib/onboarding-flow";
 import { requireSignupOnboardingUser } from "@/lib/soundkit.functions";
 
 type UsernameStatus =
@@ -55,7 +56,7 @@ type LocationStatus =
   | "empty"
   | "config_error"
   | "error";
-type LocationSuggestion = {
+interface LocationSuggestion {
   city: string;
   countryCode: string;
   id: string;
@@ -64,7 +65,7 @@ type LocationSuggestion = {
   longitude: number;
   state: string;
   stateCode: string;
-};
+}
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
 const RESERVED_USERNAMES = new Set(["soundkit"]);
@@ -156,7 +157,7 @@ const toLocationSuggestion = (
   address: RadarAutocompleteAddress
 ): LocationSuggestion | null => {
   const city = address.city ?? address.placeLabel;
-  const stateCode = address.stateCode;
+  const { stateCode } = address;
   const state = address.state ?? stateCode;
 
   if (!(city && state && stateCode && address.countryCode === "US")) {
@@ -174,6 +175,23 @@ const toLocationSuggestion = (
     stateCode,
   };
 };
+const usernameStatusClassName = (status: UsernameStatus) => {
+  if (status === "available") {
+    return "text-emerald-400";
+  }
+
+  return status === "checking" ? "text-muted-foreground" : "text-destructive";
+};
+const locationStatusClassName = (status: LocationStatus) => {
+  if (status === "selected") {
+    return "text-emerald-400";
+  }
+
+  const isError =
+    status === "config_error" || status === "empty" || status === "error";
+
+  return isError ? "text-destructive" : "text-muted-foreground";
+};
 
 export const Route = createFileRoute("/signup/artist/onboarding")({
   beforeLoad: () =>
@@ -185,6 +203,8 @@ function ArtistOnboardingPage() {
   const posthog = usePostHog();
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [avatarObjectKey, setAvatarObjectKey] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [roles, setRoles] = useState<ArtistRole[]>(["musician"]);
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
@@ -199,13 +219,13 @@ function ArtistOnboardingPage() {
   >([]);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [primaryGenre, setPrimaryGenre] = useState("");
-  const [selectedPlanCode, setSelectedPlanCode] = useState("artist_lite_ads");
+  const [selectedPlanCode, setSelectedPlanCode] = useState("artist_premium");
   const [isDraftReady, setIsDraftReady] = useState(false);
   const radarInitializedRef = useRef(false);
   const selectedLocationQueryRef = useRef("");
   const usernameRequestIdRef = useRef(0);
   const locationRequestIdRef = useRef(0);
-  const totalSteps = 7;
+  const totalSteps = 8;
 
   const progress = (step / totalSteps) * 100;
   const normalizedUsername = normalizeUsername(username);
@@ -223,7 +243,7 @@ function ArtistOnboardingPage() {
       return false;
     }
 
-    Radar.initialize(env.VITE_RADAR_PUBLISHABLE_KEY);
+    RadarClient.initialize(env.VITE_RADAR_PUBLISHABLE_KEY);
     radarInitializedRef.current = true;
     return true;
   };
@@ -280,9 +300,9 @@ function ArtistOnboardingPage() {
         return;
       }
 
-      let result: Awaited<ReturnType<typeof Radar.autocomplete>>;
+      let result: Awaited<ReturnType<typeof RadarClient.autocomplete>>;
       try {
-        result = await Radar.autocomplete(
+        result = await RadarClient.autocomplete(
           {
             countryCode: "US",
             layers: ["locality", "place"],
@@ -305,8 +325,8 @@ function ArtistOnboardingPage() {
 
       const suggestions = result.addresses
         .map(toLocationSuggestion)
-        .filter((suggestion): suggestion is LocationSuggestion =>
-          Boolean(suggestion)
+        .filter(
+          (suggestion): suggestion is LocationSuggestion => suggestion !== null
         );
 
       setLocationSuggestions(suggestions);
@@ -351,6 +371,8 @@ function ArtistOnboardingPage() {
       );
 
       if (draft) {
+        setAvatarObjectKey(draft.avatarObjectKey);
+        setAvatarUrl(draft.avatarUrl);
         setStep(draft.step);
         setRoles(draft.roles);
         setUsername(draft.username);
@@ -377,6 +399,8 @@ function ArtistOnboardingPage() {
     }
 
     const draft: ArtistOnboardingDraft = {
+      avatarObjectKey,
+      avatarUrl,
       city,
       locationQuery,
       primaryGenre,
@@ -392,6 +416,8 @@ function ArtistOnboardingPage() {
       JSON.stringify(draft)
     );
   }, [
+    avatarObjectKey,
+    avatarUrl,
     city,
     isDraftReady,
     locationQuery,
@@ -460,7 +486,7 @@ function ArtistOnboardingPage() {
     });
   };
   const updateUsername = (value: string) => {
-    setUsername(value.replace(/\s+/g, ""));
+    setUsername(value.replaceAll(/\s+/g, ""));
   };
   const selectLocation = (suggestion: LocationSuggestion) => {
     selectedLocationQueryRef.current = suggestion.label;
@@ -483,12 +509,12 @@ function ArtistOnboardingPage() {
     if (manualLocation && locationStatus === "manual_ready") {
       setCity(manualLocation.city);
       setStateValue(manualLocation.stateCode);
-      setStep(4);
+      setStep(5);
       return;
     }
 
     if (canContinueFromLocation) {
-      setStep(4);
+      setStep(5);
       return;
     }
 
@@ -501,6 +527,8 @@ function ArtistOnboardingPage() {
     try {
       const response = await fetch(`${API_V1_URL}/onboarding/artist`, {
         body: JSON.stringify({
+          avatarObjectKey: avatarObjectKey || undefined,
+          avatarUrl: avatarUrl || undefined,
           city: city || "Los Angeles",
           primaryGenre: primaryGenre || "Hip-Hop",
           roles,
@@ -529,10 +557,11 @@ function ArtistOnboardingPage() {
       }
 
       posthog.capture("artist_onboarding_completed", {
-        plan_code: selectedPlanCode,
-        roles,
-        primary_genre: primaryGenre,
         has_checkout: Boolean(payload?.checkoutUrl),
+        has_profile_picture: Boolean(avatarUrl),
+        plan_code: selectedPlanCode,
+        primary_genre: primaryGenre,
+        roles,
       });
 
       if (payload?.checkoutUrl) {
@@ -655,13 +684,7 @@ function ArtistOnboardingPage() {
                   {usernameMessage && (
                     <p
                       id="username-status"
-                      className={`text-xs ${
-                        usernameStatus === "available"
-                          ? "text-emerald-400"
-                          : usernameStatus === "checking"
-                            ? "text-muted-foreground"
-                            : "text-destructive"
-                      }`}
+                      className={`text-xs ${usernameStatusClassName(usernameStatus)}`}
                     >
                       {usernameMessage}
                     </p>
@@ -678,8 +701,49 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 3: Location */}
+            {/* Step 3: Optional profile picture */}
             {step === 3 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="size-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold">Add a Profile Picture</h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Optional. You can skip this and add one later.
+                  </p>
+                </div>
+
+                <ArtistAvatarUpload
+                  avatarUrl={avatarUrl}
+                  onUploaded={({ objectKey, url }) => {
+                    setAvatarObjectKey(objectKey);
+                    setAvatarUrl(url);
+                  }}
+                />
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setStep(2)}
+                    variant="outline"
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={() => setStep(4)}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    {avatarUrl ? "Continue" : "Skip for Now"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Location */}
+            {step === 4 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -736,15 +800,7 @@ function ArtistOnboardingPage() {
                       )}
                     </div>
                     <p
-                      className={`text-xs ${
-                        locationStatus === "selected"
-                          ? "text-emerald-400"
-                          : locationStatus === "config_error" ||
-                              locationStatus === "empty" ||
-                              locationStatus === "error"
-                            ? "text-destructive"
-                            : "text-muted-foreground"
-                      }`}
+                      className={`text-xs ${locationStatusClassName(locationStatus)}`}
                     >
                       {locationStatus === "searching" &&
                         "Searching verified places..."}
@@ -767,7 +823,7 @@ function ArtistOnboardingPage() {
                 </div>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(3)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
@@ -786,8 +842,8 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 4: Team Invites */}
-            {step === 4 && (
+            {/* Step 5: Team Invites */}
+            {step === 5 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -821,7 +877,7 @@ function ArtistOnboardingPage() {
                 </Button>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(3)}
+                    onClick={() => setStep(4)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
@@ -829,7 +885,7 @@ function ArtistOnboardingPage() {
                     Back
                   </Button>
                   <Button
-                    onClick={() => setStep(5)}
+                    onClick={() => setStep(6)}
                     className="flex-1"
                     size="lg"
                   >
@@ -839,8 +895,8 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 5: Genre */}
-            {step === 5 && (
+            {/* Step 6: Genre */}
+            {step === 6 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -869,7 +925,7 @@ function ArtistOnboardingPage() {
                 </div>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(4)}
+                    onClick={() => setStep(5)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
@@ -877,7 +933,7 @@ function ArtistOnboardingPage() {
                     Back
                   </Button>
                   <Button
-                    onClick={() => setStep(6)}
+                    onClick={() => setStep(7)}
                     className="flex-1"
                     size="lg"
                   >
@@ -887,8 +943,8 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 6: Streaming Links */}
-            {step === 6 && (
+            {/* Step 7: Streaming Links */}
+            {step === 7 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -924,7 +980,7 @@ function ArtistOnboardingPage() {
                 </div>
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(5)}
+                    onClick={() => setStep(6)}
                     variant="outline"
                     className="flex-1"
                     size="lg"
@@ -932,7 +988,7 @@ function ArtistOnboardingPage() {
                     Back
                   </Button>
                   <Button
-                    onClick={() => setStep(7)}
+                    onClick={() => setStep(8)}
                     className="flex-1"
                     size="lg"
                   >
@@ -942,8 +998,8 @@ function ArtistOnboardingPage() {
               </div>
             )}
 
-            {/* Step 7: Social Links + Subscription */}
-            {step === 7 && (
+            {/* Step 8: Social Links + Subscription */}
+            {step === 8 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -995,11 +1051,11 @@ function ArtistOnboardingPage() {
                     </Card>
                     <Card
                       className={`border-2 cursor-pointer ${
-                        selectedPlanCode === "artist_lite_ads"
+                        selectedPlanCode === "artist_premium"
                           ? "border-primary"
                           : ""
                       }`}
-                      onClick={() => setSelectedPlanCode("artist_lite_ads")}
+                      onClick={() => setSelectedPlanCode("artist_premium")}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -1011,10 +1067,30 @@ function ArtistOnboardingPage() {
                               </span>
                             </h4>
                             <p className="text-sm text-muted-foreground">
-                              Unlimited uploads, analytics, and more
+                              Selling, analytics, payouts, and paid community
                             </p>
                           </div>
-                          <span className="font-bold">$9.99/mo</span>
+                          <span className="font-bold">$14.99/mo</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card
+                      className={`cursor-pointer border-2 ${
+                        selectedPlanCode === "artist_team"
+                          ? "border-primary"
+                          : ""
+                      }`}
+                      onClick={() => setSelectedPlanCode("artist_team")}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold">Artist Team</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Artist Premium workspace for up to 5 seats
+                            </p>
+                          </div>
+                          <span className="font-bold">$24.99/mo</span>
                         </div>
                       </CardContent>
                     </Card>
@@ -1029,7 +1105,7 @@ function ArtistOnboardingPage() {
 
                 <div className="flex gap-3">
                   <Button
-                    onClick={() => setStep(6)}
+                    onClick={() => setStep(7)}
                     variant="outline"
                     className="flex-1"
                     size="lg"

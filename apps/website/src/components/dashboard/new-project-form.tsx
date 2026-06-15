@@ -10,19 +10,16 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  FolderPlus,
   Calendar,
   Users,
-  CloudUpload,
   ListMusic,
   LayoutGrid,
-  GripVertical,
   Trash2,
   Mic2,
   Disc,
   LoaderCircle,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 
@@ -36,17 +33,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -63,7 +51,27 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import {
+  useCreateProjectMutation,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
+
+const collaboratorRoles = [
+  "featured",
+  "producer",
+  "writer",
+  "engineer",
+] as const;
+
+type CollaboratorRole = (typeof collaboratorRoles)[number];
+
+const isCollaboratorRole = (value: string): value is CollaboratorRole =>
+  collaboratorRoles.includes(value as CollaboratorRole);
+
+const handleOptionalUpload = (files: FileList | File[]) => {
+  void files;
+};
 
 const collaboratorSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -92,22 +100,19 @@ const projectFormSchema = z.object({
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
 
-const mockExistingTracks = [
-  { duration: "3:24", genre: "Hip-Hop", id: "t1", name: "Midnight Vibes" },
-  { duration: "4:12", genre: "R&B", id: "t2", name: "Night Drive" },
-  { duration: "3:45", genre: "Pop", id: "t3", name: "City Lights" },
-  { duration: "3:58", genre: "Hip-Hop", id: "t4", name: "Summer Rain" },
-];
-
 export function NewProjectForm() {
   const posthog = usePostHog();
   const router = useRouter();
   const [step, setStep] = useState("identity");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newCollabName, setNewCollabName] = useState("");
-  const [newCollabRole, setNewCollabRole] = useState<
-    "featured" | "producer" | "writer" | "engineer"
-  >("featured");
+  const [newCollabRole, setNewCollabRole] =
+    useState<CollaboratorRole>("featured");
+  const {
+    data: existingTracks = [],
+    error: tracksError,
+    isLoading: tracksLoading,
+  } = useTracksQuery();
+  const createProjectMutation = useCreateProjectMutation();
 
   const form = useForm<ProjectFormValues>({
     defaultValues: {
@@ -140,18 +145,33 @@ export function NewProjectForm() {
       return;
     }
 
-    setIsSubmitting(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const project = await createProjectMutation.mutateAsync({
+        assetIds: [],
+        collaboratorNames: values.collaborators.map(
+          (collaborator) => collaborator.name
+        ),
+        description: values.description || undefined,
+        isPublic: true,
+        newTracks: values.newTracks.map((track) => ({
+          genre: track.genre,
+          title: track.name,
+        })),
+        projectType: values.type,
+        releaseDate: values.releaseDate || undefined,
+        title: values.name,
+        trackIds: values.selectedExistingTracks,
+      });
       posthog.capture("project_created", {
-        project_type: values.type,
-        new_track_count: values.newTracks.length,
-        existing_track_count: values.selectedExistingTracks.length,
         collaborator_count: values.collaborators.length,
+        existing_track_count: values.selectedExistingTracks.length,
         has_release_date: Boolean(values.releaseDate),
+        new_track_count: values.newTracks.length,
+        project_id: project.id,
+        project_type: values.type,
       });
       toast({
-        description: `${values.name} has been queued for processing.`,
+        description: `${project.title} is now in your project dashboard.`,
         title: "Project Created",
       });
       router.navigate({ to: "/dashboard/projects" });
@@ -162,8 +182,6 @@ export function NewProjectForm() {
         title: "Error",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -176,13 +194,13 @@ export function NewProjectForm() {
   };
 
   const handleNewUpload = (files: FileList | File[]) => {
-    [...files].forEach((file) => {
+    for (const file of files) {
       append({
         file,
         genre: "Hip-Hop",
         name: file.name.replace(/\.[^/.]+$/, ""),
       });
-    });
+    }
   };
 
   const addCollaborator = () => {
@@ -278,7 +296,7 @@ export function NewProjectForm() {
                     title="Upload Project Cover"
                     description="Used for the entire collection"
                     acceptedTypes=".png,.jpg,.jpeg"
-                    onFileUpload={() => {}}
+                    onFileUpload={handleOptionalUpload}
                     optional
                   />
                 </div>
@@ -307,31 +325,35 @@ export function NewProjectForm() {
                   <FormField
                     control={form.control}
                     name="type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Project Type</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="bg-background/50">
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="album">Full Album</SelectItem>
-                            <SelectItem value="ep">
-                              EP (Extended Play)
-                            </SelectItem>
-                            <SelectItem value="single">
-                              Single Release
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const handleProjectTypeChange = field.onChange;
+
+                      return (
+                        <FormItem>
+                          <FormLabel>Project Type</FormLabel>
+                          <Select
+                            onValueChange={handleProjectTypeChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="bg-background/50">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="album">Full Album</SelectItem>
+                              <SelectItem value="ep">
+                                EP (Extended Play)
+                              </SelectItem>
+                              <SelectItem value="single">
+                                Single Release
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
 
@@ -475,22 +497,38 @@ export function NewProjectForm() {
                     Select From Library
                   </Label>
                   <div className="grid grid-cols-1 gap-3">
-                    {mockExistingTracks.map((track) => {
+                    {tracksLoading && (
+                      <div className="p-4 rounded-xl border border-border/40 bg-background/40 text-sm text-muted-foreground">
+                        Loading your tracks...
+                      </div>
+                    )}
+                    {tracksError && (
+                      <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-sm text-destructive">
+                        We could not load your tracks. Refresh and try again.
+                      </div>
+                    )}
+                    {!tracksLoading &&
+                      !tracksError &&
+                      existingTracks.length === 0 && (
+                        <div className="p-4 rounded-xl border-2 border-dashed border-border/30 bg-background/30 text-sm text-muted-foreground text-center">
+                          Upload tracks first or add new audio files here.
+                        </div>
+                      )}
+                    {existingTracks.map((track) => {
                       const isSelected = form
                         .watch("selectedExistingTracks")
                         .includes(track.id);
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={track.id}
                           className={cn(
-                            "flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group",
+                            "flex w-full items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group text-left",
                             isSelected
                               ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm"
                               : "border-border/40 bg-background/40 hover:border-emerald-500/30"
                           )}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          onClick={() => {
                             toggleExistingTrack(track.id);
                           }}
                         >
@@ -514,7 +552,7 @@ export function NewProjectForm() {
                               <Music className="size-5" />
                             </div>
                             <div>
-                              <p className="font-bold text-sm">{track.name}</p>
+                              <p className="font-bold text-sm">{track.title}</p>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <Badge
                                   variant="outline"
@@ -525,10 +563,15 @@ export function NewProjectForm() {
                                 <span className="text-[10px] text-muted-foreground font-mono">
                                   {track.duration}
                                 </span>
+                                {track.assetStatus && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {track.assetStatus}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -607,7 +650,7 @@ export function NewProjectForm() {
                       title="Promotional Media"
                       description="Behind-the-scenes content"
                       acceptedTypes=".png,.jpg,.jpeg"
-                      onFileUpload={() => {}}
+                      onFileUpload={handleOptionalUpload}
                       optional
                     />
                   </div>
@@ -619,7 +662,7 @@ export function NewProjectForm() {
                       title="Vertical Videos"
                       description="Trailers, snippets, teasers"
                       acceptedTypes=".mp4,.mov"
-                      onFileUpload={() => {}}
+                      onFileUpload={handleOptionalUpload}
                       optional
                     />
                   </div>
@@ -689,7 +732,11 @@ export function NewProjectForm() {
                     </div>
                     <Select
                       value={newCollabRole}
-                      onValueChange={(v: any) => setNewCollabRole(v)}
+                      onValueChange={(value) => {
+                        if (isCollaboratorRole(value)) {
+                          setNewCollabRole(value);
+                        }
+                      }}
                     >
                       <SelectTrigger className="w-full sm:w-[150px] bg-background/50">
                         <SelectValue />
@@ -716,7 +763,7 @@ export function NewProjectForm() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     {form.watch("collaborators").map((collab, index) => (
                       <div
-                        key={index}
+                        key={`${collab.role}-${collab.name}`}
                         className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-muted/20 group hover:border-emerald-500/30 transition-colors"
                       >
                         <div className="flex items-center gap-3">
@@ -763,10 +810,10 @@ export function NewProjectForm() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={createProjectMutation.isPending}
                     className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
                   >
-                    {isSubmitting ? (
+                    {createProjectMutation.isPending ? (
                       <>
                         <LoaderCircle className="mr-2 size-4 animate-spin" />
                         Creating Project...

@@ -90,11 +90,46 @@ const protectedRequests: {
   {
     init: jsonRequest({
       cancelUrl: "https://app.example.test/cancel",
-      planCode: "artist_lite_ads",
+      planCode: "artist_premium",
       successUrl: "https://app.example.test/success",
     }),
     label: "checkout creation",
     path: "/v1/billing/checkout",
+  },
+  {
+    init: jsonRequest({
+      cancelUrl: "https://app.example.test/cart",
+      successUrl: "https://app.example.test/library/purchased",
+    }),
+    label: "native product checkout",
+    path: "/v1/payments/checkout",
+  },
+  {
+    init: jsonRequest({
+      amountCents: 500,
+      artistUserId: "artist_1",
+      cancelUrl: "https://app.example.test/artist/artist_1",
+      successUrl: "https://app.example.test/artist/artist_1",
+    }),
+    label: "artist tips",
+    path: "/v1/payments/tips",
+  },
+  {
+    init: jsonRequest({
+      cancelUrl: "https://app.example.test/communities",
+      communityId: "community_1",
+      successUrl: "https://app.example.test/communities",
+    }),
+    label: "community subscription checkout",
+    path: "/v1/community-billing/checkout",
+  },
+  {
+    init: jsonRequest({
+      monthlyPriceCents: 499,
+      name: "Private Studio",
+    }),
+    label: "community creation",
+    path: "/v1/communities",
   },
   {
     init: jsonRequest({}),
@@ -210,5 +245,33 @@ describe("SoundKit API authentication boundaries", () => {
 
     expect(response.status).toBe(401);
     expect(body).toEqual(AUTHENTICATION_REQUIRED);
+  });
+
+  it.each([
+    ["private posts", "/v1/communities/community_1/posts", undefined],
+    [
+      "private post creation",
+      "/v1/communities/community_1/posts",
+      jsonRequest({ body: "Members only" }),
+    ],
+    ["private chat", "/v1/communities/community_1/messages", undefined],
+    [
+      "private chat creation",
+      "/v1/communities/community_1/messages",
+      jsonRequest({ body: "Members only" }),
+    ],
+    ["private member list", "/v1/communities/community_1/members", undefined],
+  ])("rejects anonymous access to %s", async (_label, path, init) => {
+    const response = await SELF.fetch(`${API_ORIGIN}${path}`, init);
+    const body = (await response.json()) as { message: string };
+
+    expect(response.status).toBe(403);
+    expect(body.message).toContain("active community membership");
+  });
+
+  it("keeps finance administration restricted", async () => {
+    const response = await SELF.fetch(`${API_ORIGIN}/v1/admin/finance/summary`);
+
+    expect(response.status).toBe(403);
   });
 });

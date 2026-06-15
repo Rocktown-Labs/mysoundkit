@@ -2,6 +2,7 @@
 
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { formatCartPrice, useCart } from "@/components/cart-provider";
 import { Button } from "@/components/ui/button";
@@ -12,8 +13,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { API_V1_URL } from "@/lib/api";
 
 export function CartDrawer() {
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const {
     cart,
     clearCart,
@@ -22,6 +26,40 @@ export function CartDrawer() {
     setIsCartOpen,
     updateQuantity,
   } = useCart();
+
+  const startCheckout = async () => {
+    setCheckoutError(null);
+    setIsCheckingOut(true);
+
+    try {
+      const response = await fetch(`${API_V1_URL}/payments/checkout`, {
+        body: JSON.stringify({
+          cancelUrl: window.location.href,
+          successUrl: `${window.location.origin}/library/purchased`,
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        checkoutUrl?: string | null;
+        message?: string;
+      };
+
+      if (!response.ok || !payload.checkoutUrl) {
+        setCheckoutError(
+          payload.message ?? "Checkout is not available for this cart yet."
+        );
+        return;
+      }
+
+      window.location.assign(payload.checkoutUrl);
+    } catch {
+      setCheckoutError("Unable to start checkout right now.");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   return (
     <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
@@ -120,6 +158,9 @@ export function CartDrawer() {
         </div>
 
         <div className="border-t border-border/40 p-6">
+          {checkoutError ? (
+            <p className="mb-4 text-sm text-destructive">{checkoutError}</p>
+          ) : null}
           <div className="mb-5 flex items-center justify-between">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
               Total
@@ -141,9 +182,10 @@ export function CartDrawer() {
             <Button
               type="button"
               className="flex-1 rounded-none font-black uppercase tracking-[0.14em]"
-              disabled
+              disabled={cart.items.length === 0 || isCheckingOut}
+              onClick={() => void startCheckout()}
             >
-              Checkout Soon
+              {isCheckingOut ? "Starting..." : "Checkout"}
             </Button>
           </div>
         </div>

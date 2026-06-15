@@ -59,10 +59,10 @@ function ArtistCredentialsPage() {
         return;
       }
 
-      posthog.identify(email, { email, account_type: "artist" });
+      posthog.identify(email, { account_type: "artist", email });
       posthog.capture("user_signed_up", {
-        method: "email",
         account_type: "artist",
+        method: "email",
       });
 
       await router.navigate({ to: "/signup/artist/onboarding" });

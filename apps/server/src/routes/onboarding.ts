@@ -237,6 +237,13 @@ app.openapi(
       const db = createDb();
       const now = new Date();
       const genreId = await ensureGenre(body.primaryGenre);
+      const avatar =
+        body.avatarObjectKey && body.avatarUrl
+          ? {
+              avatarObjectKey: body.avatarObjectKey,
+              avatarUrl: body.avatarUrl,
+            }
+          : {};
       const workspaceId = await ensureWorkspaceForUser({
         accountType: "artist",
         displayName: user.name ?? body.username,
@@ -247,6 +254,7 @@ app.openapi(
         .insert(userProfiles)
         .values({
           accountType: "artist",
+          ...avatar,
           city: body.city,
           displayName: user.name ?? body.username,
           onboardingCompletedAt: now,
@@ -258,6 +266,7 @@ app.openapi(
         .onConflictDoUpdate({
           set: {
             accountType: "artist",
+            ...avatar,
             city: body.city,
             onboardingCompletedAt: now,
             state: body.state,

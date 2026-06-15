@@ -11,5 +11,12 @@ export default defineConfig({
   },
   dialect: "postgresql",
   out: "./src/migrations",
-  schema: "./src/schema",
+  schema: [
+    "./src/schema/app.ts",
+    "./src/schema/auth.ts",
+    "./src/schema/commerce.ts",
+    "./src/schema/communities.ts",
+    "./src/schema/payments.ts",
+    "./src/schema/plans.ts",
+  ],
 });

@@ -4,10 +4,18 @@ import { Pool } from "pg";
 
 import * as appSchema from "./schema/app";
 import * as authSchema from "./schema/auth";
+import * as commerceSchema from "./schema/commerce";
+import * as communitiesSchema from "./schema/communities";
+import * as paymentsSchema from "./schema/payments";
+import * as plansSchema from "./schema/plans";
 
 const schema = {
   ...appSchema,
   ...authSchema,
+  ...commerceSchema,
+  ...communitiesSchema,
+  ...paymentsSchema,
+  ...plansSchema,
 };
 
 let pool: Pool | null = null;

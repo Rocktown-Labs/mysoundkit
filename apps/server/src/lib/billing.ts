@@ -1,14 +1,13 @@
 import { createAuth } from "@soundkit/auth";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { planCatalog } from "@soundkit/db/schema/app";
+import { planCatalog } from "@soundkit/db/schema/plans";
 import { eq } from "drizzle-orm";
 
-const FREE_PLAN_CODES = new Set(["artist_free", "fan_free"]);
+import { CONFIGURED_PAID_PLAN_CODES, FREE_PLAN_CODES } from "@/lib/plan-codes";
 
 export const isFreePlan = (planCode: string) => FREE_PLAN_CODES.has(planCode);
 
-export const getConfiguredPlanCodes = () =>
-  new Set(["artist_lite_ads", "artist_team", "fan_lite_ads", "fan_family"]);
+export const getConfiguredPlanCodes = () => CONFIGURED_PAID_PLAN_CODES;
 
 export const createPlanCheckout = async ({
   cancelUrl,

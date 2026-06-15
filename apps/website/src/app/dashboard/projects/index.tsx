@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Plus,
-  Download,
-  MoreVertical,
-  Music,
-  FolderOpen,
   CheckCircle2,
   Clock,
+  Download,
+  FolderOpen,
+  MoreVertical,
+  Music,
+  Plus,
   Users,
 } from "lucide-react";
 
@@ -20,76 +20,60 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const mockProjects = [
-  {
-    collaborators: ["user@soundkit.app", "collab@soundkit.app"],
-    coverArt: "/summer-music-album-cover.png",
-    id: "1",
-    name: "Summer Sessions",
-    releaseDate: "2024-06-15",
-    status: "complete",
-    trackCount: 5,
-    type: "ep",
-    updatedAt: "1 week ago",
-  },
-  {
-    collaborators: ["user@soundkit.app"],
-    coverArt: "/night-music-album-cover.png",
-    id: "2",
-    name: "Midnight Chronicles",
-    releaseDate: null,
-    status: "in-progress",
-    trackCount: 12,
-    type: "album",
-    updatedAt: "2 days ago",
-  },
-  {
-    collaborators: [
-      "user@soundkit.app",
-      "collab@soundkit.app",
-      "artist@soundkit.app",
-    ],
-    coverArt: "/hip-hop-album-cover.png",
-    id: "3",
-    name: "City Vibes EP",
-    releaseDate: null,
-    status: "draft",
-    trackCount: 4,
-    type: "ep",
-    updatedAt: "5 days ago",
-  },
-];
+import { useProjectsQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/projects/")({
   component: ProjectsPage,
 });
 
+const getStatusClassName = (status: string) => {
+  if (status === "released") {
+    return "bg-primary/20 text-primary border-primary/20";
+  }
+
+  if (status === "scheduled") {
+    return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+  }
+
+  return "bg-muted/50";
+};
+
 function ProjectsPage() {
+  const { data: projects = [], error, isLoading } = useProjectsQuery();
+  const releasedCount = projects.filter(
+    (project) => project.status === "released"
+  ).length;
+  const activeCount = projects.filter((project) =>
+    ["draft", "scheduled"].includes(project.status)
+  ).length;
+  const collaboratorCount = projects.reduce(
+    (total, project) => total + project.collaboratorCount,
+    0
+  );
   const projectStats = [
     {
       description: "Albums, EPs and Singles",
       icon: FolderOpen,
       title: "Total Projects",
-      value: "8",
+      value: String(projects.length),
     },
     {
-      description: "Ready for distribution",
+      description: "Live in the catalog",
       icon: CheckCircle2,
-      title: "Completed",
-      value: "3",
+      title: "Released",
+      value: String(releasedCount),
     },
     {
-      description: "Active recording sessions",
+      description: "Drafts and scheduled releases",
       icon: Clock,
       title: "In Progress",
-      value: "5",
+      value: String(activeCount),
     },
     {
       description: "Across all active projects",
       icon: Users,
       title: "Collaborators",
-      value: "12",
+      value: String(collaboratorCount),
     },
   ];
 
@@ -118,7 +102,7 @@ function ProjectsPage() {
 
       {/* Project Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {mockProjects.map((project) => (
+        {projects.map((project) => (
           <Card
             key={project.id}
             className="bg-card/50 backdrop-blur-sm border-border/40 hover:border-primary/50 transition-all group overflow-hidden"
@@ -126,20 +110,32 @@ function ProjectsPage() {
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center space-x-3">
-                  <div
-                    className="w-16 h-16 rounded-lg bg-cover bg-center border border-border/20 group-hover:scale-105 transition-transform"
-                    style={{ backgroundImage: `url(${project.coverArt})` }}
-                  />
+                  <Link
+                    to="/dashboard/projects/$id"
+                    params={{ id: project.id }}
+                    className="w-16 h-16 rounded-lg bg-muted bg-cover bg-center border border-border/20 group-hover:scale-105 transition-transform flex items-center justify-center text-muted-foreground"
+                    style={{
+                      backgroundImage: project.coverArtUrl
+                        ? `url(${project.coverArtUrl})`
+                        : undefined,
+                    }}
+                  >
+                    {!project.coverArtUrl && <Music className="h-6 w-6" />}
+                  </Link>
                   <div>
-                    <h3 className="font-semibold group-hover:text-primary transition-colors">
-                      {project.name}
-                    </h3>
+                    <Link
+                      to="/dashboard/projects/$id"
+                      params={{ id: project.id }}
+                      className="font-semibold group-hover:text-primary transition-colors"
+                    >
+                      {project.title}
+                    </Link>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge
                         variant="outline"
                         className="text-[10px] uppercase tracking-wider h-5"
                       >
-                        {project.type.toUpperCase()}
+                        {project.projectType.toUpperCase()}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {project.trackCount} tracks
@@ -176,15 +172,9 @@ function ProjectsPage() {
                   <span className="text-muted-foreground">Status</span>
                   <Badge
                     variant={
-                      project.status === "complete" ? "default" : "secondary"
+                      project.status === "released" ? "default" : "secondary"
                     }
-                    className={
-                      project.status === "complete"
-                        ? "bg-primary/20 text-primary border-primary/20"
-                        : (project.status === "in-progress"
-                          ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                          : "bg-muted/50")
-                    }
+                    className={getStatusClassName(project.status)}
                   >
                     {project.status}
                   </Badge>
@@ -203,9 +193,13 @@ function ProjectsPage() {
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <Users className="size-3" />
-                    {project.collaborators.length} collaborator(s)
+                    {project.collaboratorCount} collaborator(s)
                   </span>
-                  <span>{project.updatedAt}</span>
+                  <span>
+                    {project.updatedAt
+                      ? new Date(project.updatedAt).toLocaleDateString()
+                      : "Recently updated"}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -213,8 +207,24 @@ function ProjectsPage() {
         ))}
       </div>
 
+      {isLoading && (
+        <Card className="bg-card/50 backdrop-blur-sm border-border/40">
+          <CardContent className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+            Loading projects...
+          </CardContent>
+        </Card>
+      )}
+
+      {error && (
+        <Card className="bg-destructive/5 border-destructive/30">
+          <CardContent className="flex items-center justify-center py-12 text-sm text-destructive">
+            We could not load your projects. Refresh and try again.
+          </CardContent>
+        </Card>
+      )}
+
       {/* Empty State */}
-      {mockProjects.length === 0 && (
+      {!isLoading && !error && projects.length === 0 && (
         <Card className="bg-card/50 backdrop-blur-sm border-border/40">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
