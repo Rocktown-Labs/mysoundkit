@@ -14,6 +14,32 @@ const jsonRequest = (method: string, body: unknown) => ({
 const readJson = <T>(response: Response): Promise<T> =>
   response.json() as Promise<T>;
 
+const bytesToHex = (bytes: Uint8Array) =>
+  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+
+const stripeSignature = async ({
+  payload,
+  timestamp = Math.floor(Date.now() / 1000),
+}: {
+  payload: string;
+  timestamp?: number;
+}) => {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode("whsec_soundkit_test"),
+    { hash: "SHA-256", name: "HMAC" },
+    false,
+    ["sign"]
+  );
+  const digest = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`${timestamp}.${payload}`)
+  );
+
+  return `t=${timestamp},v1=${bytesToHex(new Uint8Array(digest))}`;
+};
+
 describe("SoundKit Worker API", () => {
   it("exposes service health metadata", async () => {
     const response = await SELF.fetch("http://soundkit.test/health");
@@ -37,6 +63,62 @@ describe("SoundKit Worker API", () => {
     expect(response.status).toBe(200);
     expect(body.openapi).toBe("3.1.0");
     expect(body.info.title).toBe("SoundKit API");
+  });
+
+  it("verifies Stripe commerce webhooks without requiring storage", async () => {
+    const payload = JSON.stringify({
+      data: { object: {} },
+      type: "checkout.session.completed",
+    });
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/webhooks/stripe-commerce",
+      {
+        body: payload,
+        headers: {
+          "stripe-signature": await stripeSignature({ payload }),
+        },
+        method: "POST",
+      }
+    );
+    const body = await readJson<{ message: string }>(response);
+
+    expect(response.status).toBe(200);
+    expect(body.message).toBe("Stripe webhook accepted.");
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["invalid", "t=100,v1=invalid"],
+  ])("rejects %s Stripe webhook signatures", async (_label, signature) => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/webhooks/stripe-commerce",
+      {
+        body: JSON.stringify({ id: "evt_invalid" }),
+        headers: signature ? { "stripe-signature": signature } : undefined,
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects correctly signed but stale Stripe webhooks", async () => {
+    const payload = JSON.stringify({ id: "evt_stale" });
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/webhooks/stripe-commerce",
+      {
+        body: payload,
+        headers: {
+          "stripe-signature": await stripeSignature({
+            payload,
+            timestamp: Math.floor(Date.now() / 1000) - 301,
+          }),
+        },
+        method: "POST",
+      }
+    );
+
+    expect(response.status).toBe(400);
   });
 
   it("allows the configured browser origin for credentialed auth requests", async () => {
@@ -138,7 +220,7 @@ describe("SoundKit Worker API", () => {
       "http://soundkit.test/v1/billing/checkout",
       jsonRequest("POST", {
         cancelUrl: "http://127.0.0.1:3001/pricing",
-        planCode: "artist_lite_ads",
+        planCode: "artist_premium",
         successUrl: "http://127.0.0.1:3001/dashboard",
       })
     );

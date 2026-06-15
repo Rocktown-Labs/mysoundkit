@@ -47,6 +47,8 @@ describe("signup onboarding flow", () => {
     expect(
       parseArtistOnboardingDraft(
         JSON.stringify({
+          avatarObjectKey: "profiles/user/avatar.jpg",
+          avatarUrl: "https://media.soundkit.test/profiles/user/avatar.jpg",
           city: "Little Rock",
           locationQuery: "Little Rock, AR",
           primaryGenre: "Hip-Hop",
@@ -58,6 +60,8 @@ describe("signup onboarding flow", () => {
         })
       )
     ).toEqual({
+      avatarObjectKey: "profiles/user/avatar.jpg",
+      avatarUrl: "https://media.soundkit.test/profiles/user/avatar.jpg",
       city: "Little Rock",
       locationQuery: "Little Rock, AR",
       primaryGenre: "Hip-Hop",
@@ -81,13 +85,15 @@ describe("signup onboarding flow", () => {
         })
       )
     ).toEqual({
+      avatarObjectKey: "",
+      avatarUrl: "",
       city: "",
       locationQuery: "",
       primaryGenre: "",
       roles: ["musician"],
-      selectedPlanCode: "artist_lite_ads",
+      selectedPlanCode: "artist_premium",
       stateValue: "",
-      step: 7,
+      step: 8,
       username: "cam",
     });
   });

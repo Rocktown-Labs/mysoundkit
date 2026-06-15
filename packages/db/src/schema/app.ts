@@ -14,6 +14,7 @@ import {
 import { vector } from "drizzle-orm/pg-core/columns/vector_extension/vector";
 
 import { organization, subscription, user } from "./auth";
+import { transactions } from "./payments";
 
 export const accountTypeEnum = pgEnum("account_type", ["artist", "fan"]);
 export const artistRoleEnum = pgEnum("artist_role", ["musician", "producer"]);
@@ -261,6 +262,26 @@ export const workflowJobStatusEnum = pgEnum("workflow_job_status", [
   "failed",
   "canceled",
 ]);
+export const openVerseStatusEnum = pgEnum("open_verse_status", [
+  "open",
+  "closed",
+  "fulfilled",
+  "archived",
+]);
+export const openVerseSubmissionStatusEnum = pgEnum(
+  "open_verse_submission_status",
+  ["submitted", "shortlisted", "accepted", "declined", "withdrawn"]
+);
+export const listeningPartyStatusEnum = pgEnum("listening_party_status", [
+  "scheduled",
+  "live",
+  "ended",
+  "canceled",
+]);
+export const listeningPartyPlaybackModeEnum = pgEnum(
+  "listening_party_playback_mode",
+  ["artist_hosted", "programmed_release"]
+);
 export const webhookProviderEnum = pgEnum("webhook_provider", [
   "stripe",
   "mux",
@@ -826,6 +847,123 @@ export const projectCollaborators = pgTable(
   (table) => [index("project_collaborators_project_id_idx").on(table.projectId)]
 );
 
+export const listeningParties = pgTable(
+  "listening_parties",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    description: text("description"),
+    endedAt: timestamp("ended_at"),
+    hostUserId: text("host_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    liveRoomId: text("live_room_id"),
+    liveVideoProvider: text("live_video_provider").default("mux").notNull(),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    playbackMode: listeningPartyPlaybackModeEnum("playback_mode")
+      .default("artist_hosted")
+      .notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    scheduledStartAt: timestamp("scheduled_start_at").notNull(),
+    startedAt: timestamp("started_at"),
+    status: listeningPartyStatusEnum("status").default("scheduled").notNull(),
+    title: text("title").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("listening_parties_project_id_idx").on(table.projectId),
+    index("listening_parties_status_start_idx").on(
+      table.status,
+      table.scheduledStartAt
+    ),
+    index("listening_parties_host_user_id_idx").on(table.hostUserId),
+  ]
+);
+
+export const openVerseListings = pgTable(
+  "open_verse_listings",
+  {
+    bpm: integer("bpm"),
+    closesAt: timestamp("closes_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    description: text("description"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey(),
+    maxSubmissions: integer("max_submissions").default(50).notNull(),
+    musicalKey: text("musical_key"),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    slotEndsAtMs: integer("slot_ends_at_ms"),
+    slotStartsAtMs: integer("slot_starts_at_ms"),
+    status: openVerseStatusEnum("status").default("open").notNull(),
+    title: text("title").notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("open_verse_listings_track_id_idx").on(table.trackId),
+    index("open_verse_listings_owner_user_id_idx").on(table.ownerUserId),
+    index("open_verse_listings_status_genre_idx").on(
+      table.status,
+      table.genreId,
+      table.createdAt
+    ),
+  ]
+);
+
+export const openVerseSubmissions = pgTable(
+  "open_verse_submissions",
+  {
+    assetId: text("asset_id").references(() => trackAssets.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    listingId: text("listing_id")
+      .notNull()
+      .references(() => openVerseListings.id, { onDelete: "cascade" }),
+    message: text("message"),
+    status: openVerseSubmissionStatusEnum("status")
+      .default("submitted")
+      .notNull(),
+    submitterUserId: text("submitter_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("open_verse_submissions_listing_id_idx").on(table.listingId),
+    index("open_verse_submissions_submitter_user_id_idx").on(
+      table.submitterUserId
+    ),
+    uniqueIndex("open_verse_submissions_listing_submitter_idx").on(
+      table.listingId,
+      table.submitterUserId
+    ),
+  ]
+);
+
 export const videos = pgTable(
   "videos",
   {
@@ -1082,12 +1220,19 @@ export const orders = pgTable(
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     subtotal: numeric("subtotal", { precision: 10, scale: 2 }),
     total: numeric("total", { precision: 10, scale: 2 }),
+    totalCents: integer("total_cents"),
+    transactionId: text("transaction_id").references(() => transactions.id, {
+      onDelete: "restrict",
+    }),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("orders_buyer_user_id_idx").on(table.buyerUserId)]
+  (table) => [
+    index("orders_buyer_user_id_idx").on(table.buyerUserId),
+    uniqueIndex("orders_transaction_id_idx").on(table.transactionId),
+  ]
 );
 
 export const carts = pgTable(
@@ -1201,7 +1346,10 @@ export const purchases = pgTable(
       onDelete: "set null",
     }),
   },
-  (table) => [index("purchases_buyer_user_id_idx").on(table.buyerUserId)]
+  (table) => [
+    index("purchases_buyer_user_id_idx").on(table.buyerUserId),
+    uniqueIndex("purchases_order_item_id_idx").on(table.orderItemId),
+  ]
 );
 
 export const conversations = pgTable(

@@ -33,7 +33,7 @@ function FanOnboardingPage() {
   const [city, setCity] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPlanCode, setSelectedPlanCode] = useState("fan_lite_ads");
+  const [selectedPlanCode, setSelectedPlanCode] = useState("listener_premium");
   const [stateValue, setStateValue] = useState("");
   const [step, setStep] = useState(1);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -96,10 +96,10 @@ function FanOnboardingPage() {
       }
 
       posthog.capture("fan_onboarding_completed", {
-        plan_code: planCode,
         genre_count: selectedGenres.length,
-        selected_genres: selectedGenres,
         has_checkout: Boolean(payload?.checkoutUrl),
+        plan_code: planCode,
+        selected_genres: selectedGenres,
       });
 
       if (payload?.checkoutUrl) {
@@ -331,11 +331,11 @@ function FanOnboardingPage() {
                   </Card>
                   <Card
                     className={`border-2 cursor-pointer relative overflow-hidden ${
-                      selectedPlanCode === "fan_lite_ads"
+                      selectedPlanCode === "listener_premium"
                         ? "border-primary"
                         : ""
                     }`}
-                    onClick={() => setSelectedPlanCode("fan_lite_ads")}
+                    onClick={() => setSelectedPlanCode("listener_premium")}
                   >
                     <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-semibold">
                       RECOMMENDED
@@ -345,7 +345,7 @@ function FanOnboardingPage() {
                         <div>
                           <h4 className="font-bold text-lg">Premium</h4>
                           <p className="text-3xl font-bold mt-2">
-                            $4.99
+                            $14.99
                             <span className="text-sm font-normal text-muted-foreground">
                               /month
                             </span>
@@ -359,31 +359,52 @@ function FanOnboardingPage() {
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          Ad-free listening
+                          Live battles and voting
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          High-quality audio
+                          VODs and premium chat
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          Offline downloads
+                          Regional discovery
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          Early access to battles
+                          Everything in Fan Free
                         </li>
                       </ul>
                       <Button
                         className="w-full mt-6"
                         size="lg"
-                        onClick={() => void completeOnboarding("fan_lite_ads")}
+                        onClick={() =>
+                          void completeOnboarding("listener_premium")
+                        }
                         disabled={isSubmitting}
                       >
-                        {isSubmitting && selectedPlanCode === "fan_lite_ads"
+                        {isSubmitting && selectedPlanCode === "listener_premium"
                           ? "Completing..."
                           : "Start Premium"}
                       </Button>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className={`cursor-pointer border-2 ${
+                      selectedPlanCode === "fan_family" ? "border-primary" : ""
+                    }`}
+                    onClick={() => setSelectedPlanCode("fan_family")}
+                  >
+                    <CardContent className="p-6">
+                      <h4 className="font-bold text-lg">Fan Family</h4>
+                      <p className="mt-2 text-3xl font-bold">
+                        $24.99
+                        <span className="text-sm font-normal text-muted-foreground">
+                          /month
+                        </span>
+                      </p>
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        Listener Premium for up to 5 accounts.
+                      </p>
                     </CardContent>
                   </Card>
                 </div>

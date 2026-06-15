@@ -26,6 +26,7 @@ export interface CartItem {
   priceCents: number;
   productId: string;
   productType: ProductType;
+  projectId?: string | null;
   purchaseMode: PurchaseMode;
   quantity: number;
   title: string;
@@ -152,6 +153,7 @@ const buildLocalCartItem = (input: AddCartItemInput): CartItem => {
     priceCents: input.priceCents,
     productId,
     productType: input.productType,
+    projectId: input.projectId,
     purchaseMode: input.purchaseMode,
     quantity: input.quantity ?? 1,
     title: input.title,
@@ -166,7 +168,53 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    setCart(readLocalCart());
+    const localCart = readLocalCart();
+    let isCancelled = false;
+
+    setCart(localCart);
+
+    const hydrateCart = async () => {
+      if (localCart.items.length === 0) {
+        return;
+      }
+
+      try {
+        const apiCart = await requestCart("/claim", {
+          body: JSON.stringify({
+            items: localCart.items.map((item) => ({
+              licenseOptionId: item.licenseOptionId ?? undefined,
+              productType: item.productType,
+              projectId:
+                item.projectId ??
+                (item.productType === "project" ? item.productId : undefined),
+              quantity: item.quantity,
+              trackId:
+                item.trackId ??
+                (item.productType === "track" ? item.productId : undefined),
+            })),
+          }),
+          method: "POST",
+        });
+
+        if (isCancelled) {
+          return;
+        }
+
+        writeLocalCart([]);
+        setCart(apiCart);
+        setIsApiCartActive(true);
+      } catch {
+        if (!isCancelled) {
+          setIsApiCartActive(false);
+        }
+      }
+    };
+
+    void hydrateCart();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const setLocalItems = useCallback((items: CartItem[]) => {
@@ -176,7 +224,7 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   const addItem = useCallback(
     async (input: AddCartItemInput) => {
-      if (isApiCartActive) {
+      if (isApiCartActive || cart.items.length === 0) {
         try {
           const apiCart = await requestCart("/items", {
             body: JSON.stringify({
@@ -189,13 +237,14 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
             method: "POST",
           });
           setCart(apiCart);
+          setIsApiCartActive(true);
           setIsCartOpen(true);
           posthog.capture("cart_item_added", {
+            artist_name: input.artistName,
+            price_cents: input.priceCents,
             product_type: input.productType,
             purchase_mode: input.purchaseMode,
-            price_cents: input.priceCents,
             title: input.title,
-            artist_name: input.artistName,
           });
           return;
         } catch {
@@ -221,11 +270,11 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       setLocalItems(nextItems);
       setIsCartOpen(true);
       posthog.capture("cart_item_added", {
+        artist_name: input.artistName,
+        price_cents: input.priceCents,
         product_type: input.productType,
         purchase_mode: input.purchaseMode,
-        price_cents: input.priceCents,
         title: input.title,
-        artist_name: input.artistName,
       });
     },
     [cart.items, isApiCartActive, posthog, setLocalItems]
@@ -277,9 +326,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       setLocalItems(cart.items.filter((item) => item.id !== cartItemId));
       if (removed) {
         posthog.capture("cart_item_removed", {
+          price_cents: removed.priceCents,
           product_type: removed.productType,
           purchase_mode: removed.purchaseMode,
-          price_cents: removed.priceCents,
           title: removed.title,
         });
       }

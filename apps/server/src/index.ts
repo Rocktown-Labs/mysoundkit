@@ -18,25 +18,33 @@ import {
   logWarn,
   structuredLoggingMiddleware,
 } from "@/middleware/structured-logging";
+import adminFinanceRoutes from "@/routes/admin-finance";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
 import battlesRoutes from "@/routes/battles";
 import billingRoutes from "@/routes/billing";
 import cartRoutes from "@/routes/cart";
+import communitiesRoutes from "@/routes/communities";
+import communityBillingRoutes from "@/routes/community-billing";
 import discoverRoutes from "@/routes/discover";
 import libraryRoutes from "@/routes/library";
+import listeningPartiesRoutes from "@/routes/listening-parties";
 import liveRoutes from "@/routes/live";
 import meRoutes from "@/routes/me";
 import messagesRoutes from "@/routes/messages";
 import onboardingRoutes from "@/routes/onboarding";
+import openVersesRoutes from "@/routes/open-verses";
+import paymentsRoutes from "@/routes/payments";
 import playlistsRoutes from "@/routes/playlists";
 import projectsRoutes from "@/routes/projects";
+import searchRoutes from "@/routes/search";
 import sellerRoutes from "@/routes/seller";
 import socialRoutes from "@/routes/social";
 import tracksRoutes from "@/routes/tracks";
 import uploadsRoutes from "@/routes/uploads";
 import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
+import stripeWebhookRoutes from "@/routes/webhooks-stripe";
 export { TrackProcessingWorkflow } from "@/workflows/track-processing";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 
@@ -154,19 +162,27 @@ app
   .route("/v1/artists", artistsRoutes)
   .route("/v1/tracks", tracksRoutes)
   .route("/v1/projects", projectsRoutes)
+  .route("/v1/search", searchRoutes)
   .route("/v1/videos", videosRoutes)
   .route("/v1/library", libraryRoutes)
+  .route("/v1/listening-parties", listeningPartiesRoutes)
   .route("/v1/live", liveRoutes)
   .route("/v1/playlists", playlistsRoutes)
   .route("/v1/social", socialRoutes)
   .route("/v1/messages", messagesRoutes)
+  .route("/v1/open-verses", openVersesRoutes)
   .route("/v1/cart", cartRoutes)
+  .route("/v1/payments", paymentsRoutes)
+  .route("/v1/communities", communitiesRoutes)
+  .route("/v1/community-billing", communityBillingRoutes)
+  .route("/v1/admin/finance", adminFinanceRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/billing", billingRoutes)
   .route("/v1/seller", sellerRoutes)
   .route("/v1/battles", battlesRoutes)
   .route("/v1/uploads", uploadsRoutes)
-  .route("/v1/webhooks", webhookRoutes);
+  .route("/v1/webhooks", webhookRoutes)
+  .route("/v1/webhooks/stripe-commerce", stripeWebhookRoutes);
 
 app.notFound(notFound);
 // Hono's onError API is callback-based.

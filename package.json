@@ -47,6 +47,7 @@
     "test": "bun run test:unit && bun run test:worker",
     "test:all": "bun run test && bun run test:e2e",
     "test:e2e": "playwright test",
+    "test:e2e:real": "SOUNDKIT_REAL_E2E=true playwright test tests/e2e/real-backend.spec.ts --project=chromium",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:worker": "vitest run --config vitest.worker.config.ts"
   },

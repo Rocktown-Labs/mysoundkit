@@ -58,10 +58,10 @@ function FanCredentialsPage() {
         return;
       }
 
-      posthog.identify(email, { email, account_type: "fan" });
+      posthog.identify(email, { account_type: "fan", email });
       posthog.capture("user_signed_up", {
-        method: "email",
         account_type: "fan",
+        method: "email",
       });
 
       await router.navigate({ to: "/signup/fan/onboarding" });

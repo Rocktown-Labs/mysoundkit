@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const env = createEnv({
   client: {
+    VITE_ENABLE_MERCH: z.enum(["true", "false"]).default("false"),
     VITE_MEDIA_URL: z.url().optional(),
     VITE_RADAR_PUBLISHABLE_KEY: z.string().optional(),
     VITE_SENTRY_DSN: z.url().optional(),
@@ -10,5 +11,5 @@ export const env = createEnv({
   },
   clientPrefix: "VITE_",
   emptyStringAsUndefined: true,
-  runtimeEnv: (import.meta as any).env,
+  runtimeEnv: import.meta.env,
 });

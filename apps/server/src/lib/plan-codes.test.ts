@@ -1,0 +1,25 @@
+import { describe, expect, it } from "vitest";
+
+import { CONFIGURED_PAID_PLAN_CODES, FREE_PLAN_CODES } from "./plan-codes";
+
+describe("billing plan codes", () => {
+  it("accepts only the new paid plan codes", () => {
+    expect([...CONFIGURED_PAID_PLAN_CODES].toSorted()).toEqual(
+      [
+        "artist_premium",
+        "artist_team",
+        "fan_family",
+        "listener_premium",
+      ].toSorted()
+    );
+    expect(CONFIGURED_PAID_PLAN_CODES.has("artist_lite_ads")).toBe(false);
+    expect(CONFIGURED_PAID_PLAN_CODES.has("fan_lite_ads")).toBe(false);
+  });
+
+  it("recognizes the two free plans", () => {
+    expect([...FREE_PLAN_CODES].toSorted()).toEqual([
+      "artist_free",
+      "fan_free",
+    ]);
+  });
+});

@@ -28,28 +28,30 @@ const createStripeClient = () => {
 const createStripePlans = () =>
   [
     {
-      annualDiscountPriceId: getEnvValue("STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID"),
+      annualDiscountPriceId: getEnvValue(
+        "STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"
+      ),
       group: "artist",
-      limits: { tracks: 25, videos: 3 },
-      name: "artist_lite_ads",
-      priceId: getEnvValue("STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID"),
+      limits: { communities: 1 },
+      name: "artist_premium",
+      priceId: getEnvValue("STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"),
     },
     {
-      annualDiscountPriceId: getEnvValue("STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID"),
       group: "artist",
-      limits: { members: 10, tracks: 250, videos: 25 },
+      limits: { communities: 1, members: 5 },
       name: "artist_team",
       priceId: getEnvValue("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
     },
     {
-      annualDiscountPriceId: getEnvValue("STRIPE_FAN_LITE_ANNUAL_PRICE_ID"),
+      annualDiscountPriceId: getEnvValue(
+        "STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"
+      ),
       group: "fan",
       limits: { familyMembers: 1 },
-      name: "fan_lite_ads",
-      priceId: getEnvValue("STRIPE_FAN_LITE_MONTHLY_PRICE_ID"),
+      name: "listener_premium",
+      priceId: getEnvValue("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
     },
     {
-      annualDiscountPriceId: getEnvValue("STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID"),
       group: "fan",
       limits: { familyMembers: 5 },
       name: "fan_family",

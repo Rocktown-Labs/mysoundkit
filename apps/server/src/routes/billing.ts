@@ -49,18 +49,13 @@ app.openapi(
 
     return c.json(
       plans.map((plan) => ({
-        adsEnabled: plan.adsEnabled,
+        annualPriceCents: plan.annualPriceCents,
         audience: plan.audience,
-        canViewLiveBattles: plan.canViewLiveBattles,
-        canVoteLiveBattles: plan.canVoteLiveBattles,
         code: plan.code,
-        featureLimits: plan.featureLimits ?? null,
+        entitlements: plan.entitlements,
         maxSeats: plan.maxSeats ?? null,
-        monthlyPrice: Number(plan.monthlyPrice),
+        monthlyPriceCents: plan.monthlyPriceCents,
         name: plan.name,
-        stripeAnnualPriceId: plan.stripeAnnualPriceId ?? null,
-        stripeMonthlyPriceId: plan.stripeMonthlyPriceId ?? null,
-        supportsWorkspaceSeats: plan.supportsWorkspaceSeats,
       })),
       HttpStatusCodes.OK
     );

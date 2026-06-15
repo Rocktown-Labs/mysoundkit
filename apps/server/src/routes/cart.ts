@@ -94,6 +94,7 @@ const toCartResponse = async (
       priceCents: row.priceCentsSnapshot,
       productId,
       productType,
+      projectId: row.projectId,
       purchaseMode,
       quantity: row.quantity,
       title: row.titleSnapshot,

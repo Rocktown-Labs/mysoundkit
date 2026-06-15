@@ -1,6 +1,8 @@
 export type SignupAccountType = "artist" | "fan";
 export type ArtistRole = "musician" | "producer";
-export type ArtistOnboardingDraft = {
+export interface ArtistOnboardingDraft {
+  avatarObjectKey: string;
+  avatarUrl: string;
   city: string;
   locationQuery: string;
   primaryGenre: string;
@@ -9,10 +11,10 @@ export type ArtistOnboardingDraft = {
   stateValue: string;
   step: number;
   username: string;
-};
-export type SignupRedirectUser = {
+}
+export interface SignupRedirectUser {
   onboardingCompletedAt?: string | null;
-};
+}
 
 export const ARTIST_ONBOARDING_DRAFT_KEY = "soundkit.artistOnboardingDraft.v1";
 
@@ -48,7 +50,7 @@ const clampStep = (value: unknown) => {
     return 1;
   }
 
-  return Math.min(Math.max(Math.trunc(value), 1), 7);
+  return Math.min(Math.max(Math.trunc(value), 1), 8);
 };
 
 export const parseArtistOnboardingDraft = (
@@ -64,6 +66,9 @@ export const parseArtistOnboardingDraft = (
     : [];
 
   return {
+    avatarObjectKey:
+      typeof parsed.avatarObjectKey === "string" ? parsed.avatarObjectKey : "",
+    avatarUrl: typeof parsed.avatarUrl === "string" ? parsed.avatarUrl : "",
     city: typeof parsed.city === "string" ? parsed.city : "",
     locationQuery:
       typeof parsed.locationQuery === "string" ? parsed.locationQuery : "",
@@ -73,7 +78,7 @@ export const parseArtistOnboardingDraft = (
     selectedPlanCode:
       typeof parsed.selectedPlanCode === "string"
         ? parsed.selectedPlanCode
-        : "artist_lite_ads",
+        : "artist_premium",
     stateValue: typeof parsed.stateValue === "string" ? parsed.stateValue : "",
     step: clampStep(parsed.step),
     username: typeof parsed.username === "string" ? parsed.username : "",

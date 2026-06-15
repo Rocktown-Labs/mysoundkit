@@ -125,6 +125,7 @@ export const web = await TanStackStart("web", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
+    VITE_ENABLE_MERCH: "false",
     VITE_MEDIA_URL: MEDIA_URL,
     ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
     SENTRY_DSN: SENTRY_WEB_DSN,
@@ -200,14 +201,13 @@ export const server = await Worker("server", {
       alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
       "STEMSPLIT_WEBHOOK_SECRET"
     ),
-    ...optionalEnvBinding("STRIPE_ARTIST_LITE_ANNUAL_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_ARTIST_LITE_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_ARTIST_TEAM_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_FAN_FAMILY_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_FAN_LITE_ANNUAL_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_FAN_LITE_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("ADMIN_USER_IDS"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,

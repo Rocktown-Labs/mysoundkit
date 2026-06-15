@@ -14,6 +14,7 @@ import {
   Trophy,
   Radio,
   Headphones,
+  Mic2,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -43,6 +44,7 @@ const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard/tracks", icon: Music, name: "Tracks" },
   { href: "/dashboard/projects", icon: FolderOpen, name: "Projects" },
   { href: "/dashboard/videos", icon: Film, name: "Videos" },
+  { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
   { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
   { href: "/dashboard/team", icon: Users, name: "Team" },
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));

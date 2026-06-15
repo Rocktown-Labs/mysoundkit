@@ -4,6 +4,7 @@
 import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHog } from "@posthog/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import {
   Calendar,
@@ -64,6 +65,7 @@ import {
   rpcJson,
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
+import { soundkitQueryKeys } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 const tracksPost = apiClient.v1.tracks.index.$post;
@@ -101,6 +103,7 @@ interface UploadedTrackPreview {
 
 export function NewTrackForm() {
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const [step, setStep] = useState("details");
@@ -181,6 +184,12 @@ export function NewTrackForm() {
     );
 
     await rpcJson(await trackProcessPost({ param: { trackId: track.id } }));
+    await queryClient.invalidateQueries({
+      queryKey: soundkitQueryKeys.tracks,
+    });
+    await queryClient.invalidateQueries({
+      queryKey: soundkitQueryKeys.track(track.id),
+    });
 
     const preview = {
       assetId: masterAsset?.id ?? "",
@@ -193,12 +202,12 @@ export function NewTrackForm() {
     };
 
     posthog.capture("track_uploaded", {
-      track_id: track.id,
-      title: track.title,
       genre: values.genre,
+      is_for_sale: values.isForSale,
       production_status: values.productionStatus,
       release_strategy: values.releaseStrategy,
-      is_for_sale: values.isForSale,
+      title: track.title,
+      track_id: track.id,
     });
     setUploadedTrack(preview);
     setQueue([

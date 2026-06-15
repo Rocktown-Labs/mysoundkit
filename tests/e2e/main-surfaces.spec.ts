@@ -187,7 +187,7 @@ test.describe("signup onboarding guards", () => {
           locationQuery: "",
           primaryGenre: "",
           roles: ["musician"],
-          selectedPlanCode: "artist_lite_ads",
+          selectedPlanCode: "artist_premium",
           stateValue: "",
           step: 2,
           username: "codex_resume",
