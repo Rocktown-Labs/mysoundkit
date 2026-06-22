@@ -70,135 +70,144 @@ http://localhost:3000
 Useful starter requests:
 
 - `GET /health`
-- `GET /api/v1/me`
-- `GET /api/v1/discover/home`
-- `GET /api/v1/artists`
-- `GET /api/v1/tracks`
-- `GET /api/v1/projects`
-- `GET /api/v1/videos`
-- `GET /api/v1/library/overview`
-- `GET /api/v1/playlists`
-- `GET /api/v1/messages/conversations`
-- `GET /api/v1/analytics/overview`
-- `GET /api/v1/billing/plans`
-- `GET /api/v1/battles`
+- `GET /v1/me`
+- `GET /v1/discover/home`
+- `GET /v1/artists`
+- `GET /v1/tracks`
+- `GET /v1/projects`
+- `GET /v1/videos`
+- `GET /v1/library/overview`
+- `GET /v1/playlists`
+- `GET /v1/messages/conversations`
+- `GET /v1/analytics/overview`
+- `GET /v1/billing/plans`
+- `GET /v1/battles`
 
 ## Auth
 
 Better Auth is mounted at:
 
 ```text
-/api/auth/*
+/auth/*
 ```
 
 Examples:
 
-- `GET /api/auth/get-session`
-- Better Auth plugin endpoints for organization/team management
+- `GET /auth/get-session`
+- Better Auth plugin endpoints for organization, team, and admin management
 
-The app also attaches session middleware to all `/api/v1/*` routes.
+The app also attaches session middleware to all `/v1/*` routes.
 
-Right now, many domain endpoints return sample data so the API is testable before PlanetScale, Stripe, R2, and Mux are fully configured.
+Core artist, fan, catalog, search, upload, library, collaboration, cart, and payment routes use the configured PostgreSQL database and service bindings. Some discovery and live-battle surfaces still use sample or read-model data while realtime battle implementation is pending.
 
 ## API Structure
 
 Base path for domain APIs:
 
 ```text
-/api/v1
+/v1
 ```
 
 ### Me
 
-- `GET /api/v1/me`
-- `GET /api/v1/me/workspaces`
-- `PATCH /api/v1/me/profile`
+- `GET /v1/me`
+- `GET /v1/me/workspaces`
+- `PATCH /v1/me/profile`
 
 ### Onboarding
 
-- `POST /api/v1/onboarding/artist`
-- `POST /api/v1/onboarding/fan`
+- `POST /v1/onboarding/artist`
+- `POST /v1/onboarding/fan`
 
 ### Discover
 
-- `GET /api/v1/discover/home`
+- `GET /v1/discover/home`
 
 ### Artists
 
-- `GET /api/v1/artists`
-- `GET /api/v1/artists/{username}`
+- `GET /v1/artists`
+- `GET /v1/artists/{username}`
 
 ### Tracks
 
-- `GET /api/v1/tracks`
-- `POST /api/v1/tracks`
-- `GET /api/v1/tracks/{trackId}`
+- `GET /v1/tracks`
+- `POST /v1/tracks`
+- `GET /v1/tracks/{trackId}`
 
 ### Projects
 
-- `GET /api/v1/projects`
-- `POST /api/v1/projects`
-- `GET /api/v1/projects/{projectId}`
+- `GET /v1/projects`
+- `POST /v1/projects`
+- `GET /v1/projects/{projectId}`
 
 ### Videos
 
-- `GET /api/v1/videos`
-- `POST /api/v1/videos`
-- `GET /api/v1/videos/{videoId}`
+- `GET /v1/videos`
+- `POST /v1/videos`
+- `GET /v1/videos/{videoId}`
 
 ### Library
 
-- `GET /api/v1/library/overview`
-- `GET /api/v1/library/recent`
-- `GET /api/v1/library/saved`
-- `GET /api/v1/library/purchases`
+- `GET /v1/library/overview`
+- `GET /v1/library/recent`
+- `GET /v1/library/saved`
+- `GET /v1/library/purchases`
 
 ### Playlists
 
-- `GET /api/v1/playlists`
-- `POST /api/v1/playlists`
-- `GET /api/v1/playlists/{playlistId}`
+- `GET /v1/playlists`
+- `POST /v1/playlists`
+- `GET /v1/playlists/{playlistId}`
 
 ### Social
 
-- `POST /api/v1/social/posts/{postId}/likes`
-- `GET /api/v1/social/posts/{postId}/comments`
-- `POST /api/v1/social/posts/{postId}/comments`
+- `POST /v1/social/posts/{postId}/likes`
+- `GET /v1/social/posts/{postId}/comments`
+- `POST /v1/social/posts/{postId}/comments`
 
 ### Messages
 
-- `GET /api/v1/messages/conversations`
-- `POST /api/v1/messages/conversations`
-- `GET /api/v1/messages/conversations/{conversationId}/messages`
-- `POST /api/v1/messages/conversations/{conversationId}/messages`
+- `GET /v1/messages/conversations`
+- `POST /v1/messages/conversations`
+- `GET /v1/messages/conversations/{conversationId}/messages`
+- `POST /v1/messages/conversations/{conversationId}/messages`
 
 ### Analytics
 
-- `GET /api/v1/analytics/overview`
+- `GET /v1/analytics/overview`
 
 ### Billing
 
-- `GET /api/v1/billing/plans`
-- `GET /api/v1/billing/subscription`
+- `GET /v1/billing/plans`
+- `GET /v1/billing/subscription`
+
+### Administration
+
+- `GET /v1/admin/access`
+- `GET /v1/admin/overview`
+- `GET /v1/admin/finance/summary`
+- Better Auth admin endpoints under `/auth/admin/*` provide user search, roles, bans, session revocation, and impersonation.
+
+Set `ADMIN_EMAILS` to a comma-separated email allowlist. Allowlisted accounts receive the Better Auth `admin` role when created and are reconciled when they access the API.
 
 ### Battles
 
-- `GET /api/v1/battles`
-- `GET /api/v1/battles/{battleId}`
-- `POST /api/v1/battles/challenge`
+- `GET /v1/battles`
+- `GET /v1/battles/{battleId}`
+- `POST /v1/battles/challenge`
 
 ### Uploads
 
-- `GET /api/v1/uploads`
-- `GET|POST /api/v1/uploads/media`
+- `GET /v1/uploads`
+- `GET|POST /v1/uploads/media`
 
 Uploads are wired for Better Upload, but require storage env configuration before they will accept files.
 
 ### Webhooks
 
-- `POST /api/v1/webhooks/mux`
-- `POST /api/v1/webhooks/stripe`
-- `POST /api/v1/webhooks/battle-service`
+- `POST /v1/webhooks/mux`
+- `POST /v1/webhooks/stripe`
+- `POST /v1/webhooks/battle-service`
 
 ## Current Status
 
@@ -208,18 +217,17 @@ What is real right now:
 - OpenAPI generation
 - Swagger UI
 - Better Auth mount
-- Better Auth organization/team support
+- Better Auth organization, team, and admin support
 - Drizzle schema for auth + app domain
 - Request/response contracts for core modules
+- PostgreSQL-backed artist/fan onboarding, catalog, search, uploads, library, open verses, listening parties, cart, and payment records
+- R2 media upload and Mux direct-video integration when their production bindings are configured
 
 What is still stubbed:
 
-- Most database-backed handlers
-- Stripe subscription lifecycle wiring
-- R2 upload credentials and object finalization
-- Mux direct upload and webhook processing
-- Durable Object chat runtime
-- Battle service integration with Go/IVS
+- Live battle orchestration and voting runtime
+- Some discovery and live-room sample/read-model surfaces
+- Paid subscription checkout until real Stripe Price IDs are configured
 
 ## Environment Still Needed
 
@@ -229,6 +237,7 @@ To fully activate the backend, you will still need:
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`
 - `CORS_ORIGIN`
+- `ADMIN_EMAILS`
 - Stripe keys
 - Mux keys
 - R2/S3-compatible upload env vars
@@ -271,8 +280,8 @@ If the deploy fails, the most likely causes are missing env values in `packages/
 
 ## Suggested Next Steps
 
-1. Connect PlanetScale Postgres and generate migrations.
-2. Replace sample responses with Drizzle queries module-by-module.
-3. Wire Stripe plans and entitlements.
-4. Enable Better Upload against R2.
-5. Add Mux direct uploads and webhook handlers.
+1. Apply the generated Drizzle migration to the production PostgreSQL database.
+2. Configure real Stripe products and Price IDs for paid plans.
+3. Run the real-backend artist/fan flow in `docs/real-backend-e2e.md`.
+4. Replace remaining discovery/live sample read models.
+5. Build live battle orchestration and voting.
