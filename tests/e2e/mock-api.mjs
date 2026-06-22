@@ -258,7 +258,7 @@ export const createMockApiServer = async ({
     }
 
     if (url.pathname === "/v1/admin/access") {
-      json(response, 200, { isAdmin: true });
+      json(response, 200, { isAdmin: true }, webOrigin);
       return;
     }
 
