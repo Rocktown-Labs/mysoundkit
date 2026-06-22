@@ -26,6 +26,7 @@ import { Route as DashboardFinanceRouteImport } from './app/dashboard/finance'
 import { Route as DashboardCommunityRouteImport } from './app/dashboard/community'
 import { Route as DashboardCollaboratorsRouteImport } from './app/dashboard/collaborators'
 import { Route as DashboardBillingRouteImport } from './app/dashboard/billing'
+import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
 import { Route as ExploreLiveRouteImport } from './app/_explore/live'
 import { Route as DashboardVideosIndexRouteImport } from './app/dashboard/videos/index'
@@ -171,6 +172,11 @@ const DashboardCollaboratorsRoute = DashboardCollaboratorsRouteImport.update({
 const DashboardBillingRoute = DashboardBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAdminRoute = DashboardAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => DashboardRoute,
 } as any)
 const ExploreNewReleasesRoute = ExploreNewReleasesRouteImport.update({
@@ -509,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/live': typeof ExploreLiveRouteWithChildren
   '/new-releases': typeof ExploreNewReleasesRoute
+  '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
   '/dashboard/community': typeof DashboardCommunityRoute
@@ -586,6 +593,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
+  '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
   '/dashboard/community': typeof DashboardCommunityRoute
@@ -668,6 +676,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_explore/live': typeof ExploreLiveRouteWithChildren
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
+  '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
   '/dashboard/community': typeof DashboardCommunityRoute
@@ -751,6 +760,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/live'
     | '/new-releases'
+    | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
     | '/dashboard/community'
@@ -828,6 +838,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sitemap.xml'
     | '/new-releases'
+    | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
     | '/dashboard/community'
@@ -909,6 +920,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_explore/live'
     | '/_explore/new-releases'
+    | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
     | '/dashboard/community'
@@ -1110,6 +1122,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/dashboard/billing'
       preLoaderRoute: typeof DashboardBillingRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/dashboard/admin': {
+      id: '/dashboard/admin'
+      path: '/admin'
+      fullPath: '/dashboard/admin'
+      preLoaderRoute: typeof DashboardAdminRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_explore/new-releases': {
@@ -1651,6 +1670,7 @@ const DashboardOpenVersesGenreRouteWithChildren =
   )
 
 interface DashboardRouteChildren {
+  DashboardAdminRoute: typeof DashboardAdminRoute
   DashboardBillingRoute: typeof DashboardBillingRoute
   DashboardCollaboratorsRoute: typeof DashboardCollaboratorsRoute
   DashboardCommunityRoute: typeof DashboardCommunityRoute
@@ -1687,6 +1707,7 @@ interface DashboardRouteChildren {
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAdminRoute: DashboardAdminRoute,
   DashboardBillingRoute: DashboardBillingRoute,
   DashboardCollaboratorsRoute: DashboardCollaboratorsRoute,
   DashboardCommunityRoute: DashboardCommunityRoute,

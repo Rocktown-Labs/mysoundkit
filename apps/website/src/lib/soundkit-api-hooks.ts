@@ -9,6 +9,8 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
+const adminAccessGet = apiClient.v1.admin.access.$get;
+const adminOverviewGet = apiClient.v1.admin.overview.$get;
 const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
 const searchGet = apiClient.v1.search.$get;
@@ -57,6 +59,8 @@ type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 
 export const soundkitQueryKeys = {
+  adminAccess: ["admin", "access"] as const,
+  adminOverview: ["admin", "overview"] as const,
   billingPlans: ["billing", "plans"] as const,
   listeningParties: ["listening-parties"] as const,
   me: ["me"] as const,
@@ -70,6 +74,20 @@ export const soundkitQueryKeys = {
   tracks: ["tracks"] as const,
   videos: ["videos"] as const,
 };
+
+export const useAdminAccessQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminAccessGet()),
+    queryKey: soundkitQueryKeys.adminAccess,
+  });
+
+export const useAdminOverviewQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminOverviewGet()),
+    queryKey: soundkitQueryKeys.adminOverview,
+  });
 
 export const useMeQuery = () =>
   useQuery({

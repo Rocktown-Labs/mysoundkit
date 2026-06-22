@@ -12,6 +12,16 @@ const json = (response, status, body, origin) => {
 };
 
 const mockUser = (session) => {
+  if (session === "admin") {
+    return {
+      accountType: "artist",
+      displayName: "CG Admin",
+      id: "user_admin",
+      onboardingCompletedAt: "2026-06-22T12:00:00.000Z",
+      username: "cg_admin",
+    };
+  }
+
   if (session === "complete") {
     return {
       accountType: "artist",
@@ -164,13 +174,133 @@ export const createMockApiServer = async ({
     }
 
     const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+    const session = request.headers.cookie
+      ?.split(";")
+      .map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith("soundkit_test_session="))
+      ?.split("=")[1];
+
+    if (url.pathname === "/test/session/admin") {
+      response.writeHead(302, {
+        location: `${webOrigin}/dashboard/admin`,
+        "set-cookie": "soundkit_test_session=admin; Path=/; SameSite=Lax",
+      });
+      response.end();
+      return;
+    }
+
+    if (url.pathname === "/auth/get-session") {
+      if (session !== "admin") {
+        json(response, 200, null, webOrigin);
+        return;
+      }
+
+      json(
+        response,
+        200,
+        {
+          session: {
+            expiresAt: "2026-07-22T12:00:00.000Z",
+            id: "session_admin",
+            token: "test-token",
+            userId: "user_admin",
+          },
+          user: {
+            banned: false,
+            createdAt: "2026-06-22T12:00:00.000Z",
+            email: "cg@rocktownlabs.com",
+            emailVerified: true,
+            id: "user_admin",
+            name: "CG Admin",
+            role: "admin",
+            updatedAt: "2026-06-22T12:00:00.000Z",
+          },
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/auth/admin/list-users") {
+      json(
+        response,
+        200,
+        {
+          limit: 100,
+          offset: 0,
+          total: 2,
+          users: [
+            {
+              banned: false,
+              createdAt: "2026-06-22T12:00:00.000Z",
+              email: "cg@rocktownlabs.com",
+              emailVerified: true,
+              id: "user_admin",
+              name: "CG Admin",
+              role: "admin",
+              updatedAt: "2026-06-22T12:00:00.000Z",
+            },
+            {
+              banned: false,
+              createdAt: "2026-06-21T12:00:00.000Z",
+              email: "artist@example.com",
+              emailVerified: true,
+              id: "user_artist_2",
+              name: "Arkansas Artist",
+              role: "user",
+              updatedAt: "2026-06-21T12:00:00.000Z",
+            },
+          ],
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/access") {
+      json(response, 200, { isAdmin: true });
+      return;
+    }
+
+    if (url.pathname === "/v1/admin/overview") {
+      json(
+        response,
+        200,
+        {
+          commerce: {
+            grossRevenueCents: 12_500,
+            platformFeeCents: 1250,
+            successfulTransactions: 4,
+          },
+          content: {
+            communities: 1,
+            listeningParties: 2,
+            openVerses: 3,
+            projects: 4,
+            tracks: 8,
+            videos: 2,
+          },
+          operations: {
+            activeOpenVerses: 2,
+            publishedTracks: 5,
+            readyVideos: 1,
+            releasedProjects: 1,
+            scheduledListeningParties: 1,
+          },
+          people: {
+            admins: 1,
+            artists: 1,
+            bannedUsers: 0,
+            fans: 0,
+            users: 2,
+          },
+        },
+        webOrigin
+      );
+      return;
+    }
 
     if (url.pathname === "/v1/me" || url.pathname === "/v1/me/") {
-      const session = request.headers.cookie
-        ?.split(";")
-        .map((cookie) => cookie.trim())
-        .find((cookie) => cookie.startsWith("soundkit_test_session="))
-        ?.split("=")[1];
       const user = mockUser(session);
 
       if (!user) {
