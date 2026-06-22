@@ -3,7 +3,9 @@ import { validator } from "hono/validator";
 import { z } from "zod";
 
 import type {
+  adminAccessSchema,
   directVideoUploadResponseSchema,
+  adminOverviewSchema,
   listeningPartySummarySchema,
   lyricsRevisionSchema,
   meResponseSchema,
@@ -62,6 +64,12 @@ const checkoutResponseSchema = onboardingResponseSchema.pick({
 });
 
 export const rpcContract = new Hono()
+  .get("/v1/admin/access", (c) =>
+    c.json({} as z.infer<typeof adminAccessSchema>)
+  )
+  .get("/v1/admin/overview", (c) =>
+    c.json({} as z.infer<typeof adminOverviewSchema>)
+  )
   .get("/v1/me/", (c) => c.json({} as z.infer<typeof meResponseSchema>))
   .get(
     "/v1/onboarding/username-availability",

@@ -207,7 +207,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("ADMIN_USER_IDS"),
+    ...optionalEnvBinding("ADMIN_EMAILS"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,

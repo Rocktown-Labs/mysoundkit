@@ -274,4 +274,17 @@ describe("SoundKit API authentication boundaries", () => {
 
     expect(response.status).toBe(403);
   });
+
+  it("keeps platform administration restricted", async () => {
+    const response = await SELF.fetch(`${API_ORIGIN}/v1/admin/overview`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it("reports no administration access for anonymous callers", async () => {
+    const response = await SELF.fetch(`${API_ORIGIN}/v1/admin/access`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ isAdmin: false });
+  });
 });
