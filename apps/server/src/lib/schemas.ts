@@ -16,6 +16,40 @@ export const setupRequiredResponseSchema = z.object({
   message: z.string(),
 });
 
+export const adminOverviewSchema = z.object({
+  commerce: z.object({
+    grossRevenueCents: z.number().int(),
+    platformFeeCents: z.number().int(),
+    successfulTransactions: z.number().int(),
+  }),
+  content: z.object({
+    communities: z.number().int(),
+    listeningParties: z.number().int(),
+    openVerses: z.number().int(),
+    projects: z.number().int(),
+    tracks: z.number().int(),
+    videos: z.number().int(),
+  }),
+  operations: z.object({
+    activeOpenVerses: z.number().int(),
+    publishedTracks: z.number().int(),
+    readyVideos: z.number().int(),
+    releasedProjects: z.number().int(),
+    scheduledListeningParties: z.number().int(),
+  }),
+  people: z.object({
+    admins: z.number().int(),
+    artists: z.number().int(),
+    bannedUsers: z.number().int(),
+    fans: z.number().int(),
+    users: z.number().int(),
+  }),
+});
+
+export const adminAccessSchema = z.object({
+  isAdmin: z.boolean(),
+});
+
 export const userSummarySchema = z.object({
   accountType: z.enum(["artist", "fan"]),
   displayName: z.string(),

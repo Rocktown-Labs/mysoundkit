@@ -1,4 +1,18 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+const gotoWithViteRetry = async (page: Page, path: string) => {
+  try {
+    await page.goto(path);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes("ERR_ABORTED")) {
+      throw error;
+    }
+
+    await page.waitForTimeout(250);
+    await page.goto(path);
+  }
+};
 
 test.describe("main application surfaces", () => {
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
@@ -69,7 +83,7 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText(/lyrics/i).first()).toBeVisible();
     await expect(page.getByText(/this room is synced/i)).toBeVisible();
 
-    await page.goto("/live/battles/battle-1");
+    await gotoWithViteRetry(page, "/live/battles/battle-1");
     await expect(
       page.getByRole("heading", { name: /west coast showdown/i })
     ).toBeVisible();
@@ -198,5 +212,32 @@ test.describe("signup onboarding guards", () => {
     await page.goto("/signup/artist/onboarding");
     await expect(page.getByLabel("Username")).toHaveValue("codex_resume");
     await expect(page.getByText("Username is available.")).toBeVisible();
+  });
+});
+
+test.describe("administration", () => {
+  test("admin can inspect platform metrics and users", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: "127.0.0.1",
+        name: "soundkit_test_session",
+        path: "/",
+        value: "admin",
+      },
+    ]);
+
+    await page.goto("/dashboard/admin");
+
+    await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
+    await expect(page.getByText("Gross revenue")).toBeVisible();
+    await expect(page.getByText("$125.00")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Users" }).click();
+    const usersTable = page.getByRole("table");
+    await expect(usersTable.getByText("cg@rocktownlabs.com")).toBeVisible();
+    await expect(usersTable.getByText("artist@example.com")).toBeVisible();
   });
 });

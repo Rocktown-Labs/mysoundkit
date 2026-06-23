@@ -5,9 +5,11 @@ export interface AuthenticatedSession {
 }
 
 export interface AuthenticatedUser {
+  banned?: boolean | null;
   email?: string | null;
   id: string;
   name?: string | null;
+  role?: string | null;
 }
 
 export interface AppVariables {

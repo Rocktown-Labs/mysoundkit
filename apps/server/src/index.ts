@@ -18,6 +18,7 @@ import {
   logWarn,
   structuredLoggingMiddleware,
 } from "@/middleware/structured-logging";
+import adminRoutes from "@/routes/admin";
 import adminFinanceRoutes from "@/routes/admin-finance";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
@@ -175,6 +176,7 @@ app
   .route("/v1/payments", paymentsRoutes)
   .route("/v1/communities", communitiesRoutes)
   .route("/v1/community-billing", communityBillingRoutes)
+  .route("/v1/admin", adminRoutes)
   .route("/v1/admin/finance", adminFinanceRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/billing", billingRoutes)

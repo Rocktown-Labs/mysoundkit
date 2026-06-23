@@ -6,12 +6,18 @@ import * as schema from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { organization } from "better-auth/plugins";
+import { admin, organization } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { Stripe } from "stripe";
 
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+
+const getAdminEmails = () =>
+  getEnvValue("ADMIN_EMAILS")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
 
 const createStripeClient = () => {
   const secretKey = getEnvValue("STRIPE_SECRET_KEY");
@@ -87,10 +93,28 @@ export const createAuth = () => {
       provider: "pg",
       schema,
     }),
+    databaseHooks: {
+      user: {
+        create: {
+          before: (user) =>
+            Promise.resolve({
+              data: {
+                ...user,
+                role: getAdminEmails().includes(user.email.toLowerCase())
+                  ? "admin"
+                  : "user",
+              },
+            }),
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
     },
     plugins: [
+      admin({
+        defaultRole: "user",
+      }),
       organization({
         allowUserToCreateOrganization: true,
         requireEmailVerificationOnInvitation: false,

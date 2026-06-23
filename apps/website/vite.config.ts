@@ -15,55 +15,75 @@ const ciConfigPath =
     : undefined;
 const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
-export default defineConfig({
-  plugins: [
-    devtools(),
-    tsconfigPaths(),
-    tailwindcss(),
-    tanstackStart({
-      router: {
-        routesDirectory: "app",
-      },
-      srcDirectory: "src",
-    }),
-    sentryTanstackStart({
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      org: "rocktown-labs-tq",
-      project: "soundkit-web",
-      sourcemaps: {
-        disable: hasSentryAuthToken ? false : "disable-upload",
-      },
-      telemetry: false,
-    }),
-    viteReact(),
-    alchemy({ configPath: ciConfigPath }),
-  ],
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("src", import.meta.url)),
+export default defineConfig(({ mode }) => {
+  const isDev = mode === "development";
+
+  return {
+    optimizeDeps: {
+      include: [
+        "@tanstack/react-devtools",
+        "@tanstack/react-query-devtools",
+        "@tanstack/react-router-devtools",
+        "better-auth/client/plugins",
+        "better-auth/react",
+      ],
     },
-  },
-  server: {
-    port: 3001,
-    proxy: {
-      "/ingest": {
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ""),
-        secure: false,
-        target: "https://us.i.posthog.com",
+    plugins: [
+      ...(isDev
+        ? [
+            devtools({
+              removeDevtoolsOnBuild: true,
+            }),
+          ]
+        : []),
+      tsconfigPaths(),
+      tailwindcss(),
+      tanstackStart({
+        router: {
+          routesDirectory: "app",
+        },
+        srcDirectory: "src",
+      }),
+      sentryTanstackStart({
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        org: "rocktown-labs-tq",
+        project: "soundkit-web",
+        sourcemaps: {
+          disable: hasSentryAuthToken ? false : "disable-upload",
+        },
+        telemetry: false,
+      }),
+      viteReact(),
+      alchemy({ configPath: ciConfigPath }),
+    ],
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("src", import.meta.url)),
       },
-      "/ingest/array": {
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ""),
-        secure: false,
-        target: "https://us-assets.i.posthog.com",
-      },
-      "/ingest/static": {
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ""),
-        secure: false,
-        target: "https://us-assets.i.posthog.com",
+      dedupe: ["react", "react-dom"],
+    },
+    server: {
+      port: 3001,
+      proxy: {
+        "/ingest": {
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ingest/, ""),
+          secure: false,
+          target: "https://us.i.posthog.com",
+        },
+        "/ingest/array": {
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ingest/, ""),
+          secure: false,
+          target: "https://us-assets.i.posthog.com",
+        },
+        "/ingest/static": {
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ingest/, ""),
+          secure: false,
+          target: "https://us-assets.i.posthog.com",
+        },
       },
     },
-  },
+  };
 });

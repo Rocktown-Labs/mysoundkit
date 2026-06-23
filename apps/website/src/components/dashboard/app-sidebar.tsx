@@ -1,5 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Home,
   Music,
@@ -12,9 +11,8 @@ import {
   BarChart3,
   Sparkles,
   Trophy,
-  Radio,
-  Headphones,
   Mic2,
+  ShieldCheck,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -38,6 +36,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth-client";
+import { useAdminAccessQuery } from "@/lib/soundkit-api-hooks";
 
 const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard", icon: Home, name: "Dashboard" },
@@ -57,7 +57,14 @@ const careerNavigation: SidebarNavItem[] = [
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
 export function AppSidebar() {
+  const { data: session } = authClient.useSession();
+  const adminAccess = useAdminAccessQuery(Boolean(session?.user));
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isAdmin =
+    session?.user.role
+      ?.split(",")
+      .map((role) => role.trim())
+      .includes("admin") || adminAccess.data?.isAdmin;
   const isLiveRoute = pathname.startsWith("/dashboard/live");
   const isBattleLiveRoute =
     isLiveRoute &&
@@ -122,6 +129,19 @@ export function AppSidebar() {
         <SidebarNavGroup label="My Music" items={resolvedMyMusicNavigation} />
         <SidebarNavGroup label="My Career" items={resolvedCareerNavigation} />
         <SidebarNavGroup label="Live" items={liveNavigation} />
+        {isAdmin && (
+          <SidebarNavGroup
+            label="Administration"
+            items={[
+              {
+                icon: ShieldCheck,
+                isActive: isRouteActive("/dashboard/admin"),
+                title: "Admin",
+                url: "/dashboard/admin",
+              },
+            ]}
+          />
+        )}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
@@ -134,9 +154,11 @@ export function AppSidebar() {
                     <AvatarFallback>JD</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-semibold">John Doe</span>
+                    <span className="font-semibold">
+                      {session?.user.name ?? "SoundKit User"}
+                    </span>
                     <span className="text-xs text-muted-foreground">
-                      john@example.com
+                      {session?.user.email ?? "Signed in"}
                     </span>
                   </div>
                 </SidebarMenuButton>
@@ -161,7 +183,17 @@ export function AppSidebar() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Sign out</DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void authClient.signOut({
+                      fetchOptions: {
+                        onSuccess: () => window.location.assign("/"),
+                      },
+                    });
+                  }}
+                >
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>

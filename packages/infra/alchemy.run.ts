@@ -16,7 +16,10 @@ config({ path: "../../apps/server/.env" });
 
 const app = await alchemy("soundkit", {
   stateStore: process.env.ALCHEMY_STATE_TOKEN
-    ? (scope) => new CloudflareStateStore(scope)
+    ? (scope) =>
+        new CloudflareStateStore(scope, {
+          forceUpdate: process.env.ALCHEMY_STATE_FORCE_UPDATE === "true",
+        })
     : undefined,
 });
 const isProduction = app.stage === "prod";
@@ -207,7 +210,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("ADMIN_USER_IDS"),
+    ...optionalEnvBinding("ADMIN_EMAILS"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,

@@ -9,12 +9,16 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
+  banExpires: timestamp("ban_expires"),
+  banReason: text("ban_reason"),
+  banned: boolean("banned").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   id: text("id").primaryKey(),
   image: text("image"),
   name: text("name").notNull(),
+  role: text("role").default("user").notNull(),
   stripeCustomerId: text("stripe_customer_id"),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -30,6 +34,7 @@ export const session = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     id: text("id").primaryKey(),
+    impersonatedBy: text("impersonated_by"),
     ipAddress: text("ip_address"),
     token: text("token").notNull().unique(),
     updatedAt: timestamp("updated_at")

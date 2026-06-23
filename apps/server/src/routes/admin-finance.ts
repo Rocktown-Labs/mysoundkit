@@ -1,12 +1,11 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
-import { env } from "@soundkit/env/server";
 import { sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
-import { isAuthenticatedUser } from "@/lib/entitlements";
+import { isAdminUser } from "@/lib/admin";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
@@ -15,12 +14,6 @@ const summarySchema = z.object({
   successfulTransactionCents: z.number().int(),
   transactionCount: z.number().int(),
 });
-const getAdminIds = () =>
-  ((env as unknown as Record<string, string | undefined>).ADMIN_USER_IDS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
 app.openapi(
   createRoute({
     method: "get",
@@ -37,7 +30,7 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!isAuthenticatedUser(user) || !getAdminIds().includes(user.id)) {
+    if (!isAdminUser(user)) {
       return c.json(
         { message: "Admin access is required." },
         HttpStatusCodes.FORBIDDEN
