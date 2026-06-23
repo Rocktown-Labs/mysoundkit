@@ -16,7 +16,10 @@ config({ path: "../../apps/server/.env" });
 
 const app = await alchemy("soundkit", {
   stateStore: process.env.ALCHEMY_STATE_TOKEN
-    ? (scope) => new CloudflareStateStore(scope)
+    ? (scope) =>
+        new CloudflareStateStore(scope, {
+          forceUpdate: process.env.ALCHEMY_STATE_FORCE_UPDATE === "true",
+        })
     : undefined,
 });
 const isProduction = app.stage === "prod";
