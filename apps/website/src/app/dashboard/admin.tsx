@@ -2,17 +2,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Ban,
+  CheckCircle2,
   CircleDollarSign,
+  CreditCard,
   Disc3,
   MoreHorizontal,
   Radio,
+  RefreshCw,
   Search,
   ShieldCheck,
+  TriangleAlert,
+  UploadCloud,
   UserRoundCog,
   Users,
 } from "lucide-react";
 import { useState } from "react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -48,6 +55,9 @@ import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
   useAdminOverviewQuery,
+  useAdminPaymentsQuery,
+  useImportStripePlanMutation,
+  useSyncStripePlansMutation,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/admin")({
@@ -58,6 +68,30 @@ type PendingAction =
   | { action: "ban"; userId: string; userName: string }
   | { action: "revoke"; userId: string; userName: string }
   | null;
+
+interface AdminPaymentPlan {
+  annualPriceCents: number | null;
+  audience: "artist" | "fan";
+  code: string;
+  envAnnualKey: string | null;
+  envAnnualPriceId: string | null;
+  envMonthlyKey: string | null;
+  envMonthlyPriceId: string | null;
+  isActive: boolean;
+  monthlyPriceCents: number;
+  name: string;
+  stripeAnnualPriceId: string | null;
+  stripeMonthlyPriceId: string | null;
+}
+
+interface StripePriceOption {
+  currency: string;
+  id: string;
+  interval: string | null;
+  planCode: string | null;
+  productName: string;
+  unitAmount: number | null;
+}
 
 const formatCurrency = (cents: number) =>
   new Intl.NumberFormat("en-US", {
@@ -110,12 +144,16 @@ function AdminDashboard() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <OverviewPanel />
         </TabsContent>
         <TabsContent value="users" className="mt-6">
           <UsersPanel currentUserId={session.user.id} />
+        </TabsContent>
+        <TabsContent value="payments" className="mt-6">
+          <PaymentsPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -526,5 +564,383 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function PaymentsPanel() {
+  const paymentsQuery = useAdminPaymentsQuery();
+  const syncMutation = useSyncStripePlansMutation();
+
+  if (paymentsQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading payments...</p>;
+  }
+
+  if (paymentsQuery.error || !paymentsQuery.data) {
+    return <p className="text-sm text-destructive">Unable to load payments.</p>;
+  }
+
+  const { data } = paymentsQuery;
+  const missingCheckoutEnv = data.plans.filter(
+    (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
+  );
+  const paymentMetrics = [
+    {
+      label: "Gross revenue",
+      value: formatCurrency(data.totals.grossRevenueCents),
+    },
+    {
+      label: "Platform fees",
+      value: formatCurrency(data.totals.platformFeeCents),
+    },
+    {
+      label: "Transactions",
+      value: data.totals.successfulTransactions.toLocaleString(),
+    },
+    {
+      label: "Checkout plans",
+      value: `${data.configuredCheckoutPlans}/${data.planCount}`,
+    },
+  ];
+
+  const handleSync = () => {
+    syncMutation.mutate(
+      {},
+      {
+        onError: (error) => {
+          toast({
+            description: error.message,
+            title: "Stripe sync failed",
+            variant: "destructive",
+          });
+        },
+        onSuccess: (result) => {
+          toast({
+            description: `${result.results.length} plan rows were checked.`,
+            title: "Stripe sync complete",
+          });
+        },
+      }
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {!data.stripeConfigured && (
+        <Alert variant="destructive">
+          <TriangleAlert className="size-4" />
+          <AlertTitle>Stripe is not configured</AlertTitle>
+          <AlertDescription>
+            Add `STRIPE_SECRET_KEY` before syncing products or importing price
+            IDs.
+          </AlertDescription>
+        </Alert>
+      )}
+      {missingCheckoutEnv.length > 0 && (
+        <Alert>
+          <TriangleAlert className="size-4" />
+          <AlertTitle>Checkout env vars still need updating</AlertTitle>
+          <AlertDescription>
+            Synced DB price IDs are visible here, but Better Auth checkout still
+            reads deployed Stripe price env vars. Copy the matching monthly and
+            annual IDs into the listed env keys before testing paid checkout.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {paymentMetrics.map((metric) => (
+          <Card className="gap-3 py-4" key={metric.label}>
+            <CardHeader className="flex flex-row items-center justify-between px-4">
+              <CardTitle className="text-sm font-medium">
+                {metric.label}
+              </CardTitle>
+              <CreditCard className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="px-4">
+              <p className="text-2xl font-bold">{metric.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Subscription catalog</h2>
+          <p className="text-sm text-muted-foreground">
+            Create missing Stripe Products and Prices or link existing prices.
+          </p>
+        </div>
+        <Button
+          disabled={!data.stripeConfigured || syncMutation.isPending}
+          onClick={handleSync}
+        >
+          <RefreshCw className="size-4" />
+          {syncMutation.isPending ? "Syncing" : "Sync missing"}
+        </Button>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {data.plans.map((plan) => (
+          <PaymentPlanCard
+            key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
+            plan={plan}
+            stripePrices={data.stripePrices}
+          />
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RecentTransactions transactions={data.recentTransactions} />
+        <StripeCatalog prices={data.stripePrices} />
+      </div>
+    </div>
+  );
+}
+
+function PaymentPlanCard({
+  plan,
+  stripePrices,
+}: Readonly<{
+  plan: AdminPaymentPlan;
+  stripePrices: StripePriceOption[];
+}>) {
+  const importMutation = useImportStripePlanMutation();
+  const suggestedMonthly =
+    stripePrices.find(
+      (price) => price.planCode === plan.code && price.interval === "month"
+    )?.id ?? "";
+  const suggestedAnnual =
+    stripePrices.find(
+      (price) => price.planCode === plan.code && price.interval === "year"
+    )?.id ?? "";
+  const [monthlyPriceId, setMonthlyPriceId] = useState(
+    plan.stripeMonthlyPriceId ?? suggestedMonthly
+  );
+  const [annualPriceId, setAnnualPriceId] = useState(
+    plan.stripeAnnualPriceId ?? suggestedAnnual
+  );
+  const monthlyCheckoutReady =
+    Boolean(plan.stripeMonthlyPriceId) &&
+    plan.stripeMonthlyPriceId === plan.envMonthlyPriceId;
+
+  const handleImport = () => {
+    importMutation.mutate(
+      {
+        annualPriceId: annualPriceId.trim() || undefined,
+        code: plan.code,
+        monthlyPriceId: monthlyPriceId.trim() || undefined,
+      },
+      {
+        onError: (error) => {
+          toast({
+            description: error.message,
+            title: "Import failed",
+            variant: "destructive",
+          });
+        },
+        onSuccess: () => {
+          toast({
+            description: `${plan.name} is linked to Stripe price IDs.`,
+            title: "Plan updated",
+          });
+        },
+      }
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">{plan.name}</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">{plan.code}</p>
+          </div>
+          <Badge variant={monthlyCheckoutReady ? "secondary" : "outline"}>
+            {monthlyCheckoutReady ? "Checkout ready" : "Needs env"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 text-sm sm:grid-cols-2">
+          <MetricRow label="Audience" value={plan.audience} />
+          <MetricRow
+            label="Monthly"
+            value={formatCurrency(plan.monthlyPriceCents)}
+          />
+          <MetricRow
+            label="Annual"
+            value={
+              plan.annualPriceCents
+                ? formatCurrency(plan.annualPriceCents)
+                : "-"
+            }
+          />
+          <MetricRow label="Active" value={plan.isActive ? "Yes" : "No"} />
+        </div>
+
+        <div className="grid gap-3">
+          <PriceIdField
+            id={`${plan.code}-monthly`}
+            label="Monthly Stripe price ID"
+            onChange={setMonthlyPriceId}
+            value={monthlyPriceId}
+          />
+          {plan.annualPriceCents && (
+            <PriceIdField
+              id={`${plan.code}-annual`}
+              label="Annual Stripe price ID"
+              onChange={setAnnualPriceId}
+              value={annualPriceId}
+            />
+          )}
+        </div>
+
+        <div className="rounded-md border p-3 text-xs text-muted-foreground">
+          <p>
+            Env monthly:{" "}
+            <span className="font-mono">
+              {plan.envMonthlyKey ?? "not required"}
+            </span>
+          </p>
+          {plan.envAnnualKey && (
+            <p className="mt-1">
+              Env annual: <span className="font-mono">{plan.envAnnualKey}</span>
+            </p>
+          )}
+        </div>
+
+        <Button
+          disabled={importMutation.isPending}
+          onClick={handleImport}
+          variant="outline"
+        >
+          <UploadCloud className="size-4" />
+          {importMutation.isPending ? "Saving" : "Import IDs"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PriceIdField({
+  id,
+  label,
+  onChange,
+  value,
+}: Readonly<{
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}>) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="price_..."
+        value={value}
+      />
+    </div>
+  );
+}
+
+function RecentTransactions({
+  transactions,
+}: Readonly<{
+  transactions: {
+    amountCents: number;
+    createdAt: string;
+    currency: string;
+    id: string;
+    platformFeeCents: number;
+    status: string;
+    transactionType: string;
+  }[];
+}>) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Recent transactions</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {transactions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No transactions yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((transaction) => (
+                  <TableRow key={transaction.id}>
+                    <TableCell>{transaction.transactionType}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{transaction.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency(transaction.amountCents)}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(transaction.createdAt).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Stripe prices</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {prices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No active Stripe prices found.
+          </p>
+        ) : (
+          prices.slice(0, 12).map((price) => (
+            <div
+              className="flex items-start justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"
+              key={price.id}
+            >
+              <div className="min-w-0">
+                <p className="font-medium">{price.productName}</p>
+                <p className="break-all font-mono text-xs text-muted-foreground">
+                  {price.id}
+                </p>
+              </div>
+              <div className="shrink-0 text-right text-sm">
+                <p>
+                  {typeof price.unitAmount === "number"
+                    ? formatCurrency(price.unitAmount)
+                    : "-"}
+                </p>
+                <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
+                  <CheckCircle2 className="size-3" />
+                  {price.interval ?? "one-time"}
+                </p>
+              </div>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
   );
 }

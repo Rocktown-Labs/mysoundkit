@@ -15,10 +15,12 @@ const appendValue = (
 
 export const stripeRequest = async <T>({
   connectedAccountId,
+  method = "POST",
   params,
   path,
 }: {
   connectedAccountId?: string;
+  method?: "GET" | "POST";
   params?: URLSearchParams;
   path: string;
 }): Promise<T | null> => {
@@ -37,10 +39,11 @@ export const stripeRequest = async <T>({
     headers.set("Stripe-Account", connectedAccountId);
   }
 
-  const response = await fetch(`https://api.stripe.com/v1${path}`, {
-    body: params,
+  const query = method === "GET" && params ? `?${params.toString()}` : "";
+  const response = await fetch(`https://api.stripe.com/v1${path}${query}`, {
+    body: method === "POST" ? params : undefined,
     headers,
-    method: "POST",
+    method,
   });
 
   if (!response.ok) {
@@ -48,6 +51,113 @@ export const stripeRequest = async <T>({
   }
 
   return (await response.json()) as T;
+};
+
+export interface StripeListResponse<T> {
+  data: T[];
+  has_more: boolean;
+}
+
+export interface StripeProductSummary {
+  active: boolean;
+  id: string;
+  metadata?: Record<string, string>;
+  name: string;
+}
+
+export interface StripePriceSummary {
+  active: boolean;
+  currency: string;
+  id: string;
+  lookup_key?: string | null;
+  metadata?: Record<string, string>;
+  nickname?: string | null;
+  product: string | StripeProductSummary;
+  recurring?: {
+    interval?: "day" | "month" | "week" | "year";
+  } | null;
+  unit_amount?: number | null;
+}
+
+export const listStripeProducts = () => {
+  const params = new URLSearchParams();
+  appendValue(params, "active", true);
+  appendValue(params, "limit", 100);
+
+  return stripeRequest<StripeListResponse<StripeProductSummary>>({
+    method: "GET",
+    params,
+    path: "/products",
+  });
+};
+
+export const listStripePrices = () => {
+  const params = new URLSearchParams();
+  appendValue(params, "active", true);
+  appendValue(params, "expand[]", "data.product");
+  appendValue(params, "limit", 100);
+
+  return stripeRequest<StripeListResponse<StripePriceSummary>>({
+    method: "GET",
+    params,
+    path: "/prices",
+  });
+};
+
+export const retrieveStripePrice = (priceId: string) => {
+  const params = new URLSearchParams();
+  appendValue(params, "expand[]", "product");
+
+  return stripeRequest<StripePriceSummary>({
+    method: "GET",
+    params,
+    path: `/prices/${encodeURIComponent(priceId)}`,
+  });
+};
+
+export const createStripeProduct = ({
+  code,
+  name,
+}: {
+  code: string;
+  name: string;
+}) => {
+  const params = new URLSearchParams();
+  appendValue(params, "name", name);
+  appendValue(params, "metadata[soundkit_plan_code]", code);
+
+  return stripeRequest<StripeProductSummary>({
+    params,
+    path: "/products",
+  });
+};
+
+export const createStripeRecurringPrice = ({
+  amountCents,
+  code,
+  currency = "usd",
+  interval,
+  productId,
+}: {
+  amountCents: number;
+  code: string;
+  currency?: string;
+  interval: "month" | "year";
+  productId: string;
+}) => {
+  const params = new URLSearchParams();
+  appendValue(params, "currency", currency);
+  appendValue(params, "lookup_key", `${code}_${interval}`);
+  appendValue(params, "metadata[soundkit_plan_code]", code);
+  appendValue(params, "metadata[soundkit_interval]", interval);
+  appendValue(params, "product", productId);
+  appendValue(params, "recurring[interval]", interval);
+  appendValue(params, "unit_amount", amountCents);
+
+  return stripeRequest<StripePriceSummary>({
+    params,
+    path: "/prices",
+  });
 };
 
 export const createDestinationCheckout = ({

@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type {
   adminAccessSchema,
+  adminPaymentsOverviewSchema,
   directVideoUploadResponseSchema,
   adminOverviewSchema,
   listeningPartySummarySchema,
@@ -42,6 +43,8 @@ import {
   updateTrackBodySchema,
   reviewLyricsRevisionBodySchema,
   openVerseQuerySchema,
+  adminImportStripePlanBodySchema,
+  adminSyncStripePlansBodySchema,
   publicSearchQuerySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
@@ -69,6 +72,19 @@ export const rpcContract = new Hono()
   )
   .get("/v1/admin/overview", (c) =>
     c.json({} as z.infer<typeof adminOverviewSchema>)
+  )
+  .get("/v1/admin/finance/payments", (c) =>
+    c.json({} as z.infer<typeof adminPaymentsOverviewSchema>)
+  )
+  .post(
+    "/v1/admin/finance/payments/sync-plans",
+    jsonValidator(adminSyncStripePlansBodySchema),
+    (c) => c.json({ message: "", results: [] })
+  )
+  .post(
+    "/v1/admin/finance/payments/import-plan",
+    jsonValidator(adminImportStripePlanBodySchema),
+    (c) => c.json({} as z.infer<typeof adminPaymentsOverviewSchema>)
   )
   .get("/v1/me/", (c) => c.json({} as z.infer<typeof meResponseSchema>))
   .get(

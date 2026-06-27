@@ -1,14 +1,112 @@
 <!-- intent-skills:start -->
 
-## Skill Loading
+# Agent Workflow and Skill Routing Guidelines
+
+This document defines the standard plan-to-ship workflow and skill discovery protocol for autonomous coding agents operating on this codebase.
+
+## 1. Skill Discovery & Routing Protocol
+
+### TanStack Intent Setup
 
 Before substantial work:
 
-- Skill check: run `npx @tanstack/intent@latest list`, or use skills already listed in context.
-- Skill guidance: if one local skill clearly matches the task, run `npx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
+- Skill check: run `pnpm dlx @tanstack/intent@latest list`, or use skills already listed in context.
+- Skill guidance: if one local skill clearly matches the task, run `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
 - Monorepos: when working across packages, run the skill check from the workspace root and prefer the local skill for the package being changed.
 - Multiple matches: prefer the most specific local skill for the package or concern you are changing; load additional skills only when the task spans multiple packages or concerns.
 <!-- intent-skills:end -->
+
+### Dynamic Skill Directory Mapping
+
+Do not assume a hardcoded list of project skills. Upon starting a task, perform a directory scan of `.agents/skills/` to map the project's active guidelines.
+
+1. Run a directory search or list the contents of `.agents/skills/` to discover available concern domains such as database routing, billing paywalls, UI components, auth, and API routing.
+2. Read the `SKILL.md` in any relevant folder before implementation.
+3. Route files to change based on the identified package and concern boundaries.
+
+## 2. GitHub-Driven Development Workflow
+
+Every code change must trace to a GitHub Issue and follow the **Plan -> Branch -> Implement -> Test -> PR -> Merge -> Ship** cycle.
+
+### Core Principles
+
+1. GitHub is the source of truth: Issues define work, Projects track progress, and Pull Requests ship code.
+2. No direct pushes: never push directly to `main` or `master`. All changes flow through PRs.
+3. Real-time status syncing: update Project board cards as development state changes when a board is configured.
+
+### Project Status Mapping
+
+| Development State       | Project Status |
+| :---------------------- | :------------- |
+| Issue created           | Backlog        |
+| Branch created / Coding | In Progress    |
+| Pull Request opened     | In Review      |
+| Pull Request merged     | Done           |
+
+## 3. Step-by-Step Lifecycle
+
+### Step A: Plan Mode
+
+Before modifying or creating code files, output a structured plan covering:
+
+- Issue context: link to the GitHub Issue and list acceptance criteria.
+- Proposed changes: list affected files and exact file paths.
+- Testing strategy: specify what tests must be run or created.
+- Branch name: confirm the branch name matching the repo convention.
+
+### Step B: Branch Strategy
+
+Create branches from the latest pulled default branch:
+
+```bash
+git checkout master
+git pull origin master
+git checkout -b <type>/<slug>-<issueNumber>
+```
+
+Allowed branch types are `feat/`, `fix/`, and `chore/`. Use lowercase kebab-case with a descriptive slug and issue number, such as `feat/admin-stripe-catalog-5`.
+
+If the default branch is `main` in a future repo, use `main` in place of `master`.
+
+### Step C: Quality Gates & PR Rules
+
+Before opening a Pull Request, verify code cleanliness with the package manager and scripts this repo actually defines. This repo currently uses Bun:
+
+```bash
+bun run check
+bun run check-types
+bun run test
+```
+
+If linter issues are found in files touched by the change, run:
+
+```bash
+bun run fix
+```
+
+If a repo-wide quality gate fails because of unrelated existing drift, report it explicitly in the PR and final status, and include focused checks for touched files.
+
+### Step D: Pull Request Creation
+
+PR titles should match the GitHub Issue title exactly. Create the PR with the GitHub CLI:
+
+```bash
+gh pr create \
+  --title "<issueTitle>" \
+  --body "## Summary\n\n## Implementation Notes\n\n## Testing Notes\n\nCloses #<issueNumber>" \
+  --base master \
+  --head <branchName>
+```
+
+### Step E: Merging & Release Changelog
+
+Only merge when CI and test gates pass. Merge using:
+
+```bash
+gh pr merge --merge --delete-branch
+```
+
+Once merged, update the root `CHANGELOG.md` file in a follow-up PR or include the changelog update in the shipping PR when the change is user-facing. Add entries under semantic version headings and categorize changes under `Added`, `Fixed`, or `Changed`.
 
 # Ultracite Code Standards
 
