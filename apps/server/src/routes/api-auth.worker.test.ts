@@ -269,11 +269,23 @@ describe("SoundKit API authentication boundaries", () => {
     expect(body.message).toContain("active community membership");
   });
 
-  it("keeps finance administration restricted", async () => {
-    const response = await SELF.fetch(`${API_ORIGIN}/v1/admin/finance/summary`);
+  it.each([
+    ["summary", "/v1/admin/finance/summary", undefined],
+    ["payments", "/v1/admin/finance/payments", undefined],
+    ["payment sync", "/v1/admin/finance/payments/sync-plans", jsonRequest({})],
+    [
+      "payment import",
+      "/v1/admin/finance/payments/import-plan",
+      jsonRequest({ code: "artist_premium", monthlyPriceId: "price_test" }),
+    ],
+  ])(
+    "keeps finance administration restricted for %s",
+    async (_label, path, init) => {
+      const response = await SELF.fetch(`${API_ORIGIN}${path}`, init);
 
-    expect(response.status).toBe(403);
-  });
+      expect(response.status).toBe(403);
+    }
+  );
 
   it("keeps platform administration restricted", async () => {
     const response = await SELF.fetch(`${API_ORIGIN}/v1/admin/overview`);

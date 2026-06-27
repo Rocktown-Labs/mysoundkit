@@ -10,7 +10,12 @@ import { apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
 const adminAccessGet = apiClient.v1.admin.access.$get;
+const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.index.$get;
+const adminImportStripePlanPost =
+  apiClient.v1.admin.finance.payments["import-plan"].$post;
 const adminOverviewGet = apiClient.v1.admin.overview.$get;
+const adminSyncStripePlansPost =
+  apiClient.v1.admin.finance.payments["sync-plans"].$post;
 const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
 const searchGet = apiClient.v1.search.$get;
@@ -57,10 +62,17 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 >["json"];
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
+type ImportStripePlanBody = InferRequestType<
+  typeof adminImportStripePlanPost
+>["json"];
+type SyncStripePlansBody = InferRequestType<
+  typeof adminSyncStripePlansPost
+>["json"];
 
 export const soundkitQueryKeys = {
   adminAccess: ["admin", "access"] as const,
   adminOverview: ["admin", "overview"] as const,
+  adminPayments: ["admin", "payments"] as const,
   billingPlans: ["billing", "plans"] as const,
   listeningParties: ["listening-parties"] as const,
   me: ["me"] as const,
@@ -88,6 +100,47 @@ export const useAdminOverviewQuery = (enabled = true) =>
     queryFn: async () => rpcJson(await adminOverviewGet()),
     queryKey: soundkitQueryKeys.adminOverview,
   });
+
+export const useAdminPaymentsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminFinancePaymentsGet()),
+    queryKey: soundkitQueryKeys.adminPayments,
+  });
+
+export const useImportStripePlanMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: ImportStripePlanBody) =>
+      rpcJson(await adminImportStripePlanPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adminPayments,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adminOverview,
+      });
+    },
+  });
+};
+
+export const useSyncStripePlansMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: SyncStripePlansBody = {}) =>
+      rpcJson(await adminSyncStripePlansPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adminPayments,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adminOverview,
+      });
+    },
+  });
+};
 
 export const useMeQuery = () =>
   useQuery({

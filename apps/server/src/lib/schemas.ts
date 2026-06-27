@@ -50,6 +50,81 @@ export const adminAccessSchema = z.object({
   isAdmin: z.boolean(),
 });
 
+export const adminPaymentPlanSchema = z.object({
+  annualPriceCents: z.number().int().nullable(),
+  audience: z.enum(["artist", "fan"]),
+  code: z.string(),
+  envAnnualKey: z.string().nullable(),
+  envAnnualPriceId: z.string().nullable(),
+  envMonthlyKey: z.string().nullable(),
+  envMonthlyPriceId: z.string().nullable(),
+  isActive: z.boolean(),
+  maxSeats: z.number().int().nullable(),
+  monthlyPriceCents: z.number().int(),
+  name: z.string(),
+  stripeAnnualPriceId: z.string().nullable(),
+  stripeMonthlyPriceId: z.string().nullable(),
+});
+
+export const adminStripePriceSchema = z.object({
+  active: z.boolean(),
+  currency: z.string(),
+  id: z.string(),
+  interval: z.string().nullable(),
+  lookupKey: z.string().nullable(),
+  planCode: z.string().nullable(),
+  productId: z.string(),
+  productName: z.string(),
+  unitAmount: z.number().int().nullable(),
+});
+
+export const adminRecentTransactionSchema = z.object({
+  amountCents: z.number().int(),
+  createdAt: z.string(),
+  currency: z.string(),
+  id: z.string(),
+  platformFeeCents: z.number().int(),
+  status: z.string(),
+  transactionType: z.string(),
+});
+
+export const adminPaymentsOverviewSchema = z.object({
+  configuredCheckoutPlans: z.number().int(),
+  planCount: z.number().int(),
+  plans: adminPaymentPlanSchema.array(),
+  recentTransactions: adminRecentTransactionSchema.array(),
+  stripeConfigured: z.boolean(),
+  stripePrices: adminStripePriceSchema.array(),
+  totals: z.object({
+    grossRevenueCents: z.number().int(),
+    platformFeeCents: z.number().int(),
+    successfulTransactions: z.number().int(),
+  }),
+});
+
+export const adminSyncStripePlansBodySchema = z.object({
+  planCodes: z.string().array().optional(),
+});
+
+export const adminSyncStripePlansResponseSchema = z.object({
+  message: z.string(),
+  results: z
+    .object({
+      annualPriceId: z.string().nullable(),
+      code: z.string(),
+      monthlyPriceId: z.string().nullable(),
+      productId: z.string().nullable(),
+      status: z.enum(["created", "skipped"]),
+    })
+    .array(),
+});
+
+export const adminImportStripePlanBodySchema = z.object({
+  annualPriceId: z.string().trim().optional(),
+  code: z.string().trim().min(1),
+  monthlyPriceId: z.string().trim().optional(),
+});
+
 export const userSummarySchema = z.object({
   accountType: z.enum(["artist", "fan"]),
   displayName: z.string(),
