@@ -1,5 +1,7 @@
 import alchemy from "alchemy";
 import {
+  AccountId,
+  AccountApiToken,
   DurableObjectNamespace,
   Hyperdrive,
   R2Bucket,
@@ -51,7 +53,6 @@ const SENTRY_SERVER_DSN =
   "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208";
 const resourceName = (name: string) =>
   isProduction ? name : `${name}-${app.stage}`;
-
 const requiredSecret = <T>(value: T | undefined, name: string) => {
   if (!value) {
     throw new Error(`${name} is required.`);
@@ -76,6 +77,26 @@ const optionalEnvBinding = (name: string) => {
   return value ? { [name]: value } : {};
 };
 
+const cloudflareAccountId = await AccountId();
+
+const getR2Jurisdiction = () => {
+  const jurisdiction = process.env.CLOUDFLARE_R2_JURISDICTION;
+
+  if (!jurisdiction || jurisdiction === "default") {
+    return;
+  }
+
+  if (!["eu", "fedramp"].includes(jurisdiction)) {
+    throw new Error(
+      "CLOUDFLARE_R2_JURISDICTION must be default, eu, or fedramp."
+    );
+  }
+
+  return jurisdiction as "eu" | "fedramp";
+};
+
+const r2Jurisdiction = getR2Jurisdiction();
+
 const media = await R2Bucket("media", {
   adopt: isProduction,
   cors: [
@@ -90,7 +111,25 @@ const media = await R2Bucket("media", {
   domains: app.local
     ? undefined
     : [{ adopt: isProduction, domain: MEDIA_HOST }],
+  jurisdiction: r2Jurisdiction,
   name: resourceName("soundkit-media"),
+});
+
+const mediaUploadToken = await AccountApiToken("media-upload-token", {
+  name: resourceName("soundkit-media-upload-token"),
+  policies: [
+    {
+      effect: "allow",
+      permissionGroups: [
+        "Workers R2 Storage Bucket Item Read",
+        "Workers R2 Storage Bucket Item Write",
+      ],
+      resources: {
+        [`com.cloudflare.edge.r2.bucket.${cloudflareAccountId}_${r2Jurisdiction ?? "default"}_${media.name}`]:
+          "*",
+      },
+    },
+  ],
 });
 
 const trackProcessingWorkflow = Workflow("track-processing", {
@@ -128,10 +167,10 @@ export const web = await TanStackStart("web", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
+    SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_ENABLE_MERCH: "false",
     VITE_MEDIA_URL: MEDIA_URL,
     ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
-    SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_SERVER_URL: API_URL,
   },
@@ -170,6 +209,9 @@ export const server = await Worker("server", {
       "BETTER_AUTH_SECRET"
     ),
     BETTER_AUTH_URL: API_URL,
+    CLOUDFLARE_ACCESS_KEY_ID: mediaUploadToken.accessKeyId,
+    CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId,
+    CLOUDFLARE_SECRET_ACCESS_KEY: mediaUploadToken.secretAccessKey,
     CORS_ORIGIN: SITE_URL,
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,
@@ -196,6 +238,7 @@ export const server = await Worker("server", {
       alchemy.secret.env.MUX_WEBHOOK_SECRET,
       "MUX_WEBHOOK_SECRET"
     ),
+    SENTRY_DSN: SENTRY_SERVER_DSN,
     STEMSPLIT_API_KEY: requiredSecret(
       alchemy.secret.env.STEMSPLIT_API_KEY,
       "STEMSPLIT_API_KEY"
@@ -204,14 +247,6 @@ export const server = await Worker("server", {
       alchemy.secret.env.STEMSPLIT_WEBHOOK_SECRET,
       "STEMSPLIT_WEBHOOK_SECRET"
     ),
-    ...optionalEnvBinding("STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("ADMIN_EMAILS"),
-    SENTRY_DSN: SENTRY_SERVER_DSN,
     STRIPE_SECRET_KEY: requiredSecret(
       alchemy.secret.env.STRIPE_SECRET_KEY,
       "STRIPE_SECRET_KEY"
@@ -222,6 +257,14 @@ export const server = await Worker("server", {
     ),
     TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
     UPLOAD_BUCKET_NAME: media.name,
+    ...optionalEnvBinding("ADMIN_EMAILS"),
+    ...(r2Jurisdiction ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction } : {}),
+    ...optionalEnvBinding("STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"),
+    ...optionalEnvBinding("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
   },
   compatibility: "node",
   cwd: "../../apps/server",

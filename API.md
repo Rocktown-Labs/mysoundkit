@@ -240,7 +240,7 @@ To fully activate the backend, you will still need:
 - `ADMIN_EMAILS`
 - Stripe keys
 - Mux keys
-- R2/S3-compatible upload env vars
+- R2/S3-compatible upload env vars: Alchemy deploys bind `UPLOAD_BUCKET_NAME`, generated `CLOUDFLARE_ACCESS_KEY_ID`, and generated `CLOUDFLARE_SECRET_ACCESS_KEY`; `CLOUDFLARE_ACCOUNT_ID` can be discovered from the Alchemy Cloudflare profile, and `CLOUDFLARE_R2_JURISDICTION` is optional
 
 ## Deployment Checklist
 
