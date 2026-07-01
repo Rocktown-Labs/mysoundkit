@@ -14,11 +14,11 @@ const mockApi = await createMockApiServer({
 });
 
 const vite = spawn(
-  "bun",
+  "pnpm",
   [
-    "run",
-    "--cwd",
+    "--dir",
     "apps/website",
+    "run",
     "dev",
     "--",
     "--host",
