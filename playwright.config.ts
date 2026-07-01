@@ -35,7 +35,7 @@ export default defineConfig({
           PLAYWRIGHT_BASE_URL: webBaseUrl,
         },
         reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
+        timeout: 240_000,
         url: webBaseUrl,
       },
 });

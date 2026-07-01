@@ -20,7 +20,6 @@ const vite = spawn(
     "apps/website",
     "run",
     "dev",
-    "--",
     "--host",
     webUrl.hostname,
     "--port",
