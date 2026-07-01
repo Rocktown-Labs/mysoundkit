@@ -85,7 +85,7 @@ const createObjectKey = ({
   prefix: string;
   userId: string;
 }) => {
-  const sanitizedName = fileName.replaceAll(/\s+/g, "-");
+  const sanitizedName = fileName.replaceAll(/\s+/gu, "-");
 
   return `${prefix}/${userId}/${Date.now()}-${sanitizedName}`;
 };

@@ -1,51 +1,27 @@
 {
   "name": "soundkit",
   "private": true,
-  "workspaces": {
-    "packages": [
-      "apps/*",
-      "packages/*"
-    ],
-    "catalog": {
-      "dotenv": "^17.2.2",
-      "zod": "^4.1.13",
-      "@types/node": "^22.13.14",
-      "@cloudflare/workers-types": "^4.20251213.0",
-      "better-auth": "1.5.5",
-      "ai": "^6.0.3",
-      "alchemy": "^0.90.0",
-      "wrangler": "^4.77.0",
-      "lucide-react": "^0.546.0",
-      "next-themes": "^0.4.6",
-      "sonner": "^2.0.5",
-      "tailwindcss": "^4.1.18",
-      "@tanstack/react-form": "^1.28.0",
-      "@ai-sdk/react": "^3.0.3",
-      "@types/react-dom": "^19.2.3",
-      "@better-auth/expo": "1.5.5"
-    }
-  },
   "type": "module",
   "scripts": {
     "dev": "turbo run dev --filter=web --filter=server",
     "dev:all": "turbo run dev",
-    "dev:infra": "turbo -F @soundkit/infra dev",
-    "build": "turbo build",
-    "check-types": "turbo check-types",
-    "dev:native": "turbo -F native dev",
-    "dev:web": "turbo -F web dev",
-    "dev:server": "turbo -F server dev",
-    "db:push": "turbo -F @soundkit/db db:push",
-    "db:studio": "turbo -F @soundkit/db db:studio",
-    "db:generate": "turbo -F @soundkit/db db:generate",
-    "db:migrate": "turbo -F @soundkit/db db:migrate",
-    "deploy": "turbo -F @soundkit/infra deploy",
-    "deploy:prod": "turbo -F @soundkit/infra deploy",
-    "destroy": "turbo -F @soundkit/infra destroy",
+    "dev:infra": "turbo run dev --filter=@soundkit/infra",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "dev:native": "turbo run dev --filter=native",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:server": "turbo run dev --filter=server",
+    "db:push": "turbo run db:push --filter=@soundkit/db",
+    "db:studio": "turbo run db:studio --filter=@soundkit/db",
+    "db:generate": "turbo run db:generate --filter=@soundkit/db",
+    "db:migrate": "turbo run db:migrate --filter=@soundkit/db",
+    "deploy": "turbo run deploy --filter=@soundkit/infra",
+    "deploy:prod": "turbo run deploy --filter=@soundkit/infra",
+    "destroy": "turbo run destroy --filter=@soundkit/infra",
     "check": "ultracite check",
     "fix": "ultracite fix",
-    "test": "bun run test:unit && bun run test:worker",
-    "test:all": "bun run test && bun run test:e2e",
+    "test": "pnpm run test:unit && pnpm run test:worker",
+    "test:all": "pnpm run test && pnpm run test:e2e",
     "test:e2e": "playwright test",
     "test:e2e:real": "SOUNDKIT_REAL_E2E=true playwright test tests/e2e/real-backend.spec.ts --project=chromium",
     "test:unit": "vitest run --config vitest.config.ts",
@@ -69,5 +45,5 @@
     "ultracite": "7.4.4",
     "vitest": "^4.1.5"
   },
-  "packageManager": "bun@1.3.10"
+  "packageManager": "pnpm@11.9.0"
 }
