@@ -101,6 +101,10 @@ interface UploadedTrackPreview {
   trackId: string;
 }
 
+const queueTrackProcessing = async (trackId: string) => {
+  await rpcJson(await trackProcessPost({ param: { trackId } }));
+};
+
 export function NewTrackForm() {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
@@ -128,6 +132,23 @@ export function NewTrackForm() {
     resolver: zodResolver(trackFormSchema),
   });
 
+  const startBackgroundProcessing = async (trackId: string) => {
+    try {
+      await queueTrackProcessing(trackId);
+      await queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    } catch (processingError) {
+      posthog.captureException(processingError);
+      toast({
+        description:
+          "The track was uploaded, but background processing could not start. You can retry from the track dashboard.",
+        title: "Processing not started",
+        variant: "destructive",
+      });
+    }
+  };
+
   const createDraftTrackFromUpload = async ({
     file,
     objectKey,
@@ -138,6 +159,9 @@ export function NewTrackForm() {
     remoteUrl: string;
   }) => {
     const values = trackFormSchema.parse(form.getValues());
+    const price = values.price ? Number(values.price) : undefined;
+    const priceCents =
+      typeof price === "number" ? Math.round(price * 100) : undefined;
     const track = await rpcJson(
       await tracksPost({
         json: {
@@ -149,10 +173,8 @@ export function NewTrackForm() {
           isForSale: values.isForSale,
           isPublic: values.releaseStrategy !== "private",
           musicalKey: values.key || undefined,
-          price: values.price ? Number(values.price) : undefined,
-          priceCents: values.price
-            ? Math.round(Number(values.price) * 100)
-            : undefined,
+          price,
+          priceCents,
           productionStatus: values.productionStatus,
           purchaseMode: "digital_download",
           releaseAt: values.releaseAt || undefined,
@@ -183,7 +205,6 @@ export function NewTrackForm() {
       (asset) => asset.assetKind === "master" && asset.objectKey === objectKey
     );
 
-    await rpcJson(await trackProcessPost({ param: { trackId: track.id } }));
     await queryClient.invalidateQueries({
       queryKey: soundkitQueryKeys.tracks,
     });
@@ -196,7 +217,7 @@ export function NewTrackForm() {
       objectKey,
       remoteUrl,
       statusMessage:
-        "Uploaded to SoundKit storage. You can play the master now while stems, lyrics, and search data process.",
+        "Uploaded to SoundKit storage. You can play the master now while platform assets process.",
       title: track.title,
       trackId: track.id,
     };
@@ -234,9 +255,11 @@ export function NewTrackForm() {
 
     toast({
       description:
-        "Your master is playable now. SoundKit is processing platform assets in the background.",
+        "Your master is playable now. SoundKit will try to transcribe lyrics after upload.",
       title: "Track uploaded",
     });
+
+    void startBackgroundProcessing(track.id);
   };
 
   const {
