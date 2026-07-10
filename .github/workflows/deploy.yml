@@ -227,7 +227,15 @@ jobs:
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra
-        run: pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }}
+        run: |
+          for attempt in 1 2 3; do
+            pnpm run deploy:stage --stage pr-${{ github.event.pull_request.number }} && exit 0
+            if [ "$attempt" = "3" ]; then
+              exit 1
+            fi
+            echo "Preview deploy failed while Alchemy state workers may still be propagating. Retrying in 30 seconds..."
+            sleep 30
+          done
         env:
           ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -288,7 +296,15 @@ jobs:
 
       - name: Destroy preview through Alchemy
         working-directory: packages/infra
-        run: pnpm run destroy:stage --stage pr-${{ github.event.pull_request.number }}
+        run: |
+          for attempt in 1 2 3; do
+            pnpm run destroy:stage --stage pr-${{ github.event.pull_request.number }} && exit 0
+            if [ "$attempt" = "3" ]; then
+              exit 1
+            fi
+            echo "Preview cleanup failed while Alchemy state workers may still be propagating. Retrying in 30 seconds..."
+            sleep 30
+          done
         env:
           ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
