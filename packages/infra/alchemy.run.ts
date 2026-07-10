@@ -21,6 +21,9 @@ const app = await alchemy("soundkit", {
     ? (scope) =>
         new CloudflareStateStore(scope, {
           forceUpdate: process.env.ALCHEMY_STATE_FORCE_UPDATE === "true",
+          scriptName: scope.stage.startsWith("pr-")
+            ? `alchemy-state-service-${scope.stage}`
+            : undefined,
         })
     : undefined,
 });
