@@ -231,7 +231,7 @@ jobs:
         env:
           ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ALCHEMY_STATE_FORCE_UPDATE: "true"
+          ALCHEMY_STATE_FORCE_UPDATE: ${{ vars.ALCHEMY_STATE_FORCE_UPDATE }}
           ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           ADMIN_EMAILS: ${{ vars.ADMIN_EMAILS }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
@@ -292,7 +292,7 @@ jobs:
         env:
           ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ALCHEMY_STATE_FORCE_UPDATE: "true"
+          ALCHEMY_STATE_FORCE_UPDATE: ${{ vars.ALCHEMY_STATE_FORCE_UPDATE }}
           ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
