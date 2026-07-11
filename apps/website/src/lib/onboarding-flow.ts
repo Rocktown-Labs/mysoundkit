@@ -78,7 +78,7 @@ export const parseArtistOnboardingDraft = (
     selectedPlanCode:
       typeof parsed.selectedPlanCode === "string"
         ? parsed.selectedPlanCode
-        : "artist_premium",
+        : "soundkit_premium_artist",
     stateValue: typeof parsed.stateValue === "string" ? parsed.stateValue : "",
     step: clampStep(parsed.step),
     username: typeof parsed.username === "string" ? parsed.username : "",

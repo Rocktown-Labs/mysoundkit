@@ -656,7 +656,11 @@ export const onboardingArtistBodySchema = z
     instagramHandle: z.string().optional(),
     primaryGenre: z.string().min(1),
     roles: artistRoleSchema.array().min(1).default(["musician"]),
-    selectedPlanCode: z.enum(["artist_free", "artist_premium", "artist_team"]),
+    selectedPlanCode: z.enum([
+      "artist_free",
+      "soundkit_premium_artist",
+      "artist_team",
+    ]),
     spotifyUrl: z.url().optional(),
     state: z.string().min(1),
     teamInviteEmails: z.array(z.email()).default([]),
@@ -685,7 +689,7 @@ export const onboardingResponseSchema = z.object({
 export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
-  selectedPlanCode: z.enum(["fan_free", "listener_premium", "fan_family"]),
+  selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan", "fan_family"]),
   state: z.string().min(1),
   username: usernameSchema,
 });

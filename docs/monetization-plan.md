@@ -17,7 +17,11 @@ Premium is one membership concept for live access, but account capability still 
 - Free users can stream audio with ads, browse discovery, buy music, upload only after becoming artist accounts, and watch VOD playback.
 - Free users cannot watch live streams, attend live listening parties in real time, vote in live battles, or join live chat.
 
-The current code has separate plan codes for `listener_premium`, `artist_premium`, `artist_team`, and `fan_family`. The target model should evolve toward shared Premium entitlement keys for live access while keeping artist upload and seller capabilities tied to artist account state.
+The current code has separate plan codes for `soundkit_premium_fan`, `soundkit_premium_artist`, `artist_team`, and `fan_family`. The target model should keep separate fan and artist Premium Stripe prices while sharing Premium live entitlement keys and keeping artist upload/seller capabilities tied to artist account state.
+
+If a Premium fan converts to an artist account, carry the active Premium subscription forward instead of forcing a second membership. The account should gain artist capabilities through onboarding, rights setup, and seller setup.
+
+At launch, artists who upload eligible tracks can earn from Premium-funded plays without requiring an additional Premium gate. Premium may still unlock creator tools such as live hosting, premium community features, enhanced analytics, and priority monetization controls.
 
 ## Revenue Sources
 
@@ -43,7 +47,7 @@ Use a user-centric pool. A configured amount from each successfully paid Premium
 
 Initial defaults:
 
-- Premium price: 1999 cents monthly.
+- Premium price: 2299 cents monthly.
 - Creator Rewards allocation: 500 cents per funded monthly Premium period.
 - Settlement cadence: monthly.
 - Estimates: daily.
@@ -91,12 +95,13 @@ Initial qualified stream rule:
 
 Listening parties and battles can create normal track-level qualified streams when the same rules pass. Joining a room, chatting, or voting should not directly create Creator Rewards during the first rollout.
 
-## Video Ads
+## First-Party Ads
 
-Ads should start on videos and VOD, not audio playback.
+Ads should be first-party and internally managed. A campaign can provide video creative for video surfaces and reuse the audio track as an audio ad during song playback.
 
 Supported inventory:
 
+- Audio ad during song playback.
 - Full video overlay.
 - Bottom overlay or bottom carousel similar to social video ads.
 - Sponsored video placements.
@@ -166,13 +171,13 @@ Stages:
 8. Ledger and settlement workflow.
 9. Creator statements and admin finance review.
 10. Stripe Connect reward payouts.
-11. Video ad campaigns, impressions, and ad revenue allocation.
+11. First-party ad campaigns, impressions, and ad revenue allocation.
 12. Live rewards and battle bonus pools if enabled.
 
 ## Open Questions
 
-- Should `listener_premium` and `artist_premium` remain separate Stripe prices while sharing the same live entitlement keys?
+- Should annual pricing exist for `soundkit_premium_fan` and `soundkit_premium_artist`, and if so what discount should it use?
 - Should existing fan uploads be impossible at the upload route, track/project creation routes, or both?
 - Should self-stream and collaborator stream detection use only direct track ownership at launch, or should it wait for rightsholder split records?
 - Should unused Premium allocations return to platform or fund a global/regional discovery pool?
-- Which ad provider will validate impressions, or should the first release track internal direct-sold campaigns only?
+- What review workflow should approve first-party ad creative before it can run as video or audio inventory?

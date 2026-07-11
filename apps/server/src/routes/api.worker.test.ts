@@ -220,7 +220,7 @@ describe("SoundKit Worker API", () => {
       "http://soundkit.test/v1/billing/checkout",
       jsonRequest("POST", {
         cancelUrl: "http://127.0.0.1:3001/pricing",
-        planCode: "artist_premium",
+        planCode: "soundkit_premium_artist",
         successUrl: "http://127.0.0.1:3001/dashboard",
       })
     );

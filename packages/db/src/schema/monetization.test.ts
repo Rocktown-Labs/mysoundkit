@@ -37,6 +37,7 @@ describe("monetization schema foundation", () => {
     expect(qualifiedStreams.ruleVersion.notNull).toBe(true);
     expect(rewardUnits.weightBasisPoints.notNull).toBe(true);
     expect(rewardUnitTypeEnum.enumValues).toContain("premium_track_stream");
+    expect(rewardUnitTypeEnum.enumValues).toContain("ad_supported_audio_play");
     expect(rewardUnitTypeEnum.enumValues).toContain("ad_supported_video_view");
   });
 

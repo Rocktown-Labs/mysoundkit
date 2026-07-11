@@ -6,10 +6,10 @@ describe("billing plan codes", () => {
   it("accepts only the new paid plan codes", () => {
     expect([...CONFIGURED_PAID_PLAN_CODES].toSorted()).toEqual(
       [
-        "artist_premium",
+        "soundkit_premium_artist",
         "artist_team",
         "fan_family",
-        "listener_premium",
+        "soundkit_premium_fan",
       ].toSorted()
     );
     expect(CONFIGURED_PAID_PLAN_CODES.has("artist_lite_ads")).toBe(false);

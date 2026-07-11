@@ -33,7 +33,9 @@ function FanOnboardingPage() {
   const [city, setCity] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPlanCode, setSelectedPlanCode] = useState("listener_premium");
+  const [selectedPlanCode, setSelectedPlanCode] = useState(
+    "soundkit_premium_fan"
+  );
   const [stateValue, setStateValue] = useState("");
   const [step, setStep] = useState(1);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -331,11 +333,11 @@ function FanOnboardingPage() {
                   </Card>
                   <Card
                     className={`border-2 cursor-pointer relative overflow-hidden ${
-                      selectedPlanCode === "listener_premium"
+                      selectedPlanCode === "soundkit_premium_fan"
                         ? "border-primary"
                         : ""
                     }`}
-                    onClick={() => setSelectedPlanCode("listener_premium")}
+                    onClick={() => setSelectedPlanCode("soundkit_premium_fan")}
                   >
                     <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-semibold">
                       RECOMMENDED
@@ -345,7 +347,7 @@ function FanOnboardingPage() {
                         <div>
                           <h4 className="font-bold text-lg">Premium</h4>
                           <p className="text-3xl font-bold mt-2">
-                            $14.99
+                            $22.99
                             <span className="text-sm font-normal text-muted-foreground">
                               /month
                             </span>
@@ -363,26 +365,27 @@ function FanOnboardingPage() {
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          VODs and premium chat
+                          VODs, live rooms, and premium chat
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          Regional discovery
+                          Supports Creator Rewards from your listening
                         </li>
                         <li className="flex items-center">
                           <Check className="mr-2 size-4 text-primary" />
-                          Everything in Fan Free
+                          Carries over if you convert to an artist account
                         </li>
                       </ul>
                       <Button
                         className="w-full mt-6"
                         size="lg"
                         onClick={() =>
-                          void completeOnboarding("listener_premium")
+                          void completeOnboarding("soundkit_premium_fan")
                         }
                         disabled={isSubmitting}
                       >
-                        {isSubmitting && selectedPlanCode === "listener_premium"
+                        {isSubmitting &&
+                        selectedPlanCode === "soundkit_premium_fan"
                           ? "Completing..."
                           : "Start Premium"}
                       </Button>

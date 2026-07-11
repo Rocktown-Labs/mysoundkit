@@ -91,7 +91,7 @@ describe("signup onboarding flow", () => {
       locationQuery: "",
       primaryGenre: "",
       roles: ["musician"],
-      selectedPlanCode: "artist_premium",
+      selectedPlanCode: "soundkit_premium_artist",
       stateValue: "",
       step: 8,
       username: "cam",

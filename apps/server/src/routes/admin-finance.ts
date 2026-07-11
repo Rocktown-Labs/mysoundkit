@@ -34,10 +34,6 @@ const planEnvKeys: Record<
   string,
   { annual: string | null; monthly: string | null }
 > = {
-  artist_premium: {
-    annual: "STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID",
-    monthly: "STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID",
-  },
   artist_team: {
     annual: null,
     monthly: "STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID",
@@ -46,9 +42,13 @@ const planEnvKeys: Record<
     annual: null,
     monthly: "STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID",
   },
-  listener_premium: {
-    annual: "STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID",
-    monthly: "STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID",
+  soundkit_premium_artist: {
+    annual: "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID",
+    monthly: "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID",
+  },
+  soundkit_premium_fan: {
+    annual: "STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID",
+    monthly: "STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID",
   },
 };
 
@@ -223,7 +223,7 @@ app.openapi(
     responses: {
       [HttpStatusCodes.OK]: jsonContent(summarySchema, "Finance summary"),
       [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        z.object({ message: z.string() }),
+        messageResponseSchema,
         "Admin required"
       ),
     },

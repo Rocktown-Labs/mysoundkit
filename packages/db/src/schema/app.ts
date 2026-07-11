@@ -364,6 +364,7 @@ export const qualifiedStreamStatusEnum = pgEnum("qualified_stream_status", [
 ]);
 export const rewardUnitTypeEnum = pgEnum("reward_unit_type", [
   "premium_track_stream",
+  "ad_supported_audio_play",
   "ad_supported_video_view",
   "ad_supported_track_stream",
   "live_party_attendance",
@@ -456,6 +457,7 @@ export const creatorEarningStatusEnum = pgEnum("creator_earning_status", [
   "reversed",
 ]);
 export const adInventoryTypeEnum = pgEnum("ad_inventory_type", [
+  "audio_ad",
   "video_overlay",
   "video_bottom_carousel",
   "video_preroll",
@@ -1969,7 +1971,7 @@ export const rewardConfigurationVersions = pgTable(
     playbackThresholdSeconds: integer("playback_threshold_seconds")
       .default(30)
       .notNull(),
-    premiumPriceCents: integer("premium_price_cents").default(1999).notNull(),
+    premiumPriceCents: integer("premium_price_cents").default(2299).notNull(),
     reserveDays: integer("reserve_days").default(30).notNull(),
     status: rewardConfigurationStatusEnum("status").default("draft").notNull(),
     unusedAllocationStrategy: text("unused_allocation_strategy")
