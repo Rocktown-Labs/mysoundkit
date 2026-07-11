@@ -294,6 +294,188 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "failed",
   "ignored",
 ]);
+export const rewardConfigurationStatusEnum = pgEnum(
+  "reward_configuration_status",
+  ["draft", "active", "retired"]
+);
+export const accountingPeriodStatusEnum = pgEnum("accounting_period_status", [
+  "open",
+  "calculating",
+  "review",
+  "finalized",
+  "payable",
+  "paid",
+  "reopened",
+  "voided",
+]);
+export const subscriptionRewardAllocationStatusEnum = pgEnum(
+  "subscription_reward_allocation_status",
+  [
+    "pending",
+    "funded",
+    "partially_refunded",
+    "refunded",
+    "disputed",
+    "reversed",
+    "allocated",
+    "closed",
+  ]
+);
+export const playbackEventSourceEnum = pgEnum("playback_event_source", [
+  "artist_profile",
+  "album",
+  "playlist",
+  "library",
+  "search",
+  "semantic_search",
+  "recommendation",
+  "state_discovery",
+  "national_discovery",
+  "global_discovery",
+  "map",
+  "community",
+  "listening_party",
+  "battle",
+  "vod",
+  "purchase_library",
+  "share",
+  "external_deep_link",
+]);
+export const playbackSessionStatusEnum = pgEnum("playback_session_status", [
+  "started",
+  "active",
+  "ended",
+  "expired",
+  "rejected",
+]);
+export const riskStatusEnum = pgEnum("risk_status", [
+  "clear",
+  "review",
+  "held",
+  "rejected",
+  "released",
+]);
+export const qualifiedStreamStatusEnum = pgEnum("qualified_stream_status", [
+  "qualified",
+  "duplicate",
+  "held",
+  "rejected",
+  "reversed",
+]);
+export const rewardUnitTypeEnum = pgEnum("reward_unit_type", [
+  "premium_track_stream",
+  "ad_supported_video_view",
+  "ad_supported_track_stream",
+  "live_party_attendance",
+  "battle_attendance",
+  "battle_round_completion",
+  "promotional_bonus",
+  "manual_adjustment",
+  "purchase_bonus",
+  "referral_bonus",
+]);
+export const rewardUnitStatusEnum = pgEnum("reward_unit_status", [
+  "pending",
+  "eligible",
+  "held",
+  "rejected",
+  "allocated",
+  "reversed",
+]);
+export const fanValueEventTypeEnum = pgEnum("fan_value_event_type", [
+  "qualified_stream",
+  "repeat_stream",
+  "track_save",
+  "playlist_add",
+  "artist_follow",
+  "battle_vote",
+  "live_attendance",
+  "listening_party_completion",
+  "track_purchase",
+  "album_purchase",
+  "tip",
+  "premium_renewal",
+  "share_visit",
+  "share_signup",
+  "state_discovery",
+  "new_artist_discovery",
+]);
+export const fanValueTierEnum = pgEnum("fan_value_tier", [
+  "new",
+  "casual",
+  "engaged",
+  "high_value",
+  "superfan",
+]);
+export const payeeTypeEnum = pgEnum("payee_type", [
+  "artist",
+  "label",
+  "organization",
+  "external",
+]);
+export const rightsholderSplitStatusEnum = pgEnum("rightsholder_split_status", [
+  "draft",
+  "active",
+  "disputed",
+  "retired",
+]);
+export const ledgerAccountTypeEnum = pgEnum("ledger_account_type", [
+  "asset",
+  "liability",
+  "revenue",
+  "expense",
+  "equity",
+]);
+export const ledgerEntrySideEnum = pgEnum("ledger_entry_side", [
+  "debit",
+  "credit",
+]);
+export const ledgerTransactionStatusEnum = pgEnum("ledger_transaction_status", [
+  "pending",
+  "posted",
+  "voided",
+  "reversed",
+]);
+export const creatorEarningTypeEnum = pgEnum("creator_earning_type", [
+  "premium_stream_reward",
+  "ad_supported_reward",
+  "live_reward",
+  "battle_bonus",
+  "purchase_revenue",
+  "tip",
+  "promotion_bonus",
+  "manual_adjustment",
+  "reversal",
+]);
+export const creatorEarningStatusEnum = pgEnum("creator_earning_status", [
+  "estimated",
+  "held",
+  "finalized",
+  "payable",
+  "paid",
+  "reversed",
+]);
+export const adInventoryTypeEnum = pgEnum("ad_inventory_type", [
+  "video_overlay",
+  "video_bottom_carousel",
+  "video_preroll",
+  "video_postroll",
+  "sponsored_video",
+]);
+export const adImpressionStatusEnum = pgEnum("ad_impression_status", [
+  "requested",
+  "served",
+  "viewable",
+  "completed",
+  "invalid",
+  "credited",
+]);
+export const payoutHoldStatusEnum = pgEnum("payout_hold_status", [
+  "active",
+  "released",
+  "rejected",
+  "expired",
+]);
 
 export const genres = pgTable(
   "genres",
@@ -1750,5 +1932,690 @@ export const searchEmbeddings = pgTable(
       table.model
     ),
     index("search_embeddings_organization_id_idx").on(table.organizationId),
+  ]
+);
+
+export const rewardConfigurationVersions = pgTable(
+  "reward_configuration_versions",
+  {
+    accountingCadence: text("accounting_cadence").default("monthly").notNull(),
+    adCreatorShareBasisPoints: integer("ad_creator_share_basis_points")
+      .default(5000)
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    creatorAllocationCents: integer("creator_allocation_cents")
+      .default(500)
+      .notNull(),
+    currency: text("currency").default("USD").notNull(),
+    deduplicationWindowHours: integer("deduplication_window_hours")
+      .default(24)
+      .notNull(),
+    effectiveFrom: timestamp("effective_from").notNull(),
+    effectiveTo: timestamp("effective_to"),
+    fanValueWeights: jsonb("fan_value_weights")
+      .$type<Record<string, number>>()
+      .notNull(),
+    id: text("id").primaryKey(),
+    liveRewardsEnabled: boolean("live_rewards_enabled")
+      .default(false)
+      .notNull(),
+    minimumPayoutCents: integer("minimum_payout_cents").default(2500).notNull(),
+    playbackThresholdPercent: integer("playback_threshold_percent")
+      .default(50)
+      .notNull(),
+    playbackThresholdSeconds: integer("playback_threshold_seconds")
+      .default(30)
+      .notNull(),
+    premiumPriceCents: integer("premium_price_cents").default(1999).notNull(),
+    reserveDays: integer("reserve_days").default(30).notNull(),
+    status: rewardConfigurationStatusEnum("status").default("draft").notNull(),
+    unusedAllocationStrategy: text("unused_allocation_strategy")
+      .default("return_to_platform")
+      .notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    uniqueIndex("reward_configuration_versions_version_idx").on(table.version),
+    index("reward_configuration_versions_status_idx").on(table.status),
+  ]
+);
+
+export const accountingPeriods = pgTable(
+  "accounting_periods",
+  {
+    calculatedAt: timestamp("calculated_at"),
+    closedAt: timestamp("closed_at"),
+    configurationVersionId: text("configuration_version_id").references(
+      () => rewardConfigurationVersions.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    finalizedAt: timestamp("finalized_at"),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    payableAt: timestamp("payable_at"),
+    periodType: text("period_type").default("monthly").notNull(),
+    startsAt: timestamp("starts_at").notNull(),
+    status: accountingPeriodStatusEnum("status").default("open").notNull(),
+  },
+  (table) => [
+    uniqueIndex("accounting_periods_window_idx").on(
+      table.periodType,
+      table.currency,
+      table.startsAt,
+      table.endsAt
+    ),
+    index("accounting_periods_status_idx").on(table.status),
+  ]
+);
+
+export const subscriptionRewardAllocations = pgTable(
+  "subscription_reward_allocations",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    allocatedAt: timestamp("allocated_at"),
+    allocationStatus: subscriptionRewardAllocationStatusEnum(
+      "allocation_status"
+    )
+      .default("pending")
+      .notNull(),
+    configurationVersionId: text("configuration_version_id").references(
+      () => rewardConfigurationVersions.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    creatorAllocationCents: integer("creator_allocation_cents").notNull(),
+    currency: text("currency").default("USD").notNull(),
+    fundedAt: timestamp("funded_at"),
+    grossSubscriptionAmountCents: integer(
+      "gross_subscription_amount_cents"
+    ).notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    reversedAt: timestamp("reversed_at"),
+    stripeInvoiceId: text("stripe_invoice_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    subscriptionId: text("subscription_id").references(() => subscription.id, {
+      onDelete: "set null",
+    }),
+    subscriptionPeriodEnd: timestamp("subscription_period_end"),
+    subscriptionPeriodStart: timestamp("subscription_period_start").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("subscription_reward_allocations_invoice_idx").on(
+      table.stripeInvoiceId
+    ),
+    index("subscription_reward_allocations_user_period_idx").on(
+      table.userId,
+      table.subscriptionPeriodStart
+    ),
+    index("subscription_reward_allocations_accounting_period_idx").on(
+      table.accountingPeriodId
+    ),
+  ]
+);
+
+export const playbackSessions = pgTable(
+  "playback_sessions",
+  {
+    assetId: text("asset_id").references(() => trackAssets.id, {
+      onDelete: "set null",
+    }),
+    city: text("city"),
+    clientType: text("client_type"),
+    clientVersion: text("client_version"),
+    countryCode: text("country_code"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    endedAt: timestamp("ended_at"),
+    entitlementSnapshot: jsonb("entitlement_snapshot"),
+    id: text("id").primaryKey(),
+    lastHeartbeatAt: timestamp("last_heartbeat_at"),
+    mutedSeconds: integer("muted_seconds").default(0).notNull(),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
+    playedSeconds: integer("played_seconds").default(0).notNull(),
+    premiumAtStart: boolean("premium_at_start").default(false).notNull(),
+    regionCode: text("region_code"),
+    riskStatus: riskStatusEnum("risk_status").default("clear").notNull(),
+    sessionTokenHash: text("session_token_hash"),
+    sourceId: text("source_id"),
+    sourceType: playbackEventSourceEnum("source_type").notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    status: playbackSessionStatusEnum("status").default("started").notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    index("playback_sessions_user_track_idx").on(table.userId, table.trackId),
+    index("playback_sessions_source_idx").on(table.sourceType, table.sourceId),
+    index("playback_sessions_started_at_idx").on(table.startedAt),
+  ]
+);
+
+export const qualifiedStreams = pgTable(
+  "qualified_streams",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    configurationVersionId: text("configuration_version_id").references(
+      () => rewardConfigurationVersions.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    playbackSessionId: text("playback_session_id").references(
+      () => playbackSessions.id,
+      { onDelete: "set null" }
+    ),
+    qualificationWindowKey: text("qualification_window_key").notNull(),
+    qualifiedAt: timestamp("qualified_at").notNull(),
+    riskStatus: riskStatusEnum("risk_status").default("clear").notNull(),
+    ruleVersion: integer("rule_version").notNull(),
+    sourceId: text("source_id"),
+    sourceType: playbackEventSourceEnum("source_type").notNull(),
+    status: qualifiedStreamStatusEnum("status").default("qualified").notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    uniqueIndex("qualified_streams_listener_track_window_idx").on(
+      table.userId,
+      table.trackId,
+      table.qualificationWindowKey,
+      table.ruleVersion
+    ),
+    index("qualified_streams_period_status_idx").on(
+      table.accountingPeriodId,
+      table.status
+    ),
+    index("qualified_streams_track_idx").on(table.trackId),
+  ]
+);
+
+export const rewardUnits = pgTable(
+  "reward_units",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    artistUserId: text("artist_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    configurationVersionId: text("configuration_version_id").references(
+      () => rewardConfigurationVersions.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    qualifiedStreamId: text("qualified_stream_id").references(
+      () => qualifiedStreams.id,
+      { onDelete: "set null" }
+    ),
+    quantity: integer("quantity").default(1).notNull(),
+    riskStatus: riskStatusEnum("risk_status").default("clear").notNull(),
+    sourceId: text("source_id"),
+    sourceType: playbackEventSourceEnum("source_type"),
+    status: rewardUnitStatusEnum("status").default("pending").notNull(),
+    trackId: text("track_id").references(() => tracks.id, {
+      onDelete: "set null",
+    }),
+    unitType: rewardUnitTypeEnum("unit_type").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    weightBasisPoints: integer("weight_basis_points").default(10_000).notNull(),
+  },
+  (table) => [
+    index("reward_units_user_period_idx").on(
+      table.userId,
+      table.accountingPeriodId
+    ),
+    index("reward_units_artist_period_idx").on(
+      table.artistUserId,
+      table.accountingPeriodId
+    ),
+    index("reward_units_status_idx").on(table.status, table.riskStatus),
+  ]
+);
+
+export const fanValueEvents = pgTable(
+  "fan_value_events",
+  {
+    artistUserId: text("artist_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    eventType: fanValueEventTypeEnum("event_type").notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    points: integer("points").notNull(),
+    scoreVersion: integer("score_version").notNull(),
+    sourceId: text("source_id"),
+    sourceType: text("source_type"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("fan_value_events_user_artist_idx").on(
+      table.userId,
+      table.artistUserId,
+      table.occurredAt
+    ),
+    index("fan_value_events_artist_idx").on(table.artistUserId),
+  ]
+);
+
+export const fanArtistRelationships = pgTable(
+  "fan_artist_relationships",
+  {
+    artistUserId: text("artist_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    battleVotes: integer("battle_votes").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    engagementTier: fanValueTierEnum("engagement_tier")
+      .default("new")
+      .notNull(),
+    firstEngagedAt: timestamp("first_engaged_at"),
+    follows: integer("follows").default(0).notNull(),
+    id: text("id").primaryKey(),
+    lastEngagedAt: timestamp("last_engaged_at"),
+    lifetimeScore: integer("lifetime_score").default(0).notNull(),
+    liveAttendanceSeconds: integer("live_attendance_seconds")
+      .default(0)
+      .notNull(),
+    netPurchaseValueCents: integer("net_purchase_value_cents")
+      .default(0)
+      .notNull(),
+    purchaseCount: integer("purchase_count").default(0).notNull(),
+    qualifiedStreamCount: integer("qualified_stream_count")
+      .default(0)
+      .notNull(),
+    rawPlayCount: integer("raw_play_count").default(0).notNull(),
+    rolling30DayScore: integer("rolling_30_day_score").default(0).notNull(),
+    rolling90DayScore: integer("rolling_90_day_score").default(0).notNull(),
+    saves: integer("saves").default(0).notNull(),
+    scoreVersion: integer("score_version").notNull(),
+    shares: integer("shares").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("fan_artist_relationships_user_artist_idx").on(
+      table.userId,
+      table.artistUserId
+    ),
+    index("fan_artist_relationships_artist_tier_idx").on(
+      table.artistUserId,
+      table.engagementTier
+    ),
+  ]
+);
+
+export const recordingRightsholders = pgTable(
+  "recording_rightsholders",
+  {
+    approvedAt: timestamp("approved_at"),
+    approvedByUserId: text("approved_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    effectiveFrom: timestamp("effective_from").notNull(),
+    effectiveTo: timestamp("effective_to"),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    payeeId: text("payee_id").notNull(),
+    payeeType: payeeTypeEnum("payee_type").notNull(),
+    shareBasisPoints: integer("share_basis_points").notNull(),
+    splitVersion: integer("split_version").notNull(),
+    status: rightsholderSplitStatusEnum("status").default("draft").notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("recording_rightsholders_track_status_idx").on(
+      table.trackId,
+      table.status
+    ),
+    uniqueIndex("recording_rightsholders_track_payee_version_idx").on(
+      table.trackId,
+      table.payeeType,
+      table.payeeId,
+      table.splitVersion
+    ),
+  ]
+);
+
+export const videoAdCampaigns = pgTable(
+  "video_ad_campaigns",
+  {
+    advertiserUserId: text("advertiser_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    budgetCents: integer("budget_cents"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    endsAt: timestamp("ends_at"),
+    id: text("id").primaryKey(),
+    inventoryType: adInventoryTypeEnum("inventory_type").notNull(),
+    metadata: jsonb("metadata"),
+    startsAt: timestamp("starts_at").notNull(),
+    status: text("status").default("draft").notNull(),
+    targetRegions: jsonb("target_regions").$type<string[]>(),
+    title: text("title").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("video_ad_campaigns_status_idx").on(table.status),
+    index("video_ad_campaigns_window_idx").on(table.startsAt, table.endsAt),
+  ]
+);
+
+export const videoAdImpressions = pgTable(
+  "video_ad_impressions",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    campaignId: text("campaign_id").references(() => videoAdCampaigns.id, {
+      onDelete: "set null",
+    }),
+    city: text("city"),
+    countryCode: text("country_code"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    impressionValueCents: integer("impression_value_cents")
+      .default(0)
+      .notNull(),
+    metadata: jsonb("metadata"),
+    occurredAt: timestamp("occurred_at").notNull(),
+    regionCode: text("region_code"),
+    status: adImpressionStatusEnum("status").default("requested").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    videoId: text("video_id").references(() => videos.id, {
+      onDelete: "cascade",
+    }),
+  },
+  (table) => [
+    index("video_ad_impressions_video_period_idx").on(
+      table.videoId,
+      table.accountingPeriodId
+    ),
+    index("video_ad_impressions_campaign_idx").on(table.campaignId),
+  ]
+);
+
+export const adRevenuePeriods = pgTable(
+  "ad_revenue_periods",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    adServingCostCents: integer("ad_serving_cost_cents").default(0).notNull(),
+    collectedRevenueCents: integer("collected_revenue_cents").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    creatorPoolCents: integer("creator_pool_cents").notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    invalidTrafficAdjustmentCents: integer("invalid_traffic_adjustment_cents")
+      .default(0)
+      .notNull(),
+    netRevenueCents: integer("net_revenue_cents").notNull(),
+    provider: text("provider").notNull(),
+    refundsCents: integer("refunds_cents").default(0).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ad_revenue_periods_provider_period_idx").on(
+      table.provider,
+      table.accountingPeriodId
+    ),
+  ]
+);
+
+export const ledgerAccounts = pgTable(
+  "ledger_accounts",
+  {
+    accountType: ledgerAccountTypeEnum("account_type").notNull(),
+    code: text("code").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    name: text("name").notNull(),
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    uniqueIndex("ledger_accounts_code_currency_owner_idx").on(
+      table.code,
+      table.currency,
+      table.ownerUserId
+    ),
+  ]
+);
+
+export const ledgerTransactions = pgTable(
+  "ledger_transactions",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    description: text("description"),
+    id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    metadata: jsonb("metadata"),
+    postedAt: timestamp("posted_at"),
+    reversedTransactionId: text("reversed_transaction_id"),
+    sourceId: text("source_id"),
+    sourceType: text("source_type").notNull(),
+    status: ledgerTransactionStatusEnum("status").default("pending").notNull(),
+  },
+  (table) => [
+    uniqueIndex("ledger_transactions_idempotency_key_idx").on(
+      table.idempotencyKey
+    ),
+    index("ledger_transactions_period_idx").on(table.accountingPeriodId),
+  ]
+);
+
+export const ledgerEntries = pgTable(
+  "ledger_entries",
+  {
+    accountId: text("account_id")
+      .notNull()
+      .references(() => ledgerAccounts.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    side: ledgerEntrySideEnum("side").notNull(),
+    transactionId: text("transaction_id")
+      .notNull()
+      .references(() => ledgerTransactions.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    index("ledger_entries_transaction_idx").on(table.transactionId),
+    index("ledger_entries_account_idx").on(table.accountId),
+  ]
+);
+
+export const creatorEarnings = pgTable(
+  "creator_earnings",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    artistUserId: text("artist_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    earningType: creatorEarningTypeEnum("earning_type").notNull(),
+    grossAmountCents: integer("gross_amount_cents").notNull(),
+    heldAmountCents: integer("held_amount_cents").default(0).notNull(),
+    id: text("id").primaryKey(),
+    ledgerTransactionId: text("ledger_transaction_id").references(
+      () => ledgerTransactions.id,
+      { onDelete: "set null" }
+    ),
+    metadata: jsonb("metadata"),
+    payableAmountCents: integer("payable_amount_cents").default(0).notNull(),
+    payeeId: text("payee_id"),
+    payeeType: payeeTypeEnum("payee_type"),
+    quantity: integer("quantity").default(1).notNull(),
+    rewardUnitId: text("reward_unit_id").references(() => rewardUnits.id, {
+      onDelete: "set null",
+    }),
+    ruleVersion: integer("rule_version"),
+    splitVersion: integer("split_version"),
+    status: creatorEarningStatusEnum("status").default("estimated").notNull(),
+    trackId: text("track_id").references(() => tracks.id, {
+      onDelete: "set null",
+    }),
+    unitRateCents: integer("unit_rate_cents"),
+  },
+  (table) => [
+    index("creator_earnings_artist_period_idx").on(
+      table.artistUserId,
+      table.accountingPeriodId
+    ),
+    index("creator_earnings_status_idx").on(table.status),
+  ]
+);
+
+export const creatorStatements = pgTable(
+  "creator_statements",
+  {
+    accountingPeriodId: text("accounting_period_id").references(
+      () => accountingPeriods.id,
+      { onDelete: "set null" }
+    ),
+    artistUserId: text("artist_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    currency: text("currency").default("USD").notNull(),
+    finalizedAt: timestamp("finalized_at"),
+    grossAmountCents: integer("gross_amount_cents").default(0).notNull(),
+    heldAmountCents: integer("held_amount_cents").default(0).notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    paidAmountCents: integer("paid_amount_cents").default(0).notNull(),
+    payableAmountCents: integer("payable_amount_cents").default(0).notNull(),
+    status: text("status").default("draft").notNull(),
+  },
+  (table) => [
+    uniqueIndex("creator_statements_artist_period_idx").on(
+      table.artistUserId,
+      table.accountingPeriodId
+    ),
+  ]
+);
+
+export const creatorStatementItems = pgTable(
+  "creator_statement_items",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    earningId: text("earning_id").references(() => creatorEarnings.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey(),
+    statementId: text("statement_id")
+      .notNull()
+      .references(() => creatorStatements.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("creator_statement_items_statement_earning_idx").on(
+      table.statementId,
+      table.earningId
+    ),
+  ]
+);
+
+export const payoutHolds = pgTable(
+  "payout_holds",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at"),
+    holdReason: text("hold_reason").notNull(),
+    id: text("id").primaryKey(),
+    metadata: jsonb("metadata"),
+    releasedAt: timestamp("released_at"),
+    releasedByUserId: text("released_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    status: payoutHoldStatusEnum("status").default("active").notNull(),
+    targetId: text("target_id").notNull(),
+    targetType: text("target_type").notNull(),
+  },
+  (table) => [
+    index("payout_holds_target_idx").on(table.targetType, table.targetId),
+    index("payout_holds_status_idx").on(table.status),
+  ]
+);
+
+export const settlementRuns = pgTable(
+  "settlement_runs",
+  {
+    accountingPeriodId: text("accounting_period_id")
+      .notNull()
+      .references(() => accountingPeriods.id, { onDelete: "cascade" }),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    error: jsonb("error"),
+    id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    metadata: jsonb("metadata"),
+    runType: text("run_type").default("monthly_settlement").notNull(),
+    startedAt: timestamp("started_at"),
+    status: workflowJobStatusEnum("status").default("queued").notNull(),
+  },
+  (table) => [
+    uniqueIndex("settlement_runs_idempotency_key_idx").on(table.idempotencyKey),
+    index("settlement_runs_period_idx").on(table.accountingPeriodId),
   ]
 );
