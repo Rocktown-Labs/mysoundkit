@@ -87,7 +87,7 @@ Initial qualified stream rule:
 - Track owner or eligible payee is known.
 - Listener is not the owner.
 - Listener is not a collaborator with a financial interest.
-- Playback reaches 30 seconds or 50% of duration, whichever comes first.
+- Playback reaches 70% of duration. The fixed seconds threshold is disabled by default.
 - Playback is not muted for the full qualification window.
 - Playback is tied to a server-created session.
 - Same listener and track do not qualify more than once in a rolling 24-hour window.

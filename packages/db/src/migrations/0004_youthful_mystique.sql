@@ -1,0 +1,1 @@
+ALTER TABLE "reward_configuration_versions" ALTER COLUMN "playback_threshold_percent" SET DEFAULT 70;

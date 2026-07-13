@@ -1966,10 +1966,10 @@ export const rewardConfigurationVersions = pgTable(
       .notNull(),
     minimumPayoutCents: integer("minimum_payout_cents").default(2500).notNull(),
     playbackThresholdPercent: integer("playback_threshold_percent")
-      .default(50)
+      .default(70)
       .notNull(),
     playbackThresholdSeconds: integer("playback_threshold_seconds")
-      .default(30)
+      .default(0)
       .notNull(),
     premiumPriceCents: integer("premium_price_cents").default(2299).notNull(),
     reserveDays: integer("reserve_days").default(30).notNull(),

@@ -79,6 +79,12 @@ describe("monetization schema foundation", () => {
     expect(rewardConfigurationVersions.creatorAllocationCents.notNull).toBe(
       true
     );
+    expect(rewardConfigurationVersions.playbackThresholdPercent.default).toBe(
+      70
+    );
+    expect(rewardConfigurationVersions.playbackThresholdSeconds.default).toBe(
+      0
+    );
     expect(rewardConfigurationVersions.minimumPayoutCents.notNull).toBe(true);
     expect(rewardConfigurationVersions.reserveDays.notNull).toBe(true);
     expect(rewardConfigurationVersions.fanValueWeights.notNull).toBe(true);

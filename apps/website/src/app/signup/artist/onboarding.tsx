@@ -147,26 +147,40 @@ const parseManualLocation = (value: string) => {
     stateCode,
   };
 };
+const getAddressStateCode = (address: RadarAutocompleteAddress) => {
+  const rawStateCode = address.stateCode?.toUpperCase();
+
+  if (rawStateCode && US_STATE_CODES.has(rawStateCode)) {
+    return rawStateCode;
+  }
+
+  const normalizedState = address.state?.toLowerCase();
+
+  return normalizedState ? US_STATES_BY_NAME[normalizedState] : undefined;
+};
+const getAddressCity = (address: RadarAutocompleteAddress) =>
+  address.city ?? address.placeLabel ?? address.addressLabel;
 const locationLabel = (address: RadarAutocompleteAddress) => {
-  const city = address.city ?? address.placeLabel;
-  const state = address.stateCode ?? address.state;
+  const city = getAddressCity(address);
+  const state = getAddressStateCode(address) ?? address.state;
 
   return [city, state].filter(Boolean).join(", ");
 };
 const toLocationSuggestion = (
   address: RadarAutocompleteAddress
 ): LocationSuggestion | null => {
-  const city = address.city ?? address.placeLabel;
-  const { stateCode } = address;
+  const city = getAddressCity(address);
+  const stateCode = getAddressStateCode(address);
   const state = address.state ?? stateCode;
+  const countryCode = address.countryCode?.toUpperCase();
 
-  if (!(city && state && stateCode && address.countryCode === "US")) {
+  if (!(city && state && stateCode && countryCode === "US")) {
     return null;
   }
 
   return {
     city,
-    countryCode: address.countryCode,
+    countryCode,
     id: `${city}-${stateCode}-${address.latitude}-${address.longitude}`,
     label: locationLabel(address),
     latitude: address.latitude,
@@ -315,7 +329,16 @@ function ArtistOnboardingPage() {
         );
       } catch {
         if (requestId === locationRequestIdRef.current) {
+          const manualLocation = parseManualLocation(query);
           setLocationSuggestions([]);
+
+          if (manualLocation) {
+            setCity(manualLocation.city);
+            setStateValue(manualLocation.stateCode);
+            setLocationStatus("manual_ready");
+            return;
+          }
+
           setLocationStatus("error");
         }
         return;
@@ -331,8 +354,23 @@ function ArtistOnboardingPage() {
           (suggestion): suggestion is LocationSuggestion => suggestion !== null
         );
 
-      setLocationSuggestions(suggestions);
-      setLocationStatus(suggestions.length > 0 ? "ready" : "empty");
+      if (suggestions.length > 0) {
+        setLocationSuggestions(suggestions);
+        setLocationStatus("ready");
+        return;
+      }
+
+      const manualLocation = parseManualLocation(query);
+      setLocationSuggestions([]);
+
+      if (manualLocation) {
+        setCity(manualLocation.city);
+        setStateValue(manualLocation.stateCode);
+        setLocationStatus("manual_ready");
+        return;
+      }
+
+      setLocationStatus("empty");
     },
     { wait: 350 }
   );
@@ -811,7 +849,7 @@ function ArtistOnboardingPage() {
                       {locationStatus === "selected" &&
                         `Verified ${city}, ${stateValue}.`}
                       {locationStatus === "manual_ready" &&
-                        `Using ${city}, ${stateValue}. Add a Radar publishable key for verified autocomplete.`}
+                        `Using ${city}, ${stateValue}.`}
                       {locationStatus === "empty" &&
                         "Choose a valid US city from the results."}
                       {locationStatus === "config_error" &&
