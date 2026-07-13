@@ -10,13 +10,14 @@ import { apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
 const adminAccessGet = apiClient.v1.admin.access.$get;
-const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.index.$get;
+const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get;
 const adminImportStripePlanPost =
   apiClient.v1.admin.finance.payments["import-plan"].$post;
 const adminOverviewGet = apiClient.v1.admin.overview.$get;
 const adminSyncStripePlansPost =
   apiClient.v1.admin.finance.payments["sync-plans"].$post;
 const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
+const artistGet = apiClient.v1.artists[":username"].$get;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
 const searchGet = apiClient.v1.search.$get;
 const tracksGet = apiClient.v1.tracks.index.$get;
@@ -30,6 +31,7 @@ const projectsPost = apiClient.v1.projects.index.$post;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
 const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
+const friendsGet = apiClient.v1.messages.friends.$get;
 const openVersesGet = apiClient.v1["open-verses"].index.$get;
 const openVersesPost = apiClient.v1["open-verses"].index.$post;
 const openVerseGet = apiClient.v1["open-verses"][":listingId"].$get;
@@ -62,6 +64,7 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 >["json"];
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
+export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
 type ImportStripePlanBody = InferRequestType<
   typeof adminImportStripePlanPost
 >["json"];
@@ -73,7 +76,9 @@ export const soundkitQueryKeys = {
   adminAccess: ["admin", "access"] as const,
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
+  artist: (username: string) => ["artists", username] as const,
   billingPlans: ["billing", "plans"] as const,
+  friends: ["messages", "friends"] as const,
   listeningParties: ["listening-parties"] as const,
   me: ["me"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
@@ -148,6 +153,19 @@ export const useMeQuery = () =>
     queryKey: soundkitQueryKeys.me,
   });
 
+export const useFriendsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await friendsGet()),
+    queryKey: soundkitQueryKeys.friends,
+  });
+
+export const useArtistQuery = (username: string) =>
+  useQuery({
+    enabled: Boolean(username),
+    queryFn: async () => rpcJson(await artistGet({ param: { username } })),
+    queryKey: soundkitQueryKeys.artist(username),
+  });
+
 export const useArtistOnboardingMutation = () =>
   useMutation({
     mutationFn: async (body: ArtistOnboardingBody) =>
@@ -162,7 +180,10 @@ export const useFanOnboardingMutation = () =>
 
 export const useSearchQuery = (query: SearchQuery) =>
   useQuery({
-    enabled: Boolean(query.q?.trim() || query.state?.trim()),
+    enabled: Boolean(
+      (typeof query.q === "string" ? query.q.trim() : "") ||
+      (typeof query.state === "string" ? query.state.trim() : "")
+    ),
     queryFn: async () => rpcJson(await searchGet({ query })),
     queryKey: soundkitQueryKeys.search(query),
   });
@@ -278,9 +299,12 @@ export const useCreateListeningPartyMutation = () => {
   });
 };
 
-export const useOpenVersesInfiniteQuery = (query: OpenVerseQuery = {}) =>
+export const useOpenVersesInfiniteQuery = (
+  query: OpenVerseQuery = { limit: "10" }
+) =>
   useInfiniteQuery({
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage: { nextCursor?: string | null }) =>
+      lastPage.nextCursor ?? undefined,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) =>
       rpcJson(

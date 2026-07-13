@@ -1,5 +1,6 @@
 "use client";
 
+import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHog } from "@posthog/react";
 import { useRouter } from "@tanstack/react-router";
@@ -32,6 +33,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -51,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
   useCreateProjectMutation,
   useTracksQuery,
@@ -69,10 +72,6 @@ type CollaboratorRole = (typeof collaboratorRoles)[number];
 const isCollaboratorRole = (value: string): value is CollaboratorRole =>
   collaboratorRoles.includes(value as CollaboratorRole);
 
-const handleOptionalUpload = (files: FileList | File[]) => {
-  void files;
-};
-
 const collaboratorSchema = z.object({
   name: z.string().min(1, "Name is required"),
   role: z
@@ -90,12 +89,18 @@ const projectFormSchema = z.object({
         file: z.any().optional(),
         genre: z.string().min(1, "Genre is required"),
         name: z.string().min(1, "Track name is required"),
+        producers: z.string().optional(),
+        writers: z.string().optional(),
       })
     )
     .default([]),
+  projectCoverObjectKey: z.string().min(1, "Project artwork is required"),
   releaseDate: z.string().optional(),
+  rightsAccepted: z
+    .boolean()
+    .refine((value) => value, "Confirm you have the rights to this project"),
   selectedExistingTracks: z.array(z.string()).default([]),
-  type: z.enum(["album", "ep", "single"]).default("album"),
+  type: z.enum(["album", "ep", "mixtape"]).default("album"),
 });
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
@@ -107,6 +112,11 @@ export function NewProjectForm() {
   const [newCollabName, setNewCollabName] = useState("");
   const [newCollabRole, setNewCollabRole] =
     useState<CollaboratorRole>("featured");
+  const [projectCover, setProjectCover] = useState<{
+    fileName: string;
+    objectKey: string;
+    remoteUrl: string;
+  } | null>(null);
   const {
     data: existingTracks = [],
     error: tracksError,
@@ -120,7 +130,9 @@ export function NewProjectForm() {
       description: "",
       name: "",
       newTracks: [],
+      projectCoverObjectKey: "",
       releaseDate: "",
+      rightsAccepted: false,
       selectedExistingTracks: [],
       type: "album",
     },
@@ -133,13 +145,11 @@ export function NewProjectForm() {
   });
 
   const onSubmit = async (values: ProjectFormValues) => {
-    if (
-      values.selectedExistingTracks.length === 0 &&
-      values.newTracks.length === 0
-    ) {
+    if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
       toast({
-        description: "Please select existing tracks or upload new ones.",
-        title: "No tracks added",
+        description:
+          "Projects need at least two songs. Add more tracks before submitting.",
+        title: "More tracks required",
         variant: "destructive",
       });
       return;
@@ -199,8 +209,66 @@ export function NewProjectForm() {
         file,
         genre: "Hip-Hop",
         name: file.name.replace(/\.[^/.]+$/, ""),
+        producers: "",
+        writers: "",
       });
     }
+  };
+
+  const {
+    averageProgress: coverProgress,
+    isPending: isCoverUploading,
+    upload: uploadCover,
+  } = useUploadFiles({
+    api: MEDIA_UPLOAD_URL,
+    credentials: "include",
+    onError: (uploadError) => {
+      posthog.captureException(uploadError);
+      toast({
+        description: uploadError.message,
+        title: "Artwork upload failed",
+        variant: "destructive",
+      });
+    },
+    onUploadComplete: ({ files }) => {
+      const [uploadedFile] = files;
+
+      if (!uploadedFile) {
+        return;
+      }
+
+      const objectKey = uploadedFile.objectInfo.key;
+
+      setProjectCover({
+        fileName: uploadedFile.raw.name,
+        objectKey,
+        remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+      });
+      form.setValue("projectCoverObjectKey", objectKey, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    },
+    route: "media",
+  });
+
+  const handleProjectCoverUpload = async (files: FileList) => {
+    const [file] = [...files];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        description: "Select a JPG or PNG project cover.",
+        title: "Invalid artwork",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await uploadCover([file]);
   };
 
   const addCollaborator = () => {
@@ -296,8 +364,35 @@ export function NewProjectForm() {
                     title="Upload Project Cover"
                     description="Used for the entire collection"
                     acceptedTypes=".png,.jpg,.jpeg"
-                    onFileUpload={handleOptionalUpload}
-                    optional
+                    files={
+                      projectCover
+                        ? [
+                            {
+                              name: projectCover.fileName,
+                              status: isCoverUploading
+                                ? "Uploading"
+                                : "Uploaded",
+                            },
+                          ]
+                        : []
+                    }
+                    onFileUpload={handleProjectCoverUpload}
+                    progress={isCoverUploading ? coverProgress : undefined}
+                    status={
+                      isCoverUploading
+                        ? `${Math.round(coverProgress)}% uploaded`
+                        : undefined
+                    }
+                    variant="compact"
+                  />
+                  <FormField
+                    control={form.control}
+                    name="projectCoverObjectKey"
+                    render={() => (
+                      <FormItem>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
 
@@ -342,12 +437,8 @@ export function NewProjectForm() {
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="album">Full Album</SelectItem>
-                              <SelectItem value="ep">
-                                EP (Extended Play)
-                              </SelectItem>
-                              <SelectItem value="single">
-                                Single Release
-                              </SelectItem>
+                              <SelectItem value="ep">EP</SelectItem>
+                              <SelectItem value="mixtape">Mixtape</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -423,7 +514,15 @@ export function NewProjectForm() {
                     title="Add New Audio Files"
                     description="Drag multiple files here. Each will become a track."
                     acceptedTypes=".wav,.mp3,.aiff"
+                    files={fields.map((field) => ({
+                      name:
+                        field.file instanceof File
+                          ? field.file.name
+                          : field.name,
+                      status: "Selected",
+                    }))}
                     onFileUpload={handleNewUpload}
+                    variant="compact"
                   />
 
                   {fields.length > 0 && (
@@ -478,6 +577,42 @@ export function NewProjectForm() {
                                   <FormControl>
                                     <Input
                                       {...genreField}
+                                      className="h-8 text-sm bg-background/50"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.producers`}
+                              render={({ field: producersField }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[10px]">
+                                    Producers
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...producersField}
+                                      placeholder="Search friends or type names"
+                                      className="h-8 text-sm bg-background/50"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`newTracks.${index}.writers`}
+                              render={({ field: writersField }) => (
+                                <FormItem>
+                                  <FormLabel className="text-[10px]">
+                                    Writers
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      {...writersField}
+                                      placeholder="Search friends or type names"
                                       className="h-8 text-sm bg-background/50"
                                     />
                                   </FormControl>
@@ -650,8 +785,9 @@ export function NewProjectForm() {
                       title="Promotional Media"
                       description="Behind-the-scenes content"
                       acceptedTypes=".png,.jpg,.jpeg"
-                      onFileUpload={handleOptionalUpload}
+                      onFileUpload={() => {}}
                       optional
+                      variant="compact"
                     />
                   </div>
                   <div className="space-y-4">
@@ -662,11 +798,36 @@ export function NewProjectForm() {
                       title="Vertical Videos"
                       description="Trailers, snippets, teasers"
                       acceptedTypes=".mp4,.mov"
-                      onFileUpload={handleOptionalUpload}
+                      onFileUpload={() => {}}
                       optional
+                      variant="compact"
                     />
                   </div>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="rightsAccepted"
+                  render={({ field }) => (
+                    <FormItem className="rounded-xl border border-border/40 bg-muted/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel className="text-sm">
+                            I own or control the rights to upload, distribute,
+                            and sell every song in this project on SoundKit.
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-between pt-4">
                   <Button

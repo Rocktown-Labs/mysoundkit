@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Mail, MoreVertical } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Mail, MessageSquare, Search, UserRoundPlus, X } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,155 +12,172 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-
-const mockCollaborators = [
-  {
-    avatar: "/diverse-user-avatars.png",
-    email: "alex@soundkit.app",
-    id: "1",
-    joinedAt: "3 months ago",
-    name: "Alex Johnson",
-    projectCount: 8,
-    role: "Producer",
-    status: "active",
-    trackCount: 15,
-  },
-  {
-    avatar: "/diverse-user-avatars.png",
-    email: "sam@soundkit.app",
-    id: "2",
-    joinedAt: "2 months ago",
-    name: "Sam Rivera",
-    projectCount: 5,
-    role: "Artist",
-    status: "active",
-    trackCount: 12,
-  },
-];
+import { Skeleton } from "@/components/ui/skeleton";
+import { useFriendsQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/collaborators")({
-  component: CollaboratorsPage,
+  component: FriendsPage,
 });
 
-function CollaboratorsPage() {
+function FriendsPage() {
+  const [search, setSearch] = useState("");
+  const friendsQuery = useFriendsQuery();
+  const friends = friendsQuery.data ?? [];
+  const filteredFriends = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+
+    if (!needle) {
+      return friends;
+    }
+
+    return friends.filter((friend) =>
+      [friend.name, friend.email, friend.username, friend.role]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(needle))
+    );
+  }, [friends, search]);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
-            Collaborators
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold tracking-tight">
+            Friends
           </h1>
-          <p className="text-muted-foreground">
-            Manage your team and invite new members
+          <p className="mt-1 text-muted-foreground">
+            People you follow, collaborate with, or have added from messaging.
           </p>
         </div>
+        <Button>
+          <UserRoundPlus className="mr-2 size-4" />
+          Add Friend
+        </Button>
       </div>
 
-      {/* Invite Section */}
-      <Card className="bg-card/50 backdrop-blur-sm border-border/40">
+      <Card className="border-border/40 bg-card/40">
         <CardHeader>
           <CardTitle className="font-[family-name:var(--font-playfair)]">
-            Invite Collaborator
+            Find People
           </CardTitle>
           <CardDescription>
-            Send an invitation to collaborate on your music projects
+            Search friends, collaborators, invited credits, and followed
+            artists.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Enter email address"
-              className="bg-input/50 border-border/60"
+              className="bg-background/50 pl-9"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name, handle, email, or role"
+              value={search}
             />
-            <Button className="bg-primary hover:bg-primary/90">
-              <Mail className="h-4 w-4 mr-2" />
-              Send Invite
-            </Button>
+            {search && (
+              <Button
+                className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+                onClick={() => setSearch("")}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Collaborators List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {mockCollaborators.map((collaborator) => (
-          <Card
-            key={collaborator.id}
-            className="bg-card/50 backdrop-blur-sm border-border/40"
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage
-                      src={collaborator.avatar || "/placeholder.svg"}
-                    />
-                    <AvatarFallback>
-                      {collaborator.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold">{collaborator.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {collaborator.email}
-                    </p>
+      {friendsQuery.isLoading && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton className="h-36 rounded-xl" key={index} />
+          ))}
+        </div>
+      )}
+
+      {friendsQuery.error && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-6 text-sm text-destructive">
+            Friends are unavailable right now. Refresh and try again.
+          </CardContent>
+        </Card>
+      )}
+
+      {!friendsQuery.isLoading && !friendsQuery.error && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {filteredFriends.map((friend) => (
+            <Card
+              className="border-border/40 bg-card/40"
+              key={`${friend.relationship}-${friend.id}`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="size-12 border border-border/40">
+                      <AvatarImage src={friend.avatarUrl ?? undefined} />
+                      <AvatarFallback>
+                        {friend.name
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{friend.name}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {friend.username ? `@${friend.username}` : friend.email}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="capitalize">
+                    {friend.relationship}
+                  </Badge>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/30 pt-4">
+                  <div className="min-w-0 text-sm text-muted-foreground">
+                    {friend.role ?? "Creator"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {friend.username && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link
+                          params={{ username: friend.username }}
+                          to="/artist/$username"
+                        >
+                          Profile
+                        </Link>
+                      </Button>
+                    )}
+                    <Button size="sm">
+                      <MessageSquare className="mr-2 size-4" />
+                      Message
+                    </Button>
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>View Profile</DropdownMenuItem>
-                    <DropdownMenuItem>Send Message</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      Remove
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              </CardContent>
+            </Card>
+          ))}
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Role</span>
-                  <Badge variant="secondary">{collaborator.role}</Badge>
+          {filteredFriends.length === 0 && (
+            <Card className="border-dashed border-border/50 bg-card/30 md:col-span-2">
+              <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+                <Mail className="size-8 text-muted-foreground" />
+                <div>
+                  <p className="font-semibold">No people found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Add collaborators to tracks or follow artists to build this
+                    list.
+                  </p>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Projects</span>
-                  <span>{collaborator.projectCount}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Tracks</span>
-                  <span>{collaborator.trackCount}</span>
-                </div>
-              </div>
-
-              <div className="pt-3 mt-3 border-t border-border/40">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <Badge
-                    variant="outline"
-                    className="bg-primary/10 text-primary border-primary/20"
-                  >
-                    {collaborator.status}
-                  </Badge>
-                  <span>Joined {collaborator.joinedAt}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
