@@ -28,9 +28,14 @@ const getUserSummary = async (user: AuthenticatedUser) => {
   if (!isDatabaseConfigured()) {
     return {
       accountType: "artist" as const,
+      avatarUrl: null,
+      bio: null,
+      city: null,
       displayName: user.name ?? user.email ?? "SoundKit User",
+      headerUrl: null,
       id: user.id,
       onboardingCompletedAt: null,
+      state: null,
       username: user.email?.split("@")[0] ?? "soundkit-user",
     };
   }
@@ -39,8 +44,13 @@ const getUserSummary = async (user: AuthenticatedUser) => {
   const [profile] = await db
     .select({
       accountType: userProfiles.accountType,
+      avatarUrl: userProfiles.avatarUrl,
+      bio: userProfiles.bio,
+      city: userProfiles.city,
       displayName: userProfiles.displayName,
+      headerUrl: userProfiles.headerUrl,
       onboardingCompletedAt: userProfiles.onboardingCompletedAt,
+      state: userProfiles.state,
       username: userProfiles.username,
     })
     .from(userProfiles)
@@ -50,18 +60,28 @@ const getUserSummary = async (user: AuthenticatedUser) => {
   if (!profile) {
     return {
       accountType: "artist" as const,
+      avatarUrl: null,
+      bio: null,
+      city: null,
       displayName: user.name ?? user.email ?? "SoundKit User",
+      headerUrl: null,
       id: user.id,
       onboardingCompletedAt: null,
+      state: null,
       username: user.email?.split("@")[0] ?? "soundkit-user",
     };
   }
 
   return {
     accountType: profile.accountType,
+    avatarUrl: profile.avatarUrl,
+    bio: profile.bio,
+    city: profile.city,
     displayName: profile.displayName ?? user.name ?? profile.username,
+    headerUrl: profile.headerUrl,
     id: user.id,
     onboardingCompletedAt: profile.onboardingCompletedAt?.toISOString() ?? null,
+    state: profile.state,
     username: profile.username,
   };
 };

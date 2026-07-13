@@ -127,9 +127,14 @@ export const adminImportStripePlanBodySchema = z.object({
 
 export const userSummarySchema = z.object({
   accountType: z.enum(["artist", "fan"]),
+  avatarUrl: z.string().nullable().optional(),
+  bio: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
   displayName: z.string(),
+  headerUrl: z.string().nullable().optional(),
   id: z.string(),
   onboardingCompletedAt: z.string().nullable().optional(),
+  state: z.string().nullable().optional(),
   username: z.string(),
 });
 

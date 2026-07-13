@@ -9,6 +9,8 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 import { apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
+const meProfilePatch = apiClient.v1.me.profile.$patch;
+const meEntitlementsGet = apiClient.v1.me.entitlements.$get;
 const adminAccessGet = apiClient.v1.admin.access.$get;
 const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get;
 const adminImportStripePlanPost =
@@ -31,6 +33,9 @@ const projectsPost = apiClient.v1.projects.index.$post;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
 const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
+const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
+const battlesGet = apiClient.v1.battles.index.$get;
+const battleChallengePost = apiClient.v1.battles.challenge.$post;
 const friendsGet = apiClient.v1.messages.friends.$get;
 const conversationsGet = apiClient.v1.messages.conversations.$get;
 const conversationsPost = apiClient.v1.messages.conversations.$post;
@@ -72,6 +77,17 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
+export type MeSummary = InferResponseType<typeof meGet, 200>;
+type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
+type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
+export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
+type CreateBattleChallengeBody = InferRequestType<
+  typeof battleChallengePost
+>["json"];
+export type ListeningPartySummary = InferResponseType<
+  typeof listeningPartiesGet,
+  200
+>[number];
 export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
 export type ConversationSummary = InferResponseType<
   typeof conversationsGet,
@@ -99,6 +115,7 @@ export const soundkitQueryKeys = {
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   artist: (username: string) => ["artists", username] as const,
+  battles: ["battles"] as const,
   billingPlans: ["billing", "plans"] as const,
   conversationMessages: (conversationId: string) =>
     ["messages", "conversations", conversationId, "messages"] as const,
@@ -106,6 +123,7 @@ export const soundkitQueryKeys = {
   friends: ["messages", "friends"] as const,
   listeningParties: ["listening-parties"] as const,
   me: ["me"] as const,
+  meEntitlements: ["me", "entitlements"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
   project: (id: string) => ["projects", id] as const,
@@ -176,6 +194,24 @@ export const useMeQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await meGet()),
     queryKey: soundkitQueryKeys.me,
+  });
+
+export const useUpdateMeProfileMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: UpdateMeProfileBody) =>
+      rpcJson(await meProfilePatch({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+  });
+};
+
+export const useMeEntitlementsQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<EntitlementSummary> =>
+      rpcJson(await meEntitlementsGet()),
+    queryKey: soundkitQueryKeys.meEntitlements,
   });
 
 export const useFriendsQuery = () =>
@@ -399,6 +435,29 @@ export const useCreateListeningPartyMutation = () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.listeningParties,
       }),
+  });
+};
+
+export const useListeningPartiesQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await listeningPartiesGet()),
+    queryKey: soundkitQueryKeys.listeningParties,
+  });
+
+export const useBattlesQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await battlesGet()),
+    queryKey: soundkitQueryKeys.battles,
+  });
+
+export const useCreateBattleChallengeMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateBattleChallengeBody) =>
+      rpcJson(await battleChallengePost({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
   });
 };
 

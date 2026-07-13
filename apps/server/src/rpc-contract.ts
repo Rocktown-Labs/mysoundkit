@@ -9,6 +9,8 @@ import type {
   conversationSummarySchema,
   directVideoUploadResponseSchema,
   adminOverviewSchema,
+  battleSummarySchema,
+  entitlementSummarySchema,
   friendSummarySchema,
   listeningPartySummarySchema,
   lyricsRevisionSchema,
@@ -32,6 +34,7 @@ import type {
 import {
   createProjectBodySchema,
   createListeningPartyBodySchema,
+  createChallengeBodySchema,
   createConversationBodySchema,
   createLyricsRevisionBodySchema,
   createMessageBodySchema,
@@ -52,6 +55,7 @@ import {
   adminImportStripePlanBodySchema,
   adminSyncStripePlansBodySchema,
   publicSearchQuerySchema,
+  profileUpdateBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
 
@@ -93,6 +97,12 @@ export const rpcContract = new Hono()
     (c) => c.json({} as z.infer<typeof adminPaymentsOverviewSchema>)
   )
   .get("/v1/me/", (c) => c.json({} as z.infer<typeof meResponseSchema>))
+  .patch("/v1/me/profile", jsonValidator(profileUpdateBodySchema), (c) =>
+    c.json({ message: "" })
+  )
+  .get("/v1/me/entitlements", (c) =>
+    c.json({} as z.infer<typeof entitlementSummarySchema>)
+  )
   .get(
     "/v1/onboarding/username-availability",
     validator("query", (value) => usernameAvailabilityQuerySchema.parse(value)),
@@ -194,6 +204,14 @@ export const rpcContract = new Hono()
     "/v1/listening-parties/",
     jsonValidator(createListeningPartyBodySchema),
     (c) => c.json({} as z.infer<typeof listeningPartySummarySchema>, 201)
+  )
+  .get("/v1/battles/", (c) =>
+    c.json([] as z.infer<typeof battleSummarySchema>[])
+  )
+  .post(
+    "/v1/battles/challenge",
+    jsonValidator(createChallengeBodySchema),
+    (c) => c.json({ message: "" }, 201)
   )
   .get(
     "/v1/open-verses/",

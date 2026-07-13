@@ -1,254 +1,333 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Music,
-  Play,
-  Download,
-  ExternalLink,
-  MapPin,
   Calendar,
+  ExternalLink,
+  FolderOpen,
+  MapPin,
+  Music2,
+  Play,
+  Video,
 } from "lucide-react";
 
-import { AppImage } from "@/components/ui/app-image";
+import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  useMeQuery,
+  useProjectsQuery,
+  useTracksQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/profile")({
   component: ProfilePage,
 });
 
 function ProfilePage() {
+  const meQuery = useMeQuery();
+  const tracksQuery = useTracksQuery();
+  const projectsQuery = useProjectsQuery();
+  const videosQuery = useVideosQuery();
+  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const user = meQuery.data?.user;
+  const tracks = tracksQuery.data ?? [];
+  const projects = projectsQuery.data ?? [];
+  const videos = videosQuery.data ?? [];
+  const playableTracks = tracks
+    .filter((track) => Boolean(track.playbackUrl))
+    .map((track) => ({
+      artist: track.artistName,
+      artistHref: track.artistUsername
+        ? `/artist/${track.artistUsername}`
+        : "/dashboard/career/profile",
+      cover: track.coverArtUrl ?? "/placeholder.svg",
+      id: track.id,
+      src: track.playbackUrl ?? "",
+      title: track.title,
+      trackHref: `/dashboard/tracks/${track.id}`,
+    }));
+
+  const playTrack = (track: TrackSummary) => {
+    const playableTrack = playableTracks.find((entry) => entry.id === track.id);
+
+    if (!playableTrack) {
+      return;
+    }
+
+    setQueue(playableTracks);
+    setCurrentTrack(playableTrack);
+  };
+
+  const displayName = user?.displayName ?? "Artist";
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const location = [user?.city, user?.state].filter(Boolean).join(", ");
+
   return (
     <div className="space-y-6">
-      {/* Profile Header - Instagram-like */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-6">
-            {/* Avatar */}
-            <div className="flex justify-center md:justify-start">
-              <Avatar className="size-32">
-                <AvatarImage src="/diverse-user-avatars.png" />
-                <AvatarFallback>JD</AvatarFallback>
+      <Card className="overflow-hidden border-border/40 bg-card/50">
+        <div
+          className="h-36 bg-muted bg-cover bg-center"
+          style={{
+            backgroundImage: user?.headerUrl
+              ? `url(${user.headerUrl})`
+              : undefined,
+          }}
+        />
+        <CardContent className="-mt-12 space-y-5 p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <Avatar className="size-28 border-4 border-background">
+                <AvatarImage src={user?.avatarUrl ?? undefined} />
+                <AvatarFallback>{initials || "SK"}</AvatarFallback>
               </Avatar>
-            </div>
-
-            {/* Profile Info */}
-            <div className="flex-1 space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
-                    John Doe
+              <div className="space-y-2 pb-1">
+                <div>
+                  <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
+                    {displayName}
                   </h1>
-                  <p className="text-muted-foreground">@johndoe</p>
+                  <p className="text-muted-foreground">
+                    @{user?.username ?? "set-your-username"}
+                  </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" asChild>
-                    <Link to="/dashboard/career/settings">Edit Profile</Link>
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <a
-                      href="https://mysoundkit.com/johndoe"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="size-4 mr-2" />
-                      View Public
-                    </a>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="flex gap-6">
-                <div className="text-center">
-                  <p className="font-bold text-xl">24</p>
-                  <p className="text-sm text-muted-foreground">Tracks</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-xl">1.2K</p>
-                  <p className="text-sm text-muted-foreground">Followers</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-bold text-xl">342</p>
-                  <p className="text-sm text-muted-foreground">Following</p>
+                <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                  {location && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="size-4" />
+                      {location}
+                    </span>
+                  )}
+                  {user?.onboardingCompletedAt && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-4" />
+                      Joined{" "}
+                      {new Date(user.onboardingCompletedAt).toLocaleDateString(
+                        undefined,
+                        { month: "long", year: "numeric" }
+                      )}
+                    </span>
+                  )}
                 </div>
               </div>
-
-              {/* Bio */}
-              <div className="space-y-2">
-                <p className="text-sm">
-                  Hip-hop producer and artist based in LA. Creating vibes since
-                  2020. 🎵
-                </p>
-                <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="size-4" />
-                    Los Angeles, CA
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="size-4" />
-                    Joined January 2024
-                  </span>
-                </div>
-              </div>
-
-              {/* Music Platform Links */}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="https://spotify.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link to="/dashboard/career/settings">Edit Profile</Link>
+              </Button>
+              {user?.username && (
+                <Button asChild variant="outline">
+                  <Link
+                    params={{ username: user.username }}
+                    to="/artist/$username"
                   >
-                    Spotify
-                  </a>
+                    <ExternalLink className="mr-2 size-4" />
+                    View Public
+                  </Link>
                 </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="https://music.apple.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Apple Music
-                  </a>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a
-                    href="https://youtube.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    YouTube
-                  </a>
-                </Button>
-              </div>
+              )}
             </div>
           </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ProfileStat label="Tracks" value={tracks.length} />
+            <ProfileStat label="Projects" value={projects.length} />
+            <ProfileStat label="Videos" value={videos.length} />
+          </div>
+
+          {user?.bio ? (
+            <p className="max-w-3xl text-sm leading-6">{user.bio}</p>
+          ) : (
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Add a bio in settings to tell listeners who you are and what you
+              make.
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Content Tabs */}
-      <Tabs defaultValue="tracks" className="w-full">
-        <TabsList className="w-full justify-start">
+      <Tabs defaultValue="tracks">
+        <TabsList>
           <TabsTrigger value="tracks">Tracks</TabsTrigger>
           <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="photos">Photos</TabsTrigger>
           <TabsTrigger value="videos">Videos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tracks" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="group hover:shadow-lg transition-shadow">
-                <CardContent className="p-4">
-                  <div className="aspect-square bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg mb-3 flex items-center justify-center relative overflow-hidden">
-                    <Music className="size-12 text-white/50" />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Play className="size-6 text-white" />
-                      </Button>
+          {tracks.length === 0 ? (
+            <EmptyState
+              actionHref="/dashboard/tracks/new"
+              actionLabel="Create Track"
+              icon={Music2}
+              title="No tracks yet"
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {tracks.map((track) => (
+                <Card key={track.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex gap-4">
+                      <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                        {track.coverArtUrl ? (
+                          <img
+                            src={track.coverArtUrl}
+                            alt={`${track.title} cover`}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <Music2 className="size-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          className="font-semibold hover:text-primary"
+                          to="/dashboard/tracks"
+                        >
+                          {track.title}
+                        </Link>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {track.genre} - {track.plays.toLocaleString()} plays
+                        </p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Badge variant="outline">
+                            {track.isPublic ? "Public" : "Private"}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => playTrack(track)}
+                            disabled={!track.playbackUrl}
+                          >
+                            <Play className="mr-2 size-4" />
+                            Play
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <h3 className="font-semibold mb-1">Track Title {i}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Released Jan 2025
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline">Public</Badge>
-                    <Button size="sm" variant="ghost">
-                      <Download className="size-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="projects" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2].map((i) => (
-              <Card key={i} className="group hover:shadow-lg transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex gap-4">
-                    <div className="size-24 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Music className="size-8 text-white/50" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold mb-1">Album Title {i}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        12 tracks • Released 2025
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">Album</Badge>
-                        <Badge variant="outline">Public</Badge>
+          {projects.length === 0 ? (
+            <EmptyState
+              actionHref="/dashboard/projects/new"
+              actionLabel="Create Project"
+              icon={FolderOpen}
+              title="No projects yet"
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {projects.map((project) => (
+                <Link
+                  key={project.id}
+                  params={{ id: project.id }}
+                  to="/dashboard/projects/$id"
+                >
+                  <Card className="transition-colors hover:border-primary/50">
+                    <CardContent className="flex gap-4 p-4">
+                      <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                        {project.coverArtUrl ? (
+                          <img
+                            src={project.coverArtUrl}
+                            alt={`${project.title} cover`}
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <FolderOpen className="size-8 text-muted-foreground" />
+                        )}
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="photos" className="mt-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div
-                key={i}
-                className="aspect-square bg-muted rounded-lg overflow-hidden"
-              >
-                <AppImage
-                  src={`/music-photo-.jpg?height=300&width=300&query=music photo ${i}`}
-                  alt={`Photo ${i}`}
-                  width={300}
-                  height={300}
-                  layout="constrained"
-                  className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                />
-              </div>
-            ))}
-          </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">
+                          {project.title}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {project.trackCount} tracks - {project.status}
+                        </p>
+                        <Badge className="mt-3 capitalize" variant="secondary">
+                          {project.projectType}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="videos" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className="group hover:shadow-lg transition-shadow">
-                <CardContent className="p-0">
-                  <div className="aspect-video bg-muted rounded-t-lg overflow-hidden relative">
-                    <AppImage
-                      src={`/music-video-thumbnail.png?height=400&width=600&query=music video thumbnail ${i}`}
-                      alt={`Video ${i}`}
-                      width={600}
-                      height={400}
-                      layout="constrained"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <Button size="icon" variant="ghost" className="size-16">
-                        <Play className="size-8 text-white" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold mb-1">Video Title {i}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      2.4K views • 2 days ago
+          {videos.length === 0 ? (
+            <EmptyState
+              actionHref="/dashboard/videos/new"
+              actionLabel="New Video"
+              icon={Video}
+              title="No videos yet"
+            />
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {videos.map((video) => (
+                <Card key={video.id}>
+                  <CardContent className="p-4">
+                    <Video className="mb-4 size-8 text-primary" />
+                    <p className="font-semibold">{video.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {video.videoKind.replaceAll("_", " ")} -{" "}
+                      {video.sourceProvider}
                     </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function ProfileStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-background/40 p-4">
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function EmptyState({
+  actionHref,
+  actionLabel,
+  icon: Icon,
+  title,
+}: {
+  actionHref:
+    | "/dashboard/projects/new"
+    | "/dashboard/tracks/new"
+    | "/dashboard/videos/new";
+  actionLabel: string;
+  icon: typeof Music2;
+  title: string;
+}) {
+  return (
+    <Card className="border-dashed">
+      <CardContent className="p-8 text-center">
+        <Icon className="mx-auto mb-3 size-8 text-muted-foreground" />
+        <p className="font-semibold">{title}</p>
+        <Button asChild className="mt-4">
+          <Link to={actionHref}>{actionLabel}</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
