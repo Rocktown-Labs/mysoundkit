@@ -216,6 +216,9 @@ describe("SoundKit Worker API", () => {
       })
     );
     const cartResponse = await SELF.fetch("http://soundkit.test/v1/cart");
+    const friendsResponse = await SELF.fetch(
+      "http://soundkit.test/v1/messages/friends"
+    );
     const checkoutResponse = await SELF.fetch(
       "http://soundkit.test/v1/billing/checkout",
       jsonRequest("POST", {
@@ -227,6 +230,7 @@ describe("SoundKit Worker API", () => {
 
     expect(createTrackResponse.status).toBe(401);
     expect(cartResponse.status).toBe(401);
+    expect(friendsResponse.status).toBe(401);
     expect(checkoutResponse.status).toBe(401);
   });
 

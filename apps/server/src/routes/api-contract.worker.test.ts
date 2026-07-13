@@ -82,6 +82,7 @@ const expectedOpenApiOperations = [
   ["patch", "/v1/me/profile"],
   ["get", "/v1/me/workspaces"],
   ["get", "/v1/messages/conversations"],
+  ["get", "/v1/messages/friends"],
   ["post", "/v1/messages/conversations"],
   ["get", "/v1/messages/conversations/{conversationId}/messages"],
   ["post", "/v1/messages/conversations/{conversationId}/messages"],
