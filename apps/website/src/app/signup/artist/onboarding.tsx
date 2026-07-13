@@ -219,7 +219,9 @@ function ArtistOnboardingPage() {
   >([]);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [primaryGenre, setPrimaryGenre] = useState("");
-  const [selectedPlanCode, setSelectedPlanCode] = useState("artist_premium");
+  const [selectedPlanCode, setSelectedPlanCode] = useState(
+    "soundkit_premium_artist"
+  );
   const [isDraftReady, setIsDraftReady] = useState(false);
   const radarInitializedRef = useRef(false);
   const selectedLocationQueryRef = useRef("");
@@ -1051,11 +1053,13 @@ function ArtistOnboardingPage() {
                     </Card>
                     <Card
                       className={`border-2 cursor-pointer ${
-                        selectedPlanCode === "artist_premium"
+                        selectedPlanCode === "soundkit_premium_artist"
                           ? "border-primary"
                           : ""
                       }`}
-                      onClick={() => setSelectedPlanCode("artist_premium")}
+                      onClick={() =>
+                        setSelectedPlanCode("soundkit_premium_artist")
+                      }
                     >
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
@@ -1067,10 +1071,10 @@ function ArtistOnboardingPage() {
                               </span>
                             </h4>
                             <p className="text-sm text-muted-foreground">
-                              Selling, analytics, payouts, and paid community
+                              Live hosting, selling, rewards, and analytics
                             </p>
                           </div>
-                          <span className="font-bold">$14.99/mo</span>
+                          <span className="font-bold">$22.99/mo</span>
                         </div>
                       </CardContent>
                     </Card>

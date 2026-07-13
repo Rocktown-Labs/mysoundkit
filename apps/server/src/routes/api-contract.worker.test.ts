@@ -311,16 +311,16 @@ describe("SoundKit public read API", () => {
     expect(plansResult.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          annualPriceCents: 10_000,
-          code: "artist_premium",
+          annualPriceCents: null,
+          code: "soundkit_premium_artist",
           maxSeats: 1,
-          monthlyPriceCents: 1499,
+          monthlyPriceCents: 2299,
         }),
         expect.objectContaining({
-          annualPriceCents: 10_000,
-          code: "listener_premium",
+          annualPriceCents: null,
+          code: "soundkit_premium_fan",
           maxSeats: 1,
-          monthlyPriceCents: 1499,
+          monthlyPriceCents: 2299,
         }),
         expect.objectContaining({
           annualPriceCents: null,

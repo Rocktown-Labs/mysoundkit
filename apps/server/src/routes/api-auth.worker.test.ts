@@ -90,7 +90,7 @@ const protectedRequests: {
   {
     init: jsonRequest({
       cancelUrl: "https://app.example.test/cancel",
-      planCode: "artist_premium",
+      planCode: "soundkit_premium_artist",
       successUrl: "https://app.example.test/success",
     }),
     label: "checkout creation",
@@ -276,7 +276,10 @@ describe("SoundKit API authentication boundaries", () => {
     [
       "payment import",
       "/v1/admin/finance/payments/import-plan",
-      jsonRequest({ code: "artist_premium", monthlyPriceId: "price_test" }),
+      jsonRequest({
+        code: "soundkit_premium_artist",
+        monthlyPriceId: "price_test",
+      }),
     ],
   ])(
     "keeps finance administration restricted for %s",

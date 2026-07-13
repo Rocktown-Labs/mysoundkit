@@ -15,6 +15,20 @@
       "when": 1782143385977,
       "tag": "0001_confused_solo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783808229096,
+      "tag": "0002_rapid_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783808769663,
+      "tag": "0003_cuddly_spirit",
+      "breakpoints": true
     }
   ]
 }

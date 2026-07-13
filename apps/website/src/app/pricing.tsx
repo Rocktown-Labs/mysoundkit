@@ -18,22 +18,22 @@ const plans = [
     price: "Free",
   },
   {
-    annual: "$100/year",
     audience: "For listeners",
-    code: "listener_premium",
+    code: "soundkit_premium_fan",
     featured: true,
     features: [
-      "Live battles and voting",
-      "VODs and premium chat",
-      "Regional discovery",
+      "Watch live streams, battles, and listening parties",
+      "Vote in live battles and join premium chat",
+      "Your Premium listening funds Creator Rewards",
+      "Keep Premium if you later convert to artist",
     ],
-    name: "Listener Premium",
-    price: "$14.99/month",
+    name: "SoundKit Premium Fan",
+    price: "$22.99/month",
   },
   {
     audience: "For listeners",
     code: "fan_family",
-    features: ["Listener Premium for up to 5 accounts"],
+    features: ["SoundKit Premium Fan for up to 5 accounts"],
     name: "Fan Family",
     price: "$24.99/month",
   },
@@ -45,22 +45,22 @@ const plans = [
     price: "Free",
   },
   {
-    annual: "$100/year",
     audience: "For artists",
-    code: "artist_premium",
+    code: "soundkit_premium_artist",
     featured: true,
     features: [
-      "Host battles and sell music",
-      "Analytics and payout eligibility",
-      "Create one paid private community",
+      "Upload as an artist and host live experiences",
+      "$5 monthly fan-to-creator reward allocation model",
+      "Sell music, receive tips, and run paid communities",
+      "Analytics, statements, and payout readiness",
     ],
-    name: "Artist Premium",
-    price: "$14.99/month",
+    name: "SoundKit Premium Artist",
+    price: "$22.99/month",
   },
   {
     audience: "For artists",
     code: "artist_team",
-    features: ["Artist Premium workspace for up to 5 seats"],
+    features: ["SoundKit Premium Artist workspace for up to 5 seats"],
     name: "Artist Team",
     price: "$24.99/month",
   },
@@ -91,13 +91,9 @@ function PricingPage() {
               </p>
               <CardTitle className="text-2xl">{plan.name}</CardTitle>
               <p className="text-xl font-black">{plan.price}</p>
-              {"annual" in plan ? (
-                <p className="text-sm text-muted-foreground">{plan.annual}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Annual option coming later
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                Annual option coming later
+              </p>
             </CardHeader>
             <CardContent className="flex h-full flex-col gap-6">
               <ul className="space-y-3 text-sm">

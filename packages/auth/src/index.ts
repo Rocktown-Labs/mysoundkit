@@ -13,6 +13,18 @@ import { Stripe } from "stripe";
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
 
+const getFirstEnvValue = (...keys: string[]) => {
+  for (const key of keys) {
+    const value = getEnvValue(key);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+};
+
 const getAdminEmails = () =>
   getEnvValue("ADMIN_EMAILS")
     .split(",")
@@ -34,13 +46,17 @@ const createStripeClient = () => {
 const createStripePlans = () =>
   [
     {
-      annualDiscountPriceId: getEnvValue(
+      annualDiscountPriceId: getFirstEnvValue(
+        "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID",
         "STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"
       ),
       group: "artist",
       limits: { communities: 1 },
-      name: "artist_premium",
-      priceId: getEnvValue("STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"),
+      name: "soundkit_premium_artist",
+      priceId: getFirstEnvValue(
+        "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID",
+        "STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"
+      ),
     },
     {
       group: "artist",
@@ -49,13 +65,17 @@ const createStripePlans = () =>
       priceId: getEnvValue("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
     },
     {
-      annualDiscountPriceId: getEnvValue(
+      annualDiscountPriceId: getFirstEnvValue(
+        "STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID",
         "STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"
       ),
       group: "fan",
       limits: { familyMembers: 1 },
-      name: "listener_premium",
-      priceId: getEnvValue("STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"),
+      name: "soundkit_premium_fan",
+      priceId: getFirstEnvValue(
+        "STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID",
+        "STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"
+      ),
     },
     {
       group: "fan",
