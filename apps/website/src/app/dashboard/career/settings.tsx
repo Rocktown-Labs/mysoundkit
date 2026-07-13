@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Save } from "lucide-react";
+import type React from "react";
 
 import { ProfileMediaUpload } from "@/components/dashboard/profile-media-upload";
 import { Button } from "@/components/ui/button";
@@ -15,12 +16,35 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useMeEntitlementsQuery,
+  useMeQuery,
+  useUpdateMeProfileMutation,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/settings")({
   component: SettingsPage,
 });
 
 function SettingsPage() {
+  const meQuery = useMeQuery();
+  const entitlementsQuery = useMeEntitlementsQuery();
+  const updateProfile = useUpdateMeProfileMutation();
+  const user = meQuery.data?.user;
+  const entitlements = entitlementsQuery.data;
+  const location = [user?.city, user?.state].filter(Boolean).join(", ");
+
+  const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    updateProfile.mutate({
+      bio: String(form.get("bio") ?? ""),
+      city: String(form.get("city") ?? ""),
+      displayName: String(form.get("displayName") ?? ""),
+      state: String(form.get("state") ?? ""),
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -40,149 +64,181 @@ function SettingsPage() {
           <TabsTrigger value="privacy">Privacy</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Artist Profile</CardTitle>
-              <CardDescription>
-                This information will be displayed on your public profile
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <ProfileMediaUpload
-                  description="Upload a cover image that frames your artist page. JPG or PNG up to 10MB."
-                  kind="header"
-                  title="Upload Header Image"
-                />
-                <ProfileMediaUpload
-                  description="JPG or PNG up to 10MB. This image is stored in SoundKit media storage."
-                  kind="avatar"
-                  title="Upload Profile Photo"
-                />
-              </div>
-
-              {/* Basic Info */}
-              <div className="grid gap-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="artist-name">Artist Name *</Label>
-                    <Input id="artist-name" defaultValue="John Doe" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username *</Label>
-                    <div className="flex gap-2">
-                      <span className="flex items-center px-3 rounded-md border bg-muted text-sm text-muted-foreground">
-                        mysoundkit.com/
-                      </span>
-                      <Input id="username" defaultValue="johndoe" required />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Textarea
-                    id="bio"
-                    placeholder="Tell people about yourself..."
-                    defaultValue="Hip-hop producer and artist based in LA. Creating vibes since 2020."
-                    rows={4}
+        <TabsContent value="profile" className="mt-6">
+          <form className="space-y-6" onSubmit={saveProfile} key={user?.id}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Artist Profile</CardTitle>
+                <CardDescription>
+                  This information will be displayed on your public profile
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <ProfileMediaUpload
+                    description="Upload a cover image that frames your artist page. JPG or PNG up to 10MB."
+                    kind="header"
+                    title="Upload Header Image"
+                  />
+                  <ProfileMediaUpload
+                    description="JPG or PNG up to 10MB. This image is stored in SoundKit media storage."
+                    kind="avatar"
+                    title="Upload Profile Photo"
                   />
                 </div>
 
+                {/* Basic Info */}
+                <div className="grid gap-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="artist-name">Artist Name *</Label>
+                      <Input
+                        id="artist-name"
+                        name="displayName"
+                        defaultValue={user?.displayName ?? ""}
+                        placeholder="Your artist name"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username *</Label>
+                      <div className="flex gap-2">
+                        <span className="flex items-center px-3 rounded-md border bg-muted text-sm text-muted-foreground">
+                          mysoundkit.com/
+                        </span>
+                        <Input
+                          id="username"
+                          defaultValue={user?.username ?? ""}
+                          disabled
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      name="bio"
+                      placeholder="Tell people about yourself..."
+                      defaultValue={user?.bio ?? ""}
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        name="city"
+                        placeholder="Los Angeles"
+                        defaultValue={user?.city ?? ""}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="state">State</Label>
+                      <Input
+                        id="state"
+                        name="state"
+                        placeholder="CA"
+                        defaultValue={user?.state ?? ""}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location-preview">Public Location</Label>
+                      <Input
+                        id="location-preview"
+                        value={location}
+                        readOnly
+                        placeholder="Shown after city/state are saved"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Music Platform Links</CardTitle>
+                <CardDescription>
+                  Connect your music streaming profiles
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="spotify">Spotify Artist URL</Label>
+                  <Input
+                    id="spotify"
+                    placeholder="https://open.spotify.com/artist/..."
+                    type="url"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apple-music">Apple Music Artist URL</Label>
+                  <Input
+                    id="apple-music"
+                    placeholder="https://music.apple.com/artist/..."
+                    type="url"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="youtube">YouTube Channel URL</Label>
+                  <Input
+                    id="youtube"
+                    placeholder="https://youtube.com/@..."
+                    type="url"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Social Media Links</CardTitle>
+                <CardDescription>
+                  Connect your social media accounts
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      placeholder="Los Angeles, CA"
-                      defaultValue="Los Angeles, CA"
-                    />
+                    <Label htmlFor="instagram">Instagram</Label>
+                    <Input id="instagram" placeholder="@username" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="genre">Primary Genre</Label>
-                    <Input
-                      id="genre"
-                      placeholder="Hip-Hop"
-                      defaultValue="Hip-Hop"
-                    />
+                    <Label htmlFor="twitter">Twitter/X</Label>
+                    <Input id="twitter" placeholder="@username" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tiktok">TikTok</Label>
+                    <Input id="tiktok" placeholder="@username" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="soundcloud">SoundCloud</Label>
+                    <Input id="soundcloud" placeholder="username" />
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Music Platform Links</CardTitle>
-              <CardDescription>
-                Connect your music streaming profiles
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="spotify">Spotify Artist URL</Label>
-                <Input
-                  id="spotify"
-                  placeholder="https://open.spotify.com/artist/..."
-                  type="url"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apple-music">Apple Music Artist URL</Label>
-                <Input
-                  id="apple-music"
-                  placeholder="https://music.apple.com/artist/..."
-                  type="url"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="youtube">YouTube Channel URL</Label>
-                <Input
-                  id="youtube"
-                  placeholder="https://youtube.com/@..."
-                  type="url"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Social Media Links</CardTitle>
-              <CardDescription>
-                Connect your social media accounts
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="instagram">Instagram</Label>
-                  <Input id="instagram" placeholder="@username" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="twitter">Twitter/X</Label>
-                  <Input id="twitter" placeholder="@username" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tiktok">TikTok</Label>
-                  <Input id="tiktok" placeholder="@username" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="soundcloud">SoundCloud</Label>
-                  <Input id="soundcloud" placeholder="username" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline">Cancel</Button>
-            <Button>
-              <Save className="size-4 mr-2" />
-              Save Changes
-            </Button>
-          </div>
+            <div className="flex justify-end gap-2">
+              {updateProfile.isSuccess && (
+                <p className="self-center text-sm text-muted-foreground">
+                  Profile saved.
+                </p>
+              )}
+              <Button variant="outline" type="reset">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateProfile.isPending}>
+                <Save className="size-4 mr-2" />
+                {updateProfile.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
         </TabsContent>
 
         <TabsContent value="account" className="space-y-6 mt-6">
@@ -197,7 +253,8 @@ function SettingsPage() {
                 <Input
                   id="email"
                   type="email"
-                  defaultValue="john@example.com"
+                  placeholder="Managed by your sign-in provider"
+                  disabled
                 />
               </div>
               <div className="space-y-2">
@@ -211,18 +268,40 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Subscription</CardTitle>
-              <CardDescription>Manage your subscription plan</CardDescription>
+              <CardDescription>
+                Current capabilities from your SoundKit entitlements.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div className="flex items-center justify-between rounded-lg border p-4">
                 <div>
-                  <p className="font-semibold">Premium Plan</p>
+                  <p className="font-semibold">
+                    {entitlements?.activePlanCode ?? "No active paid plan"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    $19/month • Renews on Feb 15, 2025
+                    {entitlements?.status ?? "Using available free features"}
                   </p>
                 </div>
-                <Button variant="outline">Manage Plan</Button>
+                <Button asChild variant="outline">
+                  <a href="/pricing">Manage Plan</a>
+                </Button>
               </div>
+              {entitlements && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Capability enabled={entitlements.canCreateLiveBattles}>
+                    Create battles
+                  </Capability>
+                  <Capability enabled={entitlements.canHostLiveStreams}>
+                    Host streams
+                  </Capability>
+                  <Capability enabled={entitlements.canSellProducts}>
+                    Sell products
+                  </Capability>
+                  <Capability enabled={entitlements.canReceivePayouts}>
+                    Receive payouts
+                  </Capability>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -392,6 +471,23 @@ function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function Capability({
+  children,
+  enabled,
+}: {
+  children: React.ReactNode;
+  enabled: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-md border bg-background/40 px-3 py-2 text-sm">
+      <span>{children}</span>
+      <span className={enabled ? "text-emerald-500" : "text-muted-foreground"}>
+        {enabled ? "Enabled" : "Off"}
+      </span>
     </div>
   );
 }

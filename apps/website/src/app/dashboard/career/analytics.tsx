@@ -1,15 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import type { LucideIcon } from "lucide-react";
 import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Download,
-  Play,
-  Users,
-  Music,
+  CalendarDays,
   Eye,
-  ArrowUpRight,
-  Calendar,
+  FolderOpen,
+  Radio,
+  Trophy,
+  Video,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -21,396 +18,243 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  type TrackSummary,
+  useBattlesQuery,
+  useListeningPartiesQuery,
+  useProjectsQuery,
+  useTracksQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
 });
 
 function AnalyticsPage() {
+  const tracksQuery = useTracksQuery();
+  const projectsQuery = useProjectsQuery();
+  const videosQuery = useVideosQuery();
+  const partiesQuery = useListeningPartiesQuery();
+  const battlesQuery = useBattlesQuery();
+  const tracks = tracksQuery.data ?? [];
+  const projects = projectsQuery.data ?? [];
+  const videos = videosQuery.data ?? [];
+  const parties = partiesQuery.data ?? [];
+  const battles = battlesQuery.data ?? [];
+  const totalPlays = tracks.reduce((total, track) => total + track.plays, 0);
+  const publicTracks = tracks.filter((track) => track.isPublic).length;
+  const scheduledProjects = projects.filter(
+    (project) => project.releaseDate && project.status !== "released"
+  );
+  const liveEvents = [
+    ...parties.filter((party) => party.status === "live"),
+    ...battles.filter((battle) => battle.status === "live"),
+  ];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)]">
-          Analytics
-        </h1>
-        <p className="text-muted-foreground">
-          Track your music performance and earnings
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
+            Analytics
+          </h1>
+          <p className="text-muted-foreground">
+            Real catalog and live-event performance from your SoundKit data.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link to="/dashboard/tracks">Manage Tracks</Link>
+        </Button>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="tracks">Tracks</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          description={`${publicTracks} public tracks`}
+          icon={Eye}
+          label="Total Plays"
+          value={totalPlays.toLocaleString()}
+        />
+        <MetricCard
+          description={`${projects.length} total projects`}
+          icon={FolderOpen}
+          label="Scheduled Releases"
+          value={scheduledProjects.length.toLocaleString()}
+        />
+        <MetricCard
+          description={`${videos.length} uploaded or linked videos`}
+          icon={Video}
+          label="Videos"
+          value={videos.length.toLocaleString()}
+        />
+        <MetricCard
+          description={`${parties.length + battles.length} total live items`}
+          icon={Radio}
+          label="Live Now"
+          value={liveEvents.length.toLocaleString()}
+        />
+      </div>
 
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Plays
-                </CardTitle>
-                <Play className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">12,543</div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="size-3 text-green-500" />
-                  <span className="text-green-500">+12.5%</span> from last month
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Downloads</CardTitle>
-                <Download className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">3,421</div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="size-3 text-green-500" />
-                  <span className="text-green-500">+8.2%</span> from last month
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Followers</CardTitle>
-                <Users className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">1,234</div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="size-3 text-green-500" />
-                  <span className="text-green-500">+5.1%</span> from last month
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Earnings
-                </CardTitle>
-                <DollarSign className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$2,847</div>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <TrendingUp className="size-3 text-green-500" />
-                  <span className="text-green-500">+18.3%</span> from last month
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Charts */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Plays Over Time</CardTitle>
-                <CardDescription>
-                  Your track plays in the last 30 days
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[200px] flex items-end justify-between gap-2">
-                  {[
-                    40, 60, 45, 80, 55, 90, 70, 85, 95, 75, 100, 85, 90, 110,
-                  ].map((height, i) => (
-                    <div
-                      key={i}
-                      className="flex-1 bg-primary/20 hover:bg-primary/40 transition-colors rounded-t"
-                      style={{ height: `${height}%` }}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Tracks</CardTitle>
-                <CardDescription>
-                  Your most played tracks this month
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { plays: 3421, title: "Summer Vibes", trend: "up" },
-                    { plays: 2847, title: "Night Drive", trend: "up" },
-                    { plays: 2134, title: "City Lights", trend: "down" },
-                    { plays: 1876, title: "Midnight Dreams", trend: "up" },
-                  ].map((track, i) => (
-                    <div key={i} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="size-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded flex items-center justify-center">
-                          <Music className="size-5 text-white" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Tracks</CardTitle>
+            <CardDescription>
+              Ranked by the play counts saved on your tracks.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tracks.length === 0 ? (
+              <EmptyAnalyticsCopy
+                actionHref="/dashboard/tracks/new"
+                actionLabel="Create Track"
+                text="Upload music to begin collecting play analytics."
+              />
+            ) : (
+              <div className="space-y-3">
+                {[...tracks]
+                  .sort(
+                    (left: TrackSummary, right: TrackSummary) =>
+                      right.plays - left.plays
+                  )
+                  .slice(0, 8)
+                  .map((track, index) => (
+                    <Link
+                      className="flex items-center justify-between gap-4 rounded-lg border p-3 transition-colors hover:border-primary/50"
+                      key={track.id}
+                      to="/dashboard/tracks"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                          {index + 1}
                         </div>
-                        <div>
-                          <p className="font-semibold text-sm">{track.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {track.plays.toLocaleString()} plays
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">
+                            {track.title}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {track.genre}
                           </p>
                         </div>
                       </div>
-                      {track.trend === "up" ? (
-                        <TrendingUp className="size-4 text-green-500" />
-                      ) : (
-                        <TrendingDown className="size-4 text-red-500" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Audience Insights */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Audience Insights</CardTitle>
-              <CardDescription>Where your listeners are from</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { country: "United States", listeners: 5643, percentage: 45 },
-                  {
-                    country: "United Kingdom",
-                    listeners: 2258,
-                    percentage: 18,
-                  },
-                  { country: "Canada", listeners: 1505, percentage: 12 },
-                  { country: "Australia", listeners: 1003, percentage: 8 },
-                  { country: "Germany", listeners: 878, percentage: 7 },
-                ].map((location, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{location.country}</span>
-                      <span className="text-muted-foreground">
-                        {location.listeners.toLocaleString()} listeners
-                      </span>
-                    </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${location.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="tracks" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Track Performance</CardTitle>
-              <CardDescription>
-                Detailed analytics for each track
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-4 rounded-lg border"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="size-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded flex items-center justify-center">
-                        <Music className="size-8 text-white/50" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">Track Title {i}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Released Jan 2025
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-8">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold">
-                          {(Math.random() * 5000).toFixed(0)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Plays</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold">
-                          {(Math.random() * 1000).toFixed(0)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Downloads
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold">
-                          ${(Math.random() * 500).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Earned</p>
-                      </div>
-                      <Button variant="ghost" size="sm">
-                        <Eye className="size-4 mr-2" />
-                        Details
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="payments" className="space-y-6 mt-6">
-          {/* Earnings Overview */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Available Balance
-                </CardTitle>
-                <DollarSign className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$2,847.32</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Ready to withdraw
-                </p>
-                <Button className="w-full mt-4" size="sm">
-                  Withdraw Funds
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Pending Earnings
-                </CardTitle>
-                <Calendar className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$543.21</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Available in 7 days
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Earned
-                </CardTitle>
-                <TrendingUp className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$12,847.89</div>
-                <p className="text-xs text-muted-foreground mt-1">All time</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Transaction History */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-              <CardDescription>
-                Your recent earnings and withdrawals
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  {
-                    amount: 9.99,
-                    date: "2 hours ago",
-                    status: "completed",
-                    track: "Summer Vibes",
-                    type: "sale",
-                  },
-                  {
-                    amount: 4.99,
-                    date: "5 hours ago",
-                    status: "completed",
-                    track: "Night Drive",
-                    type: "sale",
-                  },
-                  {
-                    amount: -500,
-                    date: "1 day ago",
-                    status: "completed",
-                    track: "Bank Transfer",
-                    type: "withdrawal",
-                  },
-                  {
-                    amount: 9.99,
-                    date: "2 days ago",
-                    status: "completed",
-                    track: "City Lights",
-                    type: "sale",
-                  },
-                  {
-                    amount: 0,
-                    date: "3 days ago",
-                    status: "completed",
-                    track: "Midnight Dreams",
-                    type: "sale",
-                  },
-                ].map((transaction, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-4 rounded-lg border"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`size-10 rounded-full flex items-center justify-center ${
-                          transaction.type === "sale"
-                            ? "bg-green-500/10"
-                            : "bg-blue-500/10"
-                        }`}
-                      >
-                        {transaction.type === "sale" ? (
-                          <ArrowUpRight className="size-5 text-green-500" />
-                        ) : (
-                          <Download className="size-5 text-blue-500" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold">{transaction.track}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {transaction.date}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p
-                        className={`font-bold ${transaction.amount >= 0 ? "text-green-500" : "text-blue-500"}`}
-                      >
-                        {transaction.amount >= 0 ? "+" : ""}$
-                        {Math.abs(transaction.amount).toFixed(2)}
-                      </p>
-                      <Badge variant="outline" className="mt-1">
-                        {transaction.status}
+                      <Badge variant="secondary">
+                        {track.plays.toLocaleString()} plays
                       </Badge>
-                    </div>
-                  </div>
-                ))}
+                    </Link>
+                  ))}
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="size-5 text-primary" />
+                Upcoming
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {scheduledProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No scheduled project releases yet.
+                </p>
+              ) : (
+                scheduledProjects.slice(0, 5).map((project) => (
+                  <Link
+                    className="block rounded-lg border p-3 hover:border-primary/50"
+                    key={project.id}
+                    params={{ id: project.id }}
+                    to="/dashboard/projects/$id"
+                  >
+                    <p className="font-semibold">{project.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {project.releaseDate
+                        ? new Date(project.releaseDate).toLocaleDateString()
+                        : "Unscheduled"}
+                    </p>
+                  </Link>
+                ))
+              )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="size-5 text-primary" />
+                Battle Feed
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {battles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No live battles are available yet.
+                </p>
+              ) : (
+                battles.slice(0, 4).map((battle) => (
+                  <Link
+                    className="block rounded-lg border p-3 hover:border-primary/50"
+                    key={battle.id}
+                    params={{ id: battle.id }}
+                    to="/live/battles/$id"
+                  >
+                    <p className="font-semibold">{battle.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {battle.genre} - {battle.viewerCount} viewers
+                    </p>
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  description,
+  icon: Icon,
+  label,
+  value,
+}: {
+  description: string;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="font-medium text-sm">{label}</CardTitle>
+        <Icon className="size-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-muted-foreground text-xs">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyAnalyticsCopy({
+  actionHref,
+  actionLabel,
+  text,
+}: {
+  actionHref: string;
+  actionLabel: string;
+  text: string;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed p-8 text-center">
+      <p className="text-muted-foreground text-sm">{text}</p>
+      <Button asChild className="mt-4">
+        <Link to={actionHref}>{actionLabel}</Link>
+      </Button>
     </div>
   );
 }

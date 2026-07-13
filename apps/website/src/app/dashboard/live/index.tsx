@@ -1,14 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Trophy,
-  Music,
-  BarChart3,
-  Swords,
-  MapPin,
-  TrendingUp,
-  Award,
-  Target,
-} from "lucide-react";
+import { BarChart3, MapPin, Music, Swords, Trophy } from "lucide-react";
+import type React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,236 +11,281 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  useBattlesQuery,
+  useCreateBattleChallengeMutation,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/")({
   component: BattleHubPage,
 });
 
 function BattleHubPage() {
+  const battlesQuery = useBattlesQuery();
+  const createChallenge = useCreateBattleChallengeMutation();
+  const battles = battlesQuery.data ?? [];
+  const liveBattles = battles.filter((battle) => battle.status === "live");
+  const scheduledBattles = battles.filter(
+    (battle) => battle.status === "scheduled"
+  );
+
+  const submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    createChallenge.mutate({
+      format: String(form.get("format") ?? "best_of_3") as
+        | "best_of_3"
+        | "best_of_5"
+        | "best_of_7",
+      genre: String(form.get("genre") ?? "Open Format"),
+      message: String(form.get("message") ?? ""),
+      opponentUsername: String(form.get("opponentUsername") ?? ""),
+      proposedDate: String(form.get("proposedDate") ?? ""),
+      proposedTimeLabel: String(form.get("proposedTimeLabel") ?? ""),
+    });
+    event.currentTarget.reset();
+  };
+
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">Live</h1>
-        <p className="text-muted-foreground">
-          Manage battles today, then branch into listening parties and creator
-          streams from the new live menu.
-        </p>
+    <div className="space-y-6 p-4 md:p-6 lg:p-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-[family-name:var(--font-playfair)] text-4xl font-bold">
+            Battles
+          </h1>
+          <p className="text-muted-foreground">
+            Start challenges, join live battles, and manage your battle kit.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/dashboard/live/my-kit">
+            <Music className="mr-2 size-4" />
+            My Kits
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Battles</CardTitle>
-            <Trophy className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">24</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+3</span> from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-            <Target className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">67%</div>
-            <p className="text-xs text-muted-foreground">
-              16 wins out of 24 battles
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Current Streak
-            </CardTitle>
-            <TrendingUp className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">3 Wins</div>
-            <p className="text-xs text-muted-foreground">Keep it going!</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Leaderboard Rank
-            </CardTitle>
-            <Award className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">#42</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+5</span> positions this week
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard label="Total Battles" value={battles.length} />
+        <MetricCard label="Live Now" value={liveBattles.length} />
+        <MetricCard label="Scheduled" value={scheduledBattles.length} />
+        <MetricCard
+          label="Viewers"
+          value={battles.reduce(
+            (total, battle) => total + battle.viewerCount,
+            0
+          )}
+        />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="hover:border-primary transition-colors">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <Card>
           <CardHeader>
-            <Music className="size-8 text-primary mb-2" />
-            <CardTitle>My Kit</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Swords className="size-5 text-primary" />
+              Battle Feed
+            </CardTitle>
             <CardDescription>
-              Organize tracks for best of 3, 5, and 7 battles
+              Live and scheduled battles from the SoundKit API.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="w-full">
-              <Link to="/dashboard/live/my-kit">My Kits</Link>
-            </Button>
+            {battlesQuery.isLoading && (
+              <p className="text-sm text-muted-foreground">
+                Loading battles...
+              </p>
+            )}
+
+            {!battlesQuery.isLoading && battles.length === 0 && (
+              <div className="rounded-lg border border-dashed p-8 text-center">
+                <p className="font-semibold">No battles yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Create a challenge to start your first matchup.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {battles.map((battle) => (
+                <div
+                  className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                  key={battle.id}
+                >
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{battle.title}</p>
+                      <Badge
+                        variant={
+                          battle.status === "live" ? "destructive" : "outline"
+                        }
+                      >
+                        {battle.status}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {battle.genre} - {battle.format.replaceAll("_", " ")} -{" "}
+                      {battle.viewerCount.toLocaleString()} viewers
+                    </p>
+                  </div>
+                  <Button asChild className="w-full sm:w-auto">
+                    <Link params={{ id: battle.id }} to="/live/battles/$id">
+                      {battle.status === "live" ? "Join Battle" : "View"}
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:border-primary transition-colors">
-          <CardHeader>
-            <BarChart3 className="size-8 text-primary mb-2" />
-            <CardTitle>My Stats</CardTitle>
-            <CardDescription>
-              View wins, losses, and track performance
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/dashboard/live/my-stats">
-              <Button className="w-full">View Stats</Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Start a Challenge</CardTitle>
+              <CardDescription>
+                Send a battle challenge to another artist.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={submitChallenge}>
+                <div className="space-y-2">
+                  <Label htmlFor="opponentUsername">Opponent</Label>
+                  <Input
+                    id="opponentUsername"
+                    name="opponentUsername"
+                    placeholder="@artist"
+                    required
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="format">Format</Label>
+                    <Select defaultValue="best_of_3" name="format">
+                      <SelectTrigger id="format">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="best_of_3">Best of 3</SelectItem>
+                        <SelectItem value="best_of_5">Best of 5</SelectItem>
+                        <SelectItem value="best_of_7">Best of 7</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="genre">Genre</Label>
+                    <Input id="genre" name="genre" placeholder="Rap" required />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="proposedDate">Date</Label>
+                    <Input id="proposedDate" name="proposedDate" type="date" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proposedTimeLabel">Time</Label>
+                    <Input
+                      id="proposedTimeLabel"
+                      name="proposedTimeLabel"
+                      placeholder="8:00 PM ET"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="message">Message</Label>
+                  <Textarea
+                    id="message"
+                    name="message"
+                    placeholder="Set the tone for the matchup."
+                    rows={3}
+                  />
+                </div>
+                <Button className="w-full" disabled={createChallenge.isPending}>
+                  <Trophy className="mr-2 size-4" />
+                  {createChallenge.isPending ? "Sending..." : "Create Battle"}
+                </Button>
+                {createChallenge.isSuccess && (
+                  <p className="text-center text-sm text-muted-foreground">
+                    Challenge sent.
+                  </p>
+                )}
+              </form>
+            </CardContent>
+          </Card>
 
-        <Card className="hover:border-primary transition-colors">
-          <CardHeader>
-            <MapPin className="size-8 text-primary mb-2" />
-            <CardTitle>Explore Battles</CardTitle>
-            <CardDescription>
-              Discover live battles and upcoming events
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link to="/live">
-              <Button className="w-full">Explore</Button>
-            </Link>
-          </CardContent>
-        </Card>
+          <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+            <QuickLink
+              description="Pick battle-ready songs."
+              icon={Music}
+              label="My Kit"
+              to="/dashboard/live/my-kit"
+            />
+            <QuickLink
+              description="Wins, losses, and track performance."
+              icon={BarChart3}
+              label="My Stats"
+              to="/dashboard/live/my-stats"
+            />
+            <QuickLink
+              description="Browse public battles."
+              icon={MapPin}
+              label="Explore"
+              to="/live/battles"
+            />
+          </div>
+        </div>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Swords className="size-5" />
-            Active Battles
-          </CardTitle>
-          <CardDescription>Your ongoing and upcoming battles</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border bg-muted/30">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">Hip-Hop Showdown</p>
-                  <Badge variant="destructive">Live Now</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  vs. DJ Shadow • Best of 5
-                </p>
-                <p className="text-xs text-muted-foreground">Round 3 of 5</p>
-              </div>
-              <Link to="/live/battles/$id" params={{ id: "1" }}>
-                <Button className="w-full sm:w-auto">Join Battle</Button>
-              </Link>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">R&B Challenge</p>
-                  <Badge variant="secondary">Upcoming</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  vs. Smooth Beats • Best of 3
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Starts in 2 hours
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto bg-transparent"
-              >
-                View Details
-              </Button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg border">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">Electronic Battle</p>
-                  <Badge variant="outline">Scheduled</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  vs. BeatMaster • Best of 7
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Tomorrow at 8:00 PM
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto bg-transparent"
-              >
-                View Details
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="size-5" />
-            Recent Results
-          </CardTitle>
-          <CardDescription>Your latest battle outcomes</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="space-y-1">
-                <p className="font-semibold text-sm">Pop Showdown</p>
-                <p className="text-xs text-muted-foreground">
-                  vs. Melody Queen • Best of 3
-                </p>
-              </div>
-              <Badge className="bg-green-600">Won 2-1</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="space-y-1">
-                <p className="font-semibold text-sm">Jazz Battle</p>
-                <p className="text-xs text-muted-foreground">
-                  vs. Smooth Jazz • Best of 5
-                </p>
-              </div>
-              <Badge variant="destructive">Lost 2-3</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div className="space-y-1">
-                <p className="font-semibold text-sm">Rock Challenge</p>
-                <p className="text-xs text-muted-foreground">
-                  vs. Guitar Hero • Best of 3
-                </p>
-              </div>
-              <Badge className="bg-green-600">Won 2-0</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="font-medium text-muted-foreground text-sm">
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="text-3xl font-bold">
+        {value.toLocaleString()}
+      </CardContent>
+    </Card>
+  );
+}
+
+function QuickLink({
+  description,
+  icon: Icon,
+  label,
+  to,
+}: {
+  description: string;
+  icon: typeof Music;
+  label: string;
+  to: "/dashboard/live/my-kit" | "/dashboard/live/my-stats" | "/live/battles";
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <Icon className="mb-2 size-6 text-primary" />
+        <CardTitle>{label}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button asChild className="w-full" variant="outline">
+          <Link to={to}>Open</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
