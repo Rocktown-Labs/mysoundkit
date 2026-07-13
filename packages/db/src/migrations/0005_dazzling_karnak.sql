@@ -1,0 +1,1 @@
+ALTER TABLE "reward_configuration_versions" ALTER COLUMN "playback_threshold_seconds" SET DEFAULT 0;
