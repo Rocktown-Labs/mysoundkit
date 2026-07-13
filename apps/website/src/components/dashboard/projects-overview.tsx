@@ -1,12 +1,12 @@
 "use client";
 
+import { Link } from "@tanstack/react-router";
 import {
-  Music,
-  Clock,
   CheckCircle,
+  ChevronRight,
   Download,
   MoreHorizontal,
-  ChevronRight,
+  Music,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,58 +24,35 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { ProjectSummary } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
-const mockProjects = [
-  {
-    files: {
-      adlibs: true,
-      coverArt: true,
-      instrumental: true,
-      session: true,
-      vocals: true,
-    },
-    id: 1,
-    lastUpdated: "2 hours ago",
-    mastered: true,
-    mixed: true,
-    name: "Summer Vibes",
-    status: "complete",
-  },
-  {
-    files: {
-      adlibs: false,
-      coverArt: false,
-      instrumental: true,
-      session: true,
-      vocals: true,
-    },
-    id: 2,
-    lastUpdated: "1 day ago",
-    mastered: false,
-    mixed: false,
-    name: "Late Night Sessions",
-    status: "in-progress",
-  },
-  {
-    files: {
-      adlibs: false,
-      coverArt: true,
-      instrumental: true,
-      session: false,
-      vocals: false,
-    },
-    id: 3,
-    lastUpdated: "3 days ago",
-    mastered: false,
-    mixed: false,
-    name: "Collaboration Track",
-    status: "in-progress",
-  },
-];
+const relativeDate = (value: string) => {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
 
-export function ProjectsOverview() {
+  if (diffDays === 0) {
+    return "Today";
+  }
+
+  if (diffDays === 1) {
+    return "1 day ago";
+  }
+
+  return `${diffDays} days ago`;
+};
+
+export function ProjectsOverview({
+  isLoading = false,
+  projects,
+}: {
+  isLoading?: boolean;
+  projects: ProjectSummary[];
+}) {
+  const recentProjects = projects.slice(0, 3);
+
   return (
-    <Card className="bg-card/40 backdrop-blur-md border-border/40 overflow-hidden">
+    <Card className="overflow-hidden border-border/40 bg-card/40 backdrop-blur-md">
       <CardHeader className="border-b border-border/20 pb-4">
         <div className="flex items-center justify-between">
           <div>
@@ -87,113 +64,143 @@ export function ProjectsOverview() {
             </CardDescription>
           </div>
           <Button
-            variant="ghost"
-            size="sm"
+            asChild={true}
             className="text-xs hover:bg-white/5"
+            size="sm"
+            variant="ghost"
           >
-            View All
-            <ChevronRight className="ml-1 size-3.5" />
+            <Link to="/dashboard/projects">
+              View All
+              <ChevronRight className="ml-1 size-3.5" />
+            </Link>
           </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="divide-y divide-border/10">
-          {mockProjects.map((project) => (
-            <div
-              key={project.id}
-              className="group flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 hover:bg-white/[0.02] transition-colors gap-4"
-            >
-              <div className="flex items-center space-x-4 min-w-0">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 group-hover:scale-105 transition-transform">
-                    <Music className="h-6 w-6 text-primary" />
-                  </div>
-                  {project.status === "complete" && (
-                    <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-0.5 border-2 border-card">
-                      <CheckCircle className="size-2.5 text-white" />
+          {isLoading && (
+            <div className="p-6 text-sm text-muted-foreground">
+              Loading recent projects...
+            </div>
+          )}
+
+          {!isLoading && recentProjects.length === 0 && (
+            <div className="p-8 text-center">
+              <Music className="mx-auto mb-3 size-10 text-muted-foreground/30" />
+              <p className="font-medium">No projects yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Create a project to collect tracks, credits, and release dates.
+              </p>
+            </div>
+          )}
+
+          {recentProjects.map((project) => {
+            const fileCount = Math.min(project.trackCount, 5);
+
+            return (
+              <div
+                className="group flex flex-col items-start justify-between gap-4 p-4 transition-colors hover:bg-white/[0.02] sm:flex-row sm:items-center"
+                key={project.id}
+              >
+                <div className="flex min-w-0 items-center space-x-4">
+                  <div className="relative">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 transition-transform group-hover:scale-105">
+                      <Music className="h-6 w-6 text-primary" />
                     </div>
-                  )}
+                    {project.status === "released" && (
+                      <div className="-right-1 -top-1 absolute rounded-full border-2 border-card bg-emerald-500 p-0.5">
+                        <CheckCircle className="size-2.5 text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="truncate font-semibold text-sm transition-colors group-hover:text-primary">
+                      {project.title}
+                    </h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2">
+                      <Badge
+                        className={cn(
+                          "h-4 px-1.5 font-bold text-[9px] uppercase tracking-wider",
+                          project.status === "released"
+                            ? "border-primary/30 bg-primary/20 text-primary"
+                            : "border-amber-500/30 bg-amber-500/10 text-amber-500"
+                        )}
+                        variant={
+                          project.status === "released"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {project.status}
+                      </Badge>
+                      <span className="font-medium text-[10px] text-muted-foreground">
+                        {relativeDate(
+                          project.updatedAt ?? new Date().toISOString()
+                        )}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
-                    {project.name}
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-x-2 mt-1">
-                    <Badge
-                      variant={
-                        project.status === "complete" ? "default" : "secondary"
-                      }
-                      className={cn(
-                        "text-[9px] uppercase tracking-wider px-1.5 h-4 font-bold",
-                        project.status === "complete"
-                          ? "bg-primary/20 text-primary border-primary/30"
-                          : "bg-amber-500/10 text-amber-500 border-amber-500/30"
-                      )}
-                    >
-                      {project.status === "complete" ? "Complete" : "Working"}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      {project.lastUpdated}
+
+                <div className="flex w-full items-center justify-between gap-4 sm:w-auto">
+                  <div className="flex items-center gap-3">
+                    <div className="-space-x-1.5 flex items-center">
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <div
+                          className={cn(
+                            "size-2.5 rounded-full border border-card shadow-sm transition-transform hover:z-10 hover:scale-125",
+                            index < fileCount
+                              ? "bg-primary"
+                              : "bg-muted-foreground/20"
+                          )}
+                          key={`${project.id}-${index}`}
+                          title="Track slot"
+                        />
+                      ))}
+                    </div>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {fileCount}/5
                     </span>
                   </div>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-                {/* File Status Dots */}
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center -space-x-1.5">
-                    {Object.entries(project.files).map(([key, value], idx) => (
-                      <div
-                        key={key}
-                        className={cn(
-                          "size-2.5 rounded-full border border-card shadow-sm transition-transform hover:scale-125 hover:z-10",
-                          value ? "bg-primary" : "bg-muted-foreground/20"
-                        )}
-                        title={key.charAt(0).toUpperCase() + key.slice(1)}
-                      />
-                    ))}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      className="size-8 rounded-full transition-colors hover:bg-primary/10 hover:text-primary"
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild={true}>
+                        <Button
+                          className="size-8 rounded-full"
+                          size="icon"
+                          variant="ghost"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem asChild={true}>
+                          <Link
+                            params={{ id: project.id }}
+                            to="/dashboard/projects/$id"
+                          >
+                            View Project
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>Share Stems</DropdownMenuItem>
+                        <DropdownMenuItem>View Analytics</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {Object.values(project.files).filter(Boolean).length}/5
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 rounded-full"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem>Edit Project</DropdownMenuItem>
-                      <DropdownMenuItem>Share Stems</DropdownMenuItem>
-                      <DropdownMenuItem>View Analytics</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        Archive
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
   );
 }
-
-import { cn } from "@/lib/utils";

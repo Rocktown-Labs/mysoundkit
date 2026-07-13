@@ -56,6 +56,7 @@ const SENTRY_SERVER_DSN =
   "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208";
 const resourceName = (name: string) =>
   isProduction ? name : `${name}-${app.stage}`;
+const shouldAdoptRemoteResources = isProduction || isPullRequestPreview;
 const requiredSecret = <T>(value: T | undefined, name: string) => {
   if (!value) {
     throw new Error(`${name} is required.`);
@@ -101,7 +102,7 @@ const getR2Jurisdiction = () => {
 const r2Jurisdiction = getR2Jurisdiction();
 
 const media = await R2Bucket("media", {
-  adopt: isProduction,
+  adopt: shouldAdoptRemoteResources,
   cors: [
     {
       allowed: {
@@ -113,7 +114,7 @@ const media = await R2Bucket("media", {
   ],
   domains: app.local
     ? undefined
-    : [{ adopt: isProduction, domain: MEDIA_HOST }],
+    : [{ adopt: shouldAdoptRemoteResources, domain: MEDIA_HOST }],
   jurisdiction: r2Jurisdiction,
   name: resourceName("soundkit-media"),
 });

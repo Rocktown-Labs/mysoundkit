@@ -40,13 +40,11 @@ function DashboardPage() {
 
     return new Date(project.releaseDate).getTime() >= Date.now();
   });
-  const projectTypeCounts = projects.reduce(
-    (counts, project) => ({
-      ...counts,
-      [project.projectType]: (counts[project.projectType] ?? 0) + 1,
-    }),
-    {} as Record<string, number>
-  );
+  const projectTypeCounts: Record<string, number> = {};
+  for (const project of projects) {
+    projectTypeCounts[project.projectType] =
+      (projectTypeCounts[project.projectType] ?? 0) + 1;
+  }
   const dashboardStats = [
     {
       description: tracksQuery.isLoading
@@ -106,13 +104,16 @@ function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column - 8/12 */}
         <div className="lg:col-span-8 space-y-6">
-          <ProjectsOverview />
-          <UpcomingReleases />
+          <ProjectsOverview
+            isLoading={projectsQuery.isLoading}
+            projects={projects}
+          />
+          <UpcomingReleases projects={projects} />
         </div>
 
         {/* Right Column - 4/12 */}
         <div className="lg:col-span-4 space-y-6">
-          <RecentActivity />
+          <RecentActivity projects={projects} tracks={tracks} />
 
           {/* Quick Tips / Upgrade Card */}
           <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/5 to-transparent border border-primary/20 relative overflow-hidden group">

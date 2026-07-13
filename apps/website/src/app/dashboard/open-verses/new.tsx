@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { LoaderCircle, Plus } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
@@ -42,6 +42,7 @@ function NewOpenVersePage() {
     createMutation.mutate(
       {
         description: description.trim() || undefined,
+        maxSubmissions: 50,
         slotEndsAtMs: slotEndsAtMs ? Number(slotEndsAtMs) * 1000 : undefined,
         slotStartsAtMs: slotStartsAtMs
           ? Number(slotStartsAtMs) * 1000
@@ -72,6 +73,19 @@ function NewOpenVersePage() {
         </p>
       </div>
 
+      <div className="flex flex-col gap-3 rounded-lg border border-border/40 bg-card/40 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium">Need to make the track first?</p>
+          <p className="text-sm text-muted-foreground">
+            Create a track, upload its audio and cover, then publish it here as
+            an open verse listing.
+          </p>
+        </div>
+        <Button asChild={true} variant="outline">
+          <Link to="/dashboard/tracks/new">Create New Track</Link>
+        </Button>
+      </div>
+
       <Card className="border-border/40 bg-card/50">
         <CardHeader>
           <CardTitle>Track and Slot</CardTitle>
@@ -94,6 +108,13 @@ function NewOpenVersePage() {
             {tracksQuery.isLoading && (
               <p className="text-sm text-muted-foreground">Loading tracks...</p>
             )}
+            {!tracksQuery.isLoading &&
+              (tracksQuery.data ?? []).length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  You do not have uploaded tracks yet. Create a track first,
+                  then return to publish it as an open verse.
+                </p>
+              )}
           </div>
 
           {selectedTrack && (

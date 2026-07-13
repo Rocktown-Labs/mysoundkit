@@ -32,6 +32,12 @@ const projectGet = apiClient.v1.projects[":projectId"].$get;
 const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
 const friendsGet = apiClient.v1.messages.friends.$get;
+const conversationsGet = apiClient.v1.messages.conversations.$get;
+const conversationsPost = apiClient.v1.messages.conversations.$post;
+const conversationMessagesGet =
+  apiClient.v1.messages.conversations[":conversationId"].messages.$get;
+const conversationMessagesPost =
+  apiClient.v1.messages.conversations[":conversationId"].messages.$post;
 const openVersesGet = apiClient.v1["open-verses"].index.$get;
 const openVersesPost = apiClient.v1["open-verses"].index.$post;
 const openVerseGet = apiClient.v1["open-verses"][":listingId"].$get;
@@ -53,6 +59,7 @@ type CreateTrackAssetBody = InferRequestType<typeof trackAssetPost>["json"];
 type TrackProcessingStatus = InferResponseType<typeof trackProcessPost, 200>;
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
+export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
 type CreateListeningPartyBody = InferRequestType<
   typeof listeningPartyPost
 >["json"];
@@ -63,8 +70,23 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
   typeof openVerseSubmissionPost
 >["json"];
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
+export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
+export type ConversationSummary = InferResponseType<
+  typeof conversationsGet,
+  200
+>[number];
+export type MessageSummary = InferResponseType<
+  typeof conversationMessagesGet,
+  200
+>[number];
+type CreateConversationBody = InferRequestType<
+  typeof conversationsPost
+>["json"];
+type CreateMessageBody = InferRequestType<
+  typeof conversationMessagesPost
+>["json"];
 type ImportStripePlanBody = InferRequestType<
   typeof adminImportStripePlanPost
 >["json"];
@@ -78,6 +100,9 @@ export const soundkitQueryKeys = {
   adminPayments: ["admin", "payments"] as const,
   artist: (username: string) => ["artists", username] as const,
   billingPlans: ["billing", "plans"] as const,
+  conversationMessages: (conversationId: string) =>
+    ["messages", "conversations", conversationId, "messages"] as const,
+  conversations: ["messages", "conversations"] as const,
   friends: ["messages", "friends"] as const,
   listeningParties: ["listening-parties"] as const,
   me: ["me"] as const,
@@ -158,6 +183,84 @@ export const useFriendsQuery = () =>
     queryFn: async () => rpcJson(await friendsGet()),
     queryKey: soundkitQueryKeys.friends,
   });
+
+export const useConversationsQuery = () =>
+  useQuery<ConversationSummary[]>({
+    queryFn: async () => rpcJson(await conversationsGet()),
+    queryKey: soundkitQueryKeys.conversations,
+  });
+
+export const useConversationMessagesQuery = (conversationId: string) =>
+  useQuery<MessageSummary[]>({
+    enabled: Boolean(conversationId),
+    queryFn: async () =>
+      rpcJson(await conversationMessagesGet({ param: { conversationId } })),
+    queryKey: soundkitQueryKeys.conversationMessages(conversationId),
+  });
+
+export const useCreateConversationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateConversationBody) =>
+      rpcJson(await conversationsPost({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversations,
+      }),
+  });
+};
+
+export const useStartConversationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      conversation,
+      message,
+    }: {
+      conversation: CreateConversationBody;
+      message: CreateMessageBody;
+    }): Promise<ConversationSummary> => {
+      const createdConversation = await rpcJson(
+        await conversationsPost({ json: conversation })
+      );
+      await rpcJson(
+        await conversationMessagesPost({
+          json: message,
+          param: { conversationId: createdConversation.id },
+        })
+      );
+      return createdConversation;
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversations,
+      }),
+  });
+};
+
+export const useCreateMessageMutation = (conversationId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateMessageBody) =>
+      rpcJson(
+        await conversationMessagesPost({
+          json: body,
+          param: { conversationId },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversationMessages(conversationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversations,
+      });
+    },
+  });
+};
 
 export const useArtistQuery = (username: string) =>
   useQuery({
@@ -299,8 +402,10 @@ export const useCreateListeningPartyMutation = () => {
   });
 };
 
+const defaultOpenVerseQuery: OpenVerseQuery = { limit: "10" };
+
 export const useOpenVersesInfiniteQuery = (
-  query: OpenVerseQuery = { limit: "10" }
+  query: OpenVerseQuery = defaultOpenVerseQuery
 ) =>
   useInfiniteQuery({
     getNextPageParam: (lastPage: { nextCursor?: string | null }) =>

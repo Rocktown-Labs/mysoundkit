@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFriendsQuery } from "@/lib/soundkit-api-hooks";
+import { useFriendsQuery, useSearchQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/collaborators")({
   component: FriendsPage,
@@ -23,7 +23,13 @@ export const Route = createFileRoute("/dashboard/collaborators")({
 function FriendsPage() {
   const [search, setSearch] = useState("");
   const friendsQuery = useFriendsQuery();
-  const friends = friendsQuery.data ?? [];
+  const friends = useMemo(() => friendsQuery.data ?? [], [friendsQuery.data]);
+  const peopleSearchQuery = useSearchQuery({
+    limit: "8",
+    q: search,
+    type: "artists",
+  });
+  const searchedArtists = peopleSearchQuery.data?.artists ?? [];
   const filteredFriends = useMemo(() => {
     const needle = search.trim().toLowerCase();
 
@@ -167,16 +173,65 @@ function FriendsPage() {
               <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
                 <Mail className="size-8 text-muted-foreground" />
                 <div>
-                  <p className="font-semibold">No people found</p>
+                  <p className="font-semibold">
+                    {search ? "No saved people matched" : "No people found"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    Add collaborators to tracks or follow artists to build this
-                    list.
+                    {search
+                      ? "Search results from public artists will appear below."
+                      : "Add collaborators to tracks or follow artists to build this list."}
                   </p>
                 </div>
               </CardContent>
             </Card>
           )}
         </div>
+      )}
+
+      {search.trim() && (
+        <Card className="border-border/40 bg-card/40">
+          <CardHeader>
+            <CardTitle className="font-[family-name:var(--font-playfair)]">
+              Public Artists
+            </CardTitle>
+            <CardDescription>
+              Artists matching your search across SoundKit.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {peopleSearchQuery.isLoading && (
+              <p className="text-sm text-muted-foreground md:col-span-2">
+                Searching artists...
+              </p>
+            )}
+            {!peopleSearchQuery.isLoading && searchedArtists.length === 0 && (
+              <p className="text-sm text-muted-foreground md:col-span-2">
+                No public artists matched that search.
+              </p>
+            )}
+            {searchedArtists.map((artist) => (
+              <div
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 p-3"
+                key={artist.id}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{artist.name}</p>
+                  <p className="truncate text-sm text-muted-foreground">
+                    @{artist.username} • {artist.genre}
+                  </p>
+                </div>
+                <Button asChild={true} size="sm" variant="outline">
+                  <Link
+                    params={{ username: artist.username }}
+                    to="/artist/$username"
+                  >
+                    Profile
+                  </Link>
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

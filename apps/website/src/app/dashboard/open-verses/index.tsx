@@ -13,7 +13,7 @@ export const Route = createFileRoute("/dashboard/open-verses/")({
 });
 
 const genreRows = [
-  { label: "Rap", slug: "rap" },
+  { label: "Hip-Hop", slug: "hip-hop" },
   { label: "R&B", slug: "r-b" },
   { label: "Pop", slug: "pop" },
   { label: "Electronic", slug: "electronic" },
@@ -83,8 +83,10 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
   );
 }
 
-function GenreRow({ label, slug }: { label: string; slug: string }) {
-  const query = useOpenVersesInfiniteQuery({ genre: slug, limit: 10 });
+function GenreRow({ label, slug }: { label: string; slug?: string }) {
+  const query = useOpenVersesInfiniteQuery(
+    slug ? { genre: slug, limit: "10" } : { limit: "10" }
+  );
   const listings = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
@@ -96,12 +98,21 @@ function GenreRow({ label, slug }: { label: string; slug: string }) {
             Songs with open slots from artists in this lane.
           </p>
         </div>
-        <Button asChild={true} size="sm" variant="ghost">
-          <Link params={{ genre: slug }} to="/dashboard/open-verses/$genre">
-            View All
-            <ArrowRight className="ml-2 size-4" />
-          </Link>
-        </Button>
+        {slug ? (
+          <Button asChild={true} size="sm" variant="ghost">
+            <Link params={{ genre: slug }} to="/dashboard/open-verses/$genre">
+              View All
+              <ArrowRight className="ml-2 size-4" />
+            </Link>
+          </Button>
+        ) : (
+          <Button asChild={true} size="sm" variant="ghost">
+            <Link to="/dashboard/open-verses">
+              View All
+              <ArrowRight className="ml-2 size-4" />
+            </Link>
+          </Button>
+        )}
       </div>
       <div className="-mx-4 overflow-x-auto px-4 pb-2">
         <div className="flex gap-4">
@@ -154,6 +165,8 @@ function OpenVersesPage() {
           </div>
         </CardHeader>
       </Card>
+
+      <GenreRow label="All Open Verses" />
 
       {genreRows.map((genre) => (
         <GenreRow key={genre.slug} label={genre.label} slug={genre.slug} />

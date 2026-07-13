@@ -1,6 +1,7 @@
 "use client";
 
-import { Calendar, Play, Clock } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Calendar, Clock, Play } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
@@ -8,37 +9,40 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
+import type { ProjectSummary } from "@/lib/soundkit-api-hooks";
 
-const upcomingReleases = [
-  {
-    coverArt: "/summer-music-album-cover.png",
-    daysUntil: 3,
-    id: 1,
-    releaseDate: "2025-01-15",
-    title: "Midnight Dreams",
-    type: "Album",
-  },
-  {
-    coverArt: "/night-music-album-cover.png",
-    daysUntil: 10,
-    id: 2,
-    releaseDate: "2025-01-22",
-    title: "Summer Vibes EP",
-    type: "EP",
-  },
-];
+const daysUntil = (releaseDate: string) =>
+  Math.max(
+    0,
+    Math.ceil((new Date(releaseDate).getTime() - Date.now()) / 86_400_000)
+  );
 
-export function UpcomingReleases() {
+export function UpcomingReleases({ projects }: { projects: ProjectSummary[] }) {
+  const upcomingReleases = [...projects]
+    .filter((project) => {
+      if (!project.releaseDate) {
+        return false;
+      }
+
+      return new Date(project.releaseDate).getTime() >= Date.now();
+    })
+    .sort(
+      (left, right) =>
+        new Date(left.releaseDate ?? 0).getTime() -
+        new Date(right.releaseDate ?? 0).getTime()
+    )
+    .slice(0, 4);
+
   return (
-    <Card className="bg-card/40 backdrop-blur-md border-border/40 overflow-hidden">
-      <CardHeader className="pb-4 border-b border-border/20">
+    <Card className="overflow-hidden border-border/40 bg-card/40 backdrop-blur-md">
+      <CardHeader className="border-b border-border/20 pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="font-[family-name:var(--font-playfair)] text-xl flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 font-[family-name:var(--font-playfair)] text-xl">
               <Calendar className="size-5 text-primary" />
               Upcoming Releases
             </CardTitle>
@@ -47,11 +51,12 @@ export function UpcomingReleases() {
             </CardDescription>
           </div>
           <Button
-            variant="outline"
+            asChild={true}
+            className="h-8 bg-card/50 text-xs"
             size="sm"
-            className="h-8 text-xs bg-card/50"
+            variant="outline"
           >
-            Calendar View
+            <Link to="/dashboard/career/calendar">Calendar View</Link>
           </Button>
         </div>
       </CardHeader>
@@ -59,37 +64,37 @@ export function UpcomingReleases() {
         <div className="divide-y divide-border/10">
           {upcomingReleases.map((release) => (
             <div
+              className="group flex flex-col items-center gap-4 p-4 transition-all hover:bg-white/[0.02] sm:flex-row"
               key={release.id}
-              className="group flex flex-col sm:flex-row items-center gap-4 p-4 hover:bg-white/[0.02] transition-all"
             >
-              <div className="relative size-20 sm:size-16 flex-shrink-0">
+              <div className="relative size-20 flex-shrink-0 sm:size-16">
                 <AppImage
-                  src={release.coverArt || "/placeholder.svg"}
                   alt={release.title}
-                  width={80}
+                  className="size-full rounded-xl border border-border/20 object-cover shadow-lg transition-transform group-hover:scale-105"
                   height={80}
                   layout="fixed"
-                  className="size-full rounded-xl object-cover border border-border/20 shadow-lg group-hover:scale-105 transition-transform"
+                  src={release.coverArtUrl || "/placeholder.svg"}
+                  width={80}
                 />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                  <Play className="size-6 text-white fill-current" />
+                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Play className="size-6 fill-current text-white" />
                 </div>
               </div>
 
-              <div className="flex-1 min-w-0 text-center sm:text-left">
-                <p className="font-bold text-base sm:text-sm truncate group-hover:text-primary transition-colors">
+              <div className="min-w-0 flex-1 text-center sm:text-left">
+                <p className="truncate font-bold text-base transition-colors group-hover:text-primary sm:text-sm">
                   {release.title}
                 </p>
-                <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                <div className="mt-1 flex items-center justify-center gap-2 sm:justify-start">
                   <Badge
+                    className="h-4 bg-muted/50 px-1.5 font-bold text-[9px] uppercase tracking-widest"
                     variant="secondary"
-                    className="text-[9px] uppercase tracking-widest px-1.5 h-4 font-bold bg-muted/50"
                   >
-                    {release.type}
+                    {release.projectType}
                   </Badge>
-                  <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                  <span className="flex items-center gap-1 font-medium text-[10px] text-muted-foreground">
                     <Clock className="size-3" />
-                    {new Date(release.releaseDate).toLocaleDateString(
+                    {new Date(release.releaseDate ?? "").toLocaleDateString(
                       undefined,
                       { day: "numeric", month: "short", year: "numeric" }
                     )}
@@ -97,11 +102,11 @@ export function UpcomingReleases() {
                 </div>
               </div>
 
-              <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 sm:gap-0 bg-primary/5 sm:bg-transparent px-4 py-2 sm:p-0 rounded-full sm:rounded-none">
-                <p className="text-lg sm:text-xl font-black font-[family-name:var(--font-playfair)] text-primary leading-none">
-                  {release.daysUntil}d
+              <div className="flex flex-row items-center gap-2 rounded-full bg-primary/5 px-4 py-2 sm:flex-col sm:items-end sm:gap-0 sm:bg-transparent sm:p-0">
+                <p className="font-[family-name:var(--font-playfair)] font-black text-lg text-primary leading-none sm:text-xl">
+                  {daysUntil(release.releaseDate ?? "")}d
                 </p>
-                <p className="text-[10px] uppercase tracking-tighter font-bold text-muted-foreground">
+                <p className="font-bold text-[10px] text-muted-foreground uppercase tracking-tighter">
                   countdown
                 </p>
               </div>
@@ -111,7 +116,7 @@ export function UpcomingReleases() {
 
         {upcomingReleases.length === 0 && (
           <div className="p-12 text-center">
-            <Calendar className="size-10 text-muted-foreground/20 mx-auto mb-3" />
+            <Calendar className="mx-auto mb-3 size-10 text-muted-foreground/20" />
             <p className="text-sm text-muted-foreground">
               No upcoming releases scheduled.
             </p>

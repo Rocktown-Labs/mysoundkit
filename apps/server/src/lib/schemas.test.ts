@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { onboardingArtistBodySchema, onboardingFanBodySchema } from "./schemas";
+import {
+  createProjectBodySchema,
+  createTrackAssetBodySchema,
+  friendSummarySchema,
+  onboardingArtistBodySchema,
+  onboardingFanBodySchema,
+} from "./schemas";
 
 const artistOnboardingPayload = {
   city: "Little Rock",
@@ -104,4 +110,63 @@ describe("onboarding plan codes", () => {
       ).toBe(false);
     }
   );
+});
+
+describe("artist dashboard release schemas", () => {
+  it("accepts mixtape projects for multi-track releases", () => {
+    const result = createProjectBodySchema.safeParse({
+      assetIds: ["asset_cover"],
+      collaboratorNames: ["Ava Rhodes", "Milo Park"],
+      isPublic: true,
+      newTracks: [
+        {
+          assetId: "asset_track_1",
+          genre: "Hip-Hop",
+          title: "Intro Tape",
+        },
+        {
+          assetId: "asset_track_2",
+          genre: "Hip-Hop",
+          title: "Second Side",
+        },
+      ],
+      projectType: "mixtape",
+      title: "Downtown Demos",
+      trackIds: [],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts uploaded cover art metadata for track publishing", () => {
+    const result = createTrackAssetBodySchema.safeParse({
+      assetKind: "cover_art",
+      bucketName: "soundkit-uploads",
+      metadata: {
+        height: 3000,
+        source: "artist-dashboard",
+        width: 3000,
+      },
+      mimeType: "image/jpeg",
+      objectKey: "tracks/track_1/cover.jpg",
+      sizeBytes: 512_000,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("models friends and collaborators shown in messaging", () => {
+    const result = friendSummarySchema.safeParse({
+      avatarUrl: "https://media.soundkit.test/avatars/ava.jpg",
+      email: "ava@example.com",
+      id: "user_ava",
+      lastInteractionAt: "2026-07-13T12:00:00.000Z",
+      name: "Ava Rhodes",
+      relationship: "collaborator",
+      role: "producer",
+      username: "ava-rhodes",
+    });
+
+    expect(result.success).toBe(true);
+  });
 });

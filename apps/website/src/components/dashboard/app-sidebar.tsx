@@ -14,6 +14,7 @@ import {
   Mic2,
   ShieldCheck,
   UserRoundPlus,
+  CalendarDays,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -53,6 +54,7 @@ const myMusicNavigation: SidebarNavItem[] = [
 const careerNavigation: SidebarNavItem[] = [
   { href: "/dashboard/career/profile", icon: User, name: "Profile" },
   { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
+  { href: "/dashboard/career/calendar", icon: CalendarDays, name: "Calendar" },
   { href: "/dashboard/team", icon: Users, name: "Team" },
   { href: "/dashboard/career/ai-studio", icon: Sparkles, name: "AI Studio" },
   { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
@@ -88,6 +90,12 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard/live",
       title: "Battles",
       url: "/dashboard/live",
+    },
+    {
+      icon: Music,
+      isActive: isRouteActive("/dashboard/live/my-kit"),
+      title: "My Kit",
+      url: "/dashboard/live/my-kit",
     },
     {
       icon: Users,

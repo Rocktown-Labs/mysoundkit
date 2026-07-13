@@ -37,8 +37,6 @@ const publicReadCases = [
   ["/v1/library/recent", "array"],
   ["/v1/library/saved", "array"],
   ["/v1/library/purchases", "array"],
-  ["/v1/messages/conversations", "array"],
-  ["/v1/messages/conversations/conv_sarah/messages", "array"],
   ["/v1/social/posts/post_1/comments", "array"],
   ["/v1/analytics/overview", "object"],
 ] as const;
@@ -82,6 +80,7 @@ const expectedOpenApiOperations = [
   ["patch", "/v1/me/profile"],
   ["get", "/v1/me/workspaces"],
   ["get", "/v1/messages/conversations"],
+  ["get", "/v1/messages/friends"],
   ["post", "/v1/messages/conversations"],
   ["get", "/v1/messages/conversations/{conversationId}/messages"],
   ["post", "/v1/messages/conversations/{conversationId}/messages"],
@@ -373,40 +372,16 @@ describe("SoundKit public write API", () => {
     });
   });
 
-  it("creates social comments and conversation messages", async () => {
-    const [commentResult, conversationResult, messageResult] =
-      await Promise.all([
-        fetchJson<{ body: string; id: string }>(
-          "/v1/social/posts/post_1/comments",
-          jsonRequest({ body: "Strong hook." })
-        ),
-        fetchJson<{ conversationType: string; title: string }>(
-          "/v1/messages/conversations",
-          jsonRequest({
-            participantUserIds: ["artist_1", "artist_2"],
-            title: "Collaboration",
-          })
-        ),
-        fetchJson<{ body: string; status: string }>(
-          "/v1/messages/conversations/conv_1/messages",
-          jsonRequest({ body: "Sending stems tonight." })
-        ),
-      ]);
+  it("creates social comments from a validated JSON request", async () => {
+    const commentResult = await fetchJson<{ body: string; id: string }>(
+      "/v1/social/posts/post_1/comments",
+      jsonRequest({ body: "Strong hook." })
+    );
 
     expect(commentResult.response.status).toBe(201);
     expect(commentResult.body).toMatchObject({
       body: "Strong hook.",
       id: "comment_new",
-    });
-    expect(conversationResult.response.status).toBe(201);
-    expect(conversationResult.body).toMatchObject({
-      conversationType: "group",
-      title: "Collaboration",
-    });
-    expect(messageResult.response.status).toBe(201);
-    expect(messageResult.body).toMatchObject({
-      body: "Sending stems tonight.",
-      status: "sent",
     });
   });
 

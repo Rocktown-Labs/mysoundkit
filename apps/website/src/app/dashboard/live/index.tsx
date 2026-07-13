@@ -101,9 +101,9 @@ function BattleHubPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link to="/dashboard/live/my-kit">
-              <Button className="w-full">Manage Kits</Button>
-            </Link>
+            <Button asChild className="w-full">
+              <Link to="/dashboard/live/my-kit">My Kits</Link>
+            </Button>
           </CardContent>
         </Card>
 

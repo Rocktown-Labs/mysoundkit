@@ -1,7 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Music, Check, GripVertical, Plus, Trophy } from "lucide-react";
-import { useState } from "react";
+import {
+  Check,
+  Disc3,
+  Music2,
+  Plus,
+  Save,
+  Search,
+  Trophy,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,342 +20,454 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// Mock data for tracks
-const mockTracks = [
-  { duration: "3:24", id: 1, plays: 15_234, title: "Summer Vibes" },
-  { duration: "4:12", id: 2, plays: 8921, title: "Night Drive" },
-  { duration: "3:45", id: 3, plays: 21_543, title: "Midnight Dreams" },
-  { duration: "3:58", id: 4, plays: 12_456, title: "City Lights" },
-  { duration: "4:32", id: 5, plays: 9876, title: "Ocean Breeze" },
-  { duration: "3:15", id: 6, plays: 18_234, title: "Sunrise" },
-];
+import { Input } from "@/components/ui/input";
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/live/my-kit")({
   component: MyKitPage,
 });
 
-function MyKitPage() {
-  const [bestOf3, setBestOf3] = useState<number[]>([]);
-  const [bestOf5, setBestOf5] = useState<number[]>([]);
-  const [bestOf7, setBestOf7] = useState<number[]>([]);
-  const [tiebreaker, setTiebreaker] = useState<number[]>([]);
+const battleFormats = [
+  {
+    description: "Three focused records for quick ranked matchups.",
+    id: "best-of-3",
+    label: "Best of 3",
+    slots: 3,
+  },
+  {
+    description: "A deeper rotation when the room wants range.",
+    id: "best-of-5",
+    label: "Best of 5",
+    slots: 5,
+  },
+  {
+    description: "Your full set list for longer live battles.",
+    id: "best-of-7",
+    label: "Best of 7",
+    slots: 7,
+  },
+  {
+    description: "One decisive track for sudden-death rounds.",
+    id: "tiebreaker",
+    label: "Tiebreaker",
+    slots: 1,
+  },
+] as const;
 
-  const toggleTrack = (
-    trackId: number,
-    kit: number[],
-    setKit: (kit: number[]) => void,
-    maxTracks: number
-  ) => {
-    if (kit.includes(trackId)) {
-      setKit(kit.filter((id) => id !== trackId));
-    } else if (kit.length < maxTracks) {
-      setKit([...kit, trackId]);
+type BattleFormatId = (typeof battleFormats)[number]["id"];
+type SelectedKits = Record<BattleFormatId, string[]>;
+
+const emptySelectedKits: SelectedKits = {
+  "best-of-3": [],
+  "best-of-5": [],
+  "best-of-7": [],
+  tiebreaker: [],
+};
+
+const storageKey = "soundkit:battle-kit:v1";
+
+function MyKitPage() {
+  const { data: tracks = [], error, isLoading } = useTracksQuery();
+  const [activeFormatId, setActiveFormatId] =
+    useState<BattleFormatId>("best-of-3");
+  const [selectedKits, setSelectedKits] =
+    useState<SelectedKits>(emptySelectedKits);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
     }
+
+    const storedKit = window.localStorage.getItem(storageKey);
+
+    if (!storedKit) {
+      return;
+    }
+
+    try {
+      const parsedKit = JSON.parse(storedKit) as Partial<SelectedKits>;
+      setSelectedKits({
+        "best-of-3": parsedKit["best-of-3"] ?? [],
+        "best-of-5": parsedKit["best-of-5"] ?? [],
+        "best-of-7": parsedKit["best-of-7"] ?? [],
+        tiebreaker: parsedKit.tiebreaker ?? [],
+      });
+    } catch {
+      window.localStorage.removeItem(storageKey);
+    }
+  }, []);
+
+  const activeFormat = battleFormats.find(
+    (format) => format.id === activeFormatId
+  );
+  const activeSelectedIds = selectedKits[activeFormatId];
+  const selectedTrackMap = useMemo(
+    () => new Map(tracks.map((track) => [track.id, track])),
+    [tracks]
+  );
+  const selectedTracks = activeSelectedIds
+    .map((trackId) => selectedTrackMap.get(trackId))
+    .filter((track): track is TrackSummary => Boolean(track));
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredTracks = tracks.filter((track) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return [track.title, track.genre, track.productionStatus]
+      .filter((value): value is string => typeof value === "string")
+      .some((value) => value.toLowerCase().includes(normalizedQuery));
+  });
+
+  const updateSelectedTracks = (trackId: string) => {
+    const slotCount = activeFormat?.slots ?? 0;
+
+    setSelectedKits((currentKits) => {
+      const currentTracks = currentKits[activeFormatId];
+
+      if (currentTracks.includes(trackId)) {
+        return {
+          ...currentKits,
+          [activeFormatId]: currentTracks.filter((id) => id !== trackId),
+        };
+      }
+
+      if (currentTracks.length >= slotCount) {
+        return currentKits;
+      }
+
+      return {
+        ...currentKits,
+        [activeFormatId]: [...currentTracks, trackId],
+      };
+    });
   };
+
+  const removeSelectedTrack = (trackId: string) => {
+    setSelectedKits((currentKits) => ({
+      ...currentKits,
+      [activeFormatId]: currentKits[activeFormatId].filter(
+        (id) => id !== trackId
+      ),
+    }));
+  };
+
+  const saveKit = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, JSON.stringify(selectedKits));
+    setSavedAt(new Date().toLocaleTimeString([], { timeStyle: "short" }));
+  };
+
+  const slotCount = activeFormat?.slots ?? 0;
+  const isFormatFull = activeSelectedIds.length >= slotCount;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">My Battle Kit</h1>
+          <h1 className="text-2xl font-bold md:text-3xl">My Battle Kit</h1>
           <p className="text-muted-foreground">
-            Organize your tracks for battles
+            Preset your strongest tracks for each live battle format.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link to="/">
-            <Button variant="outline">
-              <Music className="mr-2 size-4" />
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to="/dashboard/tracks">
+              <Music2 className="mr-2 size-4" />
               Explore Music
-            </Button>
-          </Link>
-          <Link to="/dashboard/live">
-            <Button>
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/dashboard/live">
               <Trophy className="mr-2 size-4" />
               Find Battles
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="best-of-3" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="best-of-3">Best of 3</TabsTrigger>
-          <TabsTrigger value="best-of-5">Best of 5</TabsTrigger>
-          <TabsTrigger value="best-of-7">Best of 7</TabsTrigger>
-          <TabsTrigger value="tiebreaker">Tiebreaker</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-3 md:grid-cols-4">
+        {battleFormats.map((format) => {
+          const selectedCount = selectedKits[format.id].length;
+          const isActive = activeFormatId === format.id;
 
-        <TabsContent value="best-of-3" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Best of 3 Kit</CardTitle>
-              <CardDescription>
-                Select up to 3 tracks for best of 3 battles
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+          return (
+            <button
+              type="button"
+              key={format.id}
+              onClick={() => setActiveFormatId(format.id)}
+              className={cn(
+                "rounded-lg border bg-card/50 p-4 text-left transition-colors hover:border-primary/60",
+                isActive && "border-primary bg-primary/10"
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold">{format.label}</p>
+                <Badge variant={isActive ? "default" : "outline"}>
+                  {selectedCount}/{format.slots}
+                </Badge>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {format.description}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="border-border/50 bg-card/50">
+          <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Track Library</CardTitle>
+                <CardDescription>
+                  Select from your uploaded catalog for {activeFormat?.label}.
+                </CardDescription>
+              </div>
+              <Badge variant="secondary">{tracks.length} tracks</Badge>
+            </div>
+            <div className="relative">
+              <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="pl-9"
+                placeholder="Search by title, genre, or status"
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading && (
+              <div className="rounded-lg border border-dashed p-8 text-sm text-muted-foreground">
+                Loading your tracks...
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-8 text-sm text-destructive">
+                We could not load your tracks. Refresh and try again.
+              </div>
+            )}
+
+            {!isLoading && !error && tracks.length === 0 && (
+              <EmptyLibraryState />
+            )}
+
+            {!isLoading &&
+              !error &&
+              tracks.length > 0 &&
+              filteredTracks.length === 0 && (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  No tracks match that search.
+                </div>
+              )}
+
+            {!isLoading && !error && filteredTracks.length > 0 && (
               <div className="space-y-3">
-                {mockTracks.map((track) => (
-                  <div
-                    key={track.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                      bestOf3.includes(track.id)
-                        ? "bg-primary/10 border-primary"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <GripVertical className="size-4 text-muted-foreground" />
-                      <Music className="size-4" />
-                      <div>
-                        <p className="font-medium">{track.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {track.plays.toLocaleString()} plays •{" "}
-                          {track.duration}
-                        </p>
+                {filteredTracks.map((track) => {
+                  const isSelected = activeSelectedIds.includes(track.id);
+                  const disableAdd = !isSelected && isFormatFull;
+
+                  return (
+                    <TrackLibraryRow
+                      key={track.id}
+                      track={track}
+                      disabled={disableAdd}
+                      isSelected={isSelected}
+                      onToggle={() => updateSelectedTracks(track.id)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/20 bg-card/70">
+          <CardHeader>
+            <CardTitle>{activeFormat?.label} Set</CardTitle>
+            <CardDescription>
+              {activeSelectedIds.length} of {slotCount} battle slots ready.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              {Array.from({ length: slotCount }).map((_, index) => {
+                const selectedTrack = selectedTracks[index];
+
+                if (!selectedTrack) {
+                  return (
+                    <div
+                      // biome-ignore lint/suspicious/noArrayIndexKey: Battle slots are fixed positions.
+                      key={index}
+                      className="flex min-h-16 items-center gap-3 rounded-lg border border-dashed p-3 text-sm text-muted-foreground"
+                    >
+                      <div className="flex size-8 items-center justify-center rounded-md bg-muted text-xs font-semibold">
+                        {index + 1}
                       </div>
+                      Empty slot
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={selectedTrack.id}
+                    className="flex min-h-16 items-center gap-3 rounded-lg border bg-background/60 p-3"
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/15 text-xs font-semibold text-primary">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {selectedTrack.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatTrackMeta(selectedTrack)}
+                      </p>
                     </div>
                     <Button
-                      size="sm"
-                      variant={
-                        bestOf3.includes(track.id) ? "default" : "outline"
-                      }
-                      onClick={() =>
-                        toggleTrack(track.id, bestOf3, setBestOf3, 3)
-                      }
-                      disabled={
-                        !bestOf3.includes(track.id) && bestOf3.length >= 3
-                      }
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSelectedTrack(selectedTrack.id)}
+                      aria-label={`Remove ${selectedTrack.title}`}
                     >
-                      {bestOf3.includes(track.id) ? (
-                        <>
-                          <Check className="mr-2 size-4" />
-                          Added
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Add
-                        </>
-                      )}
+                      <X className="size-4" />
                     </Button>
                   </div>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {bestOf3.length} / 3 tracks selected
-                </p>
-                <Button disabled={bestOf3.length !== 3}>Save Kit</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                );
+              })}
+            </div>
 
-        <TabsContent value="best-of-5" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Best of 5 Kit</CardTitle>
-              <CardDescription>
-                Select up to 5 tracks for best of 5 battles
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {mockTracks.map((track) => (
-                  <div
-                    key={track.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                      bestOf5.includes(track.id)
-                        ? "bg-primary/10 border-primary"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <GripVertical className="size-4 text-muted-foreground" />
-                      <Music className="size-4" />
-                      <div>
-                        <p className="font-medium">{track.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {track.plays.toLocaleString()} plays •{" "}
-                          {track.duration}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={
-                        bestOf5.includes(track.id) ? "default" : "outline"
-                      }
-                      onClick={() =>
-                        toggleTrack(track.id, bestOf5, setBestOf5, 5)
-                      }
-                      disabled={
-                        !bestOf5.includes(track.id) && bestOf5.length >= 5
-                      }
-                    >
-                      {bestOf5.includes(track.id) ? (
-                        <>
-                          <Check className="mr-2 size-4" />
-                          Added
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Add
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {bestOf5.length} / 5 tracks selected
-                </p>
-                <Button disabled={bestOf5.length !== 5}>Save Kit</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
+              {isFormatFull
+                ? "This kit is full and ready to use."
+                : `Add ${slotCount - activeSelectedIds.length} more ${
+                    slotCount - activeSelectedIds.length === 1
+                      ? "track"
+                      : "tracks"
+                  } to complete this format.`}
+            </div>
 
-        <TabsContent value="best-of-7" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Best of 7 Kit</CardTitle>
-              <CardDescription>
-                Select up to 7 tracks for best of 7 battles
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {mockTracks.map((track) => (
-                  <div
-                    key={track.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                      bestOf7.includes(track.id)
-                        ? "bg-primary/10 border-primary"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <GripVertical className="size-4 text-muted-foreground" />
-                      <Music className="size-4" />
-                      <div>
-                        <p className="font-medium">{track.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {track.plays.toLocaleString()} plays •{" "}
-                          {track.duration}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={
-                        bestOf7.includes(track.id) ? "default" : "outline"
-                      }
-                      onClick={() =>
-                        toggleTrack(track.id, bestOf7, setBestOf7, 7)
-                      }
-                      disabled={
-                        !bestOf7.includes(track.id) && bestOf7.length >= 7
-                      }
-                    >
-                      {bestOf7.includes(track.id) ? (
-                        <>
-                          <Check className="mr-2 size-4" />
-                          Added
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Add
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {bestOf7.length} / 7 tracks selected
-                </p>
-                <Button disabled={bestOf7.length !== 7}>Save Kit</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            <Button
+              type="button"
+              className="w-full"
+              onClick={saveKit}
+              disabled={activeSelectedIds.length === 0}
+            >
+              <Save className="mr-2 size-4" />
+              Save Kit
+            </Button>
 
-        <TabsContent value="tiebreaker" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tiebreaker Tracks</CardTitle>
-              <CardDescription>
-                Select up to 2 tracks for tiebreaker rounds
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {mockTracks.map((track) => (
-                  <div
-                    key={track.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                      tiebreaker.includes(track.id)
-                        ? "bg-primary/10 border-primary"
-                        : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <GripVertical className="size-4 text-muted-foreground" />
-                      <Music className="size-4" />
-                      <div>
-                        <p className="font-medium">{track.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {track.plays.toLocaleString()} plays •{" "}
-                          {track.duration}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={
-                        tiebreaker.includes(track.id) ? "default" : "outline"
-                      }
-                      onClick={() =>
-                        toggleTrack(track.id, tiebreaker, setTiebreaker, 2)
-                      }
-                      disabled={
-                        !tiebreaker.includes(track.id) && tiebreaker.length >= 2
-                      }
-                    >
-                      {tiebreaker.includes(track.id) ? (
-                        <>
-                          <Check className="mr-2 size-4" />
-                          Added
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-2 size-4" />
-                          Add
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {tiebreaker.length} / 2 tracks selected
-                </p>
-                <Button disabled={tiebreaker.length !== 2}>Save Kit</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            {savedAt && (
+              <p className="text-center text-xs text-muted-foreground">
+                Saved locally at {savedAt}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
+}
+
+function TrackLibraryRow({
+  disabled,
+  isSelected,
+  onToggle,
+  track,
+}: {
+  disabled: boolean;
+  isSelected: boolean;
+  onToggle: () => void;
+  track: TrackSummary;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center sm:justify-between",
+        isSelected ? "border-primary bg-primary/10" : "bg-background/40",
+        disabled && "opacity-60"
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+          {track.coverArtUrl ? (
+            <img
+              src={track.coverArtUrl}
+              alt={`${track.title} cover`}
+              className="size-full object-cover"
+            />
+          ) : (
+            <Disc3 className="size-5 text-muted-foreground" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-medium">{track.title}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{formatTrackMeta(track)}</span>
+            {track.fileAvailability?.master && (
+              <Badge variant="outline">Master ready</Badge>
+            )}
+            {track.isForSale && <Badge variant="secondary">For sale</Badge>}
+          </div>
+        </div>
+      </div>
+
+      <Button
+        type="button"
+        size="sm"
+        variant={isSelected ? "default" : "outline"}
+        onClick={onToggle}
+        disabled={disabled}
+        className="w-full sm:w-auto"
+      >
+        {isSelected ? (
+          <>
+            <Check className="mr-2 size-4" />
+            Added
+          </>
+        ) : (
+          <>
+            <Plus className="mr-2 size-4" />
+            Add
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function EmptyLibraryState() {
+  return (
+    <div className="rounded-lg border border-dashed p-8 text-center">
+      <Music2 className="mx-auto size-8 text-muted-foreground" />
+      <p className="mt-3 font-semibold">No tracks in your library yet</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Upload a track first, then add it to a battle kit.
+      </p>
+      <Button asChild className="mt-4">
+        <Link to="/dashboard/tracks/new">Create Track</Link>
+      </Button>
+    </div>
+  );
+}
+
+function formatTrackMeta(track: TrackSummary) {
+  const parts = [
+    track.genre || "No genre",
+    track.duration || "No duration",
+    `${track.plays.toLocaleString()} plays`,
+  ];
+
+  return parts.join(" - ");
 }
