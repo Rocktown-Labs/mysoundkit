@@ -92,6 +92,12 @@ export function AppSidebar() {
       url: "/dashboard/live",
     },
     {
+      icon: Music,
+      isActive: isRouteActive("/dashboard/live/my-kit"),
+      title: "My Kit",
+      url: "/dashboard/live/my-kit",
+    },
+    {
       icon: Users,
       isActive: isRouteActive("/dashboard/live/parties"),
       title: "Parties",
