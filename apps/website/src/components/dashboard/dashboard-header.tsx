@@ -24,7 +24,7 @@ export function DashboardHeader() {
   const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
   const trimmedSearchValue = debouncedSearchValue.trim();
   const searchQuery = useSearchQuery({
-    limit: 8,
+    limit: "8",
     q: trimmedSearchValue,
     type: "all",
   });

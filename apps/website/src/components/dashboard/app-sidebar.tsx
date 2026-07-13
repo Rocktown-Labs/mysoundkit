@@ -13,6 +13,7 @@ import {
   Trophy,
   Mic2,
   ShieldCheck,
+  UserRoundPlus,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -46,12 +47,13 @@ const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard/videos", icon: Film, name: "Videos" },
   { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
   { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
-  { href: "/dashboard/team", icon: Users, name: "Team" },
+  { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Friends" },
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
 const careerNavigation: SidebarNavItem[] = [
   { href: "/dashboard/career/profile", icon: User, name: "Profile" },
   { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
+  { href: "/dashboard/team", icon: Users, name: "Team" },
   { href: "/dashboard/career/ai-studio", icon: Sparkles, name: "AI Studio" },
   { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
@@ -65,12 +67,6 @@ export function AppSidebar() {
       ?.split(",")
       .map((role) => role.trim())
       .includes("admin") || adminAccess.data?.isAdmin;
-  const isLiveRoute = pathname.startsWith("/dashboard/live");
-  const isBattleLiveRoute =
-    isLiveRoute &&
-    !pathname.startsWith("/dashboard/live/parties") &&
-    !pathname.startsWith("/dashboard/live/streams");
-
   const isRouteActive = (href: string) =>
     href === "/dashboard"
       ? pathname === href
@@ -89,26 +85,27 @@ export function AppSidebar() {
   const liveNavigation: SidebarNavItem[] = [
     {
       icon: Trophy,
-      isActive: isLiveRoute,
-      items: [
-        {
-          isActive: isBattleLiveRoute,
-          title: "Battles",
-          url: "/dashboard/live",
-        },
-        {
-          isActive: isRouteActive("/dashboard/live/parties"),
-          title: "Parties",
-          url: "/dashboard/live/parties",
-        },
-        {
-          isActive: isRouteActive("/dashboard/live/streams"),
-          title: "Streams",
-          url: "/dashboard/live/streams",
-        },
-      ],
-      title: "Live",
+      isActive: pathname === "/dashboard/live",
+      title: "Battles",
       url: "/dashboard/live",
+    },
+    {
+      icon: Users,
+      isActive: isRouteActive("/dashboard/live/parties"),
+      title: "Parties",
+      url: "/dashboard/live/parties",
+    },
+    {
+      icon: Film,
+      isActive: isRouteActive("/dashboard/live/streams"),
+      title: "Streams",
+      url: "/dashboard/live/streams",
+    },
+    {
+      icon: BarChart3,
+      isActive: isRouteActive("/dashboard/live/my-stats"),
+      title: "My Stats",
+      url: "/dashboard/live/my-stats",
     },
   ];
 

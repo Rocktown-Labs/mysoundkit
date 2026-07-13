@@ -6,36 +6,73 @@ import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import { UpcomingReleases } from "@/components/dashboard/upcoming-releases";
+import { Button } from "@/components/ui/button";
+import {
+  useMeQuery,
+  useProjectsQuery,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardPage,
 });
 
 function DashboardPage() {
+  const meQuery = useMeQuery();
+  const tracksQuery = useTracksQuery();
+  const projectsQuery = useProjectsQuery();
+  const displayName =
+    meQuery.data?.user.displayName ??
+    meQuery.data?.user.username ??
+    "SoundKit Artist";
+  const firstName = displayName.split(" ")[0] ?? displayName;
+  const tracks = tracksQuery.data ?? [];
+  const projects = projectsQuery.data ?? [];
+  const collaboratorCount = Math.max(
+    ...tracks.map((track) => track.collaboratorCount),
+    ...projects.map((project) => project.collaboratorCount),
+    0
+  );
+  const upcomingReleases = projects.filter((project) => {
+    if (!project.releaseDate) {
+      return false;
+    }
+
+    return new Date(project.releaseDate).getTime() >= Date.now();
+  });
+  const projectTypeCounts = projects.reduce(
+    (counts, project) => ({
+      ...counts,
+      [project.projectType]: (counts[project.projectType] ?? 0) + 1,
+    }),
+    {} as Record<string, number>
+  );
   const dashboardStats = [
     {
-      description: "+3 this month",
+      description: tracksQuery.isLoading
+        ? "Loading your catalog"
+        : "From your track library",
       icon: Music,
       title: "Total Tracks",
-      value: "24",
+      value: String(tracks.length),
     },
     {
-      description: "2 Albums, 3 EPs",
+      description: `${projectTypeCounts.album ?? 0} Albums, ${projectTypeCounts.ep ?? 0} EPs`,
       icon: FolderOpen,
       title: "Active Projects",
-      value: "5",
+      value: String(projects.length),
     },
     {
-      description: "+2 this month",
+      description: "Credited across tracks and projects",
       icon: Users,
       title: "Collaborators",
-      value: "8",
+      value: String(collaboratorCount),
     },
     {
-      description: "+15% from last week",
+      description: "Scheduled projects",
       icon: Sparkles,
-      title: "Profile Reach",
-      value: "12.4K",
+      title: "Upcoming Releases",
+      value: String(upcomingReleases.length),
     },
   ];
 
@@ -49,10 +86,12 @@ function DashboardPage() {
             <span>Artist Dashboard</span>
           </div>
           <h1 className="text-4xl font-bold font-[family-name:var(--font-playfair)] tracking-tight">
-            Welcome back, <span className="text-foreground/80">John</span>
+            Welcome back,{" "}
+            <span className="text-foreground/80">{firstName}</span>
           </h1>
           <p className="text-muted-foreground">
-            You have 3 active collaborations and 2 upcoming releases this month.
+            You have {collaboratorCount} active collaborators and{" "}
+            {upcomingReleases.length} upcoming releases in your catalog.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -98,5 +137,3 @@ function DashboardPage() {
     </div>
   );
 }
-
-import { Button } from "@/components/ui/button";

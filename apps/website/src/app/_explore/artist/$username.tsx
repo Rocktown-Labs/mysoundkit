@@ -17,6 +17,7 @@ import { useInView } from "react-intersection-observer";
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
 import { AppImage } from "@/components/ui/app-image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useArtistQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
@@ -49,16 +50,19 @@ const fetchArtistPosts = async ({ pageParam = 0 }) => {
 function ArtistProfilePage() {
   const { username } = Route.useParams();
   const { ref, inView } = useInView();
-
+  const artistQuery = useArtistQuery(username);
+  const artistSummary = artistQuery.data;
   const artist = {
     avatar: "/diverse-user-avatars.png",
     battleRank: "#2",
     battleRecord: "48-2",
-    bio: "R&B/Soul artist from Los Angeles. Creating vibes for late nights and summer days. 🌙✨",
+    bio: artistSummary
+      ? `${artistSummary.genre} artist from ${artistSummary.location || "SoundKit"}.`
+      : "Loading artist profile...",
     coverImage: "/summer-music-album-cover.png",
-    followers: "124K",
+    followers: String(artistSummary?.followers ?? 0),
     following: "892",
-    genre: "R&B / Soul",
+    genre: artistSummary?.genre ?? "Artist",
     joinedDate: "Mar 2023",
     links: {
       apple: "https://music.apple.com",
@@ -67,12 +71,12 @@ function ArtistProfilePage() {
       twitter: "https://twitter.com",
       youtube: "https://youtube.com",
     },
-    location: "Los Angeles, CA",
+    location: artistSummary?.location ?? "",
     monthlyListeners: "1.2M",
-    name: "Luna Eclipse",
-    tracks: 24,
+    name: artistSummary?.name ?? username,
+    tracks: 0,
     username,
-    verified: true,
+    verified: artistSummary?.verified ?? false,
   };
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -220,7 +224,7 @@ function PostGridItem({ post }: { post: any }) {
           <Heart className="size-4 md:size-5 fill-current" />
           <span className="font-bold text-sm md:text-base">
             {post.likes > 1000
-              ? (post.likes / 1000).toFixed(1) + "K"
+              ? `${(post.likes / 1000).toFixed(1)  }K`
               : post.likes}
           </span>
         </div>

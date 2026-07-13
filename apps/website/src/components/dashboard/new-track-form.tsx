@@ -15,6 +15,7 @@ import {
   CloudUpload,
   DollarSign,
   FileAudio,
+  ImageIcon,
   Info,
   LoaderCircle,
   Play,
@@ -38,6 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -61,6 +63,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import {
   apiClient,
+  MEDIA_UPLOAD_URL,
   MEDIA_BASE_URL,
   rpcJson,
   TRACK_SOURCE_UPLOAD_URL,
@@ -75,12 +78,14 @@ const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
 const trackFormSchema = z.object({
   bpm: z.string().optional(),
   collaborators: z.array(z.string().email()).default([]),
+  coverObjectKey: z.string().min(1, "Cover image is required"),
   description: z.string().optional(),
   genre: z.string().min(1, "Genre is required"),
   isForSale: z.boolean().default(false),
   key: z.string().optional(),
   name: z.string().min(2, "Track name is required"),
   price: z.string().optional(),
+  producers: z.string().optional(),
   productionStatus: z
     .enum(["demo", "mixed", "mastered", "complete"])
     .default("demo"),
@@ -88,6 +93,13 @@ const trackFormSchema = z.object({
   releaseStrategy: z
     .enum(["private", "publish_when_ready", "scheduled"])
     .default("publish_when_ready"),
+  rightsAccepted: z
+    .boolean()
+    .refine(
+      (value) => value,
+      "Confirm you have the rights to upload this track"
+    ),
+  writers: z.string().optional(),
 });
 
 type TrackFormValues = z.infer<typeof trackFormSchema>;
@@ -99,6 +111,12 @@ interface UploadedTrackPreview {
   statusMessage: string;
   title: string;
   trackId: string;
+}
+
+interface UploadedAssetPreview {
+  fileName: string;
+  objectKey: string;
+  remoteUrl: string;
 }
 
 const queueTrackProcessing = async (trackId: string) => {
@@ -113,6 +131,9 @@ export function NewTrackForm() {
   const [step, setStep] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [collaboratorEmail, setCollaboratorEmail] = useState("");
+  const [coverUpload, setCoverUpload] = useState<UploadedAssetPreview | null>(
+    null
+  );
   const [uploadedTrack, setUploadedTrack] =
     useState<UploadedTrackPreview | null>(null);
 
@@ -120,14 +141,18 @@ export function NewTrackForm() {
     defaultValues: {
       bpm: "",
       collaborators: [],
+      coverObjectKey: "",
       description: "",
       genre: "",
       isForSale: false,
       key: "",
       name: "",
       price: "29.99",
+      producers: "",
       productionStatus: "demo",
       releaseStrategy: "publish_when_ready",
+      rightsAccepted: false,
+      writers: "",
     },
     resolver: zodResolver(trackFormSchema),
   });
@@ -184,6 +209,24 @@ export function NewTrackForm() {
         },
       })
     );
+    if (coverUpload) {
+      await rpcJson(
+        await trackAssetPost({
+          json: {
+            assetKind: "cover_art",
+            metadata: {
+              originalFileName: coverUpload.fileName,
+              url: coverUpload.remoteUrl,
+            },
+            mimeType: "image/*",
+            objectKey: coverUpload.objectKey,
+            status: "ready",
+            storageProvider: "r2",
+          },
+          param: { trackId: track.id },
+        })
+      );
+    }
     const detail = await rpcJson(
       await trackAssetPost({
         json: {
@@ -297,6 +340,67 @@ export function NewTrackForm() {
     route: "track-source",
   });
 
+  const {
+    averageProgress: coverProgress,
+    isPending: isCoverUploading,
+    upload: uploadCover,
+  } = useUploadFiles({
+    api: MEDIA_UPLOAD_URL,
+    credentials: "include",
+    onError: (uploadError) => {
+      posthog.captureException(uploadError);
+      toast({
+        description: uploadError.message,
+        title: "Cover upload failed",
+        variant: "destructive",
+      });
+    },
+    onUploadComplete: ({ files }) => {
+      const [uploadedFile] = files;
+
+      if (!uploadedFile) {
+        return;
+      }
+
+      const objectKey = uploadedFile.objectInfo.key;
+      const nextCover = {
+        fileName: uploadedFile.raw.name,
+        objectKey,
+        remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+      };
+
+      setCoverUpload(nextCover);
+      form.setValue("coverObjectKey", objectKey, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      toast({
+        description: "Cover image selected and uploaded.",
+        title: "Cover ready",
+      });
+    },
+    route: "media",
+  });
+
+  const handleCoverUpload = async (files: FileList) => {
+    const [file] = [...files];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        description: "Select a JPG or PNG cover image.",
+        title: "Invalid cover image",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await uploadCover([file]);
+  };
+
   const handleMasterUpload = async (files: FileList) => {
     const [file] = [...files];
 
@@ -306,17 +410,19 @@ export function NewTrackForm() {
 
     const details = trackFormSchema
       .pick({
+        coverObjectKey: true,
         genre: true,
         name: true,
         productionStatus: true,
         releaseStrategy: true,
+        rightsAccepted: true,
       })
       .safeParse(form.getValues());
 
     if (!details.success) {
       toast({
         description:
-          "Add the track name, genre, status, and release strategy first.",
+          "Add the track name, genre, cover image, release details, and rights confirmation first.",
         title: "Track details needed",
         variant: "destructive",
       });
@@ -571,6 +677,60 @@ export function NewTrackForm() {
                   )}
                 />
 
+                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                      Cover Image
+                    </Label>
+                    <FileUploadZone
+                      title="Track Cover"
+                      description="Required artwork"
+                      acceptedTypes=".png,.jpg,.jpeg"
+                      files={
+                        coverUpload
+                          ? [
+                              {
+                                name: coverUpload.fileName,
+                                status: isCoverUploading
+                                  ? "Uploading"
+                                  : "Uploaded",
+                              },
+                            ]
+                          : []
+                      }
+                      onFileUpload={handleCoverUpload}
+                      progress={isCoverUploading ? coverProgress : undefined}
+                      status={
+                        isCoverUploading
+                          ? `${Math.round(coverProgress)}% uploaded`
+                          : undefined
+                      }
+                      variant="compact"
+                    />
+                    <FormField
+                      control={form.control}
+                      name="coverObjectKey"
+                      render={() => <FormMessage />}
+                    />
+                  </div>
+                  <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <ImageIcon className="size-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Cover art is required for playable or sellable tracks.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          It will appear on your public profile, player,
+                          library, and sales pages.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end pt-4">
                   <Button
                     type="button"
@@ -620,7 +780,26 @@ export function NewTrackForm() {
                         title="Main Master"
                         description="Highest quality (WAV preferred)"
                         acceptedTypes=".wav,.mp3,.aiff"
+                        files={
+                          uploadedTrack
+                            ? [
+                                {
+                                  name: uploadedTrack.title,
+                                  status: isUploading
+                                    ? "Uploading"
+                                    : "Uploaded",
+                                },
+                              ]
+                            : []
+                        }
                         onFileUpload={handleMasterUpload}
+                        progress={isUploading ? averageProgress : undefined}
+                        status={
+                          isUploading
+                            ? `${Math.round(averageProgress)}% uploaded`
+                            : undefined
+                        }
+                        variant="compact"
                       />
                     </div>
                     <div className="space-y-2">
@@ -633,6 +812,7 @@ export function NewTrackForm() {
                         acceptedTypes=".wav,.mp3,.aiff"
                         onFileUpload={() => {}}
                         optional
+                        variant="compact"
                       />
                     </div>
                   </div>
@@ -703,6 +883,7 @@ export function NewTrackForm() {
                       acceptedTypes=".wav,.mp3,.aiff"
                       onFileUpload={() => {}}
                       optional
+                      variant="compact"
                     />
                     <FileUploadZone
                       title="Adlibs / FX"
@@ -710,6 +891,7 @@ export function NewTrackForm() {
                       acceptedTypes=".wav,.mp3,.aiff"
                       onFileUpload={() => {}}
                       optional
+                      variant="compact"
                     />
                   </div>
                 </div>
@@ -928,6 +1110,42 @@ export function NewTrackForm() {
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-6">
                 <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="producers"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Producers</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Search friends or type names"
+                              {...field}
+                              className="bg-background/50"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="writers"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Writers</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Search friends or type names"
+                              {...field}
+                              className="bg-background/50"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Collaborator email address"
@@ -969,6 +1187,30 @@ export function NewTrackForm() {
                     )}
                   </div>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="rightsAccepted"
+                  render={({ field }) => (
+                    <FormItem className="rounded-xl border border-border/40 bg-muted/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel className="text-sm">
+                            I own or control the rights to upload, distribute,
+                            and sell this music on SoundKit.
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-between pt-4">
                   <Button

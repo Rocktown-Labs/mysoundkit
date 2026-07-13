@@ -274,7 +274,7 @@ export const publicSearchResultSchema = z.object({
       artistUsername: z.string().nullable(),
       coverArtUrl: z.string().nullable(),
       id: z.string(),
-      projectType: z.enum(["album", "ep", "single"]),
+      projectType: z.enum(["album", "ep", "mixtape", "single"]),
       releaseDate: z.string().nullable(),
       slug: z.string(),
       state: z.string().nullable(),
@@ -470,7 +470,7 @@ export const projectSummarySchema = z.object({
   id: z.string(),
   isPublic: z.boolean(),
   progress: z.number().int().min(0).max(100).default(0),
-  projectType: z.enum(["album", "ep", "single"]),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().nullable().optional(),
   slug: z.string(),
   status: z.enum(["draft", "scheduled", "released", "archived"]),
@@ -586,6 +586,17 @@ export const messageSchema = z.object({
   id: z.string(),
   senderId: z.string(),
   status: z.enum(["sent", "delivered", "read", "deleted"]),
+});
+
+export const friendSummarySchema = z.object({
+  avatarUrl: z.string().nullable(),
+  email: z.string().nullable(),
+  id: z.string(),
+  lastInteractionAt: z.string().nullable(),
+  name: z.string(),
+  relationship: z.enum(["friend", "collaborator", "following"]),
+  role: z.string().nullable(),
+  username: z.string().nullable(),
 });
 
 export const battleSummarySchema = z.object({
@@ -891,7 +902,7 @@ export const createProjectBodySchema = z.object({
       })
     )
     .default([]),
-  projectType: z.enum(["album", "ep", "single"]),
+  projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
   title: z.string().min(1),
   trackIds: z.array(z.string()).default([]),

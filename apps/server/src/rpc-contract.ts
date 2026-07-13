@@ -5,8 +5,10 @@ import { z } from "zod";
 import type {
   adminAccessSchema,
   adminPaymentsOverviewSchema,
+  artistSummarySchema,
   directVideoUploadResponseSchema,
   adminOverviewSchema,
+  friendSummarySchema,
   listeningPartySummarySchema,
   lyricsRevisionSchema,
   meResponseSchema,
@@ -103,6 +105,12 @@ export const rpcContract = new Hono()
   .get("/v1/billing/plans", (c) => c.json([] as z.infer<typeof planSchema>[]))
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
+  )
+  .get("/v1/artists/:username", (c) =>
+    c.json({} as z.infer<typeof artistSummarySchema>)
+  )
+  .get("/v1/messages/friends", (c) =>
+    c.json([] as z.infer<typeof friendSummarySchema>[])
   )
   .get(
     "/v1/search",

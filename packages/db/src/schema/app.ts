@@ -158,6 +158,7 @@ export const collaboratorRoleEnum = pgEnum("collaborator_role", [
 export const projectTypeEnum = pgEnum("project_type", [
   "album",
   "ep",
+  "mixtape",
   "single",
 ]);
 export const projectStatusEnum = pgEnum("project_status", [
