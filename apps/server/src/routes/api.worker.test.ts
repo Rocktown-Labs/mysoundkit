@@ -219,6 +219,12 @@ describe("SoundKit Worker API", () => {
     const friendsResponse = await SELF.fetch(
       "http://soundkit.test/v1/messages/friends"
     );
+    const conversationsResponse = await SELF.fetch(
+      "http://soundkit.test/v1/messages/conversations"
+    );
+    const conversationMessagesResponse = await SELF.fetch(
+      "http://soundkit.test/v1/messages/conversations/conv_sarah/messages"
+    );
     const checkoutResponse = await SELF.fetch(
       "http://soundkit.test/v1/billing/checkout",
       jsonRequest("POST", {
@@ -231,6 +237,8 @@ describe("SoundKit Worker API", () => {
     expect(createTrackResponse.status).toBe(401);
     expect(cartResponse.status).toBe(401);
     expect(friendsResponse.status).toBe(401);
+    expect(conversationsResponse.status).toBe(401);
+    expect(conversationMessagesResponse.status).toBe(401);
     expect(checkoutResponse.status).toBe(401);
   });
 

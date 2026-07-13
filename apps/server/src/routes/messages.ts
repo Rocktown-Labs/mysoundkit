@@ -2,11 +2,14 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
+  conversationParticipants,
+  conversations,
+  messages,
   trackCollaborators,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -157,10 +160,52 @@ app.openapi(
         conversationSummarySchema.array(),
         "Conversation list"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
     },
     tags: ["Messages"],
   }),
-  (c) => c.json(sampleConversations, HttpStatusCodes.OK)
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(sampleConversations, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const rows = await db
+      .select({
+        conversationType: conversations.conversationType,
+        id: conversations.id,
+        title: conversations.title,
+        updatedAt: conversations.updatedAt,
+      })
+      .from(conversationParticipants)
+      .innerJoin(
+        conversations,
+        eq(conversations.id, conversationParticipants.conversationId)
+      )
+      .where(eq(conversationParticipants.userId, user.id))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(50);
+
+    return c.json(
+      rows.map((row) => ({
+        conversationType: row.conversationType,
+        id: row.id,
+        title: row.title ?? "Untitled conversation",
+        unreadCount: 0,
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      HttpStatusCodes.OK
+    );
+  }
 );
 
 app.openapi(
@@ -178,21 +223,70 @@ app.openapi(
         conversationSummarySchema,
         "Conversation created"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
     },
     tags: ["Messages"],
   }),
-  (c) => {
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
     const body = c.req.valid("json");
+    const conversationType =
+      body.participantUserIds.length > 1
+        ? ("group" as const)
+        : ("direct" as const);
+    const now = new Date();
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          conversationType,
+          id: "conv_new",
+          title: body.title ?? "New conversation",
+          unreadCount: 0,
+          updatedAt: now.toISOString(),
+        },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const db = createDb();
+    const conversationId = crypto.randomUUID();
+    const participantUserIds = [
+      ...new Set([user.id, ...body.participantUserIds]),
+    ];
+    const [conversation] = await db
+      .insert(conversations)
+      .values({
+        conversationType,
+        createdByUserId: user.id,
+        id: conversationId,
+        title: body.title ?? null,
+        updatedAt: now,
+      })
+      .returning();
+
+    await db.insert(conversationParticipants).values(
+      participantUserIds.map((participantUserId) => ({
+        conversationId,
+        userId: participantUserId,
+      }))
+    );
+
     return c.json(
       {
-        conversationType:
-          body.participantUserIds.length > 1
-            ? ("group" as const)
-            : ("direct" as const),
-        id: "conv_new",
-        title: body.title ?? "New conversation",
+        conversationType,
+        id: conversation?.id ?? conversationId,
+        title: conversation?.title ?? body.title ?? "New conversation",
         unreadCount: 0,
-        updatedAt: new Date().toISOString(),
+        updatedAt: (conversation?.updatedAt ?? now).toISOString(),
       },
       HttpStatusCodes.CREATED
     );
@@ -213,10 +307,59 @@ app.openapi(
         messageSchema.array(),
         "Conversation messages"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
     },
     tags: ["Messages"],
   }),
-  (c) => c.json(sampleMessages, HttpStatusCodes.OK)
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(sampleMessages, HttpStatusCodes.OK);
+    }
+
+    const { conversationId } = c.req.valid("param");
+    const db = createDb();
+    const [membership] = await db
+      .select({ conversationId: conversationParticipants.conversationId })
+      .from(conversationParticipants)
+      .where(
+        and(
+          eq(conversationParticipants.conversationId, conversationId),
+          eq(conversationParticipants.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (!membership) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const rows = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt)
+      .limit(100);
+
+    return c.json(
+      rows.map((message) => ({
+        body: message.body,
+        createdAt: message.createdAt.toISOString(),
+        id: message.id,
+        senderId: message.senderUserId,
+        status: message.status,
+      })),
+      HttpStatusCodes.OK
+    );
+  }
 );
 
 app.openapi(
@@ -234,18 +377,69 @@ app.openapi(
     },
     responses: {
       [HttpStatusCodes.CREATED]: jsonContent(messageSchema, "Message created"),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
     },
     tags: ["Messages"],
   }),
-  (c) => {
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
     const body = c.req.valid("json");
+    const { conversationId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          body: body.body,
+          createdAt: new Date().toISOString(),
+          id: "msg_new",
+          senderId: user.id,
+          status: "sent" as const,
+        },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const db = createDb();
+    const [membership] = await db
+      .select({ conversationId: conversationParticipants.conversationId })
+      .from(conversationParticipants)
+      .where(
+        and(
+          eq(conversationParticipants.conversationId, conversationId),
+          eq(conversationParticipants.userId, user.id)
+        )
+      )
+      .limit(1);
+
+    if (!membership) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const [message] = await db
+      .insert(messages)
+      .values({
+        body: body.body,
+        conversationId,
+        id: crypto.randomUUID(),
+        senderUserId: user.id,
+      })
+      .returning();
+
     return c.json(
       {
-        body: body.body,
-        createdAt: new Date().toISOString(),
-        id: "msg_new",
-        senderId: "current_user",
-        status: "sent" as const,
+        body: message?.body ?? body.body,
+        createdAt: (message?.createdAt ?? new Date()).toISOString(),
+        id: message?.id ?? crypto.randomUUID(),
+        senderId: message?.senderUserId ?? user.id,
+        status: message?.status ?? ("sent" as const),
       },
       HttpStatusCodes.CREATED
     );

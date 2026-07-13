@@ -6,12 +6,14 @@ import type {
   adminAccessSchema,
   adminPaymentsOverviewSchema,
   artistSummarySchema,
+  conversationSummarySchema,
   directVideoUploadResponseSchema,
   adminOverviewSchema,
   friendSummarySchema,
   listeningPartySummarySchema,
   lyricsRevisionSchema,
   meResponseSchema,
+  messageSchema,
   openVerseListingSchema,
   openVersePageSchema,
   openVerseSubmissionSchema,
@@ -30,7 +32,9 @@ import type {
 import {
   createProjectBodySchema,
   createListeningPartyBodySchema,
+  createConversationBodySchema,
   createLyricsRevisionBodySchema,
+  createMessageBodySchema,
   createOpenVerseBodySchema,
   createOpenVerseSubmissionBodySchema,
   createSellerAccountLinkBodySchema,
@@ -111,6 +115,22 @@ export const rpcContract = new Hono()
   )
   .get("/v1/messages/friends", (c) =>
     c.json([] as z.infer<typeof friendSummarySchema>[])
+  )
+  .get("/v1/messages/conversations", (c) =>
+    c.json([] as z.infer<typeof conversationSummarySchema>[])
+  )
+  .post(
+    "/v1/messages/conversations",
+    jsonValidator(createConversationBodySchema),
+    (c) => c.json({} as z.infer<typeof conversationSummarySchema>, 201)
+  )
+  .get("/v1/messages/conversations/:conversationId/messages", (c) =>
+    c.json([] as z.infer<typeof messageSchema>[])
+  )
+  .post(
+    "/v1/messages/conversations/:conversationId/messages",
+    jsonValidator(createMessageBodySchema),
+    (c) => c.json({} as z.infer<typeof messageSchema>, 201)
   )
   .get(
     "/v1/search",

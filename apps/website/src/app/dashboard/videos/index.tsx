@@ -11,10 +11,9 @@ import {
 import { useState } from "react";
 
 import { StatsGrid } from "@/components/dashboard/stats-grid";
-import { AddVideoDialog } from "@/components/dashboard/videos/add-video-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,47 +21,68 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { mockVideos } from "@/lib/mock-videos";
+import { useVideosQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/videos/")({
   component: DashboardVideosPage,
 });
 
 function DashboardVideosPage() {
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const videosQuery = useVideosQuery();
+  const videos = videosQuery.data ?? [];
+  const verifiedUploads = videos.filter(
+    (video) => video.sourceProvider === "mux"
+  ).length;
+  const externalSources = videos.filter(
+    (video) => video.sourceProvider === "external"
+  ).length;
+  const processingVideos = videos.filter((video) =>
+    ["pending", "processing", "uploading"].includes(video.status)
+  ).length;
+  const videoStatusVariant = (status: string) => {
+    if (status === "ready") {
+      return "default";
+    }
+
+    if (status === "processing") {
+      return "destructive";
+    }
+
+    return "secondary";
+  };
 
   const videoStats = [
     {
       description: "Hosted directly on SoundKit via Mux",
       icon: ShieldCheck,
       title: "Verified Uploads",
-      value: "12",
+      value: String(verifiedUploads),
     },
     {
       description: "Linked official videos via YouTube",
       icon: Play,
       title: "External Sources",
-      value: "3",
+      value: String(externalSources),
     },
     {
       description: "Waiting on transcode and IDs",
       icon: Film,
       title: "Processing",
-      value: "2",
+      value: String(processingVideos),
     },
     {
-      description: "Across music videos and live sets",
+      description: "From your video library",
       icon: Play,
-      title: "Total Views",
-      value: "3.2M",
+      title: "Total Videos",
+      value: String(videos.length),
     },
   ];
 
-  const filteredVideos = mockVideos.filter(
+  const filteredVideos = videos.filter(
     (video) =>
       video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      video.creator.name.toLowerCase().includes(searchQuery.toLowerCase())
+      video.videoKind.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -125,25 +145,19 @@ function DashboardVideosPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="relative h-20 w-36 flex-shrink-0 overflow-hidden rounded-xl border border-border/50 group-hover:border-primary/40 transition-colors">
-                      <img
-                        alt={`${video.title} thumbnail`}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                        src={video.thumbnail}
-                      />
+                      <div className="flex h-full w-full items-center justify-center bg-muted transition-transform group-hover:scale-105">
+                        <Film className="size-8 text-muted-foreground" />
+                      </div>
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
                       <div className="absolute bottom-1.5 right-1.5 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-medium text-white">
-                        {video.duration}
+                        {video.sourceProvider}
                       </div>
                     </div>
                     <div className="space-y-1.5 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold truncate">{video.title}</p>
                         <Badge
-                          variant={
-                            video.status === "live"
-                              ? "destructive"
-                              : "secondary"
-                          }
+                          variant={videoStatusVariant(video.status)}
                           className="text-[10px] uppercase tracking-wider h-5"
                         >
                           {video.status}
@@ -151,7 +165,9 @@ function DashboardVideosPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span className="font-medium text-foreground/80">
-                          {video.creator.name}
+                          {video.verifiedOnPlatform
+                            ? "SoundKit upload"
+                            : "External source"}
                         </span>
                         <span>•</span>
                         <span className="capitalize">
@@ -174,7 +190,7 @@ function DashboardVideosPage() {
                         </div>
                       </div>
                       <p className="text-[11px] text-muted-foreground/60">
-                        {video.viewCount} views • Uploaded 2 months ago
+                        {video.playbackPolicy} playback
                       </p>
                     </div>
                   </div>
@@ -215,13 +231,25 @@ function DashboardVideosPage() {
                 </div>
               ))}
             </div>
-            {filteredVideos.length === 0 && (
+            {videosQuery.isLoading && (
               <div className="p-12 text-center space-y-3">
                 <Film className="size-12 text-muted-foreground/20 mx-auto" />
-                <h3 className="text-lg font-medium">No videos found</h3>
+                <h3 className="text-lg font-medium">Loading videos</h3>
                 <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                  We couldn't find any videos matching your search. Try
-                  adjusting your filters.
+                  Checking your SoundKit uploads and external links.
+                </p>
+              </div>
+            )}
+            {!videosQuery.isLoading && filteredVideos.length === 0 && (
+              <div className="p-12 text-center space-y-3">
+                <Film className="size-12 text-muted-foreground/20 mx-auto" />
+                <h3 className="text-lg font-medium">
+                  {searchQuery ? "No videos found" : "No videos yet"}
+                </h3>
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                  {searchQuery
+                    ? "We couldn't find any videos matching your search."
+                    : "Upload a verified video or link an external source to start your library."}
                 </p>
               </div>
             )}

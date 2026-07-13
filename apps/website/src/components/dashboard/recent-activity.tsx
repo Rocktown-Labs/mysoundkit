@@ -1,123 +1,154 @@
 "use client";
 
-import { Upload, Download, Edit, Music, ChevronRight } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ChevronRight, Edit, FolderOpen, Music } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ProjectSummary, TrackSummary } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
-const mockActivity = [
-  {
-    action: "uploaded vocals for",
-    bg: "bg-blue-500/10",
-    color: "text-blue-500",
-    icon: Upload,
-    id: 1,
-    project: "Summer Vibes",
-    time: "2h ago",
-    type: "upload",
-    user: "You",
-  },
-  {
-    action: "downloaded stems from",
-    bg: "bg-emerald-500/10",
-    color: "text-emerald-500",
-    icon: Download,
-    id: 2,
-    project: "Late Night Sessions",
-    time: "1d ago",
-    type: "download",
-    user: "David Kim",
-  },
-  {
-    action: "edited metadata for",
-    bg: "bg-amber-500/10",
-    color: "text-amber-500",
-    icon: Edit,
-    id: 3,
-    project: "Collaboration Track",
-    time: "2d ago",
-    type: "edit",
-    user: "You",
-  },
-  {
-    action: "created project",
-    bg: "bg-primary/10",
-    color: "text-primary",
-    icon: Music,
-    id: 4,
-    project: "Untitled Track",
-    time: "3d ago",
-    type: "create",
-    user: "You",
-  },
-];
+interface ActivityItem {
+  color: string;
+  href: "/dashboard/projects/$id" | "/dashboard/tracks/$id";
+  icon: LucideIcon;
+  id: string;
+  itemId: string;
+  label: string;
+  title: string;
+  updatedAt: string;
+}
 
-export function RecentActivity() {
+const relativeDate = (value: string) => {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
+
+  if (diffDays === 0) {
+    return "Today";
+  }
+
+  if (diffDays === 1) {
+    return "1 day ago";
+  }
+
+  return `${diffDays} days ago`;
+};
+
+export function RecentActivity({
+  projects,
+  tracks,
+}: {
+  projects: ProjectSummary[];
+  tracks: TrackSummary[];
+}) {
+  const activities: ActivityItem[] = [
+    ...tracks.map((track) => ({
+      color: "bg-primary/10 text-primary",
+      href: "/dashboard/tracks/$id" as const,
+      icon: Music,
+      id: `track-${track.id}`,
+      itemId: track.id,
+      label:
+        track.assetStatus === "processing"
+          ? "processing assets for"
+          : "updated track",
+      title: track.title,
+      updatedAt: track.updatedAt ?? new Date().toISOString(),
+    })),
+    ...projects.map((project) => ({
+      color: "bg-emerald-500/10 text-emerald-500",
+      href: "/dashboard/projects/$id" as const,
+      icon: FolderOpen,
+      id: `project-${project.id}`,
+      itemId: project.id,
+      label: "updated project",
+      title: project.title,
+      updatedAt: project.updatedAt ?? new Date().toISOString(),
+    })),
+  ].sort(
+    (left, right) =>
+      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+  )
+    .slice(0, 5);
+
   return (
-    <Card className="bg-card/40 backdrop-blur-md border-border/40 overflow-hidden">
-      <CardHeader className="pb-4 border-b border-border/20">
+    <Card className="overflow-hidden border-border/40 bg-card/40 backdrop-blur-md">
+      <CardHeader className="border-b border-border/20 pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="font-[family-name:var(--font-playfair)] text-lg">
             Activity
           </CardTitle>
           <Button
-            variant="ghost"
+            asChild={true}
+            className="h-7 font-bold text-[10px] uppercase tracking-widest"
             size="sm"
-            className="h-7 text-[10px] uppercase tracking-widest font-bold"
+            variant="ghost"
           >
-            Full Log
+            <Link to="/dashboard/projects">
+              Full Log
+              <ChevronRight className="ml-1 size-3" />
+            </Link>
           </Button>
         </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="relative">
-          {/* Connecting Line */}
-          <div className="absolute left-[27px] top-4 bottom-4 w-px bg-gradient-to-b from-border/40 via-border/20 to-transparent" />
+          <div className="absolute bottom-4 left-[27px] top-4 w-px bg-gradient-to-b from-border/40 via-border/20 to-transparent" />
 
-          <div className="p-4 space-y-6">
-            {mockActivity.map((activity) => {
+          <div className="space-y-6 p-4">
+            {activities.length === 0 && (
+              <div className="py-8 text-center">
+                <Edit className="mx-auto mb-3 size-8 text-muted-foreground/30" />
+                <p className="font-medium text-sm">No activity yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Upload tracks or create projects to build your log.
+                </p>
+              </div>
+            )}
+
+            {activities.map((activity) => {
               const IconComponent = activity.icon;
+
               return (
                 <div
+                  className="group relative flex items-start gap-4"
                   key={activity.id}
-                  className="flex items-start gap-4 group relative"
                 >
                   <div
                     className={cn(
-                      "size-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-transform group-hover:scale-110 border border-border/20 shadow-sm",
-                      activity.bg,
+                      "z-10 flex size-7 shrink-0 items-center justify-center rounded-full border border-border/20 shadow-sm transition-transform group-hover:scale-110",
                       activity.color
                     )}
                   >
                     <IconComponent className="size-3.5" />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs leading-relaxed">
-                      <span className="font-bold text-foreground/90">
-                        {activity.user}
-                      </span>{" "}
+                      <span className="font-bold text-foreground/90">You</span>{" "}
                       <span className="text-muted-foreground/80">
-                        {activity.action}
+                        {activity.label}
                       </span>{" "}
-                      <span className="font-semibold text-primary hover:underline cursor-pointer">
-                        {activity.project}
-                      </span>
+                      <Link
+                        className="font-semibold text-primary hover:underline"
+                        params={{ id: activity.itemId }}
+                        to={activity.href}
+                      >
+                        {activity.title}
+                      </Link>
                     </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] text-muted-foreground/50 font-medium">
-                        {activity.time}
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="font-medium text-[10px] text-muted-foreground/50">
+                        {relativeDate(activity.updatedAt)}
                       </span>
                       <span className="size-0.5 rounded-full bg-border" />
-                      <button className="text-[10px] text-primary/60 hover:text-primary font-medium">
+                      <Link
+                        className="font-medium text-[10px] text-primary/60 hover:text-primary"
+                        params={{ id: activity.itemId }}
+                        to={activity.href}
+                      >
                         View Details
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </div>
