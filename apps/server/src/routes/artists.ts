@@ -7,12 +7,16 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import {
+  genreSlugFromExploreFilter,
+  stateFromExploreRegion,
+} from "@/lib/public-explore";
 import { sampleArtists } from "@/lib/sample-data";
-import { artistSummarySchema } from "@/lib/schemas";
+import { artistRankingQuerySchema, artistSummarySchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
@@ -29,6 +33,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/",
+    request: { query: artistRankingQuerySchema.partial() },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         artistSummarySchema.array(),
@@ -38,14 +43,55 @@ app.openapi(
     tags: ["Artists"],
   }),
   async (c) => {
+    const query = c.req.valid("query");
+    const limit = query.limit ?? 24;
+    const page = query.page ?? 1;
+    const offset = (page - 1) * limit;
+
     if (!isDatabaseConfigured()) {
-      return c.json(sampleArtists, HttpStatusCodes.OK);
+      return c.json(
+        sampleArtists.slice(offset, offset + limit).map((artist, index) => ({
+          ...artist,
+          avatarUrl: "/diverse-user-avatars.png",
+          joinedAt: new Date(
+            Date.now() - (index + offset) * 86_400_000
+          ).toISOString(),
+          rank: index + offset + 1,
+          state: artist.location.split(", ").at(1) ?? null,
+          weeklyPlays: Math.max(1000, 100_000 - (index + offset) * 7500),
+        })),
+        HttpStatusCodes.OK
+      );
     }
 
     const db = createDb();
+    const genreSlug = genreSlugFromExploreFilter(query.genre);
+    const state = stateFromExploreRegion(query);
+    const publicArtistConditions = [
+      eq(artistProfiles.publicProfileEnabled, true),
+    ];
+
+    if (genreSlug) {
+      publicArtistConditions.push(eq(genres.slug, genreSlug));
+    }
+
+    if (state) {
+      publicArtistConditions.push(
+        sql`lower(${userProfiles.state}) in (${state.name.toLowerCase()}, ${state.abbreviation.toLowerCase()})`
+      );
+    }
+
+    const order =
+      query.category === "new"
+        ? desc(userProfiles.createdAt)
+        : query.sort === "name-asc"
+          ? asc(userProfiles.displayName)
+          : desc(artistProfiles.followerCount);
     const rows = await db
       .select({
+        avatarUrl: userProfiles.avatarUrl,
         city: userProfiles.city,
+        createdAt: userProfiles.createdAt,
         displayName: userProfiles.displayName,
         followerCount: artistProfiles.followerCount,
         genre: genres.name,
@@ -62,7 +108,7 @@ app.openapi(
       .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
       .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
       .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
-      .where(eq(artistProfiles.publicProfileEnabled, true))
+      .where(and(...publicArtistConditions))
       .groupBy(
         userProfiles.userId,
         userProfiles.city,
@@ -75,19 +121,25 @@ app.openapi(
         genres.name,
         authUser.name
       )
-      .orderBy(desc(artistProfiles.followerCount))
-      .limit(100);
+      .orderBy(order)
+      .limit(limit)
+      .offset(offset);
 
     return c.json(
-      rows.map((artist) => ({
+      rows.map((artist, index) => ({
+        avatarUrl: artist.avatarUrl,
         followers: artist.followerCount,
         genre: artist.genre ?? "Uncategorized",
         id: artist.id,
+        joinedAt: artist.createdAt.toISOString(),
         location: locationLabel({ city: artist.city, state: artist.state }),
         name: artist.stageName ?? artist.displayName ?? artist.name,
+        rank: index + offset + 1,
         roles: ["musician" as const],
+        state: artist.state,
         username: artist.username,
         verified: artist.isVerified,
+        weeklyPlays: Math.max(0, Number(artist.trackCount) * 1000),
       })),
       HttpStatusCodes.OK
     );

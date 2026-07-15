@@ -960,6 +960,7 @@ function ArtistOnboardingPage() {
                       <SelectItem value="electronic">Electronic</SelectItem>
                       <SelectItem value="rock">Rock</SelectItem>
                       <SelectItem value="afrobeats">Afrobeats</SelectItem>
+                      <SelectItem value="spoken-word">Spoken Word</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

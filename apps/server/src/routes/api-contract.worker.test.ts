@@ -289,6 +289,62 @@ describe("SoundKit public read API", () => {
     expect(body.featuredTracks.length).toBeGreaterThan(0);
   });
 
+  it("returns public explore read models for songs videos and ranked artists", async () => {
+    const [tracksResult, videosResult, artistsResult] = await Promise.all([
+      fetchJson<
+        {
+          artistName: string;
+          id: string;
+          plays: number;
+          title: string;
+        }[]
+      >("/v1/tracks?scope=public&region=us-arkansas&limit=6"),
+      fetchJson<
+        {
+          creatorName?: string;
+          duration?: string;
+          thumbnailUrl?: string | null;
+          viewCount?: string;
+        }[]
+      >("/v1/videos?scope=public&region=us-arkansas&limit=6"),
+      fetchJson<
+        {
+          avatarUrl?: string | null;
+          name: string;
+          rank?: number;
+          username: string;
+        }[]
+      >("/v1/artists?category=top&region=us-arkansas&limit=10"),
+    ]);
+
+    expect(tracksResult.response.status).toBe(200);
+    expect(tracksResult.body[0]).toEqual(
+      expect.objectContaining({
+        artistName: expect.any(String),
+        id: expect.any(String),
+        plays: expect.any(Number),
+        title: expect.any(String),
+      })
+    );
+    expect(videosResult.response.status).toBe(200);
+    expect(videosResult.body[0]).toEqual(
+      expect.objectContaining({
+        creatorName: expect.any(String),
+        duration: expect.any(String),
+        thumbnailUrl: expect.any(String),
+        viewCount: expect.any(String),
+      })
+    );
+    expect(artistsResult.response.status).toBe(200);
+    expect(artistsResult.body[0]).toEqual(
+      expect.objectContaining({
+        name: expect.any(String),
+        rank: 1,
+        username: expect.any(String),
+      })
+    );
+  });
+
   it("returns billing plans and library summaries without storage", async () => {
     const [plansResult, overviewResult, purchasesResult] = await Promise.all([
       fetchJson<

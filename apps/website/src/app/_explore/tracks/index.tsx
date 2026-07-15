@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
   { label: "Most Played", value: "plays-desc" },
@@ -13,21 +14,29 @@ const sortOptions = [
   { label: "Title (Z-A)", value: "title-desc" },
 ];
 
+const replaceExploreSearch = (params: URLSearchParams) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.history.replaceState(null, "", `?${params.toString()}`);
+};
+
 export const Route = createFileRoute("/_explore/tracks/")({
   component: TracksPage,
 });
 
 function TracksPage() {
   const router = useRouter();
-  const searchParams = new URLSearchParams(
-    typeof window !== "undefined" ? window.location.search : ""
-  );
+  const searchQuery =
+    typeof window === "undefined" ? "" : window.location.search;
+  const searchParams = new URLSearchParams(searchQuery);
   const isInitialMount = useRef(true);
 
   const [regionType, setRegionType] = useState<"north-america" | "global">(
     "north-america"
   );
-  const [region, setRegion] = useState("all");
+  const [region, setRegion] = useState("us-arkansas");
   const [genre, setGenre] = useState("all");
   const [sort, setSort] = useState("plays-desc");
 
@@ -67,7 +76,7 @@ function TracksPage() {
         setRegion(savedRegion);
       }
     }
-  }, [searchParams]);
+  }, [searchQuery]);
 
   // Update URL and localStorage on filter changes (skip initial mount)
   useEffect(() => {
@@ -84,82 +93,17 @@ function TracksPage() {
 
     localStorage.setItem("exploreRegionType", regionType);
     localStorage.setItem("exploreRegion", region);
-  }, [regionType, region, genre, sort, router]);
+    replaceExploreSearch(params);
+  }, [regionType, region, genre, sort]);
 
-  const tracks = [
-    {
-      artist: "Luna Eclipse",
-      artistSlug: "luna-eclipse",
-      cover: "/summer-music-album-cover.png",
-      duration: "3:24",
-      id: "track-1",
-      plays: "2.4M",
-      title: "Summer Nights",
-    },
-    {
-      artist: "Neon Pulse",
-      artistSlug: "neon-pulse",
-      cover: "/night-music-album-cover.png",
-      duration: "4:12",
-      id: "track-2",
-      plays: "1.8M",
-      title: "Midnight Dreams",
-    },
-    {
-      artist: "Street Poet",
-      artistSlug: "street-poet",
-      cover: "/hip-hop-album-cover.png",
-      duration: "3:45",
-      id: "track-3",
-      plays: "3.1M",
-      title: "Urban Legends",
-    },
-    {
-      artist: "Voltage Dreams",
-      artistSlug: "voltage-dreams",
-      cover: "/summer-music-album-cover.png",
-      duration: "3:56",
-      id: "track-4",
-      plays: "1.2M",
-      title: "Electric Soul",
-    },
-    {
-      artist: "Metro Flow",
-      artistSlug: "metro-flow",
-      cover: "/night-music-album-cover.png",
-      duration: "3:18",
-      id: "track-5",
-      plays: "2.7M",
-      title: "City Lights",
-    },
-    {
-      artist: "Ocean Drive",
-      artistSlug: "ocean-drive",
-      cover: "/hip-hop-album-cover.png",
-      duration: "4:02",
-      id: "track-6",
-      plays: "1.5M",
-      title: "Wave Rider",
-    },
-    {
-      artist: "Cyber Sound",
-      artistSlug: "cyber-sound",
-      cover: "/summer-music-album-cover.png",
-      duration: "3:33",
-      id: "track-7",
-      plays: "1.9M",
-      title: "Neon Dreams",
-    },
-    {
-      artist: "Beat Smith",
-      artistSlug: "beat-smith",
-      cover: "/night-music-album-cover.png",
-      duration: "3:47",
-      id: "track-8",
-      plays: "2.2M",
-      title: "Rhythm Flow",
-    },
-  ];
+  const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
+    genre,
+    limit: "48",
+    region,
+    regionType,
+    scope: "public",
+    sort,
+  });
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -192,20 +136,27 @@ function TracksPage() {
         sortOptions={sortOptions}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
-        {tracks.map((track) => (
-          <TrackCard
-            key={track.id}
-            id={track.id}
-            title={track.title}
-            artist={track.artist}
-            artistSlug={track.artistSlug}
-            cover={track.cover}
-            plays={track.plays}
-            duration={track.duration}
-          />
-        ))}
-      </div>
+      {isLoading || tracks.length > 0 ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
+          {tracks.map((track) => (
+            <TrackCard
+              key={track.id}
+              id={track.id}
+              title={track.title}
+              artist={track.artistName}
+              artistSlug={track.artistUsername ?? "artist"}
+              cover={track.coverArtUrl ?? "/placeholder.svg"}
+              plays={track.plays.toLocaleString()}
+              duration={track.duration}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+          No songs found for this filter yet. Showing Arkansas by default keeps
+          discovery grounded until more local artists register.
+        </div>
+      )}
     </div>
   );
 }

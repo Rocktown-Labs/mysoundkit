@@ -466,6 +466,9 @@ export const sampleProjects = [
 
 export const sampleVideos = [
   {
+    creatorName: "Luna Eclipse",
+    creatorUsername: "luna-eclipse",
+    duration: "03:48",
     externalPlaybackUrl: null,
     id: "video_midnight_vibes_mv",
     muxPlaybackId: null,
@@ -474,9 +477,11 @@ export const sampleVideos = [
     sourceProvider: "mux" as const,
     sourceTrackId: "track_midnight_vibes",
     status: "processing",
+    thumbnailUrl: "/night-music-album-cover.png",
     title: "Midnight Vibes Official Video",
     verifiedOnPlatform: true,
     videoKind: "music_video" as const,
+    viewCount: "284K",
   },
 ];
 

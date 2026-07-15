@@ -57,6 +57,7 @@ function FanOnboardingPage() {
     "Reggae",
     "Indie",
     "Metal",
+    "Spoken Word",
   ];
 
   const toggleGenre = (genre: string) => {

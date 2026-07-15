@@ -44,6 +44,7 @@ const genres = [
   { id: "reggae", name: "Reggae" },
   { id: "indie", name: "Indie" },
   { id: "metal", name: "Metal" },
+  { id: "spoken-word", name: "Spoken Word" },
 ];
 
 export function ExploreSidebar() {

@@ -55,6 +55,8 @@ import {
   adminImportStripePlanBodySchema,
   adminSyncStripePlansBodySchema,
   publicSearchQuerySchema,
+  publicExploreQuerySchema,
+  artistRankingQuerySchema,
   profileUpdateBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
@@ -120,6 +122,13 @@ export const rpcContract = new Hono()
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
   )
+  .get(
+    "/v1/artists/",
+    validator("query", (value) =>
+      artistRankingQuerySchema.partial().parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof artistSummarySchema>[])
+  )
   .get("/v1/artists/:username", (c) =>
     c.json({} as z.infer<typeof artistSummarySchema>)
   )
@@ -147,7 +156,13 @@ export const rpcContract = new Hono()
     validator("query", (value) => publicSearchQuerySchema.parse(value)),
     (c) => c.json({} as z.infer<typeof publicSearchResultSchema>)
   )
-  .get("/v1/tracks/", (c) => c.json([] as z.infer<typeof trackSummarySchema>[]))
+  .get(
+    "/v1/tracks/",
+    validator("query", (value) =>
+      publicExploreQuerySchema.partial().parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof trackSummarySchema>[])
+  )
   .post("/v1/tracks/", jsonValidator(createTrackBodySchema), (c) =>
     c.json({} as z.infer<typeof trackSummarySchema>, 201)
   )
@@ -229,7 +244,13 @@ export const rpcContract = new Hono()
     jsonValidator(createOpenVerseSubmissionBodySchema),
     (c) => c.json({} as z.infer<typeof openVerseSubmissionSchema>, 201)
   )
-  .get("/v1/videos/", (c) => c.json([] as z.infer<typeof videoSummarySchema>[]))
+  .get(
+    "/v1/videos/",
+    validator("query", (value) =>
+      publicExploreQuerySchema.partial().parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof videoSummarySchema>[])
+  )
   .post("/v1/videos/", jsonValidator(createVideoBodySchema), (c) =>
     c.json({} as z.infer<typeof videoSummarySchema>, 201)
   )
