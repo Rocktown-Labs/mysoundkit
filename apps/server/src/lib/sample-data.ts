@@ -130,6 +130,41 @@ export const sampleArtists = [
 export const sampleTracks = [
   {
     artistName: "Luna Eclipse",
+    bpm: 96,
+    catalogItemType: "single" as const,
+    collaboratorCount: 0,
+    coverArtUrl: "/summer-music-album-cover.png",
+    duration: "3:24",
+    fileAvailability: {
+      adlibs: false,
+      coverArt: true,
+      instrumental: true,
+      master: true,
+      reference: false,
+      session: false,
+      vocals: 1,
+    },
+    genre: "R&B/Soul",
+    id: "track_summer_nights",
+    isForSale: true,
+    isPublic: true,
+    lyricsStatus: "missing" as const,
+    musicalKey: "C Major",
+    organizationId: sampleWorkspace.id,
+    playbackUrl: null,
+    plays: 2_400_000,
+    price: 2.99,
+    priceCents: 299,
+    productionStatus: "complete" as const,
+    purchaseMode: "digital_download" as const,
+    releaseAt: null,
+    releaseStrategy: "publish_when_ready" as const,
+    slug: "summer-nights",
+    title: "Summer Nights",
+    updatedAt: "2026-04-25T12:00:00.000Z",
+  },
+  {
+    artistName: "Luna Eclipse",
     bpm: 92,
     catalogItemType: "single" as const,
     collaboratorCount: 0,
@@ -466,6 +501,9 @@ export const sampleProjects = [
 
 export const sampleVideos = [
   {
+    creatorName: "Luna Eclipse",
+    creatorUsername: "luna-eclipse",
+    duration: "03:48",
     externalPlaybackUrl: null,
     id: "video_midnight_vibes_mv",
     muxPlaybackId: null,
@@ -474,9 +512,11 @@ export const sampleVideos = [
     sourceProvider: "mux" as const,
     sourceTrackId: "track_midnight_vibes",
     status: "processing",
+    thumbnailUrl: "/night-music-album-cover.png",
     title: "Midnight Vibes Official Video",
     verifiedOnPlatform: true,
     videoKind: "music_video" as const,
+    viewCount: "284K",
   },
 ];
 

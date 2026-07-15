@@ -19,6 +19,7 @@ const adminOverviewGet = apiClient.v1.admin.overview.$get;
 const adminSyncStripePlansPost =
   apiClient.v1.admin.finance.payments["sync-plans"].$post;
 const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
+const artistsGet = apiClient.v1.artists.index.$get;
 const artistGet = apiClient.v1.artists[":username"].$get;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
 const searchGet = apiClient.v1.search.$get;
@@ -37,6 +38,7 @@ const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
 const battlesGet = apiClient.v1.battles.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
 const libraryOverviewGet = apiClient.v1.library.overview.$get;
+const libraryPlaylistsGet = apiClient.v1.library.playlists.$get;
 const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
 const libraryRecentGet = apiClient.v1.library.recent.$get;
 const librarySavedGet = apiClient.v1.library.saved.$get;
@@ -62,6 +64,8 @@ type ArtistOnboardingBody = InferRequestType<
 >["json"];
 type FanOnboardingBody = InferRequestType<typeof fanOnboardingPost>["json"];
 type SearchQuery = InferRequestType<typeof searchGet>["query"];
+type ArtistRankingQuery = InferRequestType<typeof artistsGet>["query"];
+type PublicExploreQuery = InferRequestType<typeof tracksGet>["query"];
 export type TrackSummary = InferResponseType<typeof tracksGet, 200>[number];
 type CreateTrackBody = InferRequestType<typeof tracksPost>["json"];
 type UpdateTrackBody = InferRequestType<typeof trackPatch>["json"];
@@ -81,12 +85,17 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 >["json"];
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
+export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
+export type LibraryPlaylist = InferResponseType<
+  typeof libraryPlaylistsGet,
+  200
+>[number];
 export type LibraryPurchase = InferResponseType<
   typeof libraryPurchasesGet,
   200
@@ -137,6 +146,7 @@ export const soundkitQueryKeys = {
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   artist: (username: string) => ["artists", username] as const,
+  artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battles: ["battles"] as const,
   billingPlans: ["billing", "plans"] as const,
   conversationMessages: (conversationId: string) =>
@@ -144,6 +154,7 @@ export const soundkitQueryKeys = {
   conversations: ["messages", "conversations"] as const,
   friends: ["messages", "friends"] as const,
   libraryOverview: ["library", "overview"] as const,
+  libraryPlaylists: ["library", "playlists"] as const,
   libraryPurchases: ["library", "purchases"] as const,
   libraryRecent: ["library", "recent"] as const,
   librarySaved: ["library", "saved"] as const,
@@ -158,8 +169,12 @@ export const soundkitQueryKeys = {
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
   track: (id: string) => ["tracks", id] as const,
-  tracks: ["tracks"] as const,
-  videos: ["videos"] as const,
+  tracks: (query?: PublicExploreQuery) =>
+    [...soundkitQueryKeys.tracksPrefix, query ?? {}] as const,
+  tracksPrefix: ["tracks"] as const,
+  videos: (query?: PublicExploreQuery) =>
+    [...soundkitQueryKeys.videosPrefix, query ?? {}] as const,
+  videosPrefix: ["videos"] as const,
 };
 
 export const useAdminAccessQuery = (enabled = true) =>
@@ -332,6 +347,12 @@ export const useArtistQuery = (username: string) =>
     queryKey: soundkitQueryKeys.artist(username),
   });
 
+export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>
+  useQuery({
+    queryFn: async () => rpcJson(await artistsGet({ query })),
+    queryKey: soundkitQueryKeys.artists(query),
+  });
+
 export const useArtistOnboardingMutation = () =>
   useMutation({
     mutationFn: async (body: ArtistOnboardingBody) =>
@@ -354,11 +375,14 @@ export const useSearchQuery = (query: SearchQuery) =>
     queryKey: soundkitQueryKeys.search(query),
   });
 
-export const useTracksQuery = (initialData?: TrackSummary[]) =>
+export const useTracksQuery = (
+  initialData?: TrackSummary[],
+  query: PublicExploreQuery = {}
+) =>
   useQuery({
     initialData,
-    queryFn: async () => rpcJson(await tracksGet()),
-    queryKey: soundkitQueryKeys.tracks,
+    queryFn: async () => rpcJson(await tracksGet({ query })),
+    queryKey: soundkitQueryKeys.tracks(query),
   });
 
 export const useTrackQuery = (trackId: string) =>
@@ -375,7 +399,9 @@ export const useCreateTrackMutation = () => {
     mutationFn: async (body: CreateTrackBody) =>
       rpcJson(await tracksPost({ json: body })),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.tracks }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      }),
   });
 };
 
@@ -386,7 +412,9 @@ export const useUpdateTrackMutation = (trackId: string) => {
     mutationFn: async (body: UpdateTrackBody) =>
       rpcJson(await trackPatch({ json: body, param: { trackId } })),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.tracks });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.track(trackId),
       });
@@ -489,6 +517,12 @@ export const useLibraryPurchasesQuery = () =>
     queryKey: soundkitQueryKeys.libraryPurchases,
   });
 
+export const useLibraryPlaylistsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await libraryPlaylistsGet()),
+    queryKey: soundkitQueryKeys.libraryPlaylists,
+  });
+
 export const useLibraryRecentQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await libraryRecentGet()),
@@ -578,10 +612,10 @@ export const useSubmitOpenVerseMutation = (listingId: string) => {
   });
 };
 
-export const useVideosQuery = () =>
+export const useVideosQuery = (query: PublicExploreQuery = {}) =>
   useQuery({
-    queryFn: async () => rpcJson(await videosGet()),
-    queryKey: soundkitQueryKeys.videos,
+    queryFn: async () => rpcJson(await videosGet({ query })),
+    queryKey: soundkitQueryKeys.videos(query),
   });
 
 export const useCreateVideoMutation = () => {
@@ -591,7 +625,9 @@ export const useCreateVideoMutation = () => {
     mutationFn: async (body: CreateVideoBody) =>
       rpcJson(await videosPost({ json: body })),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.videos }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      }),
   });
 };
 

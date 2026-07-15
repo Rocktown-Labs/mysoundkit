@@ -15,6 +15,11 @@ import { useState, useEffect } from "react";
 
 import { BattleCard } from "@/components/explore/battle-card";
 import { ListeningPartyCard } from "@/components/explore/listening-party-card";
+import {
+  liveDiscoveryGenres,
+  partyDiscoveryItems,
+  streamDiscoveryItems,
+} from "@/components/explore/live-discovery-data";
 import { SectionHeader } from "@/components/explore/section-header";
 import { StreamCard } from "@/components/explore/stream-card";
 import { AppImage } from "@/components/ui/app-image";
@@ -243,6 +248,53 @@ function LiveHubPage() {
               category="Mixing"
             />
           </div>
+        </div>
+      </section>
+
+      <section className="mb-8 md:mb-12">
+        <SectionHeader
+          title="Browse Live By Genre"
+          description="Find parties and streams in the lanes you care about."
+          icon={<Music className="size-6 text-primary" />}
+          viewAllHref="/live"
+        />
+        <div className="space-y-8">
+          {liveDiscoveryGenres.map((genre) => {
+            const parties = partyDiscoveryItems.filter(
+              (party) => party.genre === genre
+            );
+            const streams = streamDiscoveryItems.filter(
+              (stream) => stream.genre === genre
+            );
+
+            if (parties.length === 0 && streams.length === 0) {
+              return null;
+            }
+
+            return (
+              <div key={genre} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-lg">{genre}</h3>
+                  <Link
+                    to="/live"
+                    className="text-muted-foreground text-sm hover:text-primary"
+                  >
+                    View All
+                  </Link>
+                </div>
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex min-w-max gap-4 md:gap-6">
+                    {parties.map((party) => (
+                      <ListeningPartyCard key={party.id} {...party} />
+                    ))}
+                    {streams.map((stream) => (
+                      <StreamCard key={stream.id} {...stream} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
 

@@ -210,14 +210,33 @@ export const planSchema = z.object({
 });
 
 export const artistSummarySchema = z.object({
+  avatarUrl: z.string().nullable().optional(),
   followers: z.number(),
   genre: z.string(),
   id: z.string(),
+  joinedAt: z.string().optional(),
   location: z.string(),
   name: z.string(),
+  rank: z.number().int().positive().optional(),
   roles: artistRoleSchema.array().default(["musician"]),
+  state: z.string().nullable().optional(),
   username: z.string(),
   verified: z.boolean(),
+  weeklyPlays: z.number().int().nonnegative().optional(),
+});
+
+export const publicExploreQuerySchema = z.object({
+  genre: z.string().trim().max(80).default("all"),
+  limit: z.coerce.number().int().positive().max(100).default(24),
+  page: z.coerce.number().int().positive().default(1),
+  region: z.string().trim().max(80).default("us-arkansas"),
+  regionType: z.enum(["north-america", "global"]).default("north-america"),
+  scope: z.enum(["dashboard", "public"]).default("dashboard"),
+  sort: z.string().trim().max(80).default("rank-asc"),
+});
+
+export const artistRankingQuerySchema = publicExploreQuerySchema.extend({
+  category: z.enum(["rising", "new", "top"]).default("top"),
 });
 
 export const trackSummarySchema = z.object({
@@ -516,7 +535,10 @@ export const createListeningPartyBodySchema = z.object({
 });
 
 export const videoSummarySchema = z.object({
+  creatorName: z.string().optional(),
+  creatorUsername: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  duration: z.string().optional(),
   externalPlaybackUrl: z.string().url().nullable().optional(),
   id: z.string(),
   muxPlaybackId: z.string().nullable(),
@@ -536,6 +558,7 @@ export const videoSummarySchema = z.object({
     "battle_clip",
     "live_recording",
   ]),
+  viewCount: z.string().optional(),
 });
 
 export const sellerStatusSchema = z.object({

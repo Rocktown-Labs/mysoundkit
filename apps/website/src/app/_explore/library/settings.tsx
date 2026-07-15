@@ -8,7 +8,9 @@ import {
   CreditCard,
   ArrowLeft,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
+import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,12 +22,41 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  useMeQuery,
+  useUpdateMeProfileMutation,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/library/settings")({
   component: AccountSettingsPage,
 });
 
 function AccountSettingsPage() {
+  const { data: me, isLoading } = useMeQuery();
+  const updateProfile = useUpdateMeProfileMutation();
+  const [city, setCity] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [stateValue, setStateValue] = useState("");
+
+  useEffect(() => {
+    if (!me?.user) {
+      return;
+    }
+
+    setCity(me.user.city ?? "");
+    setDisplayName(me.user.displayName ?? "");
+    setStateValue(me.user.state ?? "");
+  }, [me]);
+
+  const isSignedIn = Boolean(me?.user);
+  const saveProfile = () => {
+    updateProfile.mutate({
+      city,
+      displayName,
+      state: stateValue,
+    });
+  };
+
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <Link to="/library" className="md:hidden">
@@ -45,118 +76,155 @@ function AccountSettingsPage() {
         </p>
       </div>
 
-      <div className="max-w-3xl space-y-6">
-        {/* Profile Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="size-5" />
-              Profile Information
-            </CardTitle>
-            <CardDescription>Update your personal details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" defaultValue="music_fan_123" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" defaultValue="fan@example.com" />
-            </div>
-            <Button>Save Changes</Button>
-          </CardContent>
-        </Card>
+      {!isLoading && !isSignedIn ? (
+        <LibraryEmptyState
+          actionHref="/login"
+          actionLabel="Log In"
+          description="Log in to manage your SoundKit profile, location, notifications, and plan."
+          icon={Settings}
+          secondaryHref="/signup"
+          secondaryLabel="Create Account"
+          title="Log in to manage account settings"
+        />
+      ) : (
+        <div className="max-w-3xl space-y-6">
+          {/* Profile Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="size-5" />
+                Profile Information
+              </CardTitle>
+              <CardDescription>Update your personal details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="display-name">Display Name</Label>
+                <Input
+                  id="display-name"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="How fans should see your name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input id="username" value={me?.user.username ?? ""} readOnly />
+              </div>
+              <Button onClick={saveProfile} disabled={updateProfile.isPending}>
+                {updateProfile.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </CardContent>
+          </Card>
 
-        {/* Location Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="size-5" />
-              Location
-            </CardTitle>
-            <CardDescription>
-              Set your location for personalized recommendations
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="location">City, State</Label>
-              <Input id="location" defaultValue="Los Angeles, CA" />
-            </div>
-            <Button>Update Location</Button>
-          </CardContent>
-        </Card>
+          {/* Location Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="size-5" />
+                Location
+              </CardTitle>
+              <CardDescription>
+                Set your location for personalized recommendations
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={city}
+                  onChange={(event) => setCity(event.target.value)}
+                  placeholder="City"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="state">State</Label>
+                <Input
+                  id="state"
+                  value={stateValue}
+                  onChange={(event) => setStateValue(event.target.value)}
+                  placeholder="State"
+                />
+              </div>
+              <Button onClick={saveProfile} disabled={updateProfile.isPending}>
+                Update Location
+              </Button>
+            </CardContent>
+          </Card>
 
-        {/* Notification Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="size-5" />
-              Notifications
-            </CardTitle>
-            <CardDescription>
-              Manage your notification preferences
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
+          {/* Notification Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="size-5" />
+                Notifications
+              </CardTitle>
+              <CardDescription>
+                Manage your notification preferences
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="new-music">New Music from Artists</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Get notified when artists release new tracks
+                  </p>
+                </div>
+                <Switch id="new-music" defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="battles">Live Battle Alerts</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Notifications when battles are live
+                  </p>
+                </div>
+                <Switch id="battles" defaultChecked />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Security Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Lock className="size-5" />
+                Security
+              </CardTitle>
+              <CardDescription>
+                Update your password and security settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline">Change Password</Button>
+            </CardContent>
+          </Card>
+
+          {/* Subscription */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="size-5" />
+                Subscription
+              </CardTitle>
+              <CardDescription>Manage your subscription plan</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="new-music">New Music from Artists</Label>
+                <p className="font-semibold">
+                  Current Account: {me?.user.accountType ?? "Free"}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Get notified when artists release new tracks
+                  Upgrade to unlock premium features
                 </p>
               </div>
-              <Switch id="new-music" defaultChecked />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="battles">Live Battle Alerts</Label>
-                <p className="text-sm text-muted-foreground">
-                  Notifications when battles are live
-                </p>
-              </div>
-              <Switch id="battles" defaultChecked />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Security Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lock className="size-5" />
-              Security
-            </CardTitle>
-            <CardDescription>
-              Update your password and security settings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline">Change Password</Button>
-          </CardContent>
-        </Card>
-
-        {/* Subscription */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="size-5" />
-              Subscription
-            </CardTitle>
-            <CardDescription>Manage your subscription plan</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="font-semibold">Current Plan: Free</p>
-              <p className="text-sm text-muted-foreground">
-                Upgrade to unlock premium features
-              </p>
-            </div>
-            <Button>Upgrade to Premium</Button>
-          </CardContent>
-        </Card>
-      </div>
+              <Button>Upgrade to Premium</Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

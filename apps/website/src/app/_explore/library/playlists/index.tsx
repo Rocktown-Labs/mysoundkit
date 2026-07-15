@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Music, Plus, ArrowLeft } from "lucide-react";
 import { useState } from "react";
 
+import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useLibraryPlaylistsQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { columns } from "./-columns";
 import { DataTable } from "./-data-table";
@@ -27,34 +29,17 @@ function PlaylistsPage() {
   const [open, setOpen] = useState(false);
   const [playlistName, setPlaylistName] = useState("");
   const [playlistDescription, setPlaylistDescription] = useState("");
-
-  const playlists = [
-    {
-      description: "Your most played tracks",
-      id: "1",
-      name: "My Favorites",
-      trackCount: 42,
-    },
-    {
-      description: "High energy tracks",
-      id: "2",
-      name: "Workout Vibes",
-      trackCount: 28,
-    },
-    {
-      description: "Relax and unwind",
-      id: "3",
-      name: "Chill Sessions",
-      trackCount: 35,
-    },
-  ];
+  const { data: me } = useMeQuery();
+  const { data: playlists = [], isLoading } = useLibraryPlaylistsQuery();
+  const isSignedIn = Boolean(me?.user);
+  const tableData = playlists.map((playlist) => ({
+    description: playlist.description ?? "No description",
+    id: playlist.id,
+    name: playlist.title,
+    trackCount: playlist.trackCount,
+  }));
 
   const handleCreatePlaylist = () => {
-    // Handle playlist creation
-    console.log("[v0] Creating playlist:", {
-      playlistDescription,
-      playlistName,
-    });
     setOpen(false);
     setPlaylistName("");
     setPlaylistDescription("");
@@ -81,12 +66,18 @@ function PlaylistsPage() {
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 size-4" />
-              New Playlist
+          {isSignedIn ? (
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 size-4" />
+                New Playlist
+              </Button>
+            </DialogTrigger>
+          ) : (
+            <Button asChild>
+              <Link to="/login">Log In</Link>
             </Button>
-          </DialogTrigger>
+          )}
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Create New Playlist</DialogTitle>
@@ -131,11 +122,27 @@ function PlaylistsPage() {
         </Dialog>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={playlists}
-        filterPlaceholder="Search playlists..."
-      />
+      {isLoading || tableData.length > 0 ? (
+        <DataTable
+          columns={columns}
+          data={tableData}
+          filterPlaceholder="Search playlists..."
+        />
+      ) : (
+        <LibraryEmptyState
+          actionHref={isSignedIn ? "/tracks" : "/login"}
+          actionLabel={isSignedIn ? "Browse Songs" : "Log In"}
+          description={
+            isSignedIn
+              ? "Create playlists as you discover songs you want to keep together."
+              : "Log in to create playlists and keep your SoundKit collection synced."
+          }
+          icon={Music}
+          secondaryHref={isSignedIn ? undefined : "/signup"}
+          secondaryLabel={isSignedIn ? undefined : "Create Account"}
+          title={isSignedIn ? "No playlists yet" : "Log in to manage playlists"}
+        />
+      )}
     </div>
   );
 }

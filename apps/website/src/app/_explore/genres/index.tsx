@@ -15,6 +15,7 @@ const genres = [
   { count: "743", emoji: "🌴", id: "reggae", name: "Reggae" },
   { count: "2.2K", emoji: "🎧", id: "indie", name: "Indie" },
   { count: "876", emoji: "🤘", id: "metal", name: "Metal" },
+  { count: "320", emoji: "🎙️", id: "spoken-word", name: "Spoken Word" },
 ];
 
 export const Route = createFileRoute("/_explore/genres/")({

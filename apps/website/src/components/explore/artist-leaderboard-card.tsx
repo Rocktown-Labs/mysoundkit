@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-interface Artist {
+export interface LeaderboardArtist {
   rank: number;
   slug: string;
   name: string;
@@ -21,7 +21,7 @@ interface Artist {
 }
 
 interface ArtistLeaderboardCardProps {
-  artists: Artist[];
+  artists: LeaderboardArtist[];
   type: "rising" | "new" | "top";
   showBorder?: boolean;
 }

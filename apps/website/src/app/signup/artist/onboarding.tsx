@@ -961,6 +961,7 @@ function ArtistOnboardingPage() {
                       <SelectItem value="spoken-word">Spoken Word</SelectItem>
                       <SelectItem value="rock">Rock</SelectItem>
                       <SelectItem value="afrobeats">Afrobeats</SelectItem>
+                      <SelectItem value="spoken-word">Spoken Word</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

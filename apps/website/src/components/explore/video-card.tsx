@@ -3,9 +3,31 @@ import { Eye, Lock, Radio, ShieldCheck, Video } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { MockVideo } from "@/lib/mock-videos";
 
-const kindLabels: Record<MockVideo["videoKind"], string> = {
+export interface ExploreVideoCardData {
+  creator: {
+    name: string;
+    slug: string;
+  };
+  duration: string;
+  id: string;
+  playbackPolicy: "premium_only_live" | "public" | "signed";
+  status: string;
+  thumbnail: string;
+  title: string;
+  verifiedOnPlatform: boolean;
+  videoKind:
+    | "music_video"
+    | "promo"
+    | "teaser"
+    | "battle_replay"
+    | "battle_clip"
+    | "live_recording";
+  viewCount: string;
+}
+
+const kindLabels: Record<ExploreVideoCardData["videoKind"], string> = {
+  battle_clip: "Battle Clip",
   battle_replay: "Battle Replay",
   live_recording: "Live Recording",
   music_video: "Music Video",
@@ -18,7 +40,7 @@ export function VideoCard({
   compact = false,
 }: {
   compact?: boolean;
-  video: MockVideo;
+  video: ExploreVideoCardData;
 }) {
   const isPremiumLive = video.playbackPolicy === "premium_only_live";
 
@@ -81,9 +103,9 @@ export function VideoCard({
               )}
               {video.status === "live"
                 ? "Streaming now"
-                : (video.verifiedOnPlatform
+                : video.verifiedOnPlatform
                   ? "Hosted on SoundKit"
-                  : "Linked from source")}
+                  : "Linked from source"}
             </span>
           </div>
         </CardContent>

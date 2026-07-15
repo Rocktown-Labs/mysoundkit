@@ -5,6 +5,7 @@ import {
   artistProfileRoles,
   artistProfiles,
   genres,
+  playbackSessions,
   purchases,
   trackAssets,
   trackLicenseOptions,
@@ -15,7 +16,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -32,6 +33,10 @@ import {
   isAuthenticatedUser,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import {
+  genreSlugFromExploreFilter,
+  stateFromExploreRegion,
+} from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
 import { sampleCatalogItems, sampleTracks } from "@/lib/sample-data";
 import {
@@ -46,6 +51,7 @@ import {
   trackDashboardDetailSchema,
   trackProcessingStatusSchema,
   trackSummarySchema,
+  publicExploreQuerySchema,
   updateTrackBodySchema,
 } from "@/lib/schemas";
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
@@ -107,6 +113,28 @@ const assetKindLabels = {
 
 const catalogAssetKinds = new Set(Object.keys(assetKindLabels));
 
+const trackPlayCount = sql<number>`(
+  select count(*)::int
+  from ${playbackSessions}
+  where ${playbackSessions.trackId} = ${tracks.id}
+)`;
+
+const publicTrackOrderBy = (sort?: string) => {
+  if (sort === "title-asc") {
+    return asc(tracks.title);
+  }
+
+  if (sort === "title-desc") {
+    return desc(tracks.title);
+  }
+
+  if (sort === "plays-asc") {
+    return asc(trackPlayCount);
+  }
+
+  return desc(trackPlayCount);
+};
+
 const getTrackProcessingWorkflow = () =>
   (
     env as unknown as {
@@ -118,6 +146,7 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/",
+    request: { query: publicExploreQuerySchema.partial() },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         trackSummarySchema.array(),
@@ -127,10 +156,52 @@ app.openapi(
     tags: ["Tracks"],
   }),
   async (c) => {
+    const query = c.req.valid("query");
     const user = c.get("user");
+    const isPublicScope = query.scope === "public";
 
-    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+    if (!isDatabaseConfigured()) {
       return c.json(sampleTracks, HttpStatusCodes.OK);
+    }
+
+    if (isPublicScope || !isAuthenticatedUser(user)) {
+      const db = createDb();
+      const genreSlug = genreSlugFromExploreFilter(query.genre);
+      const state = stateFromExploreRegion(query);
+      const publicTrackConditions = [eq(tracks.isPublic, true)];
+
+      if (genreSlug) {
+        publicTrackConditions.push(eq(genres.slug, genreSlug));
+      }
+
+      if (state) {
+        publicTrackConditions.push(
+          sql`lower(${userProfiles.state}) in (${state.name.toLowerCase()}, ${state.abbreviation.toLowerCase()})`
+        );
+      }
+
+      const order = publicTrackOrderBy(query.sort);
+      const rows = await withRetry("list public tracks", () =>
+        db
+          .select()
+          .from(tracks)
+          .leftJoin(genres, eq(genres.id, tracks.genreId))
+          .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+          .where(and(...publicTrackConditions))
+          .orderBy(order)
+          .limit(query.limit ?? 24)
+      );
+      const summaries = [];
+
+      for (const row of rows) {
+        summaries.push(await buildTrackSummary(row.tracks));
+      }
+
+      if (summaries.length === 0) {
+        return c.json(sampleTracks, HttpStatusCodes.OK);
+      }
+
+      return c.json(summaries, HttpStatusCodes.OK);
     }
 
     const session = c.get("session");

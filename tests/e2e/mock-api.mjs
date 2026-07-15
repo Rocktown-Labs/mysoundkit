@@ -300,6 +300,31 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
+      json(
+        response,
+        200,
+        [
+          {
+            artistName: "Luna Eclipse",
+            artistUsername: "luna-eclipse",
+            coverArtUrl: "/summer-music-album-cover.png",
+            duration: "3:24",
+            genre: "R&B/Soul",
+            id: "track_summer_nights",
+            isForSale: true,
+            isPublic: true,
+            plays: 2_400_000,
+            price: "$2.99",
+            priceCents: 299,
+            title: "Summer Nights",
+          },
+        ],
+        webOrigin
+      );
+      return;
+    }
+
     if (url.pathname === "/v1/me" || url.pathname === "/v1/me/") {
       const user = mockUser(session);
 
