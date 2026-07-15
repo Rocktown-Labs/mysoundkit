@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Video, ArrowLeft } from "lucide-react";
 
+import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
-import { useLibraryWatchedQuery } from "@/lib/soundkit-api-hooks";
+import { useLibraryWatchedQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { columns } from "./-columns";
 import { DataTable } from "./-data-table";
@@ -13,6 +14,8 @@ export const Route = createFileRoute("/_explore/library/watched/")({
 
 function RecentlyWatchedPage() {
   const { data = [], isLoading } = useLibraryWatchedQuery();
+  const { data: me } = useMeQuery();
+  const isSignedIn = Boolean(me?.user);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -36,9 +39,23 @@ function RecentlyWatchedPage() {
       {isLoading || data.length > 0 ? (
         <DataTable columns={columns} data={data} />
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Videos, battles, and streams you watch will appear here.
-        </div>
+        <LibraryEmptyState
+          actionHref={isSignedIn ? "/live" : "/login"}
+          actionLabel={isSignedIn ? "Explore Live" : "Log In"}
+          description={
+            isSignedIn
+              ? "Watch battles, videos, parties, and streams to build your watch history."
+              : "Log in to save your watch history for battles, videos, parties, and streams."
+          }
+          icon={Video}
+          secondaryHref={isSignedIn ? "/videos" : "/signup"}
+          secondaryLabel={isSignedIn ? "Browse Videos" : "Create Account"}
+          title={
+            isSignedIn
+              ? "No watched items yet"
+              : "Log in to track recently watched"
+          }
+        />
       )}
     </div>
   );

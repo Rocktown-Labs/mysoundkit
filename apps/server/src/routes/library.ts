@@ -5,6 +5,7 @@ import {
   orderItems,
   playbackSessions,
   playlists,
+  playlistTracks,
   purchases,
   recentPlays,
   tracks,
@@ -24,6 +25,7 @@ import {
 import {
   sampleLibraryOverview,
   samplePurchasedCatalogItems,
+  samplePlaylists,
   sampleTracks,
 } from "@/lib/sample-data";
 import {
@@ -31,6 +33,7 @@ import {
   libraryOverviewSchema,
   librarySavedTrackSchema,
   libraryWatchedItemSchema,
+  playlistSchema,
   purchasedCatalogItemSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -96,7 +99,20 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!user || !isDatabaseConfigured()) {
+    if (!user) {
+      return c.json(
+        {
+          playlistCount: 0,
+          purchaseCount: 0,
+          recentPlayCount: 0,
+          savedTrackCount: 0,
+          watchedCount: 0,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    if (!isDatabaseConfigured()) {
       return c.json(sampleLibraryOverview, HttpStatusCodes.OK);
     }
 
@@ -146,6 +162,60 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "get",
+    path: "/playlists",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        playlistSchema.array(),
+        "Library playlists"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!user) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(samplePlaylists, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const rows = await db
+      .select({
+        description: playlists.description,
+        id: playlists.id,
+        isPublic: playlists.isPublic,
+        title: playlists.title,
+      })
+      .from(playlists)
+      .where(eq(playlists.ownerUserId, user.id))
+      .orderBy(desc(playlists.updatedAt))
+      .limit(100);
+
+    const items = await Promise.all(
+      rows.map(async (playlist) => {
+        const [trackCountRow] = await db
+          .select({ value: count() })
+          .from(playlistTracks)
+          .where(eq(playlistTracks.playlistId, playlist.id));
+
+        return {
+          ...playlist,
+          trackCount: trackCountRow?.value ?? 0,
+        };
+      })
+    );
+
+    return c.json(items, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
     path: "/recent",
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
@@ -158,7 +228,11 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!user || !isDatabaseConfigured()) {
+    if (!user) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    if (!isDatabaseConfigured()) {
       return c.json(
         sampleTracks.map((track, index) => ({
           artist: track.artistName,
@@ -218,7 +292,11 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!user || !isDatabaseConfigured()) {
+    if (!user) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    if (!isDatabaseConfigured()) {
       return c.json(
         sampleTracks.slice(0, 1).map((track) => ({
           artist: track.artistName,
@@ -271,7 +349,11 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!user || !isDatabaseConfigured()) {
+    if (!user) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    if (!isDatabaseConfigured()) {
       return c.json(
         sampleTracks.map((track, index) => ({
           creator: track.artistName,
@@ -341,7 +423,11 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!user || !isDatabaseConfigured()) {
+    if (!user) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    if (!isDatabaseConfigured()) {
       return c.json(samplePurchasedCatalogItems, HttpStatusCodes.OK);
     }
 
