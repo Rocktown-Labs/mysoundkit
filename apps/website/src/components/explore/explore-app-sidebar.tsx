@@ -31,6 +31,7 @@ const discoverLinks: SidebarNavItem[] = [
   { href: "/tracks", icon: Music, label: "Songs" },
   { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
+  { href: "/shop", icon: ShoppingBag, label: "Shop" },
   { href: "/genres", icon: Music, label: "Genres" },
 ].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
@@ -61,6 +62,10 @@ export function ExploreAppSidebar() {
       isActive: isRouteActive(discoverLinks[3]?.url ?? "/artist"),
     },
     {
+      ...discoverLinks[4],
+      isActive: isRouteActive(discoverLinks[4]?.url ?? "/shop"),
+    },
+    {
       icon: TvMinimalPlay,
       isActive: isLiveRoute,
       items: [
@@ -84,8 +89,8 @@ export function ExploreAppSidebar() {
       url: "/live",
     },
     {
-      ...discoverLinks[4],
-      isActive: isRouteActive(discoverLinks[4]?.url ?? "/genres"),
+      ...discoverLinks[5],
+      isActive: isRouteActive(discoverLinks[5]?.url ?? "/genres"),
     },
   ];
 

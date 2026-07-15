@@ -35,6 +35,7 @@ const getUserSummary = async (user: AuthenticatedUser) => {
       headerUrl: null,
       id: user.id,
       onboardingCompletedAt: null,
+      role: user.role ?? null,
       state: null,
       username: user.email?.split("@")[0] ?? "soundkit-user",
     };
@@ -67,6 +68,7 @@ const getUserSummary = async (user: AuthenticatedUser) => {
       headerUrl: null,
       id: user.id,
       onboardingCompletedAt: null,
+      role: user.role ?? null,
       state: null,
       username: user.email?.split("@")[0] ?? "soundkit-user",
     };
@@ -81,6 +83,7 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     headerUrl: profile.headerUrl,
     id: user.id,
     onboardingCompletedAt: profile.onboardingCompletedAt?.toISOString() ?? null,
+    role: user.role ?? null,
     state: profile.state,
     username: profile.username,
   };

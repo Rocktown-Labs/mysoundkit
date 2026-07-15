@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_explore/live/battles/")({
   component: LiveBattlesPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    genre: typeof search.genre === "string" ? search.genre : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
+  }),
 });
 
 function LiveBattlesPage() {

@@ -134,6 +134,7 @@ export const userSummarySchema = z.object({
   headerUrl: z.string().nullable().optional(),
   id: z.string(),
   onboardingCompletedAt: z.string().nullable().optional(),
+  role: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
   username: z.string(),
 });
@@ -211,15 +212,27 @@ export const planSchema = z.object({
 
 export const artistSummarySchema = z.object({
   avatarUrl: z.string().nullable().optional(),
+  battleCount: z.number().int().nonnegative().optional(),
+  bio: z.string().nullable().optional(),
+  coverImageUrl: z.string().nullable().optional(),
   followers: z.number(),
   genre: z.string(),
   id: z.string(),
   joinedAt: z.string().optional(),
+  links: z
+    .object({
+      apple: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .optional(),
   location: z.string(),
   name: z.string(),
+  projectCount: z.number().int().nonnegative().optional(),
   rank: z.number().int().positive().optional(),
   roles: artistRoleSchema.array().default(["musician"]),
   state: z.string().nullable().optional(),
+  trackCount: z.number().int().nonnegative().optional(),
   username: z.string(),
   verified: z.boolean(),
   weeklyPlays: z.number().int().nonnegative().optional(),

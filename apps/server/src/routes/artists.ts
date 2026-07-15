@@ -3,6 +3,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
   genres,
+  profileLinks,
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
@@ -196,15 +197,22 @@ app.openapi(
       const db = createDb();
       const [artist] = await db
         .select({
+          avatarUrl: userProfiles.avatarUrl,
           city: userProfiles.city,
+          bio: userProfiles.bio,
           displayName: userProfiles.displayName,
           followerCount: artistProfiles.followerCount,
           genre: genres.name,
+          battleCount: artistProfiles.battleCount,
+          createdAt: artistProfiles.createdAt,
+          headerUrl: userProfiles.headerUrl,
           id: userProfiles.userId,
           isVerified: artistProfiles.isVerified,
           name: authUser.name,
+          projectCount: artistProfiles.projectCount,
           stageName: artistProfiles.stageName,
           state: userProfiles.state,
+          trackCount: artistProfiles.trackCount,
           username: userProfiles.username,
         })
         .from(artistProfiles)
@@ -215,16 +223,43 @@ app.openapi(
         .limit(1);
 
       if (artist) {
+        const links = await db
+          .select({
+            platform: profileLinks.platform,
+            url: profileLinks.url,
+          })
+          .from(profileLinks)
+          .where(eq(profileLinks.userId, artist.id));
+        const platformLinks = Object.fromEntries(
+          links
+            .filter((link) =>
+              ["apple_music", "spotify", "youtube"].includes(link.platform)
+            )
+            .map((link) => [
+              link.platform === "apple_music" ? "apple" : link.platform,
+              link.url,
+            ])
+        );
+
         return c.json(
           {
+            avatarUrl: artist.avatarUrl,
+            battleCount: artist.battleCount,
+            bio: artist.bio,
+            coverImageUrl: artist.headerUrl,
             followers: artist.followerCount,
             genre: artist.genre ?? "Uncategorized",
             id: artist.id,
+            joinedAt: artist.createdAt.toISOString(),
+            links: platformLinks,
             location: locationLabel({ city: artist.city, state: artist.state }),
             name: artist.stageName ?? artist.displayName ?? artist.name,
+            projectCount: artist.projectCount,
             roles: ["musician" as const],
             username: artist.username,
+            trackCount: artist.trackCount,
             verified: artist.isVerified,
+            weeklyPlays: Math.max(0, artist.trackCount * 1000),
           },
           HttpStatusCodes.OK
         );

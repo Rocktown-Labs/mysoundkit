@@ -27,6 +27,7 @@ import { Route as DashboardCommunityRouteImport } from './app/dashboard/communit
 import { Route as DashboardCollaboratorsRouteImport } from './app/dashboard/collaborators'
 import { Route as DashboardBillingRouteImport } from './app/dashboard/billing'
 import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
+import { Route as ExploreShopRouteImport } from './app/_explore/shop'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
 import { Route as ExploreLiveRouteImport } from './app/_explore/live'
 import { Route as DashboardVideosIndexRouteImport } from './app/dashboard/videos/index'
@@ -179,6 +180,11 @@ const DashboardAdminRoute = DashboardAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => DashboardRoute,
+} as any)
+const ExploreShopRoute = ExploreShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => ExploreRoute,
 } as any)
 const ExploreNewReleasesRoute = ExploreNewReleasesRouteImport.update({
   id: '/new-releases',
@@ -521,6 +527,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/live': typeof ExploreLiveRouteWithChildren
   '/new-releases': typeof ExploreNewReleasesRoute
+  '/shop': typeof ExploreShopRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
@@ -600,6 +607,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
+  '/shop': typeof ExploreShopRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
@@ -684,6 +692,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_explore/live': typeof ExploreLiveRouteWithChildren
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
+  '/_explore/shop': typeof ExploreShopRoute
   '/dashboard/admin': typeof DashboardAdminRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
@@ -769,6 +778,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/live'
     | '/new-releases'
+    | '/shop'
     | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
@@ -848,6 +858,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/sitemap.xml'
     | '/new-releases'
+    | '/shop'
     | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
@@ -931,6 +942,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_explore/live'
     | '/_explore/new-releases'
+    | '/_explore/shop'
     | '/dashboard/admin'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
@@ -1142,6 +1154,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/admin'
       preLoaderRoute: typeof DashboardAdminRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/_explore/shop': {
+      id: '/_explore/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof ExploreShopRouteImport
+      parentRoute: typeof ExploreRoute
     }
     '/_explore/new-releases': {
       id: '/_explore/new-releases'
@@ -1620,6 +1639,7 @@ const ExploreLiveRouteWithChildren = ExploreLiveRoute._addFileChildren(
 interface ExploreRouteChildren {
   ExploreLiveRoute: typeof ExploreLiveRouteWithChildren
   ExploreNewReleasesRoute: typeof ExploreNewReleasesRoute
+  ExploreShopRoute: typeof ExploreShopRoute
   ExploreIndexRoute: typeof ExploreIndexRoute
   ExploreArtistUsernameRoute: typeof ExploreArtistUsernameRoute
   ExploreArtistNewRoute: typeof ExploreArtistNewRoute
@@ -1647,6 +1667,7 @@ interface ExploreRouteChildren {
 const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreLiveRoute: ExploreLiveRouteWithChildren,
   ExploreNewReleasesRoute: ExploreNewReleasesRoute,
+  ExploreShopRoute: ExploreShopRoute,
   ExploreIndexRoute: ExploreIndexRoute,
   ExploreArtistUsernameRoute: ExploreArtistUsernameRoute,
   ExploreArtistNewRoute: ExploreArtistNewRoute,

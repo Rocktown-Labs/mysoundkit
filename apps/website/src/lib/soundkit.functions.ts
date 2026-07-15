@@ -45,6 +45,10 @@ export const requireDashboardUser = createServerFn({ method: "GET" }).handler(
         throw redirect({ to: "/signup" });
       }
 
+      if (me.user.accountType !== "artist" && me.user.role !== "admin") {
+        throw redirect({ to: "/library/settings" });
+      }
+
       return me;
     } catch (error) {
       if (error instanceof SoundKitServerError && error.status === 401) {
