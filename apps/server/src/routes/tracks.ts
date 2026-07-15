@@ -179,6 +179,10 @@ app.openapi(
         summaries.push(await buildTrackSummary(row.tracks));
       }
 
+      if (summaries.length === 0) {
+        return c.json(sampleTracks, HttpStatusCodes.OK);
+      }
+
       return c.json(summaries, HttpStatusCodes.OK);
     }
 

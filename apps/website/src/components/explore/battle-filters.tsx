@@ -88,7 +88,6 @@ const genres = [
   { label: "Reggae", value: "reggae" },
   { label: "Indie", value: "indie" },
   { label: "Metal", value: "metal" },
-  { label: "Spoken Word", value: "spoken-word" },
 ];
 
 interface BattleFiltersProps {
