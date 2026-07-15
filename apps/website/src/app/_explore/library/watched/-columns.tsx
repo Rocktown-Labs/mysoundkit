@@ -14,7 +14,7 @@ import {
 export interface WatchedItem {
   id: string;
   title: string;
-  type: "battle" | "video" | "stream";
+  type: "battle" | "community" | "party" | "stream" | "video";
   thumbnail: string;
   creator: string;
   creatorSlug: string;
@@ -22,16 +22,20 @@ export interface WatchedItem {
   watchedAt: string;
 }
 
-const watchedItemHref = (type: WatchedItem["type"]) => {
+const watchedItemLabel = (type: WatchedItem["type"]) => {
+  if (type === "party") {
+    return "listening party";
+  }
+
+  return type;
+};
+
+const watchedItemIcon = (type: WatchedItem["type"]) => {
   if (type === "battle") {
-    return "/live/battles/$id" as const;
+    return Sword;
   }
 
-  if (type === "stream") {
-    return "/live/streams/$id" as const;
-  }
-
-  return "/videos/$id" as const;
+  return Video;
 };
 
 export const columns: ColumnDef<WatchedItem>[] = [
@@ -59,19 +63,57 @@ export const columns: ColumnDef<WatchedItem>[] = [
   {
     accessorKey: "title",
     cell: ({ row }) => {
-      const Icon = row.original.type === "battle" ? Sword : Video;
+      const Icon = watchedItemIcon(row.original.type);
+      const title = row.getValue("title");
+      const item = row.original;
+      const linkClassName =
+        "font-medium hover:text-primary transition-colors line-clamp-1";
+
+      const titleLink =
+        item.type === "battle" ? (
+          <Link
+            to="/live/battles/$id"
+            params={{ id: item.id }}
+            className={linkClassName}
+          >
+            {title}
+          </Link>
+        ) : item.type === "stream" ? (
+          <Link
+            to="/live/streams/$id"
+            params={{ id: item.id }}
+            className={linkClassName}
+          >
+            {title}
+          </Link>
+        ) : item.type === "party" ? (
+          <Link
+            to="/live/parties/$id"
+            params={{ id: item.id }}
+            className={linkClassName}
+          >
+            {title}
+          </Link>
+        ) : item.type === "community" ? (
+          <Link to="/communities" className={linkClassName}>
+            {title}
+          </Link>
+        ) : (
+          <Link
+            to="/videos/$id"
+            params={{ id: item.id }}
+            className={linkClassName}
+          >
+            {title}
+          </Link>
+        );
+
       return (
         <div className="flex flex-col gap-1">
-          <Link
-            to={watchedItemHref(row.original.type)}
-            params={{ id: row.original.id }}
-            className="font-medium hover:text-primary transition-colors line-clamp-1"
-          >
-            {row.getValue("title")}
-          </Link>
+          {titleLink}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground capitalize">
             <Icon className="size-3" />
-            {row.original.type}
+            {watchedItemLabel(row.original.type)}
           </div>
         </div>
       );
@@ -137,12 +179,25 @@ export const columns: ColumnDef<WatchedItem>[] = [
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
-            <Link
-              to={watchedItemHref(row.original.type)}
-              params={{ id: row.original.id }}
-            >
-              Watch Again
-            </Link>
+            {row.original.type === "battle" ? (
+              <Link to="/live/battles/$id" params={{ id: row.original.id }}>
+                Watch Again
+              </Link>
+            ) : row.original.type === "stream" ? (
+              <Link to="/live/streams/$id" params={{ id: row.original.id }}>
+                Watch Again
+              </Link>
+            ) : row.original.type === "party" ? (
+              <Link to="/live/parties/$id" params={{ id: row.original.id }}>
+                Watch Again
+              </Link>
+            ) : row.original.type === "community" ? (
+              <Link to="/communities">Open Community</Link>
+            ) : (
+              <Link to="/videos/$id" params={{ id: row.original.id }}>
+                Watch Again
+              </Link>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem>Share</DropdownMenuItem>
           <DropdownMenuItem className="text-destructive">

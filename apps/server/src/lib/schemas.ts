@@ -653,7 +653,7 @@ export const libraryWatchedItemSchema = z.object({
   id: z.string(),
   thumbnail: z.string(),
   title: z.string(),
-  type: z.enum(["battle", "video", "stream"]),
+  type: z.enum(["battle", "community", "party", "stream", "video"]),
   watchedAt: z.string(),
 });
 
@@ -667,6 +667,7 @@ export const purchasedCatalogItemSchema = z.object({
   licenseName: z.string().nullable().optional(),
   priceCents: z.number().int(),
   priceLabel: z.string(),
+  productId: z.string().optional(),
   productType: commerceProductTypeSchema,
   purchaseMode: purchaseModeSchema,
   purchasedAt: z.string(),

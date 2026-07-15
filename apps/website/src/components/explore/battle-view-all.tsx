@@ -147,11 +147,14 @@ const generateUpcomingBattles = (count: number) =>
     ).toISOString(),
   }));
 
-const normalizedGenreValue = (value: string) =>
-  value
+const normalizedGenreValue = (value: string) => {
+  const normalized = value
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-|-$/gu, "");
+
+  return normalized === "r-b-soul" ? "rb-soul" : normalized;
+};
 
 const matchesSelectedGenre = (battle: BattleSummary, selectedGenre: string) =>
   selectedGenre === DEFAULT_GENRE ||
@@ -333,7 +336,10 @@ export function BattleViewAll({
 
   const liveBattleSections = useMemo(() => {
     const filtered = sortedLiveBattles(
-      battleSummaries.filter((battle) => matchesSelectedGenre(battle, genre)),
+      battleSummaries.filter(
+        (battle) =>
+          battle.status === "live" && matchesSelectedGenre(battle, genre)
+      ),
       sort
     );
     const featured = filtered
@@ -424,9 +430,7 @@ export function BattleViewAll({
       />
 
       {/* Content based on type */}
-      {type === "live" && (
-        <div className="space-y-8">{liveBattleContent}</div>
-      )}
+      {type === "live" && <div className="space-y-8">{liveBattleContent}</div>}
 
       {type === "leaderboard" && (
         <div className="space-y-2">

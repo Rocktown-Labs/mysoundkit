@@ -15,6 +15,13 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import {
+  fallbackArtistSlug,
+  fallbackCover,
+  toPurchasedCatalogItem,
+  toWatchedItemType,
+  watchedSourceTypes,
+} from "@/lib/library-mappers";
+import {
   sampleLibraryOverview,
   samplePurchasedCatalogItems,
   sampleTracks,
@@ -29,9 +36,6 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
-
-const fallbackArtistSlug = "artist";
-const fallbackCover = "/placeholder.svg";
 
 const toRecentTrack = async ({
   lastPlayedAt,
@@ -77,20 +81,6 @@ const toSavedTrack = async ({
   };
 };
 
-const toWatchedItemType = (
-  sourceType: typeof playbackSessions.$inferSelect.sourceType
-) => {
-  if (sourceType === "battle") {
-    return "battle" as const;
-  }
-
-  if (sourceType === "vod") {
-    return "video" as const;
-  }
-
-  return "stream" as const;
-};
-
 app.openapi(
   createRoute({
     method: "get",
@@ -132,7 +122,12 @@ app.openapi(
         db
           .select({ value: count() })
           .from(playbackSessions)
-          .where(eq(playbackSessions.userId, user.id)),
+          .where(
+            and(
+              eq(playbackSessions.userId, user.id),
+              inArray(playbackSessions.sourceType, watchedSourceTypes)
+            )
+          ),
       ]);
 
     return c.json(
@@ -305,12 +300,7 @@ app.openapi(
       .where(
         and(
           eq(playbackSessions.userId, user.id),
-          inArray(playbackSessions.sourceType, [
-            "battle",
-            "vod",
-            "listening_party",
-            "community",
-          ])
+          inArray(playbackSessions.sourceType, watchedSourceTypes)
         )
       )
       .orderBy(desc(playbackSessions.startedAt))
@@ -360,8 +350,10 @@ app.openapi(
       .select({
         id: purchases.id,
         licenseOptionId: orderItems.licenseOptionId,
+        orderProjectId: orderItems.projectId,
         priceCents: orderItems.priceSnapshot,
         productType: orderItems.productType,
+        purchaseProjectId: purchases.projectId,
         purchasedAt: purchases.purchasedAt,
         title: orderItems.titleSnapshot,
         trackId: purchases.trackId,
@@ -371,29 +363,12 @@ app.openapi(
       .where(eq(purchases.buyerUserId, user.id));
 
     return c.json(
-      rows.map((row) => {
-        const priceCents = Math.round(Number(row.priceCents) * 100);
-        const productType: "track" | "project" =
-          row.productType === "project" ? "project" : "track";
-        const purchaseMode: "digital_download" | "license" = row.licenseOptionId
-          ? "license"
-          : "digital_download";
-        return {
-          artist: "SoundKit Artist",
-          artistSlug: "artist",
-          cover: "/placeholder.svg",
-          downloadUrl: row.trackId ? `/downloads/${row.trackId}` : null,
-          duration: null,
-          id: row.trackId ?? row.id,
-          licenseName: row.licenseOptionId ? "Licensed Instrumental" : null,
-          priceCents,
-          priceLabel: `$${(priceCents / 100).toFixed(2)}`,
-          productType,
-          purchaseMode,
-          purchasedAt: row.purchasedAt.toISOString(),
-          title: row.title,
-        };
-      }),
+      rows.map((row) =>
+        toPurchasedCatalogItem({
+          ...row,
+          projectId: row.purchaseProjectId ?? row.orderProjectId,
+        })
+      ),
       HttpStatusCodes.OK
     );
   }
