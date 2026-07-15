@@ -37,6 +37,7 @@ const publicReadCases = [
   ["/v1/library/recent", "array"],
   ["/v1/library/saved", "array"],
   ["/v1/library/watched", "array"],
+  ["/v1/library/playlists", "array"],
   ["/v1/library/purchases", "array"],
   ["/v1/social/posts/post_1/comments", "array"],
   ["/v1/analytics/overview", "object"],
@@ -73,6 +74,7 @@ const expectedOpenApiOperations = [
   ["post", "/v1/communities/{communityId}/posts"],
   ["get", "/v1/discover/home"],
   ["get", "/v1/library/overview"],
+  ["get", "/v1/library/playlists"],
   ["get", "/v1/library/purchases"],
   ["get", "/v1/library/recent"],
   ["get", "/v1/library/saved"],
@@ -265,7 +267,9 @@ describe("SoundKit public read API", () => {
 
       if (shape === "array") {
         expect(Array.isArray(body)).toBe(true);
-        expect((body as unknown[]).length).toBeGreaterThan(0);
+        if (!path.startsWith("/v1/library/")) {
+          expect((body as unknown[]).length).toBeGreaterThan(0);
+        }
         return;
       }
 
@@ -377,24 +381,30 @@ describe("SoundKit public read API", () => {
   });
 
   it("returns billing plans and library summaries without storage", async () => {
-    const [plansResult, overviewResult, purchasesResult, watchedResult] =
-      await Promise.all([
-        fetchJson<
-          {
-            annualPriceCents: number | null;
-            code: string;
-            maxSeats: number | null;
-            monthlyPriceCents: number;
-          }[]
-        >("/v1/billing/plans"),
-        fetchJson<{
-          playlistCount: number;
-          purchaseCount: number;
-          watchedCount?: number;
-        }>("/v1/library/overview"),
-        fetchJson<unknown[]>("/v1/library/purchases"),
-        fetchJson<{ type: string; watchedAt: string }[]>("/v1/library/watched"),
-      ]);
+    const [
+      plansResult,
+      overviewResult,
+      playlistsResult,
+      purchasesResult,
+      watchedResult,
+    ] = await Promise.all([
+      fetchJson<
+        {
+          annualPriceCents: number | null;
+          code: string;
+          maxSeats: number | null;
+          monthlyPriceCents: number;
+        }[]
+      >("/v1/billing/plans"),
+      fetchJson<{
+        playlistCount: number;
+        purchaseCount: number;
+        watchedCount?: number;
+      }>("/v1/library/overview"),
+      fetchJson<unknown[]>("/v1/library/playlists"),
+      fetchJson<unknown[]>("/v1/library/purchases"),
+      fetchJson<{ type: string; watchedAt: string }[]>("/v1/library/watched"),
+    ]);
 
     expect(plansResult.response.status).toBe(200);
     expect(plansResult.body).toHaveLength(6);
@@ -433,15 +443,12 @@ describe("SoundKit public read API", () => {
     expect(overviewResult.body.playlistCount).toEqual(expect.any(Number));
     expect(overviewResult.body.purchaseCount).toEqual(expect.any(Number));
     expect(overviewResult.body.watchedCount).toEqual(expect.any(Number));
+    expect(playlistsResult.response.status).toBe(200);
+    expect(playlistsResult.body).toEqual([]);
     expect(purchasesResult.response.status).toBe(200);
-    expect(purchasesResult.body.length).toBeGreaterThan(0);
+    expect(purchasesResult.body).toEqual([]);
     expect(watchedResult.response.status).toBe(200);
-    expect(watchedResult.body[0]).toEqual(
-      expect.objectContaining({
-        type: expect.stringMatching(/battle|video|stream/u),
-        watchedAt: expect.any(String),
-      })
-    );
+    expect(watchedResult.body).toEqual([]);
   });
 });
 

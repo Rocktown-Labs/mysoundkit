@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Clock, ArrowLeft } from "lucide-react";
 
+import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
-import { useLibraryRecentQuery } from "@/lib/soundkit-api-hooks";
+import { useLibraryRecentQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { columns } from "./-columns";
 import { DataTable } from "./-data-table";
@@ -13,6 +14,8 @@ export const Route = createFileRoute("/_explore/library/recent/")({
 
 function RecentlyPlayedPage() {
   const { data = [], isLoading } = useLibraryRecentQuery();
+  const { data: me } = useMeQuery();
+  const isSignedIn = Boolean(me?.user);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -36,9 +39,23 @@ function RecentlyPlayedPage() {
       {isLoading || data.length > 0 ? (
         <DataTable columns={columns} data={data} />
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Play a track and it will appear here.
-        </div>
+        <LibraryEmptyState
+          actionHref={isSignedIn ? "/tracks" : "/login"}
+          actionLabel={isSignedIn ? "Browse Songs" : "Log In"}
+          description={
+            isSignedIn
+              ? "Play songs from SoundKit and your listening history will start building here."
+              : "Log in to keep a listening history across songs, playlists, and artists."
+          }
+          icon={Clock}
+          secondaryHref={isSignedIn ? undefined : "/signup"}
+          secondaryLabel={isSignedIn ? undefined : "Create Account"}
+          title={
+            isSignedIn
+              ? "No recent plays yet"
+              : "Log in to track recently played songs"
+          }
+        />
       )}
     </div>
   );

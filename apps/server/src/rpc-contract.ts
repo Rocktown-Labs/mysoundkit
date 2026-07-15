@@ -24,6 +24,7 @@ import type {
   openVerseListingSchema,
   openVersePageSchema,
   openVerseSubmissionSchema,
+  playlistSchema,
   planSchema,
   projectDashboardDetailSchema,
   publicSearchResultSchema,
@@ -233,6 +234,9 @@ export const rpcContract = new Hono()
   )
   .get("/v1/library/purchases", (c) =>
     c.json([] as z.infer<typeof purchasedCatalogItemSchema>[])
+  )
+  .get("/v1/library/playlists", (c) =>
+    c.json([] as z.infer<typeof playlistSchema>[])
   )
   .get("/v1/library/recent", (c) =>
     c.json([] as z.infer<typeof libraryRecentTrackSchema>[])
