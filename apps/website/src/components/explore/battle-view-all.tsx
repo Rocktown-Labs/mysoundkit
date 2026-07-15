@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronLeft, Trophy, TrendingUp, Music2 } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { ChevronLeft, Trophy, TrendingUp, Music2, Eye } from "lucide-react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useBattlesQuery } from "@/lib/soundkit-api-hooks";
+import type { BattleSummary } from "@/lib/soundkit-api-hooks";
 
-import { BattleCard } from "./battle-card";
 import { BattleFilters } from "./battle-filters";
 
 type BattleType = "live" | "leaderboard" | "must-see" | "upcoming";
@@ -23,30 +24,6 @@ interface BattleViewAllProps {
   type: BattleType;
   title: string;
   description: string;
-}
-
-interface LiveBattleCardData {
-  currentRound: number;
-  endsIn: string;
-  genre: string;
-  id: string;
-  isLive: true;
-  isVoting: boolean;
-  queueSize: number;
-  title: string;
-  totalRounds: number;
-  track1: {
-    artist: string;
-    cover: string;
-    title: string;
-    votes: number;
-  };
-  track2: {
-    artist: string;
-    cover: string;
-    title: string;
-    votes: number;
-  };
 }
 
 interface BattleFiltersState {
@@ -83,14 +60,19 @@ const sortOptionsMap = {
 };
 
 const battleGenres = ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"] as const;
-const battleCovers = [
-  "/summer-music-album-cover.png",
-  "/night-music-album-cover.png",
-  "/hip-hop-album-cover.png",
-] as const;
 const DEFAULT_REGION = "all";
 const DEFAULT_REGION_TYPE = "north-america" as const;
 const DEFAULT_GENRE = "all";
+const liveGenreOrder = [
+  "Hip-Hop",
+  "Hip Hop",
+  "Rap",
+  "R&B/Soul",
+  "R&B",
+  "Pop",
+  "Electronic",
+  "Spoken Word",
+] as const;
 
 const readSavedBattleFilters = (): Partial<BattleFiltersState> | null => {
   if (typeof window === "undefined") {
@@ -110,53 +92,11 @@ const readSavedBattleFilters = (): Partial<BattleFiltersState> | null => {
   }
 };
 
-const formatBattleDuration = (minutes: number) => {
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  return `${hours}h ${remainingMinutes.toString().padStart(2, "0")}m`;
-};
-
-const generateLiveBattles = (count: number): LiveBattleCardData[] =>
-  Array.from({ length: count }, (_, i) => {
-    const firstArtist = `Artist ${i * 2 + 1}`;
-    const secondArtist = `Artist ${i * 2 + 2}`;
-    const firstVotes = Math.floor(Math.random() * 2500) + 200;
-    const secondVotes = Math.floor(Math.random() * 2500) + 200;
-    const isVoting = Math.random() > 0.5;
-
-    return {
-      currentRound: Math.floor(Math.random() * 3) + 1,
-      endsIn: formatBattleDuration(Math.floor(Math.random() * 180) + 30),
-      genre: battleGenres[i % battleGenres.length],
-      id: `live-${i}`,
-      isLive: true,
-      isVoting,
-      queueSize: Math.floor(Math.random() * 120) + 1,
-      title: `${firstArtist} vs ${secondArtist}`,
-      totalRounds: 3,
-      track1: {
-        artist: firstArtist,
-        cover: battleCovers[i % battleCovers.length],
-        title: `Track ${String.fromCodePoint(65 + (i % 26))}`,
-        votes: firstVotes,
-      },
-      track2: {
-        artist: secondArtist,
-        cover: battleCovers[(i + 1) % battleCovers.length],
-        title: `Track ${String.fromCodePoint(66 + (i % 25))}`,
-        votes: secondVotes,
-      },
-    };
-  });
-
 const generateLeaderboardArtists = (count: number) =>
   Array.from({ length: count }, (_, i) => ({
     artist: `Artist ${i + 1}`,
     avatar: `/placeholder.svg?height=80&width=80&query=artist${i + 1}`,
-    genre: ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"][
-      Math.floor(Math.random() * 4)
-    ],
+    genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
     location: "California, US",
     losses: Math.floor(Math.random() * 20),
     rank: i + 1,
@@ -173,9 +113,7 @@ const generateMustSeeBattles = (count: number) =>
     date: new Date(
       Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
     ).toISOString(),
-    genre: ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"][
-      Math.floor(Math.random() * 4)
-    ],
+    genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
     id: `past-${i}`,
     location: "Texas, US",
     views: Math.floor(Math.random() * 100_000) + 1000,
@@ -201,15 +139,133 @@ const generateUpcomingBattles = (count: number) =>
       winRate: Math.floor(Math.random() * 40) + 50,
       wins: Math.floor(Math.random() * 30) + 5,
     },
-    genre: ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"][
-      Math.floor(Math.random() * 4)
-    ],
+    genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
     id: `upcoming-${i}`,
     location: "Florida, US",
     scheduledTime: new Date(
       Date.now() + Math.random() * 24 * 60 * 60 * 1000
     ).toISOString(),
   }));
+
+const normalizedGenreValue = (value: string) => {
+  const normalized = value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-|-$/gu, "");
+
+  return normalized === "r-b-soul" ? "rb-soul" : normalized;
+};
+
+const matchesSelectedGenre = (battle: BattleSummary, selectedGenre: string) =>
+  selectedGenre === DEFAULT_GENRE ||
+  normalizedGenreValue(battle.genre) === selectedGenre;
+
+const sortedLiveBattles = (battles: BattleSummary[], sort: string) => {
+  const ordered = [...battles];
+
+  if (sort === "viewers-asc") {
+    return ordered.toSorted(
+      (first, second) => first.viewerCount - second.viewerCount
+    );
+  }
+
+  return ordered.toSorted(
+    (first, second) => second.viewerCount - first.viewerCount
+  );
+};
+
+const groupBattlesByGenre = (battles: BattleSummary[]) => {
+  const grouped = new Map<string, BattleSummary[]>();
+
+  for (const battle of battles) {
+    const group = grouped.get(battle.genre) ?? [];
+    group.push(battle);
+    grouped.set(battle.genre, group);
+  }
+
+  const orderedGenres = [
+    ...liveGenreOrder.filter((orderedGenre) => grouped.has(orderedGenre)),
+    ...[...grouped.keys()]
+      .filter(
+        (groupedGenre) =>
+          !liveGenreOrder.some((orderedGenre) => orderedGenre === groupedGenre)
+      )
+      .toSorted((first, second) => first.localeCompare(second)),
+  ];
+
+  return orderedGenres.map((genreName) => ({
+    battles: grouped.get(genreName) ?? [],
+    genre: genreName,
+  }));
+};
+
+function LiveBattleSummaryCard({ battle }: { battle: BattleSummary }) {
+  return (
+    <Link
+      to="/live/battles/$id"
+      params={{ id: battle.id }}
+      className="block min-w-[280px] max-w-[320px]"
+    >
+      <Card className="h-full transition-colors hover:bg-accent">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <Badge variant="secondary">{battle.genre}</Badge>
+            <Badge variant={battle.status === "live" ? "default" : "outline"}>
+              {battle.status === "live" ? "Live" : battle.status}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="line-clamp-2 font-semibold">{battle.title}</h3>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {battle.format.replaceAll("_", " ")}
+            </p>
+          </div>
+          <div className="flex items-center justify-between text-muted-foreground text-sm">
+            <span className="flex items-center gap-1">
+              <Eye className="size-4" />
+              {battle.viewerCount.toLocaleString()}
+            </span>
+            {battle.isFeatured && battle.featuredRank ? (
+              <span>Featured #{battle.featuredRank}</span>
+            ) : (
+              <span>
+                {battle.visibility === "premium_only" ? "Premium" : "Public"}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function BattleRail({
+  battles,
+  title,
+}: {
+  battles: BattleSummary[];
+  title: string;
+}) {
+  if (battles.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-xl">{title}</h2>
+        <span className="text-muted-foreground text-sm">
+          {battles.length} {battles.length === 1 ? "battle" : "battles"}
+        </span>
+      </div>
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        {battles.map((battle) => (
+          <LiveBattleSummaryCard key={battle.id} battle={battle} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export function BattleViewAll({
   type,
@@ -246,6 +302,8 @@ export function BattleViewAll({
   const [genre, setGenre] = useState(() => genreFromSearch ?? DEFAULT_GENRE);
 
   const [sort, setSort] = useState(() => sortFromSearch ?? defaultSort);
+  const { data: battleSummaries = [], isLoading: isLoadingBattles } =
+    useBattlesQuery();
 
   useEffect(() => {
     if (hasSearchFilters) {
@@ -276,14 +334,68 @@ export function BattleViewAll({
     );
   }, [regionType, region, genre, sort]);
 
-  const data =
-    type === "live"
-      ? generateLiveBattles(50)
-      : type === "leaderboard"
-        ? generateLeaderboardArtists(100)
-        : type === "must-see"
-          ? generateMustSeeBattles(50)
-          : generateUpcomingBattles(30);
+  const liveBattleSections = useMemo(() => {
+    const filtered = sortedLiveBattles(
+      battleSummaries.filter(
+        (battle) =>
+          battle.status === "live" && matchesSelectedGenre(battle, genre)
+      ),
+      sort
+    );
+    const featured = filtered
+      .filter((battle) => battle.isFeatured)
+      .toSorted(
+        (first, second) =>
+          (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
+          (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
+      );
+    const byGenre = groupBattlesByGenre(filtered);
+
+    return { byGenre, featured, total: filtered.length };
+  }, [battleSummaries, genre, sort]);
+
+  const data = useMemo(() => {
+    if (type === "leaderboard") {
+      return generateLeaderboardArtists(100);
+    }
+
+    if (type === "must-see") {
+      return generateMustSeeBattles(50);
+    }
+
+    return generateUpcomingBattles(30);
+  }, [type]);
+
+  const liveBattleContent = useMemo(() => {
+    if (isLoadingBattles) {
+      return (
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+          Loading live battles...
+        </div>
+      );
+    }
+
+    if (liveBattleSections.total === 0) {
+      return (
+        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+          No live battles match these filters yet.
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <BattleRail battles={liveBattleSections.featured} title="Featured" />
+        {liveBattleSections.byGenre.map((section) => (
+          <BattleRail
+            key={section.genre}
+            battles={section.battles}
+            title={section.genre}
+          />
+        ))}
+      </>
+    );
+  }, [isLoadingBattles, liveBattleSections]);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -318,13 +430,7 @@ export function BattleViewAll({
       />
 
       {/* Content based on type */}
-      {type === "live" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(data as ReturnType<typeof generateLiveBattles>).map((battle) => (
-            <BattleCard key={battle.id} {...battle} />
-          ))}
-        </div>
-      )}
+      {type === "live" && <div className="space-y-8">{liveBattleContent}</div>}
 
       {type === "leaderboard" && (
         <div className="space-y-2">

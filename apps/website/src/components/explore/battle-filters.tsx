@@ -75,10 +75,11 @@ const globalLocations = [
 
 const genres = [
   { label: "All Genres", value: "all" },
-  { label: "Hip-Hop", value: "hip-hop" },
+  { label: "Hip Hop", value: "hip-hop" },
   { label: "R&B/Soul", value: "rb-soul" },
   { label: "Electronic", value: "electronic" },
   { label: "Pop", value: "pop" },
+  { label: "Spoken Word", value: "spoken-word" },
   { label: "Rock", value: "rock" },
   { label: "Jazz", value: "jazz" },
   { label: "Afrobeats", value: "afrobeats" },
