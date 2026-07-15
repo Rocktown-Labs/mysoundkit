@@ -605,9 +605,11 @@ export const friendSummarySchema = z.object({
 });
 
 export const battleSummarySchema = z.object({
+  featuredRank: z.number().int().positive().nullable().optional(),
   format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
   genre: z.string(),
   id: z.string(),
+  isFeatured: z.boolean().default(false),
   status: z.enum(["scheduled", "live", "completed", "archived"]),
   title: z.string(),
   viewerCount: z.number(),
@@ -619,6 +621,40 @@ export const libraryOverviewSchema = z.object({
   purchaseCount: z.number(),
   recentPlayCount: z.number(),
   savedTrackCount: z.number(),
+  watchedCount: z.number().optional(),
+});
+
+export const libraryRecentTrackSchema = z.object({
+  artist: z.string(),
+  artistSlug: z.string(),
+  cover: z.string(),
+  duration: z.string(),
+  id: z.string(),
+  lastPlayed: z.string(),
+  timesPlayed: z.number().int().nonnegative(),
+  title: z.string(),
+});
+
+export const librarySavedTrackSchema = z.object({
+  artist: z.string(),
+  artistSlug: z.string(),
+  cover: z.string(),
+  duration: z.string(),
+  genre: z.string(),
+  id: z.string(),
+  savedAt: z.string(),
+  title: z.string(),
+});
+
+export const libraryWatchedItemSchema = z.object({
+  creator: z.string(),
+  creatorSlug: z.string(),
+  duration: z.string(),
+  id: z.string(),
+  thumbnail: z.string(),
+  title: z.string(),
+  type: z.enum(["battle", "video", "stream"]),
+  watchedAt: z.string(),
 });
 
 export const purchasedCatalogItemSchema = z.object({

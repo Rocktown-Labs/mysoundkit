@@ -22,6 +22,18 @@ export interface WatchedItem {
   watchedAt: string;
 }
 
+const watchedItemHref = (type: WatchedItem["type"]) => {
+  if (type === "battle") {
+    return "/live/battles/$id" as const;
+  }
+
+  if (type === "stream") {
+    return "/live/streams/$id" as const;
+  }
+
+  return "/videos/$id" as const;
+};
+
 export const columns: ColumnDef<WatchedItem>[] = [
   {
     accessorKey: "thumbnail",
@@ -51,7 +63,7 @@ export const columns: ColumnDef<WatchedItem>[] = [
       return (
         <div className="flex flex-col gap-1">
           <Link
-            to={row.original.type === "battle" ? "/battles/$id" : "/videos/$id"}
+            to={watchedItemHref(row.original.type)}
             params={{ id: row.original.id }}
             className="font-medium hover:text-primary transition-colors line-clamp-1"
           >
@@ -126,9 +138,7 @@ export const columns: ColumnDef<WatchedItem>[] = [
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
             <Link
-              to={
-                row.original.type === "battle" ? "/battles/$id" : "/videos/$id"
-              }
+              to={watchedItemHref(row.original.type)}
               params={{ id: row.original.id }}
             >
               Watch Again

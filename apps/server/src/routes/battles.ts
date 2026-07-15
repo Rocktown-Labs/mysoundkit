@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { trackLyrics, tracks } from "@soundkit/db/schema/app";
-import { and, eq, inArray } from "drizzle-orm";
+import { battles, genres, trackLyrics, tracks } from "@soundkit/db/schema/app";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -25,6 +25,36 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+const featuredBattleLimit = 6;
+
+const rankFeaturedBattles = (
+  battleRows: {
+    format: "best_of_3" | "best_of_5" | "best_of_7";
+    genre: string;
+    id: string;
+    status: "scheduled" | "live" | "completed" | "archived";
+    title: string;
+    viewerCount: number;
+    visibility: "public" | "premium_only";
+  }[]
+) => {
+  const featuredIds = new Map(
+    battleRows
+      .filter((battle) => battle.status === "live")
+      .toSorted((first, second) => second.viewerCount - first.viewerCount)
+      .slice(0, featuredBattleLimit)
+      .map((battle, index) => [battle.id, index + 1])
+  );
+
+  return battleRows.map((battle) => {
+    const featuredRank = featuredIds.get(battle.id) ?? null;
+    return {
+      ...battle,
+      featuredRank,
+      isFeatured: featuredRank !== null,
+    };
+  });
+};
 
 app.openapi(
   createRoute({
@@ -38,7 +68,36 @@ app.openapi(
     },
     tags: ["Battles"],
   }),
-  (c) => c.json(sampleBattles, HttpStatusCodes.OK)
+  async (c) => {
+    if (!isDatabaseConfigured()) {
+      return c.json(rankFeaturedBattles(sampleBattles), HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const rows = await db
+      .select({
+        format: battles.format,
+        genre: genres.name,
+        id: battles.id,
+        status: battles.status,
+        title: battles.title,
+        viewerCount: battles.viewerCount,
+        visibility: battles.visibility,
+      })
+      .from(battles)
+      .leftJoin(genres, eq(genres.id, battles.genreId))
+      .orderBy(desc(battles.viewerCount));
+
+    return c.json(
+      rankFeaturedBattles(
+        rows.map((row) => ({
+          ...row,
+          genre: row.genre ?? "Uncategorized",
+        }))
+      ),
+      HttpStatusCodes.OK
+    );
+  }
 );
 
 app.openapi(
@@ -196,10 +255,42 @@ app.openapi(
     },
     tags: ["Battles"],
   }),
-  (c) => {
+  async (c) => {
     const { battleId } = c.req.valid("param");
+    if (isDatabaseConfigured()) {
+      const db = createDb();
+      const [row] = await db
+        .select({
+          format: battles.format,
+          genre: genres.name,
+          id: battles.id,
+          status: battles.status,
+          title: battles.title,
+          viewerCount: battles.viewerCount,
+          visibility: battles.visibility,
+        })
+        .from(battles)
+        .leftJoin(genres, eq(genres.id, battles.genreId))
+        .where(eq(battles.id, battleId))
+        .limit(1);
+
+      if (row) {
+        return c.json(
+          rankFeaturedBattles([
+            {
+              ...row,
+              genre: row.genre ?? "Uncategorized",
+            },
+          ])[0],
+          HttpStatusCodes.OK
+        );
+      }
+    }
+
+    const rankedFallbackBattles = rankFeaturedBattles(sampleBattles);
     const battle =
-      sampleBattles.find((entry) => entry.id === battleId) ?? sampleBattles[0];
+      rankedFallbackBattles.find((entry) => entry.id === battleId) ??
+      rankedFallbackBattles[0];
     return c.json(battle, HttpStatusCodes.OK);
   }
 );
