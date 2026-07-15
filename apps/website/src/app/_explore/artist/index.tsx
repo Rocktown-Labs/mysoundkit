@@ -41,7 +41,12 @@ const leaderboardSections = [
   },
 ] as const;
 
-const featuredGenres = ["Hip-Hop", "R&B/Soul", "Pop", "Electronic"] as const;
+const featuredGenres = [
+  { label: "Hip-Hop", value: "hip-hop" },
+  { label: "R&B/Soul", value: "rb-soul" },
+  { label: "Pop", value: "pop" },
+  { label: "Electronic", value: "electronic" },
+] as const;
 
 export const Route = createFileRoute("/_explore/artist/")({
   component: ArtistPage,
@@ -145,7 +150,7 @@ function ArtistPage() {
   const top = useArtistsQuery({ ...commonQuery, category: "top" });
   const hipHopArtists = useArtistsQuery({
     category: "top",
-    genre: "Hip-Hop",
+    genre: featuredGenres[0].value,
     limit: "6",
     region,
     regionType,
@@ -153,7 +158,7 @@ function ArtistPage() {
   });
   const rbArtists = useArtistsQuery({
     category: "top",
-    genre: "R&B/Soul",
+    genre: featuredGenres[1].value,
     limit: "6",
     region,
     regionType,
@@ -161,7 +166,7 @@ function ArtistPage() {
   });
   const popArtists = useArtistsQuery({
     category: "top",
-    genre: "Pop",
+    genre: featuredGenres[2].value,
     limit: "6",
     region,
     regionType,
@@ -169,7 +174,7 @@ function ArtistPage() {
   });
   const electronicArtists = useArtistsQuery({
     category: "top",
-    genre: "Electronic",
+    genre: featuredGenres[3].value,
     limit: "6",
     region,
     regionType,
@@ -240,15 +245,15 @@ function ArtistPage() {
               Compact genre lists with profile cards.
             </p>
           </div>
-          {topByGenre.map(({ genre: genreName, query }) => (
-            <div key={genreName} className="space-y-3">
+          {topByGenre.map(({ genre: genreOption, query }) => (
+            <div key={genreOption.value} className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">{genreName}</h3>
+                <h3 className="font-semibold text-lg">{genreOption.label}</h3>
                 <Button asChild variant="ghost" size="sm">
                   <Link
                     to="/artist/top"
                     search={{
-                      genre: genreName,
+                      genre: genreOption.value,
                       region,
                       regionType,
                       sort: "rank-asc",
@@ -274,7 +279,7 @@ function ArtistPage() {
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
-                  No {genreName} artists found yet.
+                  No {genreOption.label} artists found yet.
                 </div>
               )}
             </div>

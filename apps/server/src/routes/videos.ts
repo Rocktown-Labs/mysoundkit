@@ -4,6 +4,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   genres,
   muxUploads,
+  playbackSessions,
   tracks,
   userProfiles,
   videos,
@@ -48,6 +49,29 @@ const getMuxClient = () => {
     tokenId: env.MUX_TOKEN_ID,
     tokenSecret: env.MUX_TOKEN_SECRET,
   });
+};
+
+const videoViewCount = sql<number>`(
+  select count(*)::int
+  from ${playbackSessions}
+  where ${playbackSessions.sourceType} = 'video'
+    and ${playbackSessions.sourceId} = ${videos.id}
+)`;
+
+const publicVideoOrderBy = (sort?: string) => {
+  if (sort === "title-asc") {
+    return asc(videos.title);
+  }
+
+  if (sort === "title-desc") {
+    return desc(videos.title);
+  }
+
+  if (sort === "views-asc") {
+    return asc(videoViewCount);
+  }
+
+  return desc(videoViewCount);
 };
 
 const getSampleVideoFallback = (
@@ -160,8 +184,7 @@ app.openapi(
       );
     }
 
-    const order =
-      query.sort === "title-asc" ? asc(videos.title) : desc(videos.createdAt);
+    const order = publicVideoOrderBy(query.sort);
     const rows = await db
       .select({
         displayName: userProfiles.displayName,

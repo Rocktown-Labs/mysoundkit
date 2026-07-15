@@ -29,6 +29,37 @@ const locationLabel = ({
   state: string | null;
 }) => [city, state].filter(Boolean).join(", ");
 
+const artistMomentumRank = sql<number>`count(${tracks.id})::int`;
+
+const artistOrderBy = (query: {
+  category?: "rising" | "new" | "top";
+  sort?: string;
+}) => {
+  if (query.sort === "name-asc") {
+    return asc(userProfiles.displayName);
+  }
+
+  if (query.sort === "name-desc") {
+    return desc(userProfiles.displayName);
+  }
+
+  if (query.category === "new") {
+    return query.sort === "rank-desc"
+      ? asc(userProfiles.createdAt)
+      : desc(userProfiles.createdAt);
+  }
+
+  if (query.category === "rising") {
+    return query.sort === "rank-desc"
+      ? asc(artistMomentumRank)
+      : desc(artistMomentumRank);
+  }
+
+  return query.sort === "rank-desc"
+    ? asc(artistProfiles.followerCount)
+    : desc(artistProfiles.followerCount);
+};
+
 app.openapi(
   createRoute({
     method: "get",
@@ -81,12 +112,7 @@ app.openapi(
       );
     }
 
-    const order =
-      query.category === "new"
-        ? desc(userProfiles.createdAt)
-        : query.sort === "name-asc"
-          ? asc(userProfiles.displayName)
-          : desc(artistProfiles.followerCount);
+    const order = artistOrderBy(query);
     const rows = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,

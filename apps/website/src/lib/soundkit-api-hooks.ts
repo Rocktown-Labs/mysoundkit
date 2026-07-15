@@ -169,8 +169,12 @@ export const soundkitQueryKeys = {
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
   track: (id: string) => ["tracks", id] as const,
-  tracks: (query?: PublicExploreQuery) => ["tracks", query ?? {}] as const,
-  videos: (query?: PublicExploreQuery) => ["videos", query ?? {}] as const,
+  tracks: (query?: PublicExploreQuery) =>
+    [...soundkitQueryKeys.tracksPrefix, query ?? {}] as const,
+  tracksPrefix: ["tracks"] as const,
+  videos: (query?: PublicExploreQuery) =>
+    [...soundkitQueryKeys.videosPrefix, query ?? {}] as const,
+  videosPrefix: ["videos"] as const,
 };
 
 export const useAdminAccessQuery = (enabled = true) =>
@@ -395,7 +399,9 @@ export const useCreateTrackMutation = () => {
     mutationFn: async (body: CreateTrackBody) =>
       rpcJson(await tracksPost({ json: body })),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.tracks }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      }),
   });
 };
 
@@ -406,7 +412,9 @@ export const useUpdateTrackMutation = (trackId: string) => {
     mutationFn: async (body: UpdateTrackBody) =>
       rpcJson(await trackPatch({ json: body, param: { trackId } })),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.tracks });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.track(trackId),
       });
@@ -617,7 +625,9 @@ export const useCreateVideoMutation = () => {
     mutationFn: async (body: CreateVideoBody) =>
       rpcJson(await videosPost({ json: body })),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.videos }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      }),
   });
 };
 

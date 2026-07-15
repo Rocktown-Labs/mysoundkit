@@ -249,7 +249,7 @@ export function NewTrackForm() {
     );
 
     await queryClient.invalidateQueries({
-      queryKey: soundkitQueryKeys.tracks,
+      queryKey: soundkitQueryKeys.tracksPrefix,
     });
     await queryClient.invalidateQueries({
       queryKey: soundkitQueryKeys.track(track.id),

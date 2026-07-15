@@ -5,6 +5,7 @@ import {
   artistProfileRoles,
   artistProfiles,
   genres,
+  playbackSessions,
   purchases,
   trackAssets,
   trackLicenseOptions,
@@ -112,6 +113,28 @@ const assetKindLabels = {
 
 const catalogAssetKinds = new Set(Object.keys(assetKindLabels));
 
+const trackPlayCount = sql<number>`(
+  select count(*)::int
+  from ${playbackSessions}
+  where ${playbackSessions.trackId} = ${tracks.id}
+)`;
+
+const publicTrackOrderBy = (sort?: string) => {
+  if (sort === "title-asc") {
+    return asc(tracks.title);
+  }
+
+  if (sort === "title-desc") {
+    return desc(tracks.title);
+  }
+
+  if (sort === "plays-asc") {
+    return asc(trackPlayCount);
+  }
+
+  return desc(trackPlayCount);
+};
+
 const getTrackProcessingWorkflow = () =>
   (
     env as unknown as {
@@ -157,12 +180,7 @@ app.openapi(
         );
       }
 
-      const order =
-        query.sort === "title-asc"
-          ? asc(tracks.title)
-          : query.sort === "title-desc"
-            ? desc(tracks.title)
-            : desc(tracks.updatedAt);
+      const order = publicTrackOrderBy(query.sort);
       const rows = await withRetry("list public tracks", () =>
         db
           .select()
