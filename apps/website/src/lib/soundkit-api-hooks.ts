@@ -37,6 +37,11 @@ const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
 const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
 const battlesGet = apiClient.v1.battles.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
+const libraryOverviewGet = apiClient.v1.library.overview.$get;
+const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
+const libraryRecentGet = apiClient.v1.library.recent.$get;
+const librarySavedGet = apiClient.v1.library.saved.$get;
+const libraryWatchedGet = apiClient.v1.library.watched.$get;
 const friendsGet = apiClient.v1.messages.friends.$get;
 const conversationsGet = apiClient.v1.messages.conversations.$get;
 const conversationsPost = apiClient.v1.messages.conversations.$post;
@@ -85,6 +90,23 @@ export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
+export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
+export type LibraryPurchase = InferResponseType<
+  typeof libraryPurchasesGet,
+  200
+>[number];
+export type LibraryRecentTrack = InferResponseType<
+  typeof libraryRecentGet,
+  200
+>[number];
+export type LibrarySavedTrack = InferResponseType<
+  typeof librarySavedGet,
+  200
+>[number];
+export type LibraryWatchedItem = InferResponseType<
+  typeof libraryWatchedGet,
+  200
+>[number];
 type CreateBattleChallengeBody = InferRequestType<
   typeof battleChallengePost
 >["json"];
@@ -126,6 +148,11 @@ export const soundkitQueryKeys = {
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
   friends: ["messages", "friends"] as const,
+  libraryOverview: ["library", "overview"] as const,
+  libraryPurchases: ["library", "purchases"] as const,
+  libraryRecent: ["library", "recent"] as const,
+  librarySaved: ["library", "saved"] as const,
+  libraryWatched: ["library", "watched"] as const,
   listeningParties: ["listening-parties"] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
@@ -462,6 +489,36 @@ export const useBattlesQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await battlesGet()),
     queryKey: soundkitQueryKeys.battles,
+  });
+
+export const useLibraryOverviewQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await libraryOverviewGet()),
+    queryKey: soundkitQueryKeys.libraryOverview,
+  });
+
+export const useLibraryPurchasesQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await libraryPurchasesGet()),
+    queryKey: soundkitQueryKeys.libraryPurchases,
+  });
+
+export const useLibraryRecentQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await libraryRecentGet()),
+    queryKey: soundkitQueryKeys.libraryRecent,
+  });
+
+export const useLibrarySavedQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await librarySavedGet()),
+    queryKey: soundkitQueryKeys.librarySaved,
+  });
+
+export const useLibraryWatchedQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await libraryWatchedGet()),
+    queryKey: soundkitQueryKeys.libraryWatched,
   });
 
 export const useCreateBattleChallengeMutation = () => {

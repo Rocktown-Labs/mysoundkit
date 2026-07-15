@@ -49,6 +49,7 @@ function FanOnboardingPage() {
     "R&B/Soul",
     "Pop",
     "Electronic",
+    "Spoken Word",
     "Rock",
     "Jazz",
     "Afrobeats",

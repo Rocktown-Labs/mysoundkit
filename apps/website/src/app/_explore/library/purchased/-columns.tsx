@@ -16,6 +16,7 @@ export interface PurchasedTrack {
   licenseName?: string | null;
   priceCents?: number;
   priceLabel: string;
+  productId?: string;
   productType?: "track" | "project";
   purchaseMode?: "digital_download" | "license";
   purchasedAt: string;
@@ -49,15 +50,31 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
   },
   {
     accessorKey: "title",
-    cell: ({ row }) => (
-      <Link
-        to="/tracks/$id"
-        params={{ id: row.original.id }}
-        className="font-medium hover:text-primary"
-      >
-        {row.getValue("title")}
-      </Link>
-    ),
+    cell: ({ row }) => {
+      const productId = row.original.productId ?? row.original.id;
+
+      if (row.original.productType === "project") {
+        return (
+          <Link
+            to="/projects/$id"
+            params={{ id: productId }}
+            className="font-medium hover:text-primary"
+          >
+            {row.getValue("title")}
+          </Link>
+        );
+      }
+
+      return (
+        <Link
+          to="/tracks/$id"
+          params={{ id: productId }}
+          className="font-medium hover:text-primary"
+        >
+          {row.getValue("title")}
+        </Link>
+      );
+    },
     header: ({ column }) => (
       <Button
         variant="ghost"

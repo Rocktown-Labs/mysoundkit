@@ -17,10 +17,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useLibraryOverviewQuery } from "@/lib/soundkit-api-hooks";
 
 const libraryCategories = [
   {
     color: "text-blue-500",
+    countKey: "recentPlayCount",
     description: "Your listening history",
     href: "/library/recent",
     icon: Clock,
@@ -28,6 +30,7 @@ const libraryCategories = [
   },
   {
     color: "text-purple-500",
+    countKey: "playlistCount",
     description: "Your custom playlists",
     href: "/library/playlists",
     icon: ListMusic,
@@ -35,6 +38,7 @@ const libraryCategories = [
   },
   {
     color: "text-red-500",
+    countKey: "savedTrackCount",
     description: "Songs you've favorited",
     href: "/library/saved",
     icon: Heart,
@@ -42,6 +46,7 @@ const libraryCategories = [
   },
   {
     color: "text-green-500",
+    countKey: "purchaseCount",
     description: "Tracks you own",
     href: "/library/purchased",
     icon: ShoppingBag,
@@ -49,6 +54,7 @@ const libraryCategories = [
   },
   {
     color: "text-cyan-500",
+    countKey: "watchedCount",
     description: "Watch again or resume",
     href: "/library/watched",
     icon: Video,
@@ -56,6 +62,7 @@ const libraryCategories = [
   },
   {
     color: "text-orange-500",
+    countKey: null,
     description: "Manage your settings",
     href: "/library/settings",
     icon: Settings,
@@ -68,6 +75,8 @@ export const Route = createFileRoute("/_explore/library/")({
 });
 
 function LibraryPage() {
+  const { data: overview } = useLibraryOverviewQuery();
+
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <div className="mb-8">
@@ -83,6 +92,11 @@ function LibraryPage() {
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {libraryCategories.map((category) => {
           const Icon = category.icon;
+          const count =
+            category.countKey && overview
+              ? (overview[category.countKey] ?? 0)
+              : null;
+
           return (
             <Link key={category.href} to={category.href}>
               <Card className="hover:border-primary transition-colors cursor-pointer h-full">
@@ -96,7 +110,9 @@ function LibraryPage() {
                     </CardTitle>
                   </div>
                   <CardDescription className="hidden md:block text-base">
-                    {category.description}
+                    {count === null
+                      ? category.description
+                      : `${count.toLocaleString()} ${category.description.toLowerCase()}`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="hidden md:block">

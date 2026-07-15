@@ -524,13 +524,48 @@ export const sampleMessages = [
 
 export const sampleBattles = [
   {
+    featuredRank: 1,
     format: "best_of_5" as const,
     genre: "Hip-Hop",
     id: "battle_west_coast_showdown",
+    isFeatured: true,
     status: "live" as const,
     title: "West Coast Showdown",
     viewerCount: 4321,
     visibility: "premium_only" as const,
+  },
+  {
+    featuredRank: 2,
+    format: "best_of_3" as const,
+    genre: "Spoken Word",
+    id: "battle_spoken_word_cypher",
+    isFeatured: true,
+    status: "live" as const,
+    title: "Spoken Word Cypher",
+    viewerCount: 2140,
+    visibility: "public" as const,
+  },
+  {
+    featuredRank: null,
+    format: "best_of_3" as const,
+    genre: "R&B/Soul",
+    id: "battle_after_hours_duel",
+    isFeatured: false,
+    status: "scheduled" as const,
+    title: "After Hours Duel",
+    viewerCount: 0,
+    visibility: "public" as const,
+  },
+  {
+    featuredRank: null,
+    format: "best_of_7" as const,
+    genre: "Electronic",
+    id: "battle_synth_city_finals",
+    isFeatured: false,
+    status: "completed" as const,
+    title: "Synth City Finals",
+    viewerCount: 18_204,
+    visibility: "public" as const,
   },
 ];
 
@@ -549,6 +584,7 @@ export const sampleLibraryOverview = {
   purchaseCount: 4,
   recentPlayCount: 18,
   savedTrackCount: 22,
+  watchedCount: 7,
 };
 
 export const sampleAnalyticsOverview = {

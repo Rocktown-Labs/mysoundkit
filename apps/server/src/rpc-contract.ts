@@ -12,6 +12,11 @@ import type {
   battleSummarySchema,
   entitlementSummarySchema,
   friendSummarySchema,
+  libraryOverviewSchema,
+  libraryRecentTrackSchema,
+  librarySavedTrackSchema,
+  libraryWatchedItemSchema,
+  purchasedCatalogItemSchema,
   listeningPartySummarySchema,
   lyricsRevisionSchema,
   meResponseSchema,
@@ -222,6 +227,21 @@ export const rpcContract = new Hono()
   )
   .get("/v1/battles/", (c) =>
     c.json([] as z.infer<typeof battleSummarySchema>[])
+  )
+  .get("/v1/library/overview", (c) =>
+    c.json({} as z.infer<typeof libraryOverviewSchema>)
+  )
+  .get("/v1/library/purchases", (c) =>
+    c.json([] as z.infer<typeof purchasedCatalogItemSchema>[])
+  )
+  .get("/v1/library/recent", (c) =>
+    c.json([] as z.infer<typeof libraryRecentTrackSchema>[])
+  )
+  .get("/v1/library/saved", (c) =>
+    c.json([] as z.infer<typeof librarySavedTrackSchema>[])
+  )
+  .get("/v1/library/watched", (c) =>
+    c.json([] as z.infer<typeof libraryWatchedItemSchema>[])
   )
   .post(
     "/v1/battles/challenge",

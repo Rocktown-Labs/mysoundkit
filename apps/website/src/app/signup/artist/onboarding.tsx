@@ -958,6 +958,7 @@ function ArtistOnboardingPage() {
                       <SelectItem value="rb">R&B/Soul</SelectItem>
                       <SelectItem value="pop">Pop</SelectItem>
                       <SelectItem value="electronic">Electronic</SelectItem>
+                      <SelectItem value="spoken-word">Spoken Word</SelectItem>
                       <SelectItem value="rock">Rock</SelectItem>
                       <SelectItem value="afrobeats">Afrobeats</SelectItem>
                       <SelectItem value="spoken-word">Spoken Word</SelectItem>

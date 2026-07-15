@@ -36,6 +36,7 @@ const publicReadCases = [
   ["/v1/battles/battle_west_coast_showdown", "object"],
   ["/v1/library/recent", "array"],
   ["/v1/library/saved", "array"],
+  ["/v1/library/watched", "array"],
   ["/v1/library/purchases", "array"],
   ["/v1/social/posts/post_1/comments", "array"],
   ["/v1/analytics/overview", "object"],
@@ -75,6 +76,7 @@ const expectedOpenApiOperations = [
   ["get", "/v1/library/purchases"],
   ["get", "/v1/library/recent"],
   ["get", "/v1/library/saved"],
+  ["get", "/v1/library/watched"],
   ["get", "/v1/me"],
   ["get", "/v1/me/entitlements"],
   ["patch", "/v1/me/profile"],
@@ -345,21 +347,54 @@ describe("SoundKit public read API", () => {
     );
   });
 
+  it("returns battle feed metadata for featured and genre rails", async () => {
+    const { body, response } = await fetchJson<
+      {
+        featuredRank?: number | null;
+        genre: string;
+        isFeatured: boolean;
+        status: string;
+        viewerCount: number;
+      }[]
+    >("/v1/battles");
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          genre: "Hip-Hop",
+          isFeatured: true,
+          status: "live",
+        }),
+        expect.objectContaining({
+          genre: "Spoken Word",
+        }),
+      ])
+    );
+    expect(body.find((battle) => battle.isFeatured)?.featuredRank).toEqual(
+      expect.any(Number)
+    );
+  });
+
   it("returns billing plans and library summaries without storage", async () => {
-    const [plansResult, overviewResult, purchasesResult] = await Promise.all([
-      fetchJson<
-        {
-          annualPriceCents: number | null;
-          code: string;
-          maxSeats: number | null;
-          monthlyPriceCents: number;
-        }[]
-      >("/v1/billing/plans"),
-      fetchJson<{ playlistCount: number; purchaseCount: number }>(
-        "/v1/library/overview"
-      ),
-      fetchJson<unknown[]>("/v1/library/purchases"),
-    ]);
+    const [plansResult, overviewResult, purchasesResult, watchedResult] =
+      await Promise.all([
+        fetchJson<
+          {
+            annualPriceCents: number | null;
+            code: string;
+            maxSeats: number | null;
+            monthlyPriceCents: number;
+          }[]
+        >("/v1/billing/plans"),
+        fetchJson<{
+          playlistCount: number;
+          purchaseCount: number;
+          watchedCount?: number;
+        }>("/v1/library/overview"),
+        fetchJson<unknown[]>("/v1/library/purchases"),
+        fetchJson<{ type: string; watchedAt: string }[]>("/v1/library/watched"),
+      ]);
 
     expect(plansResult.response.status).toBe(200);
     expect(plansResult.body).toHaveLength(6);
@@ -397,8 +432,16 @@ describe("SoundKit public read API", () => {
     expect(overviewResult.response.status).toBe(200);
     expect(overviewResult.body.playlistCount).toEqual(expect.any(Number));
     expect(overviewResult.body.purchaseCount).toEqual(expect.any(Number));
+    expect(overviewResult.body.watchedCount).toEqual(expect.any(Number));
     expect(purchasesResult.response.status).toBe(200);
     expect(purchasesResult.body.length).toBeGreaterThan(0);
+    expect(watchedResult.response.status).toBe(200);
+    expect(watchedResult.body[0]).toEqual(
+      expect.objectContaining({
+        type: expect.stringMatching(/battle|video|stream/u),
+        watchedAt: expect.any(String),
+      })
+    );
   });
 });
 
