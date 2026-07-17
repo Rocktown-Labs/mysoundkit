@@ -413,13 +413,13 @@ describe("SoundKit public read API", () => {
         expect.objectContaining({
           annualPriceCents: null,
           code: "soundkit_premium_artist",
-          maxSeats: 1,
+          maxSeats: 3,
           monthlyPriceCents: 2299,
         }),
         expect.objectContaining({
           annualPriceCents: null,
           code: "soundkit_premium_fan",
-          maxSeats: 1,
+          maxSeats: 3,
           monthlyPriceCents: 2299,
         }),
         expect.objectContaining({

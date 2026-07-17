@@ -13,6 +13,7 @@ export interface ArtistOnboardingDraft {
   username: string;
 }
 export interface SignupRedirectUser {
+  accountType?: SignupAccountType | null;
   onboardingCompletedAt?: string | null;
 }
 
@@ -28,6 +29,10 @@ export const credentialsRouteForAccount = (accountType: SignupAccountType) =>
     ? "/signup/artist/credentials"
     : "/signup/fan/credentials";
 
+export const completedSignupRouteForAccount = (
+  accountType: SignupAccountType
+) => (accountType === "artist" ? "/dashboard" : "/library/settings");
+
 export const signupRedirectForUser = ({
   accountType,
   user,
@@ -36,7 +41,7 @@ export const signupRedirectForUser = ({
   user: SignupRedirectUser;
 }) => {
   if (user.onboardingCompletedAt) {
-    return "/dashboard";
+    return completedSignupRouteForAccount(user.accountType ?? accountType);
   }
 
   return onboardingRouteForAccount(accountType);

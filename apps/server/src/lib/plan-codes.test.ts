@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CONFIGURED_PAID_PLAN_CODES, FREE_PLAN_CODES } from "./plan-codes";
+import { samplePlans } from "./sample-data";
 
 describe("billing plan codes", () => {
   it("accepts only the new paid plan codes", () => {
@@ -21,5 +22,15 @@ describe("billing plan codes", () => {
       "artist_free",
       "fan_free",
     ]);
+  });
+
+  it("advertises three included seats for Premium fallback catalog data", () => {
+    expect(
+      samplePlans.find((plan) => plan.code === "soundkit_premium_artist")
+        ?.maxSeats
+    ).toBe(3);
+    expect(
+      samplePlans.find((plan) => plan.code === "soundkit_premium_fan")?.maxSeats
+    ).toBe(3);
   });
 });

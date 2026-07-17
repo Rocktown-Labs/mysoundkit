@@ -27,9 +27,42 @@ describe("signup onboarding flow", () => {
     expect(
       signupRedirectForUser({
         accountType: "artist",
-        user: { onboardingCompletedAt: "2026-05-24T12:00:00.000Z" },
+        user: {
+          accountType: "artist",
+          onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        },
       })
     ).toBe("/dashboard");
+    expect(
+      signupRedirectForUser({
+        accountType: "fan",
+        user: {
+          accountType: "fan",
+          onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        },
+      })
+    ).toBe("/library/settings");
+  });
+
+  it("routes completed users by their authenticated account type", () => {
+    expect(
+      signupRedirectForUser({
+        accountType: "fan",
+        user: {
+          accountType: "artist",
+          onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        },
+      })
+    ).toBe("/dashboard");
+    expect(
+      signupRedirectForUser({
+        accountType: "artist",
+        user: {
+          accountType: "fan",
+          onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        },
+      })
+    ).toBe("/library/settings");
   });
 
   it("keeps credentials and onboarding routes paired by account type", () => {

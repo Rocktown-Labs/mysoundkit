@@ -20,7 +20,6 @@ import { useEffect, useRef, useState } from "react";
 import { ArtistAvatarUpload } from "@/components/onboarding/artist-avatar-upload";
 import { SoundKitBrand } from "@/components/soundkit-brand";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -67,8 +66,80 @@ interface LocationSuggestion {
   stateCode: string;
 }
 
-const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
+const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/u;
 const RESERVED_USERNAMES = new Set(["soundkit"]);
+const ARTIST_PREMIUM_PLAN_DESCRIPTION =
+  "Live hosting, selling, rewards, analytics, and up to 3 workspace seats";
+const wizardText = {
+  addAnother: "+ Add Another",
+  appleMusicLabel: "Apple Music URL",
+  artistTeamDescription: "Artist Premium workspace for up to 5 seats",
+  artistTeamPrice: "$24.99/mo",
+  artistTeamTitle: "Artist Team",
+  avatarContinue: "Continue",
+  avatarSkip: "Skip for Now",
+  avatarSubtitle: "Optional. You can skip this and add one later.",
+  avatarTitle: "Add a Profile Picture",
+  back: "Back",
+  complete: "Complete Setup",
+  completing: "Completing...",
+  continue: "Continue",
+  freeDescription: "Basic features to get started",
+  freePrice: "$0/mo",
+  freeTitle: "Free Account",
+  genreAfrobeats: "Afrobeats",
+  genreElectronic: "Electronic",
+  genreHipHop: "Hip-Hop",
+  genreLabel: "Primary Genre",
+  genrePlaceholder: "Select genre",
+  genrePop: "Pop",
+  genreRbSoul: "R&B/Soul",
+  genreRock: "Rock",
+  genreSpokenWord: "Spoken Word",
+  genreSubtitle: "Help fans find your style",
+  genreTitle: "What's Your Genre?",
+  instagramLabel: "Instagram",
+  locationConfigError:
+    "Enter a city and state like Little Rock, AR. Add VITE_RADAR_PUBLISHABLE_KEY to enable Radar validation.",
+  locationEmpty: "Choose a valid US city from the results.",
+  locationError: "Location validation is unavailable right now.",
+  locationIdle: "Start typing a city and state, then choose a verified result.",
+  locationLabel: "City or state",
+  locationPlaceholder: "Little Rock, AR",
+  locationReady: "Choose a city from the results to continue.",
+  locationSearching: "Searching verified places...",
+  locationSubtitle: "Help fans discover local talent",
+  locationSuggestionCountry: "United States",
+  locationTitle: "Where Do You Make Music?",
+  musicianDescription: "Release songs, albums, EPs, videos, and battle tracks.",
+  musicianTitle: "Musician",
+  planRecommended: "Recommended",
+  planTitle: "Choose Your Plan",
+  premiumPrice: "$22.99/mo",
+  premiumTitle: "Premium",
+  producerDescription:
+    "Sell or stream beats, license instrumentals, and battle.",
+  producerTitle: "Producer",
+  rolesSubtitle: "Choose one or both. The dashboard stays the same.",
+  rolesTitle: "What Do You Create?",
+  setupTitle: "Set Up Your Artist Profile",
+  socialsSubtitle: "Link your social media (optional)",
+  socialsTitle: "Connect Your Socials",
+  spotifyLabel: "Spotify Artist URL",
+  streamingSubtitle: "Link your streaming profiles (optional)",
+  streamingTitle: "Connect Your Music",
+  teamEmailLabel: "Team Member Email",
+  teamSubtitle: "Collaborate with producers, managers, and more",
+  teamTitle: "Invite Your Team",
+  tiktokLabel: "TikTok",
+  twitterLabel: "X (Twitter)",
+  usernameGuidance: "Can only contain letters, numbers, and underscores",
+  usernameLabel: "Username",
+  usernamePlaceholder: "@yourartistname",
+  usernameSubtitle: "This is how fans will find you",
+  usernameTitle: "Choose Your Username",
+  youtubeLabel: "YouTube Channel URL",
+} as const;
 const US_STATES_BY_NAME: Record<string, string> = {
   alabama: "AL",
   alaska: "AK",
@@ -123,7 +194,7 @@ const US_STATES_BY_NAME: Record<string, string> = {
 };
 const US_STATE_CODES = new Set(Object.values(US_STATES_BY_NAME));
 const normalizeUsername = (value: string) =>
-  value.trim().replace(/^@/, "").toLowerCase();
+  value.trim().replace(/^@/u, "").toLowerCase();
 const parseManualLocation = (value: string) => {
   const [cityPart, statePart] = value
     .split(",")
@@ -526,7 +597,7 @@ function ArtistOnboardingPage() {
     });
   };
   const updateUsername = (value: string) => {
-    setUsername(value.replaceAll(/\s+/g, ""));
+    setUsername(value.replaceAll(/\s+/gu, ""));
   };
   const selectLocation = (suggestion: LocationSuggestion) => {
     selectedLocationQueryRef.current = suggestion.label;
@@ -623,34 +694,32 @@ function ArtistOnboardingPage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
-        {/* Header */}
         <div className="text-center mb-8">
-          <SoundKitBrand
-            className="mb-4"
-            variant="wordmark"
-            wordmarkClassName="h-12"
-          />
-          <h1 className="text-2xl font-bold mb-2">
-            Set Up Your Artist Profile
-          </h1>
+          <div className="mb-4">
+            <SoundKitBrand variant="wordmark" wordmarkClassName="h-12" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">{wizardText.setupTitle}</h1>
           <p className="text-muted-foreground">
-            Step {step} of {totalSteps}
+            {`Step ${step} of ${totalSteps}`}
           </p>
-          <Progress value={progress} className="mt-4 h-2" />
+          <div className="mt-4">
+            <Progress value={progress} />
+          </div>
         </div>
 
-        <Card className="bg-card/50 backdrop-blur-sm border-border/40">
-          <CardContent className="p-6 md:p-8">
-            {/* Step 1: Artist Roles */}
+        <div className="rounded-lg border border-border/40 bg-card/50 text-card-foreground shadow-sm backdrop-blur-sm">
+          <div className="p-6 md:p-8">
             {step === 1 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <SlidersHorizontal className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <SlidersHorizontal size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">What Do You Create?</h2>
+                  <h2 className="text-xl font-bold">{wizardText.rolesTitle}</h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Choose one or both. The dashboard stays the same.
+                    {wizardText.rolesSubtitle}
                   </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
@@ -663,10 +732,12 @@ function ArtistOnboardingPage() {
                     }`}
                     onClick={() => toggleRole("musician")}
                   >
-                    <Music2 className="mb-3 size-6 text-primary" />
-                    <p className="font-bold">Musician</p>
+                    <span className="mb-3 block text-primary">
+                      <Music2 size={24} />
+                    </span>
+                    <p className="font-bold">{wizardText.musicianTitle}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Release songs, albums, EPs, videos, and battle tracks.
+                      {wizardText.musicianDescription}
                     </p>
                   </button>
                   <button
@@ -678,37 +749,47 @@ function ArtistOnboardingPage() {
                     }`}
                     onClick={() => toggleRole("producer")}
                   >
-                    <SlidersHorizontal className="mb-3 size-6 text-primary" />
-                    <p className="font-bold">Producer</p>
+                    <span className="mb-3 block text-primary">
+                      <SlidersHorizontal size={24} />
+                    </span>
+                    <p className="font-bold">{wizardText.producerTitle}</p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Sell or stream beats, license instrumentals, and battle.
+                      {wizardText.producerDescription}
                     </p>
                   </button>
                 </div>
-                <Button onClick={() => setStep(2)} className="w-full" size="lg">
-                  Continue
+                <Button asChild size="lg">
+                  <button
+                    type="button"
+                    className="w-full"
+                    onClick={() => setStep(2)}
+                  >
+                    {wizardText.continue}
+                  </button>
                 </Button>
               </div>
             )}
 
-            {/* Step 2: Username */}
             {step === 2 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <User size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">Choose Your Username</h2>
+                  <h2 className="text-xl font-bold">
+                    {wizardText.usernameTitle}
+                  </h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    This is how fans will find you
+                    {wizardText.usernameSubtitle}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="username">{wizardText.usernameLabel}</Label>
                   <Input
                     id="username"
-                    placeholder="@yourartistname"
-                    className="text-lg"
+                    placeholder={wizardText.usernamePlaceholder}
                     value={username}
                     aria-describedby="username-status"
                     aria-invalid={
@@ -719,7 +800,7 @@ function ArtistOnboardingPage() {
                     onChange={(event) => updateUsername(event.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Can only contain letters, numbers, and underscores
+                    {wizardText.usernameGuidance}
                   </p>
                   {usernameMessage && (
                     <p
@@ -730,27 +811,32 @@ function ArtistOnboardingPage() {
                     </p>
                   )}
                 </div>
-                <Button
-                  onClick={continueFromUsername}
-                  className="w-full"
-                  disabled={!canContinueFromUsername}
-                  size="lg"
-                >
-                  Continue
+                <Button asChild size="lg">
+                  <button
+                    type="button"
+                    className="w-full"
+                    disabled={!canContinueFromUsername}
+                    onClick={continueFromUsername}
+                  >
+                    {wizardText.continue}
+                  </button>
                 </Button>
               </div>
             )}
 
-            {/* Step 3: Optional profile picture */}
             {step === 3 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <User className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <User size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">Add a Profile Picture</h2>
+                  <h2 className="text-xl font-bold">
+                    {wizardText.avatarTitle}
+                  </h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Optional. You can skip this and add one later.
+                    {wizardText.avatarSubtitle}
                   </p>
                 </div>
 
@@ -763,46 +849,56 @@ function ArtistOnboardingPage() {
                 />
 
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => setStep(2)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => setStep(4)}
-                    className="flex-1"
-                    size="lg"
-                  >
-                    {avatarUrl ? "Continue" : "Skip for Now"}
-                  </Button>
+                  <div className="flex-1">
+                    <Button asChild size="lg" variant="outline">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(2)}
+                      >
+                        {wizardText.back}
+                      </button>
+                    </Button>
+                  </div>
+                  <div className="flex-1">
+                    <Button asChild size="lg">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(4)}
+                      >
+                        {avatarUrl
+                          ? wizardText.avatarContinue
+                          : wizardText.avatarSkip}
+                      </button>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Step 4: Location */}
             {step === 4 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <MapPin className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <MapPin size={32} />
+                    </span>
                   </div>
                   <h2 className="text-xl font-bold">
-                    Where Do You Make Music?
+                    {wizardText.locationTitle}
                   </h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Help fans discover local talent
+                    {wizardText.locationSubtitle}
                   </p>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="location">City or state</Label>
+                    <Label htmlFor="location">{wizardText.locationLabel}</Label>
                     <div className="relative">
                       <Input
                         id="location"
-                        placeholder="Little Rock, AR"
+                        placeholder={wizardText.locationPlaceholder}
                         value={locationQuery}
                         aria-autocomplete="list"
                         aria-expanded={locationSuggestions.length > 0}
@@ -832,7 +928,7 @@ function ArtistOnboardingPage() {
                                 {suggestion.label}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                United States
+                                {wizardText.locationSuggestionCountry}
                               </span>
                             </button>
                           ))}
@@ -843,60 +939,64 @@ function ArtistOnboardingPage() {
                       className={`text-xs ${locationStatusClassName(locationStatus)}`}
                     >
                       {locationStatus === "searching" &&
-                        "Searching verified places..."}
-                      {locationStatus === "ready" &&
-                        "Choose a city from the results to continue."}
+                        wizardText.locationSearching}
+                      {locationStatus === "ready" && wizardText.locationReady}
                       {locationStatus === "selected" &&
                         `Verified ${city}, ${stateValue}.`}
                       {locationStatus === "manual_ready" &&
                         `Using ${city}, ${stateValue}.`}
-                      {locationStatus === "empty" &&
-                        "Choose a valid US city from the results."}
+                      {locationStatus === "empty" && wizardText.locationEmpty}
                       {locationStatus === "config_error" &&
-                        "Enter a city and state like Little Rock, AR. Add VITE_RADAR_PUBLISHABLE_KEY to enable Radar validation."}
-                      {locationStatus === "error" &&
-                        "Location validation is unavailable right now."}
-                      {locationStatus === "idle" &&
-                        "Start typing a city and state, then choose a verified result."}
+                        wizardText.locationConfigError}
+                      {locationStatus === "error" && wizardText.locationError}
+                      {locationStatus === "idle" && wizardText.locationIdle}
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => setStep(3)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={continueFromLocation}
-                    className="flex-1"
-                    disabled={!canContinueFromLocation}
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
+                  <div className="flex-1">
+                    <Button asChild size="lg" variant="outline">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(3)}
+                      >
+                        {wizardText.back}
+                      </button>
+                    </Button>
+                  </div>
+                  <div className="flex-1">
+                    <Button asChild size="lg">
+                      <button
+                        type="button"
+                        className="w-full"
+                        disabled={!canContinueFromLocation}
+                        onClick={continueFromLocation}
+                      >
+                        {wizardText.continue}
+                      </button>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Step 5: Team Invites */}
             {step === 5 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Users className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <Users size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">Invite Your Team</h2>
+                  <h2 className="text-xl font-bold">{wizardText.teamTitle}</h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Collaborate with producers, managers, and more
+                    {wizardText.teamSubtitle}
                   </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="email1">Team Member Email</Label>
+                    <Label htmlFor="email1">{wizardText.teamEmailLabel}</Label>
                     <Input
                       id="email1"
                       type="email"
@@ -904,7 +1004,7 @@ function ArtistOnboardingPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email2">Team Member Email</Label>
+                    <Label htmlFor="email2">{wizardText.teamEmailLabel}</Label>
                     <Input
                       id="email2"
                       type="email"
@@ -912,108 +1012,139 @@ function ArtistOnboardingPage() {
                     />
                   </div>
                 </div>
-                <Button variant="outline" className="w-full bg-transparent">
-                  + Add Another
+                <Button asChild variant="outline">
+                  <button type="button" className="w-full bg-transparent">
+                    {wizardText.addAnother}
+                  </button>
                 </Button>
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => setStep(4)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => setStep(6)}
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
+                  <div className="flex-1">
+                    <Button asChild size="lg" variant="outline">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(4)}
+                      >
+                        {wizardText.back}
+                      </button>
+                    </Button>
+                  </div>
+                  <div className="flex-1">
+                    <Button asChild size="lg">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(6)}
+                      >
+                        {wizardText.continue}
+                      </button>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Step 6: Genre */}
             {step === 6 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Music2 className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <Music2 size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">What's Your Genre?</h2>
+                  <h2 className="text-xl font-bold">{wizardText.genreTitle}</h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Help fans find your style
+                    {wizardText.genreSubtitle}
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="genre">Primary Genre</Label>
+                  <Label htmlFor="genre">{wizardText.genreLabel}</Label>
                   <Select value={primaryGenre} onValueChange={setPrimaryGenre}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select genre" />
+                      <SelectValue placeholder={wizardText.genrePlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="hip-hop">Hip-Hop</SelectItem>
-                      <SelectItem value="rb">R&B/Soul</SelectItem>
-                      <SelectItem value="pop">Pop</SelectItem>
-                      <SelectItem value="electronic">Electronic</SelectItem>
-                      <SelectItem value="spoken-word">Spoken Word</SelectItem>
-                      <SelectItem value="rock">Rock</SelectItem>
-                      <SelectItem value="afrobeats">Afrobeats</SelectItem>
-                      <SelectItem value="spoken-word">Spoken Word</SelectItem>
+                      <SelectItem value="hip-hop">
+                        {wizardText.genreHipHop}
+                      </SelectItem>
+                      <SelectItem value="rb">
+                        {wizardText.genreRbSoul}
+                      </SelectItem>
+                      <SelectItem value="pop">{wizardText.genrePop}</SelectItem>
+                      <SelectItem value="electronic">
+                        {wizardText.genreElectronic}
+                      </SelectItem>
+                      <SelectItem value="spoken-word">
+                        {wizardText.genreSpokenWord}
+                      </SelectItem>
+                      <SelectItem value="rock">
+                        {wizardText.genreRock}
+                      </SelectItem>
+                      <SelectItem value="afrobeats">
+                        {wizardText.genreAfrobeats}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => setStep(5)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => setStep(7)}
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
+                  <div className="flex-1">
+                    <Button asChild size="lg" variant="outline">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(5)}
+                      >
+                        {wizardText.back}
+                      </button>
+                    </Button>
+                  </div>
+                  <div className="flex-1">
+                    <Button asChild size="lg">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(7)}
+                      >
+                        {wizardText.continue}
+                      </button>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Step 7: Streaming Links */}
             {step === 7 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <LinkIcon className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <LinkIcon size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">Connect Your Music</h2>
+                  <h2 className="text-xl font-bold">
+                    {wizardText.streamingTitle}
+                  </h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Link your streaming profiles (optional)
+                    {wizardText.streamingSubtitle}
                   </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="spotify">Spotify Artist URL</Label>
+                    <Label htmlFor="spotify">{wizardText.spotifyLabel}</Label>
                     <Input
                       id="spotify"
                       placeholder="https://open.spotify.com/artist/..."
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="apple">Apple Music URL</Label>
+                    <Label htmlFor="apple">{wizardText.appleMusicLabel}</Label>
                     <Input
                       id="apple"
                       placeholder="https://music.apple.com/artist/..."
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="youtube">YouTube Channel URL</Label>
+                    <Label htmlFor="youtube">{wizardText.youtubeLabel}</Label>
                     <Input
                       id="youtube"
                       placeholder="https://youtube.com/@..."
@@ -1021,57 +1152,72 @@ function ArtistOnboardingPage() {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => setStep(6)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={() => setStep(8)}
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
+                  <div className="flex-1">
+                    <Button asChild size="lg" variant="outline">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(6)}
+                      >
+                        {wizardText.back}
+                      </button>
+                    </Button>
+                  </div>
+                  <div className="flex-1">
+                    <Button asChild size="lg">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(8)}
+                      >
+                        {wizardText.continue}
+                      </button>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Step 8: Social Links + Subscription */}
             {step === 8 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Share2 className="size-8 text-primary" />
+                    <span className="text-primary">
+                      <Share2 size={32} />
+                    </span>
                   </div>
-                  <h2 className="text-xl font-bold">Connect Your Socials</h2>
+                  <h2 className="text-xl font-bold">
+                    {wizardText.socialsTitle}
+                  </h2>
                   <p className="text-muted-foreground text-sm mt-2">
-                    Link your social media (optional)
+                    {wizardText.socialsSubtitle}
                   </p>
                 </div>
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor="instagram">Instagram</Label>
+                    <Label htmlFor="instagram">
+                      {wizardText.instagramLabel}
+                    </Label>
                     <Input id="instagram" placeholder="@yourhandle" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="tiktok">TikTok</Label>
+                    <Label htmlFor="tiktok">{wizardText.tiktokLabel}</Label>
                     <Input id="tiktok" placeholder="@yourhandle" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="twitter">X (Twitter)</Label>
+                    <Label htmlFor="twitter">{wizardText.twitterLabel}</Label>
                     <Input id="twitter" placeholder="@yourhandle" />
                   </div>
                 </div>
 
-                {/* Subscription Choice */}
                 <div className="border-t pt-6 mt-6">
-                  <h3 className="font-bold text-lg mb-4">Choose Your Plan</h3>
+                  <h3 className="font-bold text-lg mb-4">
+                    {wizardText.planTitle}
+                  </h3>
                   <div className="grid gap-4">
-                    <Card
+                    <button
+                      type="button"
+                      aria-label={wizardText.freeTitle}
                       className={`border-2 cursor-pointer hover:border-primary transition-colors ${
                         selectedPlanCode === "artist_free"
                           ? "border-primary"
@@ -1079,19 +1225,25 @@ function ArtistOnboardingPage() {
                       }`}
                       onClick={() => setSelectedPlanCode("artist_free")}
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between text-left">
                           <div>
-                            <h4 className="font-semibold">Free Account</h4>
+                            <h4 className="font-semibold">
+                              {wizardText.freeTitle}
+                            </h4>
                             <p className="text-sm text-muted-foreground">
-                              Basic features to get started
+                              {wizardText.freeDescription}
                             </p>
                           </div>
-                          <span className="font-bold">$0/mo</span>
+                          <span className="font-bold">
+                            {wizardText.freePrice}
+                          </span>
                         </div>
-                      </CardContent>
-                    </Card>
-                    <Card
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={wizardText.premiumTitle}
                       className={`border-2 cursor-pointer ${
                         selectedPlanCode === "soundkit_premium_artist"
                           ? "border-primary"
@@ -1101,24 +1253,28 @@ function ArtistOnboardingPage() {
                         setSelectedPlanCode("soundkit_premium_artist")
                       }
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between text-left">
                           <div>
                             <h4 className="font-semibold flex items-center gap-2">
-                              Premium
+                              {wizardText.premiumTitle}
                               <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">
-                                Recommended
+                                {wizardText.planRecommended}
                               </span>
                             </h4>
                             <p className="text-sm text-muted-foreground">
-                              Live hosting, selling, rewards, and analytics
+                              {ARTIST_PREMIUM_PLAN_DESCRIPTION}
                             </p>
                           </div>
-                          <span className="font-bold">$22.99/mo</span>
+                          <span className="font-bold">
+                            {wizardText.premiumPrice}
+                          </span>
                         </div>
-                      </CardContent>
-                    </Card>
-                    <Card
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={wizardText.artistTeamTitle}
                       className={`cursor-pointer border-2 ${
                         selectedPlanCode === "artist_team"
                           ? "border-primary"
@@ -1126,18 +1282,22 @@ function ArtistOnboardingPage() {
                       }`}
                       onClick={() => setSelectedPlanCode("artist_team")}
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
+                      <div className="p-4">
+                        <div className="flex items-center justify-between text-left">
                           <div>
-                            <h4 className="font-semibold">Artist Team</h4>
+                            <h4 className="font-semibold">
+                              {wizardText.artistTeamTitle}
+                            </h4>
                             <p className="text-sm text-muted-foreground">
-                              Artist Premium workspace for up to 5 seats
+                              {wizardText.artistTeamDescription}
                             </p>
                           </div>
-                          <span className="font-bold">$24.99/mo</span>
+                          <span className="font-bold">
+                            {wizardText.artistTeamPrice}
+                          </span>
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
@@ -1148,28 +1308,39 @@ function ArtistOnboardingPage() {
                 )}
 
                 <div className="flex gap-3">
-                  <Button
-                    onClick={() => setStep(7)}
-                    variant="outline"
-                    className="flex-1"
-                    size="lg"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    disabled={isSubmitting}
-                    size="lg"
-                    onClick={() => void completeOnboarding()}
-                  >
-                    <Check className="mr-2 size-5" />
-                    {isSubmitting ? "Completing..." : "Complete Setup"}
-                  </Button>
+                  <div className="flex-1">
+                    <Button asChild size="lg" variant="outline">
+                      <button
+                        type="button"
+                        className="w-full"
+                        onClick={() => setStep(7)}
+                      >
+                        {wizardText.back}
+                      </button>
+                    </Button>
+                  </div>
+                  <div className="flex-1">
+                    <Button asChild size="lg">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-center"
+                        disabled={isSubmitting}
+                        onClick={() => void completeOnboarding()}
+                      >
+                        <span className="mr-2">
+                          <Check size={20} />
+                        </span>
+                        {isSubmitting
+                          ? wizardText.completing
+                          : wizardText.complete}
+                      </button>
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

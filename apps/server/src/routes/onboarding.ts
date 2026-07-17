@@ -17,6 +17,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
 import {
   messageResponseSchema,
   onboardingArtistBodySchema,
@@ -210,6 +211,10 @@ app.openapi(
         messageResponseSchema,
         "Username unavailable"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Plan seat limit exceeded"
+      ),
     },
     tags: ["Onboarding"],
   }),
@@ -234,6 +239,24 @@ app.openapi(
     }
 
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
+      const requestedSeats = Math.max(1, body.teamInviteEmails.length + 1);
+
+      try {
+        assertPlanSeatCount({
+          planCode: body.selectedPlanCode,
+          seats: requestedSeats,
+        });
+      } catch {
+        const maxSeats = maxIncludedSeatsForPlan(body.selectedPlanCode);
+
+        return c.json(
+          {
+            message: `${body.selectedPlanCode} supports up to ${maxSeats} seats. Remove invitees or choose a larger plan.`,
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+
       const db = createDb();
       const now = new Date();
       const genreId = await ensureGenre(body.primaryGenre);
@@ -344,7 +367,7 @@ app.openapi(
         planCode: body.selectedPlanCode,
         referenceId: workspaceId,
         request: c.req.raw,
-        seats: Math.max(1, body.teamInviteEmails.length + 1),
+        seats: requestedSeats,
       });
 
       return c.json(

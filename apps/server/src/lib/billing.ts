@@ -4,6 +4,7 @@ import { planCatalog } from "@soundkit/db/schema/plans";
 import { eq } from "drizzle-orm";
 
 import { CONFIGURED_PAID_PLAN_CODES, FREE_PLAN_CODES } from "@/lib/plan-codes";
+import { billableSeatsForCheckout } from "@/lib/plan-seats";
 
 export const isFreePlan = (planCode: string) => FREE_PLAN_CODES.has(planCode);
 
@@ -70,7 +71,7 @@ export const createPlanCheckout = async ({
         disableRedirect: true,
         plan: planCode,
         referenceId,
-        seats,
+        seats: billableSeatsForCheckout({ planCode, seats }),
         successUrl,
       },
       headers: request.headers,

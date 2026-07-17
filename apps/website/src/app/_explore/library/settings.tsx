@@ -23,6 +23,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  premiumPlanCodeForAccount,
+  premiumSuccessPathForAccount,
+} from "@/lib/pricing-flow";
+import {
+  useBillingCheckoutMutation,
   useMeQuery,
   useUpdateMeProfileMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -34,7 +39,9 @@ export const Route = createFileRoute("/_explore/library/settings")({
 function AccountSettingsPage() {
   const { data: me, isLoading } = useMeQuery();
   const updateProfile = useUpdateMeProfileMutation();
+  const checkout = useBillingCheckoutMutation();
   const [city, setCity] = useState("");
+  const [checkoutMessage, setCheckoutMessage] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [stateValue, setStateValue] = useState("");
 
@@ -55,6 +62,38 @@ function AccountSettingsPage() {
       displayName,
       state: stateValue,
     });
+  };
+  const startPremiumCheckout = async () => {
+    if (!me?.user) {
+      return;
+    }
+
+    try {
+      setCheckoutMessage("");
+      const { origin } = window.location;
+      const response = await checkout.mutateAsync({
+        cancelUrl: `${origin}/library/settings`,
+        planCode: premiumPlanCodeForAccount(me.user.accountType),
+        successUrl: `${origin}${premiumSuccessPathForAccount(
+          me.user.accountType
+        )}?upgraded=1`,
+      });
+
+      if (response.checkoutUrl) {
+        window.location.assign(response.checkoutUrl);
+        return;
+      }
+
+      setCheckoutMessage(
+        response.setupRequired
+          ? "Premium checkout is being connected. You can keep using Free while billing is finished."
+          : "Your account is already set for this plan."
+      );
+    } catch {
+      setCheckoutMessage(
+        "We could not open checkout right now. Please try again in a moment."
+      );
+    }
   };
 
   return (
@@ -220,7 +259,19 @@ function AccountSettingsPage() {
                   Upgrade to unlock premium features
                 </p>
               </div>
-              <Button>Upgrade to Premium</Button>
+              <Button
+                disabled={checkout.isPending}
+                onClick={startPremiumCheckout}
+              >
+                {checkout.isPending
+                  ? "Opening Checkout..."
+                  : "Upgrade to Premium"}
+              </Button>
+              {checkoutMessage ? (
+                <p className="text-sm text-muted-foreground">
+                  {checkoutMessage}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         </div>

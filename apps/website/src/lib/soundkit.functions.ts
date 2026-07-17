@@ -90,7 +90,12 @@ export const requireSignupOnboardingUser = createServerFn({ method: "GET" })
       const me = await getMe();
 
       if (me.user.onboardingCompletedAt) {
-        throw redirect({ to: "/dashboard" });
+        throw redirect({
+          to: signupRedirectForUser({
+            accountType: data.accountType,
+            user: me.user,
+          }),
+        });
       }
 
       return me;
