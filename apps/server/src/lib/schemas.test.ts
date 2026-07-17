@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  artistSummarySchema,
   createProjectBodySchema,
   createTrackAssetBodySchema,
   friendSummarySchema,
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
+  userSummarySchema,
 } from "./schemas";
 
 const artistOnboardingPayload = {
@@ -165,6 +167,51 @@ describe("artist dashboard release schemas", () => {
       relationship: "collaborator",
       role: "producer",
       username: "ava-rhodes",
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("public profile schemas", () => {
+  it("exposes the current user's role for client navigation gates", () => {
+    const result = userSummarySchema.safeParse({
+      accountType: "artist",
+      avatarUrl: null,
+      city: "Little Rock",
+      displayName: "CG Stewart",
+      id: "user_cg",
+      role: "admin",
+      state: "AR",
+      username: "cgstewart",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts real artist profile media, stats, and platform links", () => {
+    const result = artistSummarySchema.safeParse({
+      avatarUrl: "https://media.soundkit.test/profiles/cg/avatar.jpg",
+      battleCount: 4,
+      bio: "Making records in Little Rock.",
+      coverImageUrl: "https://media.soundkit.test/profiles/cg/header.jpg",
+      followers: 1200,
+      genre: "Hip-Hop",
+      id: "user_cg",
+      joinedAt: "2026-07-01T12:00:00.000Z",
+      links: {
+        apple: "https://music.apple.com/us/artist/cg",
+        spotify: "https://open.spotify.com/artist/cg",
+        youtube: "https://music.youtube.com/channel/cg",
+      },
+      location: "Little Rock, AR",
+      name: "CG Stewart",
+      projectCount: 3,
+      rank: 1,
+      trackCount: 12,
+      username: "cgstewart",
+      verified: true,
+      weeklyPlays: 44_000,
     });
 
     expect(result.success).toBe(true);

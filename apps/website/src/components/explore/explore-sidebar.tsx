@@ -20,6 +20,7 @@ const discoverLinks = [
   { href: "/tracks", icon: Music, label: "Songs" },
   { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
+  { href: "/shop", icon: ShoppingBag, label: "Shop" },
   { href: "/live", icon: Trophy, label: "Live" },
 ];
 

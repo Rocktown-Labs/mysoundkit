@@ -1,17 +1,34 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Video } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { useVideosQuery } from "@/lib/soundkit-api-hooks";
+import type { VideoSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
   { label: "Most Viewed", value: "views-desc" },
   { label: "Newest", value: "date-desc" },
   { label: "Title (A-Z)", value: "title-asc" },
 ];
+
+const discoveryGenres = [
+  { label: "Hip-Hop", value: "hip-hop" },
+  { label: "R&B/Soul", value: "rb-soul" },
+  { label: "Pop", value: "pop" },
+  { label: "Electronic", value: "electronic" },
+  { label: "Spoken Word", value: "spoken-word" },
+] as const;
+
+interface VideosSearch {
+  genre?: string;
+  region?: string;
+  regionType?: "north-america" | "global";
+  sort?: string;
+}
 
 const replaceExploreSearch = (params: URLSearchParams) => {
   if (typeof window === "undefined") {
@@ -23,6 +40,12 @@ const replaceExploreSearch = (params: URLSearchParams) => {
 
 export const Route = createFileRoute("/_explore/videos/")({
   component: VideosPage,
+  validateSearch: (search: Record<string, unknown>): VideosSearch => ({
+    genre: typeof search.genre === "string" ? search.genre : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
+  }),
 });
 
 function VideosPage() {
@@ -138,35 +161,142 @@ function VideosPage() {
         sortOptions={sortOptions}
       />
 
+      <div className="mb-10">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-xl">Featured Videos</h2>
+            <p className="text-muted-foreground text-sm">
+              Music videos and replays ranked by the current filters.
+            </p>
+          </div>
+          <Button asChild size="sm" variant="ghost">
+            <Link
+              to="/videos"
+              search={
+                { genre, region, regionType, sort } satisfies VideosSearch
+              }
+            >
+              View All
+            </Link>
+          </Button>
+        </div>
+        {isLoading || videos.length > 0 ? (
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {videos.slice(0, 12).map((video) => (
+              <div className="min-w-[320px] max-w-[420px]" key={video.id}>
+                <ExploreVideoCard video={video} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <VideoEmptyState>
+            No videos found for this filter yet. Arkansas is selected by default
+            until this region has more uploads.
+          </VideoEmptyState>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-10">
+        {discoveryGenres.map((sectionGenre) => (
+          <VideoGenreRail
+            key={sectionGenre.value}
+            genre={sectionGenre}
+            region={region}
+            regionType={regionType}
+            sort={sort}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExploreVideoCard({ video }: { video: VideoSummary }) {
+  return (
+    <VideoCard
+      video={{
+        creator: {
+          name: video.creatorName ?? "SoundKit Artist",
+          slug: video.creatorUsername ?? "artist",
+        },
+        duration: video.duration ?? "0:00",
+        id: video.id,
+        playbackPolicy: video.playbackPolicy,
+        status: video.status,
+        thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
+        title: video.title,
+        verifiedOnPlatform: video.verifiedOnPlatform,
+        videoKind: video.videoKind,
+        viewCount: video.viewCount ?? "0",
+      }}
+    />
+  );
+}
+
+function VideoGenreRail({
+  genre,
+  region,
+  regionType,
+  sort,
+}: {
+  genre: (typeof discoveryGenres)[number];
+  region: string;
+  regionType: "north-america" | "global";
+  sort: string;
+}) {
+  const { data: videos = [], isLoading } = useVideosQuery({
+    genre: genre.value,
+    limit: "12",
+    region,
+    regionType,
+    scope: "public",
+    sort,
+  });
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-xl">{genre.label}</h2>
+          <p className="text-muted-foreground text-sm">
+            Videos from this genre.
+          </p>
+        </div>
+        <Button asChild size="sm" variant="ghost">
+          <Link
+            to="/videos"
+            search={
+              {
+                genre: genre.value,
+                region,
+                regionType,
+                sort,
+              } satisfies VideosSearch
+            }
+          >
+            View All
+          </Link>
+        </Button>
+      </div>
       {isLoading || videos.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="flex gap-4 overflow-x-auto pb-2">
           {videos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={{
-                creator: {
-                  name: video.creatorName ?? "SoundKit Artist",
-                  slug: video.creatorUsername ?? "artist",
-                },
-                duration: video.duration ?? "0:00",
-                id: video.id,
-                playbackPolicy: video.playbackPolicy,
-                status: video.status,
-                thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
-                title: video.title,
-                verifiedOnPlatform: video.verifiedOnPlatform,
-                videoKind: video.videoKind,
-                viewCount: video.viewCount ?? "0",
-              }}
-            />
+            <div className="min-w-[320px] max-w-[420px]" key={video.id}>
+              <ExploreVideoCard video={video} />
+            </div>
           ))}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          No videos found for this filter yet. Arkansas is selected by default
-          until this region has more uploads.
-        </div>
+        <VideoEmptyState>No {genre.label} videos are live yet.</VideoEmptyState>
       )}
+    </section>
+  );
+}
+
+function VideoEmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+      {children}
     </div>
   );
 }

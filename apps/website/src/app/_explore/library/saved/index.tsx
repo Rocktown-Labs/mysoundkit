@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Heart, ArrowLeft } from "lucide-react";
 
+import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
 import { useLibrarySavedQuery } from "@/lib/soundkit-api-hooks";
 
@@ -36,9 +37,15 @@ function SavedTracksPage() {
       {isLoading || data.length > 0 ? (
         <DataTable columns={columns} data={data} />
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Save tracks to build your library.
-        </div>
+        <LibraryEmptyState
+          actionHref="/tracks"
+          actionLabel="Find Tracks"
+          description="Save tracks from discovery to build a listening queue you can revisit later."
+          icon={Heart}
+          secondaryHref="/shop"
+          secondaryLabel="Browse Shop"
+          title="No saved tracks yet"
+        />
       )}
     </div>
   );

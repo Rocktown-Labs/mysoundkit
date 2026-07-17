@@ -1,6 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronLeft, Trophy, TrendingUp, Music2, Eye } from "lucide-react";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { ChevronLeft, Trophy, TrendingUp, Eye } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -63,15 +63,20 @@ const battleGenres = ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"] as const;
 const DEFAULT_REGION = "all";
 const DEFAULT_REGION_TYPE = "north-america" as const;
 const DEFAULT_GENRE = "all";
-const liveGenreOrder = [
-  "Hip-Hop",
-  "Hip Hop",
-  "Rap",
-  "R&B/Soul",
-  "R&B",
-  "Pop",
-  "Electronic",
-  "Spoken Word",
+const liveGenreSections = [
+  { label: "Hip-Hop", value: "hip-hop" },
+  { label: "R&B/Soul", value: "rb-soul" },
+  { label: "Pop", value: "pop" },
+  { label: "Electronic", value: "electronic" },
+  { label: "Spoken Word", value: "spoken-word" },
+  { label: "Rock", value: "rock" },
+  { label: "Jazz", value: "jazz" },
+  { label: "Afrobeats", value: "afrobeats" },
+  { label: "Latin", value: "latin" },
+  { label: "Country", value: "country" },
+  { label: "Reggae", value: "reggae" },
+  { label: "Indie", value: "indie" },
+  { label: "Metal", value: "metal" },
 ] as const;
 
 const readSavedBattleFilters = (): Partial<BattleFiltersState> | null => {
@@ -178,25 +183,31 @@ const groupBattlesByGenre = (battles: BattleSummary[]) => {
   const grouped = new Map<string, BattleSummary[]>();
 
   for (const battle of battles) {
-    const group = grouped.get(battle.genre) ?? [];
+    const groupKey = normalizedGenreValue(battle.genre);
+    const group = grouped.get(groupKey) ?? [];
     group.push(battle);
-    grouped.set(battle.genre, group);
+    grouped.set(groupKey, group);
   }
 
-  const orderedGenres = [
-    ...liveGenreOrder.filter((orderedGenre) => grouped.has(orderedGenre)),
-    ...[...grouped.keys()]
-      .filter(
-        (groupedGenre) =>
-          !liveGenreOrder.some((orderedGenre) => orderedGenre === groupedGenre)
-      )
-      .toSorted((first, second) => first.localeCompare(second)),
-  ];
-
-  return orderedGenres.map((genreName) => ({
-    battles: grouped.get(genreName) ?? [],
-    genre: genreName,
+  const knownGenreValues = new Set(
+    liveGenreSections.map((genre) => genre.value)
+  );
+  const orderedGenres = liveGenreSections.map((genre) => ({
+    battles: grouped.get(genre.value) ?? [],
+    genre: genre.label,
+    value: genre.value,
   }));
+
+  const customGenres = [...grouped.keys()]
+    .filter((genreValue) => !knownGenreValues.has(genreValue))
+    .toSorted((first, second) => first.localeCompare(second))
+    .map((genreValue) => ({
+      battles: grouped.get(genreValue) ?? [],
+      genre: genreValue.replaceAll("-", " "),
+      value: genreValue,
+    }));
+
+  return [...orderedGenres, ...customGenres];
 };
 
 function LiveBattleSummaryCard({ battle }: { battle: BattleSummary }) {
@@ -242,27 +253,46 @@ function LiveBattleSummaryCard({ battle }: { battle: BattleSummary }) {
 function BattleRail({
   battles,
   title,
+  viewAllGenre,
 }: {
   battles: BattleSummary[];
   title: string;
+  viewAllGenre?: string;
 }) {
-  if (battles.length === 0) {
-    return null;
-  }
-
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-xl">{title}</h2>
-        <span className="text-muted-foreground text-sm">
-          {battles.length} {battles.length === 1 ? "battle" : "battles"}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground text-sm">
+            {battles.length} {battles.length === 1 ? "battle" : "battles"}
+          </span>
+          <Button asChild size="sm" variant="ghost">
+            <Link
+              to="/live/battles"
+              search={{
+                genre: viewAllGenre ?? DEFAULT_GENRE,
+                region: DEFAULT_REGION,
+                regionType: DEFAULT_REGION_TYPE,
+                sort: sortOptionsMap.live[0].value,
+              }}
+            >
+              View All
+            </Link>
+          </Button>
+        </div>
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        {battles.map((battle) => (
-          <LiveBattleSummaryCard key={battle.id} battle={battle} />
-        ))}
-      </div>
+      {battles.length > 0 ? (
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {battles.map((battle) => (
+            <LiveBattleSummaryCard key={battle.id} battle={battle} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+          No live battles in {title} right now.
+        </div>
+      )}
     </section>
   );
 }
@@ -375,14 +405,6 @@ export function BattleViewAll({
       );
     }
 
-    if (liveBattleSections.total === 0) {
-      return (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          No live battles match these filters yet.
-        </div>
-      );
-    }
-
     return (
       <>
         <BattleRail battles={liveBattleSections.featured} title="Featured" />
@@ -391,6 +413,7 @@ export function BattleViewAll({
             key={section.genre}
             battles={section.battles}
             title={section.genre}
+            viewAllGenre={section.value}
           />
         ))}
       </>

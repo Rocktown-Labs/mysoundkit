@@ -1,6 +1,6 @@
 /* eslint-disable react-perf/jsx-no-new-function-as-prop */
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Search, ShoppingCart } from "lucide-react";
+import { LayoutDashboard, Search, ShoppingCart, UserRound } from "lucide-react";
 import { Suspense } from "react";
 
 import { CartDrawer } from "@/components/cart-drawer";
@@ -8,10 +8,16 @@ import { useCart } from "@/components/cart-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 export function ExploreHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { cart, setIsCartOpen } = useCart();
+  const meQuery = useMeQuery();
+  const me = meQuery.data;
+  const isSignedIn = Boolean(me);
+  const canOpenDashboard =
+    me?.user.accountType === "artist" || me?.user.role === "admin";
 
   const getSearchPlaceholder = () => {
     if (pathname.startsWith("/artist")) {
@@ -59,14 +65,35 @@ export function ExploreHeader() {
             </span>
           )}
         </Button>
-        <Link to="/login">
-          <Button variant="ghost" size="sm">
-            Log In
-          </Button>
-        </Link>
-        <Link to="/signup">
-          <Button size="sm">Sign Up</Button>
-        </Link>
+        {isSignedIn ? (
+          <>
+            {canOpenDashboard ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/dashboard">
+                  <LayoutDashboard className="size-4" />
+                  Dashboard
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild size="sm">
+              <Link to="/library/settings">
+                <UserRound className="size-4" />
+                Account
+              </Link>
+            </Button>
+          </>
+        ) : (
+          <>
+            <Link to="/login">
+              <Button variant="ghost" size="sm">
+                Log In
+              </Button>
+            </Link>
+            <Link to="/signup">
+              <Button size="sm">Sign Up</Button>
+            </Link>
+          </>
+        )}
       </div>
       <CartDrawer />
     </header>

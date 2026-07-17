@@ -57,10 +57,10 @@ const getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
       description:
         "Watch tracks go head to head in real time, vote live as a premium member, and come back for completed replays once the battle closes.",
       isPremiumOnly: true,
-      primaryActionLink: "/live/battles",
+      primaryActionLink: "/pricing",
       primaryActionText: "Watch Live Battles",
-      secondaryActionLink: "/dashboard/live/challenge",
-      secondaryActionText: "Start Your Battle",
+      secondaryActionLink: "/pricing",
+      secondaryActionText: "See Premium Plans",
       title: "Live Battles",
     };
   }
@@ -71,10 +71,10 @@ const getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
     description:
       "Start at the live hub, then move into battles, listening parties, and creator streams as the session unfolds.",
     isPremiumOnly: true,
-    primaryActionLink: "/live/battles",
+    primaryActionLink: "/pricing",
     primaryActionText: "Watch Live Battles",
-    secondaryActionLink: "/dashboard/live/challenge",
-    secondaryActionText: "Start Your Battle",
+    secondaryActionLink: "/pricing",
+    secondaryActionText: "See Premium Plans",
     title: "The Pulse of SoundKit",
   };
 };

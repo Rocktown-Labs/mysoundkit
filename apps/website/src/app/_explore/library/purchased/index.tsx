@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ShoppingBag, ArrowLeft } from "lucide-react";
 
+import { LibraryEmptyState } from "@/components/explore/library-empty-state";
 import { Button } from "@/components/ui/button";
 import { useLibraryPurchasesQuery } from "@/lib/soundkit-api-hooks";
 
@@ -36,9 +37,15 @@ function PurchasedPage() {
       {isLoading || data.length > 0 ? (
         <DataTable columns={columns} data={data} />
       ) : (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Music you purchase will appear here.
-        </div>
+        <LibraryEmptyState
+          actionHref="/shop"
+          actionLabel="Browse Shop"
+          description="Music you purchase will appear here. Start with featured tracks or browse by genre."
+          icon={ShoppingBag}
+          secondaryHref="/tracks"
+          secondaryLabel="Explore Songs"
+          title="No purchases yet"
+        />
       )}
     </div>
   );

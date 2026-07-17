@@ -4,11 +4,11 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface LibraryEmptyStateProps {
-  actionHref: "/login" | "/signup" | "/tracks" | "/videos" | "/live";
+  actionHref: "/login" | "/signup" | "/tracks" | "/videos" | "/live" | "/shop";
   actionLabel: string;
   description: string;
   icon: LucideIcon;
-  secondaryHref?: "/signup" | "/tracks" | "/videos" | "/live";
+  secondaryHref?: "/signup" | "/tracks" | "/videos" | "/live" | "/shop";
   secondaryLabel?: string;
   title: string;
 }
