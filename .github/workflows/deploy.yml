@@ -197,6 +197,66 @@ jobs:
           TURNSTILE_HOSTNAMES: ${{ vars.TURNSTILE_HOSTNAMES }}
           TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
 
+  real-e2e:
+    name: Real Backend E2E
+    if: ${{ github.event_name != 'pull_request' && vars.ENABLE_REAL_E2E == 'true' && vars.ENABLE_PRODUCTION_DEPLOYS == 'true' }}
+    needs:
+      - deploy
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    env:
+      PLAYWRIGHT_API_URL: ${{ vars.SOUNDKIT_E2E_API_URL || 'https://api.mysoundkit.com' }}
+      PLAYWRIGHT_BASE_URL: ${{ vars.SOUNDKIT_E2E_WEB_URL || 'https://mysoundkit.com' }}
+      SOUNDKIT_E2E_ARTIST_EMAIL: ${{ secrets.SOUNDKIT_E2E_ARTIST_EMAIL }}
+      SOUNDKIT_E2E_ARTIST_PASSWORD: ${{ secrets.SOUNDKIT_E2E_ARTIST_PASSWORD }}
+      SOUNDKIT_E2E_EXPECT_CHECKOUT: ${{ vars.SOUNDKIT_E2E_EXPECT_CHECKOUT }}
+      SOUNDKIT_E2E_EXPECT_PREMIUM_CHECKOUT: ${{ vars.SOUNDKIT_E2E_EXPECT_PREMIUM_CHECKOUT }}
+      SOUNDKIT_E2E_FAN_EMAIL: ${{ secrets.SOUNDKIT_E2E_FAN_EMAIL }}
+      SOUNDKIT_E2E_FAN_PASSWORD: ${{ secrets.SOUNDKIT_E2E_FAN_PASSWORD }}
+      SOUNDKIT_E2E_SEARCH_STATE: ${{ vars.SOUNDKIT_E2E_SEARCH_STATE || 'AR' }}
+      SOUNDKIT_REAL_E2E: "true"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check real E2E credentials
+        run: |
+          missing=0
+          for name in \
+            PLAYWRIGHT_API_URL \
+            PLAYWRIGHT_BASE_URL \
+            SOUNDKIT_E2E_ARTIST_EMAIL \
+            SOUNDKIT_E2E_ARTIST_PASSWORD \
+            SOUNDKIT_E2E_FAN_EMAIL \
+            SOUNDKIT_E2E_FAN_PASSWORD
+          do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required when ENABLE_REAL_E2E is true."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run real backend E2E
+        run: pnpm exec playwright test tests/e2e/real-backend.spec.ts --project=chromium --reporter=list
+
   preview:
     name: Deploy Preview
     needs:

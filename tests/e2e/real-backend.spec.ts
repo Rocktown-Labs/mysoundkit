@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 
 interface JsonResponse<T> {
   body: T;
@@ -42,83 +43,123 @@ interface OpenVersePage {
 interface CheckoutResponse {
   checkoutUrl?: string | null;
   message?: string;
+  requiresCheckout?: boolean;
   setupRequired?: boolean;
   transactionId?: string | null;
 }
 
 // ggignore-next-line
-const e2eArtistPassKey = ["SOUNDKIT", "E2E", "ARTIST", "PASSWORD"].join("_"),
-  // ggignore-next-line
-  e2eFanPassKey = ["SOUNDKIT", "E2E", "FAN", "PASSWORD"].join("_"),
-  requiredEnvNames = [
-    "PLAYWRIGHT_BASE_URL",
-    "PLAYWRIGHT_API_URL",
-    "SOUNDKIT_E2E_ARTIST_EMAIL",
-    e2eArtistPassKey,
-    "SOUNDKIT_E2E_FAN_EMAIL",
-    e2eFanPassKey,
-  ] as const,
-  realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true",
-  missingEnv = requiredEnvNames.filter((name) => !process.env[name]),
-  apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/, "") ?? "",
-  searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR",
-  realE2eEnv = {
-    artistEmail: process.env.SOUNDKIT_E2E_ARTIST_EMAIL ?? "",
-    artistPassword: process.env[e2eArtistPassKey] ?? "",
-    fanEmail: process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "",
-    fanPassword: process.env[e2eFanPassKey] ?? "",
-    webBaseUrl: process.env.PLAYWRIGHT_BASE_URL ?? "",
-  },
-  uniqueName = (prefix: string) =>
-    `${prefix} ${new Date().toISOString().replaceAll(/[:.]/g, "-")}`,
-  apiJson = async <T>({
-    data,
-    method = "GET",
-    path,
-    request,
-  }: {
-    data?: unknown;
-    method?: "DELETE" | "GET" | "POST";
-    path: string;
-    request: typeof test extends { request: infer R } ? R : never;
-  }): Promise<JsonResponse<T>> => {
-    const response = await request.fetch(`${apiBaseUrl}${path}`, {
-        data,
-        failOnStatusCode: false,
-        method,
-      }),
-      text = await response.text();
+const e2eArtistPassKey = ["SOUNDKIT", "E2E", "ARTIST", "PASSWORD"].join(
+  "_"
+);
+// ggignore-next-line
+const e2eFanPassKey = ["SOUNDKIT", "E2E", "FAN", "PASSWORD"].join("_");
+const requiredEnvNames = [
+  "PLAYWRIGHT_BASE_URL",
+  "PLAYWRIGHT_API_URL",
+  "SOUNDKIT_E2E_ARTIST_EMAIL",
+  e2eArtistPassKey,
+  "SOUNDKIT_E2E_FAN_EMAIL",
+  e2eFanPassKey,
+] as const;
 
-    return {
-      body: text ? (JSON.parse(text) as T) : ({} as T),
-      status: response.status(),
-    };
-  },
-  expectOk = <T>(response: JsonResponse<T>, label: string) => {
-    expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
-      200
-    );
-  },
-  expectCreated = <T>(response: JsonResponse<T>, label: string) => {
-    expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
-      201
-    );
-  },
-  login = async ({
-    email,
-    page,
-    password,
-  }: {
-    email: string;
-    page: Parameters<Parameters<typeof test>[1]>[0]["page"];
-    password: string;
-  }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/\/dashboard/);
+const realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true";
+const missingEnv = requiredEnvNames.filter((name) => !process.env[name]);
+const apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/u, "") ?? "";
+const searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR";
+const realE2eEnv = {
+  artistEmail: process.env.SOUNDKIT_E2E_ARTIST_EMAIL ?? "",
+  artistPassword: process.env[e2eArtistPassKey] ?? "",
+  fanEmail: process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "",
+  fanPassword: process.env[e2eFanPassKey] ?? "",
+  webBaseUrl: process.env.PLAYWRIGHT_BASE_URL ?? "",
+};
+
+const uniqueName = (prefix: string) =>
+  `${prefix} ${new Date().toISOString().replaceAll(/[:.]/gu, "-")}`;
+
+const apiJson = async <T>({
+  data,
+  method = "GET",
+  path,
+  request,
+}: {
+  data?: unknown;
+  method?: "DELETE" | "GET" | "POST";
+  path: string;
+  request: APIRequestContext;
+}): Promise<JsonResponse<T>> => {
+  const response = await request.fetch(`${apiBaseUrl}${path}`, {
+    data,
+    failOnStatusCode: false,
+    method,
+  });
+  const text = await response.text();
+
+  return {
+    body: text ? (JSON.parse(text) as T) : ({} as T),
+    status: response.status(),
   };
+};
+
+const expectOk = <T>(response: JsonResponse<T>, label: string) => {
+  expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
+    200
+  );
+};
+
+const expectCreated = <T>(response: JsonResponse<T>, label: string) => {
+  expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
+    201
+  );
+};
+
+const login = async ({
+  email,
+  page,
+  password,
+}: {
+  email: string;
+  page: Page;
+  password: string;
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: /sign in/iu }).click();
+  await expect(page).toHaveURL(/\/dashboard/u);
+};
+
+const expectCheckoutPreflight = (
+  checkout: JsonResponse<CheckoutResponse>,
+  label: string
+) => {
+  expectOk(checkout, label);
+  expect(
+    typeof checkout.body.requiresCheckout,
+    `${label}: ${JSON.stringify(checkout.body)}`
+  ).toBe("boolean");
+  expect(
+    typeof checkout.body.setupRequired,
+    `${label}: ${JSON.stringify(checkout.body)}`
+  ).toBe("boolean");
+};
+
+const expectPremiumCheckout = (
+  checkout: JsonResponse<CheckoutResponse>,
+  label: string
+) => {
+  expectCheckoutPreflight(checkout, label);
+
+  if (process.env.SOUNDKIT_E2E_EXPECT_PREMIUM_CHECKOUT !== "true") {
+    return;
+  }
+
+  expect(checkout.body.checkoutUrl, `${label}: missing checkout URL`).toMatch(
+    /^https:\/\/checkout\.stripe/u
+  );
+  expect(checkout.body.requiresCheckout).toBe(true);
+};
 
 test.describe("real backend artist and fan smoke flow", () => {
   test.skip(!realE2eEnabled, "Set SOUNDKIT_REAL_E2E=true to run real E2E.");
@@ -131,8 +172,8 @@ test.describe("real backend artist and fan smoke flow", () => {
 
   test("artist content can be created, discovered, and added to a fan cart", async ({
     page,
-    request,
   }) => {
+    const { request } = page.context();
     const health = await apiJson<{
       database: string;
       databaseConfigured: boolean;
@@ -155,26 +196,41 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(artistMe.body.user.accountType).toBe("artist");
     expect(artistMe.body.user.onboardingCompletedAt).toBeTruthy();
 
-    const trackTitle = uniqueName("E2E Arkansas Track"),
-      track = await apiJson<TrackSummary>({
+    expectPremiumCheckout(
+      await apiJson<CheckoutResponse>({
         data: {
-          assetIds: [],
-          catalogItemType: "single",
-          description: "Created by the real backend E2E flow.",
-          genre: "Rap",
-          isForSale: true,
-          isPublic: true,
-          price: 1.99,
-          priceCents: 199,
-          productionStatus: "complete",
-          purchaseMode: "digital_download",
-          releaseStrategy: "publish_when_ready",
-          title: trackTitle,
+          cancelUrl: `${realE2eEnv.webBaseUrl}/pricing`,
+          planCode: "soundkit_premium_artist",
+          seats: 3,
+          successUrl: `${realE2eEnv.webBaseUrl}/dashboard`,
         },
         method: "POST",
-        path: "/v1/tracks",
+        path: "/v1/billing/checkout",
         request,
-      });
+      }),
+      "artist premium checkout"
+    );
+
+    const trackTitle = uniqueName("E2E Arkansas Track");
+    const track = await apiJson<TrackSummary>({
+      data: {
+        assetIds: [],
+        catalogItemType: "single",
+        description: "Created by the real backend E2E flow.",
+        genre: "Rap",
+        isForSale: true,
+        isPublic: true,
+        price: 1.99,
+        priceCents: 199,
+        productionStatus: "complete",
+        purchaseMode: "digital_download",
+        releaseStrategy: "publish_when_ready",
+        title: trackTitle,
+      },
+      method: "POST",
+      path: "/v1/tracks",
+      request,
+    });
 
     expect([201, 403], `track create: ${JSON.stringify(track.body)}`).toContain(
       track.status
@@ -193,39 +249,39 @@ test.describe("real backend artist and fan smoke flow", () => {
     expectCreated(track, "track create");
     expect(track.body.title).toBe(trackTitle);
 
-    const openVerseTitle = `${trackTitle} Open Verse`,
-      openVerse = await apiJson<{ id: string; title: string }>({
-        data: {
-          description: "Real E2E open verse listing.",
-          maxSubmissions: 10,
-          title: openVerseTitle,
-          trackId: track.body.id,
-        },
-        method: "POST",
-        path: "/v1/open-verses",
-        request,
-      });
+    const openVerseTitle = `${trackTitle} Open Verse`;
+    const openVerse = await apiJson<{ id: string; title: string }>({
+      data: {
+        description: "Real E2E open verse listing.",
+        maxSubmissions: 10,
+        title: openVerseTitle,
+        trackId: track.body.id,
+      },
+      method: "POST",
+      path: "/v1/open-verses",
+      request,
+    });
     expectCreated(openVerse, "open verse create");
 
-    const projectTitle = uniqueName("E2E Arkansas EP"),
-      project = await apiJson<ProjectSummary>({
-        data: {
-          assetIds: [],
-          collaboratorNames: [],
-          description: "Created by the real backend E2E flow.",
-          isPublic: true,
-          newTracks: [],
-          projectType: "ep",
-          releaseDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-          title: projectTitle,
-          trackIds: [track.body.id],
-        },
-        method: "POST",
-        path: "/v1/projects",
-        request,
-      });
+    const projectTitle = uniqueName("E2E Arkansas EP");
+    const project = await apiJson<ProjectSummary>({
+      data: {
+        assetIds: [],
+        collaboratorNames: [],
+        description: "Created by the real backend E2E flow.",
+        isPublic: true,
+        newTracks: [],
+        projectType: "ep",
+        releaseDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+        title: projectTitle,
+        trackIds: [track.body.id],
+      },
+      method: "POST",
+      path: "/v1/projects",
+      request,
+    });
     expectCreated(project, "project create");
 
     const party = await apiJson<{ id: string; projectId: string }>({
@@ -278,6 +334,21 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(fanMe.body.user.accountType).toBe("fan");
     expect(fanMe.body.user.onboardingCompletedAt).toBeTruthy();
 
+    expectPremiumCheckout(
+      await apiJson<CheckoutResponse>({
+        data: {
+          cancelUrl: `${realE2eEnv.webBaseUrl}/pricing`,
+          planCode: "soundkit_premium_fan",
+          seats: 3,
+          successUrl: `${realE2eEnv.webBaseUrl}/library/settings`,
+        },
+        method: "POST",
+        path: "/v1/billing/checkout",
+        request,
+      }),
+      "fan premium checkout"
+    );
+
     const fanSearch = await apiJson<SearchResponse>({
       path: `/v1/search?q=${encodeURIComponent(trackTitle)}&state=${encodeURIComponent(
         searchState
@@ -315,7 +386,7 @@ test.describe("real backend artist and fan smoke flow", () => {
 
     if (process.env.SOUNDKIT_E2E_EXPECT_CHECKOUT === "true") {
       expectOk(checkout, "checkout");
-      expect(checkout.body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe/);
+      expect(checkout.body.checkoutUrl).toMatch(/^https:\/\/checkout\.stripe/u);
       expect(checkout.body.transactionId).toBeTruthy();
       return;
     }
