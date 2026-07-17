@@ -13,6 +13,7 @@ export interface ArtistOnboardingDraft {
   username: string;
 }
 export interface SignupRedirectUser {
+  accountType?: SignupAccountType | null;
   onboardingCompletedAt?: string | null;
 }
 
@@ -40,7 +41,7 @@ export const signupRedirectForUser = ({
   user: SignupRedirectUser;
 }) => {
   if (user.onboardingCompletedAt) {
-    return completedSignupRouteForAccount(accountType);
+    return completedSignupRouteForAccount(user.accountType ?? accountType);
   }
 
   return onboardingRouteForAccount(accountType);

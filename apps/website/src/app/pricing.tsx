@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   accountHomePathForAccount,
-  PREMIUM_ACCOUNT_SEATS,
   premiumPlanCodeForAccount,
   premiumSuccessPathForAccount,
 } from "@/lib/pricing-flow";
@@ -30,7 +29,7 @@ const premiumFeatures = [
   "Watch live streams, battles, and listening parties",
   "Vote in live battles and join premium chat",
   "Host live experiences and sell music as an artist",
-  "Add up to 3 accounts to one Premium workspace",
+  "Keep Premium if you move between fan and artist accounts",
 ] as const;
 
 const enterpriseFeatures = [
@@ -63,7 +62,6 @@ function PricingPage() {
       const response = await checkout.mutateAsync({
         cancelUrl: `${origin}/pricing`,
         planCode: premiumPlanCodeForAccount(me.user.accountType),
-        seats: PREMIUM_ACCOUNT_SEATS,
         successUrl: `${origin}${premiumSuccessPathForAccount(
           me.user.accountType
         )}?upgraded=1`,

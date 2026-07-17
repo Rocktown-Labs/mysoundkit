@@ -1,7 +1,5 @@
 import type { SignupAccountType } from "./onboarding-flow";
 
-export const PREMIUM_ACCOUNT_SEATS = 3;
-
 export const premiumPlanCodeForAccount = (
   accountType: SignupAccountType | null | undefined
 ) =>

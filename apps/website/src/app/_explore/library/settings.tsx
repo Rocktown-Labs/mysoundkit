@@ -23,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  PREMIUM_ACCOUNT_SEATS,
   premiumPlanCodeForAccount,
   premiumSuccessPathForAccount,
 } from "@/lib/pricing-flow";
@@ -75,7 +74,6 @@ function AccountSettingsPage() {
       const response = await checkout.mutateAsync({
         cancelUrl: `${origin}/library/settings`,
         planCode: premiumPlanCodeForAccount(me.user.accountType),
-        seats: PREMIUM_ACCOUNT_SEATS,
         successUrl: `${origin}${premiumSuccessPathForAccount(
           me.user.accountType
         )}?upgraded=1`,
