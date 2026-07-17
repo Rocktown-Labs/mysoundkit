@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  PREMIUM_INCLUDED_SEATS,
   accountHomePathForAccount,
   premiumPlanCodeForAccount,
   premiumSuccessPathForAccount,
@@ -29,6 +30,7 @@ const premiumFeatures = [
   "Watch live streams, battles, and listening parties",
   "Vote in live battles and join premium chat",
   "Host live experiences and sell music as an artist",
+  `Add up to ${PREMIUM_INCLUDED_SEATS} accounts on one Premium plan`,
   "Keep Premium if you move between fan and artist accounts",
 ] as const;
 
@@ -40,6 +42,8 @@ const enterpriseFeatures = [
 
 const enterpriseHref =
   "mailto:enterprise@mysoundkit.com?subject=SoundKit%20Enterprise";
+const premiumDescription =
+  "Premium follows you whether you listen as a fan or create as an artist, with three included accounts on one plan.";
 
 function PricingPage() {
   const { data: me } = useMeQuery();
@@ -138,8 +142,7 @@ function PricingPage() {
             <CardTitle className="text-2xl">SoundKit Premium</CardTitle>
             <p className="text-2xl font-black">$22.99/month</p>
             <p className="text-sm text-muted-foreground">
-              Premium follows you whether you listen as a fan or create as an
-              artist.
+              {premiumDescription}
             </p>
           </CardHeader>
           <CardContent className="flex h-full flex-col gap-6">

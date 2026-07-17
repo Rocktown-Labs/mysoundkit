@@ -1,3 +1,8 @@
+import {
+  LEGACY_TEAM_PLAN_SEATS,
+  PREMIUM_INCLUDED_SEATS,
+} from "@soundkit/auth/plan-limits";
+
 export const sampleUser = {
   accountType: "artist" as const,
   displayName: "Luna Eclipse",
@@ -37,7 +42,7 @@ export const samplePlans = [
       can_sell_products: true,
       is_premium: true,
     },
-    maxSeats: 1,
+    maxSeats: PREMIUM_INCLUDED_SEATS,
     monthlyPriceCents: 2299,
     name: "SoundKit Premium Artist",
   },
@@ -51,7 +56,7 @@ export const samplePlans = [
       can_receive_payouts: true,
       can_sell_products: true,
     },
-    maxSeats: 5,
+    maxSeats: LEGACY_TEAM_PLAN_SEATS,
     monthlyPriceCents: 2499,
     name: "Artist Team",
   },
@@ -75,7 +80,7 @@ export const samplePlans = [
       can_watch_vod: true,
       is_premium: true,
     },
-    maxSeats: 1,
+    maxSeats: PREMIUM_INCLUDED_SEATS,
     monthlyPriceCents: 2299,
     name: "SoundKit Premium Fan",
   },
@@ -88,7 +93,7 @@ export const samplePlans = [
       can_vote_live_battles: true,
       can_watch_vod: true,
     },
-    maxSeats: 5,
+    maxSeats: LEGACY_TEAM_PLAN_SEATS,
     monthlyPriceCents: 2499,
     name: "Fan Family",
   },

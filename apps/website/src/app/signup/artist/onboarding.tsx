@@ -69,6 +69,8 @@ interface LocationSuggestion {
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
 const RESERVED_USERNAMES = new Set(["soundkit"]);
+const ARTIST_PREMIUM_PLAN_DESCRIPTION =
+  "Live hosting, selling, rewards, analytics, and up to 3 workspace seats";
 const US_STATES_BY_NAME: Record<string, string> = {
   alabama: "AL",
   alaska: "AK",
@@ -1111,7 +1113,7 @@ function ArtistOnboardingPage() {
                               </span>
                             </h4>
                             <p className="text-sm text-muted-foreground">
-                              Live hosting, selling, rewards, and analytics
+                              {ARTIST_PREMIUM_PLAN_DESCRIPTION}
                             </p>
                           </div>
                           <span className="font-bold">$22.99/mo</span>

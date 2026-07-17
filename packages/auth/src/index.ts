@@ -10,20 +10,10 @@ import { admin, organization } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { Stripe } from "stripe";
 
+import { createStripePlans } from "./plans";
+
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
-
-const getFirstEnvValue = (...keys: string[]) => {
-  for (const key of keys) {
-    const value = getEnvValue(key);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return "";
-};
 
 const getAdminEmails = () =>
   getEnvValue("ADMIN_EMAILS")
@@ -42,48 +32,6 @@ const createStripeClient = () => {
     apiVersion: "2026-02-25.clover",
   });
 };
-
-const createStripePlans = () =>
-  [
-    {
-      annualDiscountPriceId: getFirstEnvValue(
-        "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID",
-        "STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"
-      ),
-      group: "artist",
-      limits: { communities: 1 },
-      name: "soundkit_premium_artist",
-      priceId: getFirstEnvValue(
-        "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID",
-        "STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"
-      ),
-    },
-    {
-      group: "artist",
-      limits: { communities: 1, members: 5 },
-      name: "artist_team",
-      priceId: getEnvValue("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
-    },
-    {
-      annualDiscountPriceId: getFirstEnvValue(
-        "STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID",
-        "STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"
-      ),
-      group: "fan",
-      limits: { familyMembers: 1 },
-      name: "soundkit_premium_fan",
-      priceId: getFirstEnvValue(
-        "STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID",
-        "STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"
-      ),
-    },
-    {
-      group: "fan",
-      limits: { familyMembers: 5 },
-      name: "fan_family",
-      priceId: getEnvValue("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
-    },
-  ].filter((plan) => plan.priceId);
 
 export const createAuth = () => {
   const db = createDb();
