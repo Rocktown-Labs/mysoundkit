@@ -30,6 +30,12 @@ describe("signup onboarding flow", () => {
         user: { onboardingCompletedAt: "2026-05-24T12:00:00.000Z" },
       })
     ).toBe("/dashboard");
+    expect(
+      signupRedirectForUser({
+        accountType: "fan",
+        user: { onboardingCompletedAt: "2026-05-24T12:00:00.000Z" },
+      })
+    ).toBe("/library/settings");
   });
 
   it("keeps credentials and onboarding routes paired by account type", () => {

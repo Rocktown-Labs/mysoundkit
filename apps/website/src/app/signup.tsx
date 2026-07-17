@@ -2,9 +2,11 @@ import {
   createFileRoute,
   Link,
   Outlet,
+  useRouter,
   useRouterState,
 } from "@tanstack/react-router";
 import { ArrowLeft, Mic, Music, Users } from "lucide-react";
+import { useEffect } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -14,17 +16,34 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { signupRedirectForUser } from "@/lib/onboarding-flow";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
 });
 
 function SignupPage() {
+  const router = useRouter();
+  const { data: me } = useMeQuery();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
   const isSignupIndex =
     pathname === Route.fullPath || pathname === `${Route.fullPath}/`;
+
+  useEffect(() => {
+    if (!me?.user) {
+      return;
+    }
+
+    void router.navigate({
+      to: signupRedirectForUser({
+        accountType: me.user.accountType,
+        user: me.user,
+      }),
+    });
+  }, [me, router]);
 
   if (!isSignupIndex) {
     return <Outlet />;

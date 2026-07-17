@@ -1,120 +1,207 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check } from "lucide-react";
+import { Building2, Check, Sparkles, Users } from "lucide-react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  accountHomePathForAccount,
+  PREMIUM_ACCOUNT_SEATS,
+  premiumPlanCodeForAccount,
+  premiumSuccessPathForAccount,
+} from "@/lib/pricing-flow";
+import {
+  useBillingCheckoutMutation,
+  useMeQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
 });
 
-const plans = [
-  {
-    audience: "For listeners",
-    code: "fan_free",
-    features: ["Stream music", "Explore public artist content"],
-    name: "Fan Free",
-    price: "Free",
-  },
-  {
-    audience: "For listeners",
-    code: "soundkit_premium_fan",
-    featured: true,
-    features: [
-      "Watch live streams, battles, and listening parties",
-      "Vote in live battles and join premium chat",
-      "Your Premium listening funds Creator Rewards",
-      "Keep Premium if you later convert to artist",
-    ],
-    name: "SoundKit Premium Fan",
-    price: "$22.99/month",
-  },
-  {
-    audience: "For listeners",
-    code: "fan_family",
-    features: ["SoundKit Premium Fan for up to 5 accounts"],
-    name: "Fan Family",
-    price: "$24.99/month",
-  },
-  {
-    audience: "For artists",
-    code: "artist_free",
-    features: ["Upload music", "Maintain your artist profile"],
-    name: "Artist Free",
-    price: "Free",
-  },
-  {
-    audience: "For artists",
-    code: "soundkit_premium_artist",
-    featured: true,
-    features: [
-      "Upload as an artist and host live experiences",
-      "$5 monthly fan-to-creator reward allocation model",
-      "Sell music, receive tips, and run paid communities",
-      "Analytics, statements, and payout readiness",
-    ],
-    name: "SoundKit Premium Artist",
-    price: "$22.99/month",
-  },
-  {
-    audience: "For artists",
-    code: "artist_team",
-    features: ["SoundKit Premium Artist workspace for up to 5 seats"],
-    name: "Artist Team",
-    price: "$24.99/month",
-  },
+const freeFeatures = [
+  "Stream music and explore public SoundKit releases",
+  "Save tracks, build playlists, and follow artists",
+  "Artist accounts can upload music and maintain a public profile",
 ] as const;
 
+const premiumFeatures = [
+  "Watch live streams, battles, and listening parties",
+  "Vote in live battles and join premium chat",
+  "Host live experiences and sell music as an artist",
+  "Add up to 3 accounts to one Premium workspace",
+] as const;
+
+const enterpriseFeatures = [
+  "Label, signed artist, and large team onboarding",
+  "Custom support for catalog migrations and releases",
+  "Premium workspace planning before launch",
+] as const;
+
+const enterpriseHref =
+  "mailto:enterprise@mysoundkit.com?subject=SoundKit%20Enterprise";
+
 function PricingPage() {
+  const { data: me } = useMeQuery();
+  const checkout = useBillingCheckoutMutation();
+  const [checkoutMessage, setCheckoutMessage] = useState("");
+  const accountType = me?.user.accountType;
+  const isSignedIn = Boolean(me?.user);
+  const accountHomePath = accountHomePathForAccount(accountType);
+  const accountHomeLabel =
+    accountType === "artist" ? "Go to Dashboard" : "Go to Library";
+
+  const startPremiumCheckout = async () => {
+    if (!me?.user) {
+      return;
+    }
+
+    try {
+      setCheckoutMessage("");
+      const { origin } = window.location;
+      const response = await checkout.mutateAsync({
+        cancelUrl: `${origin}/pricing`,
+        planCode: premiumPlanCodeForAccount(me.user.accountType),
+        seats: PREMIUM_ACCOUNT_SEATS,
+        successUrl: `${origin}${premiumSuccessPathForAccount(
+          me.user.accountType
+        )}?upgraded=1`,
+      });
+
+      if (response.checkoutUrl) {
+        window.location.assign(response.checkoutUrl);
+        return;
+      }
+
+      setCheckoutMessage(
+        response.setupRequired
+          ? "Premium checkout is being connected. Your account can keep using Free while billing is finished."
+          : "Your account is already set for this plan."
+      );
+    } catch {
+      setCheckoutMessage(
+        "We could not open checkout right now. Please try again in a moment."
+      );
+    }
+  };
+
   return (
-    <main className="mx-auto max-w-7xl px-4 py-16 md:px-6">
+    <main className="mx-auto max-w-6xl px-4 py-16 md:px-6">
       <div className="mx-auto mb-12 max-w-3xl text-center">
         <Badge variant="outline">Simple plans. Direct artist support.</Badge>
-        <h1 className="mt-5 text-4xl font-black tracking-tight md:text-6xl">
+        <h1 className="mt-5 text-4xl font-black md:text-6xl">
           Choose how you experience SoundKit
         </h1>
         <p className="mt-5 text-muted-foreground">
-          Platform subscriptions unlock SoundKit features. Paid artist
-          communities are separate subscriptions set by each artist.
+          One free plan, one Premium plan, and an enterprise path for signed
+          artists, labels, and larger teams.
         </p>
+        {isSignedIn ? (
+          <p className="mt-4 text-sm text-primary">
+            Signed in as a {accountType} account.
+          </p>
+        ) : null}
       </div>
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-        {plans.map((plan) => (
-          <Card
-            className={plan.featured ? "border-primary shadow-lg" : ""}
-            key={plan.code}
-          >
-            <CardHeader>
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                {plan.audience}
-              </p>
-              <CardTitle className="text-2xl">{plan.name}</CardTitle>
-              <p className="text-xl font-black">{plan.price}</p>
-              <p className="text-sm text-muted-foreground">
-                Annual option coming later
-              </p>
-            </CardHeader>
-            <CardContent className="flex h-full flex-col gap-6">
-              <ul className="space-y-3 text-sm">
-                {plan.features.map((feature) => (
-                  <li className="flex gap-2" key={feature}>
-                    <Check className="size-4 shrink-0 text-primary" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <div className="mb-3 flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Users className="size-5" />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Free
+            </p>
+            <CardTitle className="text-2xl">SoundKit Free</CardTitle>
+            <p className="text-2xl font-black">Free</p>
+            <p className="text-sm text-muted-foreground">
+              Fan or artist accounts can start here.
+            </p>
+          </CardHeader>
+          <CardContent className="flex h-full flex-col gap-6">
+            <FeatureList features={freeFeatures} />
+            <Button asChild className="mt-auto" variant="outline">
+              <Link to={isSignedIn ? accountHomePath : "/signup"}>
+                {isSignedIn ? accountHomeLabel : "Start Free"}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary shadow-lg">
+          <CardHeader>
+            <div className="mb-3 flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Sparkles className="size-5" />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Premium
+            </p>
+            <CardTitle className="text-2xl">SoundKit Premium</CardTitle>
+            <p className="text-2xl font-black">$22.99/month</p>
+            <p className="text-sm text-muted-foreground">
+              Premium follows you whether you listen as a fan or create as an
+              artist.
+            </p>
+          </CardHeader>
+          <CardContent className="flex h-full flex-col gap-6">
+            <FeatureList features={premiumFeatures} />
+            {isSignedIn ? (
               <Button
-                asChild
                 className="mt-auto"
-                variant={plan.featured ? "default" : "outline"}
+                disabled={checkout.isPending}
+                onClick={startPremiumCheckout}
               >
-                <Link to="/signup">Choose {plan.name}</Link>
+                {checkout.isPending
+                  ? "Opening Checkout..."
+                  : "Upgrade to Premium"}
               </Button>
-            </CardContent>
-          </Card>
-        ))}
+            ) : (
+              <Button asChild className="mt-auto">
+                <Link to="/signup">Start Premium</Link>
+              </Button>
+            )}
+            {checkoutMessage ? (
+              <p className="text-sm text-muted-foreground">{checkoutMessage}</p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="mb-3 flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Building2 className="size-5" />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Enterprise
+            </p>
+            <CardTitle className="text-2xl">Labels & Signed Artists</CardTitle>
+            <p className="text-2xl font-black">Contact us</p>
+            <p className="text-sm text-muted-foreground">
+              A holding lane for major labels, signed artists, and larger teams.
+            </p>
+          </CardHeader>
+          <CardContent className="flex h-full flex-col gap-6">
+            <FeatureList features={enterpriseFeatures} />
+            <Button asChild className="mt-auto" variant="outline">
+              <a href={enterpriseHref}>Request Enterprise Access</a>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </main>
+  );
+}
+
+function FeatureList({ features }: { features: readonly string[] }) {
+  return (
+    <ul className="space-y-3 text-sm">
+      {features.map((feature) => (
+        <li className="flex gap-2" key={feature}>
+          <Check className="size-4 shrink-0 text-primary" />
+          <span>{feature}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

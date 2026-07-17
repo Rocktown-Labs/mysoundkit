@@ -28,6 +28,10 @@ export const credentialsRouteForAccount = (accountType: SignupAccountType) =>
     ? "/signup/artist/credentials"
     : "/signup/fan/credentials";
 
+export const completedSignupRouteForAccount = (
+  accountType: SignupAccountType
+) => (accountType === "artist" ? "/dashboard" : "/library/settings");
+
 export const signupRedirectForUser = ({
   accountType,
   user,
@@ -36,7 +40,7 @@ export const signupRedirectForUser = ({
   user: SignupRedirectUser;
 }) => {
   if (user.onboardingCompletedAt) {
-    return "/dashboard";
+    return completedSignupRouteForAccount(accountType);
   }
 
   return onboardingRouteForAccount(accountType);

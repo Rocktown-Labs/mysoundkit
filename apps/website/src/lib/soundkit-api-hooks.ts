@@ -11,6 +11,7 @@ import { apiClient, rpcJson } from "./api";
 const meGet = apiClient.v1.me.index.$get;
 const meProfilePatch = apiClient.v1.me.profile.$patch;
 const meEntitlementsGet = apiClient.v1.me.entitlements.$get;
+const billingCheckoutPost = apiClient.v1.billing.checkout.$post;
 const adminAccessGet = apiClient.v1.admin.access.$get;
 const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get;
 const adminImportStripePlanPost =
@@ -89,6 +90,11 @@ export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
+type BillingCheckoutBody = InferRequestType<typeof billingCheckoutPost>["json"];
+export type BillingCheckoutResponse = InferResponseType<
+  typeof billingCheckoutPost,
+  200
+>;
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
@@ -255,6 +261,21 @@ export const useMeEntitlementsQuery = () =>
       rpcJson(await meEntitlementsGet()),
     queryKey: soundkitQueryKeys.meEntitlements,
   });
+
+export const useBillingCheckoutMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      body: BillingCheckoutBody
+    ): Promise<BillingCheckoutResponse> =>
+      rpcJson(await billingCheckoutPost({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.meEntitlements,
+      }),
+  });
+};
 
 export const useFriendsQuery = () =>
   useQuery({
