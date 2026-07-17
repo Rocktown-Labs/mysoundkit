@@ -5,6 +5,7 @@ import {
   toWatchedItemType,
   watchedSourceTypes,
 } from "./library-mappers";
+import { videoPlaybackSourceType } from "./video-playback";
 
 describe("library mappers", () => {
   it("uses project ids for purchased project catalog rows", () => {
@@ -59,5 +60,11 @@ describe("library mappers", () => {
     expect(toWatchedItemType("vod")).toBe("video");
     expect(toWatchedItemType("listening_party")).toBe("party");
     expect(toWatchedItemType("community")).toBe("community");
+  });
+
+  it("uses the canonical VOD source when ordering video views", () => {
+    expect(videoPlaybackSourceType).toBe("vod");
+    expect(watchedSourceTypes).toContain(videoPlaybackSourceType);
+    expect(toWatchedItemType(videoPlaybackSourceType)).toBe("video");
   });
 });

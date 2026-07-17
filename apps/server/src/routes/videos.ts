@@ -37,6 +37,7 @@ import {
   videoSummarySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { videoPlaybackSourceType } from "@/lib/video-playback";
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -54,7 +55,7 @@ const getMuxClient = () => {
 const videoViewCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
-  where ${playbackSessions.sourceType} = 'video'
+  where ${playbackSessions.sourceType} = ${videoPlaybackSourceType}
     and ${playbackSessions.sourceId} = ${videos.id}
 )`;
 
