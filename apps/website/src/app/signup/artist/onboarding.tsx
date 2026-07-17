@@ -1,7 +1,7 @@
 import { usePostHog } from "@posthog/react";
 import { env } from "@soundkit/env/web";
 import { useAsyncDebouncedCallback } from "@tanstack/react-pacer";
-/* eslint-disable complexity, no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
+/* eslint-disable complexity, no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/forbid-component-props, react/jsx-no-literals, react/no-unescaped-entities */
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   User,
@@ -67,7 +67,7 @@ interface LocationSuggestion {
   stateCode: string;
 }
 
-const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/;
+const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/u;
 const RESERVED_USERNAMES = new Set(["soundkit"]);
 const ARTIST_PREMIUM_PLAN_DESCRIPTION =
   "Live hosting, selling, rewards, analytics, and up to 3 workspace seats";
@@ -125,7 +125,7 @@ const US_STATES_BY_NAME: Record<string, string> = {
 };
 const US_STATE_CODES = new Set(Object.values(US_STATES_BY_NAME));
 const normalizeUsername = (value: string) =>
-  value.trim().replace(/^@/, "").toLowerCase();
+  value.trim().replace(/^@/u, "").toLowerCase();
 const parseManualLocation = (value: string) => {
   const [cityPart, statePart] = value
     .split(",")
@@ -528,7 +528,7 @@ function ArtistOnboardingPage() {
     });
   };
   const updateUsername = (value: string) => {
-    setUsername(value.replaceAll(/\s+/g, ""));
+    setUsername(value.replaceAll(/\s+/gu, ""));
   };
   const selectLocation = (suggestion: LocationSuggestion) => {
     selectedLocationQueryRef.current = suggestion.label;

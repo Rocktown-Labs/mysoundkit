@@ -1,3 +1,4 @@
+/* eslint-disable react/forbid-component-props, react/jsx-no-literals */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2, Check, Sparkles, Users } from "lucide-react";
 import { useState } from "react";
