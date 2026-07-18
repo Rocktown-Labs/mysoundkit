@@ -16,3 +16,5 @@
 
 - Fixed file picker dialog double-triggering by stopping click propagation inside the file dropzone container.
 - Standardized genre options by converting input text boxes into Select dropdowns supporting all standard genres across dashboard wizards (projects, tracks, and videos).
+- Fixed battles router precedence bug where wildcard `/{battleId}` route captured requests intended for `/stats` route.
+- Fixed missing authentication checks on Cloudflare Stream live broadcast routes and verified authentication boundaries via integration tests.
