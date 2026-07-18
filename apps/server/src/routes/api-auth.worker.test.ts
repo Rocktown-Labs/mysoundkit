@@ -221,6 +221,23 @@ const protectedRequests: {
     label: "project deletion",
     path: "/v1/projects/project_after_dark",
   },
+  {
+    label: "battle stats retrieval",
+    path: "/v1/battles/stats",
+  },
+  {
+    label: "track battle history retrieval",
+    path: "/v1/battles/track-history/track_midnight_vibes",
+  },
+  {
+    init: jsonRequest({ title: "My Session" }, "POST"),
+    label: "cloudflare stream live input creation",
+    path: "/v1/live/cloudflare-stream",
+  },
+  {
+    label: "cloudflare stream live input retrieval",
+    path: "/v1/live/cloudflare-stream/stream_123",
+  },
 ];
 
 describe("SoundKit API authentication boundaries", () => {
