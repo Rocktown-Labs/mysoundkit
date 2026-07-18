@@ -245,62 +245,7 @@ app.openapi(
   }
 );
 
-app.openapi(
-  createRoute({
-    method: "get",
-    path: "/{battleId}",
-    request: {
-      params: z.object({
-        battleId: z.string(),
-      }),
-    },
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        battleSummarySchema,
-        "Battle detail summary"
-      ),
-    },
-    tags: ["Battles"],
-  }),
-  async (c) => {
-    const { battleId } = c.req.valid("param");
-    if (isDatabaseConfigured()) {
-      const db = createDb();
-      const [row] = await db
-        .select({
-          format: battles.format,
-          genre: genres.name,
-          id: battles.id,
-          status: battles.status,
-          title: battles.title,
-          viewerCount: battles.viewerCount,
-          visibility: battles.visibility,
-        })
-        .from(battles)
-        .leftJoin(genres, eq(genres.id, battles.genreId))
-        .where(eq(battles.id, battleId))
-        .limit(1);
 
-      if (row) {
-        return c.json(
-          rankFeaturedBattles([
-            {
-              ...row,
-              genre: row.genre ?? "Uncategorized",
-            },
-          ])[0],
-          HttpStatusCodes.OK
-        );
-      }
-    }
-
-    const rankedFallbackBattles = rankFeaturedBattles(sampleBattles);
-    const battle =
-      rankedFallbackBattles.find((entry) => entry.id === battleId) ??
-      rankedFallbackBattles[0];
-    return c.json(battle, HttpStatusCodes.OK);
-  }
-);
 
 app.openapi(
   createRoute({
@@ -685,6 +630,63 @@ app.openapi(
       },
       HttpStatusCodes.OK
     );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{battleId}",
+    request: {
+      params: z.object({
+        battleId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        battleSummarySchema,
+        "Battle detail summary"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const { battleId } = c.req.valid("param");
+    if (isDatabaseConfigured()) {
+      const db = createDb();
+      const [row] = await db
+        .select({
+          format: battles.format,
+          genre: genres.name,
+          id: battles.id,
+          status: battles.status,
+          title: battles.title,
+          viewerCount: battles.viewerCount,
+          visibility: battles.visibility,
+        })
+        .from(battles)
+        .leftJoin(genres, eq(genres.id, battles.genreId))
+        .where(eq(battles.id, battleId))
+        .limit(1);
+
+      if (row) {
+        return c.json(
+          rankFeaturedBattles([
+            {
+              ...row,
+              genre: row.genre ?? "Uncategorized",
+            },
+          ])[0],
+          HttpStatusCodes.OK
+        );
+      }
+    }
+
+    const rankedFallbackBattles = rankFeaturedBattles(sampleBattles);
+    const battle =
+      rankedFallbackBattles.find((entry) => entry.id === battleId) ??
+      rankedFallbackBattles[0];
+    return c.json(battle, HttpStatusCodes.OK);
   }
 );
 

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 
 import { createSampleLiveRoom } from "@/lib/live-room-data";
+import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import type { AppEnv } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
@@ -108,6 +109,11 @@ app.post("/rooms/:roomId/vote", async (c) => {
 });
 
 app.post("/cloudflare-stream", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
   const body = (await c.req.json().catch(() => ({}))) as { title?: string };
   const title = body.title || "Live Stream";
 
@@ -170,6 +176,11 @@ app.post("/cloudflare-stream", async (c) => {
 });
 
 app.get("/cloudflare-stream/:streamId", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
   const streamId = c.req.param("streamId");
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = c.env.CLOUDFLARE_API_TOKEN;
