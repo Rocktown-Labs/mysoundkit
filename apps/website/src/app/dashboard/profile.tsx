@@ -220,7 +220,7 @@ function PostGridItem({ post }: { post: any }) {
           <Heart className="size-4 md:size-5 fill-current" />
           <span className="font-bold text-sm md:text-base">
             {post.likes > 1000
-              ? (post.likes / 1000).toFixed(1) + "K"
+              ? `${(post.likes / 1000).toFixed(1)  }K`
               : post.likes}
           </span>
         </div>

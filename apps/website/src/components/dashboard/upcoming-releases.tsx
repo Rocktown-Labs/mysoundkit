@@ -30,7 +30,7 @@ export function UpcomingReleases({ projects }: { projects: ProjectSummary[] }) {
 
       return new Date(project.releaseDate).getTime() >= Date.now();
     })
-    .sort(
+    .toSorted(
       (left, right) =>
         new Date(left.releaseDate ?? 0).getTime() -
         new Date(right.releaseDate ?? 0).getTime()

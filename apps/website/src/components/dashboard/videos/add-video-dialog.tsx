@@ -306,11 +306,22 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="hip-hop">Hip-Hop</SelectItem>
-                                <SelectItem value="r-and-b">R&B</SelectItem>
-                                <SelectItem value="pop">Pop</SelectItem>
-                                <SelectItem value="electronic">
+                                <SelectItem value="Afrobeats">
+                                  Afrobeats
+                                </SelectItem>
+                                <SelectItem value="Electronic">
                                   Electronic
+                                </SelectItem>
+                                <SelectItem value="Hip-Hop">Hip-Hop</SelectItem>
+                                <SelectItem value="Jazz">Jazz</SelectItem>
+                                <SelectItem value="Latin">Latin</SelectItem>
+                                <SelectItem value="Pop">Pop</SelectItem>
+                                <SelectItem value="R&B/Soul">
+                                  R&B/Soul
+                                </SelectItem>
+                                <SelectItem value="Rock">Rock</SelectItem>
+                                <SelectItem value="Spoken Word">
+                                  Spoken Word
                                 </SelectItem>
                               </SelectContent>
                             </Select>

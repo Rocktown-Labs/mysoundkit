@@ -18,14 +18,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  type TrackSummary,
-  useBattlesQuery,
-  useListeningPartiesQuery,
-  useProjectsQuery,
-  useTracksQuery,
-  useVideosQuery,
-} from "@/lib/soundkit-api-hooks";
+import { useBattlesQuery, useListeningPartiesQuery, useProjectsQuery, useTracksQuery, useVideosQuery } from '@/lib/soundkit-api-hooks';
+import type { TrackSummary } from '@/lib/soundkit-api-hooks';
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
@@ -113,7 +107,7 @@ function AnalyticsPage() {
             ) : (
               <div className="space-y-3">
                 {[...tracks]
-                  .sort(
+                  .toSorted(
                     (left: TrackSummary, right: TrackSummary) =>
                       right.plays - left.plays
                   )

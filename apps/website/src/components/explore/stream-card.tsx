@@ -69,7 +69,11 @@ export function StreamCard({
             </div>
 
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {!isPremiumUser ? (
+              {isPremiumUser ? (
+                <div className="size-12 rounded-full bg-primary/90 flex items-center justify-center backdrop-blur shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all">
+                  <Play className="size-6 text-primary-foreground fill-primary-foreground ml-1" />
+                </div>
+              ) : (
                 <div className="flex flex-col items-center justify-center gap-2">
                   <div className="size-12 rounded-full bg-background/90 flex items-center justify-center backdrop-blur shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all">
                     <Lock className="size-5 text-foreground" />
@@ -80,10 +84,6 @@ export function StreamCard({
                   >
                     Upgrade to Watch
                   </Badge>
-                </div>
-              ) : (
-                <div className="size-12 rounded-full bg-primary/90 flex items-center justify-center backdrop-blur shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all">
-                  <Play className="size-6 text-primary-foreground fill-primary-foreground ml-1" />
                 </div>
               )}
             </div>
