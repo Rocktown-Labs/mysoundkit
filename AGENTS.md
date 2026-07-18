@@ -106,7 +106,7 @@ Only merge when CI and test gates pass. Merge using:
 gh pr merge --merge --delete-branch
 ```
 
-Once merged, update the root `CHANGELOG.md` file in a follow-up PR or include the changelog update in the shipping PR when the change is user-facing. Add entries under semantic version headings and categorize changes under `Added`, `Fixed`, or `Changed`.
+Always include the `CHANGELOG.md` updates directly in the feature commit and shipping Pull Request. Add entries under semantic version headings and categorize changes under `Added`, `Fixed`, or `Changed`.
 
 # Ultracite Code Standards
 
