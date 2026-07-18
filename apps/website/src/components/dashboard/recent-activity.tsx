@@ -66,10 +66,11 @@ export function RecentActivity({
       title: project.title,
       updatedAt: project.updatedAt ?? new Date().toISOString(),
     })),
-  ].sort(
-    (left, right) =>
-      new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-  )
+  ]
+    .toSorted(
+      (left, right) =>
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+    )
     .slice(0, 5);
 
   return (

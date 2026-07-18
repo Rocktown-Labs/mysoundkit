@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowUpDown } from "lucide-react";
 
@@ -18,7 +19,13 @@ export const columns: ColumnDef<BattleStats>[] = [
   {
     accessorKey: "trackName",
     cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("trackName")}</div>
+      <Link
+        to="/dashboard/live/my-stats/$trackId"
+        params={{ trackId: row.original.trackId }}
+        className="font-medium text-primary hover:underline"
+      >
+        {row.getValue("trackName")}
+      </Link>
     ),
     header: ({ column }) => (
       <Button

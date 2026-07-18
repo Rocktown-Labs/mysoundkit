@@ -21,7 +21,7 @@ function CareerCalendarPage() {
   const partiesQuery = useListeningPartiesQuery();
   const scheduledProjects = [...(projectsQuery.data ?? [])]
     .filter((project) => project.releaseDate)
-    .sort(
+    .toSorted(
       (left, right) =>
         new Date(left.releaseDate ?? 0).getTime() -
         new Date(right.releaseDate ?? 0).getTime()

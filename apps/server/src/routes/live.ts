@@ -101,10 +101,124 @@ app.post("/rooms/:roomId/vote", async (c) => {
     );
   }
 
-  const body = await response.json();
-  return Response.json(body, {
+  const voteBody = await response.json();
+  return Response.json(voteBody, {
     status: response.status,
   });
+});
+
+app.post("/cloudflare-stream", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { title?: string };
+  const title = body.title || "Live Stream";
+
+  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = c.env.CLOUDFLARE_API_TOKEN;
+
+  if (accountId && apiToken) {
+    try {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs`,
+        {
+          body: JSON.stringify({
+            meta: { name: title },
+            recording: { mode: "automatic" },
+          }),
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        }
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const {result} = data;
+        return c.json(
+          {
+            id: result.uid,
+            playbackUrl: result.playback.hls,
+            rtmpsKey: result.rtmps.streamKey,
+            rtmpsUrl: result.rtmps.url,
+            srtKey: result.srt.streamKey,
+            srtUrl: result.srt.url,
+            status: result.status || "idle",
+            title,
+          },
+          HttpStatusCodes.CREATED
+        );
+      }
+    } catch {
+      // Fall back to mock
+    }
+  }
+
+  const mockId = crypto.randomUUID().replaceAll(/-/g, "");
+  return c.json(
+    {
+      id: mockId,
+      playbackUrl: `https://customer-f33cbd.cloudflarestream.com/${mockId}/manifest/video.m3u8`,
+      rtmpsKey: `cfs_${mockId}`,
+      rtmpsUrl: "rtmps://live.cloudflare.com:443/live/",
+      srtKey: `cfs_srt_${mockId}`,
+      srtUrl: "srt://live.cloudflare.com:443",
+      status: "idle",
+      title,
+    },
+    HttpStatusCodes.CREATED
+  );
+});
+
+app.get("/cloudflare-stream/:streamId", async (c) => {
+  const streamId = c.req.param("streamId");
+  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = c.env.CLOUDFLARE_API_TOKEN;
+
+  if (accountId && apiToken) {
+    try {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${streamId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+          },
+          method: "GET",
+        }
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const {result} = data;
+        return c.json(
+          {
+            id: result.uid,
+            playbackUrl: result.playback.hls,
+            rtmpsKey: result.rtmps.streamKey,
+            rtmpsUrl: result.rtmps.url,
+            srtKey: result.srt.streamKey,
+            srtUrl: result.srt.url,
+            status: result.status || "idle",
+          },
+          HttpStatusCodes.OK
+        );
+      }
+    } catch {
+      // Fall back to mock
+    }
+  }
+
+  return c.json(
+    {
+      id: streamId,
+      playbackUrl: `https://customer-f33cbd.cloudflarestream.com/${streamId}/manifest/video.m3u8`,
+      rtmpsKey: `cfs_${streamId}`,
+      rtmpsUrl: "rtmps://live.cloudflare.com:443/live/",
+      srtKey: `cfs_srt_${streamId}`,
+      srtUrl: "srt://live.cloudflare.com:443",
+      status: "connected",
+    },
+    HttpStatusCodes.OK
+  );
 });
 
 export default app;

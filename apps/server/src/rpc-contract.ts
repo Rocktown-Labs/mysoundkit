@@ -252,6 +252,78 @@ export const rpcContract = new Hono()
     jsonValidator(createChallengeBodySchema),
     (c) => c.json({ message: "" }, 201)
   )
+  .get("/v1/battles/stats", (c) =>
+    c.json(
+      [] as {
+        trackId: string;
+        trackName: string;
+        wins: number;
+        losses: number;
+        saves: number;
+        downloads: number;
+        purchases: number;
+      }[]
+    )
+  )
+  .get("/v1/battles/track-history/:trackId", (c) =>
+    c.json(
+      {} as {
+        trackId: string;
+        trackName: string;
+        stats: {
+          wins: number;
+          losses: number;
+          saves: number;
+          downloads: number;
+          purchases: number;
+        };
+        history: {
+          battleId: string;
+          battleTitle: string;
+          roundNumber: number;
+          opponentTrackId: string | null;
+          opponentTrackName: string | null;
+          votesFor: number;
+          votesAgainst: number;
+          status: string;
+          winningTrackId: string | null;
+          isTiebreaker: boolean;
+          createdAt: string;
+          viewerCount: number;
+        }[];
+      }
+    )
+  )
+  .post(
+    "/v1/live/cloudflare-stream",
+    jsonValidator(z.object({ title: z.string().optional() })),
+    (c) =>
+      c.json(
+        {} as {
+          id: string;
+          playbackUrl: string;
+          rtmpsKey: string;
+          rtmpsUrl: string;
+          srtKey: string;
+          srtUrl: string;
+          status: string;
+          title: string;
+        }
+      )
+  )
+  .get("/v1/live/cloudflare-stream/:streamId", (c) =>
+    c.json(
+      {} as {
+        id: string;
+        playbackUrl: string;
+        rtmpsKey: string;
+        rtmpsUrl: string;
+        srtKey: string;
+        srtUrl: string;
+        status: string;
+      }
+    )
+  )
   .get(
     "/v1/open-verses/",
     validator("query", (value) => openVerseQuerySchema.parse(value)),

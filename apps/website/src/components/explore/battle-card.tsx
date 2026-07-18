@@ -188,14 +188,7 @@ export function BattleCard({
 
         {battleIsLive ? (
           <div className="space-y-2">
-            {!isPremiumUser ? (
-              <Link to="/pricing" className="block">
-                <Button className="w-full" size="sm" variant="secondary">
-                  <Lock className="size-3 mr-2" />
-                  Upgrade to Watch
-                </Button>
-              </Link>
-            ) : (canJoinNow ? (
+            {isPremiumUser ? canJoinNow ? (
               <Link to="/live/battles/$id" params={{ id }} className="block">
                 <Button className="w-full" size="sm">
                   Watch Live
@@ -211,7 +204,14 @@ export function BattleCard({
                 <Users className="size-3 mr-1" />
                 Join Queue ({queueSize})
               </Button>
-            ))}
+            ) : (
+              <Link to="/pricing" className="block">
+                <Button className="w-full" size="sm" variant="secondary">
+                  <Lock className="size-3 mr-2" />
+                  Upgrade to Watch
+                </Button>
+              </Link>
+            )}
           </div>
         ) : (
           <Link to="/live/battles/$id" params={{ id }}>

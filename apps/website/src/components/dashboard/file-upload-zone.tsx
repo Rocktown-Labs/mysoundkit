@@ -168,6 +168,7 @@ export function FileUploadZone({
         type="file"
         accept={acceptedTypes}
         onChange={handleFileSelect}
+        onClick={(e) => e.stopPropagation()}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         multiple
       />

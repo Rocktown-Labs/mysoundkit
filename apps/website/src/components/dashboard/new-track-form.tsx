@@ -24,7 +24,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -38,7 +38,13 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
@@ -68,39 +74,75 @@ import {
   rpcJson,
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
-import { soundkitQueryKeys } from "@/lib/soundkit-api-hooks";
+import {
+  soundkitQueryKeys,
+  useCreateOpenVerseMutation,
+} from "@/lib/soundkit-api-hooks";
+
+const SUPPORTED_GENRES = [
+  "Afrobeats",
+  "Electronic",
+  "Hip-Hop",
+  "Jazz",
+  "Latin",
+  "Pop",
+  "R&B/Soul",
+  "Rock",
+  "Spoken Word",
+] as const;
 import { cn } from "@/lib/utils";
 
 const tracksPost = apiClient.v1.tracks.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
 
-const trackFormSchema = z.object({
-  bpm: z.string().optional(),
-  collaborators: z.array(z.string().email()).default([]),
-  coverObjectKey: z.string().min(1, "Cover image is required"),
-  description: z.string().optional(),
-  genre: z.string().min(1, "Genre is required"),
-  isForSale: z.boolean().default(false),
-  key: z.string().optional(),
-  name: z.string().min(2, "Track name is required"),
-  price: z.string().optional(),
-  producers: z.string().optional(),
-  productionStatus: z
-    .enum(["demo", "mixed", "mastered", "complete"])
-    .default("demo"),
-  releaseAt: z.string().optional(),
-  releaseStrategy: z
-    .enum(["private", "publish_when_ready", "scheduled"])
-    .default("publish_when_ready"),
-  rightsAccepted: z
-    .boolean()
-    .refine(
-      (value) => value,
-      "Confirm you have the rights to upload this track"
-    ),
-  writers: z.string().optional(),
-});
+const trackFormSchema = z
+  .object({
+    bpm: z.string().optional(),
+    collaborators: z.array(z.string().email()).default([]),
+    coverObjectKey: z.string().optional(),
+    description: z.string().optional(),
+    genre: z.string().min(1, "Genre is required"),
+    isForSale: z.boolean().default(false),
+    isOpenVerse: z.boolean().default(false),
+    key: z.string().optional(),
+    name: z.string().min(2, "Track name is required"),
+    openVerseDescription: z.string().optional(),
+    openVerseSlotEndsAt: z.string().optional(),
+    openVerseSlotStartsAt: z.string().optional(),
+    openVerseTitle: z.string().optional(),
+    price: z.string().optional(),
+    producers: z.string().optional(),
+    productionStatus: z
+      .enum(["demo", "mixed", "mastered", "complete"])
+      .default("demo"),
+    releaseAt: z.string().optional(),
+    releaseStrategy: z
+      .enum(["private", "publish_when_ready", "scheduled"])
+      .default("publish_when_ready"),
+    rightsAccepted: z
+      .boolean()
+      .refine(
+        (value) => value,
+        "Confirm you have the rights to upload this track"
+      ),
+    writers: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (
+        data.isOpenVerse &&
+        (!data.openVerseTitle || data.openVerseTitle.trim().length === 0)
+      ) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Listing title is required when set as Open Verse",
+      path: ["openVerseTitle"],
+    }
+  );
 
 type TrackFormValues = z.infer<typeof trackFormSchema>;
 
@@ -137,6 +179,21 @@ export function NewTrackForm() {
   const [uploadedTrack, setUploadedTrack] =
     useState<UploadedTrackPreview | null>(null);
 
+  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const [selectedMasterFile, setSelectedMasterFile] = useState<File | null>(
+    null
+  );
+  const [leadVocalsFile, setLeadVocalsFile] = useState<File | null>(null);
+  const [adlibsFile, setAdlibsFile] = useState<File | null>(null);
+  const [instrumentalFile, setInstrumentalFile] = useState<File | null>(null);
+
+  const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
+  const masterUploadResolverRef = useRef<
+    ((preview: UploadedTrackPreview | null) => void) | null
+  >(null);
+
+  const createOpenVerseMutation = useCreateOpenVerseMutation();
+
   const form = useForm<TrackFormValues>({
     defaultValues: {
       bpm: "",
@@ -145,8 +202,13 @@ export function NewTrackForm() {
       description: "",
       genre: "",
       isForSale: false,
+      isOpenVerse: false,
       key: "",
       name: "",
+      openVerseDescription: "",
+      openVerseSlotEndsAt: "",
+      openVerseSlotStartsAt: "",
+      openVerseTitle: "",
       price: "29.99",
       producers: "",
       productionStatus: "demo",
@@ -303,6 +365,11 @@ export function NewTrackForm() {
     });
 
     void startBackgroundProcessing(track.id);
+
+    if (masterUploadResolverRef.current) {
+      masterUploadResolverRef.current(preview);
+      masterUploadResolverRef.current = null;
+    }
   };
 
   const {
@@ -319,11 +386,19 @@ export function NewTrackForm() {
         title: "Upload failed",
         variant: "destructive",
       });
+      if (masterUploadResolverRef.current) {
+        masterUploadResolverRef.current(null);
+        masterUploadResolverRef.current = null;
+      }
     },
     onUploadComplete: ({ files }) => {
       const [uploadedFile] = files;
 
       if (!uploadedFile) {
+        if (masterUploadResolverRef.current) {
+          masterUploadResolverRef.current(null);
+          masterUploadResolverRef.current = null;
+        }
         return;
       }
 
@@ -354,11 +429,19 @@ export function NewTrackForm() {
         title: "Cover upload failed",
         variant: "destructive",
       });
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current("");
+        coverUploadResolverRef.current = null;
+      }
     },
     onUploadComplete: ({ files }) => {
       const [uploadedFile] = files;
 
       if (!uploadedFile) {
+        if (coverUploadResolverRef.current) {
+          coverUploadResolverRef.current("");
+          coverUploadResolverRef.current = null;
+        }
         return;
       }
 
@@ -375,9 +458,13 @@ export function NewTrackForm() {
         shouldValidate: true,
       });
       toast({
-        description: "Cover image selected and uploaded.",
+        description: "Cover image selected.",
         title: "Cover ready",
       });
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current(objectKey);
+        coverUploadResolverRef.current = null;
+      }
     },
     route: "media",
   });
@@ -398,7 +485,7 @@ export function NewTrackForm() {
       return;
     }
 
-    await uploadCover([file]);
+    setSelectedCoverFile(file);
   };
 
   const handleMasterUpload = async (files: FileList) => {
@@ -408,42 +495,77 @@ export function NewTrackForm() {
       return;
     }
 
-    const details = trackFormSchema
-      .pick({
-        coverObjectKey: true,
-        genre: true,
-        name: true,
-        productionStatus: true,
-        releaseStrategy: true,
-        rightsAccepted: true,
-      })
-      .safeParse(form.getValues());
-
-    if (!details.success) {
-      toast({
-        description:
-          "Add the track name, genre, cover image, release details, and rights confirmation first.",
-        title: "Track details needed",
-        variant: "destructive",
-      });
-      setStep("details");
-      return;
-    }
-
-    await upload([file]);
+    setSelectedMasterFile(file);
   };
 
-  const onSubmit = (values: TrackFormValues) => {
+  const onSubmit = async (values: TrackFormValues) => {
     setIsSubmitting(true);
     try {
-      if (!uploadedTrack) {
+      let coverKey = values.coverObjectKey;
+
+      if (selectedCoverFile && !coverKey) {
+        const keyPromise = new Promise<string>((resolve) => {
+          coverUploadResolverRef.current = resolve;
+        });
+        void uploadCover([selectedCoverFile]);
+        coverKey = await keyPromise;
+        if (!coverKey) {
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      if (!coverKey) {
+        toast({
+          description: "Cover image is required.",
+          title: "Cover image needed",
+          variant: "destructive",
+        });
+        setStep("details");
+        setIsSubmitting(false);
+        return;
+      }
+
+      let trackPreview = uploadedTrack;
+
+      if (selectedMasterFile && !trackPreview) {
+        const previewPromise = new Promise<UploadedTrackPreview | null>(
+          (resolve) => {
+            masterUploadResolverRef.current = resolve;
+          }
+        );
+        void upload([selectedMasterFile]);
+        trackPreview = await previewPromise;
+        if (!trackPreview) {
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      if (!trackPreview) {
         toast({
           description: "Upload the master file before completing setup.",
           title: "Master file required",
           variant: "destructive",
         });
         setStep("assets");
+        setIsSubmitting(false);
         return;
+      }
+
+      if (values.isOpenVerse) {
+        await createOpenVerseMutation.mutateAsync({
+          description: values.openVerseDescription?.trim() || undefined,
+          maxSubmissions: 50,
+          slotEndsAtMs: values.openVerseSlotEndsAt
+            ? Number(values.openVerseSlotEndsAt) * 1000
+            : undefined,
+          slotStartsAtMs: values.openVerseSlotStartsAt
+            ? Number(values.openVerseSlotStartsAt) * 1000
+            : undefined,
+          title: values.openVerseTitle?.trim() || `Open Verse: ${values.name}`,
+          trackId: trackPreview.trackId,
+        });
       }
 
       toast({
@@ -451,10 +573,11 @@ export function NewTrackForm() {
         title: "Track Setup Complete",
       });
       router.navigate({
-        params: { id: uploadedTrack.trackId },
+        params: { id: trackPreview.trackId },
         to: "/dashboard/tracks/$id",
       });
-    } catch {
+    } catch (error) {
+      posthog.captureException(error);
       toast({
         description: "Failed to create track. Please try again.",
         title: "Error",
@@ -582,13 +705,23 @@ export function NewTrackForm() {
                         <FormLabel>
                           Genre <span className="text-destructive">*</span>
                         </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g. Hip-Hop, R&B"
-                            {...field}
-                            className="bg-background/50"
-                          />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder="Select genre" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SUPPORTED_GENRES.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -687,16 +820,23 @@ export function NewTrackForm() {
                       description="Required artwork"
                       acceptedTypes=".png,.jpg,.jpeg"
                       files={
-                        coverUpload
+                        selectedCoverFile
                           ? [
                               {
-                                name: coverUpload.fileName,
+                                name: selectedCoverFile.name,
                                 status: isCoverUploading
                                   ? "Uploading"
-                                  : "Uploaded",
+                                  : "Selected",
                               },
                             ]
-                          : []
+                          : (coverUpload
+                            ? [
+                                {
+                                  name: coverUpload.fileName,
+                                  status: "Uploaded",
+                                },
+                              ]
+                            : [])
                       }
                       onFileUpload={handleCoverUpload}
                       progress={isCoverUploading ? coverProgress : undefined}
@@ -781,16 +921,23 @@ export function NewTrackForm() {
                         description="Highest quality (WAV preferred)"
                         acceptedTypes=".wav,.mp3,.aiff"
                         files={
-                          uploadedTrack
+                          selectedMasterFile
                             ? [
                                 {
-                                  name: uploadedTrack.title,
+                                  name: selectedMasterFile.name,
                                   status: isUploading
                                     ? "Uploading"
-                                    : "Uploaded",
+                                    : "Selected",
                                 },
                               ]
-                            : []
+                            : (uploadedTrack
+                              ? [
+                                  {
+                                    name: uploadedTrack.title,
+                                    status: "Uploaded",
+                                  },
+                                ]
+                              : [])
                         }
                         onFileUpload={handleMasterUpload}
                         progress={isUploading ? averageProgress : undefined}
@@ -810,7 +957,17 @@ export function NewTrackForm() {
                         title="Instrumental"
                         description="Optional but recommended"
                         acceptedTypes=".wav,.mp3,.aiff"
-                        onFileUpload={() => {}}
+                        onFileUpload={(files) => setInstrumentalFile(files[0])}
+                        files={
+                          instrumentalFile
+                            ? [
+                                {
+                                  name: instrumentalFile.name,
+                                  status: "Selected",
+                                },
+                              ]
+                            : []
+                        }
                         optional
                         variant="compact"
                       />
@@ -881,7 +1038,12 @@ export function NewTrackForm() {
                       title="Lead Vocals"
                       description="Clean vocal tracks"
                       acceptedTypes=".wav,.mp3,.aiff"
-                      onFileUpload={() => {}}
+                      onFileUpload={(files) => setLeadVocalsFile(files[0])}
+                      files={
+                        leadVocalsFile
+                          ? [{ name: leadVocalsFile.name, status: "Selected" }]
+                          : []
+                      }
                       optional
                       variant="compact"
                     />
@@ -889,7 +1051,12 @@ export function NewTrackForm() {
                       title="Adlibs / FX"
                       description="Background components"
                       acceptedTypes=".wav,.mp3,.aiff"
-                      onFileUpload={() => {}}
+                      onFileUpload={(files) => setAdlibsFile(files[0])}
+                      files={
+                        adlibsFile
+                          ? [{ name: adlibsFile.name, status: "Selected" }]
+                          : []
+                      }
                       optional
                       variant="compact"
                     />
@@ -1062,6 +1229,126 @@ export function NewTrackForm() {
                     )}
                   />
                 )}
+
+                <div className="border-t border-border/40 pt-6 mt-6 space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="isOpenVerse"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border/40 bg-muted/20 p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-sm font-semibold">
+                            Set as Open Verse
+                          </FormLabel>
+                          <FormDescription className="text-xs text-muted-foreground font-normal">
+                            Allow other artists to submit recorded verses for
+                            this track
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch("isOpenVerse") && (
+                    <Card className="border-primary/20 bg-primary/5">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-bold">
+                          Open Verse Listing Details
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          Configure the open slot parameters for artists
+                          submitting verses.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="openVerseTitle"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                Open Verse Listing Title{" "}
+                                <span className="text-destructive">*</span>
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g. Midnight Vibes (Open Verse Challenge)"
+                                  className="bg-background/50 h-9 text-sm"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="openVerseDescription"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Direction / Instructions</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="e.g. Leave a 16 bar verse after the first chorus. Keep it clean!"
+                                  className="bg-background/50 min-h-[80px] resize-none text-sm"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="openVerseSlotStartsAt"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Slot Starts At (seconds)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="e.g. 45"
+                                    className="bg-background/50 h-9 text-sm"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="openVerseSlotEndsAt"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Slot Ends At (seconds)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="e.g. 75"
+                                    className="bg-background/50 h-9 text-sm"
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
 
                 <div className="flex justify-between pt-4">
                   <Button

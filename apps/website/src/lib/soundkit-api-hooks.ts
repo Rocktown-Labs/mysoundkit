@@ -59,6 +59,9 @@ const openVerseSubmissionPost =
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
 const sellerStatusGet = apiClient.v1.seller.status.$get;
+const battleStatsGet = apiClient.v1.battles.stats.$get;
+const trackBattleHistoryGet =
+  apiClient.v1.battles["track-history"][":trackId"].$get;
 
 type ArtistOnboardingBody = InferRequestType<
   typeof artistOnboardingPost
@@ -154,6 +157,7 @@ export const soundkitQueryKeys = {
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battles: ["battles"] as const,
+  battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
   conversationMessages: (conversationId: string) =>
     ["messages", "conversations", conversationId, "messages"] as const,
@@ -175,6 +179,8 @@ export const soundkitQueryKeys = {
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
   track: (id: string) => ["tracks", id] as const,
+  trackBattleHistory: (trackId: string) =>
+    ["battles", "track-history", trackId] as const,
   tracks: (query?: PublicExploreQuery) =>
     [...soundkitQueryKeys.tracksPrefix, query ?? {}] as const,
   tracksPrefix: ["tracks"] as const,
@@ -657,4 +663,17 @@ export const useSellerStatusQuery = () =>
     queryFn: async (): Promise<SellerStatus> =>
       rpcJson(await sellerStatusGet()),
     queryKey: soundkitQueryKeys.sellerStatus,
+  });
+
+export const useBattleStatsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await battleStatsGet()),
+    queryKey: soundkitQueryKeys.battlesStats,
+  });
+
+export const useTrackBattleHistoryQuery = (trackId: string) =>
+  useQuery({
+    queryFn: async () =>
+      rpcJson(await trackBattleHistoryGet({ param: { trackId } })),
+    queryKey: soundkitQueryKeys.trackBattleHistory(trackId),
   });

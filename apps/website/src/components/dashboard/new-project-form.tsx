@@ -20,9 +20,21 @@ import {
   Disc,
   LoaderCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
+
+const SUPPORTED_GENRES = [
+  "Afrobeats",
+  "Electronic",
+  "Hip-Hop",
+  "Jazz",
+  "Latin",
+  "Pop",
+  "R&B/Soul",
+  "Rock",
+  "Spoken Word",
+] as const;
 
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import {
@@ -94,7 +106,7 @@ const projectFormSchema = z.object({
       })
     )
     .default([]),
-  projectCoverObjectKey: z.string().min(1, "Project artwork is required"),
+  projectCoverObjectKey: z.string().optional(),
   releaseDate: z.string().optional(),
   rightsAccepted: z
     .boolean()
@@ -117,6 +129,8 @@ export function NewProjectForm() {
     objectKey: string;
     remoteUrl: string;
   } | null>(null);
+  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
   const {
     data: existingTracks = [],
     error: tracksError,
@@ -150,6 +164,28 @@ export function NewProjectForm() {
         description:
           "Projects need at least two songs. Add more tracks before submitting.",
         title: "More tracks required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let coverKey = values.projectCoverObjectKey;
+
+    if (selectedCoverFile && !coverKey) {
+      const keyPromise = new Promise<string>((resolve) => {
+        coverUploadResolverRef.current = resolve;
+      });
+      void uploadCover([selectedCoverFile]);
+      coverKey = await keyPromise;
+      if (!coverKey) {
+        return;
+      }
+    }
+
+    if (!coverKey) {
+      toast({
+        description: "Please select a project cover artwork first.",
+        title: "Artwork required",
         variant: "destructive",
       });
       return;
@@ -229,11 +265,19 @@ export function NewProjectForm() {
         title: "Artwork upload failed",
         variant: "destructive",
       });
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current("");
+        coverUploadResolverRef.current = null;
+      }
     },
     onUploadComplete: ({ files }) => {
       const [uploadedFile] = files;
 
       if (!uploadedFile) {
+        if (coverUploadResolverRef.current) {
+          coverUploadResolverRef.current("");
+          coverUploadResolverRef.current = null;
+        }
         return;
       }
 
@@ -248,6 +292,11 @@ export function NewProjectForm() {
         shouldDirty: true,
         shouldValidate: true,
       });
+
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current(objectKey);
+        coverUploadResolverRef.current = null;
+      }
     },
     route: "media",
   });
@@ -268,7 +317,7 @@ export function NewProjectForm() {
       return;
     }
 
-    await uploadCover([file]);
+    setSelectedCoverFile(file);
   };
 
   const addCollaborator = () => {
@@ -365,16 +414,23 @@ export function NewProjectForm() {
                     description="Used for the entire collection"
                     acceptedTypes=".png,.jpg,.jpeg"
                     files={
-                      projectCover
+                      selectedCoverFile
                         ? [
                             {
-                              name: projectCover.fileName,
+                              name: selectedCoverFile.name,
                               status: isCoverUploading
                                 ? "Uploading"
-                                : "Uploaded",
+                                : "Selected",
                             },
                           ]
-                        : []
+                        : (projectCover
+                          ? [
+                              {
+                                name: projectCover.fileName,
+                                status: "Uploaded",
+                              },
+                            ]
+                          : [])
                     }
                     onFileUpload={handleProjectCoverUpload}
                     progress={isCoverUploading ? coverProgress : undefined}
@@ -574,12 +630,23 @@ export function NewProjectForm() {
                                   <FormLabel className="text-[10px]">
                                     Genre
                                   </FormLabel>
-                                  <FormControl>
-                                    <Input
-                                      {...genreField}
-                                      className="h-8 text-sm bg-background/50"
-                                    />
-                                  </FormControl>
+                                  <Select
+                                    onValueChange={genreField.onChange}
+                                    defaultValue={genreField.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger className="h-8 text-sm bg-background/50">
+                                        <SelectValue placeholder="Select genre" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {SUPPORTED_GENRES.map((g) => (
+                                        <SelectItem key={g} value={g}>
+                                          {g}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
                                 </FormItem>
                               )}
                             />

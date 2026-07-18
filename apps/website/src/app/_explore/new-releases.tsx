@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_explore/new-releases")({
 function NewReleasesPage() {
   const router = useRouter();
   const searchParams = new URLSearchParams(
-    typeof window !== "undefined" ? window.location.search : ""
+    typeof window === "undefined" ? "" : window.location.search
   );
   const location = searchParams.get("location") || "All Locations";
 
