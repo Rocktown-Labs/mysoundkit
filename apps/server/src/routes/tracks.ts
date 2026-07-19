@@ -31,8 +31,13 @@ import {
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
+  resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import {
+  createTrackPlaybackSession,
+  recordPlaybackProgress,
+} from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
   stateFromExploreRegion,
@@ -43,8 +48,12 @@ import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
   createLyricsRevisionBodySchema,
+  createPlaybackSessionBodySchema,
   lyricsRevisionSchema,
   messageResponseSchema,
+  playbackProgressBodySchema,
+  playbackProgressResponseSchema,
+  playbackSessionResponseSchema,
   reviewLyricsRevisionBodySchema,
   setupRequiredResponseSchema,
   trackCatalogDetailSchema,
@@ -59,6 +68,9 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+const databaseUnavailableMessage = {
+  message: "Database is not configured.",
+};
 
 const formatDuration = (durationMs: number | null) => {
   if (!durationMs) {
@@ -95,6 +107,40 @@ const priceCentsFromTrack = ({
   }
 
   return Math.round(Number(price) * 100);
+};
+
+const objectUrlFromMetadata = (metadata: unknown) => {
+  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+    return null;
+  }
+
+  const { url } = metadata as { url?: unknown };
+
+  return typeof url === "string" ? url : null;
+};
+
+const publicTrackAssetUrl = (
+  asset: typeof trackAssets.$inferSelect | undefined
+) => {
+  if (!asset) {
+    return null;
+  }
+
+  const metadataUrl = objectUrlFromMetadata(asset.metadata);
+
+  if (metadataUrl) {
+    return metadataUrl;
+  }
+
+  const baseUrl = (
+    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+      .MEDIA_PUBLIC_URL ??
+    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+      .VITE_MEDIA_URL ??
+    ""
+  ).replace(/\/+$/u, "");
+
+  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
 };
 
 const assetKindLabels = {
@@ -229,6 +275,232 @@ app.openapi(
     }
 
     return c.json(summaries, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{trackId}/playback-sessions",
+    request: {
+      body: jsonContentRequired(
+        createPlaybackSessionBodySchema,
+        "Playback session payload"
+      ),
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        playbackSessionResponseSchema,
+        "Playback session"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        databaseUnavailableMessage,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const { trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const playbackSession = await createTrackPlaybackSession({
+      db: createDb(),
+      input: {
+        city: body.city,
+        clientType: body.clientType,
+        clientVersion: body.clientVersion,
+        countryCode: body.countryCode,
+        entitlementSnapshot: {
+          activePlanCode: entitlements.activePlanCode,
+          isPremium: entitlements.isPremium,
+          status: entitlements.status,
+        },
+        listenerUserId: user.id,
+        regionCode: body.regionCode,
+        sourceId: body.sourceId,
+        sourceType: body.sourceType,
+        trackId,
+      },
+    });
+
+    if (!playbackSession) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    return c.json(playbackSession, HttpStatusCodes.CREATED);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{trackId}/playback-sessions/{sessionId}/progress",
+    request: {
+      body: jsonContentRequired(
+        playbackProgressBodySchema,
+        "Playback progress payload"
+      ),
+      params: z.object({
+        sessionId: z.string(),
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        playbackProgressResponseSchema,
+        "Playback progress result"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        databaseUnavailableMessage,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const { sessionId, trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const result = await recordPlaybackProgress({
+      db: createDb(),
+      input: {
+        durationSeconds: body.durationSeconds,
+        ended: body.ended,
+        isMuted: body.isMuted,
+        listenerUserId: user.id,
+        playedSeconds: body.playedSeconds,
+        sessionId,
+        trackId,
+      },
+    });
+
+    return c.json(
+      {
+        qualifiedStreamId:
+          "qualifiedStreamId" in result
+            ? (result.qualifiedStreamId ?? null)
+            : null,
+        result: result.result,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{trackId}/playback-sessions/{sessionId}/end",
+    request: {
+      body: jsonContentRequired(
+        playbackProgressBodySchema.partial(),
+        "Playback end payload"
+      ),
+      params: z.object({
+        sessionId: z.string(),
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        playbackProgressResponseSchema,
+        "Playback end result"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        databaseUnavailableMessage,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const { sessionId, trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const result = await recordPlaybackProgress({
+      db: createDb(),
+      input: {
+        durationSeconds: body.durationSeconds,
+        ended: true,
+        isMuted: body.isMuted,
+        listenerUserId: user.id,
+        playedSeconds: body.playedSeconds ?? 0,
+        sessionId,
+        trackId,
+      },
+    });
+
+    return c.json(
+      {
+        qualifiedStreamId:
+          "qualifiedStreamId" in result
+            ? (result.qualifiedStreamId ?? null)
+            : null,
+        result: result.result,
+      },
+      HttpStatusCodes.OK
+    );
   }
 );
 
@@ -455,10 +727,26 @@ app.openapi(
       );
     }
 
+    const db = createDb();
     const organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
+    const [profile] = await db
+      .select({ accountType: userProfiles.accountType })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, user.id))
+      .limit(1);
+
+    if (profile?.accountType !== "artist") {
+      return c.json(
+        {
+          code: "setup_required" as const,
+          message: "Convert to an artist account before creating tracks.",
+        },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
 
     if (body.isForSale) {
       const sellerEnabled = await isSellerEnabled({
@@ -488,8 +776,6 @@ app.openapi(
         );
       }
     }
-
-    const db = createDb();
 
     if (body.sourceObjectKey) {
       const [existingTrack] = await withRetry(
@@ -1435,6 +1721,7 @@ app.openapi(
           rightsSummary: license.rightsSummary,
         })),
         musicalKey: row.musicalKey,
+        playbackUrl: publicTrackAssetUrl(firstAudioAsset),
         priceCents,
         priceLabel: formatPrice(priceCents),
         purchaseMode: row.purchaseMode,

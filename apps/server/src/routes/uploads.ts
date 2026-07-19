@@ -3,7 +3,10 @@ import type { Router } from "@better-upload/server";
 import { cloudflare } from "@better-upload/server/clients";
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createAuth } from "@soundkit/auth";
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import { userProfiles } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
+import { eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -102,6 +105,29 @@ const requireUploadUser = async (request: Request) => {
   return session.user.id;
 };
 
+const requireArtistUploadUser = async (request: Request) => {
+  const userId = await requireUploadUser(request);
+
+  if (!isDatabaseConfigured()) {
+    return userId;
+  }
+
+  const db = createDb();
+  const [profile] = await db
+    .select({ accountType: userProfiles.accountType })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1);
+
+  if (profile?.accountType !== "artist") {
+    throw new RejectUpload(
+      "Convert to an artist account before uploading tracks."
+    );
+  }
+
+  return userId;
+};
+
 const createUploadRouter = (): Router | null => {
   const uploadConfig = getUploadConfig();
 
@@ -133,7 +159,7 @@ const createUploadRouter = (): Router | null => {
             throw new RejectUpload("At least one file is required.");
           }
 
-          const userId = await requireUploadUser(req);
+          const userId = await requireArtistUploadUser(req);
 
           return {
             generateObjectInfo: ({ file }) => ({
@@ -184,7 +210,7 @@ const createUploadRouter = (): Router | null => {
             throw new RejectUpload("At least one project file is required.");
           }
 
-          const userId = await requireUploadUser(req);
+          const userId = await requireArtistUploadUser(req);
 
           return {
             generateObjectInfo: ({ file }) => ({
@@ -207,7 +233,7 @@ const createUploadRouter = (): Router | null => {
             throw new RejectUpload("At least one track file is required.");
           }
 
-          const userId = await requireUploadUser(req);
+          const userId = await requireArtistUploadUser(req);
 
           return {
             generateObjectInfo: ({ file }) => ({

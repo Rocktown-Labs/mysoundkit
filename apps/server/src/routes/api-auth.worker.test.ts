@@ -186,6 +186,38 @@ const protectedRequests: {
     path: "/v1/tracks/track_midnight_vibes/assets",
   },
   {
+    init: jsonRequest(
+      {
+        sourceType: "library",
+      },
+      "POST"
+    ),
+    label: "playback session creation",
+    path: "/v1/tracks/track_midnight_vibes/playback-sessions",
+  },
+  {
+    init: jsonRequest(
+      {
+        durationSeconds: 200,
+        playedSeconds: 140,
+      },
+      "POST"
+    ),
+    label: "playback progress recording",
+    path: "/v1/tracks/track_midnight_vibes/playback-sessions/session_1/progress",
+  },
+  {
+    init: jsonRequest(
+      {
+        durationSeconds: 200,
+        playedSeconds: 140,
+      },
+      "POST"
+    ),
+    label: "playback session ending",
+    path: "/v1/tracks/track_midnight_vibes/playback-sessions/session_1/end",
+  },
+  {
     init: jsonRequest({}, "POST"),
     label: "track processing",
     path: "/v1/tracks/track_midnight_vibes/process",

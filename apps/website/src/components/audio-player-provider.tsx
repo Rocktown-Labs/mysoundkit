@@ -4,10 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 import type { ReactNode } from "react";
+
+const audioPlayerStorageKey = "soundkit.audio-player.v1";
 
 export interface PlayerTrack {
   album?: string;
@@ -32,12 +35,85 @@ interface AudioPlayerContextValue {
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
 
+const isPlayerTrack = (value: unknown): value is PlayerTrack => {
+  if (!(value && typeof value === "object")) {
+    return false;
+  }
+
+  const track = value as Partial<PlayerTrack>;
+
+  return (
+    typeof track.artist === "string" &&
+    typeof track.id === "string" &&
+    typeof track.src === "string" &&
+    typeof track.title === "string"
+  );
+};
+
+const readStoredPlayerState = () => {
+  if (typeof window === "undefined") {
+    return {
+      currentTrack: null as PlayerTrack | null,
+      queue: [] as PlayerTrack[],
+      visible: false,
+    };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(audioPlayerStorageKey);
+
+    if (!raw) {
+      return {
+        currentTrack: null as PlayerTrack | null,
+        queue: [] as PlayerTrack[],
+        visible: false,
+      };
+    }
+
+    const parsed = JSON.parse(raw) as {
+      currentTrack?: unknown;
+      queue?: unknown;
+      visible?: unknown;
+    };
+
+    return {
+      currentTrack: isPlayerTrack(parsed.currentTrack)
+        ? parsed.currentTrack
+        : null,
+      queue: Array.isArray(parsed.queue)
+        ? parsed.queue.filter(isPlayerTrack)
+        : [],
+      visible: parsed.visible === true,
+    };
+  } catch {
+    return {
+      currentTrack: null as PlayerTrack | null,
+      queue: [] as PlayerTrack[],
+      visible: false,
+    };
+  }
+};
+
 export function AudioPlayerProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
-  const [queue, setQueue] = useState<PlayerTrack[]>([]);
-  const [visible, setVisible] = useState(false);
+  const [initialState] = useState(readStoredPlayerState);
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(
+    initialState.currentTrack
+  );
+  const [queue, setQueue] = useState<PlayerTrack[]>(initialState.queue);
+  const [visible, setVisible] = useState(initialState.visible);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      audioPlayerStorageKey,
+      JSON.stringify({ currentTrack, queue, visible })
+    );
+  }, [currentTrack, queue, visible]);
 
   const handleSetCurrentTrack = useCallback((track: PlayerTrack | null) => {
     setCurrentTrack(track);

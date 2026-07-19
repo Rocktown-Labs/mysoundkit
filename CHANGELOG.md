@@ -10,6 +10,8 @@
 - Added a detailed track battle history page displaying matchup vote counts, viewer stats, and round results.
 - Integrated Cloudflare Stream live broadcasts in the dashboard, enabling stream initialization, RTMPS/SRT configuration panels, and live video previews.
 - Added admin Stripe subscription catalog controls for viewing payment health, syncing missing Stripe products and prices, and importing existing Stripe price IDs.
+- Added playback qualification foundations for 70% Premium stream rewards, annual Premium pricing defaults, artist-only uploads, and pending-review ad campaign defaults.
+- Added demo WAV playback fixtures and persistent media player routing so track preview flows can be reviewed before live uploads are tested.
 - Added project agent workflow guidance covering skill discovery, GitHub issue tracking, PR flow, quality gates, and changelog expectations.
 
 ### Fixed

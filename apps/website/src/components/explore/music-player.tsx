@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, promise/prefer-await-to-then */
+import { Link } from "@tanstack/react-router";
 import {
   Laptop2,
   ListMusic,
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { AppImage } from "@/components/ui/app-image";
@@ -34,12 +36,102 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
+import { API_V1_URL } from "@/lib/api";
 
 interface Device {
   active: boolean;
   id: string;
   name: string;
   type: "computer" | "phone" | "speaker";
+}
+
+interface PlaybackTelemetrySession {
+  id: string;
+  lastReportedSeconds: number;
+  thresholdReported: boolean;
+  trackId: string;
+}
+
+const playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1";
+
+const demoPlaybackQueue = [
+  {
+    artist: "Luna Eclipse",
+    artistHref: "/artist/luna-eclipse",
+    cover: "/summer-music-album-cover.png",
+    id: "track_summer_nights",
+    src: "/demo-audio/fantasy26.wav",
+    title: "Fantasy 26",
+    trackHref: "/tracks/track_summer_nights",
+  },
+  {
+    artist: "Luna Eclipse",
+    artistHref: "/artist/luna-eclipse",
+    cover: "/summer-music-album-cover.png",
+    id: "track_midnight_vibes",
+    src: "/demo-audio/dumbledore.wav",
+    title: "DUMBLEDORE",
+    trackHref: "/tracks/track_midnight_vibes",
+  },
+  {
+    artist: "Neon Pulse",
+    artistHref: "/artist/neon-pulse",
+    cover: "/hip-hop-album-cover.png",
+    id: "track_electric_dreams",
+    src: "/demo-audio/long-way-26.wav",
+    title: "Long Way 26",
+    trackHref: "/tracks/track_electric_dreams",
+  },
+] as const;
+
+function PlayerRouteLink({
+  children,
+  className,
+  href,
+}: {
+  children: ReactNode;
+  className: string;
+  href: string | null | undefined;
+}) {
+  const artistMatch = href?.match(/^\/artist\/(?<username>[^/]+)$/u);
+  const trackMatch = href?.match(/^\/tracks\/(?<id>[^/]+)$/u);
+  const dashboardTrackMatch = href?.match(
+    /^\/dashboard\/tracks\/(?<id>[^/]+)$/u
+  );
+
+  if (artistMatch?.groups?.username) {
+    return (
+      <Link
+        className={className}
+        params={{ username: artistMatch.groups.username }}
+        to="/artist/$username"
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  if (trackMatch?.groups?.id) {
+    return (
+      <Link className={className} params={{ id: trackMatch.groups.id }} to="/tracks/$id">
+        {children}
+      </Link>
+    );
+  }
+
+  if (dashboardTrackMatch?.groups?.id) {
+    return (
+      <Link
+        className={className}
+        params={{ id: dashboardTrackMatch.groups.id }}
+        to="/dashboard/tracks/$id"
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  return <span className={className}>{children}</span>;
 }
 
 const formatTime = (seconds: number) => {
@@ -65,10 +157,11 @@ const getDeviceIcon = (type: Device["type"]) => {
 };
 
 export function MusicPlayer() {
-  const { currentTrack, queue, setCurrentTrack, setVisible, visible } =
+  const { currentTrack, queue, setCurrentTrack, setQueue, setVisible, visible } =
     useAudioPlayer();
   const audioRef = useRef<HTMLAudioElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null);
   const [devices, setDevices] = useState<Device[]>([
     { active: true, id: "computer", name: "This Computer", type: "computer" },
     { active: false, id: "phone", name: "Phone", type: "phone" },
@@ -84,6 +177,110 @@ export function MusicPlayer() {
   const [volume, setVolume] = useState(75);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(playerRuntimeStorageKey);
+
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        isMuted?: unknown;
+        repeatMode?: unknown;
+        volume?: unknown;
+      };
+
+      if (typeof parsed.volume === "number") {
+        setVolume(Math.min(100, Math.max(0, parsed.volume)));
+      }
+      if (typeof parsed.isMuted === "boolean") {
+        setIsMuted(parsed.isMuted);
+      }
+      if (
+        parsed.repeatMode === "off" ||
+        parsed.repeatMode === "all" ||
+        parsed.repeatMode === "one"
+      ) {
+        setRepeatMode(parsed.repeatMode);
+      }
+    } catch {
+      window.localStorage.removeItem(playerRuntimeStorageKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(
+      playerRuntimeStorageKey,
+      JSON.stringify({ isMuted, repeatMode, volume })
+    );
+  }, [isMuted, repeatMode, volume]);
+
+  useEffect(() => {
+    if (queue.length > 0 || currentTrack?.src) {
+      return;
+    }
+
+    setQueue([...demoPlaybackQueue]);
+  }, [currentTrack?.src, queue.length, setQueue]);
+
+  const sendPlaybackProgress = ({
+    ended = false,
+    force = false,
+  }: { ended?: boolean; force?: boolean } = {}) => {
+    const audio = audioRef.current;
+    const telemetry = playbackTelemetryRef.current;
+
+    if (!(audio && telemetry)) {
+      return;
+    }
+
+    const playedSeconds = Math.max(0, Math.floor(audio.currentTime));
+    const durationSeconds = Math.ceil(audio.duration || duration || 0);
+
+    if (
+      !(
+        ended ||
+        (force && !telemetry.thresholdReported) ||
+        playedSeconds - telemetry.lastReportedSeconds >= 10
+      )
+    ) {
+      return;
+    }
+
+    telemetry.lastReportedSeconds = playedSeconds;
+    telemetry.thresholdReported ||= force;
+    void fetch(
+      `${API_V1_URL}/tracks/${encodeURIComponent(
+        telemetry.trackId
+      )}/playback-sessions/${encodeURIComponent(telemetry.id)}/${
+        ended ? "end" : "progress"
+      }`,
+      {
+        body: JSON.stringify({
+          durationSeconds: durationSeconds > 0 ? durationSeconds : undefined,
+          ended,
+          isMuted: audio.muted || audio.volume === 0,
+          playedSeconds,
+        }),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        keepalive: ended,
+        method: "POST",
+      }
+    ).catch(() => {});
+  };
+
+  useEffect(() => {
     const audio = audioRef.current;
 
     if (!audio) {
@@ -92,6 +289,60 @@ export function MusicPlayer() {
 
     audio.volume = isMuted ? 0 : volume / 100;
   }, [isMuted, volume]);
+
+  useEffect(() => {
+    const trackId = currentTrack?.id;
+
+    if (!trackId) {
+      playbackTelemetryRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    playbackTelemetryRef.current = null;
+
+    const startPlaybackSession = async () => {
+      const response = await fetch(
+        `${API_V1_URL}/tracks/${encodeURIComponent(trackId)}/playback-sessions`,
+        {
+          body: JSON.stringify({
+            clientType: "web",
+            sourceType: "library",
+          }),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as {
+        id?: string;
+      } | null;
+
+      if (!(cancelled || !payload?.id)) {
+        playbackTelemetryRef.current = {
+          id: payload.id,
+          lastReportedSeconds: 0,
+          thresholdReported: false,
+          trackId,
+        };
+      }
+    };
+
+    void startPlaybackSession().catch(() => {});
+
+    return () => {
+      cancelled = true;
+      sendPlaybackProgress({ ended: true });
+      playbackTelemetryRef.current = null;
+    };
+  }, [currentTrack?.id]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -137,9 +388,14 @@ export function MusicPlayer() {
     const handleTimeUpdate = () => {
       if (audio.duration > 0) {
         setProgress((audio.currentTime / audio.duration) * 100);
+        sendPlaybackProgress({
+          force: (audio.currentTime / audio.duration) * 100 >= 70,
+        });
       }
     };
     const handleEnded = () => {
+      sendPlaybackProgress({ ended: true });
+
       if (repeatMode === "one") {
         audio.currentTime = 0;
         void audio.play();
@@ -223,6 +479,7 @@ export function MusicPlayer() {
 
   const handleClose = () => {
     audioRef.current?.pause();
+    sendPlaybackProgress({ ended: true });
     setIsPlaying(false);
     setVisible(false);
   };
@@ -258,18 +515,18 @@ export function MusicPlayer() {
               width={48}
             />
             <div className="min-w-0 flex-1">
-              <a
+              <PlayerRouteLink
                 className="block truncate text-sm font-medium transition-colors hover:text-primary"
-                href={currentTrack.trackHref ?? "#"}
+                href={currentTrack.trackHref}
               >
                 {currentTrack.title}
-              </a>
-              <a
+              </PlayerRouteLink>
+              <PlayerRouteLink
                 className="block truncate text-xs text-muted-foreground transition-colors hover:text-primary"
-                href={currentTrack.artistHref ?? "/dashboard/profile"}
+                href={currentTrack.artistHref}
               >
                 {currentTrack.artist}
-              </a>
+              </PlayerRouteLink>
             </div>
           </div>
 

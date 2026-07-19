@@ -48,6 +48,7 @@ Use a user-centric pool. A configured amount from each successfully paid Premium
 Initial defaults:
 
 - Premium price: 2299 cents monthly.
+- Annual Premium price: 18000 cents yearly for both fan and artist Premium.
 - Creator Rewards allocation: 500 cents per funded monthly Premium period.
 - Settlement cadence: monthly.
 - Estimates: daily.
@@ -118,6 +119,8 @@ adCreatorPool =
 
 Only recognized paid ad revenue should fund ad-supported creator rewards. House ads and unpaid internal promotions can produce analytics, but not revenue-backed earnings.
 
+New ad campaigns should begin in `pending_review` so an admin can approve creative before it runs as video, overlay, carousel, or audio inventory.
+
 ## Fan Value
 
 Fan Value is an analytics score, not money owed to a fan.
@@ -174,10 +177,10 @@ Stages:
 11. First-party ad campaigns, impressions, and ad revenue allocation.
 12. Live rewards and battle bonus pools if enabled.
 
-## Open Questions
+## Product Decisions
 
-- Should annual pricing exist for `soundkit_premium_fan` and `soundkit_premium_artist`, and if so what discount should it use?
-- Should existing fan uploads be impossible at the upload route, track/project creation routes, or both?
-- Should self-stream and collaborator stream detection use only direct track ownership at launch, or should it wait for rightsholder split records?
-- Should unused Premium allocations return to platform or fund a global/regional discovery pool?
-- What review workflow should approve first-party ad creative before it can run as video or audio inventory?
+- `soundkit_premium_fan` and `soundkit_premium_artist` should offer annual pricing at 18000 cents per year.
+- Fan accounts cannot upload tracks or project assets until they convert to artist accounts.
+- Self-streams, accepted financial collaborators, active rightsholders, and active artist workspace seats are ineligible for qualified stream rewards.
+- Unused Premium Creator Rewards allocation returns to platform during the first rollout.
+- First-party ad creative starts in `pending_review` and should become eligible to run only after admin approval.

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
 import { useCart } from "@/components/cart-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,6 +126,7 @@ interface MockCatalogItem {
   isOwned?: boolean;
   isPurchasable: boolean;
   isStreamable: boolean;
+  playbackUrl?: string | null;
   assets: MockCatalogAsset[];
   licenseOptions?: MockLicenseOption[];
   visualContent?: MockVisualContent[];
@@ -209,6 +211,7 @@ const MOCK_CATALOG: MockCatalogItem[] = [
     id: "single-1",
     isPurchasable: true,
     isStreamable: true,
+    playbackUrl: "/demo-audio/fantasy26.wav",
     priceCents: 129,
     priceLabel: "1.29",
     purchaseMode: "digital_download",
@@ -266,6 +269,7 @@ const MOCK_CATALOG: MockCatalogItem[] = [
     id: "beat-1",
     isPurchasable: true,
     isStreamable: true,
+    playbackUrl: "/demo-audio/long-way-26.wav",
     licenseOptions: [
       {
         id: "l1",
@@ -322,6 +326,7 @@ const MOCK_CATALOG: MockCatalogItem[] = [
     isOwned: true,
     isPurchasable: false,
     isStreamable: true,
+    playbackUrl: "/demo-audio/dumbledore.wav",
     priceCents: 1499,
     priceLabel: "14.99",
     purchaseMode: "digital_download",
@@ -363,6 +368,7 @@ export const Route = createFileRoute("/_explore/tracks/$id")({
 function TrackPage() {
   const { id } = Route.useParams();
   const router = useRouter();
+  const { setCurrentTrack, setQueue } = useAudioPlayer();
 
   const fallbackItem = useMemo(
     () => MOCK_CATALOG.find((entry) => entry.id === id) || MOCK_CATALOG[0],
@@ -374,10 +380,27 @@ function TrackPage() {
     retry: false,
   });
   const item = data ?? fallbackItem;
+  const playerTrack = {
+    artist: item.artist.name,
+    artistHref: `/artist/${item.artist.handle}`,
+    cover: item.coverArtUrl,
+    id: item.id,
+    src: item.playbackUrl ?? "",
+    title: item.title,
+    trackHref: `/tracks/${item.id}`,
+  };
 
   const [selectedLicense, setSelectedLicense] = useState(
     item.licenseOptions?.[0] || null
   );
+  const playCurrentTrack = () => {
+    if (!item.playbackUrl) {
+      return;
+    }
+
+    setQueue([playerTrack]);
+    setCurrentTrack(playerTrack);
+  };
 
   useEffect(() => {
     setSelectedLicense(item.licenseOptions?.[0] || null);
@@ -423,11 +446,17 @@ function TrackPage() {
                   className="size-full object-cover rounded-lg shadow-2xl border border-border/40"
                 />
                 {item.isStreamable && (
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center rounded-lg cursor-pointer">
+                  <button
+                    aria-label={`Play ${item.title}`}
+                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/40 opacity-0 transition-all hover:opacity-100"
+                    disabled={!item.playbackUrl}
+                    onClick={playCurrentTrack}
+                    type="button"
+                  >
                     <div className="size-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xl scale-90 group-hover:scale-100 transition-transform">
                       <Play className="size-8 fill-current" />
                     </div>
-                  </div>
+                  </button>
                 )}
               </div>
 
@@ -466,6 +495,8 @@ function TrackPage() {
                     <Button
                       size="lg"
                       className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-10 h-14 uppercase tracking-[0.1em] rounded-none shadow-xl shadow-primary/20 flex-1 sm:flex-none"
+                      disabled={!item.playbackUrl}
+                      onClick={playCurrentTrack}
                     >
                       <Play className="size-5 mr-3 fill-current" /> Play Preview
                     </Button>
@@ -474,6 +505,8 @@ function TrackPage() {
                     size="lg"
                     variant="outline"
                     className="border-border/40 hover:bg-muted font-black px-8 h-14 uppercase tracking-[0.1em] rounded-none flex-1 sm:flex-none"
+                    disabled={!item.playbackUrl}
+                    onClick={playCurrentTrack}
                   >
                     <Plus className="size-5 mr-2" /> Queue
                   </Button>

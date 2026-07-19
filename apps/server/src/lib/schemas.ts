@@ -296,6 +296,61 @@ export const trackSummarySchema = z.object({
   updatedAt: z.string().optional(),
 });
 
+export const playbackSourceTypeSchema = z.enum([
+  "artist_profile",
+  "album",
+  "playlist",
+  "library",
+  "search",
+  "semantic_search",
+  "recommendation",
+  "state_discovery",
+  "national_discovery",
+  "global_discovery",
+  "map",
+  "community",
+  "listening_party",
+  "battle",
+  "vod",
+  "purchase_library",
+  "share",
+  "external_deep_link",
+]);
+
+export const createPlaybackSessionBodySchema = z.object({
+  city: z.string().trim().max(120).optional(),
+  clientType: z.string().trim().max(80).optional(),
+  clientVersion: z.string().trim().max(80).optional(),
+  countryCode: z.string().trim().max(2).optional(),
+  regionCode: z.string().trim().max(80).optional(),
+  sourceId: z.string().trim().max(160).optional(),
+  sourceType: playbackSourceTypeSchema.default("library"),
+});
+
+export const playbackSessionResponseSchema = z.object({
+  canQualify: z.boolean(),
+  durationSeconds: z.number().int().positive().nullable(),
+  id: z.string(),
+});
+
+export const playbackProgressBodySchema = z.object({
+  durationSeconds: z.number().positive().optional(),
+  ended: z.boolean().default(false),
+  isMuted: z.boolean().default(false),
+  playedSeconds: z.number().nonnegative(),
+});
+
+export const playbackProgressResponseSchema = z.object({
+  qualifiedStreamId: z.string().nullable(),
+  result: z.enum([
+    "already_qualified",
+    "duplicate",
+    "ineligible",
+    "not_ready",
+    "qualified",
+  ]),
+});
+
 export const publicSearchQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(50).default(12),
   q: z.string().trim().max(120).default(""),
@@ -490,6 +545,7 @@ export const trackCatalogDetailSchema = z.object({
   isStreamable: z.boolean(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
   musicalKey: z.string().nullable().optional(),
+  playbackUrl: z.string().nullable().optional(),
   priceCents: z.number().int().nullable(),
   priceLabel: z.string(),
   purchaseMode: purchaseModeSchema,
