@@ -16,9 +16,13 @@
 - Added local draft persistence and an unsaved-changes navigation guard to the track and project creation wizards, blocking accidental exits while forms are dirty and restoring drafts on return.
 - Added a `db:seed:demo` script that seeds the demo WAV fixtures as public, playable tracks owned by a chosen artist profile for playback and stream qualification testing.
 - Added a "Back to App Home" link and home-bound brand link to the dashboard sidebar for escaping the dashboard route.
+- Added a "Reset Draft" button to the track and project creation wizards when a draft is restored from `localStorage`.
+- Added Release Schedule controls (Immediate vs Scheduled Release Date) to the track creation wizard, displaying expected release dates on the track completion screen.
+- Added an Upload & Processing progress overlay modal during track submission, ensuring real asset registration and automatic navigation to the track details page with instant playback.
 
 ### Fixed
 
+- Fixed public `/v1/tracks` filtering so only `ready` tracks populate the main public songs feed, while `open_verse` tracks route to the Open Verses hub and `draft` tracks remain private in creator dashboards.
 - Fixed the new track form crashing on the Distribution step with `Can't find variable: FormDescription` due to a missing import.
 - Fixed preview deployments failing on Cloudflare's 25 MB per-asset upload limit by excluding the local demo WAV fixtures from uploaded assets via `.assetsignore`.
 

@@ -10,6 +10,7 @@ import {
   FileAudio,
   LoaderCircle,
   CheckCircle2,
+  Calendar,
 } from "lucide-react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -106,9 +107,29 @@ function TrackDetailPage() {
     setCurrentTrack(playerTrack);
   };
 
+  const hasScheduledDate = Boolean(track.releaseAt);
+  const isScheduledInFuture =
+    hasScheduledDate &&
+    new Date(track.releaseAt as string).getTime() > Date.now();
+
   return (
     <div className="space-y-6">
-      {isLive ? (
+      {isScheduledInFuture ? (
+        <div className="flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4">
+          <Calendar className="mt-0.5 size-5 text-indigo-400" />
+          <div>
+            <p className="font-semibold text-indigo-200">Scheduled Release</p>
+            <p className="text-sm text-indigo-300/80">
+              Scheduled to go live on{" "}
+              {new Date(track.releaseAt as string).toLocaleDateString(
+                undefined,
+                { dateStyle: "full" }
+              )}
+              .
+            </p>
+          </div>
+        </div>
+      ) : (isLive ? (
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
           <CheckCircle2 className="mt-0.5 size-5 text-primary" />
           <div>
@@ -130,7 +151,7 @@ function TrackDetailPage() {
             </p>
           </div>
         </div>
-      )}
+      ))}
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div
@@ -182,7 +203,7 @@ function TrackDetailPage() {
             <p className="text-muted-foreground">{track.description}</p>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <div>
               <p className="text-sm text-muted-foreground">BPM</p>
               <p className="text-lg font-semibold">
@@ -198,6 +219,18 @@ function TrackDetailPage() {
             <div>
               <p className="text-sm text-muted-foreground">Duration</p>
               <p className="text-lg font-semibold">{track.duration}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Release Date</p>
+              <p className="text-lg font-semibold">
+                {track.releaseAt
+                  ? new Date(track.releaseAt).toLocaleDateString(undefined, {
+                      dateStyle: "medium",
+                    })
+                  : (isLive
+                    ? "Immediate (Live)"
+                    : "Draft")}
+              </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Updated</p>

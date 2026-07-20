@@ -1,7 +1,7 @@
 "use client";
 
 import { useBlocker } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FieldValues, UseFormReturn } from "react-hook-form";
 
 import {
@@ -39,9 +39,13 @@ interface UseFormDraftGuardOptions<TFieldValues extends FieldValues> {
  */
 export function useFormDraftGuard<TFieldValues extends FieldValues>({
   additionalDirtyState,
+  defaultValues,
   form,
   storageKey,
-}: UseFormDraftGuardOptions<TFieldValues>) {
+}: UseFormDraftGuardOptions<TFieldValues> & {
+  defaultValues?: TFieldValues;
+}) {
+  const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const formIsDirty = form.formState.isDirty;
   const hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState);
 
@@ -56,6 +60,7 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
       const stored = window.localStorage.getItem(storageKey);
       if (stored) {
         form.reset(JSON.parse(stored) as TFieldValues);
+        setHasSavedDraft(true);
       }
     } catch {
       window.localStorage.removeItem(storageKey);
@@ -90,8 +95,18 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   const clearDraft = () => {
     try {
       window.localStorage.removeItem(storageKey);
+      setHasSavedDraft(false);
     } catch {
       // Persistence is best-effort.
+    }
+  };
+
+  const resetDraft = () => {
+    clearDraft();
+    if (defaultValues) {
+      form.reset(defaultValues);
+    } else {
+      form.reset();
     }
   };
 
@@ -121,5 +136,11 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     </AlertDialog>
   );
 
-  return { allowNavigation, blockerDialog, clearDraft };
+  return {
+    allowNavigation,
+    blockerDialog,
+    clearDraft,
+    hasSavedDraft,
+    resetDraft,
+  };
 }
