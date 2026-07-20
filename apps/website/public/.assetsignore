@@ -1,0 +1,3 @@
+# Demo WAV fixtures are local/dev playback test files (~210 MB) and exceed
+# Cloudflare's 25 MB per-asset upload limit. Keep them out of deploys.
+demo-audio/

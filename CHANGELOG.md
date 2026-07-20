@@ -20,6 +20,7 @@
 ### Fixed
 
 - Fixed the new track form crashing on the Distribution step with `Can't find variable: FormDescription` due to a missing import.
+- Fixed preview deployments failing on Cloudflare's 25 MB per-asset upload limit by excluding the local demo WAV fixtures from uploaded assets via `.assetsignore`.
 
 - Fixed file picker dialog double-triggering by stopping click propagation inside the file dropzone container.
 - Standardized genre options by converting input text boxes into Select dropdowns supporting all standard genres across dashboard wizards (projects, tracks, and videos).
