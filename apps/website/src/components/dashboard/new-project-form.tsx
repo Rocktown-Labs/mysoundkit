@@ -64,6 +64,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
@@ -153,6 +154,12 @@ export function NewProjectForm() {
     resolver: zodResolver(projectFormSchema),
   });
 
+  const { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
+    additionalDirtyState: Boolean(selectedCoverFile),
+    form,
+    storageKey: "soundkit:new-project-draft",
+  });
+
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "newTracks",
@@ -220,6 +227,8 @@ export function NewProjectForm() {
         description: `${project.title} is now in your project dashboard.`,
         title: "Project Created",
       });
+      clearDraft();
+      allowNavigation();
       router.navigate({ to: "/dashboard/projects" });
     } catch (error) {
       posthog.captureException(error);
@@ -343,6 +352,7 @@ export function NewProjectForm() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      {blockerDialog}
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"

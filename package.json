@@ -15,6 +15,7 @@
     "db:studio": "turbo run db:studio --filter=@soundkit/db",
     "db:generate": "turbo run db:generate --filter=@soundkit/db",
     "db:migrate": "turbo run db:migrate --filter=@soundkit/db",
+    "db:seed:demo": "turbo run db:seed:demo --filter=@soundkit/db",
     "deploy": "turbo run deploy --filter=@soundkit/infra",
     "deploy:prod": "turbo run deploy --filter=@soundkit/infra",
     "destroy": "turbo run destroy --filter=@soundkit/infra",
