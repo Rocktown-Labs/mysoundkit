@@ -1,3 +1,5 @@
+"use client";
+
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Download,
@@ -5,11 +7,12 @@ import {
   Share2,
   Play,
   Music2,
-  Mic,
   FileAudio,
-  Disc,
+  LoaderCircle,
+  CheckCircle2,
 } from "lucide-react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,285 +24,302 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// Mock data - would come from API
-const mockTrack = {
-  bpm: 140,
-  collaborators: [
-    {
-      avatar: "/diverse-user-avatars.png",
-      email: "user@soundkit.app",
-      name: "John Doe",
-      role: "Producer",
-    },
-    {
-      avatar: "/diverse-user-avatars.png",
-      email: "collab@soundkit.app",
-      name: "Jane Smith",
-      role: "Vocalist",
-    },
-  ],
-  coverArt: "/summer-music-album-cover.png",
-  createdAt: "2024-01-15",
-  description: "A smooth summer track with laid-back vibes and catchy hooks.",
-  files: {
-    adlibs: [{ id: "1", name: "adlibs.wav", size: "8.5 MB", uploaded: true }],
-    instrumental: {
-      name: "summer-vibes-instrumental.wav",
-      size: "45.2 MB",
-      uploaded: true,
-    },
-    reference: { name: "reference.mp3", size: "8.2 MB", uploaded: true },
-    session: { name: "summer-vibes.logicx", size: "2.1 GB", uploaded: true },
-    verses: [
-      { id: "1", name: "verse-1.wav", size: "12.3 MB", uploaded: true },
-      { id: "2", name: "verse-2.wav", size: "11.8 MB", uploaded: true },
-    ],
-  },
-  genre: "Hip-Hop",
-  id: "1",
-  isPublic: true,
-  key: "C Major",
-  name: "Summer Vibes",
-  price: 29.99,
-  status: "complete",
-  updatedAt: "2 hours ago",
-  variants: [
-    { file: "summer-vibes-clean.wav", size: "42.1 MB", type: "clean" },
-    { file: "summer-vibes-dirty.wav", size: "42.3 MB", type: "dirty" },
-  ],
-};
+import { useTrackQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/tracks/$id/")({
   component: TrackDetailPage,
 });
 
+const formatBytes = (sizeBytes: number | null | undefined) => {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return "—";
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 function TrackDetailPage() {
   const { id } = Route.useParams();
+  const trackQuery = useTrackQuery(id);
+  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const track = trackQuery.data;
+
+  if (trackQuery.isLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center gap-2 text-muted-foreground">
+        <LoaderCircle className="size-5 animate-spin" />
+        Loading track…
+      </div>
+    );
+  }
+
+  if (trackQuery.error || !track) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-bold">Track not found</h1>
+        <p className="text-muted-foreground">
+          This track may still be processing, or the upload did not finish.
+        </p>
+        <Button asChild variant="outline">
+          <Link to="/dashboard/tracks">Back to Tracks</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const coverArt =
+    track.coverArtUrl && track.coverArtUrl.length > 0
+      ? track.coverArtUrl
+      : "/placeholder.svg";
+  const assets =
+    "assets" in track && Array.isArray(track.assets) ? track.assets : [];
+  const collaborators =
+    "collaborators" in track && Array.isArray(track.collaborators)
+      ? track.collaborators
+      : [];
+  const masterAsset = assets.find((asset) => asset.assetKind === "master");
+  const isLive = Boolean(track.isPublic);
+  const statusLabel = isLive
+    ? "Ready / Live"
+    : (track.productionStatus === "demo"
+      ? "Draft"
+      : track.productionStatus);
+
+  const handlePlay = () => {
+    if (!track.playbackUrl) {
+      return;
+    }
+    const playerTrack = {
+      artist: track.artistName,
+      artistHref: track.artistUsername
+        ? `/artist/${track.artistUsername}`
+        : "/dashboard/profile",
+      cover: coverArt,
+      id: track.id,
+      src: track.playbackUrl,
+      title: track.title,
+      trackHref: `/dashboard/tracks/${track.id}`,
+    };
+    setQueue([playerTrack]);
+    setCurrentTrack(playerTrack);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row gap-6">
+      {isLive ? (
+        <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
+          <CheckCircle2 className="mt-0.5 size-5 text-primary" />
+          <div>
+            <p className="font-semibold">Track is live</p>
+            <p className="text-sm text-muted-foreground">
+              Your master is available for playback. Background processing will
+              fill in BPM, duration, stems, and lyrics when ready.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-4">
+          <LoaderCircle className="mt-0.5 size-5 animate-spin text-muted-foreground" />
+          <div>
+            <p className="font-semibold">Draft saved</p>
+            <p className="text-sm text-muted-foreground">
+              This track is not public yet. Open it when you are ready to go
+              live.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-6 lg:flex-row">
         <div
-          className="w-full lg:w-64 h-64 rounded-lg bg-cover bg-center"
-          style={{ backgroundImage: `url(${mockTrack.coverArt})` }}
+          className="h-64 w-full rounded-lg bg-cover bg-center lg:w-64"
+          style={{ backgroundImage: `url(${coverArt})` }}
         />
         <div className="flex-1 space-y-4">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold font-[family-name:var(--font-playfair)]">
-                {mockTrack.name}
+              <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
+                {track.title}
               </h1>
-              <p className="text-muted-foreground">{mockTrack.genre}</p>
+              <p className="text-muted-foreground">{track.genre}</p>
             </div>
-            <div className="flex gap-2">
-              <Link to="/dashboard/tracks/$id/edit" params={{ id }}>
-                <Button variant="outline">
-                  <Edit className="h-4 w-4 mr-2" />
+            <div className="flex flex-wrap gap-2">
+              {track.playbackUrl ? (
+                <Button onClick={handlePlay} type="button">
+                  <Play className="mr-2 size-4" />
+                  Play
+                </Button>
+              ) : null}
+              <Link params={{ id }} to="/dashboard/tracks/$id/edit">
+                <Button type="button" variant="outline">
+                  <Edit className="mr-2 size-4" />
                   Edit
                 </Button>
               </Link>
-              <Button variant="outline">
-                <Share2 className="h-4 w-4 mr-2" />
+              <Button type="button" variant="outline">
+                <Share2 className="mr-2 size-4" />
                 Share
               </Button>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Badge
-              variant={
-                mockTrack.status === "complete" ? "default" : "secondary"
-              }
-            >
-              {mockTrack.status}
+            <Badge variant={isLive ? "default" : "secondary"}>
+              {statusLabel}
             </Badge>
-            {mockTrack.isPublic && <Badge variant="outline">Public</Badge>}
-            {mockTrack.price > 0 && (
-              <Badge variant="outline">${mockTrack.price}</Badge>
-            )}
+            {track.isPublic ? <Badge variant="outline">Public</Badge> : null}
+            {track.assetStatus ? (
+              <Badge variant="outline">Assets: {track.assetStatus}</Badge>
+            ) : null}
+            {track.isForSale && track.price != null ? (
+              <Badge variant="outline">${Number(track.price).toFixed(2)}</Badge>
+            ) : null}
           </div>
 
-          <p className="text-muted-foreground">{mockTrack.description}</p>
+          {track.description ? (
+            <p className="text-muted-foreground">{track.description}</p>
+          ) : null}
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
               <p className="text-sm text-muted-foreground">BPM</p>
-              <p className="text-lg font-semibold">{mockTrack.bpm}</p>
+              <p className="text-lg font-semibold">
+                {track.bpm ?? "Processing…"}
+              </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Key</p>
-              <p className="text-lg font-semibold">{mockTrack.key}</p>
+              <p className="text-lg font-semibold">
+                {track.musicalKey ?? "Processing…"}
+              </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Created</p>
-              <p className="text-lg font-semibold">{mockTrack.createdAt}</p>
+              <p className="text-sm text-muted-foreground">Duration</p>
+              <p className="text-lg font-semibold">{track.duration}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Updated</p>
-              <p className="text-lg font-semibold">{mockTrack.updatedAt}</p>
+              <p className="text-lg font-semibold">
+                {new Date(track.updatedAt).toLocaleDateString()}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="files" className="w-full">
+      <Tabs className="w-full" defaultValue="files">
         <TabsList>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="collaborators">Collaborators</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="files" className="space-y-4">
-          {/* Instrumental */}
+        <TabsContent className="space-y-4" value="files">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Music2 className="h-5 w-5" />
-                Instrumental
+                <Music2 className="size-5" />
+                Master
               </CardTitle>
+              <CardDescription>
+                Primary audio uploaded to SoundKit storage
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between p-3 bg-accent/20 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileAudio className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">
-                      {mockTrack.files.instrumental.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {mockTrack.files.instrumental.size}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost">
-                    <Play className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Verses */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Mic className="h-5 w-5" />
-                Verses
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {mockTrack.files.verses.map((verse, index) => (
-                <div
-                  key={verse.id}
-                  className="flex items-center justify-between p-3 bg-accent/20 rounded-lg"
-                >
+              {masterAsset ? (
+                <div className="flex items-center justify-between rounded-lg bg-accent/20 p-3">
                   <div className="flex items-center gap-3">
-                    <FileAudio className="h-5 w-5 text-muted-foreground" />
+                    <FileAudio className="size-5 text-muted-foreground" />
                     <div>
-                      <p className="font-medium">Verse {index + 1}</p>
+                      <p className="font-medium">
+                        {masterAsset.objectKey?.split("/").pop() ?? "Master"}
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        {verse.size}
+                        {formatBytes(masterAsset.sizeBytes)} ·{" "}
+                        {masterAsset.status}
                       </p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="ghost">
-                      <Play className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost">
-                      <Download className="h-4 w-4" />
+                    {track.playbackUrl ? (
+                      <Button
+                        onClick={handlePlay}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Play className="size-4" />
+                      </Button>
+                    ) : null}
+                    <Button size="sm" type="button" variant="ghost" disabled>
+                      <Download className="size-4" />
                     </Button>
                   </div>
                 </div>
-              ))}
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No master asset attached yet.
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Variants */}
-          {mockTrack.variants.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Disc className="h-5 w-5" />
-                  Track Variants
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {mockTrack.variants.map((variant) => (
-                  <div
-                    key={variant.type}
-                    className="flex items-center justify-between p-3 bg-accent/20 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileAudio className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">
-                          {variant.type.toUpperCase()}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {variant.size}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="ghost">
-                        <Play className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+          {assets
+            .filter((asset) => asset.assetKind !== "master")
+            .map((asset) => (
+              <Card key={asset.id}>
+                <CardHeader>
+                  <CardTitle className="text-base capitalize">
+                    {asset.assetKind.replaceAll("_", " ")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  {formatBytes(asset.sizeBytes)} · {asset.status}
+                </CardContent>
+              </Card>
+            ))}
         </TabsContent>
 
-        <TabsContent value="collaborators" className="space-y-4">
+        <TabsContent className="space-y-4" value="collaborators">
           <Card>
             <CardHeader>
               <CardTitle>Collaborators</CardTitle>
-              <CardDescription>People working on this track</CardDescription>
+              <CardDescription>People credited on this track</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockTrack.collaborators.map((collab) => (
-                <div
-                  key={collab.email}
-                  className="flex items-center justify-between p-3 bg-accent/20 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={collab.avatar || "/placeholder.svg"} />
-                      <AvatarFallback>{collab.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{collab.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {collab.role}
-                      </p>
+              {collaborators.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No collaborators added yet.
+                </p>
+              ) : (
+                collaborators.map((collab) => (
+                  <div
+                    className="flex items-center justify-between rounded-lg bg-accent/20 p-3"
+                    key={collab.id}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar>
+                        <AvatarImage
+                          src={collab.avatarUrl ?? "/placeholder.svg"}
+                        />
+                        <AvatarFallback>
+                          {(collab.name ?? collab.email ?? "?")[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">
+                          {collab.name ?? collab.email ?? "Collaborator"}
+                        </p>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {collab.role}
+                        </p>
+                      </div>
                     </div>
+                    <Badge variant="outline">{collab.status}</Badge>
                   </div>
-                  <Badge variant="outline">Read & Write</Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">No recent activity</p>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>

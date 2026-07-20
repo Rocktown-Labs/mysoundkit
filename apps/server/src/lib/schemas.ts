@@ -839,13 +839,36 @@ export const onboardingFanBodySchema = z.object({
   username: usernameSchema,
 });
 
+export const trackCollaboratorInputSchema = z.object({
+  inviteEmail: z.string().email().optional(),
+  name: z.string().min(1).optional(),
+  role: z.enum([
+    "artist",
+    "producer",
+    "vocalist",
+    "engineer",
+    "songwriter",
+    "manager",
+    "social_media_manager",
+    "marketing",
+    "family_member",
+  ]),
+  userId: z.string().min(1).optional(),
+});
+
+/** Standard single download price (USD). */
+export const SINGLE_TRACK_PRICE_USD = 1.29;
+export const SINGLE_TRACK_PRICE_CENTS = 129;
+
 export const createTrackBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
   bpm: z.number().int().positive().optional(),
   catalogItemType: z.enum(["single", "beat", "instrumental"]).default("single"),
+  collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
   genre: z.string().min(1),
   isForSale: z.boolean(),
+  isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
@@ -856,6 +879,20 @@ export const createTrackBodySchema = z.object({
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   sourceObjectKey: z.string().optional(),
   title: z.string().min(1),
+});
+
+export const peopleSearchQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(20).default(8),
+  q: z.string().trim().min(1).max(80),
+});
+
+export const peopleSearchResultSchema = z.object({
+  avatarUrl: z.string().nullable(),
+  displayName: z.string(),
+  email: z.string().nullable(),
+  stageName: z.string().nullable(),
+  userId: z.string(),
+  username: z.string(),
 });
 
 export const updateTrackBodySchema = createTrackBodySchema.partial();
