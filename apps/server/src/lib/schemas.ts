@@ -135,6 +135,7 @@ export const userSummarySchema = z.object({
   id: z.string(),
   onboardingCompletedAt: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
+  stageName: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
   username: z.string(),
 });
@@ -194,6 +195,7 @@ export const profileUpdateBodySchema = z.object({
   displayName: z.string().optional(),
   headerObjectKey: z.string().optional(),
   headerUrl: z.string().url().optional(),
+  stageName: z.string().optional(),
   state: z.string().optional(),
 });
 

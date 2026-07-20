@@ -41,6 +41,7 @@ function SettingsPage() {
       bio: String(form.get("bio") ?? ""),
       city: String(form.get("city") ?? ""),
       displayName: String(form.get("displayName") ?? ""),
+      stageName: String(form.get("stageName") ?? ""),
       state: String(form.get("state") ?? ""),
     });
   };
@@ -91,7 +92,7 @@ function SettingsPage() {
                 <div className="grid gap-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="artist-name">Artist Name *</Label>
+                      <Label htmlFor="artist-name">Artist Name / Display Name *</Label>
                       <Input
                         id="artist-name"
                         name="displayName"
@@ -101,18 +102,13 @@ function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="username">Username *</Label>
-                      <div className="flex gap-2">
-                        <span className="flex items-center px-3 rounded-md border bg-muted text-sm text-muted-foreground">
-                          mysoundkit.com/
-                        </span>
-                        <Input
-                          id="username"
-                          defaultValue={user?.username ?? ""}
-                          disabled
-                          required
-                        />
-                      </div>
+                      <Label htmlFor="stage-name">Stage Name / Performance Alias</Label>
+                      <Input
+                        id="stage-name"
+                        name="stageName"
+                        defaultValue={user?.stageName ?? user?.displayName ?? ""}
+                        placeholder="e.g. MC Supreme, DJ Shadow"
+                      />
                     </div>
                   </div>
 
