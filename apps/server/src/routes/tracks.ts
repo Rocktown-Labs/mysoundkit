@@ -217,7 +217,10 @@ app.openapi(
       const db = createDb();
       const genreSlug = genreSlugFromExploreFilter(query.genre);
       const state = stateFromExploreRegion(query);
-      const publicTrackConditions = [eq(tracks.isPublic, true)];
+      const publicTrackConditions = [
+        eq(tracks.isPublic, true),
+        eq(tracks.productionStatus, "complete"),
+      ];
 
       if (genreSlug) {
         publicTrackConditions.push(eq(genres.slug, genreSlug));

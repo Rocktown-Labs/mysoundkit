@@ -19,6 +19,7 @@ import {
   Mic2,
   Disc,
   LoaderCircle,
+  RotateCcw,
 } from "lucide-react";
 import { useState, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -139,26 +140,45 @@ export function NewProjectForm() {
   } = useTracksQuery();
   const createProjectMutation = useCreateProjectMutation();
 
+  const defaultProjectFormValues: ProjectFormValues = {
+    collaborators: [],
+    description: "",
+    name: "",
+    newTracks: [],
+    projectCoverObjectKey: "",
+    releaseDate: "",
+    rightsAccepted: false,
+    selectedExistingTracks: [],
+    type: "album",
+  };
+
   const form = useForm<ProjectFormValues>({
-    defaultValues: {
-      collaborators: [],
-      description: "",
-      name: "",
-      newTracks: [],
-      projectCoverObjectKey: "",
-      releaseDate: "",
-      rightsAccepted: false,
-      selectedExistingTracks: [],
-      type: "album",
-    },
+    defaultValues: defaultProjectFormValues,
     resolver: zodResolver(projectFormSchema),
   });
 
-  const { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
+  const {
+    allowNavigation,
+    blockerDialog,
+    clearDraft,
+    hasSavedDraft,
+    resetDraft,
+  } = useFormDraftGuard({
     additionalDirtyState: Boolean(selectedCoverFile),
+    defaultValues: defaultProjectFormValues,
     form,
     storageKey: "soundkit:new-project-draft",
   });
+
+  const resetProjectDraft = () => {
+    resetDraft();
+    setSelectedCoverFile(null);
+    setCoverUpload(null);
+    toast({
+      description: "Project draft cleared. You can start fresh.",
+      title: "Draft reset",
+    });
+  };
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -353,6 +373,24 @@ export function NewProjectForm() {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       {blockerDialog}
+      {hasSavedDraft && (
+        <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+          <div className="flex items-center gap-2">
+            <Info className="size-4 text-amber-400 shrink-0" />
+            <span>Restored draft from your previous session.</span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetProjectDraft}
+            className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/20 h-8 text-xs gap-1.5"
+          >
+            <RotateCcw className="size-3.5" />
+            Reset Draft
+          </Button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
