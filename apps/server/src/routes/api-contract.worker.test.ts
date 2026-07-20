@@ -109,6 +109,9 @@ const expectedOpenApiOperations = [
   ["get", "/v1/tracks"],
   ["post", "/v1/tracks"],
   ["post", "/v1/tracks/{trackId}/assets"],
+  ["post", "/v1/tracks/{trackId}/playback-sessions"],
+  ["post", "/v1/tracks/{trackId}/playback-sessions/{sessionId}/end"],
+  ["post", "/v1/tracks/{trackId}/playback-sessions/{sessionId}/progress"],
   ["delete", "/v1/tracks/{trackId}"],
   ["get", "/v1/tracks/{trackId}"],
   ["patch", "/v1/tracks/{trackId}"],
@@ -411,13 +414,13 @@ describe("SoundKit public read API", () => {
     expect(plansResult.body).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          annualPriceCents: null,
+          annualPriceCents: 18_000,
           code: "soundkit_premium_artist",
           maxSeats: 3,
           monthlyPriceCents: 2299,
         }),
         expect.objectContaining({
-          annualPriceCents: null,
+          annualPriceCents: 18_000,
           code: "soundkit_premium_fan",
           maxSeats: 3,
           monthlyPriceCents: 2299,

@@ -5,18 +5,17 @@ import { z } from "zod";
 import type {
   adminAccessSchema,
   adminPaymentsOverviewSchema,
+  adminOverviewSchema,
   artistSummarySchema,
+  battleSummarySchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
-  adminOverviewSchema,
-  battleSummarySchema,
   entitlementSummarySchema,
   friendSummarySchema,
   libraryOverviewSchema,
   libraryRecentTrackSchema,
   librarySavedTrackSchema,
   libraryWatchedItemSchema,
-  purchasedCatalogItemSchema,
   listeningPartySummarySchema,
   lyricsRevisionSchema,
   meResponseSchema,
@@ -24,11 +23,14 @@ import type {
   openVerseListingSchema,
   openVersePageSchema,
   openVerseSubmissionSchema,
+  playbackProgressResponseSchema,
+  playbackSessionResponseSchema,
   playlistSchema,
   planSchema,
   projectDashboardDetailSchema,
   publicSearchResultSchema,
   projectSummarySchema,
+  purchasedCatalogItemSchema,
   sellerOnboardingResponseSchema,
   sellerStatusSchema,
   trackDashboardDetailSchema,
@@ -38,14 +40,17 @@ import type {
   videoSummarySchema,
 } from "./lib/schemas";
 import {
-  createProjectBodySchema,
-  createListeningPartyBodySchema,
+  adminImportStripePlanBodySchema,
+  adminSyncStripePlansBodySchema,
   createChallengeBodySchema,
   createConversationBodySchema,
+  createListeningPartyBodySchema,
   createLyricsRevisionBodySchema,
   createMessageBodySchema,
   createOpenVerseBodySchema,
   createOpenVerseSubmissionBodySchema,
+  createPlaybackSessionBodySchema,
+  createProjectBodySchema,
   createSellerAccountLinkBodySchema,
   createTrackAssetBodySchema,
   createTrackBodySchema,
@@ -54,16 +59,15 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   onboardingResponseSchema,
-  updateProjectBodySchema,
-  updateTrackBodySchema,
-  reviewLyricsRevisionBodySchema,
   openVerseQuerySchema,
-  adminImportStripePlanBodySchema,
-  adminSyncStripePlansBodySchema,
-  publicSearchQuerySchema,
-  publicExploreQuerySchema,
+  playbackProgressBodySchema,
   artistRankingQuerySchema,
   profileUpdateBodySchema,
+  publicExploreQuerySchema,
+  publicSearchQuerySchema,
+  reviewLyricsRevisionBodySchema,
+  updateProjectBodySchema,
+  updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
 
@@ -171,6 +175,21 @@ export const rpcContract = new Hono()
   )
   .post("/v1/tracks/", jsonValidator(createTrackBodySchema), (c) =>
     c.json({} as z.infer<typeof trackSummarySchema>, 201)
+  )
+  .post(
+    "/v1/tracks/:trackId/playback-sessions",
+    jsonValidator(createPlaybackSessionBodySchema),
+    (c) => c.json({} as z.infer<typeof playbackSessionResponseSchema>, 201)
+  )
+  .post(
+    "/v1/tracks/:trackId/playback-sessions/:sessionId/progress",
+    jsonValidator(playbackProgressBodySchema),
+    (c) => c.json({} as z.infer<typeof playbackProgressResponseSchema>)
+  )
+  .post(
+    "/v1/tracks/:trackId/playback-sessions/:sessionId/end",
+    jsonValidator(playbackProgressBodySchema.partial()),
+    (c) => c.json({} as z.infer<typeof playbackProgressResponseSchema>)
   )
   .get("/v1/tracks/:trackId", (c) =>
     c.json({} as z.infer<typeof trackDashboardDetailSchema>)

@@ -2334,7 +2334,7 @@ export const videoAdCampaigns = pgTable(
     inventoryType: adInventoryTypeEnum("inventory_type").notNull(),
     metadata: jsonb("metadata"),
     startsAt: timestamp("starts_at").notNull(),
-    status: text("status").default("draft").notNull(),
+    status: text("status").default("pending_review").notNull(),
     targetRegions: jsonb("target_regions").$type<string[]>(),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")

@@ -49,6 +49,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -66,6 +67,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import {
   apiClient,
@@ -217,6 +219,19 @@ export function NewTrackForm() {
       writers: "",
     },
     resolver: zodResolver(trackFormSchema),
+  });
+
+  const { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
+    additionalDirtyState: Boolean(
+      selectedCoverFile ||
+      selectedMasterFile ||
+      leadVocalsFile ||
+      adlibsFile ||
+      instrumentalFile ||
+      uploadedTrack
+    ),
+    form,
+    storageKey: "soundkit:new-track-draft",
   });
 
   const startBackgroundProcessing = async (trackId: string) => {
@@ -572,6 +587,8 @@ export function NewTrackForm() {
         description: `${values.name} is in your dashboard and processing continues in the background.`,
         title: "Track Setup Complete",
       });
+      clearDraft();
+      allowNavigation();
       router.navigate({
         params: { id: trackPreview.trackId },
         to: "/dashboard/tracks/$id",
@@ -615,6 +632,7 @@ export function NewTrackForm() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
+      {blockerDialog}
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
