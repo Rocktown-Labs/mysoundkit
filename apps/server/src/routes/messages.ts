@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
+  artistProfiles,
   conversationParticipants,
   conversations,
   messages,
@@ -9,7 +10,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -22,6 +23,8 @@ import {
   createMessageBodySchema,
   friendSummarySchema,
   messageSchema,
+  peopleSearchQuerySchema,
+  peopleSearchResultSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -49,6 +52,79 @@ const sampleFriends = [
     username: "sam",
   },
 ];
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/people",
+    request: {
+      query: peopleSearchQuerySchema,
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        peopleSearchResultSchema.array(),
+        "People matching name, username, or stage name"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Messages"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const { limit, q } = c.req.valid("query");
+    const term = `%${q.replaceAll("%", "\\%")}%`;
+    const db = createDb();
+    const rows = await db
+      .select({
+        avatarUrl: userProfiles.avatarUrl,
+        displayName: userProfiles.displayName,
+        email: authUser.email,
+        name: authUser.name,
+        stageName: artistProfiles.stageName,
+        userId: authUser.id,
+        username: userProfiles.username,
+      })
+      .from(authUser)
+      .innerJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+      .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
+      .where(
+        or(
+          ilike(userProfiles.displayName, term),
+          ilike(userProfiles.username, term),
+          ilike(authUser.name, term),
+          ilike(artistProfiles.stageName, term),
+          ilike(authUser.email, term)
+        )
+      )
+      .orderBy(sql`coalesce(${userProfiles.displayName}, ${authUser.name})`)
+      .limit(limit);
+
+    return c.json(
+      rows.map((row) => ({
+        avatarUrl: row.avatarUrl,
+        displayName:
+          row.displayName ?? row.stageName ?? row.name ?? row.username,
+        email: row.email,
+        stageName: row.stageName,
+        userId: row.userId,
+        username: row.username,
+      })),
+      HttpStatusCodes.OK
+    );
+  }
+);
 
 app.openapi(
   createRoute({

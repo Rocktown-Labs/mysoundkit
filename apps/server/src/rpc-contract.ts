@@ -12,6 +12,7 @@ import type {
   directVideoUploadResponseSchema,
   entitlementSummarySchema,
   friendSummarySchema,
+  peopleSearchResultSchema,
   libraryOverviewSchema,
   libraryRecentTrackSchema,
   librarySavedTrackSchema,
@@ -64,6 +65,7 @@ import {
   artistRankingQuerySchema,
   profileUpdateBodySchema,
   publicExploreQuerySchema,
+  peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
   updateProjectBodySchema,
@@ -144,6 +146,11 @@ export const rpcContract = new Hono()
   )
   .get("/v1/messages/friends", (c) =>
     c.json([] as z.infer<typeof friendSummarySchema>[])
+  )
+  .get(
+    "/v1/messages/people",
+    validator("query", (value) => peopleSearchQuerySchema.parse(value)),
+    (c) => c.json([] as z.infer<typeof peopleSearchResultSchema>[])
   )
   .get("/v1/messages/conversations", (c) =>
     c.json([] as z.infer<typeof conversationSummarySchema>[])

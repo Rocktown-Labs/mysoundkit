@@ -2,6 +2,8 @@ import type { createDb } from "@soundkit/db";
 import {
   accountingPeriods,
   playbackSessions,
+  projectTracks,
+  projects,
   qualifiedStreams,
   recentPlays,
   recordingRightsholders,
@@ -195,6 +197,21 @@ const getPublicTrackWithPrimaryAsset = async ({
     .limit(1);
 
   if (!track?.isPublic) {
+    return null;
+  }
+
+  // Projects listed for sale stay purchase-only until the artist opens streaming.
+  // Give creators a sales window before Premium streams qualify on those cuts.
+  const [forSaleProject] = await db
+    .select({ projectId: projects.id })
+    .from(projectTracks)
+    .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+    .where(
+      and(eq(projectTracks.trackId, trackId), eq(projects.isForSale, true))
+    )
+    .limit(1);
+
+  if (forSaleProject) {
     return null;
   }
 

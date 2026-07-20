@@ -45,6 +45,7 @@ const libraryRecentGet = apiClient.v1.library.recent.$get;
 const librarySavedGet = apiClient.v1.library.saved.$get;
 const libraryWatchedGet = apiClient.v1.library.watched.$get;
 const friendsGet = apiClient.v1.messages.friends.$get;
+const peopleSearchGet = apiClient.v1.messages.people.$get;
 const conversationsGet = apiClient.v1.messages.conversations.$get;
 const conversationsPost = apiClient.v1.messages.conversations.$post;
 const conversationMessagesGet =
@@ -163,6 +164,7 @@ export const soundkitQueryKeys = {
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
   friends: ["messages", "friends"] as const,
+  peopleSearch: (q: string) => ["messages", "people", q] as const,
   libraryOverview: ["library", "overview"] as const,
   libraryPlaylists: ["library", "playlists"] as const,
   libraryPurchases: ["library", "purchases"] as const,
@@ -287,6 +289,18 @@ export const useFriendsQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await friendsGet()),
     queryKey: soundkitQueryKeys.friends,
+  });
+
+export const usePeopleSearchQuery = (q: string) =>
+  useQuery({
+    enabled: q.trim().length >= 2,
+    queryFn: async () =>
+      rpcJson(
+        await peopleSearchGet({
+          query: { limit: "8", q: q.trim() },
+        })
+      ),
+    queryKey: soundkitQueryKeys.peopleSearch(q.trim()),
   });
 
 export const useConversationsQuery = () =>

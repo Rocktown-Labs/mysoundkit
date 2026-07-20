@@ -8,6 +8,7 @@ import {
   playbackSessions,
   purchases,
   trackAssets,
+  trackCollaborators,
   trackLicenseOptions,
   trackLyrics,
   trackStemJobs,
@@ -53,6 +54,8 @@ import {
   messageResponseSchema,
   playbackProgressBodySchema,
   playbackProgressResponseSchema,
+  SINGLE_TRACK_PRICE_CENTS,
+  SINGLE_TRACK_PRICE_USD,
   playbackSessionResponseSchema,
   reviewLyricsRevisionBodySchema,
   setupRequiredResponseSchema,
@@ -824,6 +827,18 @@ app.openapi(
 
     const trackId = crypto.randomUUID();
     const now = new Date();
+    const isSingle = body.catalogItemType === "single";
+    const salePriceUsd =
+      body.isForSale && isSingle
+        ? SINGLE_TRACK_PRICE_USD
+        : (body.price ?? null);
+    const salePriceCents =
+      body.isForSale && isSingle
+        ? SINGLE_TRACK_PRICE_CENTS
+        : (body.priceCents ??
+          (typeof body.price === "number"
+            ? Math.round(body.price * 100)
+            : null));
     const [track] = await withRetry("create track", () =>
       db
         .insert(tracks)
@@ -839,9 +854,10 @@ app.openapi(
           musicalKey: body.musicalKey ?? null,
           organizationId,
           ownerUserId: user.id,
-          price: body.price?.toFixed(2) ?? null,
-          priceCents: body.priceCents ?? null,
+          price: salePriceUsd?.toFixed(2) ?? null,
+          priceCents: salePriceCents,
           productionStatus: body.productionStatus,
+          publishedAt: body.isPublic ? now : null,
           purchaseMode: body.purchaseMode,
           releaseAt: body.releaseAt ? new Date(body.releaseAt) : null,
           releaseStrategy: body.releaseStrategy,
@@ -862,6 +878,28 @@ app.openapi(
             uploaderUserId: user.id,
           })
           .where(eq(trackAssets.id, body.assetIds[0] ?? ""))
+      );
+    }
+
+    if (body.collaborators.length > 0) {
+      await withRetry("insert track collaborators", () =>
+        db.insert(trackCollaborators).values(
+          body.collaborators.map((collaborator) => ({
+            canDelete: false,
+            canEdit: true,
+            canUpload: true,
+            collaboratorRole: collaborator.role,
+            collaboratorUserId: collaborator.userId ?? null,
+            createdAt: now,
+            id: crypto.randomUUID(),
+            invitationStatus: collaborator.userId
+              ? ("accepted" as const)
+              : ("pending" as const),
+            inviteEmail: collaborator.inviteEmail ?? null,
+            invitedByUserId: user.id,
+            trackId,
+          }))
+        )
       );
     }
 
@@ -1547,6 +1585,10 @@ app.openapi(
       [HttpStatusCodes.OK]: jsonContent(
         z.union([trackCatalogDetailSchema, trackDashboardDetailSchema]),
         "Track catalog detail"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
       ),
     },
     tags: ["Tracks"],
