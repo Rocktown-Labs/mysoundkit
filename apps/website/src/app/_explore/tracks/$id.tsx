@@ -1007,7 +1007,7 @@ function CommerceCard({
           High-fidelity digital ownership
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-8 pb-8 pt-0 space-y-8">
+      <CardContent className="px-8 pb-8 pt-0 space-y-6">
         <ul className="space-y-4">
           <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
             <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" /> All
@@ -1022,52 +1022,37 @@ function CommerceCard({
             Lifetime library access
           </li>
         </ul>
-        <CardContent className="px-8 pb-8 pt-0 space-y-3">
-          <ul className="space-y-4">
-            <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
-              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" /> All
-              tracks & audio masters
-            </li>
-            <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
-              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{" "}
-              High-resolution artwork
-            </li>
-            <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
-              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{" "}
-              Lifetime library access
-            </li>
-          </ul>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
-            <Button
-              size="lg"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.15em] shadow-xl shadow-primary/20 h-14 rounded-none"
-              onClick={() => void addDigitalPurchase()}
-            >
-              Buy Now
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="w-full border-primary/40 hover:bg-primary/10 text-primary font-black uppercase tracking-[0.15em] h-14 rounded-none"
-              onClick={() => {
-                void addItem({
-                  artistName: item.artist.name,
-                  coverArtUrl: item.coverArtUrl,
-                  priceCents: item.priceCents ?? priceCentsFromLabel(item.priceLabel),
-                  productType: "track",
-                  purchaseMode: "digital_download",
-                  title: item.title,
-                  trackId: item.id,
-                });
-              }}
-            >
-              <ShoppingCart className="size-4 mr-2" /> Add to Cart
-            </Button>
-          </div>
-          <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-[0.3em] opacity-40">
-            Verified secure transaction
-          </p>
-        </CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <Button
+            size="lg"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.15em] shadow-xl shadow-primary/20 h-14 rounded-none"
+            onClick={() => void addDigitalPurchase()}
+          >
+            Buy Now
+          </Button>
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full border-primary/40 hover:bg-primary/10 text-primary font-black uppercase tracking-[0.15em] h-14 rounded-none"
+            onClick={() => {
+              void addItem({
+                artistName: item.artist.name,
+                coverArtUrl: item.coverArtUrl,
+                priceCents: item.priceCents ?? priceCentsFromLabel(item.priceLabel),
+                productType: "track",
+                purchaseMode: "digital_download",
+                title: item.title,
+                trackId: item.id,
+              });
+            }}
+          >
+            <ShoppingCart className="size-4 mr-2" /> Add to Cart
+          </Button>
+        </div>
+        <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-[0.3em] opacity-40">
+          Verified secure transaction
+        </p>
+      </CardContent>
     </Card>
   );
 }
