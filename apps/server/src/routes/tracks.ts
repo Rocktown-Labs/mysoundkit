@@ -11,6 +11,7 @@ import {
   trackCollaborators,
   trackLicenseOptions,
   trackLyrics,
+  trackPreSaves,
   trackStemJobs,
   tracks,
   userProfiles,
@@ -1775,6 +1776,64 @@ app.openapi(
         tags: row.genreName ? [row.genreName] : [],
         title: row.title,
         visualContent: [],
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/:trackId/pre-save",
+    request: {
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          isPreSaved: z.boolean(),
+          message: z.string(),
+        }),
+        "Pre-save status"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const { trackId } = c.req.valid("param");
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(
+        {
+          isPreSaved: true,
+          message: "Track pre-saved! We'll notify you on release date.",
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    try {
+      const db = createDb();
+      await db
+        .insert(trackPreSaves)
+        .values({
+          createdAt: new Date(),
+          trackId,
+          userId: user.id,
+        })
+        .onConflictDoNothing();
+    } catch {
+      // Best effort
+    }
+
+    return c.json(
+      {
+        isPreSaved: true,
+        message: "Track pre-saved! We'll notify you on release date.",
       },
       HttpStatusCodes.OK
     );

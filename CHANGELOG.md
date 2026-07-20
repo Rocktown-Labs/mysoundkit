@@ -19,10 +19,15 @@
 - Added a "Reset Draft" button to the track and project creation wizards when a draft is restored from `localStorage`.
 - Added Release Schedule controls (Immediate vs Scheduled Release Date) to the track creation wizard, displaying expected release dates on the track completion screen.
 - Added an Upload & Processing progress overlay modal during track submission, ensuring real asset registration and automatic navigation to the track details page with instant playback.
+- Added real user notifications engine with `userNotifications` and `trackPreSaves` database tables, OpenAPI routes (`GET /v1/notifications`, `POST /v1/notifications/read-all`, `POST /v1/tracks/:id/pre-save`), and live header bell dropdown.
+- Added track confirmation page share link copy functionality and AI time-synced lyrics transcription & battle transcript generator.
+- Added mobile-responsive compact track page layout with direct "Buy Now" checkout and "Add to Cart" actions.
 
 ### Fixed
 
 - Fixed public `/v1/tracks` filtering so only `ready` tracks populate the main public songs feed, while `open_verse` tracks route to the Open Verses hub and `draft` tracks remain private in creator dashboards.
+- Fixed artist stage name and genre capitalization across leaderboards and profile headers.
+- Fixed dummy `#12` rank display on artist profiles with no tracks or stats, showing a clean "Unranked" state.
 - Fixed the new track form crashing on the Distribution step with `Can't find variable: FormDescription` due to a missing import.
 - Fixed preview deployments failing on Cloudflare's 25 MB per-asset upload limit by excluding the local demo WAV fixtures from uploaded assets via `.assetsignore`.
 

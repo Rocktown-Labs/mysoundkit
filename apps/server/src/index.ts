@@ -33,6 +33,7 @@ import listeningPartiesRoutes from "@/routes/listening-parties";
 import liveRoutes from "@/routes/live";
 import meRoutes from "@/routes/me";
 import messagesRoutes from "@/routes/messages";
+import notificationsRoutes from "@/routes/notifications";
 import onboardingRoutes from "@/routes/onboarding";
 import openVersesRoutes from "@/routes/open-verses";
 import paymentsRoutes from "@/routes/payments";
@@ -172,6 +173,7 @@ app
   .route("/v1/playlists", playlistsRoutes)
   .route("/v1/social", socialRoutes)
   .route("/v1/messages", messagesRoutes)
+  .route("/v1/notifications", notificationsRoutes)
   .route("/v1/open-verses", openVersesRoutes)
   .route("/v1/cart", cartRoutes)
   .route("/v1/payments", paymentsRoutes)

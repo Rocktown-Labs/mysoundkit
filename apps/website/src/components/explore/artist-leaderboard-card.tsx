@@ -97,7 +97,7 @@ export function ArtistLeaderboardCard({
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
+              <h4 className="font-semibold text-sm truncate group-hover:text-primary transition-colors capitalize">
                 {artist.name}
               </h4>
               {artist.verified && (
@@ -109,7 +109,7 @@ export function ArtistLeaderboardCard({
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-muted-foreground truncate capitalize">
               {artist.genre}
             </p>
             <p className="text-xs text-muted-foreground truncate">

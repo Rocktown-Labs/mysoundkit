@@ -59,6 +59,9 @@ const openVerseSubmissionPost =
   apiClient.v1["open-verses"][":listingId"].submissions.$post;
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
+const notificationsGet = apiClient.v1.notifications.index.$get;
+const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
+const trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post;
 const sellerStatusGet = apiClient.v1.seller.status.$get;
 const battleStatsGet = apiClient.v1.battles.stats.$get;
 const trackBattleHistoryGet =
@@ -691,3 +694,32 @@ export const useTrackBattleHistoryQuery = (trackId: string) =>
       rpcJson(await trackBattleHistoryGet({ param: { trackId } })),
     queryKey: soundkitQueryKeys.trackBattleHistory(trackId),
   });
+
+export const useNotificationsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await notificationsGet()),
+    queryKey: ["notifications"],
+  });
+
+export const useMarkNotificationsReadMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => rpcJson(await notificationsReadAllPost()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+};
+
+export const usePreSaveTrackMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () =>
+      rpcJson(await trackPreSavePost({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};

@@ -2622,3 +2622,30 @@ export const settlementRuns = pgTable(
     index("settlement_runs_period_idx").on(table.accountingPeriodId),
   ]
 );
+
+export const trackPreSaves = pgTable(
+  "track_pre_saves",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    trackId: text("track_id")
+      .notNull()
+      .references(() => tracks.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.trackId] })]
+);
+
+export const userNotifications = pgTable("user_notifications", {
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  id: text("id").primaryKey(),
+  link: text("link"),
+  message: text("message").notNull(),
+  read: boolean("read").default(false).notNull(),
+  title: text("title").notNull(),
+  type: text("type").default("general").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});

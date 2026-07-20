@@ -229,7 +229,7 @@ export const artistSummarySchema = z.object({
   location: z.string(),
   name: z.string(),
   projectCount: z.number().int().nonnegative().optional(),
-  rank: z.number().int().positive().optional(),
+  rank: z.union([z.number().int().positive(), z.string()]).nullable().optional(),
   roles: artistRoleSchema.array().default(["musician"]),
   state: z.string().nullable().optional(),
   trackCount: z.number().int().nonnegative().optional(),
