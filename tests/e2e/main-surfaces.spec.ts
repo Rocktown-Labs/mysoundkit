@@ -18,10 +18,12 @@ test.describe("main application surfaces", () => {
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
     page,
   }) => {
-    await page.goto("/");
+    test.setTimeout(45_000);
+
+    await gotoWithViteRetry(page, "/");
     await expect(page.getByText("SoundKit").first()).toBeVisible();
 
-    await page.goto("/tracks");
+    await gotoWithViteRetry(page, "/tracks");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Top Songs" })
@@ -30,10 +32,10 @@ test.describe("main application surfaces", () => {
       page.getByRole("link", { name: /summer nights/i }).first()
     ).toBeVisible();
 
-    await page.goto("/pricing");
+    await gotoWithViteRetry(page, "/pricing");
     await expect(page.getByText(/Premium|artist|fan/i).first()).toBeVisible();
 
-    await page.goto("/signup");
+    await gotoWithViteRetry(page, "/signup");
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
@@ -44,13 +46,13 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
 
-    await page.goto("/signup");
+    await gotoWithViteRetry(page, "/signup");
     await page.getByRole("link", { name: /continue as fan/i }).click();
     await expect(
       page.getByRole("heading", { name: /create fan account/i })
     ).toBeVisible();
 
-    await page.goto("/signup/artist/credentials");
+    await gotoWithViteRetry(page, "/signup/artist/credentials");
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
