@@ -362,6 +362,15 @@ export function BattleViewAll({
       "battleFilters",
       JSON.stringify({ genre, region, regionType, sort })
     );
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("genre", genre);
+      params.set("region", region);
+      params.set("regionType", regionType);
+      params.set("sort", sort);
+      window.history.replaceState(null, "", `?${params.toString()}`);
+    }
   }, [regionType, region, genre, sort]);
 
   const liveBattleSections = useMemo(() => {

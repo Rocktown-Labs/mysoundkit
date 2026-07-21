@@ -65,6 +65,30 @@ function ShopPage() {
         </div>
       </section>
 
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant={activeGenre === "all" ? "default" : "outline"}
+          asChild
+        >
+          <Link to="/shop" search={{ genre: "all" }}>
+            All Genres
+          </Link>
+        </Button>
+        {shopGenres.map((g) => (
+          <Button
+            key={g.value}
+            size="sm"
+            variant={activeGenre === g.value ? "default" : "outline"}
+            asChild
+          >
+            <Link to="/shop" search={{ genre: g.value }}>
+              {g.label}
+            </Link>
+          </Button>
+        ))}
+      </div>
+
       <section className="mb-10">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-semibold text-xl">Featured & Recommended</h2>

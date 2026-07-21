@@ -50,73 +50,39 @@ export const Route = createFileRoute("/_explore/tracks/")({
 
 function TracksPage() {
   const router = useRouter();
-  const searchQuery =
-    typeof window === "undefined" ? "" : window.location.search;
-  const searchParams = new URLSearchParams(searchQuery);
-  const isInitialMount = useRef(true);
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
 
-  const [regionType, setRegionType] = useState<"north-america" | "global">(
-    "north-america"
-  );
-  const [region, setRegion] = useState("us-arkansas");
-  const [genre, setGenre] = useState("all");
-  const [sort, setSort] = useState("plays-desc");
+  const savedRegionType =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("exploreRegionType") as "north-america" | "global" | null)
+      : null;
+  const savedRegion =
+    typeof window !== "undefined" ? localStorage.getItem("exploreRegion") : null;
 
-  // Initialize from URL params or localStorage
-  useEffect(() => {
-    const urlRegionType = searchParams.get("regionType") as
-      | "north-america"
-      | "global"
-      | null;
-    const urlRegion = searchParams.get("region");
-    const urlGenre = searchParams.get("genre");
-    const urlSort = searchParams.get("sort");
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const genre = search.genre ?? "all";
+  const sort = search.sort ?? "plays-desc";
 
-    if (urlRegionType || urlRegion || urlGenre || urlSort) {
-      if (urlRegionType) {
-        setRegionType(urlRegionType);
-      }
-      if (urlRegion) {
-        setRegion(urlRegion);
-      }
-      if (urlGenre) {
-        setGenre(urlGenre);
-      }
-      if (urlSort) {
-        setSort(urlSort);
-      }
-    } else {
-      const savedRegionType = localStorage.getItem("exploreRegionType") as
-        | "north-america"
-        | "global"
-        | null;
-      const savedRegion = localStorage.getItem("exploreRegion");
-      if (savedRegionType) {
-        setRegionType(savedRegionType);
-      }
-      if (savedRegion) {
-        setRegion(savedRegion);
-      }
+  const updateFilters = (next: Partial<TracksSearch>) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
     }
-  }, [searchQuery]);
-
-  // Update URL and localStorage on filter changes (skip initial mount)
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    const params = new URLSearchParams();
-    params.set("regionType", regionType);
-    params.set("region", region);
-    params.set("genre", genre);
-    params.set("sort", sort);
-
-    localStorage.setItem("exploreRegionType", regionType);
-    localStorage.setItem("exploreRegion", region);
-    replaceExploreSearch(params);
-  }, [regionType, region, genre, sort]);
+    navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        genre: next.genre ?? genre,
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+      }),
+    });
+  };
 
   const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
     genre,
@@ -151,10 +117,12 @@ function TracksPage() {
         region={region}
         genre={genre}
         sort={sort}
-        onRegionTypeChange={setRegionType}
-        onRegionChange={setRegion}
-        onGenreChange={setGenre}
-        onSortChange={setSort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => updateFilters({ genre: nextGenre })}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
         sortOptions={sortOptions}
       />
 

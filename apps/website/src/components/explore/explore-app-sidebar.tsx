@@ -29,6 +29,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
+
 const discoverLinks: SidebarNavItem[] = [
   { href: "/", icon: MapPin, label: "Home" },
   { href: "/tracks", icon: Music, label: "Songs" },
@@ -55,6 +57,9 @@ const libraryLinks: SidebarNavItem[] = [
 
 export function ExploreAppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const meQuery = useMeQuery();
+  const isSignedIn = Boolean(meQuery.data);
+
   const isRouteActive = (href: string) =>
     href === "/"
       ? pathname === "/"
@@ -73,6 +78,7 @@ export function ExploreAppSidebar() {
   const resolvedLibraryLinks = libraryLinks.map((item) => ({
     ...item,
     isActive: isRouteActive(item.url ?? "/library"),
+    url: isSignedIn ? item.url : `/login?redirect=${encodeURIComponent(item.url ?? "/library")}`,
   }));
 
   return (

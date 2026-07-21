@@ -48,8 +48,21 @@ const featuredGenres = [
   { label: "Electronic", value: "electronic" },
 ] as const;
 
+interface ArtistSearch {
+  genre?: string;
+  region?: string;
+  regionType?: "north-america" | "global";
+  sort?: string;
+}
+
 export const Route = createFileRoute("/_explore/artist/")({
   component: ArtistPage,
+  validateSearch: (search: Record<string, unknown>): ArtistSearch => ({
+    genre: typeof search.genre === "string" ? search.genre : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
+  }),
 });
 
 const formatFollowers = (followers: number) => {
@@ -132,12 +145,39 @@ function LeaderboardSection({
 }
 
 function ArtistPage() {
-  const [regionType, setRegionType] = useState<"north-america" | "global">(
-    "north-america"
-  );
-  const [region, setRegion] = useState("us-arkansas");
-  const [genre, setGenre] = useState("all");
-  const [sort, setSort] = useState("rank-asc");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  const savedRegionType =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("exploreRegionType") as "north-america" | "global" | null)
+      : null;
+  const savedRegion =
+    typeof window !== "undefined" ? localStorage.getItem("exploreRegion") : null;
+
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const genre = search.genre ?? "all";
+  const sort = search.sort ?? "rank-asc";
+
+  const updateFilters = (next: Partial<ArtistSearch>) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
+    }
+    navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        genre: next.genre ?? genre,
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+      }),
+    });
+  };
   const commonQuery = {
     genre,
     limit: "10",
@@ -203,10 +243,12 @@ function ArtistPage() {
         region={region}
         genre={genre}
         sort={sort}
-        onRegionTypeChange={setRegionType}
-        onRegionChange={setRegion}
-        onGenreChange={setGenre}
-        onSortChange={setSort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => updateFilters({ genre: nextGenre })}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
         sortOptions={sortOptions}
       />
 

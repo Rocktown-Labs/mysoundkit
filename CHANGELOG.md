@@ -22,6 +22,10 @@
 - Added real user notifications engine with `userNotifications` and `trackPreSaves` database tables, OpenAPI routes (`GET /v1/notifications`, `POST /v1/notifications/read-all`, `POST /v1/tracks/:id/pre-save`), and live header bell dropdown.
 - Added track confirmation page share link copy functionality and AI time-synced lyrics transcription & battle transcript generator.
 - Added mobile-responsive compact track page layout with direct "Buy Now" checkout and "Add to Cart" actions.
+- Added URL search parameter synchronization across all Explore list routes (`/tracks`, `/artist`, `/videos`, `/shop`, `/live/battles`, `/live/parties`, `/live/streams`), preserving region, genre, and sort filters across page reloads and link sharing.
+- Added live debounced search to `ExploreHeader` with categorized dropdown results for Artists, Songs, Projects, and Battles.
+- Added 1-Hour daily guest playback meter for unauthenticated listeners, pausing playback and displaying a sign-up modal when the free daily limit is reached.
+- Added automatic login redirects for unauthenticated users navigating to "My SoundKit" library routes while preserving free browsing of all explore routes.
 
 ### Fixed
 
