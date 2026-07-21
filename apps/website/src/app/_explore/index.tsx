@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Flame, LocateFixed, Music, Users, Video } from "lucide-react";
+import {
+  Flame,
+  Globe2,
+  LocateFixed,
+  Music,
+  Trophy,
+  Users,
+  Video,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
@@ -11,12 +19,184 @@ import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { mockVideos } from "@/lib/mock-videos";
+import { useDiscoverHomeQuery, useVideosQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
 });
 
 function ExplorePage() {
+  const { data: home } = useDiscoverHomeQuery();
+
+  if (home?.settings.useGlobalExploreHome ?? true) {
+    return <GlobalExploreHome home={home} />;
+  }
+
+  return <LocalExplorePage />;
+}
+
+function GlobalExploreHome({
+  home,
+}: Readonly<{
+  home: ReturnType<typeof useDiscoverHomeQuery>["data"];
+}>) {
+  const { data: videos = [] } = useVideosQuery({
+    limit: "6",
+    region: "all",
+    regionType: "global",
+    scope: "public",
+    sort: "plays-desc",
+  });
+  const tracks = home?.featuredTracks ?? [];
+  const artists = home?.featuredArtists ?? [];
+  const battles = home?.featuredBattles ?? [];
+  const leaderboardArtists = artists.slice(0, 8).map((artist, index) => ({
+    avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
+    genre: artist.genre,
+    location: artist.location || "Global",
+    name: artist.name,
+    rank: typeof artist.rank === "number" ? artist.rank : index + 1,
+    slug: artist.username,
+    stats: {
+      battleWins: artist.battleCount ?? 0,
+      followers: artist.followers.toLocaleString(),
+      plays: (artist.weeklyPlays ?? 0).toLocaleString(),
+    },
+    verified: artist.verified,
+  }));
+
+  return (
+    <div className="min-h-screen bg-background px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
+      <main className="space-y-8 pb-10">
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+            <Globe2 className="size-4" />
+            Global discovery
+          </div>
+          <div className="max-w-3xl space-y-2">
+            <h1 className="font-bold text-3xl md:text-4xl">
+              Top sounds across SoundKit
+            </h1>
+            <p className="text-muted-foreground">
+              Global charts mix the strongest songs, artists, videos, and live
+              battles from every region.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <SectionHeader
+            title="Global Songs"
+            description="The most played public tracks across the platform."
+            icon={<Music className="size-5 text-primary md:size-6" />}
+            viewAllHref="/tracks?regionType=global&region=all&sort=plays-desc"
+          />
+          <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
+            <div className="flex min-w-max gap-3 md:grid md:min-w-0 md:grid-cols-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-6">
+              {tracks.slice(0, 6).map((track) => (
+                <TrackCard
+                  key={track.id}
+                  id={track.id}
+                  title={track.title}
+                  artist={track.artistName}
+                  artistSlug={track.artistUsername ?? "artist"}
+                  cover={track.coverArtUrl ?? "/placeholder.svg"}
+                  plays={track.plays.toLocaleString()}
+                  duration={track.duration}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <SectionHeader
+            title="Global Videos"
+            description="Music videos, battle replays, and creator clips."
+            icon={<Video className="size-5 text-primary md:size-6" />}
+            viewAllHref="/videos?regionType=global&region=all&sort=views-desc"
+          />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {videos.slice(0, 6).map((video) => (
+              <VideoCard
+                key={video.id}
+                video={{
+                  creator: {
+                    name: video.creatorName ?? "SoundKit Artist",
+                    slug: video.creatorUsername ?? "artist",
+                  },
+                  duration: video.duration ?? "0:00",
+                  id: video.id,
+                  playbackPolicy: video.playbackPolicy,
+                  status: video.status,
+                  thumbnail: video.thumbnailUrl ?? "/music-video-thumbnail.png",
+                  title: video.title,
+                  verifiedOnPlatform: video.verifiedOnPlatform,
+                  videoKind: video.videoKind,
+                  viewCount: video.viewCount ?? "0",
+                }}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <SectionHeader
+            title="Overall Rankings"
+            description="Artists ranked by overall platform momentum."
+            icon={<Trophy className="size-5 text-primary md:size-6" />}
+            viewAllHref="/artist?regionType=global&region=all&sort=rank-asc"
+          />
+          <div className="grid gap-4 lg:grid-cols-2">
+            {[leaderboardArtists.slice(0, 4), leaderboardArtists.slice(4, 8)]
+              .filter((group) => group.length > 0)
+              .map((group) => (
+                <ArtistLeaderboardCard
+                  key={group[0]?.slug}
+                  artists={group}
+                  type="top"
+                />
+              ))}
+          </div>
+        </section>
+
+        <section>
+          <SectionHeader
+            title="Battle Leaders"
+            description="Live and featured battles ranked by overall audience."
+            viewAllHref="/live/battles/leaderboard?regionType=global&region=all&sort=rank-asc"
+          />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {battles.slice(0, 4).map((battle) => (
+              <Card key={battle.id}>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-primary/10 px-2 py-1 font-medium text-primary text-xs">
+                      {battle.featuredRank
+                        ? `#${battle.featuredRank}`
+                        : "Overall"}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {battle.viewerCount.toLocaleString()} viewers
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{battle.title}</h3>
+                    <p className="text-muted-foreground text-sm">
+                      {battle.genre} · {battle.status}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function LocalExplorePage() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);

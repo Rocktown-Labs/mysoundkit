@@ -45,7 +45,7 @@ export function ArtistLeaderboardCard({
     }
   };
 
-  const getStatLabel = (artist: Artist) => {
+  const getStatLabel = (artist: LeaderboardArtist) => {
     switch (type) {
       case "rising": {
         return `${artist.stats.plays} plays this week`;

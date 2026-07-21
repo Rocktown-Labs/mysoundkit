@@ -693,6 +693,18 @@ export const privacySettings = pgTable("privacy_settings", {
     .references(() => user.id, { onDelete: "cascade" }),
 });
 
+export const platformSettings = pgTable("platform_settings", {
+  key: text("key").primaryKey(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+  updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull().default({}),
+});
+
 export const tracks = pgTable(
   "tracks",
   {

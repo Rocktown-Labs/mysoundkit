@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { artistProfiles, tracks, userProfiles } from "@soundkit/db/schema/app";
 import { desc, eq } from "drizzle-orm";
@@ -6,12 +6,9 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { loadPlatformSettings } from "@/lib/platform-settings";
 import { sampleArtists, sampleBattles, sampleTracks } from "@/lib/sample-data";
-import {
-  artistSummarySchema,
-  battleSummarySchema,
-  trackSummarySchema,
-} from "@/lib/schemas";
+import { discoverHomeResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
@@ -22,11 +19,7 @@ app.openapi(
     path: "/home",
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        z.object({
-          featuredArtists: z.array(artistSummarySchema),
-          featuredBattles: z.array(battleSummarySchema),
-          featuredTracks: z.array(trackSummarySchema),
-        }),
+        discoverHomeResponseSchema,
         "Discovery home feed payload"
       ),
     },
@@ -39,6 +32,7 @@ app.openapi(
           featuredArtists: sampleArtists,
           featuredBattles: sampleBattles,
           featuredTracks: sampleTracks,
+          settings: await loadPlatformSettings(),
         },
         HttpStatusCodes.OK
       );
@@ -90,6 +84,7 @@ app.openapi(
         featuredBattles: sampleBattles,
         featuredTracks:
           featuredTracks.length > 0 ? featuredTracks : sampleTracks,
+        settings: await loadPlatformSettings(),
       },
       HttpStatusCodes.OK
     );

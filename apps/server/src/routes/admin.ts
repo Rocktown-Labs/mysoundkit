@@ -5,6 +5,7 @@ import {
   fanProfiles,
   listeningParties,
   openVerseListings,
+  platformSettings,
   projects,
   tracks,
   videos,
@@ -18,9 +19,15 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { isAdminUser } from "@/lib/admin";
 import {
+  loadPlatformSettings,
+  platformDiscoverySettingsKey,
+} from "@/lib/platform-settings";
+import {
   adminAccessSchema,
   adminOverviewSchema,
   messageResponseSchema,
+  platformSettingsSchema,
+  updatePlatformSettingsBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -220,6 +227,95 @@ app.openapi(
     }
 
     return c.json(await loadOverview(), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/settings",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        platformSettingsSchema,
+        "Platform settings"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    return c.json(await loadPlatformSettings(), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/settings",
+    request: {
+      body: {
+        content: {
+          "application/json": {
+            schema: updatePlatformSettingsBodySchema,
+          },
+        },
+      },
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        platformSettingsSchema,
+        "Updated platform settings"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const body = updatePlatformSettingsBodySchema.parse(await c.req.json());
+    const nextSettings = platformSettingsSchema.parse({
+      ...(await loadPlatformSettings()),
+      ...body,
+    });
+
+    if (isDatabaseConfigured()) {
+      await createDb()
+        .insert(platformSettings)
+        .values({
+          key: platformDiscoverySettingsKey,
+          updatedByUserId: c.get("user")?.id ?? null,
+          value: nextSettings,
+        })
+        .onConflictDoUpdate({
+          set: {
+            updatedAt: new Date(),
+            updatedByUserId: c.get("user")?.id ?? null,
+            value: nextSettings,
+          },
+          target: platformSettings.key,
+        });
+    }
+
+    return c.json(nextSettings, HttpStatusCodes.OK);
   }
 );
 

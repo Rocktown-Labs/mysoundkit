@@ -26,9 +26,11 @@
 - Added live debounced search to `ExploreHeader` with categorized dropdown results for Artists, Songs, Projects, and Battles.
 - Added 1-Hour daily guest playback meter for unauthenticated listeners, pausing playback and displaying a sign-up modal when the free daily limit is reached.
 - Added automatic login redirects for unauthenticated users navigating to "My SoundKit" library routes while preserving free browsing of all explore routes.
+- Added an admin-controlled Explore default setting so `/` can open the global charts and overall rankings page by default, with Arkansas/local discovery still available as the fallback mode.
 
 ### Fixed
 
+- Fixed the Explore tracks filter JSX so the region type handler is declared once.
 - Fixed public `/v1/tracks` filtering so only `ready` tracks populate the main public songs feed, while `open_verse` tracks route to the Open Verses hub and `draft` tracks remain private in creator dashboards.
 - Fixed artist stage name and genre capitalization across leaderboards and profile headers.
 - Fixed dummy `#12` rank display on artist profiles with no tracks or stats, showing a clean "Unranked" state.
