@@ -22,6 +22,12 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/");
     await expect(page.getByText("SoundKit").first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Discover Music" })
+    ).toBeVisible();
+    await expect(
+      page.getByText(/showing app-wide totals/iu).first()
+    ).toBeVisible();
 
     await gotoWithViteRetry(page, "/tracks");
     await expect(page.getByRole("main")).toBeVisible();
@@ -73,6 +79,44 @@ test.describe("main application surfaces", () => {
     await page.goto("/live/parties");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/part/i).first()).toBeVisible();
+  });
+
+  test("videos route renders URL-backed filters without crashing", async ({
+    page,
+  }) => {
+    await gotoWithViteRetry(
+      page,
+      "/videos?regionType=global&region=all&genre=hip-hop&sort=views-desc"
+    );
+
+    await expect(
+      page.getByRole("heading", { name: "Music Videos" })
+    ).toBeVisible();
+    await expect(page.getByText("Featured Videos")).toBeVisible();
+    await expect(page.getByText("Hip-Hop").first()).toBeVisible();
+  });
+
+  test("creator live studio exposes stream setup and realtime controls", async ({
+    context,
+    page,
+  }) => {
+    await context.addCookies([
+      {
+        domain: "127.0.0.1",
+        name: "soundkit_test_session",
+        path: "/",
+        value: "complete",
+      },
+    ]);
+
+    await gotoWithViteRetry(page, "/dashboard/live/streams");
+
+    await expect(
+      page.getByRole("heading", { name: "Live Studio" })
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /battle/iu })).toBeVisible();
+    await expect(page.getByText("RealtimeKit layer")).toBeVisible();
+    await expect(page.getByText("Realtime chat")).toBeVisible();
   });
 
   test("live room detail pages expose chat, lyrics, and battle voting", async ({

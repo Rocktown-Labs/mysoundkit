@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Video } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { VideoCard } from "@/components/explore/video-card";
@@ -30,14 +29,6 @@ interface VideosSearch {
   sort?: string;
 }
 
-const replaceExploreSearch = (params: URLSearchParams) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.history.replaceState(null, "", `?${params.toString()}`);
-};
-
 export const Route = createFileRoute("/_explore/videos/")({
   component: VideosPage,
   validateSearch: (search: Record<string, unknown>): VideosSearch => ({
@@ -54,11 +45,16 @@ function VideosPage() {
   const navigate = Route.useNavigate();
 
   const savedRegionType =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("exploreRegionType") as "north-america" | "global" | null)
-      : null;
+    typeof window === "undefined"
+      ? null
+      : (localStorage.getItem("exploreRegionType") as
+          | "north-america"
+          | "global"
+          | null);
   const savedRegion =
-    typeof window !== "undefined" ? localStorage.getItem("exploreRegion") : null;
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem("exploreRegion");
 
   const regionType = search.regionType ?? savedRegionType ?? "north-america";
   const region = search.region ?? savedRegion ?? "us-arkansas";
@@ -121,10 +117,12 @@ function VideosPage() {
         region={region}
         genre={genre}
         sort={sort}
-        onRegionTypeChange={setRegionType}
-        onRegionChange={setRegion}
-        onGenreChange={setGenre}
-        onSortChange={setSort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => updateFilters({ genre: nextGenre })}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
         sortOptions={sortOptions}
       />
 

@@ -194,8 +194,8 @@ function SettingsPanel() {
         onSuccess: () => {
           toast({
             description: checked
-              ? "The default route now opens the global explore page."
-              : "The default route now opens the Arkansas explore page.",
+              ? "The home map now starts with app-wide totals."
+              : "The home map now starts focused on Arkansas.",
             title: "Settings saved",
           });
         },
@@ -215,11 +215,11 @@ function SettingsPanel() {
         <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <Label htmlFor="global-explore-home">
-              Use global explore as the default route
+              Start the home map with app-wide totals
             </Label>
             <p className="text-sm text-muted-foreground">
-              When enabled, `/` opens global charts and overall rankings.
-              Turning it off keeps the Arkansas default.
+              When enabled, `/` opens the existing map with no selected
+              location. Turning it off starts the map on Arkansas.
             </p>
           </div>
           <Switch

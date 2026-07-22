@@ -1,13 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  Flame,
-  Globe2,
-  LocateFixed,
-  Music,
-  Trophy,
-  Users,
-  Video,
-} from "lucide-react";
+import { Flame, LocateFixed, Music, Users, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
@@ -19,7 +11,7 @@ import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { mockVideos } from "@/lib/mock-videos";
-import { useDiscoverHomeQuery, useVideosQuery } from "@/lib/soundkit-api-hooks";
+import { useDiscoverHomeQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
@@ -28,199 +20,42 @@ export const Route = createFileRoute("/_explore/")({
 function ExplorePage() {
   const { data: home } = useDiscoverHomeQuery();
 
-  if (home?.settings.useGlobalExploreHome ?? true) {
-    return <GlobalExploreHome home={home} />;
-  }
-
-  return <LocalExplorePage />;
-}
-
-function GlobalExploreHome({
-  home,
-}: Readonly<{
-  home: ReturnType<typeof useDiscoverHomeQuery>["data"];
-}>) {
-  const { data: videos = [] } = useVideosQuery({
-    limit: "6",
-    region: "all",
-    regionType: "global",
-    scope: "public",
-    sort: "plays-desc",
-  });
-  const tracks = home?.featuredTracks ?? [];
-  const artists = home?.featuredArtists ?? [];
-  const battles = home?.featuredBattles ?? [];
-  const leaderboardArtists = artists.slice(0, 8).map((artist, index) => ({
-    avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
-    genre: artist.genre,
-    location: artist.location || "Global",
-    name: artist.name,
-    rank: typeof artist.rank === "number" ? artist.rank : index + 1,
-    slug: artist.username,
-    stats: {
-      battleWins: artist.battleCount ?? 0,
-      followers: artist.followers.toLocaleString(),
-      plays: (artist.weeklyPlays ?? 0).toLocaleString(),
-    },
-    verified: artist.verified,
-  }));
-
   return (
-    <div className="min-h-screen bg-background px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
-      <main className="space-y-8 pb-10">
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-            <Globe2 className="size-4" />
-            Global discovery
-          </div>
-          <div className="max-w-3xl space-y-2">
-            <h1 className="font-bold text-3xl md:text-4xl">
-              Top sounds across SoundKit
-            </h1>
-            <p className="text-muted-foreground">
-              Global charts mix the strongest songs, artists, videos, and live
-              battles from every region.
-            </p>
-          </div>
-        </section>
-
-        <section>
-          <SectionHeader
-            title="Global Songs"
-            description="The most played public tracks across the platform."
-            icon={<Music className="size-5 text-primary md:size-6" />}
-            viewAllHref="/tracks?regionType=global&region=all&sort=plays-desc"
-          />
-          <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
-            <div className="flex min-w-max gap-3 md:grid md:min-w-0 md:grid-cols-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-6">
-              {tracks.slice(0, 6).map((track) => (
-                <TrackCard
-                  key={track.id}
-                  id={track.id}
-                  title={track.title}
-                  artist={track.artistName}
-                  artistSlug={track.artistUsername ?? "artist"}
-                  cover={track.coverArtUrl ?? "/placeholder.svg"}
-                  plays={track.plays.toLocaleString()}
-                  duration={track.duration}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <SectionHeader
-            title="Global Videos"
-            description="Music videos, battle replays, and creator clips."
-            icon={<Video className="size-5 text-primary md:size-6" />}
-            viewAllHref="/videos?regionType=global&region=all&sort=views-desc"
-          />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {videos.slice(0, 6).map((video) => (
-              <VideoCard
-                key={video.id}
-                video={{
-                  creator: {
-                    name: video.creatorName ?? "SoundKit Artist",
-                    slug: video.creatorUsername ?? "artist",
-                  },
-                  duration: video.duration ?? "0:00",
-                  id: video.id,
-                  playbackPolicy: video.playbackPolicy,
-                  status: video.status,
-                  thumbnail: video.thumbnailUrl ?? "/music-video-thumbnail.png",
-                  title: video.title,
-                  verifiedOnPlatform: video.verifiedOnPlatform,
-                  videoKind: video.videoKind,
-                  viewCount: video.viewCount ?? "0",
-                }}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <SectionHeader
-            title="Overall Rankings"
-            description="Artists ranked by overall platform momentum."
-            icon={<Trophy className="size-5 text-primary md:size-6" />}
-            viewAllHref="/artist?regionType=global&region=all&sort=rank-asc"
-          />
-          <div className="grid gap-4 lg:grid-cols-2">
-            {[leaderboardArtists.slice(0, 4), leaderboardArtists.slice(4, 8)]
-              .filter((group) => group.length > 0)
-              .map((group) => (
-                <ArtistLeaderboardCard
-                  key={group[0]?.slug}
-                  artists={group}
-                  type="top"
-                />
-              ))}
-          </div>
-        </section>
-
-        <section>
-          <SectionHeader
-            title="Battle Leaders"
-            description="Live and featured battles ranked by overall audience."
-            viewAllHref="/live/battles/leaderboard?regionType=global&region=all&sort=rank-asc"
-          />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {battles.slice(0, 4).map((battle) => (
-              <Card key={battle.id}>
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="rounded-full bg-primary/10 px-2 py-1 font-medium text-primary text-xs">
-                      {battle.featuredRank
-                        ? `#${battle.featuredRank}`
-                        : "Overall"}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {battle.viewerCount.toLocaleString()} viewers
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">{battle.title}</h3>
-                    <p className="text-muted-foreground text-sm">
-                      {battle.genre} · {battle.status}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      </main>
-    </div>
+    <LocalExplorePage
+      startsWithAppWideTotals={home?.settings.useGlobalExploreHome ?? true}
+    />
   );
 }
 
-function LocalExplorePage() {
-  const [selectedState, setSelectedState] = useState<string | null>(null);
+function LocalExplorePage({
+  startsWithAppWideTotals,
+}: Readonly<{ startsWithAppWideTotals: boolean }>) {
+  const [selectedState, setSelectedState] = useState<string | null>(
+    startsWithAppWideTotals ? null : "Arkansas"
+  );
   const [userLocation, setUserLocation] = useState<string | null>(null);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationPromptState, setLocationPromptState] = useState<
     "idle" | "prompting" | "granted" | "denied" | "unsupported"
   >("idle");
 
-  const activeRegion = selectedState ?? "USA";
+  const activeRegion = selectedState ?? "SoundKit";
   const isNationalView = selectedState === null;
+  const regionSlug = selectedState
+    ? `us-${selectedState.toLowerCase().replaceAll(/\s+/g, "-")}`
+    : "all";
+  const regionSearch = selectedState
+    ? `regionType=north-america&region=${regionSlug}`
+    : "regionType=global&region=all";
   const battlesHref = selectedState
-    ? `/live?location=${selectedState}`
-    : "/battles";
-  const tracksHref = selectedState
-    ? `/tracks?location=${selectedState}`
-    : "/tracks";
+    ? `/live?${regionSearch}`
+    : "/live/battles?regionType=global&region=all";
+  const tracksHref = `/tracks?${regionSearch}`;
   const releasesHref = selectedState
     ? `/new-releases?location=${selectedState}`
     : "/new-releases";
-  const artistsHref = selectedState
-    ? `/artist?location=${selectedState}`
-    : "/artist";
-  const videosHref = selectedState
-    ? `/videos?location=${selectedState}`
-    : "/videos";
+  const artistsHref = `/artist?${regionSearch}`;
+  const videosHref = `/videos?${regionSearch}`;
 
   const requestLocation = () => {
     setIsLoadingLocation(true);
@@ -271,8 +106,10 @@ function LocalExplorePage() {
   };
 
   useEffect(() => {
-    requestLocation();
-  }, []);
+    setSelectedState(startsWithAppWideTotals ? null : "Arkansas");
+    setLocationPromptState("idle");
+    setIsLoadingLocation(false);
+  }, [startsWithAppWideTotals]);
 
   return (
     <div className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -281,7 +118,7 @@ function LocalExplorePage() {
           <section className="mb-6 md:mb-8">
             <div className="mb-4 md:mb-6">
               <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 md:mb-2">
-                Discover Music Near You
+                Discover Music
               </h1>
               <p className="text-muted-foreground text-xs md:text-sm lg:text-base">
                 {isLoadingLocation
@@ -289,8 +126,8 @@ function LocalExplorePage() {
                   : selectedState
                     ? `Currently focused on ${selectedState}. Click another state to refine the feed.`
                     : userLocation
-                      ? `Showing top picks across the USA. We detected ${userLocation} if you want to zoom in.`
-                      : "Showing top picks across the USA. Share your location or click a state on the map to zoom in."}
+                      ? `Showing app-wide totals. We detected ${userLocation} if you want to zoom in.`
+                      : "Showing app-wide totals with no selected location. Click a state on the map to zoom in."}
               </p>
             </div>
 
@@ -305,12 +142,12 @@ function LocalExplorePage() {
                           ? "Location access is off for SoundKit."
                           : locationPromptState === "unsupported"
                             ? "This browser does not support location access."
-                            : "Use your location to personalize the home feed."}
+                            : "Use your location to personalize the map."}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {locationPromptState === "denied"
-                        ? "You can still browse the USA-wide feed, or enable location and try again."
-                        : "We will ask for your location on this page so we can jump straight to your state."}
+                        ? "You can still browse the app-wide feed, or enable location and try again."
+                        : "SoundKit starts app-wide unless you choose a state or share your location."}
                     </p>
                   </div>
                   {locationPromptState !== "unsupported" && (
@@ -348,12 +185,12 @@ function LocalExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Featured Videos Across the USA"
+                    ? "Featured Videos Across SoundKit"
                     : `Featured Videos in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Official music videos, battle replays, and live recordings worth watching"
+                    ? "Official music videos, battle replays, and live recordings from the full app"
                     : "Watch official drops and replays from your region"
                 }
                 icon={<Video className="size-5 md:size-6 text-primary" />}
@@ -370,12 +207,12 @@ function LocalExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Live Battles Across the USA"
+                    ? "Live Battles Across SoundKit"
                     : `Live Battles in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Top national battles happening right now"
+                    ? "Top battles happening across the app right now"
                     : "Vote for your favorite tracks"
                 }
                 viewAllHref={battlesHref}
@@ -462,12 +299,12 @@ function LocalExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Top Songs in the USA"
+                    ? "Top Songs Across SoundKit"
                     : `Top Songs in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Most played tracks nationwide this week"
+                    ? "Most played tracks across the app this week"
                     : "Most played tracks this week"
                 }
                 icon={<Music className="size-5 md:size-6 text-primary" />}
@@ -537,12 +374,12 @@ function LocalExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "New Releases Across the USA"
+                    ? "New Releases Across SoundKit"
                     : `New Releases in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Fresh drops from artists around the country"
+                    ? "Fresh drops from every active scene"
                     : "Fresh tracks from local artists"
                 }
                 icon={<Flame className="size-5 md:size-6 text-primary" />}
@@ -612,12 +449,12 @@ function LocalExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Top Artists in the USA"
+                    ? "Top Artists Across SoundKit"
                     : `Top Artists in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Rising stars and established artists nationwide"
+                    ? "Rising stars and established artists across the app"
                     : "Rising stars from your region"
                 }
                 icon={<Users className="size-5 md:size-6 text-primary" />}

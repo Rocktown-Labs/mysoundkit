@@ -26,11 +26,13 @@
 - Added live debounced search to `ExploreHeader` with categorized dropdown results for Artists, Songs, Projects, and Battles.
 - Added 1-Hour daily guest playback meter for unauthenticated listeners, pausing playback and displaying a sign-up modal when the free daily limit is reached.
 - Added automatic login redirects for unauthenticated users navigating to "My SoundKit" library routes while preserving free browsing of all explore routes.
-- Added an admin-controlled Explore default setting so `/` can open the global charts and overall rankings page by default, with Arkansas/local discovery still available as the fallback mode.
+- Added an admin-controlled Explore default setting so `/` can start the existing map home with app-wide totals by default, with Arkansas/local discovery still available as the fallback mode.
+- Added a Live Studio setup flow for battles, parties, and streams with stream details, audience feature toggles, encoder credentials, chat preview, and stream health panels.
 
 ### Fixed
 
 - Fixed the Explore tracks filter JSX so the region type handler is declared once.
+- Fixed the Explore videos route crash caused by stale filter setter references after URL search parameter syncing.
 - Fixed public `/v1/tracks` filtering so only `ready` tracks populate the main public songs feed, while `open_verse` tracks route to the Open Verses hub and `draft` tracks remain private in creator dashboards.
 - Fixed artist stage name and genre capitalization across leaderboards and profile headers.
 - Fixed dummy `#12` rank display on artist profiles with no tracks or stats, showing a clean "Unranked" state.
