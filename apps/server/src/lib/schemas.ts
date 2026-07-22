@@ -408,7 +408,8 @@ export const trackSummarySchema = z.object({
       spotify: z.string().url().optional(),
       youtube: z.string().url().optional(),
     })
-    .default({}),
+    .default({})
+    .optional(),
   title: z.string(),
   updatedAt: z.string().optional(),
 });
@@ -697,7 +698,8 @@ export const projectSummarySchema = z.object({
       spotify: z.string().url().optional(),
       youtube: z.string().url().optional(),
     })
-    .default({}),
+    .default({})
+    .optional(),
   title: z.string(),
   trackCount: z.number(),
   updatedAt: z.string().optional(),

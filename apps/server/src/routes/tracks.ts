@@ -867,7 +867,6 @@ app.openapi(
           releaseAt: body.releaseAt ? new Date(body.releaseAt) : null,
           releaseStrategy: body.releaseStrategy,
           slug: uniqueSlug(body.title),
-          streamingLinks: body.streamingLinks,
           title: body.title,
           updatedAt: now,
         })
@@ -980,7 +979,6 @@ app.openapi(
         purchaseMode: body.purchaseMode,
         releaseAt: body.releaseAt ? new Date(body.releaseAt) : undefined,
         releaseStrategy: body.releaseStrategy,
-        streamingLinks: body.streamingLinks,
         title: body.title,
         updatedAt: new Date(),
       })
@@ -1663,7 +1661,6 @@ app.openapi(
         priceCents: tracks.priceCents,
         purchaseMode: tracks.purchaseMode,
         slug: tracks.slug,
-        streamingLinks: tracks.streamingLinks,
         title: tracks.title,
       })
       .from(tracks)
@@ -1777,7 +1774,6 @@ app.openapi(
         purchaseMode: row.purchaseMode,
         slug: row.slug,
         streamCount: null,
-        streamingLinks: row.streamingLinks,
         tags: row.genreName ? [row.genreName] : [],
         title: row.title,
         visualContent: [],
