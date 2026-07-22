@@ -123,6 +123,7 @@ app.openapi(
           releaseDate: body.releaseDate ?? null,
           slug: body.title.toLowerCase().replaceAll(" ", "-"),
           status: "draft" as const,
+          streamingLinks: body.streamingLinks ?? {},
           title: body.title,
           trackCount: body.trackIds.length + body.newTracks.length,
         },
@@ -151,6 +152,7 @@ app.openapi(
         releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
         slug: uniqueSlug(body.title),
         status: body.releaseDate ? "scheduled" : "draft",
+        streamingLinks: body.streamingLinks ?? {},
         title: body.title,
         updatedAt: now,
       })
@@ -266,6 +268,7 @@ app.openapi(
         isPublic: body.isPublic,
         projectType: body.projectType,
         releaseDate: body.releaseDate ? new Date(body.releaseDate) : undefined,
+        streamingLinks: body.streamingLinks ?? {},
         title: body.title,
         updatedAt: new Date(),
       })
