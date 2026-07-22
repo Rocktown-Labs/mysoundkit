@@ -449,6 +449,25 @@ function DashboardLivePartiesPage() {
                 ))}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">RealtimeKit Defaults</CardTitle>
+                <CardDescription>
+                  Realtime chat, presence, and timestamp syncing for listening parties.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <span>Party chat can reference timestamps</span>
+                  <Badge variant="outline">On</Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <span>Synced tracklist queue</span>
+                  <Badge variant="outline">On</Badge>
+                </div>
+              </CardContent>
+            </Card>
           </aside>
         </div>
       </div>

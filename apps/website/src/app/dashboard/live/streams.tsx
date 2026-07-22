@@ -490,10 +490,14 @@ function RealAnalyticsPanel({
           Realtime Stream Analytics
         </CardTitle>
         <CardDescription>
-          Live telemetry metrics powered by Cloudflare Realtime.
+          Live telemetry metrics powered by Cloudflare Realtime &amp; RealtimeKit Layer.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 text-sm">
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">RealtimeKit Layer</span>
+          <Badge variant="outline" className="text-primary">Active</Badge>
+        </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Active Viewers</span>
           <span className="font-bold text-foreground">

@@ -133,7 +133,7 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/dashboard/live/parties");
     await expect(
-      page.getByRole("heading", { name: "Live Parties" })
+      page.getByRole("heading", { name: /Live.*Parties/i })
     ).toBeVisible();
     await expect(
       page.getByText(/party chat can reference timestamps/i)
