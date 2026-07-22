@@ -44,6 +44,7 @@ import { musicGenres } from "@/lib/music-genres";
 import {
   useBattlesQuery,
   useCreateBattleChallengeMutation,
+  useGenresQuery,
   useMeQuery,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -120,7 +121,13 @@ function BattleHubPage() {
   const meQuery = useMeQuery();
   const tracksQuery = useTracksQuery();
   const battlesQuery = useBattlesQuery();
+  const genresQuery = useGenresQuery();
   const createChallenge = useCreateBattleChallengeMutation();
+
+  const availableGenres =
+    genresQuery.data && genresQuery.data.length > 0
+      ? genresQuery.data.map((g) => ({ label: g.name, value: g.slug }))
+      : musicGenres;
 
   const userOnboardingGenre = meQuery.data?.user.onboardingGenre || "hip-hop";
   const userTracks = tracksQuery.data ?? [];
@@ -511,7 +518,7 @@ function BattleHubPage() {
                         <SelectValue placeholder="Select genre" />
                       </SelectTrigger>
                       <SelectContent>
-                        {musicGenres.map((g) => (
+                        {availableGenres.map((g) => (
                           <SelectItem key={g.value} value={g.value}>
                             {g.label}
                           </SelectItem>

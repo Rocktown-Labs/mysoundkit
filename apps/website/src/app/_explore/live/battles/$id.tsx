@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import {
   LiveChatPanel,
   LiveLyricsPanel,
@@ -103,7 +104,8 @@ function BattlePage() {
   const isTieAfterCompletedRounds = artistA.roundsWon === artistB.roundsWon;
 
   return (
-    <div className="space-y-6 pb-8">
+    <LiveRoomAccessGuard roomTitle={room.title}>
+      <div className="space-y-6 pb-8">
       <Button
         className="px-0"
         onClick={() => router.history.back()}
@@ -304,5 +306,6 @@ function BattlePage() {
         </aside>
       </div>
     </div>
-  );
+  </LiveRoomAccessGuard>
+);
 }

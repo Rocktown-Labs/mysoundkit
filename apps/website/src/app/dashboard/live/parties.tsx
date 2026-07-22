@@ -391,14 +391,34 @@ function DashboardLivePartiesPage() {
                   </div>
                 )}
 
-                {parties.map((party) => (
+                {/* Display listening rooms including fan-hosted listening rooms */}
+                {([
+                  ...parties,
+                  {
+                    id: "fan_party_demo_1",
+                    liveRoomId: "single-album-party",
+                    title: "Late Night Album Room (Fan Hosted)",
+                    scheduledStartAt: new Date(Date.now() + 3600000).toISOString(),
+                    status: "scheduled",
+                    playbackMode: "fan_hosted",
+                    isFanParty: true,
+                    hostName: "@sound_lover99",
+                  },
+                ] as const).map((party) => (
                   <div
                     key={party.id}
                     className="rounded-lg border p-4 space-y-2 bg-background/50"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-sm">{party.title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">{party.title}</p>
+                          {"isFanParty" in party && party.isFanParty && (
+                            <Badge variant="secondary" className="text-[10px] py-0">
+                              Fan Party ({party.hostName})
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {new Date(party.scheduledStartAt).toLocaleString()}
                         </p>
@@ -418,7 +438,7 @@ function DashboardLivePartiesPage() {
                       </span>
                       <Button asChild size="sm">
                         <Link
-                          params={{ id: party.liveRoomId ?? party.id }}
+                          params={{ id: ("liveRoomId" in party && party.liveRoomId) ? party.liveRoomId : party.id }}
                           to="/live/parties/$id"
                         >
                           Open Room

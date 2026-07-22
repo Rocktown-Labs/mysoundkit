@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Headphones, Plus } from "lucide-react";
 
+import { CreateFanPartyDialog } from "@/components/explore/create-fan-party-dialog";
 import { ListeningPartyCard } from "@/components/explore/listening-party-card";
 import { partyDiscoveryItems } from "@/components/explore/live-discovery-data";
 import { SectionHeader } from "@/components/explore/section-header";
@@ -66,12 +67,7 @@ function LivePartiesPage() {
             in.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/login">
-            <Plus className="mr-2 size-4" />
-            Create Party
-          </Link>
-        </Button>
+        <CreateFanPartyDialog />
       </section>
 
       <PartyRail items={featured} title="Featured Parties" />

@@ -26,6 +26,7 @@ const artistsGet = apiClient.v1.artists.index.$get;
 const artistGet = apiClient.v1.artists[":username"].$get;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
 const discoverHomeGet = apiClient.v1.discover.home.$get;
+const genresGet = apiClient.v1.discover.genres.$get;
 const searchGet = apiClient.v1.search.$get;
 const tracksGet = apiClient.v1.tracks.index.$get;
 const tracksPost = apiClient.v1.tracks.index.$post;
@@ -203,6 +204,7 @@ export const soundkitQueryKeys = {
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
   discoverHome: ["discover", "home"] as const,
+  genres: ["discover", "genres"] as const,
   friends: ["messages", "friends"] as const,
   libraryOverview: ["library", "overview"] as const,
   libraryPlaylists: ["library", "playlists"] as const,
@@ -355,6 +357,12 @@ export const useFriendsQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await friendsGet()),
     queryKey: soundkitQueryKeys.friends,
+  });
+
+export const useGenresQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await genresGet()),
+    queryKey: soundkitQueryKeys.genres,
   });
 
 export const usePeopleSearchQuery = (q: string) =>

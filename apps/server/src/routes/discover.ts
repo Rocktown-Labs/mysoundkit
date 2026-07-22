@@ -1,6 +1,14 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+
+const genreCatalogSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+  })
+);
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { artistProfiles, tracks, userProfiles } from "@soundkit/db/schema/app";
+import { artistProfiles, genres, tracks, userProfiles } from "@soundkit/db/schema/app";
 import { desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -88,6 +96,56 @@ app.openapi(
       },
       HttpStatusCodes.OK
     );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/genres",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        genreCatalogSchema,
+        "Music genres catalog"
+      ),
+    },
+    tags: ["Discover"],
+  }),
+  async (c) => {
+    const fallbackGenres = [
+      { id: "g_hip_hop", name: "Hip Hop", slug: "hip-hop" },
+      { id: "g_rb_soul", name: "R&B/Soul", slug: "rb-soul" },
+      { id: "g_electronic", name: "Electronic", slug: "electronic" },
+      { id: "g_pop", name: "Pop", slug: "pop" },
+      { id: "g_spoken_word", name: "Spoken Word", slug: "spoken-word" },
+      { id: "g_rock", name: "Rock", slug: "rock" },
+      { id: "g_jazz", name: "Jazz", slug: "jazz" },
+      { id: "g_afrobeats", name: "Afrobeats", slug: "afrobeats" },
+      { id: "g_latin", name: "Latin", slug: "latin" },
+      { id: "g_country", name: "Country", slug: "country" },
+      { id: "g_reggae", name: "Reggae", slug: "reggae" },
+      { id: "g_indie", name: "Indie", slug: "indie" },
+      { id: "g_metal", name: "Metal", slug: "metal" },
+    ];
+
+    if (!isDatabaseConfigured()) {
+      return c.json(fallbackGenres, HttpStatusCodes.OK);
+    }
+
+    try {
+      const db = createDb();
+      const rows = await db.select().from(genres);
+      if (rows.length > 0) {
+        return c.json(
+          rows.map((r) => ({ id: r.id, name: r.name, slug: r.slug })),
+          HttpStatusCodes.OK
+        );
+      }
+    } catch {
+      // Fallback if table not ready
+    }
+
+    return c.json(fallbackGenres, HttpStatusCodes.OK);
   }
 );
 
