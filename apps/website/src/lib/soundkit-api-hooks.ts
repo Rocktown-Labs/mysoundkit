@@ -41,6 +41,13 @@ const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
 const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
 const battlesGet = apiClient.v1.battles.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
+const liveExperiencePost = apiClient.v1.live.experiences.index.$post;
+const liveExperienceJoinPost =
+  apiClient.v1.live.experiences[":experienceId"].join.$post;
+const liveExperienceBattleBotPost =
+  apiClient.v1.live.experiences[":experienceId"].battlebot.$post;
+const liveExperienceSessionLockCheckPost =
+  apiClient.v1.live.experiences[":experienceId"]["session-locks"].check.$post;
 const libraryOverviewGet = apiClient.v1.library.overview.$get;
 const libraryPlaylistsGet = apiClient.v1.library.playlists.$get;
 const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
@@ -131,6 +138,26 @@ export type LibraryWatchedItem = InferResponseType<
 type CreateBattleChallengeBody = InferRequestType<
   typeof battleChallengePost
 >["json"];
+type CreateLiveExperienceBody = InferRequestType<
+  typeof liveExperiencePost
+>["json"];
+type JoinLiveExperienceBody = InferRequestType<
+  typeof liveExperienceJoinPost
+>["json"];
+type BattleBotActionBody = InferRequestType<
+  typeof liveExperienceBattleBotPost
+>["json"];
+type LiveSessionLockCheckBody = InferRequestType<
+  typeof liveExperienceSessionLockCheckPost
+>["json"];
+export type LiveExperienceCreateResponse = InferResponseType<
+  typeof liveExperiencePost,
+  201
+>;
+export type LiveExperienceJoinResponse = InferResponseType<
+  typeof liveExperienceJoinPost,
+  201
+>;
 export type ListeningPartySummary = InferResponseType<
   typeof listeningPartiesGet,
   200
@@ -182,6 +209,7 @@ export const soundkitQueryKeys = {
   librarySaved: ["library", "saved"] as const,
   libraryWatched: ["library", "watched"] as const,
   listeningParties: ["listening-parties"] as const,
+  liveExperience: (id: string) => ["live", "experiences", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
@@ -633,6 +661,61 @@ export const useCreateBattleChallengeMutation = () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
   });
 };
+
+export const useCreateLiveExperienceMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      body: CreateLiveExperienceBody
+    ): Promise<LiveExperienceCreateResponse> =>
+      rpcJson(await liveExperiencePost({ json: body })),
+    onSuccess: (experience) => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.listeningParties,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.liveExperience(experience.experience.id),
+      });
+    },
+  });
+};
+
+export const useJoinLiveExperienceMutation = (experienceId: string) =>
+  useMutation({
+    mutationFn: async (
+      body: JoinLiveExperienceBody
+    ): Promise<LiveExperienceJoinResponse> =>
+      rpcJson(
+        await liveExperienceJoinPost({
+          json: body,
+          param: { experienceId },
+        })
+      ),
+  });
+
+export const useBattleBotActionMutation = (experienceId: string) =>
+  useMutation({
+    mutationFn: async (body: BattleBotActionBody) =>
+      rpcJson(
+        await liveExperienceBattleBotPost({
+          json: body,
+          param: { experienceId },
+        })
+      ),
+  });
+
+export const useLiveSessionLockCheckMutation = (experienceId: string) =>
+  useMutation({
+    mutationFn: async (body: LiveSessionLockCheckBody) =>
+      rpcJson(
+        await liveExperienceSessionLockCheckPost({
+          json: body,
+          param: { experienceId },
+        })
+      ),
+  });
 
 const defaultOpenVerseQuery: OpenVerseQuery = { limit: "10" };
 

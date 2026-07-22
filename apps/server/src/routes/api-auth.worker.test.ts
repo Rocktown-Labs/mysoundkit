@@ -267,6 +267,45 @@ const protectedRequests: {
     path: "/v1/live/cloudflare-stream",
   },
   {
+    init: jsonRequest(
+      {
+        kind: "stream",
+        scheduleMode: "asap",
+        source: "browser",
+        title: "My RealtimeKit Stream",
+      },
+      "POST"
+    ),
+    label: "live experience creation",
+    path: "/v1/live/experiences",
+  },
+  {
+    init: jsonRequest({ role: "viewer" }, "POST"),
+    label: "live experience participant token creation",
+    path: "/v1/live/experiences/live_stream_123/join",
+  },
+  {
+    init: jsonRequest(
+      {
+        candidateStartsAt: "2026-07-22T20:00:00.000Z",
+      },
+      "POST"
+    ),
+    label: "live experience session lock checks",
+    path: "/v1/live/experiences/live_stream_123/session-locks/check",
+  },
+  {
+    init: jsonRequest(
+      {
+        action: "snapshot_voters",
+        participants: [],
+      },
+      "POST"
+    ),
+    label: "live experience BattleBot actions",
+    path: "/v1/live/experiences/live_battle_123/battlebot",
+  },
+  {
     label: "cloudflare stream live input retrieval",
     path: "/v1/live/cloudflare-stream/stream_123",
   },

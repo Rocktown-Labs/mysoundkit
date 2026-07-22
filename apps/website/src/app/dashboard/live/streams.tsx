@@ -47,7 +47,10 @@ import {
   realtimeKitAlwaysOn,
 } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
-import { useVideosQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useCreateLiveExperienceMutation,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/streams")({
   component: DashboardLiveStreamsPage,
@@ -61,6 +64,8 @@ interface ActiveStream {
   description: string;
   id: string;
   playbackUrl: string;
+  realtimeMeetingId: string;
+  roomHref: string;
   rtmpsKey: string;
   rtmpsUrl: string;
   scheduleMode: LiveScheduleMode;
@@ -86,6 +91,7 @@ function readSavedStream() {
 
 function DashboardLiveStreamsPage() {
   const videosQuery = useVideosQuery();
+  const createLiveExperience = useCreateLiveExperienceMutation();
   const videos = videosQuery.data ?? [];
   const liveRecordings = videos.filter(
     (video) => video.videoKind === "live_recording"
@@ -105,27 +111,54 @@ function DashboardLiveStreamsPage() {
   const [activeStream, setActiveStream] = useState<ActiveStream | null>(
     readSavedStream
   );
-  const [isCreatingStream, setIsCreatingStream] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showStreamKey, setShowStreamKey] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const canCreate = streamTitle.trim().length > 0;
+  const isCreatingStream = createLiveExperience.isPending;
 
   const handleStartStream = async () => {
-    setIsCreatingStream(true);
     try {
-      const res = await apiClient.v1.live["cloudflare-stream"].$post({
-        json: { title: streamTitle.trim() || "My Live Stream" },
+      const created = await createLiveExperience.mutateAsync({
+        description,
+        kind: "stream",
+        scheduleMode,
+        source,
+        title: streamTitle.trim() || "My Live Stream",
+        visibility: visibility.toLowerCase() as
+          | "private"
+          | "public"
+          | "unlisted",
       });
-      if (!res.ok) {
-        throw new Error("Failed to create live input");
-      }
 
-      const stream = await res.json();
+      const stream =
+        created.streamInput ??
+        ({
+          id: created.realtime.id,
+          playbackUrl: "",
+          rtmpsKey: "",
+          rtmpsUrl: "",
+          srtKey: "",
+          srtUrl: "",
+          status: created.experience.status,
+          title: created.experience.title,
+        } satisfies Pick<
+          ActiveStream,
+          | "id"
+          | "playbackUrl"
+          | "rtmpsKey"
+          | "rtmpsUrl"
+          | "srtKey"
+          | "srtUrl"
+          | "status"
+          | "title"
+        >);
       const nextStream: ActiveStream = {
         ...stream,
         category,
         description,
+        realtimeMeetingId: created.realtime.id,
+        roomHref: created.experience.roomHref,
         scheduleMode,
         source,
         visibility,
@@ -143,12 +176,10 @@ function DashboardLiveStreamsPage() {
     } catch {
       toast({
         description:
-          "Could not create Cloudflare live input. Please try again.",
+          "Could not create the RealtimeKit stream room. Please try again.",
         title: "Error starting stream",
         variant: "destructive",
       });
-    } finally {
-      setIsCreatingStream(false);
     }
   };
 
@@ -758,7 +789,7 @@ function StreamLibrary({
       <CardContent>
         {isLoading ? (
           <p className="text-muted-foreground text-sm">Loading videos...</p>
-        ) : liveRecordings.length === 0 ? (
+        ) : (liveRecordings.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center">
             <Tv className="mx-auto size-10 text-muted-foreground" />
             <p className="mt-3 font-semibold">No live recordings yet</p>
@@ -785,7 +816,7 @@ function StreamLibrary({
               </div>
             ))}
           </div>
-        )}
+        ))}
       </CardContent>
     </Card>
   );
