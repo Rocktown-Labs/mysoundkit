@@ -10,6 +10,7 @@ export function USAMap({ selectedState, onStateSelect }: USAMapProps) {
     <WorldAndUSAMap
       mapScope="north-america"
       onRegionSelect={onStateSelect}
+      onScopeChange={() => {}}
       selectedRegion={selectedState}
     />
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapScopes } from "../components/explore/world-and-usa-map";
+import { mapScopes } from "./map-scopes";
 
 describe("Map Navigation Scopes", () => {
   it("includes global and continent region options", () => {
@@ -13,13 +13,13 @@ describe("Map Navigation Scopes", () => {
     expect(scopeIds).toContain("oceania");
   });
 
-  it("assigns appropriate projections and zoom parameters", () => {
+  it("assigns appropriate projections and scale parameters", () => {
     const globalScope = mapScopes.find((s) => s.id === "global");
     expect(globalScope?.projection).toBe("geoEqualEarth");
-    expect(globalScope?.zoom).toBe(1);
+    expect(globalScope?.scale).toBe(140);
 
     const africaScope = mapScopes.find((s) => s.id === "africa");
     expect(africaScope?.projection).toBe("geoMercator");
-    expect(africaScope?.zoom).toBeGreaterThan(1);
+    expect(africaScope?.scale).toBeGreaterThan(100);
   });
 });

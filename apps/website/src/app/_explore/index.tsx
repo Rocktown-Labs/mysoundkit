@@ -220,62 +220,16 @@ function LocalExplorePage({
               </Card>
             )}
 
-            {/* Map Scope Controls: Tabs on Desktop, Select on Mobile */}
-            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Map Projection Scope
-              </span>
-
-              {/* Desktop Segmented Tabs */}
-              <div className="hidden md:flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/40">
-                {mapScopes.map((scope) => (
-                  <button
-                    key={scope.id}
-                    type="button"
-                    onClick={() => {
-                      setMapScope(scope.id);
-                      if (scope.id === "global") setSelectedRegion(null);
-                    }}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                      mapScope === scope.id
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                    }`}
-                  >
-                    {scope.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Mobile Select Dropdown */}
-              <div className="md:hidden">
-                <Select
-                  value={mapScope}
-                  onValueChange={(val) => {
-                    setMapScope(val as MapScope);
-                    if (val === "global") setSelectedRegion(null);
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Map Scope" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mapScopes.map((scope) => (
-                      <SelectItem key={scope.id} value={scope.id}>
-                        {scope.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <Card className="overflow-hidden border-primary/20">
               <CardContent className="p-2 md:p-4 lg:p-6">
                 <WorldAndUSAMap
                   mapScope={mapScope}
                   selectedRegion={selectedRegion}
                   onRegionSelect={(reg) => setSelectedRegion(reg)}
+                  onScopeChange={(scope) => {
+                    setMapScope(scope);
+                    if (scope === "global") setSelectedRegion(null);
+                  }}
                 />
               </CardContent>
             </Card>
