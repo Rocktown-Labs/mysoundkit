@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
+import { musicGenres } from "@/lib/music-genres";
 import { useTracksQuery } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
@@ -14,14 +15,6 @@ const sortOptions = [
   { label: "Title (A-Z)", value: "title-asc" },
   { label: "Title (Z-A)", value: "title-desc" },
 ];
-
-const discoveryGenres = [
-  { label: "Hip-Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Pop", value: "pop" },
-  { label: "Electronic", value: "electronic" },
-  { label: "Spoken Word", value: "spoken-word" },
-] as const;
 
 interface TracksSearch {
   genre?: string;
@@ -175,7 +168,7 @@ function TracksPage() {
       </div>
 
       <div className="flex flex-col gap-10">
-        {discoveryGenres.map((sectionGenre) => (
+        {musicGenres.map((sectionGenre) => (
           <TrackGenreRail
             key={sectionGenre.value}
             genre={sectionGenre}
@@ -195,7 +188,7 @@ function TrackGenreRail({
   regionType,
   sort,
 }: {
-  genre: (typeof discoveryGenres)[number];
+  genre: (typeof musicGenres)[number];
   region: string;
   regionType: "north-america" | "global";
   sort: string;

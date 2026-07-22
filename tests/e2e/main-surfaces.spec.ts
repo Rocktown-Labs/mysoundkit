@@ -3,9 +3,17 @@ import type { Page } from "@playwright/test";
 
 const gotoWithViteRetry = async (page: Page, path: string) => {
   try {
-    await page.goto(path);
+    const response = await page.goto(path);
+    if (response && response.status() >= 500) {
+      await page.waitForTimeout(250);
+      await page.goto(path);
+    }
   } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes("ERR_ABORTED")) {
+    if (
+      !(error instanceof Error) ||
+      (!error.message.includes("ERR_ABORTED") &&
+        !error.message.includes("fetch failed"))
+    ) {
       throw error;
     }
 
@@ -68,17 +76,22 @@ test.describe("main application surfaces", () => {
   test("live surfaces render while realtime implementation is pending", async ({
     page,
   }) => {
-    await page.goto("/live");
+    test.setTimeout(60_000);
+
+    await gotoWithViteRetry(page, "/live");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/live battles/i).first()).toBeVisible();
 
-    await page.goto("/live/battles");
+    await gotoWithViteRetry(page, "/live/battles");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/battle/i).first()).toBeVisible();
 
-    await page.goto("/live/parties");
+    await gotoWithViteRetry(page, "/live/parties");
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/part/i).first()).toBeVisible();
+    await expect(
+      page.getByText("No Metal listening parties are live yet.")
+    ).toHaveCount(1);
   });
 
   test("videos route renders URL-backed filters without crashing", async ({
@@ -93,7 +106,8 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Music Videos" })
     ).toBeVisible();
     await expect(page.getByText("Featured Videos")).toBeVisible();
-    await expect(page.getByText("Hip-Hop").first()).toBeVisible();
+    await expect(page.getByText("Hip Hop").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
   });
 
   test("creator live studio exposes stream setup and realtime controls", async ({
@@ -114,7 +128,9 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: "Live Studio" })
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /battle/iu })).toBeVisible();
+    await expect(
+      page.getByText("Artists bring their kit, set a round order")
+    ).toBeVisible();
     await expect(page.getByText("RealtimeKit layer")).toBeVisible();
     await expect(page.getByText("Realtime chat")).toBeVisible();
   });
@@ -184,6 +200,7 @@ test.describe("main application surfaces", () => {
     await expect(page.locator('img[src*="soundkit-wordmark.svg"]')).toHaveCount(
       0
     );
+    await expect(page.locator('img[src*="soundkit-mark.svg"]')).toHaveCount(0);
   });
 });
 

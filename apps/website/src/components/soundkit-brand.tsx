@@ -32,23 +32,23 @@ export function SoundKitBrand({
     <div className={cn("flex w-full items-center justify-center", className)}>
       <span
         className={cn(
-          "flex h-8 min-w-20 shrink-0 items-center justify-center border border-white/40 px-2 font-notable text-xs leading-none text-white uppercase group-data-[collapsible=icon]:hidden",
+          "flex h-8 min-w-24 shrink-0 items-center justify-center border border-white/45 px-2 font-notable text-xs leading-none text-white uppercase shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] group-data-[collapsible=icon]:hidden",
           wordmarkClassName
         )}
         data-soundkit-sidebar-wordmark
       >
         SoundKit
       </span>
-      <AppImage
-        alt="SoundKit"
+      <span
+        aria-label="SoundKit"
         className={cn(
-          "hidden size-7 shrink-0 group-data-[collapsible=icon]:block",
+          "hidden size-7 shrink-0 items-center justify-center border border-white/45 font-notable text-sm leading-none text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] group-data-[collapsible=icon]:flex",
           markClassName
         )}
-        height={48}
-        src="/soundkit-mark.svg"
-        width={48}
-      />
+        data-soundkit-sidebar-mark
+      >
+        S
+      </span>
     </div>
   );
 }

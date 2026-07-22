@@ -1,15 +1,9 @@
-export const liveDiscoveryGenres = [
-  "Hip-Hop",
-  "R&B/Soul",
-  "Pop",
-  "Electronic",
-  "Spoken Word",
-] as const;
+import type { MusicGenre } from "@/lib/music-genres";
 
 export interface PartyDiscoveryItem {
   albumCovers: string[];
   currentTrack: string;
-  genre: (typeof liveDiscoveryGenres)[number];
+  genre: MusicGenre["label"];
   hostName: string;
   id: string;
   isFeatured?: boolean;
@@ -21,7 +15,7 @@ export interface StreamDiscoveryItem {
   category: string;
   creatorAvatar: string;
   creatorName: string;
-  genre: (typeof liveDiscoveryGenres)[number];
+  genre: MusicGenre["label"];
   id: string;
   isFeatured?: boolean;
   thumbnailUrl: string;
@@ -36,7 +30,7 @@ export const partyDiscoveryItems: PartyDiscoveryItem[] = [
       "/night-music-album-cover.png",
     ],
     currentTrack: "Spotlight Album - Track 3",
-    genre: "Hip-Hop",
+    genre: "Hip Hop",
     hostName: "SoundKit Curators",
     id: "single-album-party",
     isFeatured: true,
@@ -90,7 +84,7 @@ export const streamDiscoveryItems: StreamDiscoveryItem[] = [
     category: "Studio",
     creatorAvatar: "/diverse-user-avatars.png",
     creatorName: "Metro Boomin",
-    genre: "Hip-Hop",
+    genre: "Hip Hop",
     id: "stream-studio",
     isFeatured: true,
     thumbnailUrl: "/music-battle-video-thumbnail.jpg",

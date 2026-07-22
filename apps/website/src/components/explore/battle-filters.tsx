@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { allGenreOptions } from "@/lib/music-genres";
 
 const northAmericaLocations = [
   { label: "All North America", value: "all" },
@@ -71,23 +72,6 @@ const globalLocations = [
   { label: "South America", value: "south-america" },
   { label: "Australia & Oceania", value: "australia" },
   { label: "Antarctica", value: "antarctica" },
-];
-
-const genres = [
-  { label: "All Genres", value: "all" },
-  { label: "Hip Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Electronic", value: "electronic" },
-  { label: "Pop", value: "pop" },
-  { label: "Spoken Word", value: "spoken-word" },
-  { label: "Rock", value: "rock" },
-  { label: "Jazz", value: "jazz" },
-  { label: "Afrobeats", value: "afrobeats" },
-  { label: "Latin", value: "latin" },
-  { label: "Country", value: "country" },
-  { label: "Reggae", value: "reggae" },
-  { label: "Indie", value: "indie" },
-  { label: "Metal", value: "metal" },
 ];
 
 interface BattleFiltersProps {
@@ -184,7 +168,7 @@ export function BattleFilters({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {genres.map((g) => (
+              {allGenreOptions.map((g) => (
                 <SelectItem key={g.value} value={g.value}>
                   {g.label}
                 </SelectItem>

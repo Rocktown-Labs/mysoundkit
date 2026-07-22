@@ -28,11 +28,14 @@
 - Added automatic login redirects for unauthenticated users navigating to "My SoundKit" library routes while preserving free browsing of all explore routes.
 - Added an admin-controlled Explore default setting so `/` can start the existing map home with app-wide totals by default, with Arkansas/local discovery still available as the fallback mode.
 - Added a Live Studio setup flow for battles, parties, and streams with stream details, audience feature toggles, encoder credentials, chat preview, and stream health panels.
+- Added app-wide genre rails across tracks, videos, artists, shop, and live discovery routes so every supported genre has a horizontal section and filtered view-all link.
+- Added dynamic Better Auth base URL and Cloudflare preview origin allowlists so PR previews and worker subdomains can authenticate against the API.
 
 ### Fixed
 
 - Fixed the Explore tracks filter JSX so the region type handler is declared once.
 - Fixed the Explore videos route crash caused by stale filter setter references after URL search parameter syncing.
+- Replaced the expanded and collapsed Explore sidebar brand images with styled text marks.
 - Fixed public `/v1/tracks` filtering so only `ready` tracks populate the main public songs feed, while `open_verse` tracks route to the Open Verses hub and `draft` tracks remain private in creator dashboards.
 - Fixed artist stage name and genre capitalization across leaderboards and profile headers.
 - Fixed dummy `#12` rank display on artist profiles with no tracks or stats, showing a clean "Unranked" state.

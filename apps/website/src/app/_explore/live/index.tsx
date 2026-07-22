@@ -16,7 +16,6 @@ import { useState, useEffect } from "react";
 import { BattleCard } from "@/components/explore/battle-card";
 import { ListeningPartyCard } from "@/components/explore/listening-party-card";
 import {
-  liveDiscoveryGenres,
   partyDiscoveryItems,
   streamDiscoveryItems,
 } from "@/components/explore/live-discovery-data";
@@ -51,6 +50,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { musicGenres } from "@/lib/music-genres";
 
 export const Route = createFileRoute("/_explore/live/")({
   component: LiveHubPage,
@@ -259,24 +259,21 @@ function LiveHubPage() {
           viewAllHref="/live"
         />
         <div className="space-y-8">
-          {liveDiscoveryGenres.map((genre) => {
+          {musicGenres.map((genre) => {
             const parties = partyDiscoveryItems.filter(
-              (party) => party.genre === genre
+              (party) => party.genre === genre.label
             );
             const streams = streamDiscoveryItems.filter(
-              (stream) => stream.genre === genre
+              (stream) => stream.genre === genre.label
             );
 
-            if (parties.length === 0 && streams.length === 0) {
-              return null;
-            }
-
             return (
-              <div key={genre} className="space-y-3">
+              <div key={genre.value} className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-lg">{genre}</h3>
+                  <h3 className="font-semibold text-lg">{genre.label}</h3>
                   <Link
-                    to="/live"
+                    search={{ genre: genre.value }}
+                    to="/live/parties"
                     className="text-muted-foreground text-sm hover:text-primary"
                   >
                     View All
@@ -284,12 +281,20 @@ function LiveHubPage() {
                 </div>
                 <div className="overflow-x-auto pb-2">
                   <div className="flex min-w-max gap-4 md:gap-6">
-                    {parties.map((party) => (
-                      <ListeningPartyCard key={party.id} {...party} />
-                    ))}
-                    {streams.map((stream) => (
-                      <StreamCard key={stream.id} {...stream} />
-                    ))}
+                    {parties.length > 0 || streams.length > 0 ? (
+                      <>
+                        {parties.map((party) => (
+                          <ListeningPartyCard key={party.id} {...party} />
+                        ))}
+                        {streams.map((stream) => (
+                          <StreamCard key={stream.id} {...stream} />
+                        ))}
+                      </>
+                    ) : (
+                      <div className="min-w-[280px] rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+                        No {genre.label} live rooms are active yet.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -79,19 +79,19 @@ interface RealtimeOptions {
 
 const flowOptions = [
   {
-    description: "Head-to-head live matchup with voting and host controls.",
+    description: "Artists bring their kit, set a round order, chat, and battle live.",
     icon: Swords,
     label: "Battle",
     value: "battle",
   },
   {
-    description: "Listening party with chat, guests, and audience moments.",
+    description: "A release room where listeners play the tracklist together and chat.",
     icon: Users,
     label: "Party",
     value: "party",
   },
   {
-    description: "Standard music stream, premiere, or live performance.",
+    description: "One creator on camera or OBS with chat and heavier analytics.",
     icon: Radio,
     label: "Stream",
     value: "stream",
@@ -112,6 +112,27 @@ const categories = [
 ];
 
 const visibilityOptions = ["Public", "Unlisted", "Private"];
+
+const flowSetupNotes: Record<LiveFlow, string[]> = {
+  battle: [
+    "Select battle kit",
+    "Arrange round order",
+    "Enable voting windows",
+    "Moderate artist and fan chat",
+  ],
+  party: [
+    "Attach release or playlist",
+    "Play tracks in order",
+    "Keep chat live for listeners",
+    "Optional artist camera or voice",
+  ],
+  stream: [
+    "Connect OBS or camera",
+    "Monitor viewers and retention",
+    "Pin chat prompts",
+    "Save recording to catalog",
+  ],
+};
 
 const defaultRealtime: RealtimeOptions = {
   backstageVoice: true,
@@ -251,8 +272,9 @@ function DashboardLiveStreamsPage() {
             Live Studio
           </h1>
           <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-            Create battles, parties, and streams, then manage encoder keys,
-            chat, realtime features, health, and recordings from one workspace.
+            Create music battles, release listening parties, and creator
+            streams, then manage encoder keys, chat, realtime features, health,
+            and analytics from one workspace.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -481,6 +503,19 @@ function CreateStreamWizard({
                   focused on music, music videos, battles, and parties.
                 </p>
               </div>
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                <p className="font-medium">
+                  {selectedFlow?.label ?? "Stream"} session checklist
+                </p>
+                <div className="mt-3 space-y-2">
+                  {flowSetupNotes[flow].map((note) => (
+                    <div className="flex items-center gap-2" key={note}>
+                      <CheckCircle2 className="size-4 text-primary" />
+                      <span className="text-muted-foreground">{note}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -489,14 +524,14 @@ function CreateStreamWizard({
           <div className="grid gap-4 md:grid-cols-2">
             <FeatureToggle
               checked={realtime.chat}
-              description="Audience chat panel for streams, battles, and parties."
+              description="Audience chat for battle rooms, release parties, and streams."
               icon={MessageSquare}
               label="Realtime chat"
               onCheckedChange={(checked) => onRealtimeChange("chat", checked)}
             />
             <FeatureToggle
               checked={realtime.backstageVoice}
-              description="Host and guest audio room before going live."
+              description="Host, artist, or guest audio before and during live moments."
               icon={Mic2}
               label="Backstage voice"
               onCheckedChange={(checked) =>
@@ -505,7 +540,7 @@ function CreateStreamWizard({
             />
             <FeatureToggle
               checked={realtime.captions}
-              description="Prepare RealtimeKit transcription and captions."
+              description="Prepare captions and transcripts for hosted video sessions."
               icon={Captions}
               label="Captions"
               onCheckedChange={(checked) =>
@@ -514,7 +549,7 @@ function CreateStreamWizard({
             />
             <FeatureToggle
               checked={realtime.recording}
-              description="Save the session into the live recording library."
+              description="Save streams and hosted release moments into the catalog."
               icon={ShieldCheck}
               label="Recording"
               onCheckedChange={(checked) =>
@@ -532,8 +567,8 @@ function CreateStreamWizard({
             </div>
             <p className="mt-2 text-muted-foreground text-sm">
               SoundKit will create the Cloudflare Stream live input now. The
-              RealtimeKit feature selections are preserved with the session so
-              the meeting-token backend can attach chat, voice, and captions.
+              session choices are preserved so battles can load kits, parties
+              can attach a release queue, and streams can surface analytics.
             </p>
           </div>
         )}

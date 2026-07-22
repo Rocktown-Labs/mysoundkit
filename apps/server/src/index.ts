@@ -58,6 +58,18 @@ const app = new OpenAPIHono<AppEnv>({
 const hasEnvValue = (key: string) =>
   Boolean((env as unknown as Record<string, unknown>)[key]);
 
+const allowedCorsOriginPatterns = [
+  /^https:\/\/([a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
+  /^https:\/\/[a-z0-9-]+\.pages\.dev$/u,
+  /^https:\/\/([a-z0-9-]+\.)*workers\.dev$/u,
+  /^https:\/\/([a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
+];
+
+const isAllowedCorsOrigin = (origin: string) =>
+  origin === env.CORS_ORIGIN ||
+  origin === env.BETTER_AUTH_URL ||
+  allowedCorsOriginPatterns.some((pattern) => pattern.test(origin));
+
 const checkDatabaseHealth = async () => {
   if (!isDatabaseConfigured()) {
     return "not_configured" as const;
@@ -100,7 +112,8 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-    origin: env.CORS_ORIGIN,
+    origin: (origin) =>
+      origin && isAllowedCorsOrigin(origin) ? origin : env.CORS_ORIGIN,
   })
 );
 app.use("/v1/*", jsonBodyMiddleware);

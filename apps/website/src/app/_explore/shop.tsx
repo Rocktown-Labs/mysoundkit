@@ -12,15 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { musicGenres } from "@/lib/music-genres";
 import { useTracksQuery } from "@/lib/soundkit-api-hooks";
-
-const shopGenres = [
-  { label: "Hip-Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Pop", value: "pop" },
-  { label: "Electronic", value: "electronic" },
-  { label: "Spoken Word", value: "spoken-word" },
-] as const;
 
 interface ShopSearch {
   genre?: string;
@@ -75,7 +68,7 @@ function ShopPage() {
             All Genres
           </Link>
         </Button>
-        {shopGenres.map((g) => (
+        {musicGenres.map((g) => (
           <Button
             key={g.value}
             size="sm"
@@ -151,7 +144,7 @@ function ShopPage() {
       </section>
 
       <div className="flex flex-col gap-10">
-        {shopGenres.map((genre) => (
+        {musicGenres.map((genre) => (
           <GenreShopRail key={genre.value} genre={genre} />
         ))}
       </div>
@@ -159,7 +152,7 @@ function ShopPage() {
   );
 }
 
-function GenreShopRail({ genre }: { genre: (typeof shopGenres)[number] }) {
+function GenreShopRail({ genre }: { genre: (typeof musicGenres)[number] }) {
   const { data: tracks = [] } = useTracksQuery(undefined, {
     genre: genre.value,
     limit: "12",
