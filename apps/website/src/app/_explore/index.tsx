@@ -1,15 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Flame, LocateFixed, Music, Users, Video } from "lucide-react";
+import { Compass, Flame, Globe, LocateFixed, MapPin, Music, RotateCcw, Users, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
 import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
-import { USAMap } from "@/components/explore/usa-map";
 import { VideoCard } from "@/components/explore/video-card";
+import { mapScopes, WorldAndUSAMap, type MapScope } from "@/components/explore/world-and-usa-map";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { mockVideos } from "@/lib/mock-videos";
 import { useDiscoverHomeQuery } from "@/lib/soundkit-api-hooks";
 
@@ -30,30 +38,24 @@ function ExplorePage() {
 function LocalExplorePage({
   startsWithAppWideTotals,
 }: Readonly<{ startsWithAppWideTotals: boolean }>) {
-  const [selectedState, setSelectedState] = useState<string | null>(
-    startsWithAppWideTotals ? null : "Arkansas"
-  );
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [mapScope, setMapScope] = useState<MapScope>("global");
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationPromptState, setLocationPromptState] = useState<
     "idle" | "prompting" | "granted" | "denied" | "unsupported"
   >("idle");
 
-  const activeRegion = selectedState ?? "SoundKit";
-  const isNationalView = selectedState === null;
-  const regionSlug = selectedState
-    ? `us-${selectedState.toLowerCase().replaceAll(/\s+/g, "-")}`
-    : "all";
-  const regionSearch = selectedState
-    ? `regionType=north-america&region=${regionSlug}`
-    : "regionType=global&region=all";
-  const battlesHref = selectedState
-    ? `/live?${regionSearch}`
-    : "/live/battles?regionType=global&region=all";
+  const activeRegion = selectedRegion ?? (mapScope === "global" ? "Global" : mapScopes.find(s => s.id === mapScope)?.label ?? "SoundKit");
+  const isGlobalView = selectedRegion === null && mapScope === "global";
+
+  const regionSlug = selectedRegion
+    ? selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")
+    : mapScope;
+  const regionSearch = `regionType=${mapScope}&region=${regionSlug}`;
+  const battlesHref = `/live?${regionSearch}`;
   const tracksHref = `/tracks?${regionSearch}`;
-  const releasesHref = selectedState
-    ? `/new-releases?location=${selectedState}`
-    : "/new-releases";
+  const releasesHref = `/new-releases?location=${encodeURIComponent(activeRegion)}`;
   const artistsHref = `/artist?${regionSearch}`;
   const videosHref = `/videos?${regionSearch}`;
 
@@ -64,7 +66,7 @@ function LocalExplorePage({
       if (!("geolocation" in navigator)) {
         setLocationPromptState("unsupported");
         setUserLocation(null);
-        setSelectedState(null);
+        setSelectedRegion(null);
         setIsLoadingLocation(false);
         return;
       }
@@ -79,12 +81,18 @@ function LocalExplorePage({
               `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
             );
             const data = await response.json();
-            const detectedState = data.principalSubdivision || "California";
+            const detectedState = data.principalSubdivision || data.countryName || "California";
             setUserLocation(detectedState);
-            setSelectedState(detectedState);
+            setSelectedRegion(detectedState);
+            setMapScope("north-america");
+            try {
+              localStorage.setItem("soundkit_user_location", detectedState);
+            } catch {}
           } catch {
-            setUserLocation("California");
-            setSelectedState("California");
+            const fallback = "California";
+            setUserLocation(fallback);
+            setSelectedRegion(fallback);
+            setMapScope("north-america");
           }
 
           setLocationPromptState("granted");
@@ -93,42 +101,85 @@ function LocalExplorePage({
         () => {
           setLocationPromptState("denied");
           setUserLocation(null);
-          setSelectedState(null);
+          setSelectedRegion(null);
+          setMapScope("global");
           setIsLoadingLocation(false);
         }
       );
     } catch {
       setLocationPromptState("denied");
       setUserLocation(null);
-      setSelectedState(null);
+      setSelectedRegion(null);
+      setMapScope("global");
       setIsLoadingLocation(false);
     }
   };
 
   useEffect(() => {
-    setSelectedState(startsWithAppWideTotals ? null : "Arkansas");
-    setLocationPromptState("idle");
-    setIsLoadingLocation(false);
+    // Check saved user location in localStorage on mount
+    try {
+      const savedLocation = localStorage.getItem("soundkit_user_location");
+      if (savedLocation) {
+        setUserLocation(savedLocation);
+        setSelectedRegion(savedLocation);
+        setMapScope("north-america");
+        setLocationPromptState("granted");
+        return;
+      }
+    } catch {}
+
+    // Auto-prompt location on first visit
+    requestLocation();
   }, [startsWithAppWideTotals]);
+
+  const handleResetGlobal = () => {
+    setSelectedRegion(null);
+    setMapScope("global");
+  };
 
   return (
     <div className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <div className="lg:flex">
         <main className="flex-1">
           <section className="mb-6 md:mb-8">
-            <div className="mb-4 md:mb-6">
-              <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 md:mb-2">
-                Discover Music
-              </h1>
-              <p className="text-muted-foreground text-xs md:text-sm lg:text-base">
-                {isLoadingLocation
-                  ? "Requesting your location so we can localize the feed."
-                  : selectedState
-                    ? `Currently focused on ${selectedState}. Click another state to refine the feed.`
-                    : userLocation
-                      ? `Showing app-wide totals. We detected ${userLocation} if you want to zoom in.`
-                      : "Showing app-wide totals with no selected location. Click a state on the map to zoom in."}
-              </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6">
+              <div>
+                <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 md:mb-2 flex items-center gap-3">
+                  <Compass className="size-8 text-primary" />
+                  Discover Music
+                </h1>
+                <p className="text-muted-foreground text-xs md:text-sm lg:text-base">
+                  {isLoadingLocation
+                    ? "Locating your region to personalize your feed..."
+                    : selectedRegion
+                      ? `Viewing music stats focused on ${selectedRegion}. Click another region or switch map scope.`
+                      : isGlobalView
+                        ? "Showing global app-wide totals. Select a continent or region on the map to filter."
+                        : `Showing top music in ${activeRegion}. Click any country or state on the map.`}
+                </p>
+              </div>
+
+              {/* Reset to Global View Button */}
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                {!isGlobalView && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="gap-2"
+                    onClick={handleResetGlobal}
+                  >
+                    <RotateCcw className="size-3.5" />
+                    Reset to Global View
+                  </Button>
+                )}
+                {userLocation && (
+                  <Badge variant="outline" className="gap-1 text-xs py-1">
+                    <MapPin className="size-3 text-primary" />
+                    {userLocation}
+                  </Badge>
+                )}
+              </div>
             </div>
 
             {locationPromptState !== "granted" && (
@@ -137,30 +188,30 @@ function LocalExplorePage({
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
                       {locationPromptState === "prompting"
-                        ? "Location access is being requested."
+                        ? "Requesting location permission..."
                         : locationPromptState === "denied"
-                          ? "Location access is off for SoundKit."
+                          ? "Location access declined — showing Global View"
                           : locationPromptState === "unsupported"
-                            ? "This browser does not support location access."
-                            : "Use your location to personalize the map."}
+                            ? "Location access is unavailable in this browser."
+                            : "Personalize your local scene"}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {locationPromptState === "denied"
-                        ? "You can still browse the app-wide feed, or enable location and try again."
-                        : "SoundKit starts app-wide unless you choose a state or share your location."}
+                        ? "You are currently browsing global app-wide totals across Africa, Europe, Asia, and the Americas."
+                        : "Enable location to automatically highlight artists, battles, and drops from your state or country."}
                     </p>
                   </div>
                   {locationPromptState !== "unsupported" && (
                     <Button
                       type="button"
                       variant="outline"
-                      className="gap-2 self-start md:self-center"
+                      className="gap-2 self-start md:self-center shrink-0"
                       onClick={requestLocation}
                       disabled={isLoadingLocation}
                     >
                       <LocateFixed className="size-4" />
                       {locationPromptState === "denied"
-                        ? "Try location again"
+                        ? "Enable Location"
                         : "Use my location"}
                     </Button>
                   )}
@@ -168,14 +219,63 @@ function LocalExplorePage({
               </Card>
             )}
 
-            <Card className="overflow-hidden">
+            {/* Map Scope Controls: Tabs on Desktop, Select on Mobile */}
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Map Projection Scope
+              </span>
+
+              {/* Desktop Segmented Tabs */}
+              <div className="hidden md:flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/40">
+                {mapScopes.map((scope) => (
+                  <button
+                    key={scope.id}
+                    type="button"
+                    onClick={() => {
+                      setMapScope(scope.id);
+                      if (scope.id === "global") setSelectedRegion(null);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      mapScope === scope.id
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    }`}
+                  >
+                    {scope.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Mobile Select Dropdown */}
+              <div className="md:hidden">
+                <Select
+                  value={mapScope}
+                  onValueChange={(val) => {
+                    setMapScope(val as MapScope);
+                    if (val === "global") setSelectedRegion(null);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select Map Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mapScopes.map((scope) => (
+                      <SelectItem key={scope.id} value={scope.id}>
+                        {scope.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Card className="overflow-hidden border-primary/20">
               <CardContent className="p-2 md:p-4 lg:p-6">
-                <div className="w-full h-[250px] sm:h-[350px] md:h-[450px] lg:h-[500px]">
-                  <USAMap
-                    selectedState={selectedState}
-                    onStateSelect={setSelectedState}
-                  />
-                </div>
+                <WorldAndUSAMap
+                  mapScope={mapScope}
+                  selectedRegion={selectedRegion}
+                  onRegionSelect={(reg) => setSelectedRegion(reg)}
+                />
               </CardContent>
             </Card>
           </section>
@@ -184,14 +284,14 @@ function LocalExplorePage({
             <section>
               <SectionHeader
                 title={
-                  isNationalView
+                  isGlobalView
                     ? "Featured Videos Across SoundKit"
                     : `Featured Videos in ${activeRegion}`
                 }
                 description={
-                  isNationalView
+                  isGlobalView
                     ? "Official music videos, battle replays, and live recordings from the full app"
-                    : "Watch official drops and replays from your region"
+                    : `Watch official drops and replays from ${activeRegion}`
                 }
                 icon={<Video className="size-5 md:size-6 text-primary" />}
                 viewAllHref={videosHref}
@@ -206,14 +306,14 @@ function LocalExplorePage({
             <section>
               <SectionHeader
                 title={
-                  isNationalView
+                  isGlobalView
                     ? "Live Battles Across SoundKit"
                     : `Live Battles in ${activeRegion}`
                 }
                 description={
-                  isNationalView
+                  isGlobalView
                     ? "Top battles happening across the app right now"
-                    : "Vote for your favorite tracks"
+                    : `Vote for your favorite tracks in ${activeRegion}`
                 }
                 viewAllHref={battlesHref}
               />
@@ -298,14 +398,14 @@ function LocalExplorePage({
             <section>
               <SectionHeader
                 title={
-                  isNationalView
+                  isGlobalView
                     ? "Top Songs Across SoundKit"
                     : `Top Songs in ${activeRegion}`
                 }
                 description={
-                  isNationalView
+                  isGlobalView
                     ? "Most played tracks across the app this week"
-                    : "Most played tracks this week"
+                    : `Most played tracks in ${activeRegion} this week`
                 }
                 icon={<Music className="size-5 md:size-6 text-primary" />}
                 viewAllHref={tracksHref}
@@ -373,14 +473,14 @@ function LocalExplorePage({
             <section>
               <SectionHeader
                 title={
-                  isNationalView
+                  isGlobalView
                     ? "New Releases Across SoundKit"
                     : `New Releases in ${activeRegion}`
                 }
                 description={
-                  isNationalView
+                  isGlobalView
                     ? "Fresh drops from every active scene"
-                    : "Fresh tracks from local artists"
+                    : `Fresh tracks from artists in ${activeRegion}`
                 }
                 icon={<Flame className="size-5 md:size-6 text-primary" />}
                 viewAllHref={releasesHref}
@@ -448,14 +548,14 @@ function LocalExplorePage({
             <section>
               <SectionHeader
                 title={
-                  isNationalView
+                  isGlobalView
                     ? "Top Artists Across SoundKit"
                     : `Top Artists in ${activeRegion}`
                 }
                 description={
-                  isNationalView
+                  isGlobalView
                     ? "Rising stars and established artists across the app"
-                    : "Rising stars from your region"
+                    : `Rising stars and top performers in ${activeRegion}`
                 }
                 icon={<Users className="size-5 md:size-6 text-primary" />}
                 viewAllHref={artistsHref}

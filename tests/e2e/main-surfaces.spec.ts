@@ -145,7 +145,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Live Streams" })
     ).toBeVisible();
     await expect(page.getByText("Create Stream")).toBeVisible();
-    await expect(page.getByText("RealtimeKit Layer")).toBeVisible();
+    await expect(page.getByText("RealtimeKit Layer").first()).toBeVisible();
   });
 
   test("live room detail pages expose chat, lyrics, and battle voting", async ({

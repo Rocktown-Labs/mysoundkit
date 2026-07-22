@@ -490,7 +490,7 @@ function RealAnalyticsPanel({
           Realtime Stream Analytics
         </CardTitle>
         <CardDescription>
-          Live telemetry metrics powered by Cloudflare Realtime &amp; RealtimeKit Layer.
+          Live telemetry metrics powered by Cloudflare Realtime.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 text-sm">
