@@ -129,6 +129,7 @@ export const mapTrackSummary = ({
     id: row.id,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
+    isrc: row.isrc,
     lyricsStatus: row.lyricsStatus,
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
@@ -141,6 +142,7 @@ export const mapTrackSummary = ({
     releaseAt: row.releaseAt?.toISOString() ?? null,
     releaseStrategy: row.releaseStrategy,
     slug: row.slug,
+    streamingLinks: row.streamingLinks,
     title: row.title,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -285,6 +287,7 @@ export const buildProjectSummary = async (
     releaseDate: row.releaseDate?.toISOString() ?? null,
     slug: row.slug,
     status: row.status,
+    streamingLinks: row.streamingLinks,
     title: row.title,
     trackCount: trackRows.length,
     updatedAt: row.updatedAt.toISOString(),

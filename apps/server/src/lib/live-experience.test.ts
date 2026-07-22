@@ -183,4 +183,36 @@ describe("live experience orchestration", () => {
       },
     ]);
   });
+
+  it("builds battle challenge notification fanout with room CTA", () => {
+    expect(
+      buildNotificationFanout({
+        experienceId: "battle_456",
+        kind: "battle",
+        title: "Club Knockout Showdown",
+      })
+    ).toEqual([
+      {
+        audience: "artists",
+        ctaHref: "/live/battles/battle_456",
+        message:
+          "Club Knockout Showdown is ready. Join the room when it is time to go live.",
+        title: "Your battle is ready",
+      },
+      {
+        audience: "followers",
+        ctaHref: "/live/battles/battle_456",
+        message:
+          "Club Knockout Showdown is scheduled. We will bring everyone to the room when it starts.",
+        title: "New battle scheduled",
+      },
+      {
+        audience: "watchers",
+        ctaHref: "/live/battles/battle_456",
+        message:
+          "Club Knockout Showdown is live. Tap in to watch, chat, and react.",
+        title: "Club Knockout Showdown is live",
+      },
+    ]);
+  });
 });

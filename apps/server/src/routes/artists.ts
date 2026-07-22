@@ -257,14 +257,14 @@ app.openapi(
           .from(profileLinks)
           .where(eq(profileLinks.userId, artist.id));
         const platformLinks = Object.fromEntries(
-          links
-            .filter((link) =>
-              ["apple_music", "spotify", "youtube"].includes(link.platform)
-            )
-            .map((link) => [
-              link.platform === "apple_music" ? "apple" : link.platform,
-              link.url,
-            ])
+          links.map((link) => [
+            link.platform === "apple_music"
+              ? "apple"
+              : (link.platform === "personal_site"
+                ? "personalSite"
+                : link.platform),
+            link.url,
+          ])
         );
 
         const rawName = artist.stageName ?? artist.displayName ?? artist.name;
@@ -274,7 +274,11 @@ app.openapi(
           Number(artist.trackCount) > 0 ||
           Number(artist.followerCount) > 0 ||
           Number(artist.battleCount) > 0;
-        const rank = hasActivity ? (artist.battleCount ? `#${artist.battleCount}` : "#1") : null;
+        const rank = hasActivity
+          ? (artist.battleCount
+            ? `#${artist.battleCount}`
+            : "#1")
+          : null;
 
         return c.json(
           {

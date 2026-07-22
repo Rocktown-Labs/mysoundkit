@@ -13,20 +13,24 @@ import {
   UserPlus,
   Trophy,
   Swords,
-  Users as UsersIcon,
   PlayCircle,
+  Globe,
 } from "lucide-react";
+import { useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   AppleMusicIcon,
+  InstagramIcon,
   SpotifyIcon,
+  TwitterIcon,
   YoutubeMusicIcon,
 } from "@/components/ui/brand-icons";
 import { Button } from "@/components/ui/button";
 import { canShowChallengeAction } from "@/lib/live-experience";
+import { useFollowArtistMutation } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 interface ProfileShellProps {
@@ -48,10 +52,14 @@ interface ProfileShellProps {
     monthlyListeners?: string;
     links: {
       instagram?: string;
+      personalSite?: string;
+      soundcloud?: string;
+      tiktok?: string;
       twitter?: string;
       youtube?: string;
       spotify?: string;
       apple?: string;
+      appleMusic?: string;
     };
   };
   isOwner?: boolean;
@@ -68,11 +76,62 @@ export function ProfileShell({
   children,
 }: ProfileShellProps) {
   const router = useRouter();
+  const followArtist = useFollowArtistMutation(user.username);
+  const [followerCount, setFollowerCount] = useState(user.followers);
   const showChallenge = canShowChallengeAction({
     isOwner: Boolean(isOwner),
     targetIsArtist,
     viewerAccountType,
   });
+  const appleMusicLink = user.links.appleMusic ?? user.links.apple;
+  const listenLinks = [
+    user.links.spotify
+      ? {
+          href: user.links.spotify,
+          icon: SpotifyIcon,
+          label: "Spotify",
+          tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500",
+        }
+      : null,
+    appleMusicLink
+      ? {
+          href: appleMusicLink,
+          icon: AppleMusicIcon,
+          label: "Apple Music",
+          tone: "border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500",
+        }
+      : null,
+    user.links.youtube
+      ? {
+          href: user.links.youtube,
+          icon: YoutubeMusicIcon,
+          label: "YouTube",
+          tone: "border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500",
+        }
+      : null,
+  ].filter((link): link is Exclude<typeof link, null> => Boolean(link));
+  const socialLinks = [
+    user.links.instagram
+      ? { href: user.links.instagram, icon: InstagramIcon, label: "Instagram" }
+      : null,
+    user.links.twitter
+      ? { href: user.links.twitter, icon: TwitterIcon, label: "X" }
+      : null,
+    user.links.tiktok
+      ? { href: user.links.tiktok, icon: YoutubeMusicIcon, label: "TikTok" }
+      : null,
+    user.links.soundcloud
+      ? { href: user.links.soundcloud, icon: SpotifyIcon, label: "SoundCloud" }
+      : null,
+    user.links.personalSite
+      ? { href: user.links.personalSite, icon: Globe, label: "Website" }
+      : null,
+  ].filter((link): link is Exclude<typeof link, null> => Boolean(link));
+
+  const handleFollow = async () => {
+    const result = await followArtist.mutateAsync();
+    setFollowerCount(result.followerCount.toLocaleString());
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -198,9 +257,14 @@ export function ProfileShell({
                       </>
                     ) : (
                       <>
-                        <Button className="rounded-full shadow-xl shadow-primary/30 px-10 font-bold h-12 text-lg">
+                        <Button
+                          className="rounded-full shadow-xl shadow-primary/30 px-10 font-bold h-12 text-lg"
+                          disabled={followArtist.isPending}
+                          onClick={() => void handleFollow()}
+                          type="button"
+                        >
                           <UserPlus className="size-5 mr-2" />
-                          Follow
+                          {followArtist.isPending ? "Following..." : "Follow"}
                         </Button>
                         {showChallenge && (
                           <Button
@@ -240,7 +304,7 @@ export function ProfileShell({
                   </div>
                   <div className="text-center sm:text-left border-r border-border/10 pr-4">
                     <p className="text-xl font-black text-foreground">
-                      {user.followers}
+                      {followerCount}
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-black">
                       Followers
@@ -251,8 +315,8 @@ export function ProfileShell({
                       {user.battleRank ? (
                         user.battleRank
                       ) : (
-                        <span className="text-sm font-semibold text-muted-foreground">
-                          Unranked
+                        <span className="font-semibold text-muted-foreground text-sm">
+                          #NR
                         </span>
                       )}
                     </p>
@@ -298,37 +362,49 @@ export function ProfileShell({
                       Listen on
                     </p>
                     <div className="flex items-center justify-center lg:justify-start gap-4">
-                      {user.links.spotify && (
-                        <a
-                          href={user.links.spotify}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="size-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-500/10 hover:scale-110"
-                        >
-                          <SpotifyIcon className="size-5" />
-                        </a>
-                      )}
-                      {user.links.apple && (
-                        <a
-                          href={user.links.apple}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="size-10 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/10 hover:scale-110"
-                        >
-                          <AppleMusicIcon className="size-5" />
-                        </a>
-                      )}
-                      {user.links.youtube && (
-                        <a
-                          href={user.links.youtube}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="size-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-lg shadow-red-500/10 hover:scale-110"
-                        >
-                          <YoutubeMusicIcon className="size-5" />
-                        </a>
-                      )}
+                      {listenLinks.map((link) => {
+                        const Icon = link.icon;
+                        return (
+                          <a
+                            key={link.label}
+                            href={link.href}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={link.label}
+                            className={cn(
+                              "size-10 rounded-full border flex items-center justify-center hover:text-white transition-all shadow-lg hover:scale-110",
+                              link.tone
+                            )}
+                          >
+                            <Icon className="size-5" />
+                          </a>
+                        );
+                      })}
                     </div>
+                    {socialLinks.length > 0 ? (
+                      <div className="flex items-center justify-center gap-3 lg:justify-start">
+                        {socialLinks.map((link) => {
+                          const Icon = link.icon;
+                          return (
+                            <a
+                              key={link.label}
+                              href={link.href}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={link.label}
+                              className="flex size-8 items-center justify-center rounded-full border border-border/40 bg-muted/30 text-muted-foreground transition hover:border-primary/40 hover:text-primary"
+                            >
+                              <Icon className="size-4" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    {listenLinks.length === 0 && socialLinks.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No links yet
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -72,6 +72,7 @@ const videosPost = apiClient.v1.videos.index.$post;
 const notificationsGet = apiClient.v1.notifications.index.$get;
 const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
 const trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post;
+const artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post;
 const sellerStatusGet = apiClient.v1.seller.status.$get;
 const battleStatsGet = apiClient.v1.battles.stats.$get;
 const trackBattleHistoryGet =
@@ -104,6 +105,7 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
+type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
@@ -212,6 +214,7 @@ export const soundkitQueryKeys = {
   liveExperience: (id: string) => ["live", "experiences", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
+  notifications: ["notifications"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
   peopleSearch: (q: string) => ["messages", "people", q] as const,
@@ -456,6 +459,24 @@ export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>
     queryFn: async () => rpcJson(await artistsGet({ query })),
     queryKey: soundkitQueryKeys.artists(query),
   });
+
+export const useFollowArtistMutation = (username: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<ArtistFollowResponse> =>
+      rpcJson(await artistFollowPost({ param: { username } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.artist(username),
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      });
+    },
+  });
+};
 
 export const useArtistOnboardingMutation = () =>
   useMutation({
@@ -819,7 +840,7 @@ export const useTrackBattleHistoryQuery = (trackId: string) =>
 export const useNotificationsQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await notificationsGet()),
-    queryKey: ["notifications"],
+    queryKey: soundkitQueryKeys.notifications,
   });
 
 export const useMarkNotificationsReadMutation = () => {
@@ -828,7 +849,9 @@ export const useMarkNotificationsReadMutation = () => {
   return useMutation({
     mutationFn: async () => rpcJson(await notificationsReadAllPost()),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      }),
   });
 };
 

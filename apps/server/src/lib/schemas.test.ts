@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { normalizeProfileLink } from "./profile-links";
 import {
   artistSummarySchema,
   createProjectBodySchema,
@@ -54,6 +55,36 @@ describe("artist onboarding profile picture", () => {
         avatarObjectKey: "profiles/user/avatar.jpg",
       }).success
     ).toBe(false);
+  });
+});
+
+describe("profile link normalization", () => {
+  it("maps social handles to canonical URLs", () => {
+    expect(
+      normalizeProfileLink({ platform: "instagram", value: "@cgstewart" })
+    ).toEqual({
+      handle: "cgstewart",
+      platform: "instagram",
+      url: "https://www.instagram.com/cgstewart",
+    });
+  });
+
+  it("maps music platform handles to listener URLs", () => {
+    expect(
+      normalizeProfileLink({ platform: "youtube", value: "@cgstewart" })?.url
+    ).toBe("https://www.youtube.com/@cgstewart");
+    expect(
+      normalizeProfileLink({ platform: "spotify", value: "artist-id" })?.url
+    ).toBe("https://open.spotify.com/artist/artist-id");
+  });
+
+  it("preserves full external URLs", () => {
+    expect(
+      normalizeProfileLink({
+        platform: "personal_site",
+        value: "https://cgstewart.example/music/",
+      })?.url
+    ).toBe("https://cgstewart.example/music");
   });
 });
 

@@ -22,6 +22,13 @@ import { useAudioPlayer } from "@/components/audio-player-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -35,13 +42,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { API_V1_URL } from "@/lib/api";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
@@ -121,7 +121,11 @@ function PlayerRouteLink({
 
   if (trackMatch?.groups?.id) {
     return (
-      <Link className={className} params={{ id: trackMatch.groups.id }} to="/tracks/$id">
+      <Link
+        className={className}
+        params={{ id: trackMatch.groups.id }}
+        to="/tracks/$id"
+      >
         {children}
       </Link>
     );
@@ -165,8 +169,14 @@ const getDeviceIcon = (type: Device["type"]) => {
 };
 
 export function MusicPlayer() {
-  const { currentTrack, queue, setCurrentTrack, setQueue, setVisible, visible } =
-    useAudioPlayer();
+  const {
+    currentTrack,
+    queue,
+    setCurrentTrack,
+    setQueue,
+    setVisible,
+    visible,
+  } = useAudioPlayer();
   const audioRef = useRef<HTMLAudioElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null);
@@ -201,7 +211,10 @@ export function MusicPlayer() {
 
       if (stored) {
         try {
-          const parsed = JSON.parse(stored) as { date: string; secondsPlayed: number };
+          const parsed = JSON.parse(stored) as {
+            date: string;
+            secondsPlayed: number;
+          };
           if (parsed.date === today) {
             secondsPlayed = parsed.secondsPlayed || 0;
           }
@@ -536,6 +549,19 @@ export function MusicPlayer() {
     setVisible(false);
   };
 
+  if (currentTrack && !visible) {
+    return (
+      <Button
+        className="fixed right-4 bottom-4 z-50 shadow-lg"
+        onClick={() => setVisible(true)}
+        type="button"
+      >
+        <Play className="mr-2 size-4 fill-current" />
+        Show Player
+      </Button>
+    );
+  }
+
   if (!(visible && currentTrack)) {
     return null;
   }
@@ -780,7 +806,9 @@ export function MusicPlayer() {
               1-Hour Free Listening Limit Reached
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground pt-2">
-              You&apos;ve enjoyed 1 hour of free guest listening today! Create a free SoundKit account to unlock unlimited streaming, save your favorite tracks, and follow top artists.
+              You&apos;ve enjoyed 1 hour of free guest listening today! Create a
+              free SoundKit account to unlock unlimited streaming, save your
+              favorite tracks, and follow top artists.
             </DialogDescription>
           </DialogHeader>
 

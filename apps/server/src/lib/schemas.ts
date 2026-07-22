@@ -217,8 +217,23 @@ export const userSummarySchema = z.object({
   displayName: z.string(),
   headerUrl: z.string().nullable().optional(),
   id: z.string(),
+  links: z
+    .object({
+      appleMusic: z.string().url().optional(),
+      instagram: z.string().url().optional(),
+      personalSite: z.string().url().optional(),
+      soundcloud: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      tiktok: z.string().url().optional(),
+      twitter: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .optional(),
   onboardingCompletedAt: z.string().nullable().optional(),
+  proAffiliation: z.string().nullable().optional(),
+  proMemberId: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
+  songwriterLegalName: z.string().nullable().optional(),
   stageName: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
   username: z.string(),
@@ -291,7 +306,7 @@ export const profileUpdateBodySchema = z.object({
       youtube: z.string().optional(),
     })
     .optional(),
-  proAffiliation: z.enum(["ASCAP", "BMI", "SESAC", "Other", "None"]).optional(),
+  proAffiliation: z.string().optional(),
   proMemberId: z.string().optional(),
   songwriterLegalName: z.string().optional(),
   stageName: z.string().optional(),
@@ -668,6 +683,7 @@ export const trackCatalogDetailSchema = z.object({
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
   isStreamable: z.boolean(),
+  isrc: z.string().nullable().optional(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
   musicalKey: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
@@ -676,6 +692,14 @@ export const trackCatalogDetailSchema = z.object({
   purchaseMode: purchaseModeSchema,
   slug: z.string(),
   streamCount: z.string().nullable().optional(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .default({})
+    .optional(),
   tags: z.array(z.string()).default([]),
   title: z.string(),
   visualContent: catalogVisualContentSchema.array().default([]),
@@ -927,15 +951,13 @@ export const commentSchema = z.object({
 
 export const onboardingArtistBodySchema = z
   .object({
-    appleMusicUrl: z.url().optional(),
+    appleMusicUrl: z.string().optional(),
     avatarObjectKey: z.string().min(1).optional(),
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
     instagramHandle: z.string().optional(),
     primaryGenre: z.string().min(1),
-    proAffiliation: z
-      .enum(["ASCAP", "BMI", "SESAC", "Other", "None"])
-      .default("None"),
+    proAffiliation: z.string().default("None"),
     proMemberId: z.string().optional(),
     roles: artistRoleSchema.array().min(1).default(["musician"]),
     selectedPlanCode: z.enum([
@@ -943,14 +965,14 @@ export const onboardingArtistBodySchema = z
       "soundkit_premium_artist",
       "artist_team",
     ]),
-    spotifyUrl: z.url().optional(),
-    state: z.string().min(1),
     songwriterLegalName: z.string().optional(),
+    spotifyUrl: z.string().optional(),
+    state: z.string().min(1),
     teamInviteEmails: z.array(z.email()).default([]),
     tiktokHandle: z.string().optional(),
     twitterHandle: z.string().optional(),
     username: usernameSchema,
-    youtubeUrl: z.url().optional(),
+    youtubeUrl: z.string().optional(),
   })
   .refine(
     ({ avatarObjectKey, avatarUrl }) =>

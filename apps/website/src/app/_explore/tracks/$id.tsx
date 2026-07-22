@@ -30,6 +30,11 @@ import { useCart } from "@/components/cart-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  AppleMusicIcon,
+  SpotifyIcon,
+  YoutubeMusicIcon,
+} from "@/components/ui/brand-icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -120,6 +125,11 @@ interface MockCatalogItem {
   musicalKey?: string;
   duration?: string;
   streamCount?: string;
+  streamingLinks?: {
+    appleMusic?: string;
+    spotify?: string;
+    youtube?: string;
+  };
   description?: string;
   priceCents?: number | null;
   priceLabel: string;
@@ -269,7 +279,6 @@ const MOCK_CATALOG: MockCatalogItem[] = [
     id: "beat-1",
     isPurchasable: true,
     isStreamable: true,
-    playbackUrl: "/demo-audio/long-way-26.wav",
     licenseOptions: [
       {
         id: "l1",
@@ -299,6 +308,7 @@ const MOCK_CATALOG: MockCatalogItem[] = [
       },
     ],
     musicalKey: "Dm",
+    playbackUrl: "/demo-audio/long-way-26.wav",
     priceCents: 2999,
     priceLabel: "29.99",
     purchaseMode: "license",
@@ -431,13 +441,13 @@ function TrackPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-16">
-        <div className="grid lg:grid-cols-12 gap-16">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* Main Track Section */}
-          <div className="lg:col-span-8 space-y-12">
+          <div className="space-y-8">
             {/* High-Impact Industrial Hero */}
-            <div className="flex flex-col md:flex-row gap-10 items-start">
-              <div className="size-64 md:size-80 shrink-0 relative group">
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+              <div className="size-60 md:size-72 shrink-0 relative group">
                 <AppImage
                   src={item.coverArtUrl}
                   alt={item.title}
@@ -460,7 +470,7 @@ function TrackPage() {
                 )}
               </div>
 
-              <div className="flex-1 space-y-8 pt-2">
+              <div className="flex-1 space-y-6 pt-2">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <Badge
@@ -475,7 +485,7 @@ function TrackPage() {
                       </div>
                     )}
                   </div>
-                  <h1 className="text-5xl md:text-7xl font-black font-[family-name:var(--font-playfair)] tracking-tighter leading-[0.85] uppercase">
+                  <h1 className="text-4xl md:text-6xl font-black font-[family-name:var(--font-playfair)] tracking-tighter leading-[0.9] uppercase">
                     {item.title}
                   </h1>
                   <Link
@@ -483,7 +493,7 @@ function TrackPage() {
                     params={{ username: item.artist.handle }}
                     className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors group mt-4"
                   >
-                    <span className="font-black text-xl uppercase tracking-tighter">
+                    <span className="font-black text-lg uppercase tracking-tighter">
                       {item.artist.name}
                     </span>
                     <CheckCircle2 className="size-4 text-primary fill-primary/10" />
@@ -494,17 +504,17 @@ function TrackPage() {
                   {item.isStreamable && (
                     <Button
                       size="lg"
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-10 h-14 uppercase tracking-[0.1em] rounded-none shadow-xl shadow-primary/20 flex-1 sm:flex-none"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg shadow-xl shadow-primary/20 flex-1 sm:flex-none"
                       disabled={!item.playbackUrl}
                       onClick={playCurrentTrack}
                     >
-                      <Play className="size-5 mr-3 fill-current" /> Play Preview
+                      <Play className="size-5 mr-3 fill-current" /> Play
                     </Button>
                   )}
                   <Button
                     size="lg"
                     variant="outline"
-                    className="border-border/40 hover:bg-muted font-black px-8 h-14 uppercase tracking-[0.1em] rounded-none flex-1 sm:flex-none"
+                    className="border-border/40 hover:bg-muted font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
                     disabled={!item.playbackUrl}
                     onClick={playCurrentTrack}
                   >
@@ -513,14 +523,22 @@ function TrackPage() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="size-14 rounded-none border-border/40 hover:text-rose-500 hover:border-rose-500/40"
+                    className="size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40"
                   >
                     <Heart className="size-6" />
                   </Button>
                 </div>
 
+                <TrackPlatformLinks links={item.streamingLinks ?? {}} />
+
+                {item.description ? (
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                    {item.description}
+                  </p>
+                ) : null}
+
                 {/* Technical Metadata Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-8 border-t border-border/10">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-5 pt-5 border-t border-border/10">
                   {item.streamCount && (
                     <div>
                       <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
@@ -567,13 +585,13 @@ function TrackPage() {
             <section className="space-y-4">
               <div className="flex items-center justify-between px-2">
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
-                  Package Contents
+                  Included Files
                 </h3>
                 <Badge
                   variant="outline"
                   className="text-[8px] font-black border-border/60 uppercase tracking-widest rounded-none h-4"
                 >
-                  Hi-Res Audio
+                  After Purchase
                 </Badge>
               </div>
               <div className="bg-card/20 border border-border/40 rounded-none overflow-hidden divide-y divide-border/10 shadow-sm">
@@ -685,12 +703,32 @@ function TrackPage() {
           </div>
 
           {/* Right Sidebar - Commercial Core */}
-          <div className="lg:col-span-4 space-y-8">
-            <CommerceCard
-              item={item}
-              selectedLicense={selectedLicense}
-              onLicenseChange={setSelectedLicense}
-            />
+          <div className="space-y-6">
+            {item.isPurchasable ? (
+              <CommerceCard
+                item={item}
+                selectedLicense={selectedLicense}
+                onLicenseChange={setSelectedLicense}
+              />
+            ) : (
+              <Card className="border-border/40 bg-card/40">
+                <CardContent className="p-6">
+                  <p className="font-semibold">Streaming only</p>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    This artist has not enabled direct purchases for this track.
+                  </p>
+                  <Button
+                    className="mt-5 w-full"
+                    disabled={!item.playbackUrl}
+                    onClick={playCurrentTrack}
+                    type="button"
+                  >
+                    <Play className="mr-2 size-4 fill-current" />
+                    Play Track
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Artist Sidebar Card */}
             <Card className="bg-card/20 border-border/40 rounded-none overflow-hidden">
@@ -805,6 +843,51 @@ function TrackPage() {
 }
 
 // --- Dynamic Components ---
+
+function TrackPlatformLinks({
+  links,
+}: {
+  links: NonNullable<MockCatalogItem["streamingLinks"]>;
+}) {
+  const platformLinks = [
+    links.spotify
+      ? { href: links.spotify, icon: SpotifyIcon, label: "Spotify" }
+      : null,
+    links.appleMusic
+      ? { href: links.appleMusic, icon: AppleMusicIcon, label: "Apple Music" }
+      : null,
+    links.youtube
+      ? { href: links.youtube, icon: YoutubeMusicIcon, label: "YouTube" }
+      : null,
+  ].filter((link): link is Exclude<typeof link, null> => Boolean(link));
+
+  if (platformLinks.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+        Also on
+      </span>
+      {platformLinks.map((link) => {
+        const Icon = link.icon;
+        return (
+          <a
+            key={link.label}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={link.label}
+            className="flex size-9 items-center justify-center rounded-full border border-border/40 bg-muted/30 text-muted-foreground transition hover:border-primary/40 hover:text-primary"
+          >
+            <Icon className="size-4" />
+          </a>
+        );
+      })}
+    </div>
+  );
+}
 
 function AssetIcon({ kind }: { kind: MockCatalogAsset["kind"] }) {
   switch (kind) {
@@ -1038,7 +1121,8 @@ function CommerceCard({
               void addItem({
                 artistName: item.artist.name,
                 coverArtUrl: item.coverArtUrl,
-                priceCents: item.priceCents ?? priceCentsFromLabel(item.priceLabel),
+                priceCents:
+                  item.priceCents ?? priceCentsFromLabel(item.priceLabel),
                 productType: "track",
                 purchaseMode: "digital_download",
                 title: item.title,

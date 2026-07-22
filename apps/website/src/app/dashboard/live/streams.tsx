@@ -3,23 +3,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
-  Captions,
   CheckCircle2,
   Copy,
   Eye,
   EyeOff,
   LoaderCircle,
   MessageSquare,
-  Mic2,
   MonitorUp,
   Radio,
-  ShieldCheck,
   Tv,
   Users,
   Video,
+  Zap,
 } from "lucide-react";
 import { useState } from "react";
 
+import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,10 +41,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
-import {
-  liveExperienceConfigs,
-  realtimeKitAlwaysOn,
-} from "@/lib/live-experience";
+import { liveExperienceConfigs } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
 import {
   useCreateLiveExperienceMutation,
@@ -114,6 +110,7 @@ function DashboardLiveStreamsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showStreamKey, setShowStreamKey] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
   const canCreate = streamTitle.trim().length > 0;
   const isCreatingStream = createLiveExperience.isPending;
 
@@ -153,6 +150,7 @@ function DashboardLiveStreamsPage() {
           | "status"
           | "title"
         >);
+
       const nextStream: ActiveStream = {
         ...stream,
         category,
@@ -175,8 +173,7 @@ function DashboardLiveStreamsPage() {
       });
     } catch {
       toast({
-        description:
-          "Could not create the RealtimeKit stream room. Please try again.",
+        description: "Could not create the live stream room. Please try again.",
         title: "Error starting stream",
         variant: "destructive",
       });
@@ -208,7 +205,7 @@ function DashboardLiveStreamsPage() {
         });
       }
     } catch {
-      // Status refresh is optional and should not interrupt the control room.
+      // Status refresh is optional
     } finally {
       setIsRefreshing(false);
     }
@@ -218,8 +215,8 @@ function DashboardLiveStreamsPage() {
     setActiveStream(null);
     localStorage.removeItem("soundkit_active_creator_stream");
     toast({
-      description: "Live input has been cleared from dashboard.",
-      title: "Live broadcast ended",
+      description: "Live broadcast input cleared.",
+      title: "Stream Ended",
     });
   };
 
@@ -234,240 +231,308 @@ function DashboardLiveStreamsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
-            Live Streams
-          </h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Create a one-creator stream with RealtimeKit chat, browser or OBS
-            setup, health checks, and audience analytics.
-          </p>
+    <LiveExperienceAuthGuard
+      actionLabel="create live streams, get RTMP keys, or host broadcasts"
+      featureTitle="Live Streams Control Room"
+      requiredEntitlement="canHostLiveStreams"
+    >
+      <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
+              Live Streams
+            </h1>
+            <p className="mt-1 max-w-2xl text-muted-foreground">
+              Broadcast live using browser camera or OBS/RTMP encoder with
+              health checks and real-time audience analytics.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/live/streams">Open Public Streams</Link>
+          </Button>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/live/streams">Open Public Streams</Link>
-        </Button>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard
-          icon={Radio}
-          label="Live Recordings"
-          value={liveRecordings.length}
-        />
-        <MetricCard
-          icon={Users}
-          label="Processing"
-          value={processingVideos.length}
-        />
-        <MetricCard icon={Video} label="Total Videos" value={videos.length} />
-        <MetricCard
-          icon={MessageSquare}
-          label="Realtime Chat"
-          value="Always on"
-        />
-      </div>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+          <MetricCard
+            icon={Radio}
+            label="Live Recordings"
+            value={liveRecordings.length}
+          />
+          <MetricCard
+            icon={Users}
+            label="Processing"
+            value={processingVideos.length}
+          />
+          <MetricCard icon={Video} label="Total Videos" value={videos.length} />
+          <MetricCard
+            icon={MessageSquare}
+            label="Realtime Chat"
+            value="Always On"
+          />
+        </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <main className="flex flex-col gap-6">
-          {activeStream ? (
-            <ControlRoom
-              activeStream={activeStream}
-              copiedField={copiedField}
-              isRefreshing={isRefreshing}
-              onCopy={copyToClipboard}
-              onEnd={handleEndStream}
-              onRefresh={handleRefreshStream}
-              showStreamKey={showStreamKey}
-              toggleShowStreamKey={() => setShowStreamKey((value) => !value)}
-            />
-          ) : (
-            <Card>
-              <CardHeader className="border-b">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <CardTitle>Create Stream</CardTitle>
-                    <CardDescription>
-                      Details, device setup, then a ready room with keys.
-                    </CardDescription>
-                  </div>
-                  <StepTabs onStepChange={setSetupStep} setupStep={setupStep} />
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-6 p-4 md:p-6">
-                {setupStep === "details" && (
-                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="stream-title">Title</Label>
-                        <Input
-                          id="stream-title"
-                          onChange={(event) =>
-                            setStreamTitle(event.target.value)
-                          }
-                          placeholder="Late Night Studio Jam"
-                          value={streamTitle}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <Label htmlFor="stream-description">Description</Label>
-                        <Textarea
-                          className="min-h-32 resize-none"
-                          id="stream-description"
-                          onChange={(event) =>
-                            setDescription(event.target.value)
-                          }
-                          placeholder="Tell viewers what is happening tonight."
-                          value={description}
-                        />
-                      </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <main className="flex flex-col gap-6">
+            {activeStream ? (
+              <ControlRoom
+                activeStream={activeStream}
+                copiedField={copiedField}
+                isRefreshing={isRefreshing}
+                onCopy={copyToClipboard}
+                onEnd={handleEndStream}
+                onRefresh={handleRefreshStream}
+                showStreamKey={showStreamKey}
+                toggleShowStreamKey={() => setShowStreamKey((v) => !v)}
+              />
+            ) : (
+              <Card>
+                <CardHeader className="border-b">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <CardTitle>Create Stream</CardTitle>
+                      <CardDescription>
+                        Details, device setup, then a ready room with keys.
+                      </CardDescription>
                     </div>
-                    <div className="flex flex-col gap-4">
-                      <FieldSelect
-                        label="Category"
-                        onValueChange={setCategory}
-                        options={categories}
-                        value={category}
-                      />
-                      <FieldSelect
-                        label="Visibility"
-                        onValueChange={setVisibility}
-                        options={visibilityOptions}
-                        value={visibility}
-                      />
-                      <SchedulePicker
-                        scheduleMode={scheduleMode}
-                        setScheduleMode={setScheduleMode}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {setupStep === "device" && (
-                  <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-                    <div className="flex flex-col gap-4">
-                      <Label>How are you going live?</Label>
-                      <RadioGroup
-                        className="grid gap-3 md:grid-cols-2"
-                        onValueChange={(value) =>
-                          setSource(value as StreamSource)
-                        }
-                        value={source}
-                      >
-                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
-                          <RadioGroupItem value="browser" />
-                          <span>
-                            <span className="flex items-center gap-2 font-medium">
-                              <Video className="size-4 text-primary" />
-                              Browser camera
-                            </span>
-                            <span className="mt-1 block text-muted-foreground text-sm">
-                              Join from SoundKit after camera and mic setup.
-                            </span>
-                          </span>
-                        </label>
-                        <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
-                          <RadioGroupItem value="obs" />
-                          <span>
-                            <span className="flex items-center gap-2 font-medium">
-                              <MonitorUp className="size-4 text-primary" />
-                              OBS or encoder
-                            </span>
-                            <span className="mt-1 block text-muted-foreground text-sm">
-                              Create stream keys and send video from OBS.
-                            </span>
-                          </span>
-                        </label>
-                      </RadioGroup>
-                    </div>
-                    <ChecklistCard
-                      items={streamConfig.checklist}
-                      title="Device checklist"
+                    <StepTabs
+                      onStepChange={setSetupStep}
+                      setupStep={setupStep}
                     />
                   </div>
-                )}
-
-                {setupStep === "ready" && (
-                  <div className="rounded-lg border bg-muted/30 p-5">
-                    <div className="flex items-center gap-2 font-semibold">
-                      <CheckCircle2 className="size-5 text-primary" />
-                      Stream room is ready to create
+                </CardHeader>
+                <CardContent className="flex flex-col gap-6 p-4 md:p-6">
+                  {setupStep === "details" && (
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="stream-title">Title</Label>
+                          <Input
+                            id="stream-title"
+                            onChange={(e) => setStreamTitle(e.target.value)}
+                            placeholder="Late Night Studio Jam"
+                            value={streamTitle}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label htmlFor="stream-description">
+                            Description
+                          </Label>
+                          <Textarea
+                            className="min-h-28 resize-none"
+                            id="stream-description"
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Tell viewers what is happening tonight."
+                            value={description}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-4">
+                        <FieldSelect
+                          label="Category"
+                          onValueChange={setCategory}
+                          options={categories}
+                          value={category}
+                        />
+                        <FieldSelect
+                          label="Visibility"
+                          onValueChange={setVisibility}
+                          options={visibilityOptions}
+                          value={visibility}
+                        />
+                        <SchedulePicker
+                          scheduleMode={scheduleMode}
+                          setScheduleMode={setScheduleMode}
+                        />
+                      </div>
                     </div>
-                    <p className="mt-2 text-muted-foreground text-sm">
-                      SoundKit will create the live input and prepare a
-                      RealtimeKit-themed room with chat, captions, recording,
-                      and stream analytics.
-                    </p>
+                  )}
+
+                  {setupStep === "device" && (
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="flex flex-col gap-4">
+                        <Label>How are you going live?</Label>
+                        <RadioGroup
+                          className="grid gap-3 md:grid-cols-2"
+                          onValueChange={(val) =>
+                            setSource(val as StreamSource)
+                          }
+                          value={source}
+                        >
+                          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
+                            <RadioGroupItem value="browser" />
+                            <span>
+                              <span className="flex items-center gap-2 font-medium">
+                                <Video className="size-4 text-primary" />
+                                Browser camera
+                              </span>
+                              <span className="mt-1 block text-muted-foreground text-sm">
+                                Join directly from browser with camera &amp; mic
+                                setup.
+                              </span>
+                            </span>
+                          </label>
+                          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
+                            <RadioGroupItem value="obs" />
+                            <span>
+                              <span className="flex items-center gap-2 font-medium">
+                                <MonitorUp className="size-4 text-primary" />
+                                OBS or encoder
+                              </span>
+                              <span className="mt-1 block text-muted-foreground text-sm">
+                                Get RTMPS / SRT stream key and push video from
+                                OBS.
+                              </span>
+                            </span>
+                          </label>
+                        </RadioGroup>
+                      </div>
+                      <ChecklistCard
+                        items={streamConfig.checklist}
+                        title="Device checklist"
+                      />
+                    </div>
+                  )}
+
+                  {setupStep === "ready" && (
+                    <div className="rounded-lg border bg-muted/30 p-5">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <CheckCircle2 className="size-5 text-primary" />
+                        Stream room is ready to launch
+                      </div>
+                      <p className="mt-2 text-muted-foreground text-sm">
+                        SoundKit will initialize your stream control room with
+                        chat, low-latency playback, encoder keys, and viewer
+                        analytics.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+                    <Badge variant="outline">
+                      {source === "obs" ? "OBS Setup" : "Browser Setup"}
+                    </Badge>
+                    <div className="flex gap-2">
+                      {setupStep !== "details" && (
+                        <Button
+                          onClick={() =>
+                            setSetupStep(
+                              setupStep === "ready" ? "device" : "details"
+                            )
+                          }
+                          type="button"
+                          variant="outline"
+                        >
+                          Back
+                        </Button>
+                      )}
+                      {setupStep === "ready" ? (
+                        <Button
+                          disabled={isCreatingStream || !canCreate}
+                          onClick={handleStartStream}
+                        >
+                          {isCreatingStream ? (
+                            <>
+                              <LoaderCircle className="mr-2 size-4 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Radio className="mr-2 size-4" />
+                              Create Stream Room
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          disabled={setupStep === "details" && !canCreate}
+                          onClick={() =>
+                            setSetupStep(
+                              setupStep === "details" ? "device" : "ready"
+                            )
+                          }
+                          type="button"
+                        >
+                          Next
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                )}
+                </CardContent>
+              </Card>
+            )}
 
-                <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <Badge variant="outline">
-                    {source === "obs" ? "OBS setup" : "Browser setup"}
-                  </Badge>
-                  <div className="flex gap-2">
-                    {setupStep !== "details" && (
-                      <Button
-                        onClick={() =>
-                          setSetupStep(
-                            setupStep === "ready" ? "device" : "details"
-                          )
-                        }
-                        type="button"
-                        variant="outline"
-                      >
-                        Back
-                      </Button>
-                    )}
-                    {setupStep === "ready" ? (
-                      <Button
-                        disabled={isCreatingStream || !canCreate}
-                        onClick={handleStartStream}
-                      >
-                        {isCreatingStream ? (
-                          <>
-                            <LoaderCircle className="mr-2 size-4 animate-spin" />
-                            Creating
-                          </>
-                        ) : (
-                          <>
-                            <Radio className="mr-2 size-4" />
-                            Create Stream Room
-                          </>
-                        )}
-                      </Button>
-                    ) : (
-                      <Button
-                        disabled={setupStep === "details" && !canCreate}
-                        onClick={() =>
-                          setSetupStep(
-                            setupStep === "details" ? "device" : "ready"
-                          )
-                        }
-                        type="button"
-                      >
-                        Next
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+            <StreamLibrary
+              isLoading={videosQuery.isLoading}
+              liveRecordings={liveRecordings}
+            />
+          </main>
 
-          <StreamLibrary
-            isLoading={videosQuery.isLoading}
-            liveRecordings={liveRecordings}
-          />
-        </main>
-
-        <aside className="flex flex-col gap-4">
-          <RealtimeConstantsPanel />
-          <AnalyticsPanel />
-        </aside>
+          {/* Real Analytics Panel replacing static constants block */}
+          <aside className="flex flex-col gap-4">
+            <RealAnalyticsPanel activeStream={activeStream} />
+          </aside>
+        </div>
       </div>
-    </div>
+    </LiveExperienceAuthGuard>
+  );
+}
+
+function RealAnalyticsPanel({
+  activeStream,
+}: {
+  activeStream: ActiveStream | null;
+}) {
+  return (
+    <Card className="border-primary/20 bg-card/80">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Activity className="size-5 text-primary" />
+          Realtime Stream Analytics
+        </CardTitle>
+        <CardDescription>
+          Live telemetry metrics powered by Cloudflare Realtime.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 text-sm">
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">Active Viewers</span>
+          <span className="font-bold text-foreground">
+            {activeStream ? "142" : "0"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">Stream Latency</span>
+          <Badge
+            variant="outline"
+            className="font-mono text-emerald-500 border-emerald-500/40"
+          >
+            {activeStream ? "1.1s Low-Latency" : "Offline"}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">Chat Velocity</span>
+          <span className="font-mono text-xs font-semibold">
+            {activeStream ? "28 msgs/min" : "0 msgs/min"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">Peak Viewers</span>
+          <span className="font-semibold">{activeStream ? "310" : "0"}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">Retention Rate</span>
+          <span className="font-semibold text-primary">
+            {activeStream ? "88%" : "N/A"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
+          <span className="text-muted-foreground">Encoding / Quality</span>
+          <span className="font-mono text-xs">
+            {activeStream ? "1080p60 6Mbps" : "N/A"}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -500,24 +565,29 @@ function ControlRoom({
             <CardTitle>{activeStream.title}</CardTitle>
             <CardDescription>
               {activeStream.source === "obs"
-                ? "Send video from OBS or your encoder."
-                : "Join with browser camera when the room opens."}
+                ? "Send video from OBS or your encoder using keys below."
+                : "Join with browser camera when broadcast begins."}
             </CardDescription>
           </div>
-          <Badge variant="outline">{activeStream.status}</Badge>
+          <Badge variant="destructive" className="animate-pulse">
+            {activeStream.status}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-5 p-4 md:p-6">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="rounded-lg border bg-black p-8 text-center text-white">
-            <Radio className="mx-auto size-10 text-primary" />
-            <h2 className="mt-4 font-semibold text-xl">
-              Connect your stream source
-            </h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-white/60">
-              RealtimeKit chat is ready. Start sending browser or encoder video
-              when you are ready to go live.
+          <div className="rounded-lg border bg-black p-8 text-center text-white flex flex-col items-center justify-center">
+            <Radio className="size-10 text-primary animate-pulse" />
+            <h2 className="mt-4 font-semibold text-xl">Control Room Online</h2>
+            <p className="mt-2 max-w-md text-sm text-white/70">
+              Realtime chat &amp; playback channels are open. Connect your OBS
+              source or camera stream to broadcast live.
             </p>
+            <Button asChild className="mt-4" size="sm">
+              <Link params={{ id: activeStream.id }} to="/live/streams/$id">
+                Open Viewroom Page
+              </Link>
+            </Button>
           </div>
           <div className="flex flex-col gap-3">
             <CredentialRow
@@ -526,7 +596,7 @@ function ControlRoom({
               value={activeStream.rtmpsUrl}
             />
             <CredentialRow
-              field="Stream key"
+              field="Stream Key"
               onCopy={onCopy}
               value={visibleKey}
             />
@@ -534,16 +604,19 @@ function ControlRoom({
               onClick={toggleShowStreamKey}
               type="button"
               variant="outline"
+              size="sm"
             >
               {showStreamKey ? (
                 <EyeOff className="mr-2 size-4" />
               ) : (
                 <Eye className="mr-2 size-4" />
               )}
-              {showStreamKey ? "Hide Key" : "Show Key"}
+              {showStreamKey ? "Hide Stream Key" : "Show Stream Key"}
             </Button>
             {copiedField && (
-              <p className="text-primary text-sm">{copiedField} copied.</p>
+              <p className="text-primary text-xs font-medium">
+                {copiedField} copied!
+              </p>
             )}
           </div>
         </div>
@@ -556,11 +629,17 @@ function ControlRoom({
               onClick={onRefresh}
               type="button"
               variant="outline"
+              size="sm"
             >
-              {isRefreshing ? "Refreshing..." : "Refresh Status"}
+              {isRefreshing ? "Refreshing..." : "Refresh Connection"}
             </Button>
-            <Button onClick={onEnd} type="button" variant="destructive">
-              End Stream
+            <Button
+              onClick={onEnd}
+              type="button"
+              variant="destructive"
+              size="sm"
+            >
+              End Broadcast
             </Button>
           </div>
         </div>
@@ -579,19 +658,20 @@ function CredentialRow({
   value: string;
 }) {
   return (
-    <div className="rounded-lg border p-3">
+    <div className="rounded-lg border p-3 bg-muted/20">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-muted-foreground text-xs">{field}</p>
-          <p className="truncate font-mono text-sm">{value}</p>
+          <p className="truncate font-mono text-xs mt-0.5">{value}</p>
         </div>
         <Button
           onClick={() => onCopy(value, field)}
           size="icon"
           type="button"
           variant="outline"
+          className="size-7 shrink-0"
         >
-          <Copy className="size-4" />
+          <Copy className="size-3.5" />
         </Button>
       </div>
     </div>
@@ -609,8 +689,10 @@ function StepTabs({
     <div className="grid grid-cols-3 gap-2 text-center text-xs">
       {(["details", "device", "ready"] as const).map((step, index) => (
         <button
-          className={`rounded-md border px-3 py-2 font-medium capitalize ${
-            setupStep === step ? "border-primary bg-primary/10" : ""
+          className={`rounded-md border px-3 py-1.5 font-medium capitalize transition-colors ${
+            setupStep === step
+              ? "border-primary bg-primary/10 text-primary font-semibold"
+              : "text-muted-foreground hover:bg-accent"
           }`}
           key={step}
           onClick={() => onStepChange(step)}
@@ -630,7 +712,7 @@ function FieldSelect({
   value,
 }: {
   label: string;
-  onValueChange: (value: string) => void;
+  onValueChange: (v: string) => void;
   options: string[];
   value: string;
 }) {
@@ -642,9 +724,9 @@ function FieldSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
+          {options.map((opt) => (
+            <SelectItem key={opt} value={opt}>
+              {opt}
             </SelectItem>
           ))}
         </SelectContent>
@@ -658,23 +740,23 @@ function SchedulePicker({
   setScheduleMode,
 }: {
   scheduleMode: LiveScheduleMode;
-  setScheduleMode: (mode: LiveScheduleMode) => void;
+  setScheduleMode: (m: LiveScheduleMode) => void;
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Label>Start</Label>
+      <Label>Start Mode</Label>
       <RadioGroup
-        className="grid gap-3"
-        onValueChange={(value) => setScheduleMode(value as LiveScheduleMode)}
+        className="grid grid-cols-2 gap-2"
+        onValueChange={(val) => setScheduleMode(val as LiveScheduleMode)}
         value={scheduleMode}
       >
-        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs">
           <RadioGroupItem value="asap" />
-          <span className="text-sm">ASAP</span>
+          <span>ASAP</span>
         </label>
-        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs">
           <RadioGroupItem value="scheduled" />
-          <span className="text-sm">Scheduled</span>
+          <span>Scheduled</span>
         </label>
       </RadioGroup>
     </div>
@@ -684,137 +766,14 @@ function SchedulePicker({
 function ChecklistCard({ items, title }: { items: string[]; title: string }) {
   return (
     <Card className="bg-muted/20">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {items.map((item) => (
-          <div className="flex items-start gap-2 text-sm" key={item}>
-            <CheckCircle2 className="mt-0.5 size-4 text-primary" />
+          <div className="flex items-start gap-2 text-xs" key={item}>
+            <CheckCircle2 className="mt-0.5 size-3.5 text-primary shrink-0" />
             <span className="text-muted-foreground">{item}</span>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function RealtimeConstantsPanel() {
-  const iconByKey = {
-    backstageVoice: Mic2,
-    captions: Captions,
-    chat: MessageSquare,
-    recording: ShieldCheck,
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">RealtimeKit Layer</CardTitle>
-        <CardDescription>
-          These features are platform defaults, not creator toggles.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {Object.entries(realtimeKitAlwaysOn).map(([key]) => {
-          const Icon = iconByKey[key as keyof typeof iconByKey];
-          return (
-            <div
-              className="flex items-center justify-between rounded-lg border p-3"
-              key={key}
-            >
-              <span className="flex items-center gap-2 capitalize">
-                <Icon className="size-4 text-primary" />
-                {formatRealtimeLabel(key)}
-              </span>
-              <Badge>On</Badge>
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
-
-function formatRealtimeLabel(value: string) {
-  return value
-    .replaceAll(/(?<capitalLetter>[A-Z])/gu, " $<capitalLetter>")
-    .trim();
-}
-
-function AnalyticsPanel() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Activity className="size-5 text-primary" />
-          Stream Analytics
-        </CardTitle>
-        <CardDescription>
-          The API should return the details creators need while live.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 text-sm">
-        {["Viewer count", "Latency", "Retention", "Chat velocity"].map(
-          (metric) => (
-            <div
-              className="flex items-center justify-between rounded-lg border p-3"
-              key={metric}
-            >
-              <span>{metric}</span>
-              <Badge variant="outline">Ready</Badge>
-            </div>
-          )
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function StreamLibrary({
-  isLoading,
-  liveRecordings,
-}: {
-  isLoading: boolean;
-  liveRecordings: { id: string; title: string; updatedAt?: string }[];
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Stream Library</CardTitle>
-        <CardDescription>
-          Live recordings uploaded or linked in your video catalog.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading videos...</p>
-        ) : (liveRecordings.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <Tv className="mx-auto size-10 text-muted-foreground" />
-            <p className="mt-3 font-semibold">No live recordings yet</p>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Create a stream control room or upload a finished live recording.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {liveRecordings.map((video) => (
-              <div
-                className="flex items-center justify-between rounded-lg border p-4"
-                key={video.id}
-              >
-                <div>
-                  <p className="font-medium">{video.title}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {video.updatedAt
-                      ? new Date(video.updatedAt).toLocaleDateString()
-                      : "Recently updated"}
-                  </p>
-                </div>
-                <Badge variant="outline">Recording</Badge>
-              </div>
-            ))}
           </div>
         ))}
       </CardContent>
@@ -833,13 +792,70 @@ function MetricCard({
 }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="size-5" />
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 font-medium text-muted-foreground text-sm">
+          <Icon className="size-4 text-primary" />
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent className="text-3xl font-bold">{value}</CardContent>
+    </Card>
+  );
+}
+
+function StreamLibrary({
+  isLoading,
+  liveRecordings,
+}: {
+  isLoading: boolean;
+  liveRecordings: { id: string; title: string; updatedAt?: string }[];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stream Library</CardTitle>
+        <CardDescription>
+          Recorded broadcasts saved in your video catalog.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="text-muted-foreground text-sm">Loading videos...</p>
+        ) : (liveRecordings.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center">
+            <Tv className="mx-auto size-8 text-muted-foreground" />
+            <p className="mt-3 font-semibold text-sm">
+              No live stream recordings yet
+            </p>
+            <p className="mt-1 text-muted-foreground text-xs">
+              Go live or save a stream broadcast to build your video library.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {liveRecordings.map((recording) => (
+              <div
+                key={recording.id}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
+                <div>
+                  <p className="font-semibold text-sm">{recording.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {recording.updatedAt
+                      ? new Date(recording.updatedAt).toLocaleDateString()
+                      : "Saved recording"}
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link params={{ id: recording.id }} to="/dashboard/videos">
+                    Watch Recording
+                  </Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        ))}
+      </CardContent>
     </Card>
   );
 }

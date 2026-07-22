@@ -121,6 +121,7 @@ const trackFormSchema = z
     description: z.string().optional(),
     genre: z.string().min(1, "Genre is required"),
     isForSale: z.boolean().default(false),
+    isrc: z.string().optional(),
     key: z.string().optional(),
     name: z.string().min(2, "Track name is required"),
     openVerseDescription: z.string().optional(),
@@ -136,6 +137,9 @@ const trackFormSchema = z
       ),
     /** draft = private, open_verse = incomplete open slot, ready = live */
     status: z.enum(["draft", "open_verse", "ready"]).default("draft"),
+    streamingAppleMusic: z.string().optional(),
+    streamingSpotify: z.string().optional(),
+    streamingYoutube: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -194,6 +198,7 @@ const defaultTrackFormValues: TrackFormValues = {
   description: "",
   genre: "",
   isForSale: false,
+  isrc: "",
   key: "",
   name: "",
   openVerseDescription: "",
@@ -203,6 +208,9 @@ const defaultTrackFormValues: TrackFormValues = {
   releaseAt: "",
   rightsAccepted: false,
   status: "draft",
+  streamingAppleMusic: "",
+  streamingSpotify: "",
+  streamingYoutube: "",
 };
 
 interface UploadedTrackPreview {
@@ -347,6 +355,7 @@ export function NewTrackForm() {
           isForSale: values.isForSale,
           isOpenVerse: release.isOpenVerse,
           isPublic: release.isPublic,
+          isrc: values.isrc || undefined,
           musicalKey: values.key || undefined,
           price: values.isForSale ? SINGLE_PRICE_USD : undefined,
           priceCents: values.isForSale
@@ -357,6 +366,11 @@ export function NewTrackForm() {
           releaseAt: values.releaseAt || undefined,
           releaseStrategy: release.releaseStrategy,
           sourceObjectKey: objectKey,
+          streamingLinks: {
+            appleMusic: values.streamingAppleMusic || undefined,
+            spotify: values.streamingSpotify || undefined,
+            youtube: values.streamingYoutube || undefined,
+          },
           title: values.name,
         },
       })
@@ -682,6 +696,7 @@ export function NewTrackForm() {
                 isForSale: values.isForSale,
                 isOpenVerse: release.isOpenVerse,
                 isPublic: release.isPublic,
+                isrc: values.isrc || undefined,
                 musicalKey: values.key || undefined,
                 price: values.isForSale ? SINGLE_PRICE_USD : undefined,
                 priceCents: values.isForSale
@@ -692,6 +707,11 @@ export function NewTrackForm() {
                 releaseAt: values.releaseAt || undefined,
                 releaseStrategy: release.releaseStrategy,
                 sourceObjectKey: objectKey,
+                streamingLinks: {
+                  appleMusic: values.streamingAppleMusic || undefined,
+                  spotify: values.streamingSpotify || undefined,
+                  youtube: values.streamingYoutube || undefined,
+                },
                 title: values.name,
               },
             })
@@ -1539,6 +1559,88 @@ export function NewTrackForm() {
                     </p>
                   </div>
                 ) : null}
+
+                <div className="rounded-xl border border-border/40 bg-card/40 p-4">
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-sm">
+                      Release Identifiers
+                    </h3>
+                    <p className="text-muted-foreground text-xs">
+                      Add registry and platform links when this track is already
+                      live elsewhere.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="isrc"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ISRC</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="bg-background/50"
+                              placeholder="US-XXX-26-00001"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="streamingSpotify"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Spotify Track URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="bg-background/50"
+                              placeholder="https://open.spotify.com/track/..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="streamingAppleMusic"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Apple Music Track URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="bg-background/50"
+                              placeholder="https://music.apple.com/..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="streamingYoutube"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>YouTube URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              className="bg-background/50"
+                              placeholder="https://youtube.com/watch?v=..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
 
                 <div className="border-t border-border/40 pt-6 mt-6 space-y-6">
                   {form.watch("status") === "open_verse" && (

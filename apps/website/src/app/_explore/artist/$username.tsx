@@ -41,7 +41,7 @@ const formatJoinedDate = (joinedAt?: string) => {
 
 const artistToProfileUser = (artist: ArtistSummary) => ({
   avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
-  battleRank: artist.battleCount ? `#${artist.battleCount}` : undefined,
+  battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
   battleRecord: artist.battleCount ? `${artist.battleCount} battles` : "0",
   bio:
     artist.bio ??
@@ -52,8 +52,13 @@ const artistToProfileUser = (artist: ArtistSummary) => ({
   genre: artist.genre,
   joinedDate: formatJoinedDate(artist.joinedAt),
   links: {
-    apple: artist.links?.apple,
+    appleMusic: artist.links?.apple,
+    instagram: artist.links?.instagram,
+    personalSite: artist.links?.personalSite,
+    soundcloud: artist.links?.soundcloud,
     spotify: artist.links?.spotify,
+    tiktok: artist.links?.tiktok,
+    twitter: artist.links?.twitter,
     youtube: artist.links?.youtube,
   },
   location: artist.location || artist.state || "SoundKit",

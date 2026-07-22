@@ -18,6 +18,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
+import { normalizeProfileLinks } from "@/lib/profile-links";
 import {
   messageResponseSchema,
   onboardingArtistBodySchema,
@@ -304,6 +305,9 @@ app.openapi(
         .values({
           primaryGenreId: genreId,
           primaryOrganizationId: workspaceId,
+          proAffiliation: body.proAffiliation,
+          proMemberId: body.proMemberId ?? null,
+          songwriterLegalName: body.songwriterLegalName ?? user.name ?? null,
           stageName: user.name ?? body.username,
           updatedAt: now,
           userId: user.id,
@@ -312,6 +316,9 @@ app.openapi(
           set: {
             primaryGenreId: genreId,
             primaryOrganizationId: workspaceId,
+            proAffiliation: body.proAffiliation,
+            proMemberId: body.proMemberId ?? null,
+            songwriterLegalName: body.songwriterLegalName ?? user.name ?? null,
             stageName: user.name ?? body.username,
             updatedAt: now,
           },
@@ -329,29 +336,25 @@ app.openapi(
         }))
       );
 
-      const linkInputs = [
-        ["instagram", body.instagramHandle],
-        ["tiktok", body.tiktokHandle],
-        ["twitter", body.twitterHandle],
-        ["spotify", body.spotifyUrl],
-        ["apple_music", body.appleMusicUrl],
-        ["youtube", body.youtubeUrl],
-      ] as const;
+      const linkInputs = normalizeProfileLinks([
+        { platform: "instagram", value: body.instagramHandle },
+        { platform: "tiktok", value: body.tiktokHandle },
+        { platform: "twitter", value: body.twitterHandle },
+        { platform: "spotify", value: body.spotifyUrl },
+        { platform: "apple_music", value: body.appleMusicUrl },
+        { platform: "youtube", value: body.youtubeUrl },
+      ]);
 
       await db.delete(profileLinks).where(eq(profileLinks.userId, user.id));
 
-      const links = linkInputs
-        .filter(([, value]) => Boolean(value))
-        .map(([platform, value], index) => ({
-          handle: value?.startsWith("http") ? null : value,
-          id: crypto.randomUUID(),
-          platform,
-          sortOrder: index,
-          url: value?.startsWith("http")
-            ? value
-            : `https://${platform}.com/${value}`,
-          userId: user.id,
-        }));
+      const links = linkInputs.map((link, index) => ({
+        handle: link.handle,
+        id: crypto.randomUUID(),
+        platform: link.platform,
+        sortOrder: index,
+        url: link.url,
+        userId: user.id,
+      }));
 
       if (links.length > 0) {
         await db.insert(profileLinks).values(links);

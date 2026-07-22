@@ -41,6 +41,19 @@ function SettingsPage() {
       bio: String(form.get("bio") ?? ""),
       city: String(form.get("city") ?? ""),
       displayName: String(form.get("displayName") ?? ""),
+      links: {
+        appleMusic: String(form.get("appleMusic") ?? ""),
+        instagram: String(form.get("instagram") ?? ""),
+        personalSite: String(form.get("personalSite") ?? ""),
+        soundcloud: String(form.get("soundcloud") ?? ""),
+        spotify: String(form.get("spotify") ?? ""),
+        tiktok: String(form.get("tiktok") ?? ""),
+        twitter: String(form.get("twitter") ?? ""),
+        youtube: String(form.get("youtube") ?? ""),
+      },
+      proAffiliation: String(form.get("proAffiliation") ?? "None"),
+      proMemberId: String(form.get("proMemberId") ?? ""),
+      songwriterLegalName: String(form.get("songwriterLegalName") ?? ""),
       stageName: String(form.get("stageName") ?? ""),
       state: String(form.get("state") ?? ""),
     });
@@ -92,7 +105,9 @@ function SettingsPage() {
                 <div className="grid gap-4">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="artist-name">Artist Name / Display Name *</Label>
+                      <Label htmlFor="artist-name">
+                        Artist Name / Display Name *
+                      </Label>
                       <Input
                         id="artist-name"
                         name="displayName"
@@ -102,11 +117,15 @@ function SettingsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="stage-name">Stage Name / Performance Alias</Label>
+                      <Label htmlFor="stage-name">
+                        Stage Name / Performance Alias
+                      </Label>
                       <Input
                         id="stage-name"
                         name="stageName"
-                        defaultValue={user?.stageName ?? user?.displayName ?? ""}
+                        defaultValue={
+                          user?.stageName ?? user?.displayName ?? ""
+                        }
                         placeholder="e.g. MC Supreme, DJ Shadow"
                       />
                     </div>
@@ -158,6 +177,48 @@ function SettingsPage() {
 
             <Card>
               <CardHeader>
+                <CardTitle>Credits & Publishing</CardTitle>
+                <CardDescription>
+                  Keep writer credits and royalty registration details ready
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="songwriterLegalName">
+                      Songwriter / Legal Name
+                    </Label>
+                    <Input
+                      id="songwriterLegalName"
+                      name="songwriterLegalName"
+                      defaultValue={user?.songwriterLegalName ?? ""}
+                      placeholder="Cameron Stewart"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proAffiliation">ASCAP / BMI</Label>
+                    <Input
+                      id="proAffiliation"
+                      name="proAffiliation"
+                      defaultValue={user?.proAffiliation ?? "None"}
+                      placeholder="BMI"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proMemberId">PRO Number</Label>
+                    <Input
+                      id="proMemberId"
+                      name="proMemberId"
+                      defaultValue={user?.proMemberId ?? ""}
+                      placeholder="Writer member number"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Music Platform Links</CardTitle>
                 <CardDescription>
                   Connect your music streaming profiles
@@ -168,24 +229,27 @@ function SettingsPage() {
                   <Label htmlFor="spotify">Spotify Artist URL</Label>
                   <Input
                     id="spotify"
-                    placeholder="https://open.spotify.com/artist/..."
-                    type="url"
+                    name="spotify"
+                    defaultValue={user?.links?.spotify ?? ""}
+                    placeholder="@artist or https://open.spotify.com/artist/..."
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="apple-music">Apple Music Artist URL</Label>
                   <Input
                     id="apple-music"
-                    placeholder="https://music.apple.com/artist/..."
-                    type="url"
+                    name="appleMusic"
+                    defaultValue={user?.links?.appleMusic ?? ""}
+                    placeholder="@artist or https://music.apple.com/artist/..."
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="youtube">YouTube Channel URL</Label>
                   <Input
                     id="youtube"
-                    placeholder="https://youtube.com/@..."
-                    type="url"
+                    name="youtube"
+                    defaultValue={user?.links?.youtube ?? ""}
+                    placeholder="@channel or https://youtube.com/@..."
                   />
                 </div>
               </CardContent>
@@ -202,19 +266,48 @@ function SettingsPage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="instagram">Instagram</Label>
-                    <Input id="instagram" placeholder="@username" />
+                    <Input
+                      id="instagram"
+                      name="instagram"
+                      defaultValue={user?.links?.instagram ?? ""}
+                      placeholder="@username"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="twitter">Twitter/X</Label>
-                    <Input id="twitter" placeholder="@username" />
+                    <Input
+                      id="twitter"
+                      name="twitter"
+                      defaultValue={user?.links?.twitter ?? ""}
+                      placeholder="@username"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="tiktok">TikTok</Label>
-                    <Input id="tiktok" placeholder="@username" />
+                    <Input
+                      id="tiktok"
+                      name="tiktok"
+                      defaultValue={user?.links?.tiktok ?? ""}
+                      placeholder="@username"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="soundcloud">SoundCloud</Label>
-                    <Input id="soundcloud" placeholder="username" />
+                    <Input
+                      id="soundcloud"
+                      name="soundcloud"
+                      defaultValue={user?.links?.soundcloud ?? ""}
+                      placeholder="username"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="personal-site">Personal Site</Label>
+                    <Input
+                      id="personal-site"
+                      name="personalSite"
+                      defaultValue={user?.links?.personalSite ?? ""}
+                      placeholder="https://example.com"
+                    />
                   </div>
                 </div>
               </CardContent>

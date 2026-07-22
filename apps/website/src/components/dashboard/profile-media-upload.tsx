@@ -5,6 +5,7 @@ import { ImageIcon, LoaderCircle, Upload } from "lucide-react";
 import { useId, useState } from "react";
 import type { ChangeEvent } from "react";
 
+import { ImageCropperDialog } from "@/components/dashboard/image-cropper-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,8 @@ export function ProfileMediaUpload({
 }) {
   const inputId = useId();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedObjectUrl, setSelectedObjectUrl] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const persistUploadedMedia = async ({
@@ -84,14 +87,22 @@ export function ProfileMediaUpload({
     route: "profile-media",
   });
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    event.target.value = "";
 
     if (!file) {
       return;
     }
 
-    setPreviewUrl(URL.createObjectURL(file));
+    setSelectedFile(file);
+    setSelectedObjectUrl(URL.createObjectURL(file));
+  };
+
+  const uploadCroppedFile = async (file: File, localPreviewUrl: string) => {
+    setPreviewUrl(localPreviewUrl);
+    setSelectedFile(null);
+    setSelectedObjectUrl("");
     setStatusMessage("Uploading to SoundKit storage...");
     await upload([file]);
   };
@@ -156,6 +167,19 @@ export function ProfileMediaUpload({
         id={inputId}
         onChange={handleFileChange}
         type="file"
+      />
+
+      <ImageCropperDialog
+        aspectRatio={kind === "avatar" ? 1 : 3}
+        file={selectedFile}
+        objectUrl={selectedObjectUrl}
+        onCancel={() => {
+          setSelectedFile(null);
+          setSelectedObjectUrl("");
+        }}
+        onCropped={uploadCroppedFile}
+        open={Boolean(selectedFile && selectedObjectUrl)}
+        title={kind === "avatar" ? "Crop Profile Photo" : "Crop Header Image"}
       />
 
       {isPending ? (
