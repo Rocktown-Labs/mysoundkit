@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useSearchQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useMarkNotificationsReadMutation,
+  useNotificationsQuery,
+  useSearchQuery,
+} from "@/lib/soundkit-api-hooks";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -23,6 +27,12 @@ export function DashboardHeader() {
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
   const trimmedSearchValue = debouncedSearchValue.trim();
+
+  const notificationsQuery = useNotificationsQuery();
+  const markReadMutation = useMarkNotificationsReadMutation();
+
+  const notifications = notificationsQuery.data?.items ?? [];
+  const unreadCount = notificationsQuery.data?.unreadCount ?? 0;
   const searchQuery = useSearchQuery({
     limit: "8",
     q: trimmedSearchValue,
@@ -146,45 +156,74 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex items-center gap-2">
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(open) => {
+            if (open && unreadCount > 0) {
+              markReadMutation.mutate();
+            }
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="size-5" />
-              <Badge className="absolute -top-1 -right-1 size-5 flex items-center justify-center p-0 text-xs">
-                3
-              </Badge>
+              {unreadCount > 0 ? (
+                <Badge className="absolute -top-1 -right-1 size-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground">
+                  {unreadCount}
+                </Badge>
+              ) : null}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <div className="p-2">
-              <p className="font-semibold mb-2">Notifications</p>
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">
-                    New collaboration request
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Sarah wants to collaborate on &ldquo;Summer Vibes&rdquo;
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Track uploaded</p>
-                  <p className="text-xs text-muted-foreground">
-                    Mike added vocals to &ldquo;Night Drive&rdquo;
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Release reminder</p>
-                  <p className="text-xs text-muted-foreground">
-                    &ldquo;Midnight Dreams&rdquo; releases in 3 days
-                  </p>
-                </div>
-              </DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-80 p-2">
+            <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 mb-1">
+              <p className="font-semibold text-sm">Notifications</p>
+              {unreadCount > 0 ? (
+                <span className="text-[10px] bg-primary/15 text-primary font-mono px-1.5 py-0.5 rounded-md font-bold">
+                  {unreadCount} UNREAD
+                </span>
+              ) : null}
             </div>
+
+            {notifications.length === 0 ? (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                No notifications yet.
+              </div>
+            ) : (
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {notifications.map((item) => (
+                  <DropdownMenuItem
+                    key={item.id}
+                    className="flex flex-col items-start gap-1 p-2 focus:bg-accent rounded-lg cursor-pointer"
+                    asChild={Boolean(item.link)}
+                  >
+                    {item.link ? (
+                      <Link to={item.link}>
+                        <div className="flex items-center justify-between w-full">
+                          <p className="text-xs font-semibold">{item.title}</p>
+                          {!item.read && (
+                            <span className="size-1.5 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {item.message}
+                        </p>
+                      </Link>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between w-full">
+                          <p className="text-xs font-semibold">{item.title}</p>
+                          {!item.read && (
+                            <span className="size-1.5 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {item.message}
+                        </p>
+                      </div>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

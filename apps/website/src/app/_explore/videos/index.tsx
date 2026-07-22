@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Video } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
+import { musicGenres } from "@/lib/music-genres";
 import { useVideosQuery } from "@/lib/soundkit-api-hooks";
 import type { VideoSummary } from "@/lib/soundkit-api-hooks";
 
@@ -15,28 +15,12 @@ const sortOptions = [
   { label: "Title (A-Z)", value: "title-asc" },
 ];
 
-const discoveryGenres = [
-  { label: "Hip-Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Pop", value: "pop" },
-  { label: "Electronic", value: "electronic" },
-  { label: "Spoken Word", value: "spoken-word" },
-] as const;
-
 interface VideosSearch {
   genre?: string;
   region?: string;
   regionType?: "north-america" | "global";
   sort?: string;
 }
-
-const replaceExploreSearch = (params: URLSearchParams) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.history.replaceState(null, "", `?${params.toString()}`);
-};
 
 export const Route = createFileRoute("/_explore/videos/")({
   component: VideosPage,
@@ -50,72 +34,44 @@ export const Route = createFileRoute("/_explore/videos/")({
 
 function VideosPage() {
   const router = useRouter();
-  const searchQuery =
-    typeof window === "undefined" ? "" : window.location.search;
-  const searchParams = new URLSearchParams(searchQuery);
-  const isInitialMount = useRef(true);
-  const [regionType, setRegionType] = useState<"north-america" | "global">(
-    "north-america"
-  );
-  const [region, setRegion] = useState("us-arkansas");
-  const [genre, setGenre] = useState("all");
-  const [sort, setSort] = useState("views-desc");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
 
-  useEffect(() => {
-    const urlRegionType = searchParams.get("regionType") as
-      | "north-america"
-      | "global"
-      | null;
-    const urlRegion = searchParams.get("region");
-    const urlGenre = searchParams.get("genre");
-    const urlSort = searchParams.get("sort");
+  const savedRegionType =
+    typeof window === "undefined"
+      ? null
+      : (localStorage.getItem("exploreRegionType") as
+          | "north-america"
+          | "global"
+          | null);
+  const savedRegion =
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem("exploreRegion");
 
-    if (urlRegionType || urlRegion || urlGenre || urlSort) {
-      if (urlRegionType) {
-        setRegionType(urlRegionType);
-      }
-      if (urlRegion) {
-        setRegion(urlRegion);
-      }
-      if (urlGenre) {
-        setGenre(urlGenre);
-      }
-      if (urlSort) {
-        setSort(urlSort);
-      }
-      return;
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const genre = search.genre ?? "all";
+  const sort = search.sort ?? "views-desc";
+
+  const updateFilters = (next: Partial<VideosSearch>) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
     }
-
-    const savedRegionType = localStorage.getItem("exploreRegionType") as
-      | "north-america"
-      | "global"
-      | null;
-    const savedRegion = localStorage.getItem("exploreRegion");
-
-    if (savedRegionType) {
-      setRegionType(savedRegionType);
-    }
-    if (savedRegion) {
-      setRegion(savedRegion);
-    }
-  }, [searchQuery]);
-
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    const params = new URLSearchParams();
-    params.set("regionType", regionType);
-    params.set("region", region);
-    params.set("genre", genre);
-    params.set("sort", sort);
-
-    localStorage.setItem("exploreRegionType", regionType);
-    localStorage.setItem("exploreRegion", region);
-    replaceExploreSearch(params);
-  }, [regionType, region, genre, sort]);
+    navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        genre: next.genre ?? genre,
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+      }),
+    });
+  };
 
   const { data: videos = [], isLoading } = useVideosQuery({
     genre,
@@ -129,19 +85,19 @@ function VideosPage() {
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
       <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.history.back()}
         className="mb-4"
+        onClick={() => router.history.back()}
+        size="sm"
+        variant="ghost"
       >
         <ArrowLeft className="mr-2 size-4" />
         Back
       </Button>
 
-      <div className="mb-8 space-y-2">
-        <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl lg:text-4xl">
+      <div className="mb-8">
+        <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
           <Video className="size-6 text-primary md:size-8" />
-          Videos
+          Music Videos
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
           Watch official music videos, battle replays, teasers, and premium live
@@ -154,10 +110,12 @@ function VideosPage() {
         region={region}
         genre={genre}
         sort={sort}
-        onRegionTypeChange={setRegionType}
-        onRegionChange={setRegion}
-        onGenreChange={setGenre}
-        onSortChange={setSort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => updateFilters({ genre: nextGenre })}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
         sortOptions={sortOptions}
       />
 
@@ -197,7 +155,7 @@ function VideosPage() {
       </div>
 
       <div className="flex flex-col gap-10">
-        {discoveryGenres.map((sectionGenre) => (
+        {musicGenres.map((sectionGenre) => (
           <VideoGenreRail
             key={sectionGenre.value}
             genre={sectionGenre}
@@ -239,7 +197,7 @@ function VideoGenreRail({
   regionType,
   sort,
 }: {
-  genre: (typeof discoveryGenres)[number];
+  genre: (typeof musicGenres)[number];
   region: string;
   regionType: "north-america" | "global";
   sort: string;

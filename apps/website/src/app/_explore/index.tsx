@@ -11,36 +11,51 @@ import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { mockVideos } from "@/lib/mock-videos";
+import { useDiscoverHomeQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
 });
 
 function ExplorePage() {
-  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const { data: home } = useDiscoverHomeQuery();
+
+  return (
+    <LocalExplorePage
+      startsWithAppWideTotals={home?.settings.useGlobalExploreHome ?? true}
+    />
+  );
+}
+
+function LocalExplorePage({
+  startsWithAppWideTotals,
+}: Readonly<{ startsWithAppWideTotals: boolean }>) {
+  const [selectedState, setSelectedState] = useState<string | null>(
+    startsWithAppWideTotals ? null : "Arkansas"
+  );
   const [userLocation, setUserLocation] = useState<string | null>(null);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [locationPromptState, setLocationPromptState] = useState<
     "idle" | "prompting" | "granted" | "denied" | "unsupported"
   >("idle");
 
-  const activeRegion = selectedState ?? "USA";
+  const activeRegion = selectedState ?? "SoundKit";
   const isNationalView = selectedState === null;
+  const regionSlug = selectedState
+    ? `us-${selectedState.toLowerCase().replaceAll(/\s+/g, "-")}`
+    : "all";
+  const regionSearch = selectedState
+    ? `regionType=north-america&region=${regionSlug}`
+    : "regionType=global&region=all";
   const battlesHref = selectedState
-    ? `/live?location=${selectedState}`
-    : "/battles";
-  const tracksHref = selectedState
-    ? `/tracks?location=${selectedState}`
-    : "/tracks";
+    ? `/live?${regionSearch}`
+    : "/live/battles?regionType=global&region=all";
+  const tracksHref = `/tracks?${regionSearch}`;
   const releasesHref = selectedState
     ? `/new-releases?location=${selectedState}`
     : "/new-releases";
-  const artistsHref = selectedState
-    ? `/artist?location=${selectedState}`
-    : "/artist";
-  const videosHref = selectedState
-    ? `/videos?location=${selectedState}`
-    : "/videos";
+  const artistsHref = `/artist?${regionSearch}`;
+  const videosHref = `/videos?${regionSearch}`;
 
   const requestLocation = () => {
     setIsLoadingLocation(true);
@@ -91,8 +106,10 @@ function ExplorePage() {
   };
 
   useEffect(() => {
-    requestLocation();
-  }, []);
+    setSelectedState(startsWithAppWideTotals ? null : "Arkansas");
+    setLocationPromptState("idle");
+    setIsLoadingLocation(false);
+  }, [startsWithAppWideTotals]);
 
   return (
     <div className="min-h-screen bg-background px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -101,7 +118,7 @@ function ExplorePage() {
           <section className="mb-6 md:mb-8">
             <div className="mb-4 md:mb-6">
               <h1 className="text-xl md:text-2xl lg:text-3xl xl:text-4xl font-bold mb-1 md:mb-2">
-                Discover Music Near You
+                Discover Music
               </h1>
               <p className="text-muted-foreground text-xs md:text-sm lg:text-base">
                 {isLoadingLocation
@@ -109,8 +126,8 @@ function ExplorePage() {
                   : selectedState
                     ? `Currently focused on ${selectedState}. Click another state to refine the feed.`
                     : userLocation
-                      ? `Showing top picks across the USA. We detected ${userLocation} if you want to zoom in.`
-                      : "Showing top picks across the USA. Share your location or click a state on the map to zoom in."}
+                      ? `Showing app-wide totals. We detected ${userLocation} if you want to zoom in.`
+                      : "Showing app-wide totals with no selected location. Click a state on the map to zoom in."}
               </p>
             </div>
 
@@ -125,12 +142,12 @@ function ExplorePage() {
                           ? "Location access is off for SoundKit."
                           : locationPromptState === "unsupported"
                             ? "This browser does not support location access."
-                            : "Use your location to personalize the home feed."}
+                            : "Use your location to personalize the map."}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {locationPromptState === "denied"
-                        ? "You can still browse the USA-wide feed, or enable location and try again."
-                        : "We will ask for your location on this page so we can jump straight to your state."}
+                        ? "You can still browse the app-wide feed, or enable location and try again."
+                        : "SoundKit starts app-wide unless you choose a state or share your location."}
                     </p>
                   </div>
                   {locationPromptState !== "unsupported" && (
@@ -168,12 +185,12 @@ function ExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Featured Videos Across the USA"
+                    ? "Featured Videos Across SoundKit"
                     : `Featured Videos in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Official music videos, battle replays, and live recordings worth watching"
+                    ? "Official music videos, battle replays, and live recordings from the full app"
                     : "Watch official drops and replays from your region"
                 }
                 icon={<Video className="size-5 md:size-6 text-primary" />}
@@ -190,12 +207,12 @@ function ExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Live Battles Across the USA"
+                    ? "Live Battles Across SoundKit"
                     : `Live Battles in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Top national battles happening right now"
+                    ? "Top battles happening across the app right now"
                     : "Vote for your favorite tracks"
                 }
                 viewAllHref={battlesHref}
@@ -282,12 +299,12 @@ function ExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Top Songs in the USA"
+                    ? "Top Songs Across SoundKit"
                     : `Top Songs in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Most played tracks nationwide this week"
+                    ? "Most played tracks across the app this week"
                     : "Most played tracks this week"
                 }
                 icon={<Music className="size-5 md:size-6 text-primary" />}
@@ -357,12 +374,12 @@ function ExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "New Releases Across the USA"
+                    ? "New Releases Across SoundKit"
                     : `New Releases in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Fresh drops from artists around the country"
+                    ? "Fresh drops from every active scene"
                     : "Fresh tracks from local artists"
                 }
                 icon={<Flame className="size-5 md:size-6 text-primary" />}
@@ -432,12 +449,12 @@ function ExplorePage() {
               <SectionHeader
                 title={
                   isNationalView
-                    ? "Top Artists in the USA"
+                    ? "Top Artists Across SoundKit"
                     : `Top Artists in ${activeRegion}`
                 }
                 description={
                   isNationalView
-                    ? "Rising stars and established artists nationwide"
+                    ? "Rising stars and established artists across the app"
                     : "Rising stars from your region"
                 }
                 icon={<Users className="size-5 md:size-6 text-primary" />}

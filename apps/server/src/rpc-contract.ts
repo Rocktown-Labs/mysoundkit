@@ -6,10 +6,12 @@ import type {
   adminAccessSchema,
   adminPaymentsOverviewSchema,
   adminOverviewSchema,
+  platformSettingsSchema,
   artistSummarySchema,
   battleSummarySchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
+  discoverHomeResponseSchema,
   entitlementSummarySchema,
   friendSummarySchema,
   peopleSearchResultSchema,
@@ -68,6 +70,7 @@ import {
   peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
+  updatePlatformSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
@@ -96,6 +99,14 @@ export const rpcContract = new Hono()
   )
   .get("/v1/admin/overview", (c) =>
     c.json({} as z.infer<typeof adminOverviewSchema>)
+  )
+  .get("/v1/admin/settings", (c) =>
+    c.json({} as z.infer<typeof platformSettingsSchema>)
+  )
+  .patch(
+    "/v1/admin/settings",
+    jsonValidator(updatePlatformSettingsBodySchema),
+    (c) => c.json({} as z.infer<typeof platformSettingsSchema>)
   )
   .get("/v1/admin/finance/payments", (c) =>
     c.json({} as z.infer<typeof adminPaymentsOverviewSchema>)
@@ -172,6 +183,9 @@ export const rpcContract = new Hono()
     "/v1/search",
     validator("query", (value) => publicSearchQuerySchema.parse(value)),
     (c) => c.json({} as z.infer<typeof publicSearchResultSchema>)
+  )
+  .get("/v1/discover/home", (c) =>
+    c.json({} as z.infer<typeof discoverHomeResponseSchema>)
   )
   .get(
     "/v1/tracks/",

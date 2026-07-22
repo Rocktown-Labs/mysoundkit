@@ -189,6 +189,34 @@ describe("public profile schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("validates artist summary schema with null rank for unranked artists", () => {
+    expect(
+      artistSummarySchema.safeParse({
+        followers: 0,
+        genre: "Hip-Hop",
+        id: "artist_123",
+        location: "Little Rock, AR",
+        name: "Cg",
+        rank: null,
+        stageName: "MC Supreme",
+        username: "cg_artist",
+        verified: false,
+      }).success
+    ).toBe(true);
+  });
+
+  it("validates user summary schema with stageName", () => {
+    expect(
+      userSummarySchema.safeParse({
+        accountType: "artist",
+        displayName: "Cg RGM",
+        id: "user_123",
+        stageName: "Cg",
+        username: "cg",
+      }).success
+    ).toBe(true);
+  });
+
   it("accepts real artist profile media, stats, and platform links", () => {
     const result = artistSummarySchema.safeParse({
       avatarUrl: "https://media.soundkit.test/profiles/cg/avatar.jpg",

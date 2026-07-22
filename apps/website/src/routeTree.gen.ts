@@ -84,6 +84,7 @@ import { Route as ExploreLibraryPurchasedIndexRouteImport } from './app/_explore
 import { Route as ExploreLibraryPlaylistsIndexRouteImport } from './app/_explore/library/playlists/index'
 import { Route as DashboardTracksIdEditRouteImport } from './app/dashboard/tracks/$id/edit'
 import { Route as DashboardOpenVersesGenreIdRouteImport } from './app/dashboard/open-verses/$genre/$id'
+import { Route as DashboardLiveMyStatsTrackIdRouteImport } from './app/dashboard/live/my-stats/$trackId'
 import { Route as ExploreLiveStreamsIdRouteImport } from './app/_explore/live/streams/$id'
 import { Route as ExploreLivePartiesIdRouteImport } from './app/_explore/live/parties/$id'
 import { Route as ExploreLiveBattlesUpcomingRouteImport } from './app/_explore/live/battles/upcoming'
@@ -477,6 +478,12 @@ const DashboardOpenVersesGenreIdRoute =
     path: '/$id',
     getParentRoute: () => DashboardOpenVersesGenreRoute,
   } as any)
+const DashboardLiveMyStatsTrackIdRoute =
+  DashboardLiveMyStatsTrackIdRouteImport.update({
+    id: '/live/my-stats/$trackId',
+    path: '/live/my-stats/$trackId',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const ExploreLiveStreamsIdRoute = ExploreLiveStreamsIdRouteImport.update({
   id: '/streams/$id',
   path: '/streams/$id',
@@ -586,6 +593,7 @@ export interface FileRoutesByFullPath {
   '/live/battles/upcoming': typeof ExploreLiveBattlesUpcomingRoute
   '/live/parties/$id': typeof ExploreLivePartiesIdRoute
   '/live/streams/$id': typeof ExploreLiveStreamsIdRoute
+  '/dashboard/live/my-stats/$trackId': typeof DashboardLiveMyStatsTrackIdRoute
   '/dashboard/open-verses/$genre/$id': typeof DashboardOpenVersesGenreIdRoute
   '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
   '/library/playlists/': typeof ExploreLibraryPlaylistsIndexRoute
@@ -667,6 +675,7 @@ export interface FileRoutesByTo {
   '/live/battles/upcoming': typeof ExploreLiveBattlesUpcomingRoute
   '/live/parties/$id': typeof ExploreLivePartiesIdRoute
   '/live/streams/$id': typeof ExploreLiveStreamsIdRoute
+  '/dashboard/live/my-stats/$trackId': typeof DashboardLiveMyStatsTrackIdRoute
   '/dashboard/open-verses/$genre/$id': typeof DashboardOpenVersesGenreIdRoute
   '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
   '/library/playlists': typeof ExploreLibraryPlaylistsIndexRoute
@@ -752,6 +761,7 @@ export interface FileRoutesById {
   '/_explore/live/battles/upcoming': typeof ExploreLiveBattlesUpcomingRoute
   '/_explore/live/parties/$id': typeof ExploreLivePartiesIdRoute
   '/_explore/live/streams/$id': typeof ExploreLiveStreamsIdRoute
+  '/dashboard/live/my-stats/$trackId': typeof DashboardLiveMyStatsTrackIdRoute
   '/dashboard/open-verses/$genre/$id': typeof DashboardOpenVersesGenreIdRoute
   '/dashboard/tracks/$id/edit': typeof DashboardTracksIdEditRoute
   '/_explore/library/playlists/': typeof ExploreLibraryPlaylistsIndexRoute
@@ -837,6 +847,7 @@ export interface FileRouteTypes {
     | '/live/battles/upcoming'
     | '/live/parties/$id'
     | '/live/streams/$id'
+    | '/dashboard/live/my-stats/$trackId'
     | '/dashboard/open-verses/$genre/$id'
     | '/dashboard/tracks/$id/edit'
     | '/library/playlists/'
@@ -918,6 +929,7 @@ export interface FileRouteTypes {
     | '/live/battles/upcoming'
     | '/live/parties/$id'
     | '/live/streams/$id'
+    | '/dashboard/live/my-stats/$trackId'
     | '/dashboard/open-verses/$genre/$id'
     | '/dashboard/tracks/$id/edit'
     | '/library/playlists'
@@ -1002,6 +1014,7 @@ export interface FileRouteTypes {
     | '/_explore/live/battles/upcoming'
     | '/_explore/live/parties/$id'
     | '/_explore/live/streams/$id'
+    | '/dashboard/live/my-stats/$trackId'
     | '/dashboard/open-verses/$genre/$id'
     | '/dashboard/tracks/$id/edit'
     | '/_explore/library/playlists/'
@@ -1554,6 +1567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardOpenVersesGenreIdRouteImport
       parentRoute: typeof DashboardOpenVersesGenreRoute
     }
+    '/dashboard/live/my-stats/$trackId': {
+      id: '/dashboard/live/my-stats/$trackId'
+      path: '/live/my-stats/$trackId'
+      fullPath: '/dashboard/live/my-stats/$trackId'
+      preLoaderRoute: typeof DashboardLiveMyStatsTrackIdRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_explore/live/streams/$id': {
       id: '/_explore/live/streams/$id'
       path: '/streams/$id'
@@ -1742,6 +1762,7 @@ interface DashboardRouteChildren {
   DashboardProjectsIndexRoute: typeof DashboardProjectsIndexRoute
   DashboardTracksIndexRoute: typeof DashboardTracksIndexRoute
   DashboardVideosIndexRoute: typeof DashboardVideosIndexRoute
+  DashboardLiveMyStatsTrackIdRoute: typeof DashboardLiveMyStatsTrackIdRoute
   DashboardTracksIdEditRoute: typeof DashboardTracksIdEditRoute
   DashboardLiveMyStatsIndexRoute: typeof DashboardLiveMyStatsIndexRoute
   DashboardTracksIdIndexRoute: typeof DashboardTracksIdIndexRoute
@@ -1780,6 +1801,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardProjectsIndexRoute: DashboardProjectsIndexRoute,
   DashboardTracksIndexRoute: DashboardTracksIndexRoute,
   DashboardVideosIndexRoute: DashboardVideosIndexRoute,
+  DashboardLiveMyStatsTrackIdRoute: DashboardLiveMyStatsTrackIdRoute,
   DashboardTracksIdEditRoute: DashboardTracksIdEditRoute,
   DashboardLiveMyStatsIndexRoute: DashboardLiveMyStatsIndexRoute,
   DashboardTracksIdIndexRoute: DashboardTracksIdIndexRoute,

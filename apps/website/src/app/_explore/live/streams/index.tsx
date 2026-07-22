@@ -1,43 +1,50 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus, Radio } from "lucide-react";
 
-import {
-  liveDiscoveryGenres,
-  streamDiscoveryItems,
-} from "@/components/explore/live-discovery-data";
+import { streamDiscoveryItems } from "@/components/explore/live-discovery-data";
 import { SectionHeader } from "@/components/explore/section-header";
 import { StreamCard } from "@/components/explore/stream-card";
 import { Button } from "@/components/ui/button";
+import { musicGenres } from "@/lib/music-genres";
 
 export const Route = createFileRoute("/_explore/live/streams/")({
   component: LiveStreamsPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    genre: typeof search.genre === "string" ? search.genre : undefined,
+  }),
 });
 
 function StreamRail({
+  genreValue,
   items,
   title,
 }: {
+  genreValue?: string;
   items: typeof streamDiscoveryItems;
   title: string;
 }) {
-  if (items.length === 0) {
-    return null;
-  }
-
   return (
     <section className="space-y-3">
       <SectionHeader
         title={title}
         description="Creator broadcasts, studio sessions, and replays."
-        viewAllHref="/live/streams"
+        viewAllHref={
+          genreValue ? `/live/streams?genre=${genreValue}` : "/live/streams"
+        }
       />
-      <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max gap-4 md:gap-6">
-          {items.map((stream) => (
-            <StreamCard key={stream.id} {...stream} />
-          ))}
+      {items.length > 0 ? (
+        <div className="overflow-x-auto pb-2">
+          <div className="flex min-w-max gap-4 md:gap-6">
+            {items.map((stream) => (
+              <StreamCard key={stream.id} {...stream} />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+          No {title} creator streams are live yet.
+        </div>
+      )}
     </section>
   );
 }
@@ -68,13 +75,14 @@ function LiveStreamsPage() {
 
       <StreamRail items={featured} title="Featured Streams" />
 
-      {liveDiscoveryGenres.map((genre) => (
+      {musicGenres.map((genre) => (
         <StreamRail
-          key={genre}
+          genreValue={genre.value}
           items={streamDiscoveryItems.filter(
-            (stream) => stream.genre === genre
+            (stream) => stream.genre === genre.label
           )}
-          title={genre}
+          key={genre.value}
+          title={genre.label}
         />
       ))}
     </div>

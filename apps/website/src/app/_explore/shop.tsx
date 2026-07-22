@@ -12,15 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { musicGenres } from "@/lib/music-genres";
 import { useTracksQuery } from "@/lib/soundkit-api-hooks";
-
-const shopGenres = [
-  { label: "Hip-Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Pop", value: "pop" },
-  { label: "Electronic", value: "electronic" },
-  { label: "Spoken Word", value: "spoken-word" },
-] as const;
 
 interface ShopSearch {
   genre?: string;
@@ -64,6 +57,30 @@ function ShopPage() {
           </Button>
         </div>
       </section>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant={activeGenre === "all" ? "default" : "outline"}
+          asChild
+        >
+          <Link to="/shop" search={{ genre: "all" }}>
+            All Genres
+          </Link>
+        </Button>
+        {musicGenres.map((g) => (
+          <Button
+            key={g.value}
+            size="sm"
+            variant={activeGenre === g.value ? "default" : "outline"}
+            asChild
+          >
+            <Link to="/shop" search={{ genre: g.value }}>
+              {g.label}
+            </Link>
+          </Button>
+        ))}
+      </div>
 
       <section className="mb-10">
         <div className="mb-3 flex items-center justify-between">
@@ -127,7 +144,7 @@ function ShopPage() {
       </section>
 
       <div className="flex flex-col gap-10">
-        {shopGenres.map((genre) => (
+        {musicGenres.map((genre) => (
           <GenreShopRail key={genre.value} genre={genre} />
         ))}
       </div>
@@ -135,7 +152,7 @@ function ShopPage() {
   );
 }
 
-function GenreShopRail({ genre }: { genre: (typeof shopGenres)[number] }) {
+function GenreShopRail({ genre }: { genre: (typeof musicGenres)[number] }) {
   const { data: tracks = [] } = useTracksQuery(undefined, {
     genre: genre.value,
     limit: "12",

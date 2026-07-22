@@ -98,9 +98,12 @@ gh pr create \
   --head <branchName>
 ```
 
-### Step E: Merging & Release Changelog
+### Step E: Merging, CI/CD Preview Environments & Release Changelog
 
-Only merge when CI and test gates pass. Merge using:
+- **CI/CD & Preview Environments:** This project is connected to automated CI/CD pipelines (Cloudflare Pages / Vercel preview environments). Every Pull Request automatically triggers a live preview build. Therefore, **do not automatically merge PRs unless explicitly instructed by the user** so they can review the preview deployment first when requested.
+- **Cloudflare Platform & Skills:** Follow Cloudflare agent guidelines (`https://developers.cloudflare.com/agent-setup/prompt.md`) for building and deploying on Cloudflare.
+
+When merging is requested, ensure CI and test gates pass. Merge using:
 
 ```bash
 gh pr merge --merge --delete-branch

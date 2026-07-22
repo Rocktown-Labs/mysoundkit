@@ -13,6 +13,8 @@ const meProfilePatch = apiClient.v1.me.profile.$patch;
 const meEntitlementsGet = apiClient.v1.me.entitlements.$get;
 const billingCheckoutPost = apiClient.v1.billing.checkout.$post;
 const adminAccessGet = apiClient.v1.admin.access.$get;
+const adminSettingsGet = apiClient.v1.admin.settings.$get;
+const adminSettingsPatch = apiClient.v1.admin.settings.$patch;
 const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get;
 const adminImportStripePlanPost =
   apiClient.v1.admin.finance.payments["import-plan"].$post;
@@ -23,6 +25,7 @@ const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
 const artistsGet = apiClient.v1.artists.index.$get;
 const artistGet = apiClient.v1.artists[":username"].$get;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
+const discoverHomeGet = apiClient.v1.discover.home.$get;
 const searchGet = apiClient.v1.search.$get;
 const tracksGet = apiClient.v1.tracks.index.$get;
 const tracksPost = apiClient.v1.tracks.index.$post;
@@ -59,6 +62,9 @@ const openVerseSubmissionPost =
   apiClient.v1["open-verses"][":listingId"].submissions.$post;
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
+const notificationsGet = apiClient.v1.notifications.index.$get;
+const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
+const trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post;
 const sellerStatusGet = apiClient.v1.seller.status.$get;
 const battleStatsGet = apiClient.v1.battles.stats.$get;
 const trackBattleHistoryGet =
@@ -150,11 +156,15 @@ type ImportStripePlanBody = InferRequestType<
 type SyncStripePlansBody = InferRequestType<
   typeof adminSyncStripePlansPost
 >["json"];
+type UpdatePlatformSettingsBody = InferRequestType<
+  typeof adminSettingsPatch
+>["json"];
 
 export const soundkitQueryKeys = {
   adminAccess: ["admin", "access"] as const,
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
+  adminSettings: ["admin", "settings"] as const,
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battles: ["battles"] as const,
@@ -163,8 +173,8 @@ export const soundkitQueryKeys = {
   conversationMessages: (conversationId: string) =>
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
+  discoverHome: ["discover", "home"] as const,
   friends: ["messages", "friends"] as const,
-  peopleSearch: (q: string) => ["messages", "people", q] as const,
   libraryOverview: ["library", "overview"] as const,
   libraryPlaylists: ["library", "playlists"] as const,
   libraryPurchases: ["library", "purchases"] as const,
@@ -176,6 +186,7 @@ export const soundkitQueryKeys = {
   meEntitlements: ["me", "entitlements"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
+  peopleSearch: (q: string) => ["messages", "people", q] as const,
   project: (id: string) => ["projects", id] as const,
   projects: ["projects"] as const,
   search: (query: SearchQuery) => ["search", query] as const,
@@ -211,6 +222,30 @@ export const useAdminPaymentsQuery = (enabled = true) =>
     queryFn: async () => rpcJson(await adminFinancePaymentsGet()),
     queryKey: soundkitQueryKeys.adminPayments,
   });
+
+export const useAdminSettingsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () => rpcJson(await adminSettingsGet()),
+    queryKey: soundkitQueryKeys.adminSettings,
+  });
+
+export const useUpdateAdminSettingsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: UpdatePlatformSettingsBody) =>
+      rpcJson(await adminSettingsPatch({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adminSettings,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.discoverHome,
+      });
+    },
+  });
+};
 
 export const useImportStripePlanMutation = () => {
   const queryClient = useQueryClient();
@@ -414,6 +449,12 @@ export const useSearchQuery = (query: SearchQuery) =>
     ),
     queryFn: async () => rpcJson(await searchGet({ query })),
     queryKey: soundkitQueryKeys.search(query),
+  });
+
+export const useDiscoverHomeQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await discoverHomeGet()),
+    queryKey: soundkitQueryKeys.discoverHome,
   });
 
 export const useTracksQuery = (
@@ -691,3 +732,33 @@ export const useTrackBattleHistoryQuery = (trackId: string) =>
       rpcJson(await trackBattleHistoryGet({ param: { trackId } })),
     queryKey: soundkitQueryKeys.trackBattleHistory(trackId),
   });
+
+export const useNotificationsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await notificationsGet()),
+    queryKey: ["notifications"],
+  });
+
+export const useMarkNotificationsReadMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => rpcJson(await notificationsReadAllPost()),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+};
+
+export const usePreSaveTrackMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () =>
+      rpcJson(await trackPreSavePost({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};

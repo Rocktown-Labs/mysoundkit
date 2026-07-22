@@ -15,6 +15,16 @@ import { createStripePlans } from "./plans";
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
 
+const hostFromUrl = (value: string) => {
+  try {
+    return new URL(value).host;
+  } catch {
+    return "";
+  }
+};
+
+const uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))];
+
 const getAdminEmails = () =>
   getEnvValue("ADMIN_EMAILS")
     .split(",")
@@ -35,6 +45,8 @@ const createStripeClient = () => {
 
 export const createAuth = () => {
   const db = createDb();
+  const authHost = hostFromUrl(env.BETTER_AUTH_URL);
+  const siteHost = hostFromUrl(env.CORS_ORIGIN);
   const isLocalAuthUrl =
     env.BETTER_AUTH_URL.includes("localhost") ||
     env.BETTER_AUTH_URL.includes("127.0.0.1");
@@ -42,6 +54,23 @@ export const createAuth = () => {
     globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl;
   const stripeClient = createStripeClient();
   const stripeWebhookSecret = getEnvValue("STRIPE_WEBHOOK_SECRET");
+  const allowedAuthHosts = uniqueValues([
+    authHost,
+    siteHost,
+    "mysoundkit.com",
+    "www.mysoundkit.com",
+    "*.mysoundkit.pages.dev",
+    "*.pages.dev",
+    "*.workers.dev",
+    "*.rocktown-labs.workers.dev",
+  ]);
+  const dynamicBaseURL = isDevelopment
+    ? env.BETTER_AUTH_URL
+    : {
+        allowedHosts: allowedAuthHosts,
+        fallback: env.BETTER_AUTH_URL,
+        protocol: "https" as const,
+      };
 
   return betterAuth({
     advanced: {
@@ -56,7 +85,7 @@ export const createAuth = () => {
       },
     },
     basePath: "/auth",
-    baseURL: env.BETTER_AUTH_URL,
+    baseURL: dynamicBaseURL,
     database: drizzleAdapter(db, {
       provider: "pg",
       schema,
@@ -160,6 +189,12 @@ export const createAuth = () => {
     trustedOrigins: [
       env.CORS_ORIGIN,
       env.BETTER_AUTH_URL,
+      "https://mysoundkit.com",
+      "https://www.mysoundkit.com",
+      "https://*.mysoundkit.pages.dev",
+      "https://*.pages.dev",
+      "https://*.workers.dev",
+      "https://*.rocktown-labs.workers.dev",
       "soundkit://",
       ...(isDevelopment
         ? [

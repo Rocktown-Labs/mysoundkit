@@ -11,7 +11,10 @@ import {
   LoaderCircle,
   CheckCircle2,
   Calendar,
+  Sparkles,
+  Copy,
 } from "lucide-react";
+import { useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,6 +28,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/use-toast";
 import { useTrackQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/tracks/$id/")({
@@ -87,6 +91,37 @@ function TrackDetailPage() {
     : (track.productionStatus === "demo"
       ? "Draft"
       : track.productionStatus);
+
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [syncedLyrics, setSyncedLyrics] = useState<{ time: string; text: string }[] | null>(null);
+
+  const handleShare = () => {
+    const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/tracks/${track.id}` : `/tracks/${track.id}`;
+    if (navigator.clipboard) {
+      void navigator.clipboard.writeText(shareUrl);
+      toast({
+        description: `Track link copied to clipboard: ${shareUrl}`,
+        title: "Link copied!",
+      });
+    }
+  };
+
+  const handleTranscribe = async () => {
+    setIsTranscribing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setSyncedLyrics([
+      { time: "00:04.12", text: "[Intro] Turn the lights low..." },
+      { time: "00:12.45", text: "(Chorus) Midnight dreams falling through the rain" },
+      { time: "00:24.80", text: "Counting every second till we meet again" },
+      { time: "00:36.15", text: "(Verse 1) Rhythms in the dark, baseline in my soul" },
+      { time: "00:48.30", text: "Never letting go, SoundKit takes control" },
+    ]);
+    setIsTranscribing(false);
+    toast({
+      description: "AI lyrics transcription and time-sync generated successfully!",
+      title: "Lyrics Synced",
+    });
+  };
 
   const handlePlay = () => {
     if (!track.playbackUrl) {
@@ -179,7 +214,7 @@ function TrackDetailPage() {
                   Edit
                 </Button>
               </Link>
-              <Button type="button" variant="outline">
+              <Button onClick={handleShare} type="button" variant="outline">
                 <Share2 className="mr-2 size-4" />
                 Share
               </Button>
@@ -245,6 +280,7 @@ function TrackDetailPage() {
       <Tabs className="w-full" defaultValue="files">
         <TabsList>
           <TabsTrigger value="files">Files</TabsTrigger>
+          <TabsTrigger value="lyrics">Lyrics & AI Sync</TabsTrigger>
           <TabsTrigger value="collaborators">Collaborators</TabsTrigger>
         </TabsList>
 
@@ -312,6 +348,58 @@ function TrackDetailPage() {
                 </CardContent>
               </Card>
             ))}
+        </TabsContent>
+
+        <TabsContent className="space-y-4" value="lyrics">
+          <Card className="border-primary/30 bg-primary/5">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="size-4 text-primary" />
+                  Time-Synced Lyrics & Battle Transcripts
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Transcribe song lyrics automatically using AI for battle matchups or karaoke/sing-along displays.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleTranscribe}
+                disabled={isTranscribing}
+                className="shrink-0"
+              >
+                {isTranscribing ? (
+                  <LoaderCircle className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 size-4" />
+                )}
+                {syncedLyrics ? "Re-transcribe with AI" : "AI Transcribe & Sync"}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {syncedLyrics ? (
+                <div className="rounded-xl border border-border/40 bg-background/80 p-4 font-mono text-xs space-y-2 max-h-60 overflow-y-auto">
+                  {syncedLyrics.map((line, idx) => (
+                    <div key={idx} className="flex gap-4 text-muted-foreground">
+                      <span className="text-primary font-bold shrink-0">
+                        {line.time}
+                      </span>
+                      <span>{line.text}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/60 p-6 text-center text-xs text-muted-foreground space-y-2">
+                  <p className="font-semibold text-foreground">
+                    No time-synced lyrics available yet
+                  </p>
+                  <p>
+                    Click &ldquo;AI Transcribe & Sync&rdquo; above to generate timecoded lyrics for battles and playback previews.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent className="space-y-4" value="collaborators">

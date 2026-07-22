@@ -30,6 +30,23 @@ const locationLabel = ({
   state: string | null;
 }) => [city, state].filter(Boolean).join(", ");
 
+export const capitalizeWords = (input?: string | null) => {
+  if (!input || input.trim().length === 0) {
+    return "";
+  }
+  return input
+    .split(" ")
+    .map((word) =>
+      word.includes("-")
+        ? word
+            .split("-")
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join("-")
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
+    .join(" ");
+};
+
 const artistMomentumRank = sql<number>`count(${tracks.id})::int`;
 
 const artistOrderBy = (query: {
@@ -153,21 +170,30 @@ app.openapi(
       .offset(offset);
 
     return c.json(
-      rows.map((artist, index) => ({
-        avatarUrl: artist.avatarUrl,
-        followers: artist.followerCount,
-        genre: artist.genre ?? "Uncategorized",
-        id: artist.id,
-        joinedAt: artist.createdAt.toISOString(),
-        location: locationLabel({ city: artist.city, state: artist.state }),
-        name: artist.stageName ?? artist.displayName ?? artist.name,
-        rank: index + offset + 1,
-        roles: ["musician" as const],
-        state: artist.state,
-        username: artist.username,
-        verified: artist.isVerified,
-        weeklyPlays: Math.max(0, Number(artist.trackCount) * 1000),
-      })),
+      rows.map((artist, index) => {
+        const rawName = artist.stageName ?? artist.displayName ?? artist.name;
+        const name = capitalizeWords(rawName);
+        const genre = capitalizeWords(artist.genre ?? "Hip-Hop");
+        const hasActivity =
+          Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0;
+        const rank = hasActivity ? index + offset + 1 : null;
+
+        return {
+          avatarUrl: artist.avatarUrl,
+          followers: artist.followerCount,
+          genre,
+          id: artist.id,
+          joinedAt: artist.createdAt.toISOString(),
+          location: locationLabel({ city: artist.city, state: artist.state }),
+          name,
+          rank,
+          roles: ["musician" as const],
+          state: artist.state,
+          username: artist.username,
+          verified: artist.isVerified,
+          weeklyPlays: Math.max(0, Number(artist.trackCount) * 1000),
+        };
+      }),
       HttpStatusCodes.OK
     );
   }
@@ -241,6 +267,15 @@ app.openapi(
             ])
         );
 
+        const rawName = artist.stageName ?? artist.displayName ?? artist.name;
+        const name = capitalizeWords(rawName);
+        const genre = capitalizeWords(artist.genre ?? "Hip-Hop");
+        const hasActivity =
+          Number(artist.trackCount) > 0 ||
+          Number(artist.followerCount) > 0 ||
+          Number(artist.battleCount) > 0;
+        const rank = hasActivity ? (artist.battleCount ? `#${artist.battleCount}` : "#1") : null;
+
         return c.json(
           {
             avatarUrl: artist.avatarUrl,
@@ -248,13 +283,14 @@ app.openapi(
             bio: artist.bio,
             coverImageUrl: artist.headerUrl,
             followers: artist.followerCount,
-            genre: artist.genre ?? "Uncategorized",
+            genre,
             id: artist.id,
             joinedAt: artist.createdAt.toISOString(),
             links: platformLinks,
             location: locationLabel({ city: artist.city, state: artist.state }),
-            name: artist.stageName ?? artist.displayName ?? artist.name,
+            name,
             projectCount: artist.projectCount,
+            rank,
             roles: ["musician" as const],
             trackCount: artist.trackCount,
             username: artist.username,

@@ -219,7 +219,13 @@ export function ProfileShell({ user, isOwner, children }: ProfileShellProps) {
                   </div>
                   <div className="text-center sm:text-left border-r border-border/10 pr-4">
                     <p className="text-xl font-black text-foreground">
-                      {user.battleRank || "#12"}
+                      {user.battleRank ? (
+                        user.battleRank
+                      ) : (
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          Unranked
+                        </span>
+                      )}
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-primary font-black flex items-center gap-1 justify-center sm:justify-start">
                       <Trophy className="size-2.5" /> Rank

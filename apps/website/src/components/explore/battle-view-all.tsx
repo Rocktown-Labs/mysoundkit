@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useBattlesQuery } from "@/lib/soundkit-api-hooks";
 import type { BattleSummary } from "@/lib/soundkit-api-hooks";
+import { musicGenres } from "@/lib/music-genres";
 
 import { BattleFilters } from "./battle-filters";
 
@@ -63,22 +64,6 @@ const battleGenres = ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"] as const;
 const DEFAULT_REGION = "all";
 const DEFAULT_REGION_TYPE = "north-america" as const;
 const DEFAULT_GENRE = "all";
-const liveGenreSections = [
-  { label: "Hip-Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Pop", value: "pop" },
-  { label: "Electronic", value: "electronic" },
-  { label: "Spoken Word", value: "spoken-word" },
-  { label: "Rock", value: "rock" },
-  { label: "Jazz", value: "jazz" },
-  { label: "Afrobeats", value: "afrobeats" },
-  { label: "Latin", value: "latin" },
-  { label: "Country", value: "country" },
-  { label: "Reggae", value: "reggae" },
-  { label: "Indie", value: "indie" },
-  { label: "Metal", value: "metal" },
-] as const;
-
 const readSavedBattleFilters = (): Partial<BattleFiltersState> | null => {
   if (typeof window === "undefined") {
     return null;
@@ -190,9 +175,9 @@ const groupBattlesByGenre = (battles: BattleSummary[]) => {
   }
 
   const knownGenreValues = new Set(
-    liveGenreSections.map((genre) => genre.value)
+    musicGenres.map((genre) => genre.value)
   );
-  const orderedGenres = liveGenreSections.map((genre) => ({
+  const orderedGenres = musicGenres.map((genre) => ({
     battles: grouped.get(genre.value) ?? [],
     genre: genre.label,
     value: genre.value,
@@ -362,6 +347,15 @@ export function BattleViewAll({
       "battleFilters",
       JSON.stringify({ genre, region, regionType, sort })
     );
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      params.set("genre", genre);
+      params.set("region", region);
+      params.set("regionType", regionType);
+      params.set("sort", sort);
+      window.history.replaceState(null, "", `?${params.toString()}`);
+    }
   }, [regionType, region, genre, sort]);
 
   const liveBattleSections = useMemo(() => {

@@ -50,6 +50,15 @@ export const adminAccessSchema = z.object({
   isAdmin: z.boolean(),
 });
 
+export const platformSettingsSchema = z.object({
+  defaultExploreRegion: z.string(),
+  defaultExploreRegionType: z.enum(["north-america", "global"]),
+  useGlobalExploreHome: z.boolean(),
+});
+
+export const updatePlatformSettingsBodySchema =
+  platformSettingsSchema.partial();
+
 export const adminPaymentPlanSchema = z.object({
   annualPriceCents: z.number().int().nullable(),
   audience: z.enum(["artist", "fan"]),
@@ -135,6 +144,7 @@ export const userSummarySchema = z.object({
   id: z.string(),
   onboardingCompletedAt: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
+  stageName: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
   username: z.string(),
 });
@@ -194,6 +204,7 @@ export const profileUpdateBodySchema = z.object({
   displayName: z.string().optional(),
   headerObjectKey: z.string().optional(),
   headerUrl: z.string().url().optional(),
+  stageName: z.string().optional(),
   state: z.string().optional(),
 });
 
@@ -229,7 +240,10 @@ export const artistSummarySchema = z.object({
   location: z.string(),
   name: z.string(),
   projectCount: z.number().int().nonnegative().optional(),
-  rank: z.number().int().positive().optional(),
+  rank: z
+    .union([z.number().int().positive(), z.string()])
+    .nullable()
+    .optional(),
   roles: artistRoleSchema.array().default(["musician"]),
   state: z.string().nullable().optional(),
   trackCount: z.number().int().nonnegative().optional(),
@@ -294,6 +308,13 @@ export const trackSummarySchema = z.object({
   slug: z.string(),
   title: z.string(),
   updatedAt: z.string().optional(),
+});
+
+export const discoverHomeResponseSchema = z.object({
+  featuredArtists: artistSummarySchema.array(),
+  featuredBattles: z.lazy(() => battleSummarySchema.array()),
+  featuredTracks: trackSummarySchema.array(),
+  settings: platformSettingsSchema,
 });
 
 export const playbackSourceTypeSchema = z.enum([

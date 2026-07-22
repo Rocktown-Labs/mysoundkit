@@ -52,6 +52,8 @@ const expectedOpenApiOperations = [
   ["post", "/v1/battles/eligibility"],
   ["get", "/v1/battles/{battleId}"],
   ["get", "/v1/admin/finance/summary"],
+  ["get", "/v1/admin/settings"],
+  ["patch", "/v1/admin/settings"],
   ["post", "/v1/billing/checkout"],
   ["get", "/v1/billing/plans"],
   ["get", "/v1/billing/subscription"],
@@ -290,12 +292,22 @@ describe("SoundKit public read API", () => {
       featuredArtists: unknown[];
       featuredBattles: unknown[];
       featuredTracks: unknown[];
+      settings: {
+        defaultExploreRegion: string;
+        defaultExploreRegionType: string;
+        useGlobalExploreHome: boolean;
+      };
     }>("/v1/discover/home");
 
     expect(response.status).toBe(200);
     expect(body.featuredArtists.length).toBeGreaterThan(0);
     expect(body.featuredBattles.length).toBeGreaterThan(0);
     expect(body.featuredTracks.length).toBeGreaterThan(0);
+    expect(body.settings).toEqual({
+      defaultExploreRegion: "us-arkansas",
+      defaultExploreRegionType: "north-america",
+      useGlobalExploreHome: true,
+    });
   });
 
   it("returns public explore read models for songs videos and ranked artists", async () => {

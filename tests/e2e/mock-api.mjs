@@ -157,6 +157,92 @@ const liveRoom = (roomId) => {
   };
 };
 
+const platformSettings = {
+  defaultExploreRegion: "us-arkansas",
+  defaultExploreRegionType: "north-america",
+  useGlobalExploreHome: true,
+};
+
+const mockTracks = [
+  {
+    artistName: "Luna Eclipse",
+    artistUsername: "luna-eclipse",
+    coverArtUrl: "/summer-music-album-cover.png",
+    duration: "3:24",
+    genre: "R&B/Soul",
+    id: "track_summer_nights",
+    isForSale: true,
+    isPublic: true,
+    plays: 2_400_000,
+    price: "$2.99",
+    priceCents: 299,
+    title: "Summer Nights",
+  },
+];
+
+const mockArtists = [
+  {
+    avatarUrl: "/diverse-user-avatars.png",
+    battleCount: 12,
+    followers: 124_000,
+    genre: "R&B/Soul",
+    id: "artist_luna_eclipse",
+    location: "Global",
+    name: "Luna Eclipse",
+    rank: 1,
+    roles: ["musician"],
+    username: "luna-eclipse",
+    verified: true,
+    weeklyPlays: 2_400_000,
+  },
+  {
+    avatarUrl: "/diverse-user-avatars.png",
+    battleCount: 9,
+    followers: 89_000,
+    genre: "Electronic",
+    id: "artist_neon_pulse",
+    location: "Global",
+    name: "Neon Pulse",
+    rank: 2,
+    roles: ["producer"],
+    username: "neon-pulse",
+    verified: true,
+    weeklyPlays: 1_800_000,
+  },
+];
+
+const mockVideos = [
+  {
+    creatorName: "Luna Eclipse",
+    creatorUsername: "luna-eclipse",
+    duration: "3:42",
+    id: "video_midnight_vibes_mv",
+    muxPlaybackId: null,
+    playbackPolicy: "public",
+    sourceProvider: "external",
+    status: "ready",
+    thumbnailUrl: "/music-video-thumbnail.png",
+    title: "Midnight Vibes",
+    verifiedOnPlatform: true,
+    videoKind: "music_video",
+    viewCount: "42K",
+  },
+];
+
+const mockBattles = [
+  {
+    featuredRank: 1,
+    format: "best_of_5",
+    genre: "Hip-Hop",
+    id: "battle_west_coast_showdown",
+    isFeatured: true,
+    status: "live",
+    title: "West Coast Showdown",
+    viewerCount: 4321,
+    visibility: "premium_only",
+  },
+];
+
 export const createMockApiServer = async ({
   host = "127.0.0.1",
   port = 3000,
@@ -300,26 +386,55 @@ export const createMockApiServer = async ({
       return;
     }
 
-    if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
+    if (url.pathname === "/v1/admin/settings") {
+      json(response, 200, platformSettings, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/discover/home") {
       json(
         response,
         200,
-        [
-          {
-            artistName: "Luna Eclipse",
-            artistUsername: "luna-eclipse",
-            coverArtUrl: "/summer-music-album-cover.png",
-            duration: "3:24",
-            genre: "R&B/Soul",
-            id: "track_summer_nights",
-            isForSale: true,
-            isPublic: true,
-            plays: 2_400_000,
-            price: "$2.99",
-            priceCents: 299,
-            title: "Summer Nights",
-          },
-        ],
+        {
+          featuredArtists: mockArtists,
+          featuredBattles: mockBattles,
+          featuredTracks: mockTracks,
+          settings: platformSettings,
+        },
+        webOrigin
+      );
+      return;
+    }
+
+    if (url.pathname === "/v1/tracks" || url.pathname === "/v1/tracks/") {
+      json(response, 200, mockTracks, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/artists" || url.pathname === "/v1/artists/") {
+      json(response, 200, mockArtists, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/videos" || url.pathname === "/v1/videos/") {
+      json(response, 200, mockVideos, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
+      json(response, 200, mockBattles, webOrigin);
+      return;
+    }
+
+    if (url.pathname === "/v1/search") {
+      json(
+        response,
+        200,
+        {
+          artists: mockArtists,
+          projects: [],
+          tracks: mockTracks,
+        },
         webOrigin
       );
       return;

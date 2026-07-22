@@ -11,6 +11,9 @@ import {
   ListVideo,
   ListPlus,
   TvMinimalPlay,
+  Swords,
+  PartyPopper,
+  Tags,
 } from "lucide-react";
 
 import { SidebarNavGroup } from "@/components/sidebar-nav-group";
@@ -26,13 +29,21 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
+
 const discoverLinks: SidebarNavItem[] = [
   { href: "/", icon: MapPin, label: "Home" },
   { href: "/tracks", icon: Music, label: "Songs" },
   { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
+  { href: "/genres", icon: Tags, label: "Genres" },
   { href: "/shop", icon: ShoppingBag, label: "Shop" },
-  { href: "/genres", icon: Music, label: "Genres" },
+].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
+
+const liveLinks: SidebarNavItem[] = [
+  { href: "/live/battles", icon: Swords, label: "Battles" },
+  { href: "/live/parties", icon: PartyPopper, label: "Parties" },
+  { href: "/live/streams", icon: TvMinimalPlay, label: "Streams" },
 ].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
 const libraryLinks: SidebarNavItem[] = [
@@ -46,57 +57,28 @@ const libraryLinks: SidebarNavItem[] = [
 
 export function ExploreAppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const meQuery = useMeQuery();
+  const isSignedIn = Boolean(meQuery.data);
+
   const isRouteActive = (href: string) =>
     href === "/"
       ? pathname === "/"
       : pathname === href || pathname.startsWith(`${href}/`);
-  const isLiveRoute = pathname.startsWith("/live");
 
-  const resolvedDiscoverLinks: SidebarNavItem[] = [
-    ...discoverLinks.slice(0, 3).map((item) => ({
-      ...item,
-      isActive: isRouteActive(item.url ?? "/"),
-    })),
-    {
-      ...discoverLinks[3],
-      isActive: isRouteActive(discoverLinks[3]?.url ?? "/artist"),
-    },
-    {
-      ...discoverLinks[4],
-      isActive: isRouteActive(discoverLinks[4]?.url ?? "/shop"),
-    },
-    {
-      icon: TvMinimalPlay,
-      isActive: isLiveRoute,
-      items: [
-        {
-          isActive: isRouteActive("/live/battles"),
-          title: "Battles",
-          url: "/live/battles",
-        },
-        {
-          isActive: isRouteActive("/live/parties"),
-          title: "Parties",
-          url: "/live/parties",
-        },
-        {
-          isActive: isRouteActive("/live/streams"),
-          title: "Streams",
-          url: "/live/streams",
-        },
-      ],
-      title: "Live",
-      url: "/live",
-    },
-    {
-      ...discoverLinks[5],
-      isActive: isRouteActive(discoverLinks[5]?.url ?? "/genres"),
-    },
-  ];
+  const resolvedDiscoverLinks = discoverLinks.map((item) => ({
+    ...item,
+    isActive: isRouteActive(item.url ?? "/"),
+  }));
+
+  const resolvedLiveLinks = liveLinks.map((item) => ({
+    ...item,
+    isActive: isRouteActive(item.url ?? "/live"),
+  }));
 
   const resolvedLibraryLinks = libraryLinks.map((item) => ({
     ...item,
     isActive: isRouteActive(item.url ?? "/library"),
+    url: isSignedIn ? item.url : `/login?redirect=${encodeURIComponent(item.url ?? "/library")}`,
   }));
 
   return (
@@ -114,6 +96,7 @@ export function ExploreAppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarNavGroup label="Discover" items={resolvedDiscoverLinks} />
+        <SidebarNavGroup label="Live" items={resolvedLiveLinks} />
         <SidebarNavGroup label="My SoundKit" items={resolvedLibraryLinks} />
       </SidebarContent>
       <SidebarRail />

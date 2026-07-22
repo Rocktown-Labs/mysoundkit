@@ -7,6 +7,7 @@ import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-c
 import type { LeaderboardArtist } from "@/components/explore/artist-leaderboard-card";
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { Button } from "@/components/ui/button";
+import { musicGenres } from "@/lib/music-genres";
 import { useArtistsQuery } from "@/lib/soundkit-api-hooks";
 import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
 
@@ -41,15 +42,21 @@ const leaderboardSections = [
   },
 ] as const;
 
-const featuredGenres = [
-  { label: "Hip-Hop", value: "hip-hop" },
-  { label: "R&B/Soul", value: "rb-soul" },
-  { label: "Pop", value: "pop" },
-  { label: "Electronic", value: "electronic" },
-] as const;
+interface ArtistSearch {
+  genre?: string;
+  region?: string;
+  regionType?: "north-america" | "global";
+  sort?: string;
+}
 
 export const Route = createFileRoute("/_explore/artist/")({
   component: ArtistPage,
+  validateSearch: (search: Record<string, unknown>): ArtistSearch => ({
+    genre: typeof search.genre === "string" ? search.genre : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
+  }),
 });
 
 const formatFollowers = (followers: number) => {
@@ -131,13 +138,100 @@ function LeaderboardSection({
   );
 }
 
-function ArtistPage() {
-  const [regionType, setRegionType] = useState<"north-america" | "global">(
-    "north-america"
+function ArtistGenreRail({
+  genre,
+  region,
+  regionType,
+}: {
+  genre: (typeof musicGenres)[number];
+  region: string;
+  regionType: "north-america" | "global";
+}) {
+  const query = useArtistsQuery({
+    category: "top",
+    genre: genre.value,
+    limit: "6",
+    region,
+    regionType,
+    sort: "rank-asc",
+  });
+  const artists = query.data ?? [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-lg">{genre.label}</h3>
+        <Button asChild size="sm" variant="ghost">
+          <Link
+            to="/artist/top"
+            search={{
+              genre: genre.value,
+              region,
+              regionType,
+              sort: "rank-asc",
+            }}
+          >
+            View All
+          </Link>
+        </Button>
+      </div>
+      {artists.length > 0 ? (
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {artists.map((artist) => (
+            <ArtistCard
+              key={artist.username}
+              avatar={artist.avatarUrl ?? "/diverse-user-avatars.png"}
+              followers={formatFollowers(artist.followers)}
+              genre={artist.genre}
+              name={artist.name}
+              slug={artist.username}
+              verified={artist.verified}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
+          No {genre.label} artists found yet.
+        </div>
+      )}
+    </div>
   );
-  const [region, setRegion] = useState("us-arkansas");
-  const [genre, setGenre] = useState("all");
-  const [sort, setSort] = useState("rank-asc");
+}
+
+function ArtistPage() {
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  const savedRegionType =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("exploreRegionType") as "north-america" | "global" | null)
+      : null;
+  const savedRegion =
+    typeof window !== "undefined" ? localStorage.getItem("exploreRegion") : null;
+
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const genre = search.genre ?? "all";
+  const sort = search.sort ?? "rank-asc";
+
+  const updateFilters = (next: Partial<ArtistSearch>) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
+    }
+    navigate({
+      replace: true,
+      search: (prev) => ({
+        ...prev,
+        genre: next.genre ?? genre,
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+      }),
+    });
+  };
   const commonQuery = {
     genre,
     limit: "10",
@@ -148,44 +242,6 @@ function ArtistPage() {
   const rising = useArtistsQuery({ ...commonQuery, category: "rising" });
   const newest = useArtistsQuery({ ...commonQuery, category: "new" });
   const top = useArtistsQuery({ ...commonQuery, category: "top" });
-  const hipHopArtists = useArtistsQuery({
-    category: "top",
-    genre: featuredGenres[0].value,
-    limit: "6",
-    region,
-    regionType,
-    sort: "rank-asc",
-  });
-  const rbArtists = useArtistsQuery({
-    category: "top",
-    genre: featuredGenres[1].value,
-    limit: "6",
-    region,
-    regionType,
-    sort: "rank-asc",
-  });
-  const popArtists = useArtistsQuery({
-    category: "top",
-    genre: featuredGenres[2].value,
-    limit: "6",
-    region,
-    regionType,
-    sort: "rank-asc",
-  });
-  const electronicArtists = useArtistsQuery({
-    category: "top",
-    genre: featuredGenres[3].value,
-    limit: "6",
-    region,
-    regionType,
-    sort: "rank-asc",
-  });
-  const topByGenre = [
-    { genre: featuredGenres[0], query: hipHopArtists },
-    { genre: featuredGenres[1], query: rbArtists },
-    { genre: featuredGenres[2], query: popArtists },
-    { genre: featuredGenres[3], query: electronicArtists },
-  ];
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
@@ -203,10 +259,12 @@ function ArtistPage() {
         region={region}
         genre={genre}
         sort={sort}
-        onRegionTypeChange={setRegionType}
-        onRegionChange={setRegion}
-        onGenreChange={setGenre}
-        onSortChange={setSort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => updateFilters({ genre: nextGenre })}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
         sortOptions={sortOptions}
       />
 
@@ -245,44 +303,13 @@ function ArtistPage() {
               Compact genre lists with profile cards.
             </p>
           </div>
-          {topByGenre.map(({ genre: genreOption, query }) => (
-            <div key={genreOption.value} className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">{genreOption.label}</h3>
-                <Button asChild variant="ghost" size="sm">
-                  <Link
-                    to="/artist/top"
-                    search={{
-                      genre: genreOption.value,
-                      region,
-                      regionType,
-                      sort: "rank-asc",
-                    }}
-                  >
-                    View All
-                  </Link>
-                </Button>
-              </div>
-              {(query.data ?? []).length > 0 ? (
-                <div className="flex gap-3 overflow-x-auto pb-2">
-                  {(query.data ?? []).map((artist) => (
-                    <ArtistCard
-                      key={artist.username}
-                      slug={artist.username}
-                      name={artist.name}
-                      avatar={artist.avatarUrl ?? "/diverse-user-avatars.png"}
-                      genre={artist.genre}
-                      followers={formatFollowers(artist.followers)}
-                      verified={artist.verified}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
-                  No {genreOption.label} artists found yet.
-                </div>
-              )}
-            </div>
+          {musicGenres.map((genreOption) => (
+            <ArtistGenreRail
+              genre={genreOption}
+              key={genreOption.value}
+              region={region}
+              regionType={regionType}
+            />
           ))}
         </section>
       </div>

@@ -35,8 +35,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { API_V1_URL } from "@/lib/api";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 interface Device {
   active: boolean;
@@ -175,6 +183,50 @@ export function MusicPlayer() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
   const [volume, setVolume] = useState(75);
+
+  const meQuery = useMeQuery();
+  const isSignedIn = Boolean(meQuery.data);
+  const [guestLimitReached, setGuestLimitReached] = useState(false);
+
+  // 1-Hour Guest Daily Playback Limit (3600s)
+  useEffect(() => {
+    if (isSignedIn || !isPlaying || typeof window === "undefined") {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const stored = window.localStorage.getItem("soundkit_guest_playback_v1");
+      let secondsPlayed = 0;
+
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as { date: string; secondsPlayed: number };
+          if (parsed.date === today) {
+            secondsPlayed = parsed.secondsPlayed || 0;
+          }
+        } catch {
+          // Reset
+        }
+      }
+
+      secondsPlayed += 1;
+      window.localStorage.setItem(
+        "soundkit_guest_playback_v1",
+        JSON.stringify({ date: today, secondsPlayed })
+      );
+
+      if (secondsPlayed >= 3600) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        setIsPlaying(false);
+        setGuestLimitReached(true);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSignedIn, isPlaying]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -720,6 +772,31 @@ export function MusicPlayer() {
           </div>
         </div>
       </div>
+
+      <Dialog open={guestLimitReached} onOpenChange={setGuestLimitReached}>
+        <DialogContent className="max-w-md p-6 text-center space-y-4">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold font-[family-name:var(--font-playfair)]">
+              1-Hour Free Listening Limit Reached
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground pt-2">
+              You&apos;ve enjoyed 1 hour of free guest listening today! Create a free SoundKit account to unlock unlimited streaming, save your favorite tracks, and follow top artists.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <Button asChild size="lg" className="w-full font-bold">
+              <Link to="/signup">Sign Up Free</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="w-full">
+              <Link to="/login">Log In to Existing Account</Link>
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Or return tomorrow for another hour of guest listening.
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

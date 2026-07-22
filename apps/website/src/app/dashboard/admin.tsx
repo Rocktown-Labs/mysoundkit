@@ -6,6 +6,7 @@ import {
   CircleDollarSign,
   CreditCard,
   Disc3,
+  Globe2,
   MoreHorizontal,
   Radio,
   RefreshCw,
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -56,8 +58,10 @@ import {
   useAdminAccessQuery,
   useAdminOverviewQuery,
   useAdminPaymentsQuery,
+  useAdminSettingsQuery,
   useImportStripePlanMutation,
   useSyncStripePlansMutation,
+  useUpdateAdminSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/admin")({
@@ -145,6 +149,7 @@ function AdminDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <OverviewPanel />
@@ -155,8 +160,87 @@ function AdminDashboard() {
         <TabsContent value="payments" className="mt-6">
           <PaymentsPanel />
         </TabsContent>
+        <TabsContent value="settings" className="mt-6">
+          <SettingsPanel />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function SettingsPanel() {
+  const settingsQuery = useAdminSettingsQuery();
+  const updateSettings = useUpdateAdminSettingsMutation();
+
+  if (settingsQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading settings...</p>;
+  }
+
+  if (settingsQuery.error || !settingsQuery.data) {
+    return <p className="text-sm text-destructive">Unable to load settings.</p>;
+  }
+
+  const handleGlobalHomeChange = (checked: boolean) => {
+    updateSettings.mutate(
+      { useGlobalExploreHome: checked },
+      {
+        onError: (error) => {
+          toast({
+            description: error.message,
+            title: "Setting update failed",
+            variant: "destructive",
+          });
+        },
+        onSuccess: () => {
+          toast({
+            description: checked
+              ? "The home map now starts with app-wide totals."
+              : "The home map now starts focused on Arkansas.",
+            title: "Settings saved",
+          });
+        },
+      }
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Globe2 className="size-4 text-primary" />
+          Explore defaults
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <Label htmlFor="global-explore-home">
+              Start the home map with app-wide totals
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              When enabled, `/` opens the existing map with no selected
+              location. Turning it off starts the map on Arkansas.
+            </p>
+          </div>
+          <Switch
+            id="global-explore-home"
+            checked={settingsQuery.data.useGlobalExploreHome}
+            disabled={updateSettings.isPending}
+            onCheckedChange={handleGlobalHomeChange}
+          />
+        </div>
+        <div className="grid gap-4 text-sm sm:grid-cols-2">
+          <MetricRow
+            label="Fallback region"
+            value={settingsQuery.data.defaultExploreRegion}
+          />
+          <MetricRow
+            label="Fallback scope"
+            value={settingsQuery.data.defaultExploreRegionType}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
