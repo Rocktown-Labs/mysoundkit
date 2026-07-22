@@ -34,7 +34,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Discover Music" })
     ).toBeVisible();
     await expect(
-      page.getByText(/showing app-wide totals/iu).first()
+      page.getByText(/showing app-wide totals/i).first()
     ).toBeVisible();
 
     await gotoWithViteRetry(page, "/tracks");

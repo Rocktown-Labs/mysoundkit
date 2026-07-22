@@ -128,8 +128,9 @@ function LocalExplorePage({
       }
     } catch {}
 
-    // Auto-prompt location on first visit
-    requestLocation();
+    // Default to global view with app-wide totals unless location is explicitly requested
+    setSelectedRegion(null);
+    setMapScope("global");
   }, [startsWithAppWideTotals]);
 
   const handleResetGlobal = () => {
@@ -154,7 +155,7 @@ function LocalExplorePage({
                     : selectedRegion
                       ? `Viewing music stats focused on ${selectedRegion}. Click another region or switch map scope.`
                       : isGlobalView
-                        ? "Showing global app-wide totals. Select a continent or region on the map to filter."
+                        ? "Showing app-wide totals across all scenes. Select a continent or region on the map to filter."
                         : `Showing top music in ${activeRegion}. Click any country or state on the map.`}
                 </p>
               </div>
