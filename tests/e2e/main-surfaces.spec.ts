@@ -110,7 +110,7 @@ test.describe("main application surfaces", () => {
     await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
   });
 
-  test("creator live studio exposes stream setup and realtime controls", async ({
+  test("creator live dashboards expose separate battle party and stream setup", async ({
     context,
     page,
   }) => {
@@ -123,16 +123,29 @@ test.describe("main application surfaces", () => {
       },
     ]);
 
-    await gotoWithViteRetry(page, "/dashboard/live/streams");
+    await gotoWithViteRetry(page, "/dashboard/live/challenge");
 
     await expect(
-      page.getByRole("heading", { name: "Live Studio" })
+      page.getByRole("heading", { name: "Battle Requests" })
+    ).toBeVisible();
+    await expect(page.getByText("BattleBot handoff")).toBeVisible();
+    await expect(page.getByText("Next-round lobby")).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/live/parties");
+    await expect(
+      page.getByRole("heading", { name: "Live Parties" })
     ).toBeVisible();
     await expect(
-      page.getByText("Artists bring their kit, set a round order")
+      page.getByText(/party chat can reference timestamps/i)
     ).toBeVisible();
-    await expect(page.getByText("RealtimeKit layer")).toBeVisible();
-    await expect(page.getByText("Realtime chat")).toBeVisible();
+    await expect(page.getByText("RealtimeKit Defaults")).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/live/streams");
+    await expect(
+      page.getByRole("heading", { name: "Live Streams" })
+    ).toBeVisible();
+    await expect(page.getByText("Create Stream")).toBeVisible();
+    await expect(page.getByText("RealtimeKit Layer")).toBeVisible();
   });
 
   test("live room detail pages expose chat, lyrics, and battle voting", async ({
@@ -153,6 +166,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("button", { name: /vote dj nova/i })
     ).toBeVisible();
     await expect(page.getByText(/muted until turn/i)).toBeVisible();
+    await expect(page.getByText("BattleBot Control")).toBeVisible();
 
     await page.goto("/live/streams/stream-1");
     await expect(
@@ -161,6 +175,7 @@ test.describe("main application surfaces", () => {
       })
     ).toBeVisible();
     await expect(page.getByText(/cloudflare realtime ready/i)).toBeVisible();
+    await expect(page.getByText("Live Signals")).toBeVisible();
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {

@@ -30,6 +30,7 @@
 - Added a Live Studio setup flow for battles, parties, and streams with stream details, audience feature toggles, encoder credentials, chat preview, and stream health panels.
 - Added app-wide genre rails across tracks, videos, artists, shop, and live discovery routes so every supported genre has a horizontal section and filtered view-all link.
 - Added dynamic Better Auth base URL and Cloudflare preview origin allowlists so PR previews and worker subdomains can authenticate against the API.
+- Added separate RealtimeKit-oriented live dashboards and room scaffolds for battles, listening parties, and streams, including BattleBot lobby/voting rules, party playlist/lyrics cues, stream analytics panels, and artist-only profile challenge actions.
 
 ### Fixed
 

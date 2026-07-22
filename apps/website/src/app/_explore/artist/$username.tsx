@@ -5,7 +5,7 @@ import { Film, Grid3x3, LayoutGrid, LoaderCircle, Music } from "lucide-react";
 
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useArtistQuery } from "@/lib/soundkit-api-hooks";
+import { useArtistQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
 import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/artist/$username")({
@@ -85,6 +85,7 @@ function EmptyArtistTab({
 function ArtistProfilePage() {
   const { username } = Route.useParams();
   const artistQuery = useArtistQuery(username);
+  const meQuery = useMeQuery();
 
   if (artistQuery.isLoading) {
     return (
@@ -108,7 +109,12 @@ function ArtistProfilePage() {
   }
 
   return (
-    <ProfileShell user={artistToProfileUser(artist)} isOwner={false}>
+    <ProfileShell
+      isOwner={false}
+      targetIsArtist={true}
+      user={artistToProfileUser(artist)}
+      viewerAccountType={meQuery.data?.user.accountType ?? null}
+    >
       <Tabs defaultValue="all" className="w-full">
         <div className="flex items-center justify-center border-border/10 border-t">
           <TabsList className="h-14 gap-8 bg-transparent md:gap-16">

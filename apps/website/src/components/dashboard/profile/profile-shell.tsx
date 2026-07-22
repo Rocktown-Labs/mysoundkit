@@ -26,6 +26,7 @@ import {
   YoutubeMusicIcon,
 } from "@/components/ui/brand-icons";
 import { Button } from "@/components/ui/button";
+import { canShowChallengeAction } from "@/lib/live-experience";
 import { cn } from "@/lib/utils";
 
 interface ProfileShellProps {
@@ -54,11 +55,24 @@ interface ProfileShellProps {
     };
   };
   isOwner?: boolean;
+  targetIsArtist?: boolean;
+  viewerAccountType?: "artist" | "fan" | null;
   children: React.ReactNode;
 }
 
-export function ProfileShell({ user, isOwner, children }: ProfileShellProps) {
+export function ProfileShell({
+  user,
+  isOwner,
+  targetIsArtist = true,
+  viewerAccountType,
+  children,
+}: ProfileShellProps) {
   const router = useRouter();
+  const showChallenge = canShowChallengeAction({
+    isOwner: Boolean(isOwner),
+    targetIsArtist,
+    viewerAccountType,
+  });
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -188,6 +202,21 @@ export function ProfileShell({ user, isOwner, children }: ProfileShellProps) {
                           <UserPlus className="size-5 mr-2" />
                           Follow
                         </Button>
+                        {showChallenge && (
+                          <Button
+                            variant="secondary"
+                            className="rounded-full border-border/40 bg-primary/15 h-12 px-6 font-bold text-primary"
+                            onClick={() =>
+                              router.navigate({
+                                search: { opponent: user.username },
+                                to: "/dashboard/live/challenge" as any,
+                              })
+                            }
+                          >
+                            <Swords className="mr-2 size-5" />
+                            Challenge
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           className="rounded-full border-border/40 bg-white/5 h-12 w-12 p-0 shadow-lg"

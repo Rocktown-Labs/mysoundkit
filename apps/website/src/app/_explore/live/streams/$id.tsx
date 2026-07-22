@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Lock, Play, Radio, Users, Video } from "lucide-react";
+import {
+  Activity,
+  Captions,
+  Lock,
+  MessageSquare,
+  Play,
+  Radio,
+  Users,
+  Video,
+} from "lucide-react";
 
 import {
   LiveChatPanel,
@@ -120,6 +129,39 @@ function StreamDetailPage() {
           messages={room.chat}
           onSend={(message) => chat.mutate({ message, userName: "You" })}
         />
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="size-5 text-primary" />
+              Live Signals
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              ["Viewer count", room.viewerCount.toLocaleString()],
+              ["Realtime chat", "Always on"],
+              ["Captions", "Prepared"],
+              ["Stream health", "Monitoring"],
+            ].map(([label, value]) => (
+              <div
+                className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                key={label}
+              >
+                <span className="flex items-center gap-2">
+                  {label === "Realtime chat" ? (
+                    <MessageSquare className="size-4 text-primary" />
+                  ) : label === "Captions" ? (
+                    <Captions className="size-4 text-primary" />
+                  ) : (
+                    <Activity className="size-4 text-primary" />
+                  )}
+                  {label}
+                </span>
+                <Badge variant="outline">{value}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
         <Button asChild className="w-full" variant="outline">
           <Link to="/live/streams">Back to Streams</Link>
         </Button>

@@ -1,10 +1,13 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Bot,
   CheckCircle2,
+  DoorOpen,
   Mic,
   MicOff,
   Radio,
+  ShieldCheck,
   Trophy,
   Users,
 } from "lucide-react";
@@ -224,6 +227,43 @@ function BattlePage() {
             messages={room.chat}
             onSend={(message) => chat.mutate({ message, userName: "You" })}
           />
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bot className="size-5 text-primary" />
+                BattleBot Control
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 font-medium">
+                    <DoorOpen className="size-4 text-primary" />
+                    Next-round lobby
+                  </span>
+                  <Badge variant="outline">Text chat only</Badge>
+                </div>
+                <p className="mt-2 text-muted-foreground">
+                  Viewers who arrive mid-round wait in a RealtimeKit breakout
+                  lobby and move into the battle between rounds.
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 font-medium">
+                    <ShieldCheck className="size-4 text-primary" />
+                    Voter snapshot
+                  </span>
+                  <Badge>Mandatory</Badge>
+                </div>
+                <p className="mt-2 text-muted-foreground">
+                  Only viewers in the active battle room at round start count as
+                  voters. Missed votes remove them before the next round.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

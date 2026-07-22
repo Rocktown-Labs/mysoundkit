@@ -1,5 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Heart, ListPlus, Music2, Radio, Users } from "lucide-react";
+import {
+  BadgeCheck,
+  Captions,
+  Heart,
+  ListPlus,
+  MessageSquare,
+  Music2,
+  Radio,
+  Timer,
+  Users,
+} from "lucide-react";
 
 import {
   LiveChatPanel,
@@ -98,6 +108,38 @@ function ListeningPartyDetailPage() {
           messages={room.chat}
           onSend={(message) => chat.mutate({ message, userName: "You" })}
         />
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="flex items-center gap-2 text-sm">
+                <BadgeCheck className="size-4 text-primary" />
+                Host badges
+              </span>
+              <Badge>Artist</Badge>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="flex items-center gap-2 text-sm">
+                <Timer className="size-4 text-primary" />
+                Timestamp chat
+              </span>
+              <Badge variant="outline">@1:27</Badge>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="flex items-center gap-2 text-sm">
+                <Captions className="size-4 text-primary" />
+                Synced lyrics
+              </span>
+              <Badge variant="outline">Ready</Badge>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <span className="flex items-center gap-2 text-sm">
+                <MessageSquare className="size-4 text-primary" />
+                Chat
+              </span>
+              <Badge>Always on</Badge>
+            </div>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="space-y-3 p-4">
             <Button asChild className="w-full" variant="outline">
