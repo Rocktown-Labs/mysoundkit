@@ -176,11 +176,17 @@ export function DashboardHeader() {
           <DropdownMenuContent align="end" className="w-80 p-2">
             <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 mb-1">
               <p className="font-semibold text-sm">Notifications</p>
-              {unreadCount > 0 ? (
-                <span className="text-[10px] bg-primary/15 text-primary font-mono px-1.5 py-0.5 rounded-md font-bold">
-                  {unreadCount} UNREAD
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => markReadMutation.mutate({ all: true })}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Mark all read
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             {notifications.length === 0 ? (
@@ -208,7 +214,7 @@ export function DashboardHeader() {
                         </p>
                       </Link>
                     ) : (
-                      <div>
+                      <div className="w-full">
                         <div className="flex items-center justify-between w-full">
                           <p className="text-xs font-semibold">{item.title}</p>
                           {!item.read && (

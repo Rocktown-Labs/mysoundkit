@@ -6,6 +6,8 @@ import {
   MessageCircle,
   Music2,
   Paperclip,
+  Play,
+  Radio,
   Send,
   Swords,
   UserCheck,
@@ -26,8 +28,11 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 
+export type UserPresence = "online" | "offline" | "in_battle" | "live_stream";
+
 interface AttachmentItem {
   id: string;
+  subtitle?: string;
   title: string;
   type: "track" | "open_verse" | "profile";
 }
@@ -51,6 +56,7 @@ interface Conversation {
     title: string;
     type: "friend" | "message" | "challenge";
   };
+  presence: UserPresence;
   unreadCount: number;
   username: string;
 }
@@ -61,6 +67,12 @@ const initialConversations: Conversation[] = [
     id: "conv-1",
     messages: [
       {
+        attachment: {
+          id: "tr-1",
+          subtitle: "Beat Draft #3 (140 BPM)",
+          title: "Summer Nights Collab Demo.mp3",
+          type: "track",
+        },
         id: "m-1",
         isSelf: false,
         sender: "Metro Flow",
@@ -74,6 +86,7 @@ const initialConversations: Conversation[] = [
       title: "Battle Challenge: Best of 5 (Hip-Hop)",
       type: "challenge",
     },
+    presence: "online",
     unreadCount: 1,
     username: "metro_flow",
   },
@@ -95,10 +108,57 @@ const initialConversations: Conversation[] = [
       title: "Friend Request",
       type: "friend",
     },
+    presence: "in_battle",
     unreadCount: 1,
     username: "neon_pulse",
   },
+  {
+    avatar: "/diverse-user-avatars.png",
+    id: "conv-3",
+    messages: [
+      {
+        id: "m-3",
+        isSelf: false,
+        sender: "Luna Eclipse",
+        text: "Im live streaming right now!",
+        timestamp: "5m ago",
+      },
+    ],
+    name: "Luna Eclipse",
+    presence: "live_stream",
+    unreadCount: 0,
+    username: "luna_eclipse",
+  },
 ];
+
+function PresenceBadge({ presence }: { presence: UserPresence }) {
+  if (presence === "online") {
+    return (
+      <span className="relative flex size-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500" />
+      </span>
+    );
+  }
+
+  if (presence === "in_battle") {
+    return (
+      <Badge className="bg-purple-500/15 text-purple-400 border-purple-500/30 text-[9px] px-1 py-0 h-4 font-mono">
+        <Swords className="size-2.5 mr-1" /> Battle
+      </Badge>
+    );
+  }
+
+  if (presence === "live_stream") {
+    return (
+      <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[9px] px-1 py-0 h-4 font-mono animate-pulse">
+        <Radio className="size-2.5 mr-1" /> Live
+      </Badge>
+    );
+  }
+
+  return <span className="size-2 rounded-full bg-muted-foreground/40" />;
+}
 
 export function FloatingChatBar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -186,7 +246,7 @@ export function FloatingChatBar() {
           )}
         </Button>
       ) : (
-        <Card className="w-[360px] sm:w-[420px] shadow-2xl border-primary/30 bg-card/95 backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200">
+        <Card className="w-[360px] sm:w-[440px] shadow-2xl border-primary/30 bg-card/95 backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200">
           <CardHeader className="p-3 border-b flex flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2">
               <MessageCircle className="size-5 text-primary" />
@@ -203,8 +263,8 @@ export function FloatingChatBar() {
           </CardHeader>
 
           <CardContent className="p-0">
-            {/* Conversation Tabs Bar */}
-            <div className="flex items-center gap-1 p-2 border-b bg-muted/30 overflow-x-auto">
+            {/* Conversation Tabs Bar with Presence */}
+            <div className="flex items-center gap-1.5 p-2 border-b bg-muted/30 overflow-x-auto">
               {conversations.map((conv) => (
                 <button
                   key={conv.id}
@@ -223,11 +283,14 @@ export function FloatingChatBar() {
                       : "hover:bg-muted/60 text-muted-foreground"
                   }`}
                 >
-                  <Avatar className="size-4">
-                    <AvatarImage src={conv.avatar} />
-                    <AvatarFallback>{conv.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <span className="truncate max-w-[90px]">{conv.name}</span>
+                  <div className="relative">
+                    <Avatar className="size-4">
+                      <AvatarImage src={conv.avatar} />
+                      <AvatarFallback>{conv.name[0]}</AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <span className="truncate max-w-[80px]">{conv.name}</span>
+                  <PresenceBadge presence={conv.presence} />
                   {conv.unreadCount > 0 && activeConvId !== conv.id && (
                     <Badge variant="destructive" className="size-2 rounded-full p-0" />
                   )}
@@ -236,7 +299,18 @@ export function FloatingChatBar() {
             </div>
 
             {activeConv && (
-              <div className="flex flex-col h-[340px]">
+              <div className="flex flex-col h-[350px]">
+                {/* Active Header Bar */}
+                <div className="px-3 py-2 bg-muted/20 border-b flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">@{activeConv.username}</span>
+                    <PresenceBadge presence={activeConv.presence} />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">
+                    {activeConv.presence.replaceAll("_", " ")}
+                  </span>
+                </div>
+
                 {/* Pending Request Banner */}
                 {activeConv.pendingRequest && (
                   <div className="p-2.5 bg-primary/10 border-b flex items-center justify-between gap-2">
@@ -277,21 +351,28 @@ export function FloatingChatBar() {
                   {activeConv.messages.map((msg) => (
                     <div
                       key={msg.id}
-                      className={`flex flex-col max-w-[85%] ${
+                      className={`flex flex-col max-w-[88%] ${
                         msg.isSelf ? "ml-auto items-end" : "items-start"
                       }`}
                     >
                       <div
-                        className={`p-2.5 rounded-2xl text-xs space-y-1 ${
+                        className={`p-3 rounded-2xl text-xs space-y-1.5 ${
                           msg.isSelf
                             ? "bg-primary text-primary-foreground rounded-br-none"
                             : "bg-muted text-foreground rounded-bl-none"
                         }`}
                       >
                         {msg.attachment && (
-                          <div className="flex items-center gap-1.5 p-1.5 rounded bg-black/20 text-xs font-medium mb-1">
-                            <Music2 className="size-3.5" />
-                            <span>Attached: {msg.attachment.title}</span>
+                          <div className="flex items-center gap-2.5 p-2 rounded-lg bg-black/25 text-xs font-medium mb-1 border border-white/10">
+                            <div className="size-7 rounded bg-primary/30 flex items-center justify-center shrink-0">
+                              <Play className="size-3.5 fill-current" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold truncate">{msg.attachment.title}</p>
+                              {msg.attachment.subtitle && (
+                                <p className="text-[10px] opacity-75 truncate">{msg.attachment.subtitle}</p>
+                              )}
+                            </div>
                           </div>
                         )}
                         <p>{msg.text}</p>
@@ -328,13 +409,14 @@ export function FloatingChatBar() {
                         <Paperclip className="size-4 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-48 p-2 space-y-1 text-xs z-50">
+                    <PopoverContent className="w-52 p-2 space-y-1 text-xs z-50">
                       <p className="font-semibold text-muted-foreground px-2 py-1">Attach Item</p>
                       <button
                         type="button"
                         onClick={() =>
                           setSelectedAttachment({
                             id: "tr-1",
+                            subtitle: "140 BPM - WAV Master",
                             title: "Summer Nights Demo.mp3",
                             type: "track",
                           })
@@ -348,6 +430,7 @@ export function FloatingChatBar() {
                         onClick={() =>
                           setSelectedAttachment({
                             id: "ov-1",
+                            subtitle: "8 Bars Open",
                             title: "Open Verse Collab #4",
                             type: "open_verse",
                           })
