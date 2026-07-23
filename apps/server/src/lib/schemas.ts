@@ -46,6 +46,12 @@ export const adminOverviewSchema = z.object({
   }),
 });
 
+export const adminFinanceSummarySchema = z.object({
+  platformFeeCents: z.number().int(),
+  successfulTransactionCents: z.number().int(),
+  transactionCount: z.number().int(),
+});
+
 export const adminAccessSchema = z.object({
   isAdmin: z.boolean(),
 });

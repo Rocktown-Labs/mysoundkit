@@ -335,6 +335,23 @@ function ChallengePage() {
           </form>
         </CardContent>
       </Card>
+
+      <Card className="border-border bg-muted/20">
+        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="size-8 rounded-lg bg-zinc-900 border flex items-center justify-center text-emerald-400 shrink-0">
+              <Bot className="size-4" />
+            </div>
+            <div className="text-xs">
+              <span className="font-bold text-foreground">BattleBot handoff: </span>
+              <span className="text-muted-foreground">Automated round switching, 2-minute voting polls, and timer enforcement.</span>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs shrink-0">
+            Next-round lobby enabled
+          </Badge>
+        </CardContent>
+      </Card>
     </div>
   );
 }
