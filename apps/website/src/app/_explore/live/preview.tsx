@@ -70,10 +70,16 @@ interface TimedLyricLine {
   time: string;
 }
 
-function LivePreviewShowcase() {
+export function LivePreviewShowcase({
+  defaultPerspective = "artist",
+  defaultTab = "battle",
+}: {
+  defaultPerspective?: "viewer" | "artist";
+  defaultTab?: "battle" | "stream" | "party";
+}) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"battle" | "stream" | "party">("battle");
-  const [perspective, setPerspective] = useState<"viewer" | "artist">("artist");
+  const [activeTab, setActiveTab] = useState<"battle" | "stream" | "party">(defaultTab);
+  const [perspective, setPerspective] = useState<"viewer" | "artist">(defaultPerspective);
   const [battlePhase, setBattlePhase] = useState<"track_select" | "round_active" | "voting" | "grace_period">("round_active");
   const [viewMode, setViewMode] = useState<"stage" | "lyrics" | "tracklist">("stage");
   const [selectedVote, setSelectedVote] = useState<string | null>(null);

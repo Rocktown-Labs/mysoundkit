@@ -520,6 +520,25 @@ function TrackPage() {
                   >
                     <Plus className="size-5 mr-2" /> Queue
                   </Button>
+                  {item.isPurchasable && (
+                    <Button
+                      size="lg"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
+                      onClick={() => {
+                        addItem({
+                          artistName: item.artist.name,
+                          coverArtUrl: item.coverArtUrl,
+                          priceCents: item.priceCents ?? 199,
+                          productType: item.type === "album" || item.type === "ep" ? "project" : "track",
+                          purchaseMode: "digital_download",
+                          title: item.title,
+                          trackId: item.id,
+                        });
+                      }}
+                    >
+                      <ShoppingCart className="size-5 mr-2" /> Buy {item.priceLabel || "$1.99"}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="icon"
@@ -585,7 +604,7 @@ function TrackPage() {
             <section className="space-y-4">
               <div className="flex items-center justify-between px-2">
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
-                  Included Files
+                  Included Files & Stems
                 </h3>
                 <Badge
                   variant="outline"
@@ -658,183 +677,41 @@ function TrackPage() {
               </div>
             </section>
 
-            {/* Visual Content - Grid */}
-            {item.visualContent && item.visualContent.length > 0 && (
-              <section className="space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60 px-2">
-                  Visual Production
+            {/* Related Content & Releases Section */}
+            <section className="space-y-4 pt-6 border-t border-border/20">
+              <div className="flex items-center justify-between px-2">
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
+                  Related Tracks & Releases
                 </h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {item.visualContent.map((visual) => (
-                    <div
-                      key={visual.id}
-                      className="group block space-y-3 cursor-pointer"
-                    >
-                      <div className="aspect-video rounded-none overflow-hidden border border-border/40 relative bg-muted/20">
-                        <AppImage
-                          src={visual.thumbnailUrl}
-                          alt={visual.title}
-                          width={400}
-                          height={225}
-                          className="size-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Play className="size-12 text-white fill-current shadow-2xl" />
-                        </div>
-                        {visual.views && (
-                          <div className="absolute bottom-3 right-3 bg-black px-2 py-1 text-[9px] font-black text-white uppercase tracking-widest border border-white/10">
-                            {visual.views} Views
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between px-1">
-                        <p className="font-black text-xs uppercase tracking-[0.1em] group-hover:text-primary transition-colors">
-                          {visual.title}
-                        </p>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-40">
-                          {visual.type}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-
-          {/* Right Sidebar - Commercial Core */}
-          <div className="space-y-6">
-            {item.isPurchasable ? (
-              <CommerceCard
-                item={item}
-                selectedLicense={selectedLicense}
-                onLicenseChange={setSelectedLicense}
-              />
-            ) : (
-              <Card className="border-border/40 bg-card/40">
-                <CardContent className="p-6">
-                  <p className="font-semibold">Streaming only</p>
-                  <p className="mt-1 text-muted-foreground text-sm">
-                    This artist has not enabled direct purchases for this track.
-                  </p>
-                  <Button
-                    className="mt-5 w-full"
-                    disabled={!item.playbackUrl}
-                    onClick={playCurrentTrack}
-                    type="button"
-                  >
-                    <Play className="mr-2 size-4 fill-current" />
-                    Play Track
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Artist Sidebar Card */}
-            <Card className="bg-card/20 border-border/40 rounded-none overflow-hidden">
-              <CardContent className="p-8 space-y-8">
-                <Link
-                  to="/artist/$username"
-                  params={{ username: item.artist.handle }}
-                  className="flex flex-col items-center group"
-                >
-                  <div className="relative mb-6">
-                    <div className="absolute -inset-2 bg-primary rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition duration-1000" />
-                    <Avatar className="size-28 border border-border/40 rounded-full relative overflow-hidden grayscale group-hover:grayscale-0 transition-all duration-500">
-                      <AvatarImage
-                        src={item.artist.avatarUrl}
-                        className="object-cover"
-                      />
-                      <AvatarFallback>AT</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h4 className="text-2xl font-black group-hover:text-primary transition-colors font-[family-name:var(--font-playfair)] tracking-tighter uppercase leading-none">
-                      {item.artist.name}
-                    </h4>
-                    <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-                      {item.artist.roles.map((r) => (
-                        <Badge
-                          key={r}
-                          variant="secondary"
-                          className="text-[8px] uppercase tracking-[0.2em] h-4 bg-muted font-black px-1.5 rounded-none"
-                        >
-                          {r}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
+                <Link to="/tracks" className="text-xs text-primary font-bold hover:underline">
+                  View Catalog →
                 </Link>
-
-                <div className="grid grid-cols-2 gap-4 text-center border-y border-border/10 py-6">
-                  <div>
-                    <p className="text-xl font-black tabular-nums">
-                      {item.artist.followers}
-                    </p>
-                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black opacity-60">
-                      Followers
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black tabular-nums">
-                      {item.artist.listeners}
-                    </p>
-                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black opacity-60">
-                      Listeners
-                    </p>
-                  </div>
-                </div>
-
-                {item.artist.battleRank && (
-                  <div className="bg-white/[0.03] border border-border/40 rounded-none p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="size-10 bg-primary flex items-center justify-center text-primary-foreground shadow-lg">
-                        <Trophy className="size-5" />
-                      </div>
-                      <div>
-                        <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black opacity-60">
-                          Global Rank
-                        </p>
-                        <p className="text-base font-black">
-                          {item.artist.battleRank}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black opacity-60">
-                        Record
-                      </p>
-                      <p className="text-base font-black text-emerald-500">
-                        {item.artist.battleRecord}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <Button className="w-full h-12 font-black uppercase text-xs tracking-[0.2em] rounded-none shadow-xl shadow-primary/10">
-                    Follow Artist
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 font-black uppercase text-xs tracking-[0.2em] border-border/40 hover:bg-white/5 rounded-none"
-                  >
-                    <MessageCircle className="size-4 mr-2" /> Message
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Tips */}
-            <div className="px-2 space-y-4">
-              <div className="flex items-start gap-4 p-4 bg-muted/20 border-l-2 border-primary">
-                <Zap className="size-5 text-primary shrink-0 mt-0.5" />
-                <p className="text-[11px] leading-relaxed text-muted-foreground font-medium italic">
-                  "Every digital purchase directly supports the artist and gives
-                  you lifetime access to high-fidelity audio masters."
-                </p>
               </div>
-            </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { id: "rel-1", title: "Midnight Echoes", genre: "Hip-Hop", price: "$1.99", cover: item.coverArtUrl },
+                  { id: "rel-2", title: "Synth Waves (Stems)", genre: "Electronic", price: "$4.99", cover: item.coverArtUrl },
+                  { id: "rel-3", title: "Urban Rhythms Kit", genre: "R&B", price: "$9.99", cover: item.coverArtUrl },
+                  { id: "rel-4", title: "Velvet Nights", genre: "Soul", price: "$1.99", cover: item.coverArtUrl },
+                ].map((rel) => (
+                  <Link
+                    key={rel.id}
+                    to="/tracks/$id"
+                    params={{ id: rel.id }}
+                    className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
+                  >
+                    <div className="aspect-square rounded-lg overflow-hidden bg-muted mb-2 relative">
+                      <AppImage src={rel.cover} alt={rel.title} width={200} height={200} className="object-cover size-full group-hover:scale-105 transition-transform" />
+                      <Badge className="absolute top-2 right-2 bg-black/70 text-white text-[9px] font-bold">
+                        {rel.price}
+                      </Badge>
+                    </div>
+                    <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{rel.title}</p>
+                    <p className="text-xs text-muted-foreground">{rel.genre}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
       </div>

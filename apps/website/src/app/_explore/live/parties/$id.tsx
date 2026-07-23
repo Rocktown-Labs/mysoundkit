@@ -23,8 +23,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLiveRoom } from "@/lib/live-room";
 
+import { LivePreviewShowcase } from "../preview";
+
 export const Route = createFileRoute("/_explore/live/parties/$id")({
-  component: ListeningPartyDetailPage,
+  component: () => <LivePreviewShowcase defaultTab="party" defaultPerspective="viewer" />,
 });
 
 function ListeningPartyDetailPage() {

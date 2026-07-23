@@ -22,8 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLiveRoom } from "@/lib/live-room";
 
+import { LivePreviewShowcase } from "../preview";
+
 export const Route = createFileRoute("/_explore/live/streams/$id")({
-  component: StreamDetailPage,
+  component: () => <LivePreviewShowcase defaultTab="stream" defaultPerspective="viewer" />,
 });
 
 function StreamDetailPage() {

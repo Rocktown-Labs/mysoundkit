@@ -1,7 +1,7 @@
 "use client";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Mail, MessageSquare, Search, UserCheck, UserPlus, UserRoundPlus, X } from "lucide-react";
+import { Clock, Mail, MessageSquare, Search, UserCheck, UserPlus, UserRoundPlus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -41,14 +41,14 @@ function ArtistSearchResultRow({
   artist: { genre?: string; id: string; name: string; username: string };
 }) {
   const followMutation = useFollowArtistMutation(artist.username);
-  const [isAdded, setIsAdded] = useState(false);
+  const [isPending, setIsPending] = useState(false);
 
   const handleAdd = async () => {
     await followMutation.mutateAsync();
-    setIsAdded(true);
+    setIsPending(true);
     toast({
-      description: `You are now connected with @${artist.username}.`,
-      title: "Artist Friend Added",
+      description: `Friend request sent to @${artist.username}. Pending acceptance.`,
+      title: "Friend Request Sent ⏳",
     });
   };
 
@@ -66,21 +66,19 @@ function ArtistSearchResultRow({
             Profile
           </Link>
         </Button>
-        <Button
-          disabled={followMutation.isPending || isAdded}
-          onClick={() => void handleAdd()}
-          size="sm"
-        >
-          {isAdded ? (
-            <>
-              <UserCheck className="mr-1.5 size-4" /> Added
-            </>
-          ) : (
-            <>
-              <UserPlus className="mr-1.5 size-4" /> Add Friend
-            </>
-          )}
-        </Button>
+        {isPending ? (
+          <Badge variant="outline" className="text-amber-500 border-amber-500/40 px-3 py-1.5 font-bold gap-1 text-xs">
+            <Clock className="size-3" /> Pending Request
+          </Badge>
+        ) : (
+          <Button
+            disabled={followMutation.isPending}
+            onClick={() => void handleAdd()}
+            size="sm"
+          >
+            <UserPlus className="mr-1.5 size-4" /> Add Friend
+          </Button>
+        )}
       </div>
     </div>
   );

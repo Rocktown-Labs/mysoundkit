@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
 
 import { ProfileMediaUpload } from "@/components/dashboard/profile-media-upload";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/use-toast";
 import {
   useMeEntitlementsQuery,
   useMeQuery,

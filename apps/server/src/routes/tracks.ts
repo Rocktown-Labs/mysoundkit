@@ -834,17 +834,21 @@ app.openapi(
     const trackId = crypto.randomUUID();
     const now = new Date();
     const isSingle = body.catalogItemType === "single";
+    const rawPriceNum =
+      typeof body.price === "number"
+        ? body.price
+        : body.price
+          ? Number(body.price)
+          : null;
     const salePriceUsd =
       body.isForSale && isSingle
         ? SINGLE_TRACK_PRICE_USD
-        : (body.price ?? null);
+        : (rawPriceNum !== null && !isNaN(rawPriceNum) ? rawPriceNum : null);
     const salePriceCents =
       body.isForSale && isSingle
         ? SINGLE_TRACK_PRICE_CENTS
         : (body.priceCents ??
-          (typeof body.price === "number"
-            ? Math.round(body.price * 100)
-            : null));
+          (salePriceUsd !== null ? Math.round(salePriceUsd * 100) : null));
     const [track] = await withRetry("create track", () =>
       db
         .insert(tracks)
@@ -861,7 +865,7 @@ app.openapi(
           musicalKey: body.musicalKey ?? null,
           organizationId,
           ownerUserId: user.id,
-          price: salePriceUsd?.toFixed(2) ?? null,
+          price: typeof salePriceUsd === "number" ? salePriceUsd.toFixed(2) : null,
           priceCents: salePriceCents,
           productionStatus: body.productionStatus,
           publishedAt: body.isPublic ? now : null,

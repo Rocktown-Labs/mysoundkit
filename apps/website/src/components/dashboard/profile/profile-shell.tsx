@@ -28,6 +28,7 @@ import {
   AppleMusicIcon,
   InstagramIcon,
   SpotifyIcon,
+  TikTokIcon,
   TwitterIcon,
   YoutubeMusicIcon,
 } from "@/components/ui/brand-icons";
@@ -134,7 +135,7 @@ export function ProfileShell({
       ? { href: user.links.twitter, icon: TwitterIcon, label: "X" }
       : null,
     user.links.tiktok
-      ? { href: user.links.tiktok, icon: YoutubeMusicIcon, label: "TikTok" }
+      ? { href: user.links.tiktok, icon: TikTokIcon, label: "TikTok" }
       : null,
     user.links.soundcloud
       ? { href: user.links.soundcloud, icon: SpotifyIcon, label: "SoundCloud" }
