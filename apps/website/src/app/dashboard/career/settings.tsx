@@ -33,30 +33,43 @@ function SettingsPage() {
   const user = meQuery.data?.user;
   const entitlements = entitlementsQuery.data;
   const location = [user?.city, user?.state].filter(Boolean).join(", ");
+  const [isDirty, setIsDirty] = useState(false);
+  const [bioLength, setBioLength] = useState(user?.bio?.length ?? 0);
 
   const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    updateProfile.mutate({
-      bio: String(form.get("bio") ?? ""),
-      city: String(form.get("city") ?? ""),
-      displayName: String(form.get("displayName") ?? ""),
-      links: {
-        appleMusic: String(form.get("appleMusic") ?? ""),
-        instagram: String(form.get("instagram") ?? ""),
-        personalSite: String(form.get("personalSite") ?? ""),
-        soundcloud: String(form.get("soundcloud") ?? ""),
-        spotify: String(form.get("spotify") ?? ""),
-        tiktok: String(form.get("tiktok") ?? ""),
-        twitter: String(form.get("twitter") ?? ""),
-        youtube: String(form.get("youtube") ?? ""),
+    updateProfile.mutate(
+      {
+        bio: String(form.get("bio") ?? ""),
+        city: String(form.get("city") ?? ""),
+        displayName: String(form.get("displayName") ?? ""),
+        links: {
+          appleMusic: String(form.get("appleMusic") ?? ""),
+          instagram: String(form.get("instagram") ?? ""),
+          personalSite: String(form.get("personalSite") ?? ""),
+          soundcloud: String(form.get("soundcloud") ?? ""),
+          spotify: String(form.get("spotify") ?? ""),
+          tiktok: String(form.get("tiktok") ?? ""),
+          twitter: String(form.get("twitter") ?? ""),
+          youtube: String(form.get("youtube") ?? ""),
+        },
+        proAffiliation: String(form.get("proAffiliation") ?? "None"),
+        proMemberId: String(form.get("proMemberId") ?? ""),
+        songwriterLegalName: String(form.get("songwriterLegalName") ?? ""),
+        stageName: String(form.get("stageName") ?? ""),
+        state: String(form.get("state") ?? ""),
       },
-      proAffiliation: String(form.get("proAffiliation") ?? "None"),
-      proMemberId: String(form.get("proMemberId") ?? ""),
-      songwriterLegalName: String(form.get("songwriterLegalName") ?? ""),
-      stageName: String(form.get("stageName") ?? ""),
-      state: String(form.get("state") ?? ""),
-    });
+      {
+        onSuccess: () => {
+          setIsDirty(false);
+          toast({
+            description: "Your profile changes have been saved.",
+            title: "Profile Saved",
+          });
+        },
+      }
+    );
   };
 
   return (
@@ -79,7 +92,12 @@ function SettingsPage() {
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
-          <form className="space-y-6" onSubmit={saveProfile} key={user?.id}>
+          <form
+            className="space-y-6"
+            onSubmit={saveProfile}
+            onChange={() => setIsDirty(true)}
+            key={user?.id}
+          >
             <Card>
               <CardHeader>
                 <CardTitle>Artist Profile</CardTitle>
@@ -322,7 +340,7 @@ function SettingsPage() {
               <Button variant="outline" type="reset">
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateProfile.isPending}>
+              <Button type="submit" disabled={!isDirty || updateProfile.isPending}>
                 <Save className="size-4 mr-2" />
                 {updateProfile.isPending ? "Saving..." : "Save Changes"}
               </Button>

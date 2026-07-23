@@ -4,12 +4,12 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Bot,
   CheckCircle2,
+  Lock,
   Music2,
   Radio,
   Search,
   ShieldCheck,
   Swords,
-  Users,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -35,14 +35,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import {
-  battlePhaseTransitions,
-  liveExperienceConfigs,
-  realtimeKitAlwaysOn,
-} from "@/lib/live-experience";
+import { liveExperienceConfigs } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
-import { musicGenres } from "@/lib/music-genres";
-import { useCreateBattleChallengeMutation } from "@/lib/soundkit-api-hooks";
+import {
+  useCreateBattleChallengeMutation,
+  useGenresQuery,
+  useMeQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/challenge")({
   component: ChallengePage,
@@ -50,33 +49,6 @@ export const Route = createFileRoute("/dashboard/live/challenge")({
     opponent: typeof search.opponent === "string" ? search.opponent : "",
   }),
 });
-
-const suggestedArtists = [
-  {
-    available: "Tonight",
-    followers: "12.5K",
-    genre: "Hip Hop",
-    name: "Metro Flow",
-    readiness: "Kit ready",
-    username: "metro_flow",
-  },
-  {
-    available: "Open this week",
-    followers: "8.2K",
-    genre: "Electronic",
-    name: "Neon Pulse",
-    readiness: "Accepts challenges",
-    username: "neon_pulse",
-  },
-  {
-    available: "Friday",
-    followers: "15.1K",
-    genre: "R&B/Soul",
-    name: "Luna Eclipse",
-    readiness: "Kit ready",
-    username: "luna_eclipse",
-  },
-];
 
 const battleKits = [
   {
@@ -96,7 +68,24 @@ function ChallengePage() {
   const [searchQuery, setSearchQuery] = useState(opponent);
   const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
   const createChallenge = useCreateBattleChallengeMutation();
+  const genresQuery = useGenresQuery();
+  const meQuery = useMeQuery();
   const battleConfig = liveExperienceConfigs.battle;
+
+  const genres = genresQuery.data ?? [
+    { label: "Hip-Hop", value: "hip-hop" },
+    { label: "R&B", value: "r-and-b" },
+    { label: "Electronic", value: "electronic" },
+    { label: "Pop", value: "pop" },
+  ];
+
+  const user = meQuery.data?.user;
+  const isPremiumArtist =
+    user?.accountType === "artist" ||
+    Boolean(
+      meQuery.data?.entitlements?.canCreateLiveBattles ||
+        meQuery.data?.entitlements?.canHostLiveStreams
+    );
 
   const submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -144,261 +133,191 @@ function ChallengePage() {
     );
   };
 
+  if (!isPremiumArtist && !meQuery.isLoading) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <Card className="border-primary/30 bg-card/90">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl text-primary">
+              <Lock className="size-5" />
+              Premium Artist Required
+            </CardTitle>
+            <CardDescription>
+              Creating battle challenges is exclusive to Premium Artist members. Upgrade your membership to issue challenges and host live battles.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-4">
+            <Button asChild>
+              <Link to="/pricing">Upgrade to Premium Artist ($14.99/mo)</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/live/battles">Explore Public Battles</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8">
+    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="flex items-center gap-3 font-[family-name:var(--font-playfair)] text-3xl font-bold">
             <Swords className="size-7 text-primary" />
-            Battle Requests
+            Issue Battle Challenge
           </h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground">
-            Challenge artists, enter matching, and let BattleBot run the room,
-            lobby, rounds, votes, and notifications.
+          <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
+            Send a direct battle invitation to any artist. BattleBot handles round timing, lobby, votes, and notifications.
           </p>
         </div>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" size="sm">
           <Link to="/live/battles">Open Public Battles</Link>
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <MetricCard icon={Swords} label="BattleBot" value="Ready" />
-        <MetricCard
-          icon={Music2}
-          label="Ready Kits"
-          value={battleKits.length}
-        />
-        <MetricCard icon={Users} label="Candidate Pool" value="32" />
-        <MetricCard icon={Radio} label="Realtime Chat" value="Always on" />
-      </div>
+      <Card className="border-primary/20 shadow-lg">
+        <CardHeader className="border-b">
+          <CardTitle>Challenge Details</CardTitle>
+          <CardDescription>
+            Select opponent, kit, format, and schedule mode.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 md:p-6">
+          <form className="flex flex-col gap-6" onSubmit={submitChallenge}>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="opponentUsername">Opponent Username</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      className="pl-10"
+                      id="opponentUsername"
+                      name="opponentUsername"
+                      onChange={(event) =>
+                        setSearchQuery(event.target.value)
+                      }
+                      placeholder="Search or enter @username"
+                      value={searchQuery}
+                    />
+                  </div>
+                </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <main className="flex flex-col gap-6">
-          <Card>
-            <CardHeader className="border-b">
-              <CardTitle>Create Battle</CardTitle>
-              <CardDescription>
-                Kit first, then opponent or matching, then schedule and lobby.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 md:p-6">
-              <form className="flex flex-col gap-5" onSubmit={submitChallenge}>
-                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="opponentUsername">Opponent</Label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          className="pl-10"
-                          id="opponentUsername"
-                          name="opponentUsername"
-                          onChange={(event) =>
-                            setSearchQuery(event.target.value)
-                          }
-                          placeholder="Search by artist username"
-                          value={searchQuery}
-                        />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FieldSelect
+                    defaultValue="club-knockouts"
+                    label="Battle Kit"
+                    name="battleKit"
+                    options={battleKits.map((kit) => ({
+                      label: `${kit.title} (${kit.readyTracks} tracks)`,
+                      value: kit.title.toLowerCase().replaceAll(" ", "-"),
+                    }))}
+                  />
+                  <FieldSelect
+                    defaultValue="best_of_5"
+                    label="Format"
+                    name="format"
+                    options={[
+                      { label: "Best of 3", value: "best_of_3" },
+                      { label: "Best of 5", value: "best_of_5" },
+                      { label: "Best of 7", value: "best_of_7" },
+                    ]}
+                  />
+                </div>
+
+                <FieldSelect
+                  defaultValue={genres[0]?.value ?? "hip-hop"}
+                  label="Genre"
+                  name="genre"
+                  options={genres.map((g) => ({
+                    label: g.label,
+                    value: g.value,
+                  }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label>Start Time</Label>
+                  <RadioGroup
+                    className="grid gap-3 sm:grid-cols-2"
+                    onValueChange={(value) =>
+                      setScheduleMode(value as LiveScheduleMode)
+                    }
+                    value={scheduleMode}
+                  >
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-muted/40 transition">
+                      <RadioGroupItem value="asap" />
+                      <div>
+                        <span className="block font-medium text-sm">ASAP</span>
+                        <span className="text-muted-foreground text-xs">
+                          Start when accepted
+                        </span>
                       </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <FieldSelect
-                        defaultValue="club-knockouts"
-                        label="Battle Kit"
-                        name="battleKit"
-                        options={battleKits.map((kit) => ({
-                          label: `${kit.title} (${kit.readyTracks} tracks)`,
-                          value: kit.title.toLowerCase().replaceAll(" ", "-"),
-                        }))}
-                      />
-                      <FieldSelect
-                        defaultValue="best_of_5"
-                        label="Format"
-                        name="format"
-                        options={[
-                          { label: "Best of 3", value: "best_of_3" },
-                          { label: "Best of 5", value: "best_of_5" },
-                          { label: "Best of 7", value: "best_of_7" },
-                        ]}
-                      />
-                    </div>
-
-                    <FieldSelect
-                      defaultValue="hip-hop"
-                      label="Genre"
-                      name="genre"
-                      options={musicGenres.map((genre) => ({
-                        label: genre.label,
-                        value: genre.value,
-                      }))}
-                    />
-
-                    <div className="flex flex-col gap-2">
-                      <Label>Start</Label>
-                      <RadioGroup
-                        className="grid gap-3 sm:grid-cols-2"
-                        onValueChange={(value) =>
-                          setScheduleMode(value as LiveScheduleMode)
-                        }
-                        value={scheduleMode}
-                      >
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
-                          <RadioGroupItem value="asap" />
-                          <span>
-                            <span className="block font-medium">ASAP</span>
-                            <span className="text-muted-foreground text-sm">
-                              Open matching now
-                            </span>
-                          </span>
-                        </label>
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
-                          <RadioGroupItem value="scheduled" />
-                          <span>
-                            <span className="block font-medium">Schedule</span>
-                            <span className="text-muted-foreground text-sm">
-                              Propose a time
-                            </span>
-                          </span>
-                        </label>
-                      </RadioGroup>
-                    </div>
-
-                    {scheduleMode === "scheduled" && (
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="flex flex-col gap-2">
-                          <Label htmlFor="proposedDate">Proposed date</Label>
-                          <Input
-                            id="proposedDate"
-                            name="proposedDate"
-                            type="date"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <Label htmlFor="proposedTimeLabel">
-                            Proposed time
-                          </Label>
-                          <Input
-                            id="proposedTimeLabel"
-                            name="proposedTimeLabel"
-                            placeholder="8:00 PM CT"
-                          />
-                        </div>
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-muted/40 transition">
+                      <RadioGroupItem value="scheduled" />
+                      <div>
+                        <span className="block font-medium text-sm">Schedule</span>
+                        <span className="text-muted-foreground text-xs">
+                          Propose a date &amp; time
+                        </span>
                       </div>
-                    )}
+                    </label>
+                  </RadioGroup>
+                </div>
 
+                {scheduleMode === "scheduled" && (
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
-                      <Label htmlFor="message">Challenge message</Label>
-                      <Textarea
-                        id="message"
-                        name="message"
-                        placeholder="Tell them what kind of battle you want."
-                        rows={4}
+                      <Label htmlFor="proposedDate">Proposed date</Label>
+                      <Input id="proposedDate" name="proposedDate" type="date" />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="proposedTimeLabel">Proposed time</Label>
+                      <Input
+                        id="proposedTimeLabel"
+                        name="proposedTimeLabel"
+                        placeholder="8:00 PM CT"
                       />
                     </div>
                   </div>
+                )}
 
-                  <div className="flex flex-col gap-4">
-                    <InfoPanel
-                      icon={Bot}
-                      title="BattleBot handoff"
-                      items={[
-                        "Creates the active battle and next-round lobby",
-                        "Moves waiting viewers between rounds",
-                        "Snapshots eligible voters per round",
-                        "Sends artist and fan notification CTAs",
-                      ]}
-                    />
-                    <InfoPanel
-                      icon={ShieldCheck}
-                      title="Session lock"
-                      items={[
-                        "Artists cannot hold overlapping live roles",
-                        "Battle locks run from matching through completion",
-                        "Crashed tabs recover through heartbeat expiry",
-                      ]}
-                    />
-                  </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="message">Challenge message</Label>
+                  <Textarea
+                    id="message"
+                    name="message"
+                    placeholder="Add a message for your opponent..."
+                    rows={3}
+                  />
                 </div>
+              </div>
+            </div>
 
-                <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <Badge variant="outline">{battleConfig.roomLabel}</Badge>
-                  <Button disabled={createChallenge.isPending} type="submit">
-                    <Swords className="mr-2 size-4" />
-                    {createChallenge.isPending
-                      ? "Sending..."
-                      : "Send Challenge"}
-                  </Button>
+            {/* BattleBot Info Summary Card */}
+            <Card className="bg-primary/5 border-primary/20">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Bot className="size-6 text-primary shrink-0" />
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">BattleBot Automated Handoff: </span>
+                  Upon acceptance, BattleBot automatically creates the room, manages round timers, collects fan votes, and notifies both artists.
                 </div>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Matching Candidates</CardTitle>
-              <CardDescription>
-                Artists who are ready for a kit-based battle request.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-3">
-              {suggestedArtists.map((artist) => (
-                <button
-                  className="rounded-lg border p-4 text-left transition hover:bg-muted/50"
-                  key={artist.username}
-                  onClick={() => setSearchQuery(artist.username)}
-                  type="button"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <Music2 className="size-5 text-primary" />
-                    <Badge variant="outline">{artist.available}</Badge>
-                  </div>
-                  <p className="mt-4 font-semibold">{artist.name}</p>
-                  <p className="text-muted-foreground text-sm">
-                    @{artist.username}
-                  </p>
-                  <p className="mt-3 text-muted-foreground text-xs">
-                    {artist.genre} - {artist.followers} followers
-                  </p>
-                  <p className="mt-2 text-primary text-xs">
-                    {artist.readiness}
-                  </p>
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-        </main>
-
-        <aside className="flex flex-col gap-4">
-          <RealtimeConstantsPanel />
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Battle Phases</CardTitle>
-              <CardDescription>
-                Explicit states keep votes, joining, and notifications lean.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2">
-              {Object.entries(battlePhaseTransitions).map(([phase, next]) => (
-                <div className="rounded-lg border p-3 text-sm" key={phase}>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium">
-                      {phase.replaceAll("_", " ")}
-                    </span>
-                    <Badge variant="outline">{next.length}</Badge>
-                  </div>
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    {next.length > 0
-                      ? `Next: ${next.join(", ").replaceAll("_", " ")}`
-                      : "Terminal state"}
-                  </p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+            <div className="flex items-center justify-between border-t pt-4">
+              <Badge variant="outline">{battleConfig.roomLabel}</Badge>
+              <Button disabled={createChallenge.isPending} type="submit" size="lg" className="px-8">
+                <Swords className="mr-2 size-4" />
+                {createChallenge.isPending ? "Sending..." : "Send Battle Challenge"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -430,86 +349,5 @@ function FieldSelect({
         </SelectContent>
       </Select>
     </div>
-  );
-}
-
-function InfoPanel({
-  icon: Icon,
-  items,
-  title,
-}: {
-  icon: typeof Bot;
-  items: string[];
-  title: string;
-}) {
-  return (
-    <Card className="bg-muted/20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="size-5 text-primary" />
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {items.map((item) => (
-          <div className="flex items-start gap-2 text-sm" key={item}>
-            <CheckCircle2 className="mt-0.5 size-4 text-primary" />
-            <span className="text-muted-foreground">{item}</span>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function RealtimeConstantsPanel() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">RealtimeKit Defaults</CardTitle>
-        <CardDescription>
-          These are platform constants for every battle.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {Object.entries(realtimeKitAlwaysOn).map(([key]) => (
-          <div
-            className="flex items-center justify-between rounded-lg border p-3"
-            key={key}
-          >
-            <span className="capitalize">{formatRealtimeLabel(key)}</span>
-            <Badge>On</Badge>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function formatRealtimeLabel(value: string) {
-  return value
-    .replaceAll(/(?<capitalLetter>[A-Z])/gu, " $<capitalLetter>")
-    .trim();
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Swords;
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="size-5" />
-          {label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="text-3xl font-bold">{value}</CardContent>
-    </Card>
   );
 }

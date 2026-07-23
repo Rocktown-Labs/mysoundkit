@@ -42,7 +42,7 @@ const formatJoinedDate = (joinedAt?: string) => {
 const artistToProfileUser = (artist: ArtistSummary) => ({
   avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
   battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
-  battleRecord: artist.battleCount ? `${artist.battleCount} battles` : "0",
+  battleRecord: artist.battleCount ? `${artist.battleCount}-0` : "0-0",
   bio:
     artist.bio ??
     `${artist.genre} artist${artist.location ? ` from ${artist.location}` : ""}.`,
@@ -113,9 +113,16 @@ function ArtistProfilePage() {
     );
   }
 
+  const currentUser = meQuery.data?.user;
+  const isOwner = Boolean(
+    currentUser &&
+      (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
+        currentUser.id === artist.id)
+  );
+
   return (
     <ProfileShell
-      isOwner={false}
+      isOwner={isOwner}
       targetIsArtist={true}
       user={artistToProfileUser(artist)}
       viewerAccountType={meQuery.data?.user.accountType ?? null}
