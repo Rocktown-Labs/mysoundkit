@@ -320,6 +320,17 @@ export const buildRealtimeMeetingPayload = ({
     allow_files: false,
     text_only: true,
   },
+  recording_config: {
+    auto_start: true,
+    storage: {
+      provider: "cloudflare_r2",
+    },
+    watermark: {
+      opacity: 0.85,
+      position: "top_right",
+      url: "https://mysoundkit.com/logo.png",
+    },
+  },
   simulcast: true,
   title,
   video_config: {
