@@ -304,7 +304,7 @@ function ChallengePage() {
                 <div className="flex items-center gap-3">
                   <Bot className="size-6 text-primary shrink-0" />
                   <div className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">BattleBot handoff: </span>
+                    <span className="font-semibold text-foreground">Automated Battle Management: </span>
                     Upon acceptance, BattleBot automatically creates the room, manages Next-round lobby timers, collects fan votes, and notifies both artists.
                   </div>
                 </div>
