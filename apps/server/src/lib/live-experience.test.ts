@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildNotificationFanout,
+  buildRealtimeKitChatDumpUrl,
+  buildRealtimeKitEndMeetingUrl,
   buildRealtimeKitMeetingUrl,
   buildRealtimeKitParticipantUrl,
+  buildRealtimeMeetingPayload,
   createMockParticipantToken,
   createRoundVoterSnapshot,
   findLiveSessionConflict,
@@ -115,6 +118,41 @@ describe("live experience orchestration", () => {
     ).toBe(
       "https://api.cloudflare.com/client/v4/accounts/account_123/realtime/kit/app_456/meetings/meeting_789/participants"
     );
+    expect(
+      buildRealtimeKitChatDumpUrl({
+        accountId: "account_123",
+        appId: "app_456",
+        meetingId: "meeting_789",
+      })
+    ).toBe(
+      "https://api.cloudflare.com/client/v4/accounts/account_123/realtime/kit/app_456/meetings/meeting_789/chat-dump"
+    );
+    expect(
+      buildRealtimeKitEndMeetingUrl({
+        accountId: "account_123",
+        appId: "app_456",
+        meetingId: "meeting_789",
+      })
+    ).toBe(
+      "https://api.cloudflare.com/client/v4/accounts/account_123/realtime/kit/app_456/meetings/meeting_789/end"
+    );
+  });
+
+  it("configures text-only chat and simulcast video payload for RealtimeKit meetings", () => {
+    const payload = buildRealtimeMeetingPayload({ title: "Battle Room" });
+
+    expect(payload).toEqual({
+      chat_config: {
+        allow_files: false,
+        text_only: true,
+      },
+      simulcast: true,
+      title: "Battle Room",
+      video_config: {
+        codec: "h264",
+        max_bitrate: 2500,
+      },
+    });
   });
 
   it("reports RealtimeKit config only when all required values are present", () => {

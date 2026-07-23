@@ -6,6 +6,7 @@ import {
   buildNotificationFanout,
   buildRealtimeKitMeetingUrl,
   buildRealtimeKitParticipantUrl,
+  buildRealtimeMeetingPayload,
   createMockParticipantToken,
   createMockRealtimeMeeting,
   createRoundVoterSnapshot,
@@ -172,7 +173,7 @@ const createRealtimeMeeting = async ({
           appId: config.appId,
         }),
         {
-          body: JSON.stringify({ title }),
+          body: JSON.stringify(buildRealtimeMeetingPayload({ title })),
           headers: {
             Authorization: `Bearer ${config.apiToken}`,
             "Content-Type": "application/json",

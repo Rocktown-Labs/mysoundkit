@@ -266,3 +266,64 @@ export const buildRealtimeKitParticipantUrl = ({
   meetingId: string;
 }) =>
   `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/participants`;
+
+export const buildRealtimeKitEndMeetingUrl = ({
+  accountId,
+  appId,
+  meetingId,
+}: {
+  accountId: string;
+  appId: string;
+  meetingId: string;
+}) =>
+  `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/end`;
+
+export const buildRealtimeKitRecordingUrl = ({
+  accountId,
+  appId,
+  meetingId,
+}: {
+  accountId: string;
+  appId: string;
+  meetingId: string;
+}) =>
+  `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/recordings`;
+
+export const buildRealtimeKitChatDumpUrl = ({
+  accountId,
+  appId,
+  meetingId,
+}: {
+  accountId: string;
+  appId: string;
+  meetingId: string;
+}) =>
+  `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/chat-dump`;
+
+export const buildRealtimeKitPollUrl = ({
+  accountId,
+  appId,
+  meetingId,
+}: {
+  accountId: string;
+  appId: string;
+  meetingId: string;
+}) =>
+  `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/polls`;
+
+export const buildRealtimeMeetingPayload = ({
+  title,
+}: {
+  title: string;
+}) => ({
+  chat_config: {
+    allow_files: false,
+    text_only: true,
+  },
+  simulcast: true,
+  title,
+  video_config: {
+    codec: "h264",
+    max_bitrate: 2500,
+  },
+});
