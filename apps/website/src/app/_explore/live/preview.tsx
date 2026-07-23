@@ -50,7 +50,7 @@ interface ChatMessage {
   time: string;
 }
 
-export function LivePreviewShowcase() {
+function LivePreviewShowcase() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<"battle" | "stream" | "party">("battle");
   const [perspective, setPerspective] = useState<"viewer" | "artist">("artist");
@@ -368,12 +368,12 @@ export function LivePreviewShowcase() {
                   <CardContent className="space-y-3">
                     <div className="text-xs text-muted-foreground space-y-1 font-mono bg-background/60 p-2.5 rounded border">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-foreground font-bold">RTMP URL:</span>
-                        <Button variant="ghost" size="icon" className="size-5" onClick={() => copyToClipboard("rtmp://live.soundkit.io/app", "RTMP URL")}>
+                        <span className="text-[10px] text-foreground font-bold">RTMP Ingest URL:</span>
+                        <Button variant="ghost" size="icon" className="size-5" onClick={() => copyToClipboard("rtmp://ingest.mysoundkit.com/live", "RTMP URL")}>
                           <Copy className="size-3" />
                         </Button>
                       </div>
-                      <p className="truncate text-primary">rtmp://live.soundkit.io/app</p>
+                      <p className="truncate text-primary">rtmp://ingest.mysoundkit.com/live</p>
                       <div className="flex justify-between items-center pt-1">
                         <span className="text-[10px] text-foreground font-bold">Stream Key:</span>
                         <Button variant="ghost" size="icon" className="size-5" onClick={() => copyToClipboard("sk_live_obs_98765", "Stream Key")}>

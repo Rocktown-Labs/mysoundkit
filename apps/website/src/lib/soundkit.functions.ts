@@ -61,7 +61,7 @@ export const requireDashboardUser = createServerFn({ method: "GET" }).handler(
 );
 
 export const redirectAuthedSignupUser = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ accountType: accountTypeSchema }))
+  .validator(z.object({ accountType: accountTypeSchema }))
   .handler(async ({ data }) => {
     let me: MeResponse;
 
@@ -84,7 +84,7 @@ export const redirectAuthedSignupUser = createServerFn({ method: "GET" })
   });
 
 export const requireSignupOnboardingUser = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ accountType: accountTypeSchema }))
+  .validator(z.object({ accountType: accountTypeSchema }))
   .handler(async ({ data }) => {
     try {
       const me = await getMe();
@@ -119,7 +119,7 @@ export const getDashboardTracks = createServerFn({ method: "GET" }).handler(
 );
 
 export const getTrackDetail = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ id: z.string().min(1) }))
+  .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
     const client = currentClient();
 

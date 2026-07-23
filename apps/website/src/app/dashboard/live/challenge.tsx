@@ -300,15 +300,15 @@ function ChallengePage() {
 
             {/* BattleBot Info Summary Card */}
             <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="p-4 flex items-center justify-between gap-3">
+              <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <Bot className="size-6 text-primary shrink-0" />
                   <div className="text-xs text-muted-foreground">
                     <span className="font-semibold text-foreground">Automated Battle Management: </span>
-                    Upon acceptance, BattleBot automatically creates the room, manages Next-round lobby timers, collects fan votes, and notifies both artists.
+                    Upon acceptance, BattleBot automatically creates the room, manages round lobby timers, collects fan votes, and notifies both artists.
                   </div>
                 </div>
-                <div className="hidden sm:flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="secondary" className="text-[10px]">BattleBot handoff</Badge>
                   <Badge variant="outline" className="text-[10px]">Next-round lobby</Badge>
                 </div>
