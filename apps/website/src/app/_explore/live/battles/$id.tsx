@@ -25,12 +25,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room";
 import { useLiveRoom } from "@/lib/live-room";
 
-import { LivePreviewShowcase } from "../preview";
-
 export const Route = createFileRoute("/_explore/live/battles/$id")({
-  component: () => (
-    <LivePreviewShowcase defaultTab="battle" defaultPerspective="viewer" />
-  ),
+  component: BattlePage,
 });
 
 const voteTotal = (round: LiveBattleRound) =>

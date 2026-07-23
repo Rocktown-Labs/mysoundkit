@@ -105,9 +105,9 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     links.map((link) => [
       link.platform === "apple_music"
         ? "appleMusic"
-        : link.platform === "personal_site"
+        : (link.platform === "personal_site"
           ? "personalSite"
-          : link.platform,
+          : link.platform),
       link.url,
     ])
   );
