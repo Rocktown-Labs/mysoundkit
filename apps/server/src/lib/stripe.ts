@@ -160,6 +160,64 @@ export const createStripeRecurringPrice = ({
   });
 };
 
+export interface StripeCouponSummary {
+  amount_off?: number | null;
+  currency?: string | null;
+  duration: "once" | "repeating" | "forever";
+  duration_in_months?: number | null;
+  id: string;
+  name?: string | null;
+  percent_off?: number | null;
+  valid: boolean;
+}
+
+export const listStripeCoupons = () => {
+  const params = new URLSearchParams();
+  appendValue(params, "limit", 100);
+
+  return stripeRequest<StripeListResponse<StripeCouponSummary>>({
+    method: "GET",
+    params,
+    path: "/coupons",
+  });
+};
+
+export const createStripeCoupon = ({
+  amountOff,
+  currency = "usd",
+  duration = "once",
+  durationInMonths,
+  id,
+  name,
+  percentOff,
+}: {
+  amountOff?: number;
+  currency?: string;
+  duration?: "once" | "repeating" | "forever";
+  durationInMonths?: number;
+  id?: string;
+  name?: string;
+  percentOff?: number;
+}) => {
+  const params = new URLSearchParams();
+  appendValue(params, "duration", duration);
+  if (id) {appendValue(params, "id", id);}
+  if (name) {appendValue(params, "name", name);}
+  if (percentOff) {appendValue(params, "percent_off", percentOff);}
+  if (amountOff) {
+    appendValue(params, "amount_off", amountOff);
+    appendValue(params, "currency", currency);
+  }
+  if (duration === "repeating" && durationInMonths) {
+    appendValue(params, "duration_in_months", durationInMonths);
+  }
+
+  return stripeRequest<StripeCouponSummary>({
+    params,
+    path: "/coupons",
+  });
+};
+
 export const createDestinationCheckout = ({
   applicationFeeCents,
   cancelUrl,

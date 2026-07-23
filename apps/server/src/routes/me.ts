@@ -50,8 +50,12 @@ const getDefaultUserSummary = (user: AuthenticatedUser) => ({
 });
 
 const formatPlatformKey = (platform: string) => {
-  if (platform === "apple_music") return "appleMusic";
-  if (platform === "personal_site") return "personalSite";
+  if (platform === "apple_music") {
+    return "appleMusic";
+  }
+  if (platform === "personal_site") {
+    return "personalSite";
+  }
   return platform;
 };
 

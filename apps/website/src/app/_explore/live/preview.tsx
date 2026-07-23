@@ -290,8 +290,8 @@ export function LivePreviewShowcase({
             SoundKit Live Experiences
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Live battles, creator streaming, and listening parties with
-            high-contrast accessibility and persistent chat.
+            Live battles, creator streaming, listening parties, and battle
+            challenge invitations.
           </p>
         </div>
 
@@ -319,16 +319,22 @@ export function LivePreviewShowcase({
       <Tabs
         value={activeTab}
         onValueChange={(val) =>
-          setActiveTab(val as "battle" | "stream" | "party")
+          setActiveTab(val as "battle" | "challenge" | "stream" | "party")
         }
         className="space-y-6"
       >
-        <TabsList className="grid grid-cols-3 w-full md:w-[600px] h-12">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full md:w-[720px] h-12">
           <TabsTrigger
             value="battle"
             className="font-bold gap-2 text-xs md:text-sm"
           >
             <Swords className="size-4 text-rose-500" /> Live Battle
+          </TabsTrigger>
+          <TabsTrigger
+            value="challenge"
+            className="font-bold gap-2 text-xs md:text-sm"
+          >
+            <Zap className="size-4 text-amber-500" /> Battle Request
           </TabsTrigger>
           <TabsTrigger
             value="stream"
@@ -883,6 +889,201 @@ export function LivePreviewShowcase({
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* ---------------- BATTLE REQUEST / CHALLENGE TAB CONTENT ---------------- */}
+        <TabsContent value="challenge" className="space-y-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="flex items-center gap-3 font-[family-name:var(--font-playfair)] text-2xl font-bold">
+                <Swords className="size-6 text-primary" />
+                Issue Live Battle Challenge
+              </h2>
+              <p className="mt-1 max-w-2xl text-muted-foreground text-sm">
+                Send a direct battle invitation to any artist on SoundKit.
+                Preview the complete battle challenge workflow.
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className="w-fit border-amber-500/40 text-amber-500"
+            >
+              Interactive Preview Mode
+            </Badge>
+          </div>
+
+          <Card className="border-primary/20 shadow-lg">
+            <CardHeader className="border-b">
+              <CardTitle>Challenge Details</CardTitle>
+              <CardDescription>
+                Select opponent, format, genre, and schedule mode.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6">
+              <form
+                className="flex flex-col gap-6"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  toast({
+                    description: `Battle challenge successfully issued to ${challengeSearch || "@artist"}.`,
+                    title: "Challenge sent!",
+                  });
+                }}
+              >
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="previewOpponentUsername">
+                        Opponent Username
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          className="pr-10"
+                          id="previewOpponentUsername"
+                          onChange={(event) =>
+                            setChallengeSearch(event.target.value)
+                          }
+                          placeholder="Search or enter @username"
+                          value={challengeSearch}
+                        />
+                        {challengeSearch ? (
+                          <button
+                            type="button"
+                            onClick={() => setChallengeSearch("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            X
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="flex flex-col gap-2">
+                        <Label>Battle Kit</Label>
+                        <Select defaultValue="club-knockouts">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="club-knockouts">
+                              Club Knockouts (5 tracks)
+                            </SelectItem>
+                            <SelectItem value="radio-singles">
+                              Radio Singles (3 tracks)
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <Label>Format</Label>
+                        <Select defaultValue="best_of_5">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="best_of_3">Best of 3</SelectItem>
+                            <SelectItem value="best_of_5">Best of 5</SelectItem>
+                            <SelectItem value="best_of_7">Best of 7</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label>Genre</Label>
+                      <Select defaultValue="hip-hop">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hip-hop">Hip-Hop</SelectItem>
+                          <SelectItem value="r-and-b">R&B</SelectItem>
+                          <SelectItem value="electronic">Electronic</SelectItem>
+                          <SelectItem value="pop">Pop</SelectItem>
+                          <SelectItem value="trap">Trap</SelectItem>
+                          <SelectItem value="afrobeats">Afrobeats</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <Label>Start Time</Label>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => setChallengeSchedule("asap")}
+                          className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition text-left ${challengeSchedule === "asap" ? "border-primary bg-primary/10" : "hover:bg-muted/40"}`}
+                        >
+                          <div>
+                            <span className="block font-medium text-sm">
+                              ASAP
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              Start when accepted
+                            </span>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setChallengeSchedule("scheduled")}
+                          className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition text-left ${challengeSchedule === "scheduled" ? "border-primary bg-primary/10" : "hover:bg-muted/40"}`}
+                        >
+                          <div>
+                            <span className="block font-medium text-sm">
+                              Schedule
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              Propose date &amp; time
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {challengeSchedule === "scheduled" && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col gap-2">
+                          <Label>Proposed Date</Label>
+                          <Input type="date" defaultValue="2026-07-25" />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <Label>Proposed Time</Label>
+                          <Input
+                            placeholder="8:00 PM CT"
+                            defaultValue="9:00 PM EST"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-2">
+                      <Label>Challenge Message</Label>
+                      <Input
+                        placeholder="Add a message for your opponent..."
+                        defaultValue="Let's get in the arena! Best of 5."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t pt-4">
+                  <Badge variant="outline">Live Battle Room</Badge>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="px-8 bg-rose-600 hover:bg-rose-700 font-bold"
+                  >
+                    <Swords className="mr-2 size-4" />
+                    Send Battle Challenge
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ---------------- LIVE STREAM TAB CONTENT ---------------- */}

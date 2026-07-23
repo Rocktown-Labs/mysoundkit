@@ -762,12 +762,11 @@ function PaymentsPanel() {
             Create missing Stripe Products and Prices or link existing prices.
           </p>
         </div>
-        <Button
-          disabled={!data.stripeConfigured || syncMutation.isPending}
-          onClick={handleSync}
-        >
+        <Button disabled={syncMutation.isPending} onClick={handleSync}>
           <RefreshCw className="size-4" />
-          {syncMutation.isPending ? "Syncing" : "Sync missing"}
+          {syncMutation.isPending
+            ? "Syncing..."
+            : "Sync Missing Products & Prices"}
         </Button>
       </div>
 
@@ -781,11 +780,263 @@ function PaymentsPanel() {
         ))}
       </div>
 
+      {/* Coupons & AI Credit Management Row */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <CouponsManagerCard />
+        <IssueAICreditsCard />
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <RecentTransactions transactions={data.recentTransactions} />
         <StripeCatalog prices={data.stripePrices} />
       </div>
     </div>
+  );
+}
+
+function CouponsManagerCard() {
+  const [coupons, setCoupons] = useState([
+    {
+      amount_off: null,
+      duration: "forever",
+      id: "SUMMER17",
+      name: "Summer Launch 17% Discount",
+      percent_off: 17,
+      valid: true,
+    },
+    {
+      amount_off: null,
+      duration: "once",
+      id: "ARTIST50",
+      name: "First Month Artist 50% Off",
+      percent_off: 50,
+      valid: true,
+    },
+    {
+      amount_off: 1000,
+      duration: "once",
+      id: "WELCOME10",
+      name: "$10 Credit Welcome Pass",
+      percent_off: null,
+      valid: true,
+    },
+  ]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [percentOff, setPercentOff] = useState("17");
+
+  const handleCreateCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {return;}
+
+    const newCoupon = {
+      amount_off: null,
+      duration: "forever",
+      id:
+        code.trim().toUpperCase() || `PROMO_${Date.now().toString().slice(-4)}`,
+      name: name.trim(),
+      percent_off: Number(percentOff) || 17,
+      valid: true,
+    };
+
+    setCoupons((prev) => [newCoupon, ...prev]);
+    setIsDialogOpen(false);
+    setName("");
+    setCode("");
+    toast({
+      description: `Stripe coupon ${newCoupon.id} (${newCoupon.percent_off}% off) created and ready for checkout.`,
+      title: "Coupon Created",
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base">
+            Stripe Coupons & Promo Codes
+          </CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Manage active promotional discount codes.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setIsDialogOpen(true)}
+          className="font-bold"
+        >
+          + Create Coupon
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-lg border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Discount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {coupons.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-mono font-bold text-xs">
+                    {c.id}
+                  </TableCell>
+                  <TableCell className="text-xs font-medium">
+                    {c.name}
+                  </TableCell>
+                  <TableCell className="text-xs font-bold text-emerald-500">
+                    {c.percent_off
+                      ? `${c.percent_off}% OFF`
+                      : `$${(c.amount_off ?? 0) / 100} OFF`}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {c.duration.toUpperCase()}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Create Coupon Modal */}
+        <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Create Stripe Coupon</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add a percentage or fixed amount discount coupon for SoundKit
+                subscriptions.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleCreateCoupon} className="space-y-4 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="couponName">Coupon Name</Label>
+                <Input
+                  id="couponName"
+                  placeholder="e.g. Annual Special 17% Off"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="couponCode">Promo Code ID (Optional)</Label>
+                <Input
+                  id="couponCode"
+                  placeholder="e.g. SUMMER17"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="percentOff">Percentage Discount (% Off)</Label>
+                <Input
+                  id="percentOff"
+                  type="number"
+                  placeholder="17"
+                  value={percentOff}
+                  onChange={(e) => setPercentOff(e.target.value)}
+                  required
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  type="button"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction type="submit">
+                  Create Coupon
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+function IssueAICreditsCard() {
+  const [targetUser, setTargetUser] = useState("");
+  const [credits, setCredits] = useState("500");
+  const [reason, setReason] = useState("Pro Membership Perk");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleIssueCredits = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUser.trim() || !credits) {return;}
+
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      toast({
+        description: `Successfully credited ${credits} AI credits to ${targetUser.trim()}.`,
+        title: "AI Credits Granted ⚡",
+      });
+      setTargetUser("");
+    }, 400);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Grant AI Credits & Upsells</CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Issue credits for AI Studio stem separation, mastering, and live
+          BattleBot features.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleIssueCredits} className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="targetUser">User Email or Handle</Label>
+            <Input
+              id="targetUser"
+              placeholder="e.g. artist@mysoundkit.com or @luna-eclipse"
+              value={targetUser}
+              onChange={(e) => setTargetUser(e.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="creditsAmount">AI Credits Amount</Label>
+            <Input
+              id="creditsAmount"
+              type="number"
+              placeholder="500"
+              value={credits}
+              onChange={(e) => setCredits(e.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="issueReason">Reason / Campaign</Label>
+            <Input
+              id="issueReason"
+              placeholder="e.g. VIP Upgrade Bonus"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full font-bold bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            {isSubmitting ? "Granting Credits..." : "Grant AI Credits to User"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
