@@ -1071,7 +1071,9 @@ function CouponsPanel() {
 
   const handleCreateCoupon = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCode.trim()) {return;}
+    if (!newCode.trim()) {
+      return;
+    }
     const formattedCode = newCode.trim().toUpperCase();
     setCoupons((prev) => [
       { code: formattedCode, discount: newDiscount, status: "Active", uses: 0 },

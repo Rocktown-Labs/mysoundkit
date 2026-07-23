@@ -107,7 +107,9 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   };
 
   const copyShareLink = () => {
-    if (!createdRoomId) {return;}
+    if (!createdRoomId) {
+      return;
+    }
     const url = `${window.location.origin}/live/parties/${createdRoomId}`;
     navigator.clipboard.writeText(url);
     setCopied(true);

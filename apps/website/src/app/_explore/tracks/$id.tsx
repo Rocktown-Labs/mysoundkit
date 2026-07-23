@@ -378,7 +378,9 @@ export const Route = createFileRoute("/_explore/tracks/$id")({
 function TrackPage() {
   const { id } = Route.useParams();
   const router = useRouter();
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const { setCurrentTrack, setQueue, addToQueue } = useAudioPlayer();
+  const { addItem } = useCart();
+  const [isLiked, setIsLiked] = useState(false);
 
   const fallbackItem = useMemo(
     () => MOCK_CATALOG.find((entry) => entry.id === id) || MOCK_CATALOG[0],
@@ -403,13 +405,79 @@ function TrackPage() {
   const [selectedLicense, setSelectedLicense] = useState(
     item.licenseOptions?.[0] || null
   );
+
   const playCurrentTrack = () => {
     if (!item.playbackUrl) {
+      toast({
+        description: "No stream URL found for this track.",
+        title: "Playback unavailable",
+        variant: "destructive",
+      });
       return;
     }
 
     setQueue([playerTrack]);
     setCurrentTrack(playerTrack);
+    toast({
+      description: `${item.title} by ${item.artist.name}`,
+      title: "Now Playing",
+    });
+  };
+
+  const handleQueueTrack = () => {
+    if (addToQueue) {
+      addToQueue(playerTrack);
+    } else {
+      setQueue((prev) => [...prev, playerTrack]);
+    }
+    toast({
+      description: `Added "${item.title}" to play queue.`,
+      title: "Queue Updated",
+    });
+  };
+
+  const handleBuyTrack = () => {
+    addItem({
+      artistName: item.artist.name,
+      coverArtUrl: item.coverArtUrl,
+      priceCents: item.priceCents ?? 199,
+      productType:
+        item.type === "album" || item.type === "ep" ? "project" : "track",
+      purchaseMode: "digital_download",
+      title: item.title,
+      trackId: item.id,
+    });
+    toast({
+      description: `"${item.title}" (${item.priceLabel || "$1.99"}) added to cart.`,
+      title: "Added to Cart",
+    });
+  };
+
+  const handleShare = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      toast({
+        description: "Track URL copied to clipboard.",
+        title: "Link Copied",
+      });
+    }
+  };
+
+  const handleToggleLike = () => {
+    setIsLiked((prev) => !prev);
+    toast({
+      description: isLiked
+        ? `Removed "${item.title}" from your favorites.`
+        : `Saved "${item.title}" to your favorites.`,
+      title: isLiked ? "Removed from Favorites" : "Saved to Favorites",
+    });
+  };
+
+  const handleDownloadAsset = (label: string) => {
+    toast({
+      description: `Preparing download package for ${label}...`,
+      title: "Starting Download",
+    });
   };
 
   useEffect(() => {
@@ -431,11 +499,25 @@ function TrackPage() {
             Catalog
           </Button>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="size-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={handleShare}
+              title="Share Track"
+            >
               <Share2 className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-8">
-              <MoreVertical className="size-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={handleToggleLike}
+              title="Favorite"
+            >
+              <Heart
+                className={`size-4 ${isLiked ? "fill-rose-500 text-rose-500" : ""}`}
+              />
             </Button>
           </div>
         </div>
@@ -516,7 +598,7 @@ function TrackPage() {
                     variant="outline"
                     className="border-border/40 hover:bg-muted font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
                     disabled={!item.playbackUrl}
-                    onClick={playCurrentTrack}
+                    onClick={handleQueueTrack}
                   >
                     <Plus className="size-5 mr-2" /> Queue
                   </Button>
@@ -524,20 +606,7 @@ function TrackPage() {
                     <Button
                       size="lg"
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
-                      onClick={() => {
-                        addItem({
-                          artistName: item.artist.name,
-                          coverArtUrl: item.coverArtUrl,
-                          priceCents: item.priceCents ?? 199,
-                          productType:
-                            item.type === "album" || item.type === "ep"
-                              ? "project"
-                              : "track",
-                          purchaseMode: "digital_download",
-                          title: item.title,
-                          trackId: item.id,
-                        });
-                      }}
+                      onClick={handleBuyTrack}
                     >
                       <ShoppingCart className="size-5 mr-2" /> Buy{" "}
                       {item.priceLabel || "$1.99"}
@@ -546,9 +615,12 @@ function TrackPage() {
                   <Button
                     variant="outline"
                     size="icon"
-                    className="size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40"
+                    onClick={handleToggleLike}
+                    className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
                   >
-                    <Heart className="size-6" />
+                    <Heart
+                      className={`size-6 ${isLiked ? "fill-current" : ""}`}
+                    />
                   </Button>
                 </div>
 
@@ -653,6 +725,7 @@ function TrackPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={playCurrentTrack}
                             className="h-8 font-black text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity text-primary"
                           >
                             <Play className="size-3 mr-1.5 fill-current" />{" "}
@@ -661,6 +734,8 @@ function TrackPage() {
                           <Button
                             variant="outline"
                             size="icon"
+                            onClick={() => handleDownloadAsset(asset.label)}
+                            title={`Download ${asset.label}`}
                             className="size-9 rounded-none border-border/40 hover:bg-white/5 transition-all"
                           >
                             <Download className="size-4" />

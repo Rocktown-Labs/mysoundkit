@@ -1,7 +1,7 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { LoaderCircle, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,65 +14,15 @@ import {
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 
-const createCroppedFile = async ({
-  aspectRatio,
-  file,
-  objectUrl,
-  zoom,
-}: {
+interface ImageCropperDialogProps {
   aspectRatio: number;
-  file: File;
+  file: File | null;
   objectUrl: string;
-  zoom: number;
-}) => {
-  const image = new Image();
-  image.src = objectUrl;
-  await image.decode();
-
-  const outputWidth = aspectRatio === 1 ? 800 : 1600;
-  const outputHeight = Math.round(outputWidth / aspectRatio);
-  const canvas = document.createElement("canvas");
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Unable to prepare image crop.");
-  }
-
-  const sourceAspect = image.naturalWidth / image.naturalHeight;
-  const cropWidth =
-    sourceAspect > aspectRatio
-      ? image.naturalHeight * aspectRatio
-      : image.naturalWidth;
-  const cropHeight = cropWidth / aspectRatio;
-  const zoomedWidth = cropWidth / zoom;
-  const zoomedHeight = cropHeight / zoom;
-  const sourceX = (image.naturalWidth - zoomedWidth) / 2;
-  const sourceY = (image.naturalHeight - zoomedHeight) / 2;
-
-  context.drawImage(
-    image,
-    sourceX,
-    sourceY,
-    zoomedWidth,
-    zoomedHeight,
-    0,
-    0,
-    outputWidth,
-    outputHeight
-  );
-
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, file.type || "image/jpeg", 0.92)
-  );
-
-  if (!blob) {
-    throw new Error("Unable to export cropped image.");
-  }
-
-  return new File([blob], file.name, { type: blob.type });
-};
+  onCancel: () => void;
+  onCropped: (file: File, previewUrl: string) => Promise<void>;
+  open: boolean;
+  title: string;
+}
 
 export function ImageCropperDialog({
   aspectRatio,
@@ -82,78 +32,169 @@ export function ImageCropperDialog({
   onCropped,
   open,
   title,
-}: {
-  aspectRatio: number;
-  file: File | null;
-  objectUrl: string;
-  onCancel: () => void;
-  onCropped: (file: File, previewUrl: string) => Promise<void>;
-  open: boolean;
-  title: string;
-}) {
+}: ImageCropperDialogProps) {
   const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isCropping, setIsCropping] = useState(false);
 
-  const confirmCrop = async () => {
-    if (!(file && objectUrl)) {
-      return;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setZoom(1);
+      setPosition({ x: 0, y: 0 });
     }
+  }, [open]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) {return;}
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleReset = () => {
+    setZoom(1);
+    setPosition({ x: 0, y: 0 });
+  };
+
+  const confirmCrop = async () => {
+    if (!file || !objectUrl || !imageRef.current) {return;}
 
     setIsCropping(true);
-    const croppedFile = await createCroppedFile({
-      aspectRatio,
-      file,
-      objectUrl,
-      zoom,
-    });
-    await onCropped(croppedFile, URL.createObjectURL(croppedFile));
-    setIsCropping(false);
-    setZoom(1);
+    try {
+      const img = imageRef.current;
+      const outputWidth = aspectRatio === 1 ? 800 : 1600;
+      const outputHeight = Math.round(outputWidth / aspectRatio);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
+      const ctx = canvas.getContext("2d");
+
+      if (ctx) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, outputWidth, outputHeight);
+
+        const scale = zoom;
+        const drawWidth = outputWidth * scale;
+        const drawHeight =
+          (outputWidth / (img.naturalWidth / img.naturalHeight)) * scale;
+
+        const offsetX = (outputWidth - drawWidth) / 2 + position.x * 2;
+        const offsetY = (outputHeight - drawHeight) / 2 + position.y * 2;
+
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, file.type || "image/jpeg", 0.92)
+        );
+
+        if (blob) {
+          const croppedFile = new File([blob], file.name, { type: blob.type });
+          const previewUrl = URL.createObjectURL(croppedFile);
+          await onCropped(croppedFile, previewUrl);
+        }
+      }
+    } catch (error) {
+      console.error("Cropping failed:", error);
+    } finally {
+      setIsCropping(false);
+      handleReset();
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="font-bold text-lg">{title}</DialogTitle>
           <DialogDescription>
-            Adjust the crop before uploading this profile image.
+            Drag to position your image and use the zoom slider to frame your
+            crop.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
+
+        <div className="space-y-4">
           <div
-            className="overflow-hidden rounded-lg border border-border/50 bg-muted"
+            ref={containerRef}
+            className="relative overflow-hidden rounded-xl border border-border/50 bg-black cursor-grab active:cursor-grabbing select-none"
             style={{ aspectRatio }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
           >
             {objectUrl ? (
               <img
-                alt="Crop preview"
-                className="size-full object-cover"
+                ref={imageRef}
+                alt="Crop canvas"
+                className="absolute size-full object-contain pointer-events-none transition-transform duration-75"
                 src={objectUrl}
-                style={{ transform: `scale(${zoom})` }}
+                style={{
+                  transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                }}
               />
             ) : null}
+
+            {/* Grid Lines Overlay */}
+            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none border border-white/20">
+              {[...Array(9)].map((_, i) => (
+                <div key={i} className="border border-white/10" />
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <p className="text-muted-foreground text-xs">Zoom</p>
+
+          <div className="flex items-center gap-4 bg-muted/40 p-3 rounded-lg border">
+            <ZoomOut className="size-4 text-muted-foreground shrink-0" />
             <Slider
-              max={2}
+              max={3}
               min={1}
-              onValueChange={([value]) => setZoom(value ?? 1)}
+              onValueChange={([val]) => setZoom(val ?? 1)}
               step={0.05}
               value={[zoom]}
+              className="flex-1"
             />
+            <ZoomIn className="size-4 text-muted-foreground shrink-0" />
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={handleReset}
+              title="Reset Crop Position & Zoom"
+              className="size-8 ml-2"
+            >
+              <RotateCcw className="size-4" />
+            </Button>
           </div>
         </div>
-        <DialogFooter>
+
+        <DialogFooter className="gap-2">
           <Button disabled={isCropping} onClick={onCancel} variant="outline">
             Cancel
           </Button>
-          <Button disabled={isCropping} onClick={() => void confirmCrop()}>
+          <Button
+            disabled={isCropping}
+            onClick={() => void confirmCrop()}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+          >
             {isCropping ? (
               <LoaderCircle className="mr-2 size-4 animate-spin" />
             ) : null}
-            Crop & Upload
+            Crop & Apply
           </Button>
         </DialogFooter>
       </DialogContent>

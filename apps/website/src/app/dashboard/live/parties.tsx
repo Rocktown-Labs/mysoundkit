@@ -402,7 +402,7 @@ function DashboardLivePartiesPage() {
                       liveRoomId: "single-album-party",
                       playbackMode: "fan_hosted",
                       scheduledStartAt: new Date(
-                        Date.now() + 3600000
+                        Date.now() + 3_600_000
                       ).toISOString(),
                       status: "scheduled",
                       title: "Late Night Album Room (Fan Hosted)",

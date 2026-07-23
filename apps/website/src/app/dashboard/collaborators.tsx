@@ -130,7 +130,9 @@ function FriendsPage() {
   const handleManualAddFriend = (e: React.FormEvent) => {
     e.preventDefault();
     const handle = newFriendHandle.trim().replace(/^@/, "");
-    if (!handle) {return;}
+    if (!handle) {
+      return;
+    }
 
     toast({
       description: `Sent friend request / follow connection to @${handle}.`,

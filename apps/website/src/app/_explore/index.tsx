@@ -17,8 +17,11 @@ import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
 import { VideoCard } from "@/components/explore/video-card";
-import { mapScopes, WorldAndUSAMap } from '@/components/explore/world-and-usa-map';
-import type { MapScope } from '@/components/explore/world-and-usa-map';
+import {
+  mapScopes,
+  WorldAndUSAMap,
+} from "@/components/explore/world-and-usa-map";
+import type { MapScope } from "@/components/explore/world-and-usa-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -244,7 +247,9 @@ function LocalExplorePage({
                   onRegionSelect={(reg) => setSelectedRegion(reg)}
                   onScopeChange={(scope) => {
                     setMapScope(scope);
-                    if (scope === "global") {setSelectedRegion(null);}
+                    if (scope === "global") {
+                      setSelectedRegion(null);
+                    }
                   }}
                 />
               </CardContent>

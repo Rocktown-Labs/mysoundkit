@@ -4,8 +4,8 @@ import { MapPin, Navigation } from "lucide-react";
 import React, { useState } from "react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 
-import { mapScopes } from '../../lib/map-scopes';
-import type { MapScope } from '../../lib/map-scopes';
+import { mapScopes } from "../../lib/map-scopes";
+import type { MapScope } from "../../lib/map-scopes";
 import {
   Select,
   SelectContent,
@@ -55,7 +55,9 @@ export function WorldAndUSAMap({
                 type="button"
                 onClick={() => {
                   onScopeChange(scope.id);
-                  if (scope.id === "global") {onRegionSelect("");}
+                  if (scope.id === "global") {
+                    onRegionSelect("");
+                  }
                 }}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                   mapScope === scope.id
@@ -74,7 +76,9 @@ export function WorldAndUSAMap({
               value={mapScope}
               onValueChange={(val) => {
                 onScopeChange(val as MapScope);
-                if (val === "global") {onRegionSelect("");}
+                if (val === "global") {
+                  onRegionSelect("");
+                }
               }}
             >
               <SelectTrigger className="w-[170px] h-8 text-xs bg-background/90 backdrop-blur shadow-md">
@@ -120,7 +124,9 @@ export function WorldAndUSAMap({
                   geo.properties?.name_long ||
                   geo.id;
 
-                if (!name) {return null;}
+                if (!name) {
+                  return null;
+                }
 
                 const isSelected =
                   selectedRegion?.toLowerCase() === name.toLowerCase();

@@ -26,7 +26,10 @@ import {
   Disc,
   Info,
 } from "lucide-react";
+import { useState } from "react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
+import { useCart } from "@/components/cart-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +47,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/projects/$id")({
@@ -53,6 +57,9 @@ export const Route = createFileRoute("/_explore/projects/$id")({
 function ProjectPage() {
   const { id } = Route.useParams();
   const router = useRouter();
+  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const { addItem } = useCart();
+  const [isLiked, setIsLiked] = useState(false);
 
   // Mock data
   const project = {
@@ -81,6 +88,7 @@ function ProjectPage() {
         duration: "3:24",
         explicit: true,
         id: "t1",
+        playbackUrl: "/demo-audio/long-way-26.wav",
         plays: "2.4M",
         title: "Summer Nights",
       },
@@ -88,6 +96,7 @@ function ProjectPage() {
         duration: "4:12",
         explicit: false,
         id: "t2",
+        playbackUrl: "/demo-audio/dumbledore.wav",
         plays: "1.8M",
         title: "Ocean Breeze",
       },
@@ -95,6 +104,7 @@ function ProjectPage() {
         duration: "3:45",
         explicit: true,
         id: "t3",
+        playbackUrl: "/demo-audio/long-way-26.wav",
         plays: "3.2M",
         title: "Midnight Drive",
       },
@@ -179,6 +189,7 @@ function ProjectPage() {
                 <div className="flex items-center gap-4 flex-wrap">
                   <Button
                     size="lg"
+                    onClick={playAlbum}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-10 h-12 uppercase tracking-widest"
                   >
                     <Play className="size-4 mr-2 fill-current" /> Play Album
@@ -186,9 +197,12 @@ function ProjectPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-12 rounded-full border border-border/20"
+                    onClick={toggleLike}
+                    className={`size-12 rounded-full border border-border/20 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
                   >
-                    <Heart className="size-5" />
+                    <Heart
+                      className={`size-5 ${isLiked ? "fill-current" : ""}`}
+                    />
                   </Button>
                 </div>
 
@@ -216,6 +230,7 @@ function ProjectPage() {
                     <div
                       key={t.id}
                       className="group flex items-center gap-4 p-4 hover:bg-white/[0.02] transition-all cursor-pointer"
+                      onClick={() => playSingleTrack(t)}
                     >
                       <div className="w-6 text-center text-xs font-black text-muted-foreground/40 group-hover:text-primary">
                         {(idx + 1).toString().padStart(2, "0")}
@@ -248,6 +263,10 @@ function ProjectPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playSingleTrack(t);
+                          }}
                           className="size-8 rounded-lg text-muted-foreground/20 hover:text-primary opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <Play className="size-3.5 fill-current" />
@@ -257,6 +276,7 @@ function ProjectPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={(e) => e.stopPropagation()}
                               className="size-8 rounded-lg text-muted-foreground/40"
                             >
                               <MoreVertical className="size-4" />
@@ -266,9 +286,21 @@ function ProjectPage() {
                             align="end"
                             className="bg-card/95 backdrop-blur-xl"
                           >
-                            <DropdownMenuItem>Add to Queue</DropdownMenuItem>
-                            <DropdownMenuItem>Add to Playlist</DropdownMenuItem>
-                            <DropdownMenuItem>Download Track</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => playSingleTrack(t)}
+                            >
+                              Play Track
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                toast({
+                                  description: `${t.title} added to queue.`,
+                                  title: "Added to Queue",
+                                });
+                              }}
+                            >
+                              Add to Queue
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -364,6 +396,7 @@ function ProjectPage() {
                 </ul>
                 <Button
                   size="lg"
+                  onClick={buyAlbum}
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20"
                 >
                   Buy Full Album

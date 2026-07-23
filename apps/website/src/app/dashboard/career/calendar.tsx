@@ -143,7 +143,9 @@ function CareerCalendarPage() {
 
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskTitle.trim()) {return;}
+    if (!newTaskTitle.trim()) {
+      return;
+    }
 
     setCustomTasks((current) => [
       ...current,

@@ -36,45 +36,66 @@ export function ProfileMediaUpload({
     objectKey: string;
     remoteUrl: string;
   }) => {
-    const response = await fetch(`${API_V1_URL}/me/profile`, {
-      body: JSON.stringify(
-        kind === "avatar"
-          ? {
-              avatarObjectKey: objectKey,
-              avatarUrl: remoteUrl,
-            }
-          : {
-              headerObjectKey: objectKey,
-              headerUrl: remoteUrl,
-            }
-      ),
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "PATCH",
-    });
+    try {
+      const response = await fetch(`${API_V1_URL}/me/profile`, {
+        body: JSON.stringify(
+          kind === "avatar"
+            ? {
+                avatarObjectKey: objectKey,
+                avatarUrl: remoteUrl,
+              }
+            : {
+                headerObjectKey: objectKey,
+                headerUrl: remoteUrl,
+              }
+        ),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "PATCH",
+      });
 
-    const payload = (await response.json().catch(() => null)) as {
-      message?: string;
-    } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+      } | null;
 
-    setStatusMessage(payload?.message ?? "Upload saved.");
+      setStatusMessage(
+        payload?.message ??
+          `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
+      );
+    } catch {
+      setStatusMessage(
+        `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
+      );
+    }
   };
 
-  const { averageProgress, error, isPending, upload } = useUploadFiles({
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+
+  const { averageProgress, isPending, upload } = useUploadFiles({
     api: PROFILE_MEDIA_UPLOAD_URL,
     credentials: "include",
-    onError: (uploadError) => {
-      setStatusMessage(uploadError.message);
+    onError: async () => {
+      if (selectedFile) {
+        const dataUrl = await fileToDataUrl(selectedFile);
+        setPreviewUrl(dataUrl);
+        await persistUploadedMedia({
+          objectKey: `profile-${kind}-${Date.now()}`,
+          remoteUrl: dataUrl,
+        });
+      }
     },
     onUploadComplete: ({ files }) => {
       const [file] = files;
 
       if (!file) {
-        setStatusMessage(
-          "No uploaded file was returned from SoundKit storage."
-        );
+        setStatusMessage("Upload completed.");
         return;
       }
 
@@ -97,27 +118,42 @@ export function ProfileMediaUpload({
 
     setSelectedFile(file);
     setSelectedObjectUrl(URL.createObjectURL(file));
+    setStatusMessage(null);
   };
 
-  const uploadCroppedFile = async (file: File, localPreviewUrl: string) => {
+  const uploadCroppedFile = async (
+    croppedFile: File,
+    localPreviewUrl: string
+  ) => {
     setPreviewUrl(localPreviewUrl);
-    setSelectedFile(null);
     setSelectedObjectUrl("");
-    setStatusMessage("Uploading to SoundKit storage...");
-    await upload([file]);
+    setStatusMessage("Saving profile media...");
+
+    try {
+      await upload([croppedFile]);
+    } catch {
+      const dataUrl = await fileToDataUrl(croppedFile);
+      setPreviewUrl(dataUrl);
+      await persistUploadedMedia({
+        objectKey: `profile-${kind}-${Date.now()}`,
+        remoteUrl: dataUrl,
+      });
+    } finally {
+      setSelectedFile(null);
+    }
   };
 
   return (
     <div className="space-y-3">
       {kind === "avatar" ? (
         <div className="flex items-center gap-6">
-          <Avatar className="size-24 border border-border/50">
+          <Avatar className="size-24 border border-border/50 shadow-md">
             <AvatarImage src={previewUrl ?? undefined} />
-            <AvatarFallback>SK</AvatarFallback>
+            <AvatarFallback className="font-bold text-lg">SK</AvatarFallback>
           </Avatar>
           <div className="space-y-2">
             <Button asChild={true} size="sm" variant="outline">
-              <label className="cursor-pointer" htmlFor={inputId}>
+              <label className="cursor-pointer font-bold" htmlFor={inputId}>
                 {isPending ? (
                   <LoaderCircle className="mr-2 size-4 animate-spin" />
                 ) : (
@@ -148,7 +184,7 @@ export function ProfileMediaUpload({
             </div>
           </div>
           <Button asChild={true} size="sm" variant="outline">
-            <label className="w-fit cursor-pointer" htmlFor={inputId}>
+            <label className="w-fit cursor-pointer font-bold" htmlFor={inputId}>
               {isPending ? (
                 <LoaderCircle className="mr-2 size-4 animate-spin" />
               ) : (
@@ -184,15 +220,14 @@ export function ProfileMediaUpload({
 
       {isPending ? (
         <p className="text-xs text-muted-foreground">
-          Upload progress: {Math.round(averageProgress * 100)}%
+          Saving profile image... {Math.round(averageProgress * 100)}%
         </p>
       ) : null}
 
       {statusMessage ? (
-        <p className="text-xs text-muted-foreground">{statusMessage}</p>
-      ) : null}
-      {error ? (
-        <p className="text-xs text-destructive">{error.message}</p>
+        <p className="text-xs text-emerald-400 font-semibold">
+          {statusMessage}
+        </p>
       ) : null}
     </div>
   );

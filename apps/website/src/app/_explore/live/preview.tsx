@@ -198,7 +198,9 @@ export function LivePreviewShowcase({
 
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) {return;}
+    if (!chatInput.trim()) {
+      return;
+    }
     setChatMessages((prev) => [
       ...prev,
       {
@@ -243,7 +245,9 @@ export function LivePreviewShowcase({
 
   const handleConfirmTrackSelection = () => {
     const chosen = battleKit.find((t) => t.id === selectedTrackId);
-    if (!chosen) {return;}
+    if (!chosen) {
+      return;
+    }
     setBattleKit((prev) =>
       prev.map((t) =>
         t.id === selectedTrackId ? { ...t, status: "queued" } : t

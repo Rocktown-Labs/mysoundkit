@@ -174,7 +174,9 @@ export function FloatingChatBar() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() && !selectedAttachment) {return;}
+    if (!messageInput.trim() && !selectedAttachment) {
+      return;
+    }
 
     const newMessage: ChatMessage = {
       attachment: selectedAttachment ?? undefined,

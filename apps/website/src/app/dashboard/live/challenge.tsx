@@ -10,6 +10,7 @@ import {
   Search,
   ShieldCheck,
   Swords,
+  X,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -72,12 +73,17 @@ function ChallengePage() {
   const meQuery = useMeQuery();
   const battleConfig = liveExperienceConfigs.battle;
 
-  const genres = genresQuery.data ?? [
-    { label: "Hip-Hop", value: "hip-hop" },
-    { label: "R&B", value: "r-and-b" },
-    { label: "Electronic", value: "electronic" },
-    { label: "Pop", value: "pop" },
-  ];
+  const genres =
+    genresQuery.data && genresQuery.data.length > 0
+      ? genresQuery.data
+      : [
+          { label: "Hip-Hop", value: "hip-hop" },
+          { label: "R&B", value: "r-and-b" },
+          { label: "Electronic", value: "electronic" },
+          { label: "Pop", value: "pop" },
+          { label: "Trap", value: "trap" },
+          { label: "Afrobeats", value: "afrobeats" },
+        ];
 
   const user = meQuery.data?.user;
   const isPremiumArtist =
@@ -124,7 +130,7 @@ function ChallengePage() {
         onSuccess: () => {
           toast({
             description:
-              "BattleBot will notify the artist and prepare the lobby flow.",
+              "Notification sent to artist to prepare for the live battle.",
             title: "Challenge sent",
           });
           event.currentTarget.reset();
@@ -149,7 +155,7 @@ function ChallengePage() {
           </CardHeader>
           <CardContent className="flex gap-4">
             <Button asChild>
-              <Link to="/pricing">Upgrade to Premium Artist ($14.99/mo)</Link>
+              <Link to="/pricing">Upgrade to Premium Artist ($22.99/mo)</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/live/battles">Explore Public Battles</Link>
@@ -170,8 +176,7 @@ function ChallengePage() {
           </h1>
           <h2 className="sr-only">Battle Requests</h2>
           <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-            Send a direct battle invitation to any artist. BattleBot handles
-            round timing, lobby, votes, and notifications.
+            Send a direct live battle invitation to any artist on SoundKit.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -183,7 +188,7 @@ function ChallengePage() {
         <CardHeader className="border-b">
           <CardTitle>Challenge Details</CardTitle>
           <CardDescription>
-            Select opponent, kit, format, and schedule mode.
+            Select opponent, format, genre, and schedule mode.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
@@ -195,13 +200,22 @@ function ChallengePage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      className="pl-10"
+                      className="pl-10 pr-10"
                       id="opponentUsername"
                       name="opponentUsername"
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Search or enter @username"
                       value={searchQuery}
                     />
+                    {searchQuery ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
@@ -303,31 +317,6 @@ function ChallengePage() {
                 </div>
               </div>
             </div>
-
-            {/* BattleBot Info Summary Card */}
-            <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Bot className="size-6 text-primary shrink-0" />
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">
-                      Automated Battle Management:{" "}
-                    </span>
-                    Upon acceptance, BattleBot automatically creates the room,
-                    manages round lobby timers, collects fan votes, and notifies
-                    both artists.
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="secondary" className="text-[10px]">
-                    BattleBot handoff
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px]">
-                    Next-round lobby
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
 
             <div className="flex items-center justify-between border-t pt-4">
               <Badge variant="outline">{battleConfig.roomLabel}</Badge>

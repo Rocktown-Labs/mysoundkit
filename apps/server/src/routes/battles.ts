@@ -468,7 +468,7 @@ app.openapi(
             {
               battleId: "battle-1",
               battleTitle: "Summer Beat Showdown",
-              createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+              createdAt: new Date(Date.now() - 86_400_000 * 2).toISOString(),
               isTiebreaker: false,
               opponentTrackId: "track-3",
               opponentTrackName: "Golden Hours",
@@ -483,7 +483,7 @@ app.openapi(
               battleId: "battle-1",
               battleTitle: "Summer Beat Showdown",
               createdAt: new Date(
-                Date.now() - 86400000 * 2 + 3600000
+                Date.now() - 86_400_000 * 2 + 3_600_000
               ).toISOString(),
               isTiebreaker: false,
               opponentTrackId: "track-3",
@@ -498,7 +498,7 @@ app.openapi(
             {
               battleId: "battle-2",
               battleTitle: "Late Night Melodies",
-              createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+              createdAt: new Date(Date.now() - 86_400_000 * 5).toISOString(),
               isTiebreaker: false,
               opponentTrackId: "track-4",
               opponentTrackName: "City Lights",
