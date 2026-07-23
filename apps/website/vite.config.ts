@@ -67,19 +67,19 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/ingest": {
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ingest/, ""),
+          rewrite: (path) => path.replace(/^\/ingest/u, ""),
           secure: false,
           target: "https://us.i.posthog.com",
         },
         "/ingest/array": {
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ingest/, ""),
+          rewrite: (path) => path.replace(/^\/ingest/u, ""),
           secure: false,
           target: "https://us-assets.i.posthog.com",
         },
         "/ingest/static": {
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ingest/, ""),
+          rewrite: (path) => path.replace(/^\/ingest/u, ""),
           secure: false,
           target: "https://us-assets.i.posthog.com",
         },

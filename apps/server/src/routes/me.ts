@@ -30,26 +30,34 @@ import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
 
+const getDefaultUserSummary = (user: AuthenticatedUser) => ({
+  accountType: "artist" as const,
+  avatarUrl: null,
+  bio: null,
+  city: null,
+  displayName: user.name ?? user.email ?? "SoundKit User",
+  headerUrl: null,
+  id: user.id,
+  links: {},
+  onboardingCompletedAt: null,
+  proAffiliation: null,
+  proMemberId: null,
+  role: user.role ?? null,
+  songwriterLegalName: null,
+  stageName: user.name ?? null,
+  state: null,
+  username: user.email?.split("@")[0] ?? "soundkit-user",
+});
+
+const formatPlatformKey = (platform: string) => {
+  if (platform === "apple_music") return "appleMusic";
+  if (platform === "personal_site") return "personalSite";
+  return platform;
+};
+
 const getUserSummary = async (user: AuthenticatedUser) => {
   if (!isDatabaseConfigured()) {
-    return {
-      accountType: "artist" as const,
-      avatarUrl: null,
-      bio: null,
-      city: null,
-      displayName: user.name ?? user.email ?? "SoundKit User",
-      headerUrl: null,
-      id: user.id,
-      links: {},
-      onboardingCompletedAt: null,
-      proAffiliation: null,
-      proMemberId: null,
-      role: user.role ?? null,
-      songwriterLegalName: null,
-      stageName: user.name ?? null,
-      state: null,
-      username: user.email?.split("@")[0] ?? "soundkit-user",
-    };
+    return getDefaultUserSummary(user);
   }
 
   const db = createDb();
@@ -75,23 +83,7 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     .limit(1);
 
   if (!profile) {
-    return {
-      accountType: "artist" as const,
-      avatarUrl: null,
-      bio: null,
-      city: null,
-      displayName: user.name ?? user.email ?? "SoundKit User",
-      headerUrl: null,
-      id: user.id,
-      links: {},
-      onboardingCompletedAt: null,
-      proAffiliation: null,
-      proMemberId: null,
-      role: user.role ?? null,
-      songwriterLegalName: null,
-      state: null,
-      username: user.email?.split("@")[0] ?? "soundkit-user",
-    };
+    return getDefaultUserSummary(user);
   }
 
   const links = await db
@@ -102,14 +94,7 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     .from(profileLinks)
     .where(eq(profileLinks.userId, user.id));
   const profileLinkMap = Object.fromEntries(
-    links.map((link) => [
-      link.platform === "apple_music"
-        ? "appleMusic"
-        : (link.platform === "personal_site"
-          ? "personalSite"
-          : link.platform),
-      link.url,
-    ])
+    links.map((link) => [formatPlatformKey(link.platform), link.url])
   );
 
   return {
@@ -210,13 +195,15 @@ app.openapi(
   }
 );
 
+const workspaceSummaryArraySchema = workspaceSummarySchema.array();
+
 app.openapi(
   createRoute({
     method: "get",
     path: "/workspaces",
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        workspaceSummarySchema.array(),
+        workspaceSummaryArraySchema,
         "Current user workspaces"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(

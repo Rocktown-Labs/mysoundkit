@@ -56,7 +56,9 @@ export function ImageCropperDialog({
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) {return;}
+    if (!isDragging) {
+      return;
+    }
     setPosition({
       x: e.clientX - dragStart.x,
       y: e.clientY - dragStart.y,
@@ -73,7 +75,9 @@ export function ImageCropperDialog({
   };
 
   const confirmCrop = async () => {
-    if (!file || !objectUrl || !imageRef.current) {return;}
+    if (!file || !objectUrl || !imageRef.current) {
+      return;
+    }
 
     setIsCropping(true);
     try {
