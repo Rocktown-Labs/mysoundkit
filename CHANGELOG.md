@@ -4,6 +4,13 @@
 
 ### Added
 
+- Added Open Verse Submissions Review Desk to `/dashboard/open-verses/$genre/$id`, enabling creators to audition contender vocal takes and accept them directly into official track credits and splits.
+- Added Open Verse toggle sync (`isOpenVerse`) to `PATCH /v1/tracks/:trackId` for enabling or closing open verse listings on existing tracks post-creation.
+- Added secret unlisted link sharing mechanism for private tracks so non-members can stream full-quality audio via direct link without logging in or appearing in public explore feeds.
+- Added global Keyboard Shortcuts System (`KeyboardShortcutsProvider`) featuring `Cmd+K` command search palette, `?` shortcuts cheat sheet, and input-protected media hotkeys (`Space`, `M`, `Shift+Left`, `Shift+Right`).
+- Added Mini Player floating pill widget and interactive reorderable/clearable queue drawer with persistent local storage.
+- Added pre-commit `lefthook.yml` quality gates (`oxfmt`, `oxlint`, `check-types`) and gated `package.json` build script.
+- Added `GlobalErrorFallback` component to root TanStack router configuration to gracefully capture unexpected client exceptions.
 - Added deferred upload support for projects and tracks, delaying R2 bucket asset uploads until form submission.
 - Added an "Open Verse" configuration switch to the track wizard, enabling inline publishing of open verse slots on submission.
 - Added real-time creator battle statistics to the dashboard live metrics, replacing placeholder mock stats.
@@ -35,6 +42,9 @@
 
 ### Fixed
 
+- Fixed Sentry issue `SOUNDKIT-WEB-A` (`ReferenceError: Can't find variable: toast`) on track detail page.
+- Fixed missing `challengeSearch` and `challengeSchedule` state declarations in `LivePreviewShowcase`.
+- Fixed cart provider allowing multiple duplicate digital download purchases of tracks and projects.
 - Fixed the Explore tracks filter JSX so the region type handler is declared once.
 - Fixed the Explore videos route crash caused by stale filter setter references after URL search parameter syncing.
 - Replaced the expanded and collapsed Explore sidebar brand images with styled text marks.

@@ -5,6 +5,7 @@ import {
   artistProfileRoles,
   artistProfiles,
   genres,
+  openVerseListings,
   playbackSessions,
   purchases,
   trackAssets,
@@ -997,6 +998,43 @@ app.openapi(
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    if (body.isOpenVerse !== undefined) {
+      if (body.isOpenVerse) {
+        const [existingListing] = await db
+          .select({ id: openVerseListings.id })
+          .from(openVerseListings)
+          .where(eq(openVerseListings.trackId, trackId))
+          .limit(1);
+
+        if (existingListing) {
+          await db
+            .update(openVerseListings)
+            .set({ status: "open", updatedAt: new Date() })
+            .where(eq(openVerseListings.id, existingListing.id));
+        } else {
+          await db.insert(openVerseListings).values({
+            bpm: track.bpm,
+            description:
+              track.description ?? `Open verse slot for ${track.title}`,
+            genreId: track.genreId,
+            id: crypto.randomUUID(),
+            maxSubmissions: 50,
+            musicalKey: track.musicalKey,
+            organizationId,
+            ownerUserId: user.id,
+            status: "open",
+            title: `${track.title} - open verse`,
+            trackId: track.id,
+          });
+        }
+      } else {
+        await db
+          .update(openVerseListings)
+          .set({ status: "closed", updatedAt: new Date() })
+          .where(eq(openVerseListings.trackId, trackId));
+      }
     }
 
     return c.json(await buildTrackDetail(track), HttpStatusCodes.OK);

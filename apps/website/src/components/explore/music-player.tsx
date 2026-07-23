@@ -1,8 +1,12 @@
 /* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, promise/prefer-await-to-then */
 import { Link } from "@tanstack/react-router";
 import {
+  ChevronDown,
+  ChevronUp,
   Laptop2,
   ListMusic,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   Repeat,
@@ -11,6 +15,7 @@ import {
   SkipForward,
   Smartphone,
   Speaker,
+  Trash2,
   Volume2,
   VolumeX,
   X,
@@ -189,6 +194,7 @@ export function MusicPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isShuffled, setIsShuffled] = useState(false);
+  const [isMiniPlayer, setIsMiniPlayer] = useState(false);
   const [progress, setProgress] = useState(0);
   const [queueOpen, setQueueOpen] = useState(false);
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
@@ -542,12 +548,143 @@ export function MusicPlayer() {
     }
   };
 
+  // Keyboard playback shortcuts with input guard
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
+      if (isInput || !currentTrack) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        handlePlayPause();
+      } else if (e.shiftKey && e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNext();
+      } else if (e.shiftKey && e.key === "ArrowLeft") {
+        e.preventDefault();
+        handlePrevious();
+      } else if (e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        setIsMuted((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentTrack]);
+
+  const handleMoveQueueItemUp = (index: number) => {
+    if (index <= 0) {
+      return;
+    }
+    const nextQueue = [...queue];
+    const item = nextQueue[index];
+    if (!item || !nextQueue[index - 1]) return;
+    nextQueue[index] = nextQueue[index - 1]!;
+    nextQueue[index - 1] = item;
+    setQueue(nextQueue);
+  };
+
+  const handleMoveQueueItemDown = (index: number) => {
+    if (index >= queue.length - 1) {
+      return;
+    }
+    const nextQueue = [...queue];
+    const item = nextQueue[index];
+    if (!item || !nextQueue[index + 1]) return;
+    nextQueue[index] = nextQueue[index + 1]!;
+    nextQueue[index + 1] = item;
+    setQueue(nextQueue);
+  };
+
+  const handleRemoveQueueItem = (trackId: string) => {
+    setQueue(queue.filter((t) => t.id !== trackId));
+  };
+
+  const handleClearQueue = () => {
+    if (currentTrack) {
+      setQueue([currentTrack]);
+    } else {
+      setQueue([]);
+    }
+  };
+
   const handleClose = () => {
     audioRef.current?.pause();
     sendPlaybackProgress({ ended: true });
     setIsPlaying(false);
     setVisible(false);
   };
+
+  if (currentTrack && isMiniPlayer) {
+    return (
+      <div className="fixed right-4 bottom-4 z-50 flex items-center gap-3 rounded-full border bg-background/95 p-2 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <AppImage
+          alt={currentTrack.title}
+          className="size-9 rounded-full object-cover animate-spin-slow"
+          height={36}
+          layout="fixed"
+          src={currentTrack.cover || "/placeholder.svg"}
+          width={36}
+        />
+        <div className="max-w-[120px] truncate text-xs">
+          <p className="truncate font-semibold">{currentTrack.title}</p>
+          <p className="truncate text-muted-foreground">{currentTrack.artist}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            aria-label="Play or Pause"
+            className="size-7"
+            onClick={handlePlayPause}
+            size="icon"
+            variant="ghost"
+          >
+            {isPlaying ? (
+              <Pause className="size-3.5" />
+            ) : (
+              <Play className="size-3.5 fill-current" />
+            )}
+          </Button>
+          <Button
+            aria-label="Next track"
+            className="size-7"
+            onClick={handleNext}
+            size="icon"
+            variant="ghost"
+          >
+            <SkipForward className="size-3.5" />
+          </Button>
+          <Button
+            aria-label="Expand player"
+            className="size-7"
+            onClick={() => setIsMiniPlayer(false)}
+            size="icon"
+            variant="ghost"
+          >
+            <Maximize2 className="size-3.5" />
+          </Button>
+          <Button
+            aria-label="Close player"
+            className="size-7 text-muted-foreground hover:text-destructive"
+            onClick={handleClose}
+            size="icon"
+            variant="ghost"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (currentTrack && !visible) {
     return (
@@ -571,15 +708,27 @@ export function MusicPlayer() {
       <audio ref={audioRef} preload="metadata">
         <track kind="captions" />
       </audio>
-      <Button
-        aria-label="Close player"
-        className="absolute top-2 right-2 size-6"
-        onClick={handleClose}
-        size="icon"
-        variant="ghost"
-      >
-        <X className="size-4" />
-      </Button>
+
+      <div className="absolute top-2 right-2 flex items-center gap-1">
+        <Button
+          aria-label="Minimize player"
+          className="size-6"
+          onClick={() => setIsMiniPlayer(true)}
+          size="icon"
+          variant="ghost"
+        >
+          <Minimize2 className="size-3.5" />
+        </Button>
+        <Button
+          aria-label="Close player"
+          className="size-6"
+          onClick={handleClose}
+          size="icon"
+          variant="ghost"
+        >
+          <X className="size-4" />
+        </Button>
+      </div>
 
       <div className="container mx-auto px-4 py-3">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
@@ -683,46 +832,112 @@ export function MusicPlayer() {
           <div className="flex items-center justify-end gap-2 lg:w-1/4">
             <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
               <SheetTrigger asChild={true}>
-                <Button className="size-8" size="icon" variant="ghost">
+                <Button className="size-8 relative" size="icon" variant="ghost">
                   <ListMusic className="size-4" />
+                  {queue.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                      {queue.length}
+                    </span>
+                  )}
                 </Button>
               </SheetTrigger>
               <SheetContent className="w-full sm:w-96" side="right">
-                <SheetHeader>
-                  <SheetTitle>Queue</SheetTitle>
+                <SheetHeader className="flex flex-row items-center justify-between pb-2 border-b">
+                  <SheetTitle className="text-base font-semibold">
+                    Queue ({queue.length})
+                  </SheetTitle>
+                  <Button
+                    className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                    onClick={handleClearQueue}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <Trash2 className="mr-1 size-3.5" />
+                    Clear
+                  </Button>
                 </SheetHeader>
-                <ScrollArea className="mt-4 h-[calc(100vh-8rem)]">
+                <ScrollArea className="mt-4 h-[calc(100vh-8rem)] pr-2">
                   <div className="space-y-2">
-                    {queue.map((track, index) => (
-                      <button
-                        className={`flex w-full cursor-pointer items-center gap-3 rounded-lg p-2 text-left hover:bg-accent ${
-                          track.id === currentTrack.id ? "bg-accent" : ""
-                        }`}
-                        key={track.id}
-                        onClick={() => setCurrentTrack(track)}
-                        type="button"
-                      >
-                        <div className="flex size-10 items-center justify-center rounded bg-muted text-xs font-medium">
-                          {index + 1}
+                    {queue.map((track, index) => {
+                      const isCurrent = track.id === currentTrack.id;
+                      return (
+                        <div
+                          className={`group relative flex items-center justify-between gap-2 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
+                            isCurrent
+                              ? "bg-accent border border-primary/20"
+                              : "bg-card/40 border border-transparent"
+                          }`}
+                          key={`${track.id}-${index}`}
+                        >
+                          <button
+                            className="flex flex-1 min-w-0 cursor-pointer items-center gap-3 text-left"
+                            onClick={() => setCurrentTrack(track)}
+                            type="button"
+                          >
+                            <div className="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
+                              {isCurrent ? (
+                                <Play className="size-3.5 fill-primary text-primary" />
+                              ) : (
+                                index + 1
+                              )}
+                            </div>
+                            <AppImage
+                              alt={track.title}
+                              className="rounded shrink-0"
+                              height={36}
+                              layout="fixed"
+                              src={track.cover || "/placeholder.svg"}
+                              width={36}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={`truncate text-sm font-medium ${
+                                  isCurrent ? "text-primary font-bold" : ""
+                                }`}
+                              >
+                                {track.title}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {track.artist}
+                              </p>
+                            </div>
+                          </button>
+
+                          {/* Reorder and Remove Actions */}
+                          <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100">
+                            <Button
+                              aria-label="Move up"
+                              className="size-6 p-0"
+                              disabled={index === 0}
+                              onClick={() => handleMoveQueueItemUp(index)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <ChevronUp className="size-3.5" />
+                            </Button>
+                            <Button
+                              aria-label="Move down"
+                              className="size-6 p-0"
+                              disabled={index === queue.length - 1}
+                              onClick={() => handleMoveQueueItemDown(index)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <ChevronDown className="size-3.5" />
+                            </Button>
+                            <Button
+                              aria-label="Remove item"
+                              className="size-6 p-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveQueueItem(track.id)}
+                              size="icon"
+                              variant="ghost"
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                        <AppImage
-                          alt={track.title}
-                          className="rounded"
-                          height={40}
-                          layout="fixed"
-                          src={track.cover || "/placeholder.svg"}
-                          width={40}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {track.title}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {track.artist}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </SheetContent>

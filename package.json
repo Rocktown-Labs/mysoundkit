@@ -6,7 +6,7 @@
     "dev": "turbo run dev --filter=web --filter=server",
     "dev:all": "turbo run dev",
     "dev:infra": "turbo run dev --filter=@soundkit/infra",
-    "build": "turbo run build",
+    "build": "bun run check-types && turbo run build",
     "check-types": "turbo run check-types",
     "dev:native": "turbo run dev --filter=native",
     "dev:web": "turbo run dev --filter=web",

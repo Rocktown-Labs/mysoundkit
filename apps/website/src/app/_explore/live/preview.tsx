@@ -94,18 +94,22 @@ export function LivePreviewShowcase({
   defaultTab = "battle",
 }: {
   defaultPerspective?: "viewer" | "artist";
-  defaultTab?: "battle" | "stream" | "party";
+  defaultTab?: "battle" | "challenge" | "stream" | "party";
 }) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"battle" | "stream" | "party">(
-    defaultTab
-  );
+  const [activeTab, setActiveTab] = useState<
+    "battle" | "challenge" | "stream" | "party"
+  >(defaultTab);
   const [perspective, setPerspective] = useState<"viewer" | "artist">(
     defaultPerspective
   );
   const [battlePhase, setBattlePhase] = useState<
     "track_select" | "round_active" | "voting" | "grace_period"
   >("round_active");
+  const [challengeSearch, setChallengeSearch] = useState("Kanye West");
+  const [challengeSchedule, setChallengeSchedule] = useState<
+    "asap" | "scheduled"
+  >("asap");
   const [viewMode, setViewMode] = useState<"stage" | "lyrics" | "tracklist">(
     "stage"
   );

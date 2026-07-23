@@ -28,6 +28,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { useCart } from "@/components/cart-provider";
 import { AppImage } from "@/components/ui/app-image";
+import { toast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {

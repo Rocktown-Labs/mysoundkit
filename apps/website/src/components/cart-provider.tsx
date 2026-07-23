@@ -12,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 
 import { API_V1_URL } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 type ProductType = "track" | "project";
 type PurchaseMode = "digital_download" | "license";
@@ -259,16 +260,24 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
           item.productId === nextItem.productId &&
           item.licenseOptionId === nextItem.licenseOptionId
       );
-      const nextItems = existingItem
-        ? cart.items.map((item) =>
-            item.id === existingItem.id
-              ? { ...item, quantity: item.quantity + nextItem.quantity }
-              : item
-          )
-        : [...cart.items, nextItem];
+
+      if (existingItem) {
+        toast({
+          description: `"${input.title}" is already in your cart.`,
+          title: "Already in Cart",
+        });
+        setIsCartOpen(true);
+        return;
+      }
+
+      const nextItems = [...cart.items, nextItem];
 
       setLocalItems(nextItems);
       setIsCartOpen(true);
+      toast({
+        description: `"${input.title}" added to your cart.`,
+        title: "Added to Cart",
+      });
       posthog.capture("cart_item_added", {
         artist_name: input.artistName,
         price_cents: input.priceCents,
