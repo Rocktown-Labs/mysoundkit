@@ -265,12 +265,11 @@ function NewChatDialog({
   const startConversation = useStartConversationMutation();
   const [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]);
   const [message, setMessage] = useState("");
-  const [search, setSearch] = useState("");
-  const friends = friendsQuery.data ?? [];
+  const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase();
   const filteredFriends = friends.filter((friend) =>
     [friend.name, friend.username, friend.email, friend.role]
       .filter(Boolean)
-      .some((value) => value?.toLowerCase().includes(search.toLowerCase()))
+      .some((value) => value?.toLowerCase().includes(normalizedSearch))
   );
   const selectedIds = new Set(selectedFriends.map((friend) => friend.id));
   const availableFriends = filteredFriends.filter(

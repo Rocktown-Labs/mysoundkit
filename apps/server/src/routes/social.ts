@@ -106,12 +106,24 @@ app.openapi(
         .set({ followerCount: sql`${artistProfiles.followerCount} + 1` })
         .where(eq(artistProfiles.userId, artist.userId));
 
+      const [followerArtistProfile] = await db
+        .select({ userId: artistProfiles.userId })
+        .from(artistProfiles)
+        .where(eq(artistProfiles.userId, user.id))
+        .limit(1);
+
+      const isFan = !followerArtistProfile;
+      const title = isFan ? "New Fan" : "New Artist Friend";
+      const message = isFan
+        ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
+        : `${user.name ?? "An artist"} followed your profile. New artist friend connected!`;
+
       await db.insert(userNotifications).values({
         id: crypto.randomUUID(),
         link: `/artist/${username}`,
-        message: `${user.name ?? "Someone"} followed your artist profile.`,
-        title: "New follower",
-        type: "artist_follower",
+        message,
+        title,
+        type: isFan ? "fan_follower" : "artist_follower",
         userId: artist.userId,
       });
     }
