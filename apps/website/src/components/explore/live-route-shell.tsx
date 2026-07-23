@@ -83,7 +83,9 @@ export function LiveRouteShell({ children }: { children: ReactNode }) {
     entitlements?.canCreateLiveBattles || entitlements?.canHostLiveStreams
   );
   const isPremium = Boolean(
-    entitlements?.isPremium || entitlements?.canWatchCreatorStreams || isPremiumArtist
+    entitlements?.isPremium ||
+    entitlements?.canWatchCreatorStreams ||
+    isPremiumArtist
   );
   const isPremiumFan = isPremium && !isPremiumArtist;
 

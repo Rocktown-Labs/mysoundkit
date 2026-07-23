@@ -80,9 +80,7 @@ const platformUrlForHandle = (
 const handleFromUrl = (url: string) => {
   try {
     const parsed = new URL(url);
-    const path = parsed.pathname
-      .split("/")
-      .findLast((part) => part.length > 0);
+    const path = parsed.pathname.split("/").findLast((part) => part.length > 0);
     return path ? stripAt(decodeURIComponent(path)) : null;
   } catch {
     return null;

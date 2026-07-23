@@ -1039,11 +1039,31 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
 
 function CouponsPanel() {
   const [coupons, setCoupons] = useState([
-    { code: "FREE1YEAR", discount: "100% OFF (1 Year)", status: "Active", uses: 42 },
-    { code: "FREE1MONTH", discount: "100% OFF (1 Month)", status: "Active", uses: 88 },
-    { code: "SOUNDKITVIP", discount: "100% VIP Pass", status: "Active", uses: 120 },
+    {
+      code: "FREE1YEAR",
+      discount: "100% OFF (1 Year)",
+      status: "Active",
+      uses: 42,
+    },
+    {
+      code: "FREE1MONTH",
+      discount: "100% OFF (1 Month)",
+      status: "Active",
+      uses: 88,
+    },
+    {
+      code: "SOUNDKITVIP",
+      discount: "100% VIP Pass",
+      status: "Active",
+      uses: 120,
+    },
     { code: "100OFF", discount: "100% OFF Pass", status: "Active", uses: 15 },
-    { code: "VIP2026", discount: "100% Promo Code", status: "Active", uses: 64 },
+    {
+      code: "VIP2026",
+      discount: "100% Promo Code",
+      status: "Active",
+      uses: 64,
+    },
   ]);
 
   const [newCode, setNewCode] = useState("");
@@ -1051,7 +1071,7 @@ function CouponsPanel() {
 
   const handleCreateCoupon = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCode.trim()) return;
+    if (!newCode.trim()) {return;}
     const formattedCode = newCode.trim().toUpperCase();
     setCoupons((prev) => [
       { code: formattedCode, discount: newDiscount, status: "Active", uses: 0 },
@@ -1069,11 +1089,15 @@ function CouponsPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-bold flex items-center gap-2">
-            <CircleDollarSign className="size-4 text-primary" /> Create New Promo Code / Coupon
+            <CircleDollarSign className="size-4 text-primary" /> Create New
+            Promo Code / Coupon
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleCreateCoupon} className="flex flex-col sm:flex-row gap-3">
+          <form
+            onSubmit={handleCreateCoupon}
+            className="flex flex-col sm:flex-row gap-3"
+          >
             <div className="flex-1 space-y-1">
               <Label htmlFor="coupon-code">Promo Code</Label>
               <Input
@@ -1103,7 +1127,9 @@ function CouponsPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-bold">Active Platform Coupons</CardTitle>
+          <CardTitle className="text-base font-bold">
+            Active Platform Coupons
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -1118,12 +1144,16 @@ function CouponsPanel() {
             <TableBody>
               {coupons.map((coupon) => (
                 <TableRow key={coupon.code}>
-                  <TableCell className="font-mono font-bold text-primary">{coupon.code}</TableCell>
+                  <TableCell className="font-mono font-bold text-primary">
+                    {coupon.code}
+                  </TableCell>
                   <TableCell>{coupon.discount}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{coupon.status}</Badge>
                   </TableCell>
-                  <TableCell className="font-mono">{coupon.uses} uses</TableCell>
+                  <TableCell className="font-mono">
+                    {coupon.uses} uses
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1160,7 +1190,9 @@ function EmailsPanel() {
           </Button>
           <Button
             size="sm"
-            variant={selectedTemplate === "battle_challenge" ? "default" : "outline"}
+            variant={
+              selectedTemplate === "battle_challenge" ? "default" : "outline"
+            }
             onClick={() => setSelectedTemplate("battle_challenge")}
             className="text-xs"
           >
@@ -1176,7 +1208,9 @@ function EmailsPanel() {
           </Button>
           <Button
             size="sm"
-            variant={selectedTemplate === "weekly_summary" ? "default" : "outline"}
+            variant={
+              selectedTemplate === "weekly_summary" ? "default" : "outline"
+            }
             onClick={() => setSelectedTemplate("weekly_summary")}
             className="text-xs"
           >
@@ -1190,14 +1224,26 @@ function EmailsPanel() {
         {selectedTemplate === "post_battle" && (
           <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
             <div className="border-b pb-4">
-              <h2 className="text-xl font-bold text-rose-600">🏆 Battle Recap &amp; Tracklist</h2>
-              <p className="text-xs text-zinc-500 mt-1">Winner: <strong>MetroFlow</strong> (3 - 2)</p>
+              <h2 className="text-xl font-bold text-rose-600">
+                🏆 Battle Recap &amp; Tracklist
+              </h2>
+              <p className="text-xs text-zinc-500 mt-1">
+                Winner: <strong>MetroFlow</strong> (3 - 2)
+              </p>
             </div>
-            <p className="text-sm">Hey Alex, here is the tracklist played during the live battle:</p>
+            <p className="text-sm">
+              Hey Alex, here is the tracklist played during the live battle:
+            </p>
             <ul className="bg-zinc-50 p-4 rounded-lg text-xs space-y-2 border">
-              <li>Round 1: <strong>Metro Bounce (WAV)</strong></li>
-              <li>Round 2: <strong>Nightfall Vibe (Master)</strong></li>
-              <li>Round 3: <strong>Cyberpunk Anthem (Unreleased)</strong></li>
+              <li>
+                Round 1: <strong>Metro Bounce (WAV)</strong>
+              </li>
+              <li>
+                Round 2: <strong>Nightfall Vibe (Master)</strong>
+              </li>
+              <li>
+                Round 3: <strong>Cyberpunk Anthem (Unreleased)</strong>
+              </li>
             </ul>
             <a
               href="/live/preview"
@@ -1210,9 +1256,14 @@ function EmailsPanel() {
 
         {selectedTemplate === "battle_challenge" && (
           <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <h2 className="text-xl font-bold text-purple-600">Swords Up! New Battle Challenge</h2>
+            <h2 className="text-xl font-bold text-purple-600">
+              Swords Up! New Battle Challenge
+            </h2>
             <p className="text-sm">Hey ProducerKev,</p>
-            <p className="text-sm"><strong>MetroFlow</strong> has challenged you to a <strong>Best of 5</strong> battle on SoundKit!</p>
+            <p className="text-sm">
+              <strong>MetroFlow</strong> has challenged you to a{" "}
+              <strong>Best of 5</strong> battle on SoundKit!
+            </p>
             <blockquote className="border-l-4 border-purple-600 pl-3 italic text-xs text-zinc-600">
               "Let's see who has the best drum processing."
             </blockquote>
@@ -1227,9 +1278,14 @@ function EmailsPanel() {
 
         {selectedTemplate === "open_verse" && (
           <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <h2 className="text-xl font-bold text-pink-600">Private Open Verse Collab Invitation</h2>
+            <h2 className="text-xl font-bold text-pink-600">
+              Private Open Verse Collab Invitation
+            </h2>
             <p className="text-sm">Hey Sarah,</p>
-            <p className="text-sm"><strong>MetroFlow</strong> invited you to collaborate on their private Open Verse: <strong>"Midnight Mixtape Track 4"</strong>.</p>
+            <p className="text-sm">
+              <strong>MetroFlow</strong> invited you to collaborate on their
+              private Open Verse: <strong>"Midnight Mixtape Track 4"</strong>.
+            </p>
             <a
               href="/dashboard/open-verses"
               className="inline-block bg-pink-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
@@ -1241,13 +1297,21 @@ function EmailsPanel() {
 
         {selectedTemplate === "weekly_summary" && (
           <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <h2 className="text-xl font-bold text-blue-600">Your Weekly SoundKit Performance Summary</h2>
+            <h2 className="text-xl font-bold text-blue-600">
+              Your Weekly SoundKit Performance Summary
+            </h2>
             <p className="text-sm">Hey MetroFlow,</p>
             <p className="text-sm">Here is your weekly artist recap:</p>
             <ul className="bg-blue-50 p-4 rounded-lg text-xs space-y-1.5 border border-blue-100">
-              <li><strong>Weekly Qualified Streams:</strong> 12,480</li>
-              <li><strong>Active Fan Count:</strong> 850</li>
-              <li><strong>Payout Pool Share:</strong> $342.50</li>
+              <li>
+                <strong>Weekly Qualified Streams:</strong> 12,480
+              </li>
+              <li>
+                <strong>Active Fan Count:</strong> 850
+              </li>
+              <li>
+                <strong>Payout Pool Share:</strong> $342.50
+              </li>
             </ul>
             <a
               href="/dashboard"
@@ -1261,4 +1325,3 @@ function EmailsPanel() {
     </div>
   );
 }
-

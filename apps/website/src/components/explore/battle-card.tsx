@@ -188,22 +188,24 @@ export function BattleCard({
 
         {battleIsLive ? (
           <div className="space-y-2">
-            {isPremiumUser ? canJoinNow ? (
-              <Link to="/live/battles/$id" params={{ id }} className="block">
-                <Button className="w-full" size="sm">
-                  Watch Live
+            {isPremiumUser ? (
+              canJoinNow ? (
+                <Link to="/live/battles/$id" params={{ id }} className="block">
+                  <Button className="w-full" size="sm">
+                    Watch Live
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  className="w-full bg-transparent"
+                  size="sm"
+                  variant="outline"
+                  disabled={queueSize > 100}
+                >
+                  <Users className="size-3 mr-1" />
+                  Join Queue ({queueSize})
                 </Button>
-              </Link>
-            ) : (
-              <Button
-                className="w-full bg-transparent"
-                size="sm"
-                variant="outline"
-                disabled={queueSize > 100}
-              >
-                <Users className="size-3 mr-1" />
-                Join Queue ({queueSize})
-              </Button>
+              )
             ) : (
               <Link to="/pricing" className="block">
                 <Button className="w-full" size="sm" variant="secondary">

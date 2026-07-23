@@ -25,7 +25,9 @@ import { useLiveRoom } from "@/lib/live-room";
 import { LivePreviewShowcase } from "../preview";
 
 export const Route = createFileRoute("/_explore/live/streams/$id")({
-  component: () => <LivePreviewShowcase defaultTab="stream" defaultPerspective="viewer" />,
+  component: () => (
+    <LivePreviewShowcase defaultTab="stream" defaultPerspective="viewer" />
+  ),
 });
 
 function StreamDetailPage() {
@@ -55,7 +57,8 @@ function StreamDetailPage() {
                 className="h-full w-full object-cover"
                 height={720}
                 src={
-                  currentTrack?.coverArtUrl ?? "/music-battle-video-thumbnail.jpg"
+                  currentTrack?.coverArtUrl ??
+                  "/music-battle-video-thumbnail.jpg"
                 }
                 width={1280}
               />
@@ -80,7 +83,9 @@ function StreamDetailPage() {
               </Avatar>
               <div>
                 <h1 className="text-3xl font-bold">{room.title}</h1>
-                <p className="text-muted-foreground">Hosted by {room.hostName}</p>
+                <p className="text-muted-foreground">
+                  Hosted by {room.hostName}
+                </p>
               </div>
             </div>
             <p className="max-w-3xl text-muted-foreground">{room.summary}</p>
@@ -105,8 +110,8 @@ function StreamDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                Stream playback can be backed by Cloudflare Stream signed URLs for
-                paid or authenticated live sessions.
+                Stream playback can be backed by Cloudflare Stream signed URLs
+                for paid or authenticated live sessions.
               </CardContent>
             </Card>
             <Card>
@@ -117,9 +122,9 @@ function StreamDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground">
-                Creator-to-audience video can move through Cloudflare RealtimeKit
-                or Stream while room presence and chat stay coordinated at the
-                edge.
+                Creator-to-audience video can move through Cloudflare
+                RealtimeKit or Stream while room presence and chat stay
+                coordinated at the edge.
               </CardContent>
             </Card>
           </section>
@@ -154,11 +159,11 @@ function StreamDetailPage() {
                   <span className="flex items-center gap-2">
                     {label === "Realtime chat" ? (
                       <MessageSquare className="size-4 text-primary" />
-                    ) : label === "Captions" ? (
+                    ) : (label === "Captions" ? (
                       <Captions className="size-4 text-primary" />
                     ) : (
                       <Activity className="size-4 text-primary" />
-                    )}
+                    ))}
                     {label}
                   </span>
                   <Badge variant="outline">{value}</Badge>

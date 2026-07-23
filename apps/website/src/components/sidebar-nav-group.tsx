@@ -80,7 +80,13 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                     isActive={item.isActive}
                     tooltip={item.title}
                   >
-                    <Link to={item.url ?? "/"} activeProps={{ className: "text-purple-500 font-bold dark:text-purple-400" }}>
+                    <Link
+                      to={item.url ?? "/"}
+                      activeProps={{
+                        className:
+                          "text-purple-500 font-bold dark:text-purple-400",
+                      }}
+                    >
                       {item.icon && <item.icon />}
                       <span>{item.title}</span>
                     </Link>
@@ -112,7 +118,13 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                       isActive={item.isActive}
                       tooltip={item.title}
                     >
-                      <Link to={item.url} activeProps={{ className: "text-purple-500 font-bold dark:text-purple-400" }}>
+                      <Link
+                        to={item.url}
+                        activeProps={{
+                          className:
+                            "text-purple-500 font-bold dark:text-purple-400",
+                        }}
+                      >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
                       </Link>
@@ -147,7 +159,13 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                             asChild
                             isActive={subItem.isActive}
                           >
-                            <Link to={subItem.url} activeProps={{ className: "text-purple-500 font-bold dark:text-purple-400" }}>
+                            <Link
+                              to={subItem.url}
+                              activeProps={{
+                                className:
+                                  "text-purple-500 font-bold dark:text-purple-400",
+                              }}
+                            >
                               <span>{subItem.title}</span>
                             </Link>
                           </SidebarMenuSubButton>

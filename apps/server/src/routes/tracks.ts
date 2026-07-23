@@ -727,7 +727,7 @@ app.openapi(
           purchaseMode: body.purchaseMode,
           releaseAt: body.releaseAt ?? null,
           releaseStrategy: body.releaseStrategy,
-          slug: body.title.toLowerCase().replaceAll(' ', "-"),
+          slug: body.title.toLowerCase().replaceAll(" ", "-"),
           streamingLinks: body.streamingLinks ?? {},
           title: body.title,
           updatedAt: new Date().toISOString(),
@@ -837,18 +837,20 @@ app.openapi(
     const rawPriceNum =
       typeof body.price === "number"
         ? body.price
-        : body.price
+        : (body.price
           ? Number(body.price)
-          : null;
+          : null);
     const salePriceUsd =
       body.isForSale && isSingle
         ? SINGLE_TRACK_PRICE_USD
-        : (rawPriceNum !== null && !isNaN(rawPriceNum) ? rawPriceNum : null);
+        : (rawPriceNum !== null && !isNaN(rawPriceNum)
+          ? rawPriceNum
+          : null);
     const salePriceCents =
       body.isForSale && isSingle
         ? SINGLE_TRACK_PRICE_CENTS
         : (body.priceCents ??
-          (salePriceUsd !== null ? Math.round(salePriceUsd * 100) : null));
+          (salePriceUsd === null ? null : Math.round(salePriceUsd * 100)));
     const [track] = await withRetry("create track", () =>
       db
         .insert(tracks)
@@ -865,7 +867,8 @@ app.openapi(
           musicalKey: body.musicalKey ?? null,
           organizationId,
           ownerUserId: user.id,
-          price: typeof salePriceUsd === "number" ? salePriceUsd.toFixed(2) : null,
+          price:
+            typeof salePriceUsd === "number" ? salePriceUsd.toFixed(2) : null,
           priceCents: salePriceCents,
           productionStatus: body.productionStatus,
           publishedAt: body.isPublic ? now : null,

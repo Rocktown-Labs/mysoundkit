@@ -21,7 +21,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -37,10 +43,14 @@ function AIStudioPage() {
   const tracksQuery = useTracksQuery();
 
   const user = meQuery.data?.user;
-  const isPremium = user?.accountType === "artist" || Boolean(meQuery.data?.entitlements?.canCreateLiveBattles);
+  const isPremium =
+    user?.accountType === "artist" ||
+    Boolean(meQuery.data?.entitlements?.canCreateLiveBattles);
   const tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]);
 
-  const [selectedTrackId, setSelectedTrackId] = useState<string>(tracks[0]?.id ?? "");
+  const [selectedTrackId, setSelectedTrackId] = useState<string>(
+    tracks[0]?.id ?? ""
+  );
   const [selectedStyle, setSelectedStyle] = useState("Cyberpunk / Neon Synth");
   const [customPrompt, setCustomPrompt] = useState("");
   const [aiCredits, setAiCredits] = useState(48);
@@ -58,7 +68,8 @@ function AIStudioPage() {
   const handleGenerate = (type: "cover" | "video" | "social") => {
     if (!isPremium && aiCredits <= 0) {
       toast({
-        description: "Upgrade to SoundKit Premium ($22.99/mo) for 500 AI credits every month.",
+        description:
+          "Upgrade to SoundKit Premium ($22.99/mo) for 500 AI credits every month.",
         title: "AI Credits Depleted",
         variant: "destructive",
       });
@@ -86,15 +97,25 @@ function AIStudioPage() {
             AI Creative Studio
           </h1>
           <p className="text-muted-foreground mt-1">
-            Smart song-tied AI generator powered by Google Gemini APIs. Create cover art, visualizers, and social media campaigns directly from your song lyrics.
+            Smart song-tied AI generator powered by Google Gemini APIs. Create
+            cover art, visualizers, and social media campaigns directly from
+            your song lyrics.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-mono py-1.5 px-3">
-            <Zap className="size-3.5 mr-1 text-emerald-400" /> {aiCredits} AI Credits Left
+          <Badge
+            variant="outline"
+            className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-mono py-1.5 px-3"
+          >
+            <Zap className="size-3.5 mr-1 text-emerald-400" /> {aiCredits} AI
+            Credits Left
           </Badge>
           {!isPremium && (
-            <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button
+              asChild
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
               <Link to="/pricing">Upgrade ($22.99/mo)</Link>
             </Button>
           )}
@@ -106,8 +127,13 @@ function AIStudioPage() {
         <CardContent className="p-6 space-y-4">
           <div className="grid md:grid-cols-2 gap-4 items-center">
             <div className="space-y-2">
-              <Label className="text-xs uppercase font-bold text-muted-foreground">Active Song / Track Context</Label>
-              <Select value={selectedTrackId} onValueChange={setSelectedTrackId}>
+              <Label className="text-xs uppercase font-bold text-muted-foreground">
+                Active Song / Track Context
+              </Label>
+              <Select
+                value={selectedTrackId}
+                onValueChange={setSelectedTrackId}
+              >
                 <SelectTrigger className="bg-background/50">
                   <SelectValue placeholder="Select a track from your catalog..." />
                 </SelectTrigger>
@@ -118,24 +144,38 @@ function AIStudioPage() {
                     </SelectItem>
                   ))}
                   {tracks.length === 0 && (
-                    <SelectItem value="demo">🎵 Demo Track: Midnight Echoes</SelectItem>
+                    <SelectItem value="demo">
+                      🎵 Demo Track: Midnight Echoes
+                    </SelectItem>
                   )}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs uppercase font-bold text-muted-foreground">Visual & Aesthetic Style</Label>
+              <Label className="text-xs uppercase font-bold text-muted-foreground">
+                Visual & Aesthetic Style
+              </Label>
               <Select value={selectedStyle} onValueChange={setSelectedStyle}>
                 <SelectTrigger className="bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Cyberpunk / Neon Synth">Cyberpunk / Neon Synth</SelectItem>
-                  <SelectItem value="Vintage Vinyl 90s Hip-Hop">Vintage Vinyl 90s Hip-Hop</SelectItem>
-                  <SelectItem value="Minimalist Modern Typography">Minimalist Modern Typography</SelectItem>
-                  <SelectItem value="Abstract Fluid Gradient">Abstract Fluid Gradient</SelectItem>
-                  <SelectItem value="Gritty Cinematic Dark Mode">Gritty Cinematic Dark Mode</SelectItem>
+                  <SelectItem value="Cyberpunk / Neon Synth">
+                    Cyberpunk / Neon Synth
+                  </SelectItem>
+                  <SelectItem value="Vintage Vinyl 90s Hip-Hop">
+                    Vintage Vinyl 90s Hip-Hop
+                  </SelectItem>
+                  <SelectItem value="Minimalist Modern Typography">
+                    Minimalist Modern Typography
+                  </SelectItem>
+                  <SelectItem value="Abstract Fluid Gradient">
+                    Abstract Fluid Gradient
+                  </SelectItem>
+                  <SelectItem value="Gritty Cinematic Dark Mode">
+                    Gritty Cinematic Dark Mode
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -177,7 +217,8 @@ function AIStudioPage() {
                   Generate Album Cover Art
                 </CardTitle>
                 <CardDescription>
-                  Synthesizes your track lyrics into visual prompts for high-res cover art.
+                  Synthesizes your track lyrics into visual prompts for high-res
+                  cover art.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -214,15 +255,24 @@ function AIStudioPage() {
             <Card className="border-border/40 bg-card/40">
               <CardHeader>
                 <CardTitle>AI Output Gallery</CardTitle>
-                <CardDescription>High-fidelity 3000x3000px artwork ready for distribution.</CardDescription>
+                <CardDescription>
+                  High-fidelity 3000x3000px artwork ready for distribution.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="relative group aspect-square rounded-xl overflow-hidden border border-border/40 bg-gradient-to-br from-emerald-950 via-zinc-900 to-black p-4 flex flex-col justify-end">
+                    <div
+                      key={i}
+                      className="relative group aspect-square rounded-xl overflow-hidden border border-border/40 bg-gradient-to-br from-emerald-950 via-zinc-900 to-black p-4 flex flex-col justify-end"
+                    >
                       <div className="absolute inset-0 bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors" />
-                      <p className="text-xs font-bold text-white relative z-10">{selectedTrack?.title || "Track"} Cover v{i}</p>
-                      <p className="text-[10px] text-muted-foreground relative z-10">{selectedStyle}</p>
+                      <p className="text-xs font-bold text-white relative z-10">
+                        {selectedTrack?.title || "Track"} Cover v{i}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground relative z-10">
+                        {selectedStyle}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -239,7 +289,10 @@ function AIStudioPage() {
                 <Video className="size-5 text-emerald-400" />
                 AI Video & Visualizer Storyboard
               </CardTitle>
-              <CardDescription>Generates scene-by-scene video storyboards synced to your track sections.</CardDescription>
+              <CardDescription>
+                Generates scene-by-scene video storyboards synced to your track
+                sections.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button
@@ -252,12 +305,29 @@ function AIStudioPage() {
 
               <div className="grid md:grid-cols-3 gap-4 pt-4 border-t border-border/20">
                 {[
-                  { scene: "0:00 - Intro", text: "Camera glides across neon studio gear as bassline kicks in." },
-                  { scene: "0:45 - Verse 1", text: "Timed lyrics float across screen with glitch particles." },
-                  { scene: "1:30 - Chorus Drop", text: "High-contrast battle stage spotlight with crowd energy FX." },
+                  {
+                    scene: "0:00 - Intro",
+                    text: "Camera glides across neon studio gear as bassline kicks in.",
+                  },
+                  {
+                    scene: "0:45 - Verse 1",
+                    text: "Timed lyrics float across screen with glitch particles.",
+                  },
+                  {
+                    scene: "1:30 - Chorus Drop",
+                    text: "High-contrast battle stage spotlight with crowd energy FX.",
+                  },
                 ].map((s, idx) => (
-                  <div key={idx} className="p-4 rounded-xl border border-border/40 bg-background/40 space-y-2">
-                    <Badge variant="outline" className="text-emerald-400 border-emerald-400/30">{s.scene}</Badge>
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-border/40 bg-background/40 space-y-2"
+                  >
+                    <Badge
+                      variant="outline"
+                      className="text-emerald-400 border-emerald-400/30"
+                    >
+                      {s.scene}
+                    </Badge>
                     <p className="text-xs text-muted-foreground">{s.text}</p>
                   </div>
                 ))}
@@ -274,7 +344,10 @@ function AIStudioPage() {
                 <Share2 className="size-5 text-emerald-400" />
                 AI Social Media Campaign Engine
               </CardTitle>
-              <CardDescription>Generates viral captions, TikTok video scripts, and promo announcements.</CardDescription>
+              <CardDescription>
+                Generates viral captions, TikTok video scripts, and promo
+                announcements.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button
@@ -282,23 +355,41 @@ function AIStudioPage() {
                 onClick={() => handleGenerate("social")}
                 disabled={generating}
               >
-                <Sparkles className="size-4 mr-2" /> Generate Social Posts (-2 Credits)
+                <Sparkles className="size-4 mr-2" /> Generate Social Posts (-2
+                Credits)
               </Button>
 
               <div className="space-y-3 pt-4 border-t border-border/20">
                 {[
-                  { platform: "TikTok / Reels Script", post: `🔥 "Late nights in the studio... lights glowing gold!" My new single '${selectedTrack?.title || "Track"}' is OUT NOW! Hit the link in bio to stream and battle me live on SoundKit! 🎙️ #SoundKit #NewMusic` },
-                  { platform: "X / Twitter Post", post: `🚨 FRESH RELEASE ALERT: '${selectedTrack?.title || "Track"}' just dropped! Recorded this one for all the real music lovers. Tap in on @SoundKit: https://mysoundkit.com/tracks/${selectedTrackId}` },
+                  {
+                    platform: "TikTok / Reels Script",
+                    post: `🔥 "Late nights in the studio... lights glowing gold!" My new single '${selectedTrack?.title || "Track"}' is OUT NOW! Hit the link in bio to stream and battle me live on SoundKit! 🎙️ #SoundKit #NewMusic`,
+                  },
+                  {
+                    platform: "X / Twitter Post",
+                    post: `🚨 FRESH RELEASE ALERT: '${selectedTrack?.title || "Track"}' just dropped! Recorded this one for all the real music lovers. Tap in on @SoundKit: https://mysoundkit.com/tracks/${selectedTrackId}`,
+                  },
                 ].map((item, idx) => (
-                  <div key={idx} className="p-4 rounded-xl border border-border/40 bg-background/40 flex items-start justify-between gap-4">
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-border/40 bg-background/40 flex items-start justify-between gap-4"
+                  >
                     <div>
-                      <p className="text-xs font-bold text-emerald-400 mb-1">{item.platform}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{item.post}</p>
+                      <p className="text-xs font-bold text-emerald-400 mb-1">
+                        {item.platform}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {item.post}
+                      </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => {
-                      navigator.clipboard.writeText(item.post);
-                      toast({ title: "Copied to Clipboard" });
-                    }}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(item.post);
+                        toast({ title: "Copied to Clipboard" });
+                      }}
+                    >
                       <Copy className="size-3.5" />
                     </Button>
                   </div>

@@ -20,9 +20,13 @@ function DashboardAIStudioRoute() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            Generate cover art, video storyboards, and social media campaigns powered by Google Gemini APIs and tied directly to your song lyrics.
+            Generate cover art, video storyboards, and social media campaigns
+            powered by Google Gemini APIs and tied directly to your song lyrics.
           </p>
-          <Button asChild className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2">
+          <Button
+            asChild
+            className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2"
+          >
             <Link to="/dashboard/career/ai-studio">
               Launch AI Creative Studio <ArrowRight className="size-4" />
             </Link>

@@ -37,12 +37,31 @@ import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -78,10 +97,18 @@ export function LivePreviewShowcase({
   defaultTab?: "battle" | "stream" | "party";
 }) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"battle" | "stream" | "party">(defaultTab);
-  const [perspective, setPerspective] = useState<"viewer" | "artist">(defaultPerspective);
-  const [battlePhase, setBattlePhase] = useState<"track_select" | "round_active" | "voting" | "grace_period">("round_active");
-  const [viewMode, setViewMode] = useState<"stage" | "lyrics" | "tracklist">("stage");
+  const [activeTab, setActiveTab] = useState<"battle" | "stream" | "party">(
+    defaultTab
+  );
+  const [perspective, setPerspective] = useState<"viewer" | "artist">(
+    defaultPerspective
+  );
+  const [battlePhase, setBattlePhase] = useState<
+    "track_select" | "round_active" | "voting" | "grace_period"
+  >("round_active");
+  const [viewMode, setViewMode] = useState<"stage" | "lyrics" | "tracklist">(
+    "stage"
+  );
   const [selectedVote, setSelectedVote] = useState<string | null>(null);
   const [isSubmittingVote, setIsSubmittingVote] = useState(false);
   const [obsConnected, setObsConnected] = useState(true);
@@ -90,10 +117,30 @@ export function LivePreviewShowcase({
 
   // Pre-loaded Battle Kit tracks
   const [battleKit, setBattleKit] = useState<BattleKitTrack[]>([
-    { duration: "2:45", id: "bk-1", status: "played", title: "Round 1: Metro Bounce (WAV)" },
-    { duration: "3:12", id: "bk-2", status: "queued", title: "Round 2: Nightfall Vibe (Master)" },
-    { duration: "2:58", id: "bk-3", status: "available", title: "Round 3: Cyberpunk Anthem (Unreleased)" },
-    { duration: "3:30", id: "bk-4", status: "available", title: "Tiebreaker: Final Knockout Beat" },
+    {
+      duration: "2:45",
+      id: "bk-1",
+      status: "played",
+      title: "Round 1: Metro Bounce (WAV)",
+    },
+    {
+      duration: "3:12",
+      id: "bk-2",
+      status: "queued",
+      title: "Round 2: Nightfall Vibe (Master)",
+    },
+    {
+      duration: "2:58",
+      id: "bk-3",
+      status: "available",
+      title: "Round 3: Cyberpunk Anthem (Unreleased)",
+    },
+    {
+      duration: "3:30",
+      id: "bk-4",
+      status: "available",
+      title: "Tiebreaker: Final Knockout Beat",
+    },
   ]);
 
   const [selectedTrackId, setSelectedTrackId] = useState("bk-2");
@@ -101,32 +148,65 @@ export function LivePreviewShowcase({
   // Timed synchronized lyrics
   const lyrics: TimedLyricLine[] = [
     { text: "Yeah, stepping in the arena, battle lights on", time: "0:04" },
-    { active: true, text: "MetroFlow on the mic, beat switches in round two", time: "0:12" },
-    { text: "Turn the bass up, heavy 808s cutting through the room", time: "0:18" },
+    {
+      active: true,
+      text: "MetroFlow on the mic, beat switches in round two",
+      time: "0:12",
+    },
+    {
+      text: "Turn the bass up, heavy 808s cutting through the room",
+      time: "0:18",
+    },
     { text: "Crowd casting votes, clock ticking down to zero", time: "0:24" },
-    { text: "No ghostwriters here, strictly master tracks playing live", time: "0:30" },
+    {
+      text: "No ghostwriters here, strictly master tracks playing live",
+      time: "0:30",
+    },
   ];
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { id: "1", sender: "MetroFlow", text: "Beat switches in round 2 were insane 🔥", time: "10:12" },
-    { id: "2", sender: "ProducerKev", text: "Mixing on track A is super clean", time: "10:13" },
-    { id: "3", sender: "BattleBot (Ref)", text: "🤖 Round 1 complete. 2-minute voting is now OPEN for active viewers!", time: "10:14" },
+    {
+      id: "1",
+      sender: "MetroFlow",
+      text: "Beat switches in round 2 were insane 🔥",
+      time: "10:12",
+    },
+    {
+      id: "2",
+      sender: "ProducerKev",
+      text: "Mixing on track A is super clean",
+      time: "10:13",
+    },
+    {
+      id: "3",
+      sender: "BattleBot (Ref)",
+      text: "🤖 Round 1 complete. 2-minute voting is now OPEN for active viewers!",
+      time: "10:14",
+    },
   ]);
   const [chatInput, setChatInput] = useState("");
 
   useEffect(() => {
     if (battlePhase === "track_select" && selectCountdown > 0) {
-      const timer = setInterval(() => setSelectCountdown((prev) => prev - 1), 1000);
+      const timer = setInterval(
+        () => setSelectCountdown((prev) => prev - 1),
+        1000
+      );
       return () => clearInterval(timer);
     }
   }, [battlePhase, selectCountdown]);
 
   const handleSendChat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim()) {return;}
     setChatMessages((prev) => [
       ...prev,
-      { id: Date.now().toString(), sender: perspective === "artist" ? "You (Artist)" : "You (Fan)", text: chatInput.trim(), time: "Now" },
+      {
+        id: Date.now().toString(),
+        sender: perspective === "artist" ? "You (Artist)" : "You (Fan)",
+        text: chatInput.trim(),
+        time: "Now",
+      },
     ]);
     setChatInput("");
   };
@@ -134,7 +214,8 @@ export function LivePreviewShowcase({
   const handleCastVote = (candidate: string) => {
     if (perspective === "artist") {
       toast({
-        description: "Contenders participating in the battle cannot vote on their own battle rounds.",
+        description:
+          "Contenders participating in the battle cannot vote on their own battle rounds.",
         title: "Voting Restricted",
         variant: "destructive",
       });
@@ -162,9 +243,11 @@ export function LivePreviewShowcase({
 
   const handleConfirmTrackSelection = () => {
     const chosen = battleKit.find((t) => t.id === selectedTrackId);
-    if (!chosen) return;
+    if (!chosen) {return;}
     setBattleKit((prev) =>
-      prev.map((t) => (t.id === selectedTrackId ? { ...t, status: "queued" } : t))
+      prev.map((t) =>
+        t.id === selectedTrackId ? { ...t, status: "queued" } : t
+      )
     );
     toast({
       description: `${chosen.title} is locked and ready for your turn.`,
@@ -174,10 +257,11 @@ export function LivePreviewShowcase({
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied!", description: `${label} copied to clipboard.` });
+    toast({ description: `${label} copied to clipboard.`, title: "Copied!" });
   };
 
-  const currentTrackObj = battleKit.find((t) => t.id === selectedTrackId) || battleKit[1];
+  const currentTrackObj =
+    battleKit.find((t) => t.id === selectedTrackId) || battleKit[1];
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
@@ -185,10 +269,16 @@ export function LivePreviewShowcase({
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-widest text-primary border-primary/40">
+            <Badge
+              variant="outline"
+              className="text-[10px] uppercase font-bold tracking-widest text-primary border-primary/40"
+            >
               Cloudflare RealtimeKit Engine
             </Badge>
-            <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-widest">
+            <Badge
+              variant="secondary"
+              className="text-[10px] uppercase font-bold tracking-widest"
+            >
               Live Showcase &amp; Layout Engine
             </Badge>
           </div>
@@ -196,7 +286,8 @@ export function LivePreviewShowcase({
             SoundKit Live Experiences
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Live battles, creator streaming, and listening parties with high-contrast accessibility and persistent chat.
+            Live battles, creator streaming, and listening parties with
+            high-contrast accessibility and persistent chat.
           </p>
         </div>
 
@@ -221,15 +312,30 @@ export function LivePreviewShowcase({
       </div>
 
       {/* Main Mode Navigation Tabs */}
-      <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as "battle" | "stream" | "party")} className="space-y-6">
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) =>
+          setActiveTab(val as "battle" | "stream" | "party")
+        }
+        className="space-y-6"
+      >
         <TabsList className="grid grid-cols-3 w-full md:w-[600px] h-12">
-          <TabsTrigger value="battle" className="font-bold gap-2 text-xs md:text-sm">
+          <TabsTrigger
+            value="battle"
+            className="font-bold gap-2 text-xs md:text-sm"
+          >
             <Swords className="size-4 text-rose-500" /> Live Battle
           </TabsTrigger>
-          <TabsTrigger value="stream" className="font-bold gap-2 text-xs md:text-sm">
+          <TabsTrigger
+            value="stream"
+            className="font-bold gap-2 text-xs md:text-sm"
+          >
             <Radio className="size-4 text-purple-500" /> Live Stream
           </TabsTrigger>
-          <TabsTrigger value="party" className="font-bold gap-2 text-xs md:text-sm">
+          <TabsTrigger
+            value="party"
+            className="font-bold gap-2 text-xs md:text-sm"
+          >
             <Music className="size-4 text-emerald-500" /> Listening Party
           </TabsTrigger>
         </TabsList>
@@ -243,9 +349,12 @@ export function LivePreviewShowcase({
                 <Bot className="size-4" />
               </div>
               <div className="text-xs">
-                <span className="font-bold text-white">BattleBot Referee: </span>
+                <span className="font-bold text-white">
+                  BattleBot Referee:{" "}
+                </span>
                 <span className="text-zinc-300">
-                  Automated round switching, 2-min voting polls, and 2-min post-battle grace teardown.
+                  Automated round switching, 2-min voting polls, and 2-min
+                  post-battle grace teardown.
                 </span>
               </div>
             </div>
@@ -255,7 +364,10 @@ export function LivePreviewShowcase({
               <Button
                 size="sm"
                 variant={battlePhase === "track_select" ? "default" : "outline"}
-                onClick={() => { setBattlePhase("track_select"); setSelectCountdown(30); }}
+                onClick={() => {
+                  setBattlePhase("track_select");
+                  setSelectCountdown(30);
+                }}
                 className="text-[10px] h-7 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-zinc-700"
               >
                 1. Select Track
@@ -295,13 +407,19 @@ export function LivePreviewShowcase({
                 {/* Live Stats Bar Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant="destructive" className="animate-pulse flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold">
+                    <Badge
+                      variant="destructive"
+                      className="animate-pulse flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold"
+                    >
                       <Radio className="size-3" /> LIVE BATTLE
                     </Badge>
                     <Badge variant="secondary" className="font-mono text-xs">
                       ROUND 2 OF 3
                     </Badge>
-                    <Badge variant="outline" className="font-mono text-xs text-muted-foreground">
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-xs text-muted-foreground"
+                    >
                       <Clock className="size-3 mr-1" /> 01:14
                     </Badge>
                   </div>
@@ -373,13 +491,20 @@ export function LivePreviewShowcase({
                         </Avatar>
                         <div>
                           <h3 className="font-bold text-lg flex items-center justify-center gap-1">
-                            MetroFlow <CheckCircle2 className="size-4 text-emerald-500" />
+                            MetroFlow{" "}
+                            <CheckCircle2 className="size-4 text-emerald-500" />
                           </h3>
-                          <p className="text-xs text-muted-foreground">Rank #4 • 12-2 Record</p>
+                          <p className="text-xs text-muted-foreground">
+                            Rank #4 • 12-2 Record
+                          </p>
                         </div>
                         <div className="bg-background/90 p-3 rounded-lg border text-left text-xs space-y-1">
-                          <span className="font-bold text-foreground text-[10px] uppercase tracking-wider block">Round 2 Performing:</span>
-                          <p className="font-bold truncate text-primary">🎵 {currentTrackObj.title}</p>
+                          <span className="font-bold text-foreground text-[10px] uppercase tracking-wider block">
+                            Round 2 Performing:
+                          </span>
+                          <p className="font-bold truncate text-primary">
+                            🎵 {currentTrackObj.title}
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
@@ -387,7 +512,10 @@ export function LivePreviewShowcase({
                     {/* Contender 2: ProducerKev */}
                     <Card className="border-border bg-card/40 relative overflow-hidden">
                       <div className="absolute top-3 right-3">
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground font-bold">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] text-muted-foreground font-bold"
+                        >
                           <MicOff className="size-3 mr-1" /> MUTED UNTIL TURN
                         </Badge>
                       </div>
@@ -398,11 +526,17 @@ export function LivePreviewShowcase({
                         </Avatar>
                         <div>
                           <h3 className="font-bold text-lg">ProducerKev</h3>
-                          <p className="text-xs text-muted-foreground">Rank #9 • 8-4 Record</p>
+                          <p className="text-xs text-muted-foreground">
+                            Rank #9 • 8-4 Record
+                          </p>
                         </div>
                         <div className="bg-background/90 p-3 rounded-lg border text-left text-xs space-y-1 opacity-75">
-                          <span className="font-bold text-foreground text-[10px] uppercase tracking-wider block">Queued Response:</span>
-                          <p className="font-bold truncate text-muted-foreground">🎵 Cyberpunk Anthem (WAV)</p>
+                          <span className="font-bold text-foreground text-[10px] uppercase tracking-wider block">
+                            Queued Response:
+                          </span>
+                          <p className="font-bold truncate text-muted-foreground">
+                            🎵 Cyberpunk Anthem (WAV)
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
@@ -415,9 +549,14 @@ export function LivePreviewShowcase({
                     <div className="flex items-center justify-between border-b pb-3">
                       <div className="flex items-center gap-2">
                         <FileText className="size-4 text-primary" />
-                        <span className="font-bold text-sm">Real-time Synchronized Lyrics</span>
+                        <span className="font-bold text-sm">
+                          Real-time Synchronized Lyrics
+                        </span>
                       </div>
-                      <Badge variant="outline" className="text-[10px] font-mono">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono"
+                      >
                         SYNCED TO STAGE AUDIO
                       </Badge>
                     </div>
@@ -446,9 +585,12 @@ export function LivePreviewShowcase({
                 {viewMode === "tracklist" && (
                   <Card className="border-border p-6 space-y-4">
                     <div className="flex items-center justify-between border-b pb-3">
-                      <span className="font-bold text-sm">Battle Kit Tracklist Log</span>
+                      <span className="font-bold text-sm">
+                        Battle Kit Tracklist Log
+                      </span>
                       <Badge variant="outline" className="text-[10px]">
-                        {battleKit.filter((t) => t.status === "played").length} Played / {battleKit.length} Total
+                        {battleKit.filter((t) => t.status === "played").length}{" "}
+                        Played / {battleKit.length} Total
                       </Badge>
                     </div>
                     <div className="space-y-2">
@@ -461,16 +603,18 @@ export function LivePreviewShowcase({
                             <Music className="size-4 text-primary" />
                             <div>
                               <p className="font-bold">{track.title}</p>
-                              <p className="text-[10px] text-muted-foreground">Duration: {track.duration}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Duration: {track.duration}
+                              </p>
                             </div>
                           </div>
                           <Badge
                             variant={
                               track.status === "played"
                                 ? "secondary"
-                                : track.status === "queued"
-                                ? "default"
-                                : "outline"
+                                : (track.status === "queued"
+                                  ? "default"
+                                  : "outline")
                             }
                             className="text-[10px] uppercase font-bold"
                           >
@@ -488,30 +632,48 @@ export function LivePreviewShowcase({
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-sm flex items-center gap-2 text-primary font-bold">
-                          <Music className="size-4" /> Select Next Round Track from Your Battle Kit
+                          <Music className="size-4" /> Select Next Round Track
+                          from Your Battle Kit
                         </CardTitle>
-                        <Badge variant="outline" className="text-xs font-mono text-primary border-primary/40">
-                          <Clock className="size-3 mr-1" /> 00:{selectCountdown.toString().padStart(2, "0")} auto-lock
+                        <Badge
+                          variant="outline"
+                          className="text-xs font-mono text-primary border-primary/40"
+                        >
+                          <Clock className="size-3 mr-1" /> 00:
+                          {selectCountdown.toString().padStart(2, "0")}{" "}
+                          auto-lock
                         </Badge>
                       </div>
                       <CardDescription className="text-xs">
-                        Select a song from your pre-loaded Battle Kit for Round 2. BattleBot auto-selects if countdown reaches zero.
+                        Select a song from your pre-loaded Battle Kit for Round
+                        2. BattleBot auto-selects if countdown reaches zero.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col sm:flex-row gap-3">
-                      <Select value={selectedTrackId} onValueChange={setSelectedTrackId}>
+                      <Select
+                        value={selectedTrackId}
+                        onValueChange={setSelectedTrackId}
+                      >
                         <SelectTrigger className="bg-background">
                           <SelectValue placeholder="Select track..." />
                         </SelectTrigger>
                         <SelectContent>
                           {battleKit.map((track) => (
-                            <SelectItem key={track.id} value={track.id} disabled={track.status === "played"}>
-                              {track.title} ({track.duration}) - [{track.status.toUpperCase()}]
+                            <SelectItem
+                              key={track.id}
+                              value={track.id}
+                              disabled={track.status === "played"}
+                            >
+                              {track.title} ({track.duration}) - [
+                              {track.status.toUpperCase()}]
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button onClick={handleConfirmTrackSelection} className="font-bold shrink-0">
+                      <Button
+                        onClick={handleConfirmTrackSelection}
+                        className="font-bold shrink-0"
+                      >
                         Lock Track for Turn
                       </Button>
                     </CardContent>
@@ -524,24 +686,34 @@ export function LivePreviewShowcase({
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-sm flex items-center gap-2 text-rose-400 font-bold">
-                          <Trophy className="size-4" /> RealtimeKit Round 2 Poll (01:45 Remaining)
+                          <Trophy className="size-4" /> RealtimeKit Round 2 Poll
+                          (01:45 Remaining)
                         </CardTitle>
                         <Badge variant="destructive">MANDATORY VOTE</Badge>
                       </div>
                       <CardDescription className="text-xs text-rose-200/80">
-                        Cast your vote for Round 2! Viewers who do not vote within 2 minutes will be moved to the spectator waiting room by BattleBot.
+                        Cast your vote for Round 2! Viewers who do not vote
+                        within 2 minutes will be moved to the spectator waiting
+                        room by BattleBot.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 pt-2">
                       {perspective === "artist" ? (
                         <div className="p-3 rounded-lg bg-background/80 border text-xs text-amber-500 flex items-center gap-2 font-bold">
                           <Lock className="size-4 shrink-0" />
-                          <span>Contenders in this battle are restricted from voting. Audience votes only.</span>
+                          <span>
+                            Contenders in this battle are restricted from
+                            voting. Audience votes only.
+                          </span>
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 gap-3">
                           <Button
-                            variant={selectedVote === "MetroFlow" ? "default" : "outline"}
+                            variant={
+                              selectedVote === "MetroFlow"
+                                ? "default"
+                                : "outline"
+                            }
                             disabled={isSubmittingVote}
                             className="h-12 font-bold justify-between"
                             onClick={() => handleCastVote("MetroFlow")}
@@ -550,7 +722,11 @@ export function LivePreviewShowcase({
                             <Badge variant="secondary">58%</Badge>
                           </Button>
                           <Button
-                            variant={selectedVote === "ProducerKev" ? "default" : "outline"}
+                            variant={
+                              selectedVote === "ProducerKev"
+                                ? "default"
+                                : "outline"
+                            }
                             disabled={isSubmittingVote}
                             className="h-12 font-bold justify-between"
                             onClick={() => handleCastVote("ProducerKev")}
@@ -572,13 +748,20 @@ export function LivePreviewShowcase({
                       <div className="flex items-center gap-3">
                         <Clock className="size-6 text-amber-500 animate-spin shrink-0" />
                         <div>
-                          <p className="font-bold text-sm text-foreground">Post-Battle 2-Minute Grace Period</p>
+                          <p className="font-bold text-sm text-foreground">
+                            Post-Battle 2-Minute Grace Period
+                          </p>
                           <p className="text-xs text-muted-foreground">
-                            Battle complete! BattleBot is saving recording watermarks, downloading chat dumps, and sending email summary receipts.
+                            Battle complete! BattleBot is saving recording
+                            watermarks, downloading chat dumps, and sending
+                            email summary receipts.
                           </p>
                         </div>
                       </div>
-                      <Badge variant="outline" className="border-amber-500/40 text-amber-500 font-mono text-sm px-3 py-1 shrink-0">
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 text-amber-500 font-mono text-sm px-3 py-1 shrink-0"
+                      >
                         01:45
                       </Badge>
                     </CardContent>
@@ -594,9 +777,13 @@ export function LivePreviewShowcase({
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm flex items-center gap-2 font-bold">
-                        <Video className="size-4 text-purple-400" /> OBS / Encoder Ingest
+                        <Video className="size-4 text-purple-400" /> OBS /
+                        Encoder Ingest
                       </CardTitle>
-                      <Badge variant={obsConnected ? "default" : "outline"} className={obsConnected ? "bg-emerald-500" : ""}>
+                      <Badge
+                        variant={obsConnected ? "default" : "outline"}
+                        className={obsConnected ? "bg-emerald-500" : ""}
+                      >
                         {obsConnected ? "1080p 60fps" : "Offline"}
                       </Badge>
                     </div>
@@ -604,15 +791,38 @@ export function LivePreviewShowcase({
                   <CardContent className="space-y-3">
                     <div className="text-xs text-muted-foreground space-y-1 font-mono bg-background/60 p-2.5 rounded border">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-foreground font-bold">RTMP Ingest URL:</span>
-                        <Button variant="ghost" size="icon" className="size-5" onClick={() => copyToClipboard("rtmp://ingest.mysoundkit.com/live", "RTMP URL")}>
+                        <span className="text-[10px] text-foreground font-bold">
+                          RTMP Ingest URL:
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-5"
+                          onClick={() =>
+                            copyToClipboard(
+                              "rtmp://ingest.mysoundkit.com/live",
+                              "RTMP URL"
+                            )
+                          }
+                        >
                           <Copy className="size-3" />
                         </Button>
                       </div>
-                      <p className="truncate text-primary">rtmp://ingest.mysoundkit.com/live</p>
+                      <p className="truncate text-primary">
+                        rtmp://ingest.mysoundkit.com/live
+                      </p>
                       <div className="flex justify-between items-center pt-1">
-                        <span className="text-[10px] text-foreground font-bold">Stream Key:</span>
-                        <Button variant="ghost" size="icon" className="size-5" onClick={() => copyToClipboard("sk_live_obs_98765", "Stream Key")}>
+                        <span className="text-[10px] text-foreground font-bold">
+                          Stream Key:
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-5"
+                          onClick={() =>
+                            copyToClipboard("sk_live_obs_98765", "Stream Key")
+                          }
+                        >
                           <Copy className="size-3" />
                         </Button>
                       </div>
@@ -627,7 +837,8 @@ export function LivePreviewShowcase({
                 <CardHeader className="pb-3 border-b">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm flex items-center gap-2 font-bold">
-                      <FileText className="size-4 text-primary" /> Persistent Live Chat
+                      <FileText className="size-4 text-primary" /> Persistent
+                      Live Chat
                     </CardTitle>
                     <Badge variant="outline" className="text-[10px]">
                       Text Only
@@ -638,14 +849,23 @@ export function LivePreviewShowcase({
                   {chatMessages.map((msg) => (
                     <div key={msg.id} className="text-xs space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-primary">{msg.sender}</span>
-                        <span className="text-[10px] text-muted-foreground">{msg.time}</span>
+                        <span className="font-bold text-primary">
+                          {msg.sender}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {msg.time}
+                        </span>
                       </div>
-                      <p className="text-foreground bg-muted/40 p-2 rounded-md">{msg.text}</p>
+                      <p className="text-foreground bg-muted/40 p-2 rounded-md">
+                        {msg.text}
+                      </p>
                     </div>
                   ))}
                 </CardContent>
-                <form onSubmit={handleSendChat} className="p-3 border-t flex gap-2">
+                <form
+                  onSubmit={handleSendChat}
+                  className="p-3 border-t flex gap-2"
+                >
                   <Input
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
@@ -667,7 +887,10 @@ export function LivePreviewShowcase({
             <div className="lg:col-span-2 space-y-6">
               <div className="relative rounded-2xl bg-black aspect-video border border-border flex items-center justify-center overflow-hidden shadow-2xl">
                 <div className="absolute top-4 left-4 flex items-center gap-2">
-                  <Badge variant="destructive" className="animate-pulse flex items-center gap-1.5 font-bold">
+                  <Badge
+                    variant="destructive"
+                    className="animate-pulse flex items-center gap-1.5 font-bold"
+                  >
                     <Radio className="size-3" /> LIVE STREAM
                   </Badge>
                   <Badge variant="secondary" className="text-xs font-mono">
@@ -679,9 +902,12 @@ export function LivePreviewShowcase({
                     <AvatarImage src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300" />
                     <AvatarFallback>MF</AvatarFallback>
                   </Avatar>
-                  <h2 className="text-xl font-bold text-white">Studio Session &amp; Album Cooking</h2>
+                  <h2 className="text-xl font-bold text-white">
+                    Studio Session &amp; Album Cooking
+                  </h2>
                   <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                    Streaming live via OBS Studio with RealtimeKit H.264 simulcast video engine and SoundKit logo watermark.
+                    Streaming live via OBS Studio with RealtimeKit H.264
+                    simulcast video engine and SoundKit logo watermark.
                   </p>
                 </div>
               </div>
@@ -690,13 +916,19 @@ export function LivePreviewShowcase({
             <div>
               <Card className="flex flex-col h-[420px] border border-border">
                 <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-bold">Stream Chat</CardTitle>
+                  <CardTitle className="text-sm font-bold">
+                    Stream Chat
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
                   {chatMessages.map((msg) => (
                     <div key={msg.id} className="text-xs space-y-0.5">
-                      <span className="font-bold text-purple-400">{msg.sender}</span>
-                      <p className="text-foreground bg-muted/40 p-2 rounded-md">{msg.text}</p>
+                      <span className="font-bold text-purple-400">
+                        {msg.sender}
+                      </span>
+                      <p className="text-foreground bg-muted/40 p-2 rounded-md">
+                        {msg.text}
+                      </p>
                     </div>
                   ))}
                 </CardContent>
@@ -712,11 +944,21 @@ export function LivePreviewShowcase({
               <Card className="border-emerald-500/30 bg-emerald-500/5 p-6 space-y-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
                   <div className="flex items-center gap-4">
-                    <AppImage src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300" alt="Album Cover" className="size-28 rounded-xl object-cover border shadow-md" />
+                    <AppImage
+                      src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300"
+                      alt="Album Cover"
+                      className="size-28 rounded-xl object-cover border shadow-md"
+                    />
                     <div>
-                      <Badge className="bg-emerald-500 text-white text-[10px] uppercase mb-2 font-bold">Artist-Hosted Listening Party</Badge>
-                      <h2 className="text-2xl font-bold">Midnight Mixtape Premiere</h2>
-                      <p className="text-xs text-muted-foreground">MetroFlow • Track 3 of 10 Playing</p>
+                      <Badge className="bg-emerald-500 text-white text-[10px] uppercase mb-2 font-bold">
+                        Artist-Hosted Listening Party
+                      </Badge>
+                      <h2 className="text-2xl font-bold">
+                        Midnight Mixtape Premiere
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        MetroFlow • Track 3 of 10 Playing
+                      </p>
                     </div>
                   </div>
 
@@ -727,21 +969,31 @@ export function LivePreviewShowcase({
                         <Button
                           size="sm"
                           variant={artistCameraActive ? "default" : "outline"}
-                          onClick={() => setArtistCameraActive(!artistCameraActive)}
+                          onClick={() =>
+                            setArtistCameraActive(!artistCameraActive)
+                          }
                           className="text-xs"
                         >
-                          <Camera className="size-3.5 mr-1" /> {artistCameraActive ? "Cam Active" : "Cam Off"}
+                          <Camera className="size-3.5 mr-1" />{" "}
+                          {artistCameraActive ? "Cam Active" : "Cam Off"}
                         </Button>
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => toast({ title: "Play That Back!", description: "Track 3 replayed for audience." })}
+                          onClick={() =>
+                            toast({
+                              description: "Track 3 replayed for audience.",
+                              title: "Play That Back!",
+                            })
+                          }
                           className="text-xs font-bold"
                         >
                           <RotateCcw className="size-3.5 mr-1" /> Play That Back
                         </Button>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Host can replay or delay tracks without scrubbing</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Host can replay or delay tracks without scrubbing
+                      </p>
                     </div>
                   )}
                 </div>
@@ -760,13 +1012,19 @@ export function LivePreviewShowcase({
             <div>
               <Card className="flex flex-col h-[460px] border border-border">
                 <CardHeader className="pb-3 border-b">
-                  <CardTitle className="text-sm font-bold">Listening Party Chat</CardTitle>
+                  <CardTitle className="text-sm font-bold">
+                    Listening Party Chat
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
                   {chatMessages.map((msg) => (
                     <div key={msg.id} className="text-xs space-y-0.5">
-                      <span className="font-bold text-emerald-400">{msg.sender}</span>
-                      <p className="text-foreground bg-muted/40 p-2 rounded-md">{msg.text}</p>
+                      <span className="font-bold text-emerald-400">
+                        {msg.sender}
+                      </span>
+                      <p className="text-foreground bg-muted/40 p-2 rounded-md">
+                        {msg.text}
+                      </p>
                     </div>
                   ))}
                 </CardContent>

@@ -392,19 +392,23 @@ function DashboardLivePartiesPage() {
                 )}
 
                 {/* Display listening rooms including fan-hosted listening rooms */}
-                {([
-                  ...parties,
-                  {
-                    id: "fan_party_demo_1",
-                    liveRoomId: "single-album-party",
-                    title: "Late Night Album Room (Fan Hosted)",
-                    scheduledStartAt: new Date(Date.now() + 3600000).toISOString(),
-                    status: "scheduled",
-                    playbackMode: "fan_hosted",
-                    isFanParty: true,
-                    hostName: "@sound_lover99",
-                  },
-                ] as const).map((party) => (
+                {(
+                  [
+                    ...parties,
+                    {
+                      hostName: "@sound_lover99",
+                      id: "fan_party_demo_1",
+                      isFanParty: true,
+                      liveRoomId: "single-album-party",
+                      playbackMode: "fan_hosted",
+                      scheduledStartAt: new Date(
+                        Date.now() + 3600000
+                      ).toISOString(),
+                      status: "scheduled",
+                      title: "Late Night Album Room (Fan Hosted)",
+                    },
+                  ] as const
+                ).map((party) => (
                   <div
                     key={party.id}
                     className="rounded-lg border p-4 space-y-2 bg-background/50"
@@ -414,7 +418,10 @@ function DashboardLivePartiesPage() {
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-sm">{party.title}</p>
                           {"isFanParty" in party && party.isFanParty && (
-                            <Badge variant="secondary" className="text-[10px] py-0">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] py-0"
+                            >
                               Fan Party ({party.hostName})
                             </Badge>
                           )}
@@ -438,7 +445,12 @@ function DashboardLivePartiesPage() {
                       </span>
                       <Button asChild size="sm">
                         <Link
-                          params={{ id: ("liveRoomId" in party && party.liveRoomId) ? party.liveRoomId : party.id }}
+                          params={{
+                            id:
+                              "liveRoomId" in party && party.liveRoomId
+                                ? party.liveRoomId
+                                : party.id,
+                          }}
                           to="/live/parties/$id"
                         >
                           Open Room
@@ -452,9 +464,12 @@ function DashboardLivePartiesPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">RealtimeKit Defaults</CardTitle>
+                <CardTitle className="text-base">
+                  RealtimeKit Defaults
+                </CardTitle>
                 <CardDescription>
-                  Realtime chat, presence, and timestamp syncing for listening parties.
+                  Realtime chat, presence, and timestamp syncing for listening
+                  parties.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-xs text-muted-foreground">

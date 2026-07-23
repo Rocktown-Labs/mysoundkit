@@ -1,7 +1,16 @@
 "use client";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Clock, Mail, MessageSquare, Search, UserCheck, UserPlus, UserRoundPlus, X } from "lucide-react";
+import {
+  Clock,
+  Mail,
+  MessageSquare,
+  Search,
+  UserCheck,
+  UserPlus,
+  UserRoundPlus,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -67,7 +76,10 @@ function ArtistSearchResultRow({
           </Link>
         </Button>
         {isPending ? (
-          <Badge variant="outline" className="text-amber-500 border-amber-500/40 px-3 py-1.5 font-bold gap-1 text-xs">
+          <Badge
+            variant="outline"
+            className="text-amber-500 border-amber-500/40 px-3 py-1.5 font-bold gap-1 text-xs"
+          >
             <Clock className="size-3" /> Pending Request
           </Badge>
         ) : (
@@ -118,7 +130,7 @@ function FriendsPage() {
   const handleManualAddFriend = (e: React.FormEvent) => {
     e.preventDefault();
     const handle = newFriendHandle.trim().replace(/^@/, "");
-    if (!handle) return;
+    if (!handle) {return;}
 
     toast({
       description: `Sent friend request / follow connection to @${handle}.`,
@@ -151,7 +163,8 @@ function FriendsPage() {
             Find People
           </CardTitle>
           <CardDescription>
-            Search friends, collaborators, and artists (handles supported e.g. @username).
+            Search friends, collaborators, and artists (handles supported e.g.
+            @username).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -222,7 +235,9 @@ function FriendsPage() {
                     </div>
                   </div>
                   <Badge variant="secondary" className="capitalize">
-                    {friend.relationship === "fan" ? "New Fan" : "Artist Friend"}
+                    {friend.relationship === "fan"
+                      ? "New Fan"
+                      : "Artist Friend"}
                   </Badge>
                 </div>
 
@@ -305,7 +320,8 @@ function FriendsPage() {
           <DialogHeader>
             <DialogTitle>Add Artist Friend</DialogTitle>
             <DialogDescription>
-              Enter an artist username or handle (@username) to connect and start collaborating.
+              Enter an artist username or handle (@username) to connect and
+              start collaborating.
             </DialogDescription>
           </DialogHeader>
 
@@ -320,7 +336,11 @@ function FriendsPage() {
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddModalOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit">

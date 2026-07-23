@@ -1,8 +1,11 @@
 "use client";
 
+import { MapPin, Navigation } from "lucide-react";
 import React, { useState } from "react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
-import { MapPin, Navigation } from "lucide-react";
+
+import { mapScopes } from '../../lib/map-scopes';
+import type { MapScope } from '../../lib/map-scopes';
 import {
   Select,
   SelectContent,
@@ -11,11 +14,11 @@ import {
   SelectValue,
 } from "../ui/select";
 
-import { mapScopes, type MapScope } from "../../lib/map-scopes";
 export { mapScopes, type MapScope };
 
 const usGeoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
-const worldGeoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const worldGeoUrl =
+  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 interface WorldAndUSAMapProps {
   mapScope: MapScope;
@@ -32,8 +35,7 @@ export function WorldAndUSAMap({
 }: WorldAndUSAMapProps) {
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
 
-  const scopeConfig =
-    mapScopes.find((s) => s.id === mapScope) ?? mapScopes[0];
+  const scopeConfig = mapScopes.find((s) => s.id === mapScope) ?? mapScopes[0];
 
   const isUSScope = mapScope === "north-america";
   const geoUrl = isUSScope ? usGeoUrl : worldGeoUrl;
@@ -53,7 +55,7 @@ export function WorldAndUSAMap({
                 type="button"
                 onClick={() => {
                   onScopeChange(scope.id);
-                  if (scope.id === "global") onRegionSelect("");
+                  if (scope.id === "global") {onRegionSelect("");}
                 }}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
                   mapScope === scope.id
@@ -72,7 +74,7 @@ export function WorldAndUSAMap({
               value={mapScope}
               onValueChange={(val) => {
                 onScopeChange(val as MapScope);
-                if (val === "global") onRegionSelect("");
+                if (val === "global") {onRegionSelect("");}
               }}
             >
               <SelectTrigger className="w-[170px] h-8 text-xs bg-background/90 backdrop-blur shadow-md">
@@ -80,7 +82,11 @@ export function WorldAndUSAMap({
               </SelectTrigger>
               <SelectContent>
                 {mapScopes.map((scope) => (
-                  <SelectItem key={scope.id} value={scope.id} className="text-xs">
+                  <SelectItem
+                    key={scope.id}
+                    value={scope.id}
+                    className="text-xs"
+                  >
                     {scope.label}
                   </SelectItem>
                 ))}
@@ -114,7 +120,7 @@ export function WorldAndUSAMap({
                   geo.properties?.name_long ||
                   geo.id;
 
-                if (!name) return null;
+                if (!name) {return null;}
 
                 const isSelected =
                   selectedRegion?.toLowerCase() === name.toLowerCase();

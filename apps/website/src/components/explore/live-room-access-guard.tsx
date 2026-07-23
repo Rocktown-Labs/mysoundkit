@@ -6,7 +6,13 @@ import React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { authClient } from "@/lib/auth-client";
 import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
 
@@ -15,7 +21,10 @@ interface LiveRoomAccessGuardProps {
   roomTitle?: string;
 }
 
-export function LiveRoomAccessGuard({ children, roomTitle = "Live Room" }: LiveRoomAccessGuardProps) {
+export function LiveRoomAccessGuard({
+  children,
+  roomTitle = "Live Room",
+}: LiveRoomAccessGuardProps) {
   const { data: session, isPending: isAuthPending } = authClient.useSession();
   const entitlementsQuery = useMeEntitlementsQuery();
 
@@ -32,7 +41,11 @@ export function LiveRoomAccessGuard({ children, roomTitle = "Live Room" }: LiveR
   );
 
   if (isLoading) {
-    return <div className="py-12 text-center text-muted-foreground">Verifying access...</div>;
+    return (
+      <div className="py-12 text-center text-muted-foreground">
+        Verifying access...
+      </div>
+    );
   }
 
   // Grant access if user is authenticated and holds a Premium plan
@@ -56,14 +69,16 @@ export function LiveRoomAccessGuard({ children, roomTitle = "Live Room" }: LiveR
             </div>
 
             <Badge variant="destructive" className="mx-auto px-3 py-1 text-xs">
-              <ShieldAlert className="size-3.5 mr-1" /> SoundKit Premium Required
+              <ShieldAlert className="size-3.5 mr-1" /> SoundKit Premium
+              Required
             </Badge>
 
             <CardTitle className="text-2xl font-bold">
               Watch Live: {roomTitle}
             </CardTitle>
             <CardDescription className="text-sm">
-              Only authenticated SoundKit Premium members can watch live streams, join listening rooms, and vote in battles.
+              Only authenticated SoundKit Premium members can watch live
+              streams, join listening rooms, and vote in battles.
             </CardDescription>
           </CardHeader>
 
@@ -87,7 +102,10 @@ export function LiveRoomAccessGuard({ children, roomTitle = "Live Room" }: LiveR
             {!isSignedIn && (
               <p className="text-xs text-muted-foreground pt-2">
                 Already a member?{" "}
-                <Link to="/login" className="font-semibold text-primary underline underline-offset-4">
+                <Link
+                  to="/login"
+                  className="font-semibold text-primary underline underline-offset-4"
+                >
                   Sign In to Watch
                 </Link>
               </p>

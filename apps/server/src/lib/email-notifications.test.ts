@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { buildNotificationEmailHtml } from "./email-notifications";
 
 describe("Email Notifications & Summary Templates", () => {
@@ -38,7 +39,7 @@ describe("Email Notifications & Summary Templates", () => {
   it("builds weekly artist summary email HTML", () => {
     const html = buildNotificationEmailHtml({
       details: {
-        playsCount: 12500,
+        playsCount: 12_500,
       },
       recipientEmail: "artist@example.com",
       recipientName: "Street Poet",

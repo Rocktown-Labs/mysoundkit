@@ -84,7 +84,7 @@ function ChallengePage() {
     user?.accountType === "artist" ||
     Boolean(
       meQuery.data?.entitlements?.canCreateLiveBattles ||
-        meQuery.data?.entitlements?.canHostLiveStreams
+      meQuery.data?.entitlements?.canHostLiveStreams
     );
 
   const submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
@@ -143,7 +143,8 @@ function ChallengePage() {
               Premium Artist Required
             </CardTitle>
             <CardDescription>
-              Creating battle challenges is exclusive to Premium Artist members. Upgrade your membership to issue challenges and host live battles.
+              Creating battle challenges is exclusive to Premium Artist members.
+              Upgrade your membership to issue challenges and host live battles.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex gap-4">
@@ -169,7 +170,8 @@ function ChallengePage() {
           </h1>
           <h2 className="sr-only">Battle Requests</h2>
           <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-            Send a direct battle invitation to any artist. BattleBot handles round timing, lobby, votes, and notifications.
+            Send a direct battle invitation to any artist. BattleBot handles
+            round timing, lobby, votes, and notifications.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -196,9 +198,7 @@ function ChallengePage() {
                       className="pl-10"
                       id="opponentUsername"
                       name="opponentUsername"
-                      onChange={(event) =>
-                        setSearchQuery(event.target.value)
-                      }
+                      onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Search or enter @username"
                       value={searchQuery}
                     />
@@ -260,7 +260,9 @@ function ChallengePage() {
                     <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-muted/40 transition">
                       <RadioGroupItem value="scheduled" />
                       <div>
-                        <span className="block font-medium text-sm">Schedule</span>
+                        <span className="block font-medium text-sm">
+                          Schedule
+                        </span>
                         <span className="text-muted-foreground text-xs">
                           Propose a date &amp; time
                         </span>
@@ -273,7 +275,11 @@ function ChallengePage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="proposedDate">Proposed date</Label>
-                      <Input id="proposedDate" name="proposedDate" type="date" />
+                      <Input
+                        id="proposedDate"
+                        name="proposedDate"
+                        type="date"
+                      />
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="proposedTimeLabel">Proposed time</Label>
@@ -304,22 +310,37 @@ function ChallengePage() {
                 <div className="flex items-center gap-3">
                   <Bot className="size-6 text-primary shrink-0" />
                   <div className="text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">Automated Battle Management: </span>
-                    Upon acceptance, BattleBot automatically creates the room, manages round lobby timers, collects fan votes, and notifies both artists.
+                    <span className="font-semibold text-foreground">
+                      Automated Battle Management:{" "}
+                    </span>
+                    Upon acceptance, BattleBot automatically creates the room,
+                    manages round lobby timers, collects fan votes, and notifies
+                    both artists.
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="secondary" className="text-[10px]">BattleBot handoff</Badge>
-                  <Badge variant="outline" className="text-[10px]">Next-round lobby</Badge>
+                  <Badge variant="secondary" className="text-[10px]">
+                    BattleBot handoff
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    Next-round lobby
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
 
             <div className="flex items-center justify-between border-t pt-4">
               <Badge variant="outline">{battleConfig.roomLabel}</Badge>
-              <Button disabled={createChallenge.isPending} type="submit" size="lg" className="px-8">
+              <Button
+                disabled={createChallenge.isPending}
+                type="submit"
+                size="lg"
+                className="px-8"
+              >
                 <Swords className="mr-2 size-4" />
-                {createChallenge.isPending ? "Sending..." : "Send Battle Challenge"}
+                {createChallenge.isPending
+                  ? "Sending..."
+                  : "Send Battle Challenge"}
               </Button>
             </div>
           </form>

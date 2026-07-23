@@ -275,8 +275,7 @@ export const buildRealtimeKitEndMeetingUrl = ({
   accountId: string;
   appId: string;
   meetingId: string;
-}) =>
-  `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/end`;
+}) => `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/end`;
 
 export const buildRealtimeKitRecordingUrl = ({
   accountId,
@@ -308,14 +307,9 @@ export const buildRealtimeKitPollUrl = ({
   accountId: string;
   appId: string;
   meetingId: string;
-}) =>
-  `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/polls`;
+}) => `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/polls`;
 
-export const buildRealtimeMeetingPayload = ({
-  title,
-}: {
-  title: string;
-}) => ({
+export const buildRealtimeMeetingPayload = ({ title }: { title: string }) => ({
   chat_config: {
     allow_files: false,
     text_only: true,

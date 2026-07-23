@@ -529,14 +529,18 @@ function TrackPage() {
                           artistName: item.artist.name,
                           coverArtUrl: item.coverArtUrl,
                           priceCents: item.priceCents ?? 199,
-                          productType: item.type === "album" || item.type === "ep" ? "project" : "track",
+                          productType:
+                            item.type === "album" || item.type === "ep"
+                              ? "project"
+                              : "track",
                           purchaseMode: "digital_download",
                           title: item.title,
                           trackId: item.id,
                         });
                       }}
                     >
-                      <ShoppingCart className="size-5 mr-2" /> Buy {item.priceLabel || "$1.99"}
+                      <ShoppingCart className="size-5 mr-2" /> Buy{" "}
+                      {item.priceLabel || "$1.99"}
                     </Button>
                   )}
                   <Button
@@ -683,16 +687,43 @@ function TrackPage() {
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
                   Related Tracks & Releases
                 </h3>
-                <Link to="/tracks" className="text-xs text-primary font-bold hover:underline">
+                <Link
+                  to="/tracks"
+                  className="text-xs text-primary font-bold hover:underline"
+                >
                   View Catalog →
                 </Link>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { id: "rel-1", title: "Midnight Echoes", genre: "Hip-Hop", price: "$1.99", cover: item.coverArtUrl },
-                  { id: "rel-2", title: "Synth Waves (Stems)", genre: "Electronic", price: "$4.99", cover: item.coverArtUrl },
-                  { id: "rel-3", title: "Urban Rhythms Kit", genre: "R&B", price: "$9.99", cover: item.coverArtUrl },
-                  { id: "rel-4", title: "Velvet Nights", genre: "Soul", price: "$1.99", cover: item.coverArtUrl },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "Hip-Hop",
+                    id: "rel-1",
+                    price: "$1.99",
+                    title: "Midnight Echoes",
+                  },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "Electronic",
+                    id: "rel-2",
+                    price: "$4.99",
+                    title: "Synth Waves (Stems)",
+                  },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "R&B",
+                    id: "rel-3",
+                    price: "$9.99",
+                    title: "Urban Rhythms Kit",
+                  },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "Soul",
+                    id: "rel-4",
+                    price: "$1.99",
+                    title: "Velvet Nights",
+                  },
                 ].map((rel) => (
                   <Link
                     key={rel.id}
@@ -701,12 +732,20 @@ function TrackPage() {
                     className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
                   >
                     <div className="aspect-square rounded-lg overflow-hidden bg-muted mb-2 relative">
-                      <AppImage src={rel.cover} alt={rel.title} width={200} height={200} className="object-cover size-full group-hover:scale-105 transition-transform" />
+                      <AppImage
+                        src={rel.cover}
+                        alt={rel.title}
+                        width={200}
+                        height={200}
+                        className="object-cover size-full group-hover:scale-105 transition-transform"
+                      />
                       <Badge className="absolute top-2 right-2 bg-black/70 text-white text-[9px] font-bold">
                         {rel.price}
                       </Badge>
                     </div>
-                    <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">{rel.title}</p>
+                    <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">
+                      {rel.title}
+                    </p>
                     <p className="text-xs text-muted-foreground">{rel.genre}</p>
                   </Link>
                 ))}

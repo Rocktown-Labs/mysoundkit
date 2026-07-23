@@ -1,5 +1,4 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import {
   FolderOpen,
   LayoutDashboard,
@@ -10,6 +9,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Suspense } from "react";
 
 import { CartDrawer } from "@/components/cart-drawer";

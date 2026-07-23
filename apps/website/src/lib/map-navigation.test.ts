@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { mapScopes } from "./map-scopes";
 
 describe("Map Navigation Scopes", () => {

@@ -1,7 +1,17 @@
 "use client";
 
 import { Link } from "@tanstack/react-router";
-import { Bell, Check, Copy, Headphones, Music, Plus, Radio, Share2, Users } from "lucide-react";
+import {
+  Bell,
+  Check,
+  Copy,
+  Headphones,
+  Music,
+  Plus,
+  Radio,
+  Share2,
+  Users,
+} from "lucide-react";
 import React, { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +72,8 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
 
     if (!selectedProjectId) {
       toast({
-        description: "Please select an EP, album, or playlist to listen to with friends.",
+        description:
+          "Please select an EP, album, or playlist to listen to with friends.",
         title: "Tracklist required",
         variant: "destructive",
       });
@@ -86,7 +97,8 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
           const roomId = res.party.liveRoomId || res.party.id;
           setCreatedRoomId(roomId);
           toast({
-            description: "Your fan listening party is ready! Share the link with friends to listen together.",
+            description:
+              "Your fan listening party is ready! Share the link with friends to listen together.",
             title: "Party Created",
           });
         },
@@ -95,7 +107,7 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   };
 
   const copyShareLink = () => {
-    if (!createdRoomId) return;
+    if (!createdRoomId) {return;}
     const url = `${window.location.origin}/live/parties/${createdRoomId}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
@@ -118,14 +130,17 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(val) => {
-      setOpen(val);
-      if (!val) {
-        setCreatedRoomId(null);
-        setTitle("");
-        setSelectedProjectId("");
-      }
-    }}>
+    <Dialog
+      open={open}
+      onOpenChange={(val) => {
+        setOpen(val);
+        if (!val) {
+          setCreatedRoomId(null);
+          setTitle("");
+          setSelectedProjectId("");
+        }
+      }}
+    >
       <DialogTrigger asChild>
         {children || (
           <Button>
@@ -141,7 +156,8 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
             Create Fan Listening Party
           </DialogTitle>
           <DialogDescription>
-            Host a live room for an album or playlist where fans can listen, chat, and follow synced lyrics. Never includes video.
+            Host a live room for an album or playlist where fans can listen,
+            chat, and follow synced lyrics. Never includes video.
           </DialogDescription>
         </DialogHeader>
 
@@ -153,7 +169,8 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
                 Listening Party Created!
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Your listening room is ready. Notifications are active and fans can join in real-time.
+                Your listening room is ready. Notifications are active and fans
+                can join in real-time.
               </p>
             </div>
 
@@ -162,11 +179,15 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
               <div className="flex items-center gap-2">
                 <Input
                   readOnly
-                  value={`${typeof window !== "undefined" ? window.location.origin : ""}/live/parties/${createdRoomId}`}
+                  value={`${typeof window === "undefined" ? "" : window.location.origin}/live/parties/${createdRoomId}`}
                   className="font-mono text-xs"
                 />
                 <Button size="icon" variant="outline" onClick={copyShareLink}>
-                  {copied ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
+                  {copied ? (
+                    <Check className="size-4 text-emerald-500" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -194,8 +215,14 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fan-party-project">Select Album, EP, or Playlist</Label>
-              <Select value={selectedProjectId} onValueChange={setSelectedProjectId} required>
+              <Label htmlFor="fan-party-project">
+                Select Album, EP, or Playlist
+              </Label>
+              <Select
+                value={selectedProjectId}
+                onValueChange={setSelectedProjectId}
+                required
+              >
                 <SelectTrigger id="fan-party-project">
                   <SelectValue placeholder="Choose project or playlist" />
                 </SelectTrigger>
@@ -216,7 +243,9 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fan-party-time">Scheduled Start (Leave blank to open now)</Label>
+              <Label htmlFor="fan-party-time">
+                Scheduled Start (Leave blank to open now)
+              </Label>
               <Input
                 id="fan-party-time"
                 type="datetime-local"
@@ -233,7 +262,11 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={createParty.isPending}>

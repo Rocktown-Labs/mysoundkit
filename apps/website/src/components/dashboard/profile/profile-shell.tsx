@@ -151,7 +151,10 @@ export function ProfileShell({
   };
 
   const handleCopyLink = () => {
-    const url = typeof window !== "undefined" ? window.location.href : `https://mysoundkit.com/artist/${user.username}`;
+    const url =
+      typeof window === "undefined"
+        ? `https://mysoundkit.com/artist/${user.username}`
+        : window.location.href;
     void navigator.clipboard.writeText(url);
     toast({
       description: "Profile URL copied to clipboard.",
@@ -161,9 +164,9 @@ export function ProfileShell({
 
   const handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {
     const url = encodeURIComponent(
-      typeof window !== "undefined"
-        ? window.location.href
-        : `https://mysoundkit.com/artist/${user.username}`
+      typeof window === "undefined"
+        ? `https://mysoundkit.com/artist/${user.username}`
+        : window.location.href
     );
     const text = encodeURIComponent(`Check out @${user.username} on SoundKit!`);
 
@@ -333,13 +336,17 @@ export function ProfileShell({
                 {/* Primary Stats Row: Inline on Mobile & Desktop */}
                 <div className="flex items-center justify-around sm:justify-start gap-4 md:gap-8 py-5 border-y border-border/10 overflow-x-auto">
                   <div className="text-center sm:text-left pr-4 border-r border-border/10">
-                    <p className="text-xl font-black text-foreground">{user.tracks}</p>
+                    <p className="text-xl font-black text-foreground">
+                      {user.tracks}
+                    </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-black">
                       Tracks
                     </p>
                   </div>
                   <div className="text-center sm:text-left pr-4 border-r border-border/10">
-                    <p className="text-xl font-black text-foreground">{followerCount}</p>
+                    <p className="text-xl font-black text-foreground">
+                      {followerCount}
+                    </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-black">
                       Followers
                     </p>

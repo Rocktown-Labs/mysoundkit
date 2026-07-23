@@ -116,8 +116,8 @@ function ArtistProfilePage() {
   const currentUser = meQuery.data?.user;
   const isOwner = Boolean(
     currentUser &&
-      (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
-        currentUser.id === artist.id)
+    (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
+      currentUser.id === artist.id)
   );
 
   return (

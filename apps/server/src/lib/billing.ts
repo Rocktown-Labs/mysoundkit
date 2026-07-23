@@ -28,7 +28,13 @@ export const createPlanCheckout = async ({
   successUrl: string;
 }) => {
   const normalizedPromo = promoCode?.trim().toUpperCase();
-  const validVIPPromos = ["FREE1YEAR", "FREE1MONTH", "SOUNDKITVIP", "100OFF", "VIP2026"];
+  const validVIPPromos = [
+    "FREE1YEAR",
+    "FREE1MONTH",
+    "SOUNDKITVIP",
+    "100OFF",
+    "VIP2026",
+  ];
 
   if (normalizedPromo && validVIPPromos.includes(normalizedPromo)) {
     return {

@@ -1,7 +1,11 @@
 export interface EmailNotificationPayload {
   recipientEmail: string;
   recipientName: string;
-  type: "battle_challenge" | "open_verse_invite" | "artist_weekly_summary" | "post_battle_summary";
+  type:
+    | "battle_challenge"
+    | "open_verse_invite"
+    | "artist_weekly_summary"
+    | "post_battle_summary";
   details: {
     actionUrl?: string;
     artistName?: string;
@@ -15,7 +19,9 @@ export interface EmailNotificationPayload {
   };
 }
 
-export function buildNotificationEmailHtml(payload: EmailNotificationPayload): string {
+export function buildNotificationEmailHtml(
+  payload: EmailNotificationPayload
+): string {
   const { details, recipientName, type } = payload;
 
   if (type === "battle_challenge") {
@@ -34,7 +40,10 @@ export function buildNotificationEmailHtml(payload: EmailNotificationPayload): s
 
   if (type === "post_battle_summary") {
     const tracksHtml = (details.tracklist || [])
-      .map((t, idx) => `<li style="padding: 4px 0;">Round ${idx + 1}: <strong>${t}</strong></li>`)
+      .map(
+        (t, idx) =>
+          `<li style="padding: 4px 0;">Round ${idx + 1}: <strong>${t}</strong></li>`
+      )
       .join("");
 
     return `

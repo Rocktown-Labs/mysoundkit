@@ -93,10 +93,15 @@ function TrackDetailPage() {
       : track.productionStatus);
 
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [syncedLyrics, setSyncedLyrics] = useState<{ time: string; text: string }[] | null>(null);
+  const [syncedLyrics, setSyncedLyrics] = useState<
+    { time: string; text: string }[] | null
+  >(null);
 
   const handleShare = () => {
-    const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/tracks/${track.id}` : `/tracks/${track.id}`;
+    const shareUrl =
+      typeof window === "undefined"
+        ? `/tracks/${track.id}`
+        : `${window.location.origin}/tracks/${track.id}`;
     if (navigator.clipboard) {
       void navigator.clipboard.writeText(shareUrl);
       toast({
@@ -110,15 +115,22 @@ function TrackDetailPage() {
     setIsTranscribing(true);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setSyncedLyrics([
-      { time: "00:04.12", text: "[Intro] Turn the lights low..." },
-      { time: "00:12.45", text: "(Chorus) Midnight dreams falling through the rain" },
-      { time: "00:24.80", text: "Counting every second till we meet again" },
-      { time: "00:36.15", text: "(Verse 1) Rhythms in the dark, baseline in my soul" },
-      { time: "00:48.30", text: "Never letting go, SoundKit takes control" },
+      { text: "[Intro] Turn the lights low...", time: "00:04.12" },
+      {
+        text: "(Chorus) Midnight dreams falling through the rain",
+        time: "00:12.45",
+      },
+      { text: "Counting every second till we meet again", time: "00:24.80" },
+      {
+        text: "(Verse 1) Rhythms in the dark, baseline in my soul",
+        time: "00:36.15",
+      },
+      { text: "Never letting go, SoundKit takes control", time: "00:48.30" },
     ]);
     setIsTranscribing(false);
     toast({
-      description: "AI lyrics transcription and time-sync generated successfully!",
+      description:
+        "AI lyrics transcription and time-sync generated successfully!",
       title: "Lyrics Synced",
     });
   };
@@ -359,7 +371,8 @@ function TrackDetailPage() {
                   Time-Synced Lyrics & Battle Transcripts
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Transcribe song lyrics automatically using AI for battle matchups or karaoke/sing-along displays.
+                  Transcribe song lyrics automatically using AI for battle
+                  matchups or karaoke/sing-along displays.
                 </CardDescription>
               </div>
               <Button
@@ -373,7 +386,9 @@ function TrackDetailPage() {
                 ) : (
                   <Sparkles className="mr-2 size-4" />
                 )}
-                {syncedLyrics ? "Re-transcribe with AI" : "AI Transcribe & Sync"}
+                {syncedLyrics
+                  ? "Re-transcribe with AI"
+                  : "AI Transcribe & Sync"}
               </Button>
             </CardHeader>
             <CardContent>
@@ -394,7 +409,8 @@ function TrackDetailPage() {
                     No time-synced lyrics available yet
                   </p>
                   <p>
-                    Click &ldquo;AI Transcribe & Sync&rdquo; above to generate timecoded lyrics for battles and playback previews.
+                    Click &ldquo;AI Transcribe & Sync&rdquo; above to generate
+                    timecoded lyrics for battles and playback previews.
                   </p>
                 </div>
               )}

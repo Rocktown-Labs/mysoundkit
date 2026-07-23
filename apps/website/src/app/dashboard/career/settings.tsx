@@ -342,7 +342,10 @@ function SettingsPage() {
               <Button variant="outline" type="reset">
                 Cancel
               </Button>
-              <Button type="submit" disabled={!isDirty || updateProfile.isPending}>
+              <Button
+                type="submit"
+                disabled={!isDirty || updateProfile.isPending}
+              >
                 <Save className="size-4 mr-2" />
                 {updateProfile.isPending ? "Saving..." : "Save Changes"}
               </Button>

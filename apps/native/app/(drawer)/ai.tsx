@@ -63,7 +63,7 @@ export default function AIScreen() {
             style={[
               styles.errorCard,
               {
-                backgroundColor: `${theme.notification  }20`,
+                backgroundColor: `${theme.notification}20`,
                 borderColor: theme.notification,
               },
             ]}
@@ -130,7 +130,7 @@ export default function AIScreen() {
                           message.role === "user" ? "flex-end" : "flex-start",
                         backgroundColor:
                           message.role === "user"
-                            ? `${theme.primary  }20`
+                            ? `${theme.primary}20`
                             : theme.card,
                         borderColor: theme.border,
                         marginLeft: message.role === "user" ? 32 : 0,

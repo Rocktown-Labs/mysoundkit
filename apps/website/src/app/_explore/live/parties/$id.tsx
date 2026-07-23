@@ -26,7 +26,9 @@ import { useLiveRoom } from "@/lib/live-room";
 import { LivePreviewShowcase } from "../preview";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
-  component: () => <LivePreviewShowcase defaultTab="party" defaultPerspective="viewer" />,
+  component: () => (
+    <LivePreviewShowcase defaultTab="party" defaultPerspective="viewer" />
+  ),
 });
 
 function ListeningPartyDetailPage() {
@@ -55,7 +57,9 @@ function ListeningPartyDetailPage() {
                 alt={currentTrack?.title ?? room.title}
                 className="h-full w-full object-cover"
                 height={720}
-                src={currentTrack?.coverArtUrl ?? "/night-music-album-cover.png"}
+                src={
+                  currentTrack?.coverArtUrl ?? "/night-music-album-cover.png"
+                }
                 width={1280}
               />
               <div className="absolute inset-0 bg-black/45" />

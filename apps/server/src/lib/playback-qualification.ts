@@ -606,14 +606,17 @@ export const recordLiveSessionTrackPlayback = async ({
   playedSeconds: number;
   trackId: string;
 }) => {
-  const results: { listenerUserId: string; result: PlaybackQualificationResult }[] = [];
+  const results: {
+    listenerUserId: string;
+    result: PlaybackQualificationResult;
+  }[] = [];
 
   const sourceType =
     kind === "live_battle"
       ? "battle"
-      : kind === "live_stream"
-      ? "vod"
-      : "listening_party";
+      : (kind === "live_stream"
+        ? "vod"
+        : "listening_party");
 
   for (const listenerUserId of listenerUserIds) {
     const session = await createTrackPlaybackSession({

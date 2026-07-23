@@ -174,7 +174,7 @@ export function FloatingChatBar() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() && !selectedAttachment) return;
+    if (!messageInput.trim() && !selectedAttachment) {return;}
 
     const newMessage: ChatMessage = {
       attachment: selectedAttachment ?? undefined,
@@ -221,7 +221,8 @@ export function FloatingChatBar() {
             description: `${action === "accept" ? "Accepted" : "Declined"} ${
               reqType ?? "request"
             } from @${c.username}.`,
-            title: action === "accept" ? "Request Accepted" : "Request Declined",
+            title:
+              action === "accept" ? "Request Accepted" : "Request Declined",
           });
           return { ...c, pendingRequest: undefined };
         }
@@ -232,25 +233,14 @@ export function FloatingChatBar() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      {!isOpen ? (
-        <Button
-          onClick={() => setIsOpen(true)}
-          className="rounded-full shadow-2xl h-12 px-5 gap-3 bg-primary text-primary-foreground hover:scale-105 transition-transform"
-        >
-          <MessageCircle className="size-5" />
-          <span className="font-semibold text-sm">Artist Chat</span>
-          {totalUnread > 0 && (
-            <Badge variant="secondary" className="px-2 py-0.5 text-xs font-bold">
-              {totalUnread}
-            </Badge>
-          )}
-        </Button>
-      ) : (
+      {isOpen ? (
         <Card className="w-[360px] sm:w-[440px] shadow-2xl border-primary/30 bg-card/95 backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200">
           <CardHeader className="p-3 border-b flex flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2">
               <MessageCircle className="size-5 text-primary" />
-              <CardTitle className="text-base font-bold">Artist Direct Messages</CardTitle>
+              <CardTitle className="text-base font-bold">
+                Artist Direct Messages
+              </CardTitle>
             </div>
             <Button
               variant="ghost"
@@ -292,7 +282,10 @@ export function FloatingChatBar() {
                   <span className="truncate max-w-[80px]">{conv.name}</span>
                   <PresenceBadge presence={conv.presence} />
                   {conv.unreadCount > 0 && activeConvId !== conv.id && (
-                    <Badge variant="destructive" className="size-2 rounded-full p-0" />
+                    <Badge
+                      variant="destructive"
+                      className="size-2 rounded-full p-0"
+                    />
                   )}
                 </button>
               ))}
@@ -303,7 +296,9 @@ export function FloatingChatBar() {
                 {/* Active Header Bar */}
                 <div className="px-3 py-2 bg-muted/20 border-b flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">@{activeConv.username}</span>
+                    <span className="font-semibold text-foreground">
+                      @{activeConv.username}
+                    </span>
                     <PresenceBadge presence={activeConv.presence} />
                   </div>
                   <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">
@@ -368,9 +363,13 @@ export function FloatingChatBar() {
                               <Play className="size-3.5 fill-current" />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="font-semibold truncate">{msg.attachment.title}</p>
+                              <p className="font-semibold truncate">
+                                {msg.attachment.title}
+                              </p>
                               {msg.attachment.subtitle && (
-                                <p className="text-[10px] opacity-75 truncate">{msg.attachment.subtitle}</p>
+                                <p className="text-[10px] opacity-75 truncate">
+                                  {msg.attachment.subtitle}
+                                </p>
                               )}
                             </div>
                           </div>
@@ -387,7 +386,9 @@ export function FloatingChatBar() {
                 {/* Selected Attachment Pill */}
                 {selectedAttachment && (
                   <div className="px-3 py-1 bg-primary/10 border-t flex items-center justify-between text-xs text-primary">
-                    <span className="truncate">Attached: {selectedAttachment.title}</span>
+                    <span className="truncate">
+                      Attached: {selectedAttachment.title}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setSelectedAttachment(null)}
@@ -405,12 +406,18 @@ export function FloatingChatBar() {
                 >
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon" className="size-8 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                      >
                         <Paperclip className="size-4 text-muted-foreground" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-52 p-2 space-y-1 text-xs z-50">
-                      <p className="font-semibold text-muted-foreground px-2 py-1">Attach Item</p>
+                      <p className="font-semibold text-muted-foreground px-2 py-1">
+                        Attach Item
+                      </p>
                       <button
                         type="button"
                         onClick={() =>
@@ -456,6 +463,22 @@ export function FloatingChatBar() {
             )}
           </CardContent>
         </Card>
+      ) : (
+        <Button
+          onClick={() => setIsOpen(true)}
+          className="rounded-full shadow-2xl h-12 px-5 gap-3 bg-primary text-primary-foreground hover:scale-105 transition-transform"
+        >
+          <MessageCircle className="size-5" />
+          <span className="font-semibold text-sm">Artist Chat</span>
+          {totalUnread > 0 && (
+            <Badge
+              variant="secondary"
+              className="px-2 py-0.5 text-xs font-bold"
+            >
+              {totalUnread}
+            </Badge>
+          )}
+        </Button>
       )}
     </div>
   );

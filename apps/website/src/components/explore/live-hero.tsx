@@ -61,14 +61,20 @@ export function LiveHero({
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 justify-center px-2 w-full max-w-md mx-auto sm:max-w-none">
             {/* If user is Premium Artist: Hide all upgrade CTAs */}
             {isPremiumArtist ? (
-              <Badge variant="outline" className="bg-black/50 text-white border-white/20 px-4 py-2 text-sm">
+              <Badge
+                variant="outline"
+                className="bg-black/50 text-white border-white/20 px-4 py-2 text-sm"
+              >
                 <Sparkles className="size-4 mr-2 text-yellow-400" />
                 Premium Artist Unlocked
               </Badge>
-            ) : isPremiumFan ? (
+            ) : (isPremiumFan ? (
               /* If user is Premium Fan: Watch is unlocked. Show Upgrade to Artist only on Battles */
               <div className="flex flex-col sm:flex-row gap-3">
-                <Badge variant="outline" className="bg-black/50 text-white border-white/20 px-4 py-2 text-sm">
+                <Badge
+                  variant="outline"
+                  className="bg-black/50 text-white border-white/20 px-4 py-2 text-sm"
+                >
                   <Sparkles className="size-4 mr-2 text-primary" />
                   Premium Fan Member
                 </Badge>
@@ -107,7 +113,7 @@ export function LiveHero({
                   </Button>
                 </Link>
               </>
-            )}
+            ))}
           </div>
         </div>
       </div>

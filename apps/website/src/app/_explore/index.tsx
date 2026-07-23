@@ -1,5 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Compass, Flame, Globe, LocateFixed, MapPin, Music, RotateCcw, Users, Video } from "lucide-react";
+import {
+  Compass,
+  Flame,
+  Globe,
+  LocateFixed,
+  MapPin,
+  Music,
+  RotateCcw,
+  Users,
+  Video,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
@@ -7,7 +17,8 @@ import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
 import { VideoCard } from "@/components/explore/video-card";
-import { mapScopes, WorldAndUSAMap, type MapScope } from "@/components/explore/world-and-usa-map";
+import { mapScopes, WorldAndUSAMap } from '@/components/explore/world-and-usa-map';
+import type { MapScope } from '@/components/explore/world-and-usa-map';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -46,7 +57,11 @@ function LocalExplorePage({
     "idle" | "prompting" | "granted" | "denied" | "unsupported"
   >("idle");
 
-  const activeRegion = selectedRegion ?? (mapScope === "global" ? "Global" : mapScopes.find(s => s.id === mapScope)?.label ?? "SoundKit");
+  const activeRegion =
+    selectedRegion ??
+    (mapScope === "global"
+      ? "Global"
+      : (mapScopes.find((s) => s.id === mapScope)?.label ?? "SoundKit"));
   const isGlobalView = selectedRegion === null && mapScope === "global";
 
   const regionSlug = selectedRegion
@@ -81,7 +96,8 @@ function LocalExplorePage({
               `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
             );
             const data = await response.json();
-            const detectedState = data.principalSubdivision || data.countryName || "California";
+            const detectedState =
+              data.principalSubdivision || data.countryName || "California";
             setUserLocation(detectedState);
             setSelectedRegion(detectedState);
             setMapScope("north-america");
@@ -228,7 +244,7 @@ function LocalExplorePage({
                   onRegionSelect={(reg) => setSelectedRegion(reg)}
                   onScopeChange={(scope) => {
                     setMapScope(scope);
-                    if (scope === "global") setSelectedRegion(null);
+                    if (scope === "global") {setSelectedRegion(null);}
                   }}
                 />
               </CardContent>

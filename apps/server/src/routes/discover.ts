@@ -8,7 +8,12 @@ const genreCatalogSchema = z.array(
   })
 );
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { artistProfiles, genres, tracks, userProfiles } from "@soundkit/db/schema/app";
+import {
+  artistProfiles,
+  genres,
+  tracks,
+  userProfiles,
+} from "@soundkit/db/schema/app";
 import { desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
