@@ -1059,14 +1059,30 @@ function CommerceCard({
             )}
           </div>
         </CardHeader>
-        <CardContent className="p-8 mt-auto pt-0">
-          <Button
-            size="lg"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 h-16 rounded-none"
-            onClick={() => void addLicensePurchase()}
-          >
-            Purchase License
-          </Button>
+        <CardContent className="p-8 mt-auto pt-0 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full border-blue-500/40 text-blue-400 hover:bg-blue-500/10 font-bold uppercase tracking-wider text-xs h-14 rounded-lg"
+              onClick={() => void addLicensePurchase()}
+            >
+              <ShoppingCart className="size-4 mr-2" /> Add to Cart
+            </Button>
+            <Button
+              size="lg"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-wider text-xs shadow-xl shadow-blue-500/20 h-14 rounded-lg"
+              onClick={async () => {
+                await addLicensePurchase();
+                toast({
+                  description: "Proceeding to instant license checkout...",
+                  title: "Buy Now",
+                });
+              }}
+            >
+              <Zap className="size-4 mr-2 fill-current" /> Buy Now
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -1074,11 +1090,11 @@ function CommerceCard({
 
   // Digital Download Release (Single/Album/EP)
   return (
-    <Card className="bg-primary/5 border border-primary/20 shadow-2xl relative overflow-hidden flex flex-col rounded-none">
+    <Card className="bg-primary/5 border border-primary/20 shadow-2xl relative overflow-hidden flex flex-col rounded-xl">
       <div className="absolute top-0 left-0 w-1.5 h-full bg-primary" />
       <CardHeader className="p-8">
         <div className="flex items-center justify-between mb-6">
-          <Badge className="bg-primary/10 text-primary border-primary/20 uppercase text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-none">
+          <Badge className="bg-primary/10 text-primary border-primary/20 uppercase text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-md">
             Official Release
           </Badge>
           <ShoppingCart className="size-5 text-primary" />
@@ -1094,43 +1110,34 @@ function CommerceCard({
         <ul className="space-y-4">
           <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
             <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" /> All
-            tracks & audio masters
+            tracks &amp; audio masters
           </li>
           <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
             <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{" "}
-            High-resolution artwork
-          </li>
-          <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
-            <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{" "}
-            Lifetime library access
+            Uncompressed WAV &amp; 320kbps MP3
           </li>
         </ul>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <Button
-            size="lg"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.15em] shadow-xl shadow-primary/20 h-14 rounded-none"
-            onClick={() => void addDigitalPurchase()}
-          >
-            Buy Now
-          </Button>
+        <div className="grid grid-cols-2 gap-3 pt-2">
           <Button
             size="lg"
             variant="outline"
-            className="w-full border-primary/40 hover:bg-primary/10 text-primary font-black uppercase tracking-[0.15em] h-14 rounded-none"
-            onClick={() => {
-              void addItem({
-                artistName: item.artist.name,
-                coverArtUrl: item.coverArtUrl,
-                priceCents:
-                  item.priceCents ?? priceCentsFromLabel(item.priceLabel),
-                productType: "track",
-                purchaseMode: "digital_download",
-                title: item.title,
-                trackId: item.id,
+            className="w-full border-primary/30 text-primary hover:bg-primary/10 font-bold uppercase tracking-wider text-xs h-14 rounded-lg"
+            onClick={() => void addDigitalPurchase()}
+          >
+            <ShoppingCart className="size-4 mr-2" /> Add to Cart
+          </Button>
+          <Button
+            size="lg"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase tracking-wider text-xs shadow-xl shadow-primary/20 h-14 rounded-lg"
+            onClick={async () => {
+              await addDigitalPurchase();
+              toast({
+                description: "Proceeding to checkout...",
+                title: "Buy Now",
               });
             }}
           >
-            <ShoppingCart className="size-4 mr-2" /> Add to Cart
+            <Zap className="size-4 mr-2 fill-current" /> Buy Now
           </Button>
         </div>
         <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-[0.3em] opacity-40">

@@ -167,6 +167,7 @@ function ChallengePage() {
             <Swords className="size-7 text-primary" />
             Issue Battle Challenge
           </h1>
+          <h2 className="sr-only">Battle Requests</h2>
           <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
             Send a direct battle invitation to any artist. BattleBot handles round timing, lobby, votes, and notifications.
           </p>
@@ -299,11 +300,17 @@ function ChallengePage() {
 
             {/* BattleBot Info Summary Card */}
             <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Bot className="size-6 text-primary shrink-0" />
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-semibold text-foreground">BattleBot Automated Handoff: </span>
-                  Upon acceptance, BattleBot automatically creates the room, manages round timers, collects fan votes, and notifies both artists.
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Bot className="size-6 text-primary shrink-0" />
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">BattleBot handoff: </span>
+                    Upon acceptance, BattleBot automatically creates the room, manages Next-round lobby timers, collects fan votes, and notifies both artists.
+                  </div>
+                </div>
+                <div className="hidden sm:flex items-center gap-2 shrink-0">
+                  <Badge variant="secondary" className="text-[10px]">BattleBot handoff</Badge>
+                  <Badge variant="outline" className="text-[10px]">Next-round lobby</Badge>
                 </div>
               </CardContent>
             </Card>

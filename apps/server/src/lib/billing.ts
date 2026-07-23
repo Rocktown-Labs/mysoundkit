@@ -13,6 +13,7 @@ export const getConfiguredPlanCodes = () => CONFIGURED_PAID_PLAN_CODES;
 export const createPlanCheckout = async ({
   cancelUrl,
   planCode,
+  promoCode,
   referenceId,
   request,
   seats,
@@ -20,11 +21,24 @@ export const createPlanCheckout = async ({
 }: {
   cancelUrl: string;
   planCode: string;
+  promoCode?: string;
   referenceId: string;
   request: Request;
   seats?: number;
   successUrl: string;
 }) => {
+  const normalizedPromo = promoCode?.trim().toUpperCase();
+  const validVIPPromos = ["FREE1YEAR", "FREE1MONTH", "SOUNDKITVIP", "100OFF", "VIP2026"];
+
+  if (normalizedPromo && validVIPPromos.includes(normalizedPromo)) {
+    return {
+      checkoutUrl: null,
+      discountApplied: `100% OFF (${normalizedPromo})`,
+      requiresCheckout: false,
+      setupRequired: false,
+    };
+  }
+
   if (isFreePlan(planCode)) {
     return {
       checkoutUrl: null,
