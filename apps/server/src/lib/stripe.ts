@@ -20,7 +20,7 @@ export const stripeRequest = async <T>({
   path,
 }: {
   connectedAccountId?: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   params?: URLSearchParams;
   path: string;
 }): Promise<T | null> => {
@@ -214,9 +214,15 @@ export const createStripeCoupon = ({
 }) => {
   const params = new URLSearchParams();
   appendValue(params, "duration", duration);
-  if (id) {appendValue(params, "id", id);}
-  if (name) {appendValue(params, "name", name);}
-  if (percentOff) {appendValue(params, "percent_off", percentOff);}
+  if (id) {
+    appendValue(params, "id", id);
+  }
+  if (name) {
+    appendValue(params, "name", name);
+  }
+  if (percentOff) {
+    appendValue(params, "percent_off", percentOff);
+  }
   if (amountOff) {
     appendValue(params, "amount_off", amountOff);
     appendValue(params, "currency", currency);
@@ -247,12 +253,12 @@ export const createStripeCoupon = ({
   });
 };
 
-export const deleteStripeCoupon = (couponId: string) => {
-  return stripeRequest<{ deleted: boolean; id: string }>({
+export const deleteStripeCoupon = (couponId: string) => 
+  stripeRequest<{ deleted: boolean; id: string }>({
     method: "DELETE",
     path: `/coupons/${encodeURIComponent(couponId)}`,
-  });
-};
+  })
+;
 
 export const createDestinationCheckout = ({
   applicationFeeCents,
