@@ -21,6 +21,7 @@ import {
   createStripeCoupon,
   createStripeProduct,
   createStripeRecurringPrice,
+  deleteStripeCoupon,
   listStripeCoupons,
   listStripePrices,
   listStripeProducts,
@@ -724,10 +725,16 @@ app.post("/payments/coupons", async (c) => {
 
   const body = (await c.req.json().catch(() => ({}))) as {
     amountOff?: number;
+    appliesToProducts?: string[];
+    currency?: string;
     duration?: "once" | "repeating" | "forever";
+    durationInMonths?: number;
     id?: string;
+    maxRedemptions?: number;
+    metadata?: Record<string, string>;
     name?: string;
     percentOff?: number;
+    redeemBy?: number;
   };
 
   if (!body.name) {
@@ -741,26 +748,63 @@ app.post("/payments/coupons", async (c) => {
   if (getEnvValue("STRIPE_SECRET_KEY")) {
     createdCoupon = await createStripeCoupon({
       amountOff: body.amountOff,
+      appliesToProducts: body.appliesToProducts,
+      currency: body.currency ?? "usd",
       duration: body.duration ?? "once",
+      durationInMonths: body.durationInMonths,
       id: body.id,
+      maxRedemptions: body.maxRedemptions,
+      metadata: body.metadata,
       name: body.name,
       percentOff: body.percentOff,
+      redeemBy: body.redeemBy,
     }).catch(() => null);
   }
 
   const finalCoupon = createdCoupon ?? {
     amount_off: body.amountOff ?? null,
-    currency: "usd",
+    applies_to: body.appliesToProducts ? { products: body.appliesToProducts } : null,
+    currency: body.currency ?? "usd",
     duration: body.duration ?? "once",
-    duration_in_months: null,
+    duration_in_months: body.durationInMonths ?? null,
     id: body.id?.toUpperCase() || `PROMO_${Date.now().toString().slice(-4)}`,
+    max_redemptions: body.maxRedemptions ?? null,
+    metadata: body.metadata ?? null,
     name: body.name,
     percent_off: body.percentOff ?? null,
+    redeem_by: body.redeemBy ?? null,
+    times_redeemed: 0,
     valid: true,
   };
 
   return c.json(
     { coupon: finalCoupon, message: "Coupon created successfully." },
+    HttpStatusCodes.OK
+  );
+});
+
+app.delete("/payments/coupons/:id", async (c) => {
+  if (!isAdminUser(c.get("user"))) {
+    return c.json(
+      { message: "Admin access is required." },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
+  const couponId = c.req.param("id");
+  if (!couponId) {
+    return c.json(
+      { message: "Coupon ID is required." },
+      HttpStatusCodes.BAD_REQUEST
+    );
+  }
+
+  if (getEnvValue("STRIPE_SECRET_KEY")) {
+    await deleteStripeCoupon(couponId).catch(() => null);
+  }
+
+  return c.json(
+    { id: couponId, message: `Coupon ${couponId} archived/deleted.` },
     HttpStatusCodes.OK
   );
 });

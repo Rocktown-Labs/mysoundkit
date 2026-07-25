@@ -59,61 +59,26 @@ export function LiveHero({
           </p>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 justify-center px-2 w-full max-w-md mx-auto sm:max-w-none">
-            {/* If user is Premium Artist: Hide all upgrade CTAs */}
-            {isPremiumArtist ? (
+            {/* If user is Premium: Hide all upgrade CTAs */}
+            {isPremium || isPremiumArtist || isPremiumFan ? (
               <Badge
                 variant="outline"
                 className="bg-black/50 text-white border-white/20 px-4 py-2 text-sm"
               >
                 <Sparkles className="size-4 mr-2 text-yellow-400" />
-                Premium Artist Unlocked
+                SoundKit Premium Unlocked
               </Badge>
-            ) : (isPremiumFan ? (
-              /* If user is Premium Fan: Watch is unlocked. Show Upgrade to Artist only on Battles */
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Badge
-                  variant="outline"
-                  className="bg-black/50 text-white border-white/20 px-4 py-2 text-sm"
-                >
-                  <Sparkles className="size-4 mr-2 text-primary" />
-                  Premium Fan Member
-                </Badge>
-                <Link to="/pricing">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="w-full sm:w-auto bg-black text-white border-white/20 hover:bg-black hover:text-primary text-sm sm:text-base h-10 sm:h-12"
-                  >
-                    <Trophy className="size-4 mr-2 text-yellow-400" />
-                    Upgrade to Premium Artist ($14.99/mo)
-                  </Button>
-                </Link>
-              </div>
             ) : (
-              /* If user is NOT Premium: Show explicitly distinct CTAs for Premium Fan vs Premium Artist */
-              <>
-                <Link to="/pricing">
-                  <Button
-                    size="lg"
-                    className="w-full sm:w-auto text-sm sm:text-base h-10 sm:h-12 md:h-14 hover:text-white"
-                  >
-                    <Play className="size-4 sm:size-5 mr-2" />
-                    Upgrade to Premium Fan ($4.99/mo)
-                  </Button>
-                </Link>
-
-                <Link to="/pricing">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="w-full sm:w-auto bg-black text-white border-white/20 hover:bg-black hover:text-primary text-sm sm:text-base h-10 sm:h-12 md:h-14"
-                  >
-                    <Zap className="size-4 sm:size-5 mr-2 text-amber-400" />
-                    Upgrade to Premium Artist ($14.99/mo)
-                  </Button>
-                </Link>
-              </>
-            ))}
+              <Link to="/pricing">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto text-sm sm:text-base h-10 sm:h-12 md:h-14 hover:text-white"
+                >
+                  <Sparkles className="size-4 sm:size-5 mr-2 text-yellow-400" />
+                  Upgrade to SoundKit Premium ($22.99/mo)
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>

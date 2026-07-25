@@ -83,21 +83,12 @@ export function LiveRoomAccessGuard({
           </CardHeader>
 
           <CardContent className="space-y-4 pt-2">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Button asChild size="lg" className="w-full">
-                <Link to="/pricing">
-                  <Sparkles className="size-4 mr-2 text-yellow-400" />
-                  Premium Fan ($4.99/mo)
-                </Link>
-              </Button>
-
-              <Button asChild size="lg" variant="outline" className="w-full">
-                <Link to="/pricing">
-                  <Trophy className="size-4 mr-2 text-yellow-400" />
-                  Premium Artist ($14.99/mo)
-                </Link>
-              </Button>
-            </div>
+            <Button asChild size="lg" className="w-full">
+              <Link to="/pricing">
+                <Sparkles className="size-4 mr-2 text-yellow-400" />
+                Upgrade to SoundKit Premium ($22.99/mo)
+              </Link>
+            </Button>
 
             {!isSignedIn && (
               <p className="text-xs text-muted-foreground pt-2">

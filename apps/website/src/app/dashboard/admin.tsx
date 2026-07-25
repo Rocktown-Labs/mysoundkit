@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
@@ -795,7 +796,41 @@ function PaymentsPanel() {
 }
 
 function CouponsManagerCard() {
-  const [coupons, setCoupons] = useState([
+  const queryClient = useQueryClient();
+  const syncPlansMutation = useSyncStripePlansMutation();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [percentOff, setPercentOff] = useState("17");
+  const [duration, setDuration] = useState<"once" | "repeating" | "forever">("forever");
+  const [maxRedemptions, setMaxRedemptions] = useState("");
+
+  const { data: couponsData, isLoading, refetch } = useQuery({
+    queryFn: async () => {
+      const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load coupons");
+      }
+      return (await res.json()) as {
+        coupons: Array<{
+          amount_off?: number | null;
+          currency?: string | null;
+          duration: string;
+          id: string;
+          max_redemptions?: number | null;
+          name?: string | null;
+          percent_off?: number | null;
+          times_redeemed?: number;
+          valid: boolean;
+        }>;
+      };
+    },
+    queryKey: ["admin", "stripe-coupons"],
+  });
+
+  const coupons = couponsData?.coupons ?? [
     {
       amount_off: null,
       duration: "forever",
@@ -820,34 +855,94 @@ function CouponsManagerCard() {
       percent_off: null,
       valid: true,
     },
-  ]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [percentOff, setPercentOff] = useState("17");
+  ];
 
-  const handleCreateCoupon = (e: React.FormEvent) => {
+  const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {return;}
+    if (!name.trim()) {
+      return;
+    }
 
-    const newCoupon = {
-      amount_off: null,
-      duration: "forever",
-      id:
-        code.trim().toUpperCase() || `PROMO_${Date.now().toString().slice(-4)}`,
+    const payload = {
+      duration,
+      id: code.trim().toUpperCase() || undefined,
+      maxRedemptions: maxRedemptions ? Number(maxRedemptions) : undefined,
       name: name.trim(),
-      percent_off: Number(percentOff) || 17,
-      valid: true,
+      percentOff: Number(percentOff) || 17,
     };
 
-    setCoupons((prev) => [newCoupon, ...prev]);
-    setIsDialogOpen(false);
-    setName("");
-    setCode("");
-    toast({
-      description: `Stripe coupon ${newCoupon.id} (${newCoupon.percent_off}% off) created and ready for checkout.`,
-      title: "Coupon Created",
-    });
+    try {
+      const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
+        body: JSON.stringify(payload),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to create coupon");
+      }
+
+      setIsDialogOpen(false);
+      setName("");
+      setCode("");
+      setMaxRedemptions("");
+      refetch();
+      toast({
+        description: `Stripe coupon created and ready for checkout.`,
+        title: "Coupon Created",
+      });
+    } catch {
+      toast({
+        description: "Could not create coupon. Please try again.",
+        title: "Error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId: string) => {
+    try {
+      const res = await fetch(
+        `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
+        {
+          credentials: "include",
+          method: "DELETE",
+        }
+      );
+      if (!res.ok) {
+        throw new Error("Failed to delete coupon");
+      }
+      refetch();
+      toast({
+        description: `Coupon ${couponId} archived.`,
+        title: "Coupon Deleted",
+      });
+    } catch {
+      toast({
+        description: "Could not delete coupon.",
+        title: "Error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSyncStripe = async () => {
+    try {
+      await syncPlansMutation.mutateAsync({});
+      await refetch();
+      queryClient.invalidateQueries({ queryKey: ["admin", "payments"] });
+      toast({
+        description: "Synced pricing catalog and coupons with Stripe.",
+        title: "Sync Successful",
+      });
+    } catch {
+      toast({
+        description: "Could not sync with Stripe API.",
+        title: "Sync Error",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -858,16 +953,30 @@ function CouponsManagerCard() {
             Stripe Coupons & Promo Codes
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Manage active promotional discount codes.
+            Manage active promotional discount codes and sync with Stripe.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setIsDialogOpen(true)}
-          className="font-bold"
-        >
-          + Create Coupon
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={syncPlansMutation.isPending}
+            onClick={handleSyncStripe}
+            className="gap-1.5"
+          >
+            <RefreshCw
+              className={`size-3.5 ${syncPlansMutation.isPending ? "animate-spin" : ""}`}
+            />
+            Sync to Stripe
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setIsDialogOpen(true)}
+            className="font-bold"
+          >
+            + Create Coupon
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="rounded-lg border overflow-hidden">
@@ -877,30 +986,49 @@ function CouponsManagerCard() {
                 <TableHead>Code ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Discount</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {coupons.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-mono font-bold text-xs">
-                    {c.id}
-                  </TableCell>
-                  <TableCell className="text-xs font-medium">
-                    {c.name}
-                  </TableCell>
-                  <TableCell className="text-xs font-bold text-emerald-500">
-                    {c.percent_off
-                      ? `${c.percent_off}% OFF`
-                      : `$${(c.amount_off ?? 0) / 100} OFF`}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {c.duration.toUpperCase()}
-                    </Badge>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-xs py-4 text-muted-foreground">
+                    Loading coupons...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                coupons.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-mono font-bold text-xs">
+                      {c.id}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium">
+                      {c.name}
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-emerald-500">
+                      {c.percent_off
+                        ? `${c.percent_off}% OFF`
+                        : `$${(c.amount_off ?? 0) / 100} OFF`}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {c.duration.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteCoupon(c.id)}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
@@ -944,6 +1072,16 @@ function CouponsManagerCard() {
                   value={percentOff}
                   onChange={(e) => setPercentOff(e.target.value)}
                   required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="maxRedemptions">Max Redemptions (Optional)</Label>
+                <Input
+                  id="maxRedemptions"
+                  type="number"
+                  placeholder="e.g. 100"
+                  value={maxRedemptions}
+                  onChange={(e) => setMaxRedemptions(e.target.value)}
                 />
               </div>
               <AlertDialogFooter>
