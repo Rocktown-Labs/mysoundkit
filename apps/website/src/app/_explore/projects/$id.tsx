@@ -119,6 +119,74 @@ function ProjectPage() {
     verified: true,
   };
 
+  const playAlbum = () => {
+    const queueTracks = project.tracks
+      .filter((t) => Boolean(t.playbackUrl))
+      .map((t) => ({
+        artist: project.artist,
+        artistHref: `/artist/${project.artistSlug}`,
+        cover: project.cover,
+        id: t.id,
+        src: t.playbackUrl!,
+        title: t.title,
+        trackHref: `/tracks/${t.id}`,
+      }));
+    if (queueTracks.length > 0) {
+      setQueue(queueTracks);
+      setCurrentTrack(queueTracks[0]);
+      toast({
+        description: `Started playing "${project.title}".`,
+        title: "Playing Album",
+      });
+    }
+  };
+
+  const playSingleTrack = (t: (typeof project.tracks)[number]) => {
+    if (!t.playbackUrl) return;
+    const playerTrack = {
+      artist: project.artist,
+      artistHref: `/artist/${project.artistSlug}`,
+      cover: project.cover,
+      id: t.id,
+      src: t.playbackUrl,
+      title: t.title,
+      trackHref: `/tracks/${t.id}`,
+    };
+    setQueue([playerTrack]);
+    setCurrentTrack(playerTrack);
+    toast({
+      description: `Now playing "${t.title}".`,
+      title: "Playing Track",
+    });
+  };
+
+  const toggleLike = () => {
+    setIsLiked((prev) => !prev);
+    toast({
+      description: isLiked
+        ? `Removed "${project.title}" from library.`
+        : `Added "${project.title}" to library.`,
+      title: isLiked ? "Unliked" : "Liked",
+    });
+  };
+
+  const buyAlbum = () => {
+    const priceCents = Math.round(Number.parseFloat(project.price) * 100);
+    addItem({
+      artistName: project.artist,
+      coverArtUrl: project.cover,
+      priceCents,
+      productType: "project",
+      projectId: project.id,
+      purchaseMode: "digital_download",
+      title: project.title,
+    });
+    toast({
+      description: `"${project.title}" added to cart.`,
+      title: "Added to Cart",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Professional Header */}

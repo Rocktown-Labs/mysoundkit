@@ -97,18 +97,54 @@ const calculateCart = (items: CartItem[]): Cart => {
   };
 };
 
+const generateUUID = (): string => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    try {
+      return crypto.randomUUID();
+    } catch {
+      // Fallback if crypto.randomUUID is restricted
+    }
+  }
+
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.getRandomValues === "function"
+  ) {
+    try {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (b) =>
+        b.toString(16).padStart(2, "0")
+      ).join("");
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
+        12,
+        16
+      )}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    } catch {
+      // Fallback
+    }
+  }
+
+  return `cart_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+};
+
 const readLocalCart = () => {
   if (typeof window === "undefined") {
     return EMPTY_CART;
   }
 
-  const rawValue = window.localStorage.getItem(LOCAL_CART_STORAGE_KEY);
-
-  if (!rawValue) {
-    return EMPTY_CART;
-  }
-
   try {
+    const rawValue = window.localStorage.getItem(LOCAL_CART_STORAGE_KEY);
+
+    if (!rawValue) {
+      return EMPTY_CART;
+    }
+
     const items = JSON.parse(rawValue) as CartItem[];
     return calculateCart(Array.isArray(items) ? items : []);
   } catch {
@@ -121,7 +157,11 @@ const writeLocalCart = (items: CartItem[]) => {
     return;
   }
 
-  window.localStorage.setItem(LOCAL_CART_STORAGE_KEY, JSON.stringify(items));
+  try {
+    window.localStorage.setItem(LOCAL_CART_STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // Ignore storage restrictions in Safari Private mode
+  }
 };
 
 const requestCart = async (path = "", init?: RequestInit) => {
@@ -142,13 +182,13 @@ const requestCart = async (path = "", init?: RequestInit) => {
 };
 
 const buildLocalCartItem = (input: AddCartItemInput): CartItem => {
-  const productId = input.trackId ?? input.projectId ?? crypto.randomUUID();
+  const productId = input.trackId ?? input.projectId ?? generateUUID();
 
   return {
     artistName: input.artistName,
     coverArtUrl: input.coverArtUrl,
     currency: "USD",
-    id: crypto.randomUUID(),
+    id: generateUUID(),
     licenseName: input.licenseName,
     licenseOptionId: input.licenseOptionId,
     priceCents: input.priceCents,
