@@ -7,6 +7,7 @@ import {
   Mic2,
   MoreVertical,
   Music,
+  Pencil,
   PlayCircle,
   Plus,
 } from "lucide-react";
@@ -184,11 +185,29 @@ function TracksPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled={!track.playbackUrl}>
+                    <DropdownMenuItem
+                      disabled={!track.playbackUrl}
+                      onClick={() => {
+                        if (
+                          track.playbackUrl &&
+                          typeof window !== "undefined"
+                        ) {
+                          window.open(track.playbackUrl, "_blank");
+                        }
+                      }}
+                    >
                       <Download className="mr-2 size-4" />
                       Download Master
                     </DropdownMenuItem>
-                    <DropdownMenuItem>Edit Track</DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        to="/dashboard/tracks/$id"
+                        params={{ id: track.id }}
+                      >
+                        <Pencil className="mr-2 size-4" />
+                        Edit Track
+                      </Link>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

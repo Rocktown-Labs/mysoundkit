@@ -4,8 +4,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Film, Grid3x3, LayoutGrid, LoaderCircle, Music } from "lucide-react";
 
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
+import { TrackCard } from "@/components/explore/track-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useArtistQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useArtistQuery,
+  useMeQuery,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
 import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/artist/$username")({
@@ -39,7 +44,10 @@ const formatJoinedDate = (joinedAt?: string) => {
   }).format(new Date(joinedAt));
 };
 
-const artistToProfileUser = (artist: ArtistSummary) => ({
+const artistToProfileUser = (
+  artist: ArtistSummary,
+  trackCountOverride?: number
+) => ({
   avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
   battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
   battleRecord: artist.battleCount ? `${artist.battleCount}-0` : "0-0",
@@ -64,7 +72,7 @@ const artistToProfileUser = (artist: ArtistSummary) => ({
   location: artist.location || artist.state || "SoundKit",
   monthlyListeners: formatCount(artist.weeklyPlays),
   name: artist.name,
-  tracks: artist.trackCount ?? 0,
+  tracks: trackCountOverride ?? artist.trackCount ?? 0,
   username: artist.username,
   verified: artist.verified,
 });
@@ -92,6 +100,20 @@ function ArtistProfilePage() {
   const artistQuery = useArtistQuery(username);
   const meQuery = useMeQuery();
 
+  const currentUser = meQuery.data?.user;
+  const artist = artistQuery.data;
+
+  const isOwner = Boolean(
+    artist &&
+    currentUser &&
+    (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
+      currentUser.id === artist.id)
+  );
+
+  const tracksQuery = useTracksQuery(undefined, {
+    scope: isOwner ? "dashboard" : "public",
+  });
+
   if (artistQuery.isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -99,8 +121,6 @@ function ArtistProfilePage() {
       </div>
     );
   }
-
-  const artist = artistQuery.data;
 
   if (!artist) {
     return (
@@ -113,18 +133,19 @@ function ArtistProfilePage() {
     );
   }
 
-  const currentUser = meQuery.data?.user;
-  const isOwner = Boolean(
-    currentUser &&
-    (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
-      currentUser.id === artist.id)
+  const allTracks = tracksQuery.data ?? [];
+  const artistTracks = allTracks.filter(
+    (t) =>
+      t.artistUsername?.toLowerCase() === artist.username.toLowerCase() ||
+      t.artistName?.toLowerCase() === artist.name.toLowerCase() ||
+      isOwner
   );
 
   return (
     <ProfileShell
       isOwner={isOwner}
       targetIsArtist={true}
-      user={artistToProfileUser(artist)}
+      user={artistToProfileUser(artist, artistTracks.length)}
       viewerAccountType={meQuery.data?.user.accountType ?? null}
     >
       <Tabs defaultValue="all" className="w-full">
@@ -162,10 +183,44 @@ function ArtistProfilePage() {
         </div>
 
         <TabsContent value="all" className="mt-6">
-          <EmptyArtistTab label="public posts" username={artist.username} />
+          {artistTracks.length > 0 ? (
+            <div className="flex flex-wrap gap-4">
+              {artistTracks.map((t) => (
+                <TrackCard
+                  key={t.id}
+                  id={t.id}
+                  title={t.title}
+                  artist={t.artistName}
+                  artistSlug={t.artistUsername ?? artist.username}
+                  cover={t.coverArtUrl ?? "/placeholder.svg"}
+                  plays={t.plays ? t.plays.toLocaleString() : "0"}
+                  duration={t.duration ?? "3:20"}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyArtistTab label="public posts" username={artist.username} />
+          )}
         </TabsContent>
         <TabsContent value="tracks" className="mt-6">
-          <EmptyArtistTab label="tracks" username={artist.username} />
+          {artistTracks.length > 0 ? (
+            <div className="flex flex-wrap gap-4">
+              {artistTracks.map((t) => (
+                <TrackCard
+                  key={t.id}
+                  id={t.id}
+                  title={t.title}
+                  artist={t.artistName}
+                  artistSlug={t.artistUsername ?? artist.username}
+                  cover={t.coverArtUrl ?? "/placeholder.svg"}
+                  plays={t.plays ? t.plays.toLocaleString() : "0"}
+                  duration={t.duration ?? "3:20"}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyArtistTab label="tracks" username={artist.username} />
+          )}
         </TabsContent>
         <TabsContent value="projects" className="mt-6">
           <EmptyArtistTab label="projects" username={artist.username} />

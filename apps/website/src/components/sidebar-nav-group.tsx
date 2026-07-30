@@ -81,11 +81,14 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                     tooltip={item.title}
                   >
                     <Link
-                      to={item.url ?? "/"}
+                      activeOptions={
+                        item.url === "/dashboard" ? { exact: true } : undefined
+                      }
                       activeProps={{
                         className:
-                          "text-purple-500 font-bold dark:text-purple-400",
+                          "bg-primary/10 text-primary font-bold dark:bg-primary/15 dark:text-primary",
                       }}
+                      to={item.url ?? "/"}
                     >
                       {item.icon && <item.icon />}
                       <span>{item.title}</span>
@@ -119,11 +122,16 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                       tooltip={item.title}
                     >
                       <Link
-                        to={item.url}
+                        activeOptions={
+                          item.url === "/dashboard"
+                            ? { exact: true }
+                            : undefined
+                        }
                         activeProps={{
                           className:
-                            "text-purple-500 font-bold dark:text-purple-400",
+                            "bg-primary/10 text-primary font-bold dark:bg-primary/15 dark:text-primary",
                         }}
+                        to={item.url}
                       >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
@@ -160,11 +168,11 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                             isActive={subItem.isActive}
                           >
                             <Link
-                              to={subItem.url}
                               activeProps={{
                                 className:
-                                  "text-purple-500 font-bold dark:text-purple-400",
+                                  "text-primary font-bold dark:text-primary",
                               }}
+                              to={subItem.url}
                             >
                               <span>{subItem.title}</span>
                             </Link>
