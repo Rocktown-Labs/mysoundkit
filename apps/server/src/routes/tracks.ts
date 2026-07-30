@@ -46,7 +46,7 @@ import {
   stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
-import { sampleCatalogItems, sampleTracks } from "@/lib/sample-data";
+import { sampleTracks } from "@/lib/sample-data";
 import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
@@ -212,7 +212,7 @@ app.openapi(
     const isPublicScope = query.scope === "public";
 
     if (!isDatabaseConfigured()) {
-      return c.json(sampleTracks, HttpStatusCodes.OK);
+      return c.json([], HttpStatusCodes.OK);
     }
 
     if (isPublicScope || !isAuthenticatedUser(user)) {
@@ -249,10 +249,6 @@ app.openapi(
 
       for (const row of rows) {
         summaries.push(await buildTrackSummary(row.tracks));
-      }
-
-      if (summaries.length === 0) {
-        return c.json(sampleTracks, HttpStatusCodes.OK);
       }
 
       return c.json(summaries, HttpStatusCodes.OK);
@@ -838,15 +834,15 @@ app.openapi(
     const rawPriceNum =
       typeof body.price === "number"
         ? body.price
-        : (body.price
+        : body.price
           ? Number(body.price)
-          : null);
+          : null;
     const salePriceUsd =
       body.isForSale && isSingle
         ? SINGLE_TRACK_PRICE_USD
-        : (rawPriceNum !== null && !isNaN(rawPriceNum)
+        : rawPriceNum !== null && !isNaN(rawPriceNum)
           ? rawPriceNum
-          : null);
+          : null;
     const salePriceCents =
       body.isForSale && isSingle
         ? SINGLE_TRACK_PRICE_CENTS
@@ -1648,18 +1644,9 @@ app.openapi(
   }),
   async (c) => {
     const { trackId } = c.req.valid("param");
-    const [fallbackItem] = sampleCatalogItems;
 
-    if (!fallbackItem) {
-      throw new Error("Sample catalog is empty.");
-    }
-
-    const sampleItem =
-      sampleCatalogItems.find((entry) => entry.id === trackId) ??
-      sampleCatalogItems.find((entry) => entry.slug === trackId);
-
-    if (sampleItem || !isDatabaseConfigured()) {
-      return c.json(sampleItem ?? fallbackItem, HttpStatusCodes.OK);
+    if (!isDatabaseConfigured()) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const db = createDb();
@@ -1720,7 +1707,7 @@ app.openapi(
       .where(eq(tracks.id, trackId));
 
     if (!row) {
-      return c.json(fallbackItem, HttpStatusCodes.OK);
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const [roleRows, assetRows, licenseRows] = await Promise.all([

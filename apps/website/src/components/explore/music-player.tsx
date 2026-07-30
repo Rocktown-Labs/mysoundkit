@@ -588,7 +588,9 @@ export function MusicPlayer() {
     }
     const nextQueue = [...queue];
     const item = nextQueue[index];
-    if (!item || !nextQueue[index - 1]) return;
+    if (!item || !nextQueue[index - 1]) {
+      return;
+    }
     nextQueue[index] = nextQueue[index - 1]!;
     nextQueue[index - 1] = item;
     setQueue(nextQueue);
@@ -600,7 +602,9 @@ export function MusicPlayer() {
     }
     const nextQueue = [...queue];
     const item = nextQueue[index];
-    if (!item || !nextQueue[index + 1]) return;
+    if (!item || !nextQueue[index + 1]) {
+      return;
+    }
     nextQueue[index] = nextQueue[index + 1]!;
     nextQueue[index + 1] = item;
     setQueue(nextQueue);
@@ -638,7 +642,9 @@ export function MusicPlayer() {
         />
         <div className="max-w-[120px] truncate text-xs">
           <p className="truncate font-semibold">{currentTrack.title}</p>
-          <p className="truncate text-muted-foreground">{currentTrack.artist}</p>
+          <p className="truncate text-muted-foreground">
+            {currentTrack.artist}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <Button

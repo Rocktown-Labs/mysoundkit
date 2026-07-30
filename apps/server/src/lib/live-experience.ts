@@ -64,6 +64,7 @@ export interface RealtimeParticipantToken {
 
 export interface CloudflareRealtimeKitConfig {
   accountId?: string;
+  allowMockRealtime?: string;
   apiToken?: string;
   appId?: string;
 }
@@ -77,6 +78,11 @@ export const hasRealtimeKitConfig = ({
   appId,
 }: CloudflareRealtimeKitConfig) =>
   Boolean(accountId?.trim() && apiToken?.trim() && appId?.trim());
+
+export const allowsMockRealtime = ({
+  allowMockRealtime,
+}: CloudflareRealtimeKitConfig) =>
+  allowMockRealtime?.trim().toLowerCase() === "true";
 
 export const resolveRealtimePreset = ({
   kind,
@@ -310,25 +316,34 @@ export const buildRealtimeKitPollUrl = ({
 }) => `${buildRealtimeKitMeetingUrl({ accountId, appId })}/${meetingId}/polls`;
 
 export const buildRealtimeMeetingPayload = ({ title }: { title: string }) => ({
-  chat_config: {
-    allow_files: false,
-    text_only: true,
-  },
+  persist_chat: true,
+  record_on_start: true,
   recording_config: {
-    auto_start: true,
-    storage: {
-      provider: "cloudflare_r2",
+    audio_config: {
+      channel: "stereo",
+      codec: "MP3",
+      export_file: true,
+    },
+    file_name_prefix: "soundkit-live",
+    max_seconds: 60 * 60 * 4,
+    realtimekit_bucket_config: {
+      enabled: true,
+    },
+    video_config: {
+      codec: "H264",
+      export_file: true,
+      height: 720,
+      width: 1280,
     },
     watermark: {
-      opacity: 0.85,
-      position: "top_right",
+      position: "right top",
+      size: {
+        height: 48,
+        width: 160,
+      },
       url: "https://mysoundkit.com/logo.png",
     },
   },
-  simulcast: true,
+  session_keep_alive_time_in_secs: 300,
   title,
-  video_config: {
-    codec: "h264",
-    max_bitrate: 2500,
-  },
 });

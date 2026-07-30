@@ -198,7 +198,9 @@ export function KeyboardShortcutsProvider({
               <Sparkles className="mr-2 size-4 text-purple-400" />
               <span>AI Music Studio & Master Generator</span>
             </CommandItem>
-            <CommandItem onSelect={() => handleSelectRoute("/dashboard/tracks")}>
+            <CommandItem
+              onSelect={() => handleSelectRoute("/dashboard/tracks")}
+            >
               <FileMusic className="mr-2 size-4 text-blue-400" />
               <span>Track Manager & Releases</span>
             </CommandItem>
@@ -266,7 +268,9 @@ export function KeyboardShortcutsProvider({
           <div className="space-y-4 pt-2">
             {(["General", "Playback", "Navigation"] as const).map((cat) => {
               const items = SHORTCUT_LIST.filter((s) => s.category === cat);
-              if (items.length === 0) return null;
+              if (items.length === 0) {
+                return null;
+              }
               return (
                 <div className="space-y-2" key={cat}>
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

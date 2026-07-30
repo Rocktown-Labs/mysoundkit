@@ -827,9 +827,9 @@ export function NewTrackForm() {
         description:
           values.status === "ready"
             ? `${values.name} is ready and live.`
-            : (values.status === "open_verse"
+            : values.status === "open_verse"
               ? `${values.name} is published to Open Verses.`
-              : `${values.name} is saved as a private draft.`),
+              : `${values.name} is saved as a private draft.`,
         title:
           values.status === "ready" ? "Track is live" : "Track setup complete",
       });
@@ -1152,14 +1152,14 @@ export function NewTrackForm() {
                                   : "Selected",
                               },
                             ]
-                          : (coverUpload
+                          : coverUpload
                             ? [
                                 {
                                   name: coverUpload.fileName,
                                   status: "Uploaded",
                                 },
                               ]
-                            : [])
+                            : []
                       }
                       onFileUpload={handleCoverUpload}
                       progress={isCoverUploading ? coverProgress : undefined}
@@ -1253,14 +1253,14 @@ export function NewTrackForm() {
                                     : "Selected",
                                 },
                               ]
-                            : (uploadedTrack
+                            : uploadedTrack
                               ? [
                                   {
                                     name: uploadedTrack.title,
                                     status: "Uploaded",
                                   },
                                 ]
-                              : [])
+                              : []
                         }
                         onFileUpload={handleMasterUpload}
                         progress={isUploading ? averageProgress : undefined}

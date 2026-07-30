@@ -1,9 +1,10 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import { subscription, user } from "@soundkit/db/schema/auth";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
 import { planCatalog } from "@soundkit/db/schema/plans";
 import { env } from "@soundkit/env/server";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -88,8 +89,8 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
     isActive: true,
     monthlyPriceCents: 2299, // $22.99/mo
     name: "SoundKit Premium Artist",
-    stripeAnnualPriceId: "price_sk_artist_annual_22899",
-    stripeMonthlyPriceId: "price_sk_artist_monthly_2299",
+    stripeAnnualPriceId: "",
+    stripeMonthlyPriceId: "",
   },
   {
     annualPriceCents: 9999, // ~$99.99/yr (17% off)
@@ -103,8 +104,8 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
     isActive: true,
     monthlyPriceCents: 999, // $9.99/mo
     name: "SoundKit Premium Fan",
-    stripeAnnualPriceId: "price_sk_fan_annual_9999",
-    stripeMonthlyPriceId: "price_sk_fan_monthly_999",
+    stripeAnnualPriceId: "",
+    stripeMonthlyPriceId: "",
   },
   {
     annualPriceCents: 49_999,
@@ -119,8 +120,8 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
     maxSeats: 5,
     monthlyPriceCents: 4999,
     name: "Artist Team",
-    stripeAnnualPriceId: "price_sk_artist_team_annual_49999",
-    stripeMonthlyPriceId: "price_sk_artist_team_monthly_4999",
+    stripeAnnualPriceId: "",
+    stripeMonthlyPriceId: "",
   },
   {
     annualPriceCents: 19_999,
@@ -134,93 +135,15 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
     maxSeats: 4,
     monthlyPriceCents: 1999,
     name: "Fan Family",
-    stripeAnnualPriceId: "price_sk_fan_family_annual_19999",
-    stripeMonthlyPriceId: "price_sk_fan_family_monthly_1999",
-  },
-];
-
-const MOCK_STRIPE_PRICES = [
-  {
-    active: true,
-    currency: "USD",
-    id: "price_sk_artist_monthly_2299",
-    interval: "month",
-    lookupKey: "soundkit_premium_artist_month",
-    planCode: "soundkit_premium_artist",
-    productId: "prod_soundkit_premium_artist",
-    productName: "SoundKit Premium Artist",
-    unitAmount: 2299,
-  },
-  {
-    active: true,
-    currency: "USD",
-    id: "price_sk_artist_annual_22899",
-    interval: "year",
-    lookupKey: "soundkit_premium_artist_year",
-    planCode: "soundkit_premium_artist",
-    productId: "prod_soundkit_premium_artist",
-    productName: "SoundKit Premium Artist",
-    unitAmount: 22_899,
-  },
-  {
-    active: true,
-    currency: "USD",
-    id: "price_sk_fan_monthly_999",
-    interval: "month",
-    lookupKey: "soundkit_premium_fan_month",
-    planCode: "soundkit_premium_fan",
-    productId: "prod_soundkit_premium_fan",
-    productName: "SoundKit Premium Fan",
-    unitAmount: 999,
-  },
-  {
-    active: true,
-    currency: "USD",
-    id: "price_sk_fan_annual_9999",
-    interval: "year",
-    lookupKey: "soundkit_premium_fan_year",
-    planCode: "soundkit_premium_fan",
-    productId: "prod_soundkit_premium_fan",
-    productName: "SoundKit Premium Fan",
-    unitAmount: 9999,
-  },
-];
-
-const MOCK_COUPONS = [
-  {
-    amount_off: null,
-    currency: "usd",
-    duration: "forever" as const,
-    duration_in_months: null,
-    id: "SUMMER17",
-    name: "Summer Launch 17% Discount",
-    percent_off: 17,
-    valid: true,
-  },
-  {
-    amount_off: null,
-    currency: "usd",
-    duration: "once" as const,
-    duration_in_months: null,
-    id: "ARTIST50",
-    name: "First Month Artist 50% Off",
-    percent_off: 50,
-    valid: true,
-  },
-  {
-    amount_off: 1000,
-    currency: "usd",
-    duration: "once" as const,
-    duration_in_months: null,
-    id: "WELCOME10",
-    name: "$10 Credit Welcome Pass",
-    percent_off: null,
-    valid: true,
+    stripeAnnualPriceId: "",
+    stripeMonthlyPriceId: "",
   },
 ];
 
 const ensureDefaultPlansSeeded = async () => {
-  if (!isDatabaseConfigured()) {return;}
+  if (!isDatabaseConfigured()) {
+    return;
+  }
   const db = createDb();
   const existing = await db.select().from(planCatalog);
 
@@ -327,30 +250,16 @@ const loadPaymentOverview = async () => {
 
   if (!isDatabaseConfigured()) {
     return {
-      configuredCheckoutPlans: DEFAULT_PLANS.length,
-      planCount: DEFAULT_PLANS.length,
-      plans: DEFAULT_PLANS.map((p) => ({
-        annualPriceCents: p.annualPriceCents,
-        audience: p.audience,
-        code: p.code,
-        envAnnualKey: null,
-        envAnnualPriceId: p.stripeAnnualPriceId,
-        envMonthlyKey: null,
-        envMonthlyPriceId: p.stripeMonthlyPriceId,
-        isActive: p.isActive,
-        maxSeats: p.maxSeats ?? null,
-        monthlyPriceCents: p.monthlyPriceCents,
-        name: p.name,
-        stripeAnnualPriceId: p.stripeAnnualPriceId,
-        stripeMonthlyPriceId: p.stripeMonthlyPriceId,
-      })),
+      configuredCheckoutPlans: 0,
+      planCount: 0,
+      plans: [],
       recentTransactions: [],
-      stripeConfigured: true,
-      stripePrices: MOCK_STRIPE_PRICES,
+      stripeConfigured: Boolean(getEnvValue("STRIPE_SECRET_KEY")),
+      stripePrices: [],
       totals: {
-        grossRevenueCents: 142_500,
-        platformFeeCents: 14_250,
-        successfulTransactions: 12,
+        grossRevenueCents: 0,
+        platformFeeCents: 0,
+        successfulTransactions: 0,
       },
     };
   }
@@ -396,10 +305,7 @@ const loadPaymentOverview = async () => {
   ]);
   const serializedPlans = plans.map(serializePlan);
 
-  const priceList =
-    stripePrices?.data && stripePrices.data.length > 0
-      ? stripePrices.data.map(serializeStripePrice)
-      : MOCK_STRIPE_PRICES;
+  const priceList = stripePrices?.data?.map(serializeStripePrice) ?? [];
 
   return {
     configuredCheckoutPlans: serializedPlans.filter(
@@ -414,9 +320,9 @@ const loadPaymentOverview = async () => {
     stripeConfigured: true,
     stripePrices: priceList,
     totals: {
-      grossRevenueCents: Number(transactionSummary?.amountCents ?? 142_500),
-      platformFeeCents: Number(feeSummary?.amountCents ?? 14_250),
-      successfulTransactions: Number(transactionSummary?.count ?? 12),
+      grossRevenueCents: Number(transactionSummary?.amountCents ?? 0),
+      platformFeeCents: Number(feeSummary?.amountCents ?? 0),
+      successfulTransactions: Number(transactionSummary?.count ?? 0),
     },
   };
 };
@@ -448,9 +354,9 @@ app.openapi(
     if (!isDatabaseConfigured()) {
       return c.json(
         {
-          platformFeeCents: 14_250,
-          successfulTransactionCents: 142_500,
-          transactionCount: 12,
+          platformFeeCents: 0,
+          successfulTransactionCents: 0,
+          transactionCount: 0,
         },
         HttpStatusCodes.OK
       );
@@ -472,11 +378,11 @@ app.openapi(
 
     return c.json(
       {
-        platformFeeCents: Number(feeSummary?.amountCents ?? 14_250),
+        platformFeeCents: Number(feeSummary?.amountCents ?? 0),
         successfulTransactionCents: Number(
-          transactionSummary?.amountCents ?? 142_500
+          transactionSummary?.amountCents ?? 0
         ),
-        transactionCount: Number(transactionSummary?.count ?? 12),
+        transactionCount: Number(transactionSummary?.count ?? 0),
       },
       HttpStatusCodes.OK
     );
@@ -543,6 +449,26 @@ app.openapi(
 
     await ensureDefaultPlansSeeded();
 
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          message: "Database is required to sync Stripe plans.",
+          results: [],
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    if (!getEnvValue("STRIPE_SECRET_KEY")) {
+      return c.json(
+        {
+          message: "STRIPE_SECRET_KEY is required to sync Stripe plans.",
+          results: [],
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
     const body = (await c.req.json().catch(() => ({}))) as {
       planCodes?: string[];
     };
@@ -567,46 +493,47 @@ app.openapi(
       let annualPriceId = plan.stripeAnnualPriceId;
       let productId = null;
 
-      if (getEnvValue("STRIPE_SECRET_KEY")) {
-        try {
-          const existingProduct = findProductForPlan(products, plan);
-          const product =
-            existingProduct ??
-            (await createStripeProduct({ code: plan.code, name: plan.name }));
+      try {
+        const existingProduct = findProductForPlan(products, plan);
+        const product =
+          existingProduct ??
+          (await createStripeProduct({ code: plan.code, name: plan.name }));
 
-          if (product) {
-            productId = product.id;
-            if (!monthlyPriceId && plan.monthlyPriceCents > 0) {
-              const price = await createStripeRecurringPrice({
-                amountCents: plan.monthlyPriceCents,
-                code: plan.code,
-                interval: "month",
-                productId: product.id,
-              });
-              monthlyPriceId = price?.id ?? null;
-            }
-
-            if (!annualPriceId && plan.annualPriceCents) {
-              const price = await createStripeRecurringPrice({
-                amountCents: plan.annualPriceCents,
-                code: plan.code,
-                interval: "year",
-                productId: product.id,
-              });
-              annualPriceId = price?.id ?? null;
-            }
+        if (product) {
+          productId = product.id;
+          if (!monthlyPriceId && plan.monthlyPriceCents > 0) {
+            const price = await createStripeRecurringPrice({
+              amountCents: plan.monthlyPriceCents,
+              code: plan.code,
+              interval: "month",
+              productId: product.id,
+            });
+            monthlyPriceId = price?.id ?? null;
           }
-        } catch (error) {
-          console.warn("Stripe live sync fallback:", error);
+
+          if (!annualPriceId && plan.annualPriceCents) {
+            const price = await createStripeRecurringPrice({
+              amountCents: plan.annualPriceCents,
+              code: plan.code,
+              interval: "year",
+              productId: product.id,
+            });
+            annualPriceId = price?.id ?? null;
+          }
         }
+      } catch (error) {
+        console.error("Stripe live sync failed", error);
       }
 
-      // Fallback mock price assignment if Stripe API call returned null or omitted
-      if (!monthlyPriceId) {
-        monthlyPriceId = `price_sk_${plan.code}_monthly_${plan.monthlyPriceCents}`;
-      }
-      if (!annualPriceId && plan.annualPriceCents) {
-        annualPriceId = `price_sk_${plan.code}_annual_${plan.annualPriceCents}`;
+      if (!(monthlyPriceId || annualPriceId)) {
+        results.push({
+          annualPriceId,
+          code: plan.code,
+          monthlyPriceId,
+          productId,
+          status: "skipped" as const,
+        });
+        continue;
       }
 
       await db
@@ -707,10 +634,7 @@ app.get("/payments/coupons", async (c) => {
   }
 
   const stripeCoupons = await listStripeCoupons().catch(() => null);
-  const coupons =
-    stripeCoupons?.data && stripeCoupons.data.length > 0
-      ? stripeCoupons.data
-      : MOCK_COUPONS;
+  const coupons = stripeCoupons?.data ?? [];
 
   return c.json({ coupons }, HttpStatusCodes.OK);
 });
@@ -761,24 +685,18 @@ app.post("/payments/coupons", async (c) => {
     }).catch(() => null);
   }
 
-  const finalCoupon = createdCoupon ?? {
-    amount_off: body.amountOff ?? null,
-    applies_to: body.appliesToProducts ? { products: body.appliesToProducts } : null,
-    currency: body.currency ?? "usd",
-    duration: body.duration ?? "once",
-    duration_in_months: body.durationInMonths ?? null,
-    id: body.id?.toUpperCase() || `PROMO_${Date.now().toString().slice(-4)}`,
-    max_redemptions: body.maxRedemptions ?? null,
-    metadata: body.metadata ?? null,
-    name: body.name,
-    percent_off: body.percentOff ?? null,
-    redeem_by: body.redeemBy ?? null,
-    times_redeemed: 0,
-    valid: true,
-  };
+  if (!createdCoupon) {
+    return c.json(
+      {
+        message:
+          "Stripe coupon creation failed. Confirm STRIPE_SECRET_KEY is configured and valid.",
+      },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
 
   return c.json(
-    { coupon: finalCoupon, message: "Coupon created successfully." },
+    { coupon: createdCoupon, message: "Coupon created successfully." },
     HttpStatusCodes.OK
   );
 });
@@ -801,10 +719,120 @@ app.delete("/payments/coupons/:id", async (c) => {
 
   if (getEnvValue("STRIPE_SECRET_KEY")) {
     await deleteStripeCoupon(couponId).catch(() => null);
+  } else {
+    return c.json(
+      {
+        message:
+          "Stripe coupon deletion requires STRIPE_SECRET_KEY to be configured.",
+      },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
   return c.json(
     { id: couponId, message: `Coupon ${couponId} archived/deleted.` },
+    HttpStatusCodes.OK
+  );
+});
+
+app.post("/payments/grant-premium", async (c) => {
+  if (!isAdminUser(c.get("user"))) {
+    return c.json(
+      { message: "Admin access is required." },
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
+  if (!isDatabaseConfigured()) {
+    return c.json(
+      { message: "Database is required to grant premium access." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const body = (await c.req.json().catch(() => ({}))) as {
+    email?: string;
+    planCode?: string;
+    referenceId?: string;
+    userId?: string;
+  };
+  const planCode = body.planCode?.trim() || "soundkit_premium_artist";
+  const db = createDb();
+  const targetUserId = body.userId?.trim();
+  const targetEmail = body.email?.trim().toLowerCase();
+  const [targetUser] = targetUserId
+    ? await db
+        .select({ email: user.email, id: user.id })
+        .from(user)
+        .where(eq(user.id, targetUserId))
+        .limit(1)
+    : await db
+        .select({ email: user.email, id: user.id })
+        .from(user)
+        .where(eq(user.email, targetEmail ?? ""))
+        .limit(1);
+
+  if (!targetUser) {
+    return c.json(
+      { message: "Target user was not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
+  const referenceId = body.referenceId?.trim() || targetUser.id;
+  const now = new Date();
+  const periodEnd = new Date(now);
+  periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+
+  const [existing] = await db
+    .select({ id: subscription.id })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.referenceId, referenceId),
+        eq(subscription.plan, planCode)
+      )
+    )
+    .limit(1);
+
+  const subscriptionId = existing?.id ?? crypto.randomUUID();
+
+  if (existing) {
+    await db
+      .update(subscription)
+      .set({
+        billingInterval: "year",
+        cancelAt: null,
+        cancelAtPeriodEnd: false,
+        canceledAt: null,
+        endedAt: null,
+        periodEnd,
+        periodStart: now,
+        status: "active",
+      })
+      .where(eq(subscription.id, existing.id));
+  } else {
+    await db.insert(subscription).values({
+      billingInterval: "year",
+      cancelAtPeriodEnd: false,
+      id: subscriptionId,
+      periodEnd,
+      periodStart: now,
+      plan: planCode,
+      referenceId,
+      seats: 1,
+      status: "active",
+    });
+  }
+
+  return c.json(
+    {
+      message: "Premium access granted.",
+      planCode,
+      referenceId,
+      subscriptionId,
+      user: targetUser,
+    },
     HttpStatusCodes.OK
   );
 });

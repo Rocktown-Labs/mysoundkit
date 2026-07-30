@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, LoaderCircle, Mic2, PlayCircle, Plus, Send, UserCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  LoaderCircle,
+  Mic2,
+  PlayCircle,
+  Plus,
+  Send,
+  UserCheck,
+} from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
@@ -49,8 +57,8 @@ function OpenVerseDetailPage() {
   const handleAcceptSubmission = (subId: string, artistName: string) => {
     setAcceptedSubId(subId);
     toast({
-      title: "Contender Accepted!",
       description: `${artistName} has been added to official track credits & royalty splits.`,
+      title: "Contender Accepted!",
     });
   };
 
@@ -167,7 +175,9 @@ function OpenVerseDetailPage() {
                   Submitted Vocal Takes & Contenders
                 </CardTitle>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Listen to submitted verse recordings, select your favorite contender, and automatically add them to track credits & splits.
+                  Listen to submitted verse recordings, select your favorite
+                  contender, and automatically add them to track credits &
+                  splits.
                 </p>
               </div>
               <Badge variant="secondary">2 Submissions</Badge>
@@ -176,23 +186,25 @@ function OpenVerseDetailPage() {
           <CardContent className="space-y-3">
             {[
               {
-                id: "sub_1",
                 artistName: "Marcus Key",
-                username: "marcuskey",
-                message: "Fire 16-bar verse recorded over your hook! Vocal stems ready.",
-                timeAgo: "2 hours ago",
+                id: "sub_1",
+                message:
+                  "Fire 16-bar verse recorded over your hook! Vocal stems ready.",
                 status: "submitted",
+                timeAgo: "2 hours ago",
+                username: "marcuskey",
               },
               {
-                id: "sub_2",
                 artistName: "Aria Vance",
-                username: "ariavance",
+                id: "sub_2",
                 message: "Smooth R&B harmony layer + second verse vocals.",
-                timeAgo: "1 day ago",
                 status: "accepted",
+                timeAgo: "1 day ago",
+                username: "ariavance",
               },
             ].map((sub) => {
-              const isAccepted = acceptedSubId === sub.id || sub.status === "accepted";
+              const isAccepted =
+                acceptedSubId === sub.id || sub.status === "accepted";
               return (
                 <div
                   key={sub.id}
@@ -208,8 +220,12 @@ function OpenVerseDetailPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-sm truncate">{sub.artistName}</h4>
-                        <span className="text-xs text-muted-foreground">@{sub.username}</span>
+                        <h4 className="font-semibold text-sm truncate">
+                          {sub.artistName}
+                        </h4>
+                        <span className="text-xs text-muted-foreground">
+                          @{sub.username}
+                        </span>
                         {isAccepted && (
                           <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 text-[10px]">
                             <CheckCircle2 className="size-3" />
@@ -232,8 +248,9 @@ function OpenVerseDetailPage() {
                       variant="outline"
                       onClick={() => {
                         toast({
+                          description:
+                            "Auditioning vocal stem synced to open verse slot...",
                           title: `Playing ${sub.artistName}'s Vocal Take`,
-                          description: "Auditioning vocal stem synced to open verse slot...",
                         });
                       }}
                     >
@@ -244,7 +261,9 @@ function OpenVerseDetailPage() {
                       size="sm"
                       disabled={isAccepted}
                       variant={isAccepted ? "secondary" : "default"}
-                      onClick={() => handleAcceptSubmission(sub.id, sub.artistName)}
+                      onClick={() =>
+                        handleAcceptSubmission(sub.id, sub.artistName)
+                      }
                     >
                       {isAccepted ? (
                         <>

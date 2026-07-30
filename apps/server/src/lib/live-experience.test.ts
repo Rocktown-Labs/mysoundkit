@@ -142,27 +142,36 @@ describe("live experience orchestration", () => {
     const payload = buildRealtimeMeetingPayload({ title: "Battle Room" });
 
     expect(payload).toEqual({
-      chat_config: {
-        allow_files: false,
-        text_only: true,
-      },
+      persist_chat: true,
+      record_on_start: true,
       recording_config: {
-        auto_start: true,
-        storage: {
-          provider: "cloudflare_r2",
+        audio_config: {
+          channel: "stereo",
+          codec: "MP3",
+          export_file: true,
+        },
+        file_name_prefix: "soundkit-live",
+        max_seconds: 14_400,
+        realtimekit_bucket_config: {
+          enabled: true,
+        },
+        video_config: {
+          codec: "H264",
+          export_file: true,
+          height: 720,
+          width: 1280,
         },
         watermark: {
-          opacity: 0.85,
-          position: "top_right",
+          position: "right top",
+          size: {
+            height: 48,
+            width: 160,
+          },
           url: "https://mysoundkit.com/logo.png",
         },
       },
-      simulcast: true,
+      session_keep_alive_time_in_secs: 300,
       title: "Battle Room",
-      video_config: {
-        codec: "h264",
-        max_bitrate: 2500,
-      },
     });
   });
 

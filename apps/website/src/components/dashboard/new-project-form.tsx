@@ -472,14 +472,14 @@ export function NewProjectForm() {
                                 : "Selected",
                             },
                           ]
-                        : (projectCover
+                        : projectCover
                           ? [
                               {
                                 name: projectCover.fileName,
                                 status: "Uploaded",
                               },
                             ]
-                          : [])
+                          : []
                     }
                     onFileUpload={handleProjectCoverUpload}
                     progress={isCoverUploading ? coverProgress : undefined}

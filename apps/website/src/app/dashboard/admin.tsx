@@ -802,10 +802,16 @@ function CouponsManagerCard() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [percentOff, setPercentOff] = useState("17");
-  const [duration, setDuration] = useState<"once" | "repeating" | "forever">("forever");
+  const [duration, setDuration] = useState<"once" | "repeating" | "forever">(
+    "forever"
+  );
   const [maxRedemptions, setMaxRedemptions] = useState("");
 
-  const { data: couponsData, isLoading, refetch } = useQuery({
+  const {
+    data: couponsData,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryFn: async () => {
       const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
         credentials: "include",
@@ -814,7 +820,7 @@ function CouponsManagerCard() {
         throw new Error("Failed to load coupons");
       }
       return (await res.json()) as {
-        coupons: Array<{
+        coupons: {
           amount_off?: number | null;
           currency?: string | null;
           duration: string;
@@ -824,38 +830,13 @@ function CouponsManagerCard() {
           percent_off?: number | null;
           times_redeemed?: number;
           valid: boolean;
-        }>;
+        }[];
       };
     },
     queryKey: ["admin", "stripe-coupons"],
   });
 
-  const coupons = couponsData?.coupons ?? [
-    {
-      amount_off: null,
-      duration: "forever",
-      id: "SUMMER17",
-      name: "Summer Launch 17% Discount",
-      percent_off: 17,
-      valid: true,
-    },
-    {
-      amount_off: null,
-      duration: "once",
-      id: "ARTIST50",
-      name: "First Month Artist 50% Off",
-      percent_off: 50,
-      valid: true,
-    },
-    {
-      amount_off: 1000,
-      duration: "once",
-      id: "WELCOME10",
-      name: "$10 Credit Welcome Pass",
-      percent_off: null,
-      valid: true,
-    },
-  ];
+  const coupons = couponsData?.coupons ?? [];
 
   const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -993,8 +974,20 @@ function CouponsManagerCard() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-xs py-4 text-muted-foreground">
+                  <TableCell
+                    colSpan={5}
+                    className="text-center text-xs py-4 text-muted-foreground"
+                  >
                     Loading coupons...
+                  </TableCell>
+                </TableRow>
+              ) : coupons.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="py-4 text-center text-muted-foreground text-xs"
+                  >
+                    No Stripe coupons have been created yet.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1075,7 +1068,9 @@ function CouponsManagerCard() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="maxRedemptions">Max Redemptions (Optional)</Label>
+                <Label htmlFor="maxRedemptions">
+                  Max Redemptions (Optional)
+                </Label>
                 <Input
                   id="maxRedemptions"
                   type="number"
@@ -1107,21 +1102,99 @@ function IssueAICreditsCard() {
   const [targetUser, setTargetUser] = useState("");
   const [credits, setCredits] = useState("500");
   const [reason, setReason] = useState("Pro Membership Perk");
+  const [planCode, setPlanCode] = useState("soundkit_premium_artist");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGrantingPremium, setIsGrantingPremium] = useState(false);
 
-  const handleIssueCredits = (e: React.FormEvent) => {
+  const handleIssueCredits = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetUser.trim() || !credits) {return;}
+    if (!targetUser.trim() || !credits) {
+      return;
+    }
 
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch(
+        `${API_V1_URL}/admin/finance/payments/issue-credits`,
+        {
+          body: JSON.stringify({
+            credits: Number(credits),
+            reason,
+            userId: targetUser.trim(),
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to grant AI credits");
+      }
+
       setIsSubmitting(false);
       toast({
         description: `Successfully credited ${credits} AI credits to ${targetUser.trim()}.`,
-        title: "AI Credits Granted ⚡",
+        title: "AI Credits Granted",
       });
       setTargetUser("");
-    }, 400);
+    } catch (error) {
+      setIsSubmitting(false);
+      toast({
+        description:
+          error instanceof Error ? error.message : "Could not grant credits.",
+        title: "Grant failed",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGrantPremium = async () => {
+    if (!targetUser.trim()) {
+      return;
+    }
+
+    setIsGrantingPremium(true);
+    try {
+      const isEmail = targetUser.includes("@") && !targetUser.startsWith("@");
+      const res = await fetch(
+        `${API_V1_URL}/admin/finance/payments/grant-premium`,
+        {
+          body: JSON.stringify({
+            ...(isEmail
+              ? { email: targetUser.trim() }
+              : { userId: targetUser.trim() }),
+            planCode,
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to grant premium access");
+      }
+
+      toast({
+        description: `${targetUser.trim()} now has ${planCode}.`,
+        title: "Premium Granted",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not grant premium access.",
+        title: "Premium grant failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGrantingPremium(false);
+    }
   };
 
   return (
@@ -1143,6 +1216,15 @@ function IssueAICreditsCard() {
               value={targetUser}
               onChange={(e) => setTargetUser(e.target.value)}
               required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="grantPlanCode">Premium plan</Label>
+            <Input
+              id="grantPlanCode"
+              placeholder="soundkit_premium_artist"
+              value={planCode}
+              onChange={(e) => setPlanCode(e.target.value)}
             />
           </div>
           <div className="grid gap-2">
@@ -1171,6 +1253,15 @@ function IssueAICreditsCard() {
             className="w-full font-bold bg-purple-600 hover:bg-purple-700 text-white"
           >
             {isSubmitting ? "Granting Credits..." : "Grant AI Credits to User"}
+          </Button>
+          <Button
+            type="button"
+            disabled={isGrantingPremium}
+            onClick={handleGrantPremium}
+            variant="outline"
+            className="w-full font-bold"
+          >
+            {isGrantingPremium ? "Granting Premium..." : "Grant Premium Access"}
           </Button>
         </form>
       </CardContent>

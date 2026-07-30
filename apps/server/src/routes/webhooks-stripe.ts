@@ -161,7 +161,9 @@ const processStripeEvent = async (event: StripeEvent) => {
     eventType === "coupon.updated" ||
     eventType === "coupon.deleted"
   ) {
-    console.info(`Stripe webhook coupon event received: ${eventType} (${object.id})`);
+    console.info(
+      `Stripe webhook coupon event received: ${eventType} (${object.id})`
+    );
     return;
   }
 

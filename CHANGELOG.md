@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added POST /v1/admin/finance/payments/grant-premium endpoint enabling admins to grant active premium subscription rows to users.
+- Added "Grant Premium Access" action and real coupon view to the admin finance dashboard UI.
 - Added Open Verse Submissions Review Desk to `/dashboard/open-verses/$genre/$id`, enabling creators to audition contender vocal takes and accept them directly into official track credits and splits.
 - Added Open Verse toggle sync (`isOpenVerse`) to `PATCH /v1/tracks/:trackId` for enabling or closing open verse listings on existing tracks post-creation.
 - Added secret unlisted link sharing mechanism for private tracks so non-members can stream full-quality audio via direct link without logging in or appearing in public explore feeds.
@@ -39,6 +41,12 @@
 - Added dynamic Better Auth base URL and Cloudflare preview origin allowlists so PR previews and worker subdomains can authenticate against the API.
 - Added separate RealtimeKit-oriented live dashboards and room scaffolds for battles, listening parties, and streams, including BattleBot lobby/voting rules, party playlist/lyrics cues, stream analytics panels, and artist-only profile challenge actions.
 - Added authenticated live experience APIs for RealtimeKit meeting creation, participant preset tokens, BattleBot voter snapshots, notification fanout payloads, and single-session conflict checks.
+
+### Changed
+
+- Updated RealtimeKit REST client response handling to match Cloudflare's standard payload shape (`data`) and documented meeting fields.
+- Removed fake working rooms, demo catalog fallback audio, and placeholder Stripe prices/coupons across RealtimeKit, tracks, admin finance, and billing APIs.
+- Formatted repository codebase with oxfmt.
 
 ### Fixed
 

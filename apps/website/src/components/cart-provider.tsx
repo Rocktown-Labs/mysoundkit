@@ -11,8 +11,8 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 
-import { API_V1_URL } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 
 type ProductType = "track" | "project";
 type PurchaseMode = "digital_download" | "license";

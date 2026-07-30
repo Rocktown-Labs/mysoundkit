@@ -827,7 +827,7 @@ function StreamLibrary({
       <CardContent>
         {isLoading ? (
           <p className="text-muted-foreground text-sm">Loading videos...</p>
-        ) : (liveRecordings.length === 0 ? (
+        ) : liveRecordings.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center">
             <Tv className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-3 font-semibold text-sm">
@@ -860,7 +860,7 @@ function StreamLibrary({
               </div>
             ))}
           </div>
-        ))}
+        )}
       </CardContent>
     </Card>
   );

@@ -260,9 +260,9 @@ app.openapi(
           links.map((link) => [
             link.platform === "apple_music"
               ? "apple"
-              : (link.platform === "personal_site"
+              : link.platform === "personal_site"
                 ? "personalSite"
-                : link.platform),
+                : link.platform,
             link.url,
           ])
         );
@@ -275,9 +275,9 @@ app.openapi(
           Number(artist.followerCount) > 0 ||
           Number(artist.battleCount) > 0;
         const rank = hasActivity
-          ? (artist.battleCount
+          ? artist.battleCount
             ? `#${artist.battleCount}`
-            : "#1")
+            : "#1"
           : null;
 
         return c.json(

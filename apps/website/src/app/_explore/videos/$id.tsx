@@ -80,7 +80,7 @@ function VideoDetailPage() {
             <div className="flex flex-wrap gap-3">
               {video.status === "live" && isPremiumLive ? (
                 <Button>Upgrade to Watch</Button>
-              ) : (video.externalPlaybackUrl ? (
+              ) : video.externalPlaybackUrl ? (
                 <Button asChild={true}>
                   <a
                     href={video.externalPlaybackUrl}
@@ -94,7 +94,7 @@ function VideoDetailPage() {
                 <Button disabled={video.muxPlaybackId === null}>
                   Play on SoundKit
                 </Button>
-              ))}
+              )}
             </div>
           </div>
 

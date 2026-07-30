@@ -88,9 +88,9 @@ function TrackDetailPage() {
   const isLive = Boolean(track.isPublic);
   const statusLabel = isLive
     ? "Ready / Live"
-    : (track.productionStatus === "demo"
+    : track.productionStatus === "demo"
       ? "Draft"
-      : track.productionStatus);
+      : track.productionStatus;
 
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [syncedLyrics, setSyncedLyrics] = useState<
@@ -176,7 +176,7 @@ function TrackDetailPage() {
             </p>
           </div>
         </div>
-      ) : (isLive ? (
+      ) : isLive ? (
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
           <CheckCircle2 className="mt-0.5 size-5 text-primary" />
           <div>
@@ -198,7 +198,7 @@ function TrackDetailPage() {
             </p>
           </div>
         </div>
-      ))}
+      )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div
@@ -274,9 +274,9 @@ function TrackDetailPage() {
                   ? new Date(track.releaseAt).toLocaleDateString(undefined, {
                       dateStyle: "medium",
                     })
-                  : (isLive
+                  : isLive
                     ? "Immediate (Live)"
-                    : "Draft")}
+                    : "Draft"}
               </p>
             </div>
             <div>

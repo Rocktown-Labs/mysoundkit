@@ -343,8 +343,13 @@ function ChallengePage() {
               <Bot className="size-4" />
             </div>
             <div className="text-xs">
-              <span className="font-bold text-foreground">BattleBot handoff: </span>
-              <span className="text-muted-foreground">Automated round switching, 2-minute voting polls, and timer enforcement.</span>
+              <span className="font-bold text-foreground">
+                BattleBot handoff:{" "}
+              </span>
+              <span className="text-muted-foreground">
+                Automated round switching, 2-minute voting polls, and timer
+                enforcement.
+              </span>
             </div>
           </div>
           <Badge variant="outline" className="text-xs shrink-0">

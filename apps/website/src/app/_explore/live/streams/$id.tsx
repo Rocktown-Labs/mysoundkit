@@ -155,11 +155,11 @@ function StreamDetailPage() {
                   <span className="flex items-center gap-2">
                     {label === "Realtime chat" ? (
                       <MessageSquare className="size-4 text-primary" />
-                    ) : (label === "Captions" ? (
+                    ) : label === "Captions" ? (
                       <Captions className="size-4 text-primary" />
                     ) : (
                       <Activity className="size-4 text-primary" />
-                    ))}
+                    )}
                     {label}
                   </span>
                   <Badge variant="outline">{value}</Badge>

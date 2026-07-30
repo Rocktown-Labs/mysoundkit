@@ -253,12 +253,11 @@ export const createStripeCoupon = ({
   });
 };
 
-export const deleteStripeCoupon = (couponId: string) => 
+export const deleteStripeCoupon = (couponId: string) =>
   stripeRequest<{ deleted: boolean; id: string }>({
     method: "DELETE",
     path: `/coupons/${encodeURIComponent(couponId)}`,
-  })
-;
+  });
 
 export const createDestinationCheckout = ({
   applicationFeeCents,

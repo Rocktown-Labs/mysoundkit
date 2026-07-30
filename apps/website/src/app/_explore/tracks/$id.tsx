@@ -23,12 +23,11 @@ import {
   FileJson,
   Layers,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { useCart } from "@/components/cart-provider";
 import { AppImage } from "@/components/ui/app-image";
-import { toast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -51,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 
 // --- Types ---
@@ -143,210 +143,6 @@ interface MockCatalogItem {
   visualContent?: MockVisualContent[];
 }
 
-// --- Mock Data ---
-
-const MOCK_ARTISTS: Record<string, MockArtist> = {
-  dual: {
-    avatarUrl: "/diverse-user-avatars.png",
-    followers: "12K",
-    genre: "Electronic / Pop",
-    handle: "arivera",
-    id: "a3",
-    listeners: "85K",
-    location: "Brooklyn, NY",
-    name: "Alex Rivera",
-    roles: ["musician", "producer"],
-    verified: false,
-  },
-  luna: {
-    avatarUrl: "/diverse-user-avatars.png",
-    followers: "124K",
-    genre: "R&B / Soul",
-    handle: "luna-eclipse",
-    id: "a1",
-    listeners: "1.2M",
-    location: "Los Angeles, CA",
-    name: "Luna Eclipse",
-    roles: ["musician"],
-    verified: true,
-  },
-  metro: {
-    avatarUrl: "/diverse-user-avatars.png",
-    battleRank: "#1",
-    battleRecord: "120-2",
-    followers: "8.4M",
-    genre: "Hip-Hop / Trap",
-    handle: "metroboomin",
-    id: "a2",
-    listeners: "45M",
-    location: "Atlanta, GA",
-    name: "Metro Boomin",
-    roles: ["producer"],
-    verified: true,
-  },
-};
-
-const MOCK_CATALOG: MockCatalogItem[] = [
-  {
-    artist: MOCK_ARTISTS.luna,
-    assets: [
-      {
-        duration: "3:24",
-        id: "as1",
-        included: true,
-        kind: "master",
-        label: "High Quality Master",
-        subtitle: "24-bit WAV",
-      },
-      {
-        duration: "3:24",
-        id: "as2",
-        included: true,
-        kind: "clean",
-        label: "Radio Edit",
-        subtitle: "Clean Version",
-      },
-      {
-        id: "as3",
-        included: true,
-        kind: "booklet",
-        label: "Digital Booklet",
-        subtitle: "PDF Artwork",
-      },
-    ],
-    coverArtUrl: "/summer-music-album-cover.png",
-    description:
-      "A smooth R&B track perfect for late-night drives. Inspired by the coastal vibes of California.",
-    duration: "3:24",
-    genre: "R&B / Soul",
-    id: "single-1",
-    isPurchasable: true,
-    isStreamable: true,
-    playbackUrl: "/demo-audio/fantasy26.wav",
-    priceCents: 129,
-    priceLabel: "1.29",
-    purchaseMode: "digital_download",
-    streamCount: "2,420,150",
-    title: "Summer Nights",
-    type: "single",
-    visualContent: [
-      {
-        id: "v1",
-        thumbnailUrl: "/music-battle-live-performance-video.jpg",
-        title: "Official Music Video",
-        type: "video",
-        views: "1.2M",
-      },
-    ],
-  },
-  {
-    artist: MOCK_ARTISTS.metro,
-    assets: [
-      {
-        duration: "2:45",
-        id: "as4",
-        included: true,
-        kind: "tagged_mp3",
-        label: "Tagged Preview",
-      },
-      {
-        duration: "2:45",
-        id: "as5",
-        included: true,
-        kind: "untagged_wav",
-        label: "Untagged WAV",
-      },
-      {
-        id: "as6",
-        included: true,
-        kind: "stems",
-        label: "Track Stems",
-        subtitle: "12 Individual tracks",
-      },
-      {
-        id: "as7",
-        included: true,
-        kind: "midi",
-        label: "MIDI Files",
-        subtitle: "Melody & Bass",
-      },
-    ],
-    bpm: 142,
-    coverArtUrl: "/hip-hop-album-cover.png",
-    description:
-      "Hard hitting trap beat with aggressive 808s and cinematic textures.",
-    duration: "2:45",
-    genre: "Hip-Hop / Trap",
-    id: "beat-1",
-    isPurchasable: true,
-    isStreamable: true,
-    licenseOptions: [
-      {
-        id: "l1",
-        name: "Basic Lease",
-        priceCents: 2999,
-        priceLabel: "29.99",
-        rightsSummary: ["5,000 Streams", "MP3 + WAV", "Non-Exclusive"],
-      },
-      {
-        id: "l2",
-        name: "Premium Lease",
-        priceCents: 7999,
-        priceLabel: "79.99",
-        rightsSummary: [
-          "Unlimited Streams",
-          "Includes Stems",
-          "Commercial Use",
-        ],
-      },
-      {
-        id: "l3",
-        isExclusive: true,
-        name: "Exclusive",
-        priceCents: 49_999,
-        priceLabel: "499.99",
-        rightsSummary: ["Full Ownership", "Removed from Store", "Contract PDF"],
-      },
-    ],
-    musicalKey: "Dm",
-    playbackUrl: "/demo-audio/long-way-26.wav",
-    priceCents: 2999,
-    priceLabel: "29.99",
-    purchaseMode: "license",
-    streamCount: "500,420",
-    title: "Dark Knights",
-    type: "beat",
-  },
-  {
-    artist: MOCK_ARTISTS.dual,
-    assets: [
-      {
-        id: "as8",
-        included: true,
-        kind: "master",
-        label: "Complete Album",
-        subtitle: "9 Tracks (FLAC)",
-      },
-      { id: "as9", included: true, kind: "artwork", label: "Digital Artwork" },
-    ],
-    coverArtUrl: "/night-music-album-cover.png",
-    description:
-      "The debut studio album exploring neon-noir soundscapes and digital isolation.",
-    genre: "Electronic / Pop",
-    id: "owned-1",
-    isOwned: true,
-    isPurchasable: false,
-    isStreamable: true,
-    playbackUrl: "/demo-audio/dumbledore.wav",
-    priceCents: 1499,
-    priceLabel: "14.99",
-    purchaseMode: "digital_download",
-    streamCount: "8,245,100",
-    title: "Midnight Chronicles",
-    type: "album",
-  },
-];
-
 const formatDisplayPrice = (priceLabel: string) =>
   priceLabel.startsWith("$") ? priceLabel : `$${priceLabel}`;
 
@@ -383,16 +179,52 @@ function TrackPage() {
   const { addItem } = useCart();
   const [isLiked, setIsLiked] = useState(false);
 
-  const fallbackItem = useMemo(
-    () => MOCK_CATALOG.find((entry) => entry.id === id) || MOCK_CATALOG[0],
-    [id]
-  );
-  const { data } = useQuery({
+  const {
+    data: item,
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
     queryFn: () => fetchCatalogItem(id),
     queryKey: ["track-detail", id],
     retry: false,
   });
-  const item = data ?? fallbackItem;
+  const [selectedLicense, setSelectedLicense] =
+    useState<MockLicenseOption | null>(null);
+
+  useEffect(() => {
+    setSelectedLicense(item?.licenseOptions?.[0] ?? null);
+  }, [item?.licenseOptions]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-6 text-sm text-muted-foreground">
+          Loading track...
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !item) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-4 px-6 text-center">
+          <h1 className="font-bold text-2xl">Track unavailable</h1>
+          <p className="text-muted-foreground text-sm">
+            {error instanceof Error
+              ? error.message
+              : "This track could not be loaded from the API."}
+          </p>
+          <Button variant="outline" onClick={() => router.history.back()}>
+            <ArrowLeft className="size-4" />
+            Back to catalog
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const playerTrack = {
     artist: item.artist.name,
     artistHref: `/artist/${item.artist.handle}`,
@@ -402,10 +234,6 @@ function TrackPage() {
     title: item.title,
     trackHref: `/tracks/${item.id}`,
   };
-
-  const [selectedLicense, setSelectedLicense] = useState(
-    item.licenseOptions?.[0] || null
-  );
 
   const playCurrentTrack = () => {
     if (!item.playbackUrl) {

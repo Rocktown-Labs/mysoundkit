@@ -13,7 +13,6 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { samplePlans, sampleWorkspace } from "@/lib/sample-data";
 import {
   entitlementSummarySchema,
   messageResponseSchema,
@@ -42,10 +41,6 @@ app.openapi(
   }),
   async (c) => {
     const plans = await getCatalogPlans();
-
-    if (plans.length === 0) {
-      return c.json(samplePlans, HttpStatusCodes.OK);
-    }
 
     return c.json(
       plans.map((plan) => ({
@@ -157,7 +152,7 @@ app.openapi(
         activePlanCode: entitlements.activePlanCode,
         entitlements,
         status: entitlements.status,
-        workspace: entitlements.referenceId ? sampleWorkspace : null,
+        workspace: null,
       },
       HttpStatusCodes.OK
     );

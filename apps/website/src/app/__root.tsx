@@ -95,7 +95,8 @@ function GlobalErrorFallback({ reset }: { reset: () => void }) {
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg space-y-4">
         <h2 className="text-2xl font-bold">Something went wrong</h2>
         <p className="text-sm text-muted-foreground">
-          An unexpected error occurred. Our team has been notified automatically.
+          An unexpected error occurred. Our team has been notified
+          automatically.
         </p>
         <div className="pt-2 flex justify-center gap-3">
           <button

@@ -3,6 +3,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import {
+  allowsMockRealtime,
   buildNotificationFanout,
   buildRealtimeKitMeetingUrl,
   buildRealtimeKitParticipantUrl,
@@ -21,7 +22,6 @@ import type {
   RealtimeMeeting,
   RealtimeParticipantToken,
 } from "@/lib/live-experience";
-import { createSampleLiveRoom } from "@/lib/live-room-data";
 import {
   battleBotActionBodySchema,
   createLiveExperienceBodySchema,
@@ -33,7 +33,7 @@ import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 const app = new Hono<AppEnv>();
 
 interface CloudflareMeetingResponse {
-  result?: {
+  data?: {
     id?: string;
     title?: string;
   };
@@ -41,8 +41,7 @@ interface CloudflareMeetingResponse {
 }
 
 interface CloudflareParticipantResponse {
-  result?: {
-    authToken?: string;
+  data?: {
     id?: string;
     token?: string;
   };
@@ -72,21 +71,6 @@ const badRequest = (message: string) => ({
   message,
 });
 
-const mockStreamInput = (title: string) => {
-  const mockId = crypto.randomUUID().replaceAll("-", "");
-
-  return {
-    id: mockId,
-    playbackUrl: `https://customer-f33cbd.cloudflarestream.com/${mockId}/manifest/video.m3u8`,
-    rtmpsKey: `cfs_${mockId}`,
-    rtmpsUrl: "rtmps://live.cloudflare.com:443/live/",
-    srtKey: `cfs_srt_${mockId}`,
-    srtUrl: "srt://live.cloudflare.com:443",
-    status: "idle",
-    title,
-  };
-};
-
 const streamInputFromCloudflareResponse = (
   data: CloudflareStreamResponse,
   title?: string
@@ -107,6 +91,48 @@ const streamInputFromCloudflareResponse = (
     status: result.status ?? "idle",
     ...(title ? { title } : {}),
   };
+};
+
+const cloudflareStreamSetupRequired = {
+  message:
+    "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
+};
+
+const createCloudflareStreamInput = async ({
+  env,
+  title,
+}: {
+  env: AppEnv["Bindings"];
+  title: string;
+}) => {
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = env.CLOUDFLARE_API_TOKEN;
+
+  if (!(accountId && apiToken)) {
+    return null;
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs`,
+    {
+      body: JSON.stringify({
+        meta: { name: title },
+        recording: { mode: "automatic" },
+      }),
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as CloudflareStreamResponse;
+  return streamInputFromCloudflareResponse(data, title);
 };
 
 const liveKindFromExperienceId = (experienceId: string): LiveExperienceKind => {
@@ -145,9 +171,15 @@ const nextBattlePhaseForAction = ({
 
 const realtimeKitConfig = (env: AppEnv["Bindings"]) => ({
   accountId: env.CLOUDFLARE_ACCOUNT_ID,
+  allowMockRealtime: env.SOUNDKIT_ALLOW_MOCK_REALTIME,
   apiToken: env.CLOUDFLARE_API_TOKEN,
   appId: env.CLOUDFLARE_REALTIMEKIT_APP_ID,
 });
+
+const realtimeSetupRequired = {
+  message:
+    "Cloudflare RealtimeKit is not configured. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, and CLOUDFLARE_REALTIMEKIT_APP_ID.",
+};
 
 const createRealtimeMeeting = async ({
   env,
@@ -184,23 +216,27 @@ const createRealtimeMeeting = async ({
 
       if (response.ok) {
         const data = (await response.json()) as CloudflareMeetingResponse;
-        const meetingId = data.result?.id;
+        const meetingId = data.data?.id;
 
         if (meetingId) {
           return {
             id: meetingId,
             provider: "cloudflare_realtimekit",
             status: "configured",
-            title: data.result?.title ?? title,
+            title: data.data?.title ?? title,
           };
         }
       }
-    } catch {
-      // Preview and local environments keep working with mocked RTK contracts.
+    } catch (error) {
+      console.error("Cloudflare RealtimeKit meeting creation failed", error);
     }
   }
 
-  return createMockRealtimeMeeting({ kind, title });
+  if (allowsMockRealtime(config)) {
+    return createMockRealtimeMeeting({ kind, title });
+  }
+
+  throw new Error(realtimeSetupRequired.message);
 };
 
 const createRealtimeParticipant = async ({
@@ -250,8 +286,8 @@ const createRealtimeParticipant = async ({
 
       if (response.ok) {
         const data = (await response.json()) as CloudflareParticipantResponse;
-        const authToken = data.result?.authToken ?? data.result?.token;
-        const participantId = data.result?.id;
+        const authToken = data.data?.token;
+        const participantId = data.data?.id;
 
         if (authToken && participantId) {
           return {
@@ -264,18 +300,25 @@ const createRealtimeParticipant = async ({
           };
         }
       }
-    } catch {
-      // Preview and local environments keep working with mocked RTK contracts.
+    } catch (error) {
+      console.error(
+        "Cloudflare RealtimeKit participant creation failed",
+        error
+      );
     }
   }
 
-  return createMockParticipantToken({
-    kind,
-    meetingId,
-    phase,
-    role,
-    user,
-  });
+  if (allowsMockRealtime(config)) {
+    return createMockParticipantToken({
+      kind,
+      meetingId,
+      phase,
+      role,
+      user,
+    });
+  }
+
+  throw new Error(realtimeSetupRequired.message);
 };
 
 const durableRequest = (
@@ -318,11 +361,38 @@ app.post("/experiences", async (c) => {
 
   const body = parseResult.data;
   const startsAt = body.scheduledStartAt ?? new Date().toISOString();
-  const meeting = await createRealtimeMeeting({
-    env: c.env,
-    kind: body.kind,
-    title: body.title.trim(),
-  });
+  let meeting: RealtimeMeeting;
+
+  try {
+    meeting = await createRealtimeMeeting({
+      env: c.env,
+      kind: body.kind,
+      title: body.title.trim(),
+    });
+  } catch (error) {
+    console.error("Unable to create live experience meeting", error);
+    return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
+
+  let streamInput = null;
+
+  if (body.kind === "stream" && body.source === "obs") {
+    try {
+      streamInput = await createCloudflareStreamInput({
+        env: c.env,
+        title: body.title.trim(),
+      });
+    } catch (error) {
+      console.error("Cloudflare Stream live input creation failed", error);
+    }
+
+    if (!streamInput) {
+      return c.json(
+        cloudflareStreamSetupRequired,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+  }
   const experienceId = `live_${body.kind}_${crypto.randomUUID()}`;
   const roomHref = `/live/${
     body.kind === "party" ? "parties" : `${body.kind}s`
@@ -367,10 +437,7 @@ app.post("/experiences", async (c) => {
         title: body.title.trim(),
       }),
       realtime: meeting,
-      streamInput:
-        body.kind === "stream" && body.source === "obs"
-          ? mockStreamInput(body.title.trim())
-          : null,
+      streamInput,
     },
     HttpStatusCodes.CREATED
   );
@@ -395,14 +462,21 @@ app.post("/experiences/:experienceId/join", async (c) => {
 
   const experienceId = c.req.param("experienceId");
   const kind = liveKindFromExperienceId(experienceId);
-  const participant = await createRealtimeParticipant({
-    env: c.env,
-    kind,
-    meetingId: experienceId,
-    phase: parseResult.data.phase,
-    role: parseResult.data.role,
-    user,
-  });
+  let participant: RealtimeParticipantToken;
+
+  try {
+    participant = await createRealtimeParticipant({
+      env: c.env,
+      kind,
+      meetingId: experienceId,
+      phase: parseResult.data.phase,
+      role: parseResult.data.role,
+      user,
+    });
+  } catch (error) {
+    console.error("Unable to create live participant token", error);
+    return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
 
   return c.json(
     {
@@ -480,7 +554,10 @@ app.get("/rooms/:roomId", async (c) => {
   const response = await durableRequest(c, roomId, "/state");
 
   if (!response) {
-    return c.json(createSampleLiveRoom(roomId), HttpStatusCodes.OK);
+    return c.json(
+      { message: "Live room Durable Object binding is not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
   const room = await response.json();
@@ -517,17 +594,10 @@ app.post("/rooms/:roomId/chat", async (c) => {
   });
 
   if (!response) {
-    const room = createSampleLiveRoom(roomId);
-    if (body.message?.trim()) {
-      room.chat.push({
-        id: crypto.randomUUID(),
-        message: body.message.trim(),
-        sentAt: new Date().toISOString(),
-        userName: body.userName?.trim() || "Listener",
-      });
-    }
-
-    return c.json(room, HttpStatusCodes.CREATED);
+    return c.json(
+      { message: "Live room chat is not configured." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
   const room = await response.json();
@@ -569,35 +639,23 @@ app.post("/cloudflare-stream", async (c) => {
 
   if (accountId && apiToken) {
     try {
-      const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs`,
-        {
-          body: JSON.stringify({
-            meta: { name: title },
-            recording: { mode: "automatic" },
-          }),
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        }
-      );
+      const streamInput = await createCloudflareStreamInput({
+        env: c.env,
+        title,
+      });
 
-      if (response.ok) {
-        const data = (await response.json()) as CloudflareStreamResponse;
-        const streamInput = streamInputFromCloudflareResponse(data, title);
-
-        if (streamInput) {
-          return c.json(streamInput, HttpStatusCodes.CREATED);
-        }
+      if (streamInput) {
+        return c.json(streamInput, HttpStatusCodes.CREATED);
       }
-    } catch {
-      // Fall back to mock
+    } catch (error) {
+      console.error("Cloudflare Stream live input creation failed", error);
     }
   }
 
-  return c.json(mockStreamInput(title), HttpStatusCodes.CREATED);
+  return c.json(
+    cloudflareStreamSetupRequired,
+    HttpStatusCodes.SERVICE_UNAVAILABLE
+  );
 });
 
 app.get("/cloudflare-stream/:streamId", async (c) => {
@@ -630,22 +688,16 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
           return c.json(streamInput, HttpStatusCodes.OK);
         }
       }
-    } catch {
-      // Fall back to mock
+    } catch (error) {
+      console.error("Cloudflare Stream live input lookup failed", error);
     }
   }
 
   return c.json(
     {
-      id: streamId,
-      playbackUrl: `https://customer-f33cbd.cloudflarestream.com/${streamId}/manifest/video.m3u8`,
-      rtmpsKey: `cfs_${streamId}`,
-      rtmpsUrl: "rtmps://live.cloudflare.com:443/live/",
-      srtKey: `cfs_srt_${streamId}`,
-      srtUrl: "srt://live.cloudflare.com:443",
-      status: "connected",
+      message: cloudflareStreamSetupRequired.message,
     },
-    HttpStatusCodes.OK
+    HttpStatusCodes.SERVICE_UNAVAILABLE
   );
 });
 
