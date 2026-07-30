@@ -12,6 +12,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { logInfo } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -234,6 +235,15 @@ const createUploadRouter = (): Router | null => {
           }
 
           const userId = await requireArtistUploadUser(req);
+
+          logInfo({
+            event: "upload_presigned_url_requested",
+            fileCount: files.length,
+            fileNames: files.map((f) => f.name),
+            fileSizes: files.map((f) => f.size),
+            route: "track-source",
+            userId,
+          });
 
           return {
             generateObjectInfo: ({ file }) => ({

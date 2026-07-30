@@ -240,9 +240,20 @@ export function NewTrackForm() {
   const [step, setStep] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<
-    "idle" | "uploading" | "creating" | "processing" | "complete"
+    "idle" | "uploading" | "creating" | "processing" | "complete" | "settled"
   >("idle");
   const [submitProgress, setSubmitProgress] = useState(0);
+  const [createdTrackInfo, setCreatedTrackInfo] = useState<{
+    audioFileName?: string;
+    audioFileSize?: string;
+    coverUrl?: string;
+    genre: string;
+    id: string;
+    isPublic: boolean;
+    playbackUrl?: string;
+    status: string;
+    title: string;
+  } | null>(null);
 
   const [creditQuery, setCreditQuery] = useState("");
   const [creditRole, setCreditRole] = useState<"songwriter" | "producer">(
@@ -798,29 +809,20 @@ export function NewTrackForm() {
         });
       }
 
-      setSubmitStage("complete");
+      setSubmitStage("settled");
       setSubmitProgress(100);
-
-      // Playback instant setup
-      setQueue([
-        {
-          artist: "You",
-          artistHref: "/dashboard/profile",
-          cover: coverUrl || "/placeholder.svg",
-          id: trackPreview.trackId,
-          src: trackPreview.remoteUrl,
-          title: values.name,
-          trackHref: `/dashboard/tracks/${trackPreview.trackId}`,
-        },
-      ]);
-      setCurrentTrack({
-        artist: "You",
-        artistHref: "/dashboard/profile",
-        cover: coverUrl || "/placeholder.svg",
+      setCreatedTrackInfo({
+        audioFileName: selectedMasterFile?.name || "master-audio.wav",
+        audioFileSize: selectedMasterFile
+          ? `${(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB`
+          : undefined,
+        coverUrl: coverUrl || "/placeholder.svg",
+        genre: values.genre,
         id: trackPreview.trackId,
-        src: trackPreview.remoteUrl,
+        isPublic: values.status === "ready" || values.status === "open_verse",
+        playbackUrl: trackPreview.remoteUrl,
+        status: values.status,
         title: values.name,
-        trackHref: `/dashboard/tracks/${trackPreview.trackId}`,
       });
 
       toast({
@@ -836,10 +838,11 @@ export function NewTrackForm() {
 
       clearDraft();
       allowNavigation();
-
-      void router.navigate({
-        params: { id: trackPreview.trackId },
-        to: "/dashboard/tracks/$id",
+      posthog.capture("track_upload_settled", {
+        genre: values.genre,
+        isPublic: values.status === "ready" || values.status === "open_verse",
+        status: values.status,
+        trackId: trackPreview.trackId,
       });
     } catch (error) {
       posthog.captureException(error);
@@ -902,7 +905,114 @@ export function NewTrackForm() {
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       {blockerDialog}
 
-      {isSubmitting && (
+      {isSubmitting && submitStage === "settled" && createdTrackInfo ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <Card className="w-full max-w-lg border-primary/30 shadow-2xl p-6 space-y-6">
+            <div className="flex items-center gap-3 border-b border-border/40 pb-4">
+              <div className="size-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="size-6 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Track Uploaded & Ready</h3>
+                <p className="text-xs text-muted-foreground">
+                  Your audio master asset was processed and recorded
+                  successfully.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 rounded-xl border border-border/60 bg-muted/30 p-4">
+              <img
+                src={createdTrackInfo.coverUrl}
+                alt={createdTrackInfo.title}
+                className="size-16 rounded-lg object-cover border border-border/40 shadow-sm shrink-0"
+              />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-bold truncate text-base">
+                  {createdTrackInfo.title}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {createdTrackInfo.genre}
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Badge
+                    variant={
+                      createdTrackInfo.isPublic ? "default" : "secondary"
+                    }
+                    className="text-[10px]"
+                  >
+                    {createdTrackInfo.isPublic
+                      ? "Live / Public"
+                      : "Private Draft"}
+                  </Badge>
+                  {createdTrackInfo.audioFileSize && (
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {createdTrackInfo.audioFileSize}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <Button
+                type="button"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2 h-11"
+                onClick={() => {
+                  if (createdTrackInfo.playbackUrl) {
+                    const playerTrack = {
+                      artist: "You",
+                      artistHref: "/dashboard/profile",
+                      cover: createdTrackInfo.coverUrl || "/placeholder.svg",
+                      id: createdTrackInfo.id,
+                      src: createdTrackInfo.playbackUrl,
+                      title: createdTrackInfo.title,
+                      trackHref: `/dashboard/tracks/${createdTrackInfo.id}`,
+                    };
+                    setQueue([playerTrack]);
+                    setCurrentTrack(playerTrack);
+                  }
+                }}
+              >
+                <Play className="size-4 fill-current" />
+                Play Track Now
+              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full text-xs gap-1.5"
+                  onClick={() => {
+                    void router.navigate({
+                      params: { id: createdTrackInfo.id },
+                      to: "/dashboard/tracks/$id",
+                    });
+                  }}
+                >
+                  <FileAudio className="size-3.5" />
+                  View Details
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-xs gap-1.5"
+                  onClick={() => {
+                    setCreatedTrackInfo(null);
+                    setSubmitStage("idle");
+                    setIsSubmitting(false);
+                    form.reset();
+                    setStep("details");
+                  }}
+                >
+                  <Plus className="size-3.5" />
+                  Upload Another
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : isSubmitting ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4">
           <Card className="w-full max-w-md border-primary/30 shadow-2xl p-6 space-y-6 text-center">
             <div className="mx-auto size-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center">
@@ -927,8 +1037,7 @@ export function NewTrackForm() {
                   "Writing metadata, credits, and pricing..."}
                 {submitStage === "processing" &&
                   "Extracting waveform, BPM, and stems..."}
-                {submitStage === "complete" &&
-                  "Opening your new track details page..."}
+                {submitStage === "complete" && "Finalizing track..."}
               </p>
             </div>
 
@@ -940,7 +1049,7 @@ export function NewTrackForm() {
             </div>
           </Card>
         </div>
-      )}
+      ) : null}
 
       {hasSavedDraft && (
         <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">

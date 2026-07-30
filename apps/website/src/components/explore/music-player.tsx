@@ -626,12 +626,13 @@ export function MusicPlayer() {
     audioRef.current?.pause();
     sendPlaybackProgress({ ended: true });
     setIsPlaying(false);
+    setCurrentTrack(null);
     setVisible(false);
   };
 
   if (currentTrack && isMiniPlayer) {
     return (
-      <div className="fixed right-4 bottom-4 z-50 flex items-center gap-3 rounded-full border bg-background/95 p-2 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="fixed left-1/2 -translate-x-1/2 bottom-4 z-50 flex items-center gap-3 rounded-full border border-border/60 bg-background/95 px-4 py-2 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all duration-300">
         <AppImage
           alt={currentTrack.title}
           className="size-9 rounded-full object-cover animate-spin-slow"
@@ -640,7 +641,7 @@ export function MusicPlayer() {
           src={currentTrack.cover || "/placeholder.svg"}
           width={36}
         />
-        <div className="max-w-[120px] truncate text-xs">
+        <div className="max-w-[140px] truncate text-xs">
           <p className="truncate font-semibold">{currentTrack.title}</p>
           <p className="truncate text-muted-foreground">
             {currentTrack.artist}
