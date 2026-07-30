@@ -30,7 +30,10 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </head>
       <body className="font-sans bg-background text-foreground antialiased">
         <PostHogProvider
-          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
+          apiKey={
+            import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN ||
+            "phc_placeholder_key"
+          }
           options={{
             api_host: "/ingest",
             capture_exceptions: true,

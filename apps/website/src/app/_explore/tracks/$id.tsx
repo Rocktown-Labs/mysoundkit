@@ -379,10 +379,6 @@ function TrackPage() {
     });
   };
 
-  useEffect(() => {
-    setSelectedLicense(item.licenseOptions?.[0] || null);
-  }, [item.id, item.licenseOptions]);
-
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Sharp Professional Header */}
