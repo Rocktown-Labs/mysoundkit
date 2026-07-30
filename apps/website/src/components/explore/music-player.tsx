@@ -427,8 +427,13 @@ export function MusicPlayer() {
     setProgress(0);
     setDuration(currentTrack.duration ?? 0);
 
-    if (visible) {
-      void audio.play().then(() => setIsPlaying(true));
+    if (visible && currentTrack.src) {
+      void audio
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          setIsPlaying(false);
+        });
     }
   }, [currentTrack, visible]);
 

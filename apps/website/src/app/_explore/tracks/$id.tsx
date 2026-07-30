@@ -158,13 +158,83 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     throw new Error(`Track detail request failed with ${response.status}`);
   }
 
-  const data = (await response.json()) as MockCatalogItem & {
-    catalogItemType?: CatalogItemType;
+  const rawData = (await response.json()) as Record<string, unknown>;
+
+  const artistObj = (
+    rawData.artist && typeof rawData.artist === "object" ? rawData.artist : {}
+  ) as Record<string, unknown>;
+
+  const artistName =
+    typeof artistObj.name === "string"
+      ? artistObj.name
+      : typeof rawData.artistName === "string"
+        ? rawData.artistName
+        : "SoundKit Artist";
+
+  const artistHandle =
+    typeof artistObj.handle === "string"
+      ? artistObj.handle
+      : typeof rawData.artistUsername === "string"
+        ? rawData.artistUsername
+        : "artist";
+
+  const artistAvatarUrl =
+    typeof artistObj.avatarUrl === "string"
+      ? artistObj.avatarUrl
+      : typeof rawData.coverArtUrl === "string"
+        ? rawData.coverArtUrl
+        : "/placeholder.svg";
+
+  const normalizedArtist = {
+    avatarUrl: artistAvatarUrl,
+    followers:
+      typeof artistObj.followers === "string" ? artistObj.followers : null,
+    genre:
+      typeof artistObj.genre === "string"
+        ? artistObj.genre
+        : typeof rawData.genre === "string"
+          ? rawData.genre
+          : "Uncategorized",
+    handle: artistHandle,
+    id:
+      typeof artistObj.id === "string"
+        ? artistObj.id
+        : typeof rawData.ownerUserId === "string"
+          ? rawData.ownerUserId
+          : "artist",
+    listeners:
+      typeof artistObj.listeners === "string" ? artistObj.listeners : null,
+    location:
+      typeof artistObj.location === "string" ? artistObj.location : null,
+    name: artistName,
+    roles: Array.isArray(artistObj.roles)
+      ? (artistObj.roles as ("musician" | "producer")[])
+      : ["musician"],
+    verified: Boolean(artistObj.verified ?? rawData.isVerified),
   };
 
+  const rawPlaybackUrl =
+    typeof rawData.playbackUrl === "string" && rawData.playbackUrl.length > 0
+      ? rawData.playbackUrl
+      : null;
+
   return {
-    ...data,
-    type: data.catalogItemType ?? data.type,
+    ...(rawData as unknown as MockCatalogItem),
+    artist: normalizedArtist,
+    coverArtUrl:
+      typeof rawData.coverArtUrl === "string" && rawData.coverArtUrl.length > 0
+        ? rawData.coverArtUrl
+        : "/placeholder.svg",
+    playbackUrl: rawPlaybackUrl,
+    priceLabel:
+      typeof rawData.priceLabel === "string"
+        ? rawData.priceLabel
+        : typeof rawData.price === "number"
+          ? `$${rawData.price.toFixed(2)}`
+          : "$1.99",
+    title: typeof rawData.title === "string" ? rawData.title : "Untitled Track",
+    type:
+      (rawData.catalogItemType as CatalogItemType) ?? rawData.type ?? "track",
   };
 };
 
