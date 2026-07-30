@@ -474,7 +474,7 @@ export function MusicPlayer() {
 
       if (repeatMode === "one") {
         audio.currentTime = 0;
-        void audio.play();
+        void audio.play().catch(() => setIsPlaying(false));
         return;
       }
 
@@ -506,7 +506,13 @@ export function MusicPlayer() {
     }
 
     setVisible(true);
-    void audio.play().then(() => setIsPlaying(true));
+    void audio
+      .play()
+      .then(() => setIsPlaying(true))
+      .catch(() => {
+        // e.g. NotSupportedError when the source is missing or unsupported
+        setIsPlaying(false);
+      });
   };
 
   const handleNext = () => {

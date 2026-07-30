@@ -24,7 +24,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTracksQuery } from "@/lib/soundkit-api-hooks";
-import { getDashboardTracks } from "@/lib/soundkit.functions";
+const formatDateSafe = (isoString?: string | null) => {
+  if (!isoString) {
+    return "Just now";
+  }
+  try {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return "Recently";
+  }
+};
 
 export const Route = createFileRoute("/dashboard/tracks/")({
   component: TracksPage,
@@ -252,11 +267,7 @@ function TracksPage() {
                     <Activity className="size-3 text-primary" />
                     {track.collaboratorCount} collaborator(s)
                   </span>
-                  <span>
-                    {track.updatedAt
-                      ? new Date(track.updatedAt).toLocaleDateString()
-                      : "Just now"}
-                  </span>
+                  <span>{formatDateSafe(track.updatedAt)}</span>
                 </div>
               </div>
             </CardContent>

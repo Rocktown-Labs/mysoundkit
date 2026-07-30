@@ -50,6 +50,12 @@ function TrackDetailPage() {
   const trackQuery = useTrackQuery(id);
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const track = trackQuery.data;
+  // Hooks must stay above the early returns below, otherwise the hook count
+  // changes once the query resolves and React crashes (error #310).
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [syncedLyrics, setSyncedLyrics] = useState<
+    { time: string; text: string }[] | null
+  >(null);
 
   if (trackQuery.isLoading) {
     return (
@@ -91,11 +97,6 @@ function TrackDetailPage() {
     : track.productionStatus === "demo"
       ? "Draft"
       : track.productionStatus;
-
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [syncedLyrics, setSyncedLyrics] = useState<
-    { time: string; text: string }[] | null
-  >(null);
 
   const handleShare = () => {
     const shareUrl =

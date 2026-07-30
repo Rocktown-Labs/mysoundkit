@@ -642,21 +642,30 @@ export function NewTrackForm() {
             coverUploadResolverRef.current = resolve;
           });
           void uploadCover([selectedCoverFile]);
+          // Wait for the real upload instead of falling back to a blob: URL.
+          // A blob: URL dies with this tab and would leave the track with
+          // permanently broken cover art.
           const uploadedKey = await Promise.race([
             keyPromise,
-            new Promise<string>((res) => setTimeout(() => res(""), 3000)),
+            new Promise<string>((res) =>
+              setTimeout(() => res(""), COVER_UPLOAD_TIMEOUT_MS)
+            ),
           ]);
           if (uploadedKey) {
             coverKey = uploadedKey;
             coverUrl = `${MEDIA_BASE_URL}/${uploadedKey}`;
           }
         } catch {
-          // Dev fallback
+          // Cover is optional; continue without it.
         }
 
         if (!coverKey) {
-          coverKey = `tracks/cover_${Date.now()}_${selectedCoverFile.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")}`;
-          coverUrl = URL.createObjectURL(selectedCoverFile);
+          coverUploadResolverRef.current = null;
+          toast({
+            description:
+              "Cover upload did not finish. The track will use a placeholder image.",
+            title: "Continuing without cover art",
+          });
         }
       }
 
@@ -735,7 +744,10 @@ export function NewTrackForm() {
                   assetKind: "cover_art",
                   metadata: {
                     originalFileName: selectedCoverFile?.name ?? "cover.jpg",
-                    url: coverUrl || "/placeholder.svg",
+                    url:
+                      coverUrl && !coverUrl.startsWith("blob:")
+                        ? coverUrl
+                        : "/placeholder.svg",
                   },
                   mimeType: selectedCoverFile?.type || "image/jpeg",
                   objectKey: coverKey,
@@ -753,7 +765,10 @@ export function NewTrackForm() {
                 assetKind: "master",
                 metadata: {
                   originalFileName: selectedMasterFile.name,
-                  url: remoteUrl,
+                  url:
+                    remoteUrl && !remoteUrl.startsWith("blob:")
+                      ? remoteUrl
+                      : undefined,
                 },
                 mimeType: selectedMasterFile.type || "audio/mpeg",
                 objectKey,
