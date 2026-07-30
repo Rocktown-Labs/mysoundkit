@@ -264,7 +264,7 @@ function TrackPage() {
 
   useEffect(() => {
     setSelectedLicense(item?.licenseOptions?.[0] ?? null);
-  }, [item?.licenseOptions]);
+  }, [item?.id]);
 
   if (isLoading) {
     return (
