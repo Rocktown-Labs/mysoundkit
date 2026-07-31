@@ -224,7 +224,7 @@ function TracksPage() {
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link
-                        to="/dashboard/tracks/$id"
+                        to="/dashboard/tracks/$id/edit"
                         params={{ id: track.id }}
                       >
                         <Pencil className="mr-2 size-4" />

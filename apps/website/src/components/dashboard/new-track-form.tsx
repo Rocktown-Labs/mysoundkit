@@ -84,6 +84,7 @@ import {
   soundkitQueryKeys,
   useCreateOpenVerseMutation,
   usePeopleSearchQuery,
+  useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 
 const SUPPORTED_GENRES = [
@@ -232,11 +233,20 @@ const queueTrackProcessing = async (trackId: string) => {
   await rpcJson(await trackProcessPost({ param: { trackId } }));
 };
 
-export function NewTrackForm() {
+interface NewTrackFormProps {
+  initialTrack?: Record<string, unknown> | null;
+  trackId?: string;
+}
+
+export function NewTrackForm({
+  initialTrack,
+  trackId,
+}: NewTrackFormProps = {}) {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
+    useAudioPlayer();
   const [step, setStep] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<
@@ -279,6 +289,7 @@ export function NewTrackForm() {
   >(null);
 
   const createOpenVerseMutation = useCreateOpenVerseMutation();
+  const updateTrackMutation = useUpdateTrackMutation(trackId ?? "");
   const { data: session } = authClient.useSession();
   const peopleSearch = usePeopleSearchQuery(creditQuery);
 
@@ -286,6 +297,159 @@ export function NewTrackForm() {
     defaultValues: defaultTrackFormValues,
     resolver: zodResolver(trackFormSchema),
   });
+
+  // Prefill when editing an existing track
+  useEffect(() => {
+    if (!initialTrack) return;
+    const isPublic = Boolean(initialTrack.isPublic);
+    const isForSale = Boolean(initialTrack.isForSale);
+    const rawCollaborators = Array.isArray(initialTrack.collaborators)
+      ? (initialTrack.collaborators as Record<string, unknown>[])
+      : [];
+
+    form.reset({
+      coverObjectKey: (initialTrack.coverArtUrl as string) ?? "",
+      credits: rawCollaborators.map((c) => ({
+        displayName:
+          (c.name as string) || (c.displayName as string) || "Collaborator",
+        inviteEmail:
+          (c.email as string) || (c.inviteEmail as string) || undefined,
+        role: (c.role as "songwriter" | "producer") || "songwriter",
+        userId: (c.userId as string) || undefined,
+      })),
+      description: (initialTrack.description as string) ?? "",
+      genre: (initialTrack.genre as string) ?? "",
+      isForSale,
+      isrc: (initialTrack.isrc as string) ?? "",
+      key: (initialTrack.musicalKey as string) ?? "",
+      name: (initialTrack.title as string) ?? "",
+      openVerseDescription: "",
+      openVerseSlotEndsAt: "",
+      openVerseSlotStartsAt: "",
+      openVerseTitle: "",
+      releaseAt: (initialTrack.releaseAt as string) ?? "",
+      rightsAccepted: true,
+      status: isPublic ? "ready" : "draft",
+      streamingAppleMusic:
+        ((initialTrack.streamingLinks as Record<string, string>)
+          ?.appleMusic as string) ?? "",
+      streamingSpotify:
+        ((initialTrack.streamingLinks as Record<string, string>)
+          ?.spotify as string) ?? "",
+      streamingYoutube:
+        ((initialTrack.streamingLinks as Record<string, string>)
+          ?.youtube as string) ?? "",
+    });
+
+    if (initialTrack.coverArtUrl) {
+      setCoverUpload({
+        fileName: `${(initialTrack.title as string) || "track"}-cover.jpg`,
+        objectKey: initialTrack.coverArtUrl as string,
+        remoteUrl: initialTrack.coverArtUrl as string,
+      });
+    }
+
+    if (initialTrack.playbackUrl) {
+      setUploadedTrack({
+        assetId: (initialTrack.id as string) ?? "",
+        objectKey: initialTrack.playbackUrl as string,
+        remoteUrl: initialTrack.playbackUrl as string,
+        statusMessage: "Loaded existing track audio master.",
+        title: (initialTrack.title as string) ?? "",
+        trackId: (initialTrack.id as string) ?? "",
+      });
+    }
+  }, [initialTrack, form]);
+
+  // Restore preview metadata from localStorage if a local draft exists
+  useEffect(() => {
+    if (initialTrack) return;
+    try {
+      const metaKey = "soundkit:new-track-draft:meta";
+      const storedMeta = window.localStorage.getItem(metaKey);
+      if (storedMeta) {
+        const { coverUpload: storedCover, uploadedTrack: storedMaster } =
+          JSON.parse(storedMeta);
+        if (storedCover && !coverUpload) setCoverUpload(storedCover);
+        if (storedMaster && !uploadedTrack) setUploadedTrack(storedMaster);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [initialTrack]);
+
+  // Persist preview metadata to localStorage
+  useEffect(() => {
+    if (initialTrack) return;
+    try {
+      const metaKey = "soundkit:new-track-draft:meta";
+      if (coverUpload || uploadedTrack) {
+        window.localStorage.setItem(
+          metaKey,
+          JSON.stringify({ coverUpload, uploadedTrack })
+        );
+      } else {
+        window.localStorage.removeItem(metaKey);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [coverUpload, uploadedTrack, initialTrack]);
+
+  const handleBatchFileUpload = (files: FileList | File[]) => {
+    const fileList = Array.from(files);
+    let masterFound = false;
+    let coverFound = false;
+    let stemsFound = false;
+
+    for (const file of fileList) {
+      if (file.type.startsWith("image/") && !coverFound) {
+        setSelectedCoverFile(file);
+        coverFound = true;
+        void uploadCover([file]);
+      } else if (
+        (file.type.startsWith("audio/") ||
+          file.name.endsWith(".wav") ||
+          file.name.endsWith(".mp3") ||
+          file.name.endsWith(".aiff") ||
+          file.name.endsWith(".flac")) &&
+        !masterFound
+      ) {
+        setSelectedMasterFile(file);
+        masterFound = true;
+        void upload([file]);
+        if (!form.getValues("name")) {
+          const cleanName = file.name
+            .replace(/\.[^/.]+$/, "")
+            .replaceAll(/[-_]/g, " ");
+          form.setValue("name", cleanName, {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+        }
+      } else if (
+        file.name.endsWith(".zip") ||
+        file.name.toLowerCase().includes("stem")
+      ) {
+        setInstrumentalFile(file);
+        stemsFound = true;
+      }
+    }
+
+    if (masterFound || coverFound || stemsFound) {
+      const attached = [
+        masterFound && "Master Audio",
+        coverFound && "Cover Artwork",
+        stemsFound && "Stems Archive",
+      ]
+        .filter(Boolean)
+        .join(", ");
+      toast({
+        description: `Attached ${attached} to your track setup.`,
+        title: "Files Auto-Assigned",
+      });
+    }
+  };
 
   const {
     allowNavigation,
@@ -316,6 +480,11 @@ export function NewTrackForm() {
     setInstrumentalFile(null);
     setCoverUpload(null);
     setUploadedTrack(null);
+    try {
+      window.localStorage.removeItem("soundkit:new-track-draft:meta");
+    } catch {
+      // Ignore
+    }
     toast({
       description: "Track draft cleared. You can start fresh.",
       title: "Draft reset",
@@ -631,6 +800,60 @@ export function NewTrackForm() {
     setIsSubmitting(true);
     setSubmitStage("uploading");
     setSubmitProgress(20);
+
+    // Edit Mode submission
+    if (trackId && initialTrack) {
+      try {
+        setSubmitStage("creating");
+        setSubmitProgress(60);
+        const release = mapStatusToRelease(values.status, values.releaseAt);
+        await updateTrackMutation.mutateAsync({
+          description: values.description || undefined,
+          genre: values.genre,
+          isForSale: values.isForSale,
+          isPublic: release.isPublic,
+          isrc: values.isrc || undefined,
+          musicalKey: values.key || undefined,
+          price: values.isForSale ? SINGLE_PRICE_USD : undefined,
+          priceCents: values.isForSale
+            ? Math.round(SINGLE_PRICE_USD * 100)
+            : undefined,
+          productionStatus: release.productionStatus,
+          releaseAt: values.releaseAt || undefined,
+          releaseStrategy: release.releaseStrategy,
+          streamingLinks: {
+            appleMusic: values.streamingAppleMusic || undefined,
+            spotify: values.streamingSpotify || undefined,
+            youtube: values.streamingYoutube || undefined,
+          },
+          title: values.name,
+        });
+
+        setSubmitStage("settled");
+        setSubmitProgress(100);
+        toast({
+          description: `"${values.name}" details updated successfully.`,
+          title: "Track Updated",
+        });
+        clearDraft();
+        allowNavigation();
+        router.navigate({
+          params: { id: trackId },
+          to: "/dashboard/tracks/$id",
+        });
+      } catch (err) {
+        posthog.captureException(err);
+        toast({
+          description:
+            err instanceof Error ? err.message : "Failed to update track.",
+          title: "Update Failed",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        setSubmitStage("idle");
+      }
+      return;
+    }
 
     try {
       let coverKey = values.coverObjectKey;
@@ -1112,6 +1335,38 @@ export function NewTrackForm() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* BATCH UPLOAD ZONE: Upload audio master + cover artwork together */}
+          <Card className="border border-primary/30 bg-primary/5 p-5 rounded-2xl shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <CloudUpload className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">
+                    Batch Upload Dropzone
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Drag and drop your audio master, artwork, and stems together
+                  </p>
+                </div>
+              </div>
+              <Badge
+                variant="outline"
+                className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase font-bold px-2.5 py-1"
+              >
+                Auto-Assign Files
+              </Badge>
+            </div>
+            <FileUploadZone
+              title="Drop Audio Master + Artwork Image + Stems Together"
+              description="Supports WAV, MP3, AIFF, PNG, JPG, and ZIP stem archives at once"
+              acceptedTypes=".wav,.mp3,.aiff,.flac,.png,.jpg,.jpeg,.zip"
+              onFileUpload={handleBatchFileUpload}
+              variant="default"
+            />
+          </Card>
+
           <Accordion
             type="single"
             collapsible
@@ -1298,20 +1553,54 @@ export function NewTrackForm() {
                       render={() => <FormMessage />}
                     />
                   </div>
-                  <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+
+                  {/* LIVE ARTWORK THUMBNAIL PREVIEW */}
+                  <div className="rounded-xl border border-border/40 bg-muted/20 p-4 flex items-center gap-4">
+                    {selectedCoverFile || coverUpload?.remoteUrl ? (
+                      <div className="relative group size-20 rounded-lg border border-primary/30 overflow-hidden bg-background shrink-0 shadow-md">
+                        <img
+                          src={
+                            selectedCoverFile
+                              ? URL.createObjectURL(selectedCoverFile)
+                              : coverUpload?.remoteUrl
+                          }
+                          alt="Cover Artwork Preview"
+                          className="size-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="size-7 rounded-full"
+                            onClick={() => {
+                              setSelectedCoverFile(null);
+                              setCoverUpload(null);
+                              form.setValue("coverObjectKey", "");
+                            }}
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
                         <ImageIcon className="size-5" />
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold">
-                          Cover art is required for playable or sellable tracks.
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          It will appear on your public profile, player,
-                          library, and sales pages.
-                        </p>
-                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {selectedCoverFile || coverUpload?.remoteUrl
+                          ? "Cover Artwork Attached"
+                          : "Cover art is required for tracks."}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedCoverFile
+                          ? `${selectedCoverFile.name} (${(selectedCoverFile.size / 1024).toFixed(0)} KB)`
+                          : coverUpload?.remoteUrl
+                            ? "Artwork stored in Cloudflare R2"
+                            : "It will appear on your public profile, player, and sales pages."}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1355,6 +1644,91 @@ export function NewTrackForm() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-8">
+                {/* LIVE IN-FORM AUDIO PLAYER PREVIEW */}
+                {(selectedMasterFile || uploadedTrack?.remoteUrl) && (
+                  <Card className="border border-primary/40 bg-primary/10 shadow-lg p-4 rounded-xl space-y-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-3">
+                        <Button
+                          type="button"
+                          size="icon"
+                          className="size-10 rounded-full bg-primary text-primary-foreground shadow-md hover:scale-105 transition-transform shrink-0"
+                          onClick={() => {
+                            const src = selectedMasterFile
+                              ? URL.createObjectURL(selectedMasterFile)
+                              : (uploadedTrack?.remoteUrl ?? "");
+                            const trackData = {
+                              artist: "You",
+                              artistHref: "/dashboard/profile",
+                              cover: selectedCoverFile
+                                ? URL.createObjectURL(selectedCoverFile)
+                                : coverUpload?.remoteUrl || "/placeholder.svg",
+                              id: uploadedTrack?.trackId || "in-form-preview",
+                              src,
+                              title:
+                                form.getValues("name") ||
+                                selectedMasterFile?.name ||
+                                "Track Master",
+                              trackHref: "#",
+                            };
+                            if (currentTrack?.src === src) {
+                              togglePlay();
+                            } else {
+                              setQueue([trackData]);
+                              setCurrentTrack(trackData);
+                            }
+                          }}
+                        >
+                          <Play className="size-5 fill-current ml-0.5" />
+                        </Button>
+                        <div>
+                          <p className="font-bold text-sm tracking-tight text-foreground flex items-center gap-2">
+                            {form.getValues("name") ||
+                              selectedMasterFile?.name ||
+                              uploadedTrack?.title ||
+                              "Master Audio"}
+                            <Badge
+                              variant="secondary"
+                              className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300 font-bold"
+                            >
+                              In-Form Audio Preview
+                            </Badge>
+                          </p>
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {selectedMasterFile
+                              ? `${(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB • ${selectedMasterFile.name}`
+                              : "Master audio stored and ready for playback."}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-background/60 border border-primary/20">
+                        <span className="size-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+                        <div className="flex items-end gap-0.5 h-5 px-1">
+                          {[
+                            40, 75, 50, 90, 60, 30, 85, 95, 45, 70, 80, 55, 65,
+                            90, 40, 75,
+                          ].map((h, i) => (
+                            <div
+                              key={i}
+                              style={{ height: `${h}%` }}
+                              className={cn(
+                                "w-1 rounded-full bg-primary/70 transition-all duration-300",
+                                isPlaying &&
+                                  currentTrack?.id ===
+                                    (uploadedTrack?.trackId ||
+                                      "in-form-preview")
+                                  ? "animate-pulse bg-primary"
+                                  : ""
+                              )}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
