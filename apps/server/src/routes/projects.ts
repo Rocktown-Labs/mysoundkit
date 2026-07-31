@@ -31,6 +31,7 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
+import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -94,6 +95,10 @@ app.openapi(
         projectSummarySchema,
         "Project created"
       ),
+      [HttpStatusCodes.INTERNAL_SERVER_ERROR]: jsonContent(
+        messageResponseSchema,
+        "Internal server error"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -131,81 +136,101 @@ app.openapi(
       );
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
-    const db = createDb();
-    const projectId = crypto.randomUUID();
-    const now = new Date();
-    const [project] = await db
-      .insert(projects)
-      .values({
-        createdAt: now,
-        description: body.description ?? null,
-        id: projectId,
-        isPublic: body.isPublic,
-        organizationId,
-        ownerUserId: user.id,
-        projectType: body.projectType,
-        releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
-        slug: uniqueSlug(body.title),
-        status: body.releaseDate ? "scheduled" : "draft",
-        title: body.title,
-        updatedAt: now,
-      })
-      .returning();
-
-    const existingTrackIds = body.trackIds;
-    const newTrackIds = [];
-
-    for (const newTrack of body.newTracks) {
-      const trackId = crypto.randomUUID();
-      await db.insert(tracks).values({
-        catalogItemType: "single",
-        genreId: null,
-        id: trackId,
-        isForSale: false,
-        isPublic: body.isPublic,
-        organizationId,
-        ownerUserId: user.id,
-        productionStatus: "demo",
-        releaseStrategy: "private",
-        slug: uniqueSlug(newTrack.title),
-        title: newTrack.title,
+    try {
+      const session = c.get("session");
+      const organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
       });
-      newTrackIds.push(trackId);
-    }
-
-    const projectTrackRows = [...existingTrackIds, ...newTrackIds].map(
-      (trackId, index) => ({
-        position: index,
-        projectId,
-        trackId,
-      })
-    );
-
-    if (projectTrackRows.length > 0) {
-      await db.insert(projectTracks).values(projectTrackRows);
-    }
-
-    if (body.assetIds.length > 0) {
-      await db
-        .update(projectAssets)
-        .set({
-          projectId,
+      const db = createDb();
+      const projectId = crypto.randomUUID();
+      const now = new Date();
+      const [project] = await db
+        .insert(projects)
+        .values({
+          createdAt: now,
+          description: body.description ?? null,
+          id: projectId,
+          isPublic: body.isPublic,
+          organizationId,
+          ownerUserId: user.id,
+          projectType: body.projectType,
+          releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
+          slug: uniqueSlug(body.title),
+          status: body.releaseDate ? "scheduled" : "draft",
+          title: body.title,
           updatedAt: now,
-          uploaderUserId: user.id,
         })
-        .where(eq(projectAssets.projectId, body.assetIds[0] ?? ""));
-    }
+        .returning();
 
-    if (!project) {
-      throw new Error("Failed to create project.");
-    }
+      const existingTrackIds = body.trackIds;
+      const newTrackIds = [];
 
-    return c.json(await buildProjectSummary(project), HttpStatusCodes.CREATED);
+      for (const newTrack of body.newTracks) {
+        const trackId = crypto.randomUUID();
+        await db.insert(tracks).values({
+          catalogItemType: "single",
+          genreId: null,
+          id: trackId,
+          isForSale: false,
+          isPublic: body.isPublic,
+          organizationId,
+          ownerUserId: user.id,
+          productionStatus: "demo",
+          releaseStrategy: "private",
+          slug: uniqueSlug(newTrack.title),
+          title: newTrack.title,
+        });
+        newTrackIds.push(trackId);
+      }
+
+      const projectTrackRows = [...existingTrackIds, ...newTrackIds].map(
+        (trackId, index) => ({
+          position: index,
+          projectId,
+          trackId,
+        })
+      );
+
+      if (projectTrackRows.length > 0) {
+        await db.insert(projectTracks).values(projectTrackRows);
+      }
+
+      if (body.assetIds.length > 0) {
+        await db
+          .update(projectAssets)
+          .set({
+            projectId,
+            updatedAt: now,
+            uploaderUserId: user.id,
+          })
+          .where(eq(projectAssets.projectId, body.assetIds[0] ?? ""));
+      }
+
+      if (!project) {
+        throw new Error("Failed to create project.");
+      }
+
+      return c.json(
+        await buildProjectSummary(project),
+        HttpStatusCodes.CREATED
+      );
+    } catch (err: unknown) {
+      logError({
+        error: err instanceof Error ? err.message : String(err),
+        message: "POST /v1/projects error",
+        userId: user.id,
+      });
+      return c.json(
+        {
+          message:
+            err instanceof Error
+              ? err.message
+              : "Failed to create project record.",
+        },
+        HttpStatusCodes.INTERNAL_SERVER_ERROR
+      );
+    }
   }
 );
 

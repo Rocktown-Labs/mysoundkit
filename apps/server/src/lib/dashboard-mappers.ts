@@ -294,13 +294,23 @@ export const buildProjectSummary = async (
     isPublic: row.isPublic,
     progress,
     projectType: row.projectType,
-    releaseDate: row.releaseDate?.toISOString() ?? null,
+    releaseDate:
+      row.releaseDate instanceof Date
+        ? row.releaseDate.toISOString()
+        : typeof row.releaseDate === "string"
+          ? row.releaseDate
+          : null,
     slug: row.slug,
     status: row.status,
     streamingLinks: row.streamingLinks,
     title: row.title,
     trackCount: trackRows.length,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt:
+      row.updatedAt instanceof Date
+        ? row.updatedAt.toISOString()
+        : typeof row.updatedAt === "string"
+          ? row.updatedAt
+          : new Date().toISOString(),
   };
 };
 
