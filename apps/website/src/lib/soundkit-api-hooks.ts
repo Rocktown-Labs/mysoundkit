@@ -572,7 +572,10 @@ export const useDeleteTrackMutation = () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
       });
-      queryClient.invalidateQueries({
+      queryClient.refetchQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.removeQueries({
         queryKey: soundkitQueryKeys.track(trackId),
       });
     },
