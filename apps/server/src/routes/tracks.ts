@@ -1075,7 +1075,12 @@ app.openapi(
     const db = createDb();
 
     await db
-      .delete(tracks)
+      .update(tracks)
+      .set({
+        isPublic: false,
+        releaseStrategy: "private",
+        updatedAt: new Date(),
+      })
       .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }));
 
     return c.json({ message: "Track deleted." }, HttpStatusCodes.OK);
