@@ -10,6 +10,7 @@ import {
   Pencil,
   PlayCircle,
   Plus,
+  Trash2,
 } from "lucide-react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -21,9 +22,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import { toast } from "@/components/ui/use-toast";
+import {
+  useDeleteTrackMutation,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
+import { getDashboardTracks } from "@/lib/soundkit.functions";
 const formatDateSafe = (isoString?: string | null) => {
   if (!isoString) {
     return "Just now";
@@ -49,6 +56,7 @@ export const Route = createFileRoute("/dashboard/tracks/")({
 function TracksPage() {
   const initialTracks = Route.useLoaderData();
   const { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks);
+  const deleteTrackMutation = useDeleteTrackMutation();
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const completedCount = tracks.filter(
     (track) => track.productionStatus === "complete"
@@ -222,6 +230,30 @@ function TracksPage() {
                         <Pencil className="mr-2 size-4" />
                         Edit Track
                       </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      disabled={deleteTrackMutation.isPending}
+                      onClick={async () => {
+                        try {
+                          await deleteTrackMutation.mutateAsync(track.id);
+                          toast({
+                            description: `"${track.title}" has been deleted.`,
+                            title: "Track Deleted",
+                          });
+                        } catch {
+                          toast({
+                            description:
+                              "Failed to delete track. Please try again.",
+                            title: "Error",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <Trash2 className="mr-2 size-4" />
+                      Delete Track
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

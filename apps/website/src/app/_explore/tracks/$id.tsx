@@ -214,17 +214,23 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
   };
 
   const rawPlaybackUrl =
-    typeof rawData.playbackUrl === "string" && rawData.playbackUrl.length > 0
+    typeof rawData.playbackUrl === "string" &&
+    rawData.playbackUrl.length > 0 &&
+    !rawData.playbackUrl.startsWith("blob:")
       ? rawData.playbackUrl
       : null;
+
+  const rawCoverArtUrl =
+    typeof rawData.coverArtUrl === "string" &&
+    rawData.coverArtUrl.length > 0 &&
+    !rawData.coverArtUrl.startsWith("blob:")
+      ? rawData.coverArtUrl
+      : "/placeholder.svg";
 
   return {
     ...(rawData as unknown as MockCatalogItem),
     artist: normalizedArtist,
-    coverArtUrl:
-      typeof rawData.coverArtUrl === "string" && rawData.coverArtUrl.length > 0
-        ? rawData.coverArtUrl
-        : "/placeholder.svg",
+    coverArtUrl: rawCoverArtUrl,
     playbackUrl: rawPlaybackUrl,
     priceLabel:
       typeof rawData.priceLabel === "string"

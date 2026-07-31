@@ -32,6 +32,7 @@ const tracksGet = apiClient.v1.tracks.index.$get;
 const tracksPost = apiClient.v1.tracks.index.$post;
 const trackGet = apiClient.v1.tracks[":trackId"].$get;
 const trackPatch = apiClient.v1.tracks[":trackId"].$patch;
+const trackDelete = apiClient.v1.tracks[":trackId"].$delete;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
 const projectsGet = apiClient.v1.projects.index.$get;
@@ -551,6 +552,23 @@ export const useUpdateTrackMutation = (trackId: string) => {
     mutationFn: async (body: UpdateTrackBody) =>
       rpcJson(await trackPatch({ json: body, param: { trackId } })),
     onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};
+
+export const useDeleteTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await trackDelete({ param: { trackId } })),
+    onSuccess: (_, trackId) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
       });
