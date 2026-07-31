@@ -26,7 +26,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -1335,38 +1335,6 @@ export function NewTrackForm({
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* BATCH UPLOAD ZONE: Upload audio master + cover artwork together */}
-          <Card className="border border-primary/30 bg-primary/5 p-5 rounded-2xl shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <CloudUpload className="size-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm uppercase tracking-wider text-foreground">
-                    Batch Upload Dropzone
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Drag and drop your audio master, artwork, and stems together
-                  </p>
-                </div>
-              </div>
-              <Badge
-                variant="outline"
-                className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase font-bold px-2.5 py-1"
-              >
-                Auto-Assign Files
-              </Badge>
-            </div>
-            <FileUploadZone
-              title="Drop Audio Master + Artwork Image + Stems Together"
-              description="Supports WAV, MP3, AIFF, PNG, JPG, and ZIP stem archives at once"
-              acceptedTypes=".wav,.mp3,.aiff,.flac,.png,.jpg,.jpeg,.zip"
-              onFileUpload={handleBatchFileUpload}
-              variant="default"
-            />
-          </Card>
-
           <Accordion
             type="single"
             collapsible
