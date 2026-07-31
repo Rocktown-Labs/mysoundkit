@@ -139,12 +139,22 @@ export const mapTrackSummary = ({
     priceCents: row.priceCents,
     productionStatus: row.productionStatus,
     purchaseMode: row.purchaseMode,
-    releaseAt: row.releaseAt?.toISOString() ?? null,
+    releaseAt:
+      row.releaseAt instanceof Date
+        ? row.releaseAt.toISOString()
+        : typeof row.releaseAt === "string"
+          ? row.releaseAt
+          : null,
     releaseStrategy: row.releaseStrategy,
     slug: row.slug,
     streamingLinks: row.streamingLinks,
     title: row.title,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt:
+      row.updatedAt instanceof Date
+        ? row.updatedAt.toISOString()
+        : typeof row.updatedAt === "string"
+          ? row.updatedAt
+          : new Date().toISOString(),
   };
 };
 

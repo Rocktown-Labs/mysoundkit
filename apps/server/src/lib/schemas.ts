@@ -1006,7 +1006,7 @@ export const onboardingFanBodySchema = z.object({
 });
 
 export const trackCollaboratorInputSchema = z.object({
-  inviteEmail: z.string().email().optional(),
+  inviteEmail: z.string().optional(),
   name: z.string().min(1).optional(),
   role: z.enum([
     "artist",
@@ -1042,14 +1042,14 @@ export const createTrackBodySchema = z.object({
   priceCents: z.number().int().nonnegative().optional(),
   productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
   purchaseMode: purchaseModeSchema.default("digital_download"),
-  releaseAt: z.string().datetime().optional(),
+  releaseAt: z.string().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   sourceObjectKey: z.string().optional(),
   streamingLinks: z
     .object({
-      appleMusic: z.url().optional(),
-      spotify: z.url().optional(),
-      youtube: z.url().optional(),
+      appleMusic: z.string().optional(),
+      spotify: z.string().optional(),
+      youtube: z.string().optional(),
     })
     .default({}),
   title: z.string().min(1),
