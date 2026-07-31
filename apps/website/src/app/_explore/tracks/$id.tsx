@@ -615,7 +615,10 @@ function TrackPage() {
                           )}
                         </div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60 font-black">
-                          {asset.subtitle || asset.kind.replace("_", " ")}{" "}
+                          {asset.subtitle ||
+                            (asset.kind
+                              ? asset.kind.replaceAll("_", " ")
+                              : "Asset")}{" "}
                           {asset.duration && `• ${asset.duration}`}
                         </p>
                       </div>

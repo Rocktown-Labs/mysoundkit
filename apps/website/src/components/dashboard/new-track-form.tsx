@@ -455,7 +455,7 @@ export function NewTrackForm() {
       {
         artist: "You",
         artistHref: "/dashboard/profile",
-        cover: "/placeholder.svg",
+        cover: coverUpload?.remoteUrl || "/placeholder.svg",
         id: track.id,
         src: remoteUrl,
         title: track.title,
@@ -465,7 +465,7 @@ export function NewTrackForm() {
     setCurrentTrack({
       artist: "You",
       artistHref: "/dashboard/profile",
-      cover: "/placeholder.svg",
+      cover: coverUpload?.remoteUrl || "/placeholder.svg",
       id: track.id,
       src: remoteUrl,
       title: track.title,
@@ -647,9 +647,7 @@ export function NewTrackForm() {
           // permanently broken cover art.
           const uploadedKey = await Promise.race([
             keyPromise,
-            new Promise<string>((res) =>
-              setTimeout(() => res(""), COVER_UPLOAD_TIMEOUT_MS)
-            ),
+            new Promise<string>((res) => setTimeout(() => res(""), 60_000)),
           ]);
           if (uploadedKey) {
             coverKey = uploadedKey;
@@ -663,7 +661,7 @@ export function NewTrackForm() {
           coverUploadResolverRef.current = null;
           toast({
             description:
-              "Cover upload did not finish. The track will use a placeholder image.",
+              "Cover upload did not finish in time. The track will use a placeholder image.",
             title: "Continuing without cover art",
           });
         }
@@ -685,14 +683,14 @@ export function NewTrackForm() {
           const resultPreview = await Promise.race([
             previewPromise,
             new Promise<UploadedTrackPreview | null>((res) =>
-              setTimeout(() => res(null), 4000)
+              setTimeout(() => res(null), 120_000)
             ),
           ]);
           if (resultPreview) {
             trackPreview = resultPreview;
           }
         } catch {
-          // Dev fallback
+          // Upload failed
         }
 
         if (!trackPreview) {
