@@ -1,3 +1,4 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   FolderOpen,
@@ -9,7 +10,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Suspense } from "react";
 
 import { CartDrawer } from "@/components/cart-drawer";
@@ -35,7 +36,14 @@ export function ExploreHeader() {
 
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const trimmedSearchValue = debouncedSearchValue.trim();
+
+  useHotkey("Mod+K", (event) => {
+    event.preventDefault();
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  });
 
   const searchQuery = useSearchQuery({
     limit: "8",
@@ -78,6 +86,7 @@ export function ExploreHeader() {
           <Suspense fallback={<div>Loading...</div>}>
             <Search className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               type="search"
               placeholder={getSearchPlaceholder()}
               className="pl-8 md:pl-10 pr-8 w-full h-9 md:h-10 text-sm"

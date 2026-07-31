@@ -4,6 +4,8 @@ import {
   Activity,
   Disc,
   Download,
+  ExternalLink,
+  LoaderCircle,
   Mic2,
   MoreVertical,
   Music,
@@ -12,6 +14,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { StatsGrid } from "@/components/dashboard/stats-grid";

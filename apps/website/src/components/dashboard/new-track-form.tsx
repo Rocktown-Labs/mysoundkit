@@ -1478,99 +1478,113 @@ export function NewTrackForm({
                   )}
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                      Cover Image
-                    </Label>
-                    <FileUploadZone
-                      title="Track Cover"
-                      description="Required artwork"
-                      acceptedTypes=".png,.jpg,.jpeg"
-                      files={
-                        selectedCoverFile
-                          ? [
-                              {
-                                name: selectedCoverFile.name,
-                                status: isCoverUploading
-                                  ? "Uploading"
-                                  : "Selected",
-                              },
-                            ]
-                          : coverUpload
-                            ? [
-                                {
-                                  name: coverUpload.fileName,
-                                  status: "Uploaded",
-                                },
-                              ]
-                            : []
-                      }
-                      onFileUpload={handleCoverUpload}
-                      progress={isCoverUploading ? coverProgress : undefined}
-                      status={
-                        isCoverUploading
-                          ? `${Math.round(coverProgress)}% uploaded`
-                          : undefined
-                      }
-                      variant="compact"
-                    />
-                    <FormField
-                      control={form.control}
-                      name="coverObjectKey"
-                      render={() => <FormMessage />}
-                    />
-                  </div>
+                <div className="space-y-4">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Cover Artwork
+                  </Label>
 
-                  {/* LIVE ARTWORK THUMBNAIL PREVIEW */}
-                  <div className="rounded-xl border border-border/40 bg-muted/20 p-4 flex items-center gap-4">
-                    {selectedCoverFile || coverUpload?.remoteUrl ? (
-                      <div className="relative group size-20 rounded-lg border border-primary/30 overflow-hidden bg-background shrink-0 shadow-md">
-                        <img
-                          src={
-                            selectedCoverFile
-                              ? URL.createObjectURL(selectedCoverFile)
-                              : coverUpload?.remoteUrl
-                          }
-                          alt="Cover Artwork Preview"
-                          className="size-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="size-7 rounded-full"
-                            onClick={() => {
-                              setSelectedCoverFile(null);
-                              setCoverUpload(null);
-                              form.setValue("coverObjectKey", "");
-                            }}
-                          >
-                            <X className="size-3.5" />
-                          </Button>
+                  {/* HERO ARTWORK BANNER PREVIEW (ABOVE UPLOADER) */}
+                  {(selectedCoverFile || coverUpload?.remoteUrl) && (
+                    <Card className="border border-primary/40 bg-gradient-to-br from-primary/10 via-background to-muted p-4 rounded-2xl shadow-lg space-y-3">
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative group size-32 rounded-xl border border-primary/30 overflow-hidden bg-black shrink-0 shadow-md">
+                          <img
+                            src={
+                              selectedCoverFile
+                                ? URL.createObjectURL(selectedCoverFile)
+                                : coverUpload?.remoteUrl
+                            }
+                            alt="Cover Artwork Preview"
+                            className="size-full object-cover transition-transform group-hover:scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="h-8 text-xs gap-1 rounded-lg"
+                              onClick={() => {
+                                setSelectedCoverFile(null);
+                                setCoverUpload(null);
+                                form.setValue("coverObjectKey", "");
+                              }}
+                            >
+                              <X className="size-3.5" />
+                              Remove Artwork
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 space-y-1.5 text-center sm:text-left">
+                          <div className="flex items-center justify-center sm:justify-start gap-2">
+                            <Badge
+                              variant="secondary"
+                              className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase px-2 py-0.5"
+                            >
+                              Cover Art Attached
+                            </Badge>
+                            <span className="text-xs font-mono text-muted-foreground">
+                              R2 Storage Ready
+                            </span>
+                          </div>
+                          <p className="font-bold text-base tracking-tight text-foreground truncate">
+                            {(form.getValues("name") || "track")
+                              .toLowerCase()
+                              .replaceAll(/[^a-z0-9]+/g, "-")}
+                            -coverart.
+                            {selectedCoverFile?.name.split(".").pop() || "jpg"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedCoverFile
+                              ? `${selectedCoverFile.name} • ${(selectedCoverFile.size / 1024).toFixed(0)} KB`
+                              : "Stored artwork URL active."}
+                          </p>
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-                        <ImageIcon className="size-5" />
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-sm font-semibold">
-                        {selectedCoverFile || coverUpload?.remoteUrl
-                          ? "Cover Artwork Attached"
-                          : "Cover art is required for tracks."}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedCoverFile
-                          ? `${selectedCoverFile.name} (${(selectedCoverFile.size / 1024).toFixed(0)} KB)`
-                          : coverUpload?.remoteUrl
-                            ? "Artwork stored in Cloudflare R2"
-                            : "It will appear on your public profile, player, and sales pages."}
-                      </p>
-                    </div>
-                  </div>
+                    </Card>
+                  )}
+
+                  <FileUploadZone
+                    title={
+                      selectedCoverFile || coverUpload?.remoteUrl
+                        ? "Replace Cover Artwork"
+                        : "Upload Track Cover"
+                    }
+                    description="High resolution artwork (PNG, JPG, JPEG)"
+                    acceptedTypes=".png,.jpg,.jpeg"
+                    files={
+                      selectedCoverFile
+                        ? [
+                            {
+                              name: selectedCoverFile.name,
+                              status: isCoverUploading
+                                ? "Uploading"
+                                : "Selected",
+                            },
+                          ]
+                        : coverUpload
+                          ? [
+                              {
+                                name: coverUpload.fileName,
+                                status: "Uploaded",
+                              },
+                            ]
+                          : []
+                    }
+                    onFileUpload={handleCoverUpload}
+                    progress={isCoverUploading ? coverProgress : undefined}
+                    status={
+                      isCoverUploading
+                        ? `${Math.round(coverProgress)}% uploaded`
+                        : undefined
+                    }
+                    variant="compact"
+                  />
+                  <FormField
+                    control={form.control}
+                    name="coverObjectKey"
+                    render={() => <FormMessage />}
+                  />
                 </div>
 
                 <div className="flex justify-end pt-4">

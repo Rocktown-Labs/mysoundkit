@@ -1,4 +1,5 @@
 /* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, promise/prefer-await-to-then */
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link } from "@tanstack/react-router";
 import {
   ChevronDown,
@@ -199,6 +200,20 @@ export function MusicPlayer() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
   const [volume, setVolume] = useState(75);
+
+  useHotkey("Space", (event) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    handlePlayPause();
+  });
 
   const meQuery = useMeQuery();
   const isSignedIn = Boolean(meQuery.data);

@@ -1,6 +1,7 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link } from "@tanstack/react-router";
 import { Bell, FolderOpen, Music, Search, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,14 @@ const resultLinkClassName =
 export function DashboardHeader() {
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const trimmedSearchValue = debouncedSearchValue.trim();
+
+  useHotkey("Mod+K", (event) => {
+    event.preventDefault();
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  });
 
   const notificationsQuery = useNotificationsQuery();
   const markReadMutation = useMarkNotificationsReadMutation();
@@ -64,6 +72,7 @@ export function DashboardHeader() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             type="search"
             placeholder="Search tracks, projects, artists..."
             className="pl-9 w-full"
