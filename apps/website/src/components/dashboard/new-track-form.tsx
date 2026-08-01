@@ -1478,87 +1478,35 @@ export function NewTrackForm({
                   )}
                 />
 
-                <div className="space-y-4">
+                <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider text-primary">
                     Cover Artwork
                   </Label>
-
-                  {/* HERO ARTWORK BANNER PREVIEW (ABOVE UPLOADER) */}
-                  {(selectedCoverFile || coverUpload?.remoteUrl) && (
-                    <Card className="border border-primary/40 bg-gradient-to-br from-primary/10 via-background to-muted p-4 rounded-2xl shadow-lg space-y-3">
-                      <div className="flex flex-col sm:flex-row items-center gap-4">
-                        <div className="relative group size-32 rounded-xl border border-primary/30 overflow-hidden bg-black shrink-0 shadow-md">
-                          <img
-                            src={
-                              selectedCoverFile
-                                ? URL.createObjectURL(selectedCoverFile)
-                                : coverUpload?.remoteUrl
-                            }
-                            alt="Cover Artwork Preview"
-                            className="size-full object-cover transition-transform group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="h-8 text-xs gap-1 rounded-lg"
-                              onClick={() => {
-                                setSelectedCoverFile(null);
-                                setCoverUpload(null);
-                                form.setValue("coverObjectKey", "");
-                              }}
-                            >
-                              <X className="size-3.5" />
-                              Remove Artwork
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="flex-1 space-y-1.5 text-center sm:text-left">
-                          <div className="flex items-center justify-center sm:justify-start gap-2">
-                            <Badge
-                              variant="secondary"
-                              className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase px-2 py-0.5"
-                            >
-                              Cover Art Attached
-                            </Badge>
-                            <span className="text-xs font-mono text-muted-foreground">
-                              R2 Storage Ready
-                            </span>
-                          </div>
-                          <p className="font-bold text-base tracking-tight text-foreground truncate">
-                            {(form.getValues("name") || "track")
-                              .toLowerCase()
-                              .replaceAll(/[^a-z0-9]+/g, "-")}
-                            -coverart.
-                            {selectedCoverFile?.name.split(".").pop() || "jpg"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedCoverFile
-                              ? `${selectedCoverFile.name} • ${(selectedCoverFile.size / 1024).toFixed(0)} KB`
-                              : "Stored artwork URL active."}
-                          </p>
-                        </div>
-                      </div>
-                    </Card>
-                  )}
-
                   <FileUploadZone
                     title={
                       selectedCoverFile || coverUpload?.remoteUrl
-                        ? "Replace Cover Artwork"
+                        ? "Cover Artwork Attached"
                         : "Upload Track Cover"
                     }
                     description="High resolution artwork (PNG, JPG, JPEG)"
                     acceptedTypes=".png,.jpg,.jpeg"
+                    previewUrl={
+                      selectedCoverFile
+                        ? URL.createObjectURL(selectedCoverFile)
+                        : coverUpload?.remoteUrl || null
+                    }
+                    onRemove={() => {
+                      setSelectedCoverFile(null);
+                      setCoverUpload(null);
+                      form.setValue("coverObjectKey", "");
+                    }}
                     files={
                       selectedCoverFile
                         ? [
                             {
                               name: selectedCoverFile.name,
                               status: isCoverUploading
-                                ? "Uploading"
+                                ? "Uploading to R2"
                                 : "Selected",
                             },
                           ]
@@ -1566,7 +1514,7 @@ export function NewTrackForm({
                           ? [
                               {
                                 name: coverUpload.fileName,
-                                status: "Uploaded",
+                                status: "R2 Stored",
                               },
                             ]
                           : []
@@ -1575,10 +1523,10 @@ export function NewTrackForm({
                     progress={isCoverUploading ? coverProgress : undefined}
                     status={
                       isCoverUploading
-                        ? `${Math.round(coverProgress)}% uploaded`
+                        ? `${Math.round(coverProgress)}% uploading to R2`
                         : undefined
                     }
-                    variant="compact"
+                    variant="default"
                   />
                   <FormField
                     control={form.control}
