@@ -49,6 +49,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuHeader,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Form,
   FormControl,
   FormField,
@@ -71,6 +80,7 @@ import { toast } from "@/hooks/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
   useCreateProjectMutation,
+  useGenresQuery,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
@@ -127,6 +137,11 @@ type ProjectFormValues = z.infer<typeof projectFormSchema>;
 export function NewProjectForm() {
   const posthog = usePostHog();
   const router = useRouter();
+  const genresQuery = useGenresQuery();
+  const availableGenres =
+    genresQuery.data && genresQuery.data.length > 0
+      ? genresQuery.data.map((g) => g.name)
+      : SUPPORTED_GENRES;
   const [step, setStep] = useState("identity");
   const [newCollabName, setNewCollabName] = useState("");
   const [newCollabRole, setNewCollabRole] =
@@ -583,7 +598,7 @@ export function NewProjectForm() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {SUPPORTED_GENRES.map((g) => (
+                            {availableGenres.map((g) => (
                               <SelectItem key={g} value={g}>
                                 {g}
                               </SelectItem>
@@ -732,7 +747,7 @@ export function NewProjectForm() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {SUPPORTED_GENRES.map((g) => (
+                                      {availableGenres.map((g) => (
                                         <SelectItem key={g} value={g}>
                                           {g}
                                         </SelectItem>
@@ -853,90 +868,142 @@ export function NewProjectForm() {
                   )}
                 </div>
 
-                {/* EXISTING TRACKS */}
+                {/* EXISTING TRACKS DROPDOWN WITH CHECKBOXES */}
                 <div className="space-y-4">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Select From Library
-                  </Label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {tracksLoading && (
-                      <div className="p-4 rounded-xl border border-border/40 bg-background/40 text-sm text-muted-foreground">
-                        Loading your tracks...
-                      </div>
-                    )}
-                    {tracksError && (
-                      <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-sm text-destructive">
-                        We could not load your tracks. Refresh and try again.
-                      </div>
-                    )}
-                    {!tracksLoading &&
-                      !tracksError &&
-                      existingTracks.length === 0 && (
-                        <div className="p-4 rounded-xl border-2 border-dashed border-border/30 bg-background/30 text-sm text-muted-foreground text-center">
-                          Upload tracks first or add new audio files here.
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Select From Previous Uploads
+                    </Label>
+                    <span className="text-xs font-mono text-emerald-400">
+                      {form.watch("selectedExistingTracks").length} selected
+                      from library
+                    </span>
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        className="w-full justify-between h-12 bg-background/50 border-border/40 text-left font-medium"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <ListMusic className="size-4 text-emerald-500 shrink-0" />
+                          {form.watch("selectedExistingTracks").length > 0
+                            ? `Selected ${form.watch("selectedExistingTracks").length} previous upload${
+                                form.watch("selectedExistingTracks").length ===
+                                1
+                                  ? ""
+                                  : "s"
+                              }`
+                            : "Click to select tracks from your library"}
+                        </span>
+                        <ChevronRight className="size-4 text-muted-foreground rotate-90" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      className="w-[calc(100vw-3rem)] max-w-xl max-h-80 overflow-y-auto p-2 space-y-1 bg-popover/95 backdrop-blur-xl border-border/60 shadow-2xl"
+                    >
+                      <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5">
+                        Library Tracks
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+
+                      {tracksLoading && (
+                        <div className="p-3 text-xs text-muted-foreground text-center">
+                          Loading your uploaded tracks...
                         </div>
                       )}
-                    {existingTracks.map((track) => {
-                      const isSelected = form
-                        .watch("selectedExistingTracks")
-                        .includes(track.id);
-                      return (
-                        <button
-                          type="button"
-                          key={track.id}
-                          className={cn(
-                            "flex w-full items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group text-left",
-                            isSelected
-                              ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm"
-                              : "border-border/40 bg-background/40 hover:border-emerald-500/30"
-                          )}
-                          onClick={() => {
-                            toggleExistingTrack(track.id);
-                          }}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={cn(
-                                "size-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                                isSelected
-                                  ? "bg-emerald-500 border-emerald-500"
-                                  : "border-border/60 group-hover:border-emerald-500/40"
-                              )}
+                      {tracksError && (
+                        <div className="p-3 text-xs text-destructive text-center">
+                          Failed to load tracks.
+                        </div>
+                      )}
+                      {!tracksLoading &&
+                        !tracksError &&
+                        existingTracks.length === 0 && (
+                          <div className="p-3 text-xs text-muted-foreground text-center">
+                            No previous uploads found in library.
+                          </div>
+                        )}
+
+                      {existingTracks.map((track) => {
+                        const isSelected = form
+                          .watch("selectedExistingTracks")
+                          .includes(track.id);
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={track.id}
+                            checked={isSelected}
+                            onCheckedChange={() =>
+                              toggleExistingTrack(track.id)
+                            }
+                            className="flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-accent"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <Music className="size-4 text-emerald-500 shrink-0" />
+                              <span className="font-semibold text-sm truncate">
+                                {track.title}
+                              </span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] uppercase px-1.5 py-0 shrink-0 ml-2"
                             >
-                              {isSelected && (
-                                <Check
-                                  className="size-3 text-white"
-                                  strokeWidth={4}
-                                />
-                              )}
-                            </div>
-                            <div className="size-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-emerald-500 transition-colors">
-                              <Music className="size-5" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-sm">{track.title}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              {track.genre}
+                            </Badge>
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* SELECTED TRACK CARDS DISPLAY */}
+                  {form.watch("selectedExistingTracks").length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                        Selected Library Tracks
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {existingTracks
+                          .filter((track) =>
+                            form
+                              .watch("selectedExistingTracks")
+                              .includes(track.id)
+                          )
+                          .map((track) => (
+                            <div
+                              key={`selected-${track.id}`}
+                              className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <Check className="size-4 text-emerald-400 shrink-0" />
+                                <span className="font-bold truncate">
+                                  {track.title}
+                                </span>
                                 <Badge
-                                  variant="outline"
-                                  className="text-[9px] uppercase h-4 px-1"
+                                  variant="secondary"
+                                  className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300"
                                 >
                                   {track.genre}
                                 </Badge>
-                                <span className="text-[10px] text-muted-foreground font-mono">
-                                  {track.duration}
-                                </span>
-                                {track.assetStatus && (
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {track.assetStatus}
-                                  </span>
-                                )}
                               </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                                onClick={() => toggleExistingTrack(track.id)}
+                              >
+                                <X className="size-3.5 mr-1" />
+                                Remove
+                              </Button>
                             </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between pt-4">

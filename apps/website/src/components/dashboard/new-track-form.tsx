@@ -83,6 +83,7 @@ import { authClient } from "@/lib/auth-client";
 import {
   soundkitQueryKeys,
   useCreateOpenVerseMutation,
+  useGenresQuery,
   usePeopleSearchQuery,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -245,6 +246,11 @@ export function NewTrackForm({
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const genresQuery = useGenresQuery();
+  const availableGenres =
+    genresQuery.data && genresQuery.data.length > 0
+      ? genresQuery.data.map((g) => g.name)
+      : SUPPORTED_GENRES;
   const { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
     useAudioPlayer();
   const [step, setStep] = useState("details");
@@ -1406,7 +1412,7 @@ export function NewTrackForm({
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {SUPPORTED_GENRES.map((g) => (
+                            {availableGenres.map((g) => (
                               <SelectItem key={g} value={g}>
                                 {g}
                               </SelectItem>
