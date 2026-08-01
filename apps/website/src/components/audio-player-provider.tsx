@@ -26,10 +26,14 @@ export interface PlayerTrack {
 
 interface AudioPlayerContextValue {
   currentTrack: PlayerTrack | null;
+  isPlaying: boolean;
   queue: PlayerTrack[];
+  registerTogglePlay: (fn: (() => void) | null) => void;
   setCurrentTrack: (track: PlayerTrack | null) => void;
+  setIsPlaying: (playing: boolean) => void;
   setQueue: (queue: PlayerTrack[]) => void;
   setVisible: (visible: boolean) => void;
+  togglePlay: () => void;
   visible: boolean;
 }
 
@@ -104,9 +108,21 @@ export function AudioPlayerProvider({
   // server-rendered HTML; restore persisted state after mount instead,
   // otherwise hydration fails (React error #418) and the app crashes.
   const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [queue, setQueue] = useState<PlayerTrack[]>([]);
   const [visible, setVisible] = useState(false);
   const [hasRestored, setHasRestored] = useState(false);
+  const togglePlayRef = useRef<(() => void) | null>(null);
+
+  const registerTogglePlay = useCallback((fn: (() => void) | null) => {
+    togglePlayRef.current = fn;
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (togglePlayRef.current) {
+      togglePlayRef.current();
+    }
+  }, []);
 
   useEffect(() => {
     const stored = readStoredPlayerState();
@@ -135,13 +151,25 @@ export function AudioPlayerProvider({
   const value = useMemo(
     () => ({
       currentTrack,
+      isPlaying,
       queue,
+      registerTogglePlay,
       setCurrentTrack: handleSetCurrentTrack,
+      setIsPlaying,
       setQueue,
       setVisible,
+      togglePlay,
       visible,
     }),
-    [currentTrack, handleSetCurrentTrack, queue, visible]
+    [
+      currentTrack,
+      isPlaying,
+      handleSetCurrentTrack,
+      queue,
+      registerTogglePlay,
+      togglePlay,
+      visible,
+    ]
   );
 
   return (

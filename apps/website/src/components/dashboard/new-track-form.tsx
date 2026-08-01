@@ -1608,7 +1608,11 @@ export function NewTrackForm({
                               trackHref: "#",
                             };
                             if (currentTrack?.src === src) {
-                              togglePlay();
+                              if (typeof togglePlay === "function") {
+                                togglePlay();
+                              } else {
+                                setCurrentTrack(trackData);
+                              }
                             } else {
                               setQueue([trackData]);
                               setCurrentTrack(trackData);

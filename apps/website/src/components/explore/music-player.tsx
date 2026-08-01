@@ -178,7 +178,9 @@ export function MusicPlayer() {
   const {
     currentTrack,
     queue,
+    registerTogglePlay,
     setCurrentTrack,
+    setIsPlaying: setContextIsPlaying,
     setQueue,
     setVisible,
     visible,
@@ -193,7 +195,15 @@ export function MusicPlayer() {
   ]);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlayingState] = useState(false);
+
+  const setIsPlaying = useCallback(
+    (playing: boolean) => {
+      setIsPlayingState(playing);
+      setContextIsPlaying(playing);
+    },
+    [setContextIsPlaying]
+  );
   const [isShuffled, setIsShuffled] = useState(false);
   const [isMiniPlayer, setIsMiniPlayer] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -507,7 +517,7 @@ export function MusicPlayer() {
     };
   });
 
-  const handlePlayPause = () => {
+  const handlePlayPause = useCallback(() => {
     const audio = audioRef.current;
 
     if (!audio) {
@@ -528,7 +538,14 @@ export function MusicPlayer() {
         // e.g. NotSupportedError when the source is missing or unsupported
         setIsPlaying(false);
       });
-  };
+  }, [isPlaying, setIsPlaying, setVisible]);
+
+  useEffect(() => {
+    registerTogglePlay(handlePlayPause);
+    return () => {
+      registerTogglePlay(null);
+    };
+  }, [handlePlayPause, registerTogglePlay]);
 
   const handleNext = () => {
     if (!(currentTrack && queue.length > 0)) {
