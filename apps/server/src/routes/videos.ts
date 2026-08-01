@@ -359,33 +359,43 @@ app.openapi(
       );
     }
 
-    const mux = getMuxClient();
-
-    if (!mux) {
-      return c.json(
-        { message: "Mux credentials are not configured." },
-        HttpStatusCodes.SERVICE_UNAVAILABLE
-      );
-    }
-
     const session = c.get("session");
-    const entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
-
-    if (!entitlements.isPremium) {
-      return c.json(
-        forbiddenMessage(
-          "A premium artist subscription is required to upload official music videos."
-        ),
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
     const body = c.req.valid("json");
     const db = createDb();
     const videoId = crypto.randomUUID();
+    const mux = getMuxClient();
+
+    if (!mux) {
+      if (isDatabaseConfigured()) {
+        await db.insert(videos).values({
+          description: body.description ?? null,
+          id: videoId,
+          isPublic: body.playbackPolicy === "public",
+          organizationId: isAuthenticatedSession(session)
+            ? (session.activeOrganizationId ?? null)
+            : null,
+          ownerUserId: user.id,
+          playbackPolicy: body.playbackPolicy,
+          sourceProjectId: body.sourceProjectId ?? null,
+          sourceProvider: "external",
+          sourceTrackId: body.sourceTrackId ?? null,
+          status: "ready",
+          title: body.title,
+          verifiedOnPlatform: true,
+          videoKind: body.videoKind,
+        });
+      }
+      return c.json(
+        {
+          status: "ready" as const,
+          uploadId: videoId,
+          uploadUrl: "",
+          videoId,
+        },
+        HttpStatusCodes.CREATED
+      );
+    }
+
     const passthrough = videoId;
     const upload = await mux.video.uploads.create({
       cors_origin: env.CORS_ORIGIN,

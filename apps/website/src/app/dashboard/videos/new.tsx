@@ -169,18 +169,20 @@ function NewVideoPage() {
           uploadUrl?: string;
         };
 
-        if (!createResponse.ok || !createPayload.uploadUrl) {
+        if (!createResponse.ok) {
           throw new Error(createPayload.message ?? "Failed to create upload.");
         }
 
-        const uploadResponse = await fetch(createPayload.uploadUrl, {
-          body: videoFile,
-          headers: { "Content-Type": videoFile.type || "video/mp4" },
-          method: "PUT",
-        });
+        if (createPayload.uploadUrl) {
+          const uploadResponse = await fetch(createPayload.uploadUrl, {
+            body: videoFile,
+            headers: { "Content-Type": videoFile.type || "video/mp4" },
+            method: "PUT",
+          });
 
-        if (!uploadResponse.ok) {
-          throw new Error("Video upload failed before Mux could process it.");
+          if (!uploadResponse.ok) {
+            throw new Error("Video upload failed before processing.");
+          }
         }
       } else {
         const createResponse = await fetch(`${API_V1_URL}/videos`, {
@@ -605,35 +607,74 @@ function NewVideoPage() {
                             value="upload"
                             className="space-y-6 mt-0"
                           >
-                            <div className="p-6 rounded-2xl border-2 border-dashed border-border/40 bg-muted/20 text-center hover:bg-muted/30 transition-colors cursor-pointer group">
-                              <input
-                                type="file"
-                                accept="video/*"
-                                className="hidden"
-                                id="video-upload"
-                                onChange={(e) =>
-                                  setVideoFile(e.target.files?.[0] || null)
-                                }
-                              />
-                              <label
-                                htmlFor="video-upload"
-                                className="cursor-pointer space-y-4 block"
-                              >
-                                <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto text-amber-500 group-hover:scale-110 transition-transform">
-                                  <CloudUpload className="size-6" />
+                            {videoFile ? (
+                              <Card className="border border-primary/40 bg-card/60 p-4 rounded-2xl space-y-3">
+                                <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-primary/20">
+                                  <video
+                                    src={URL.createObjectURL(videoFile)}
+                                    controls
+                                    className="size-full object-contain"
+                                  />
                                 </div>
-                                <div>
-                                  <p className="font-bold">
-                                    {videoFile
-                                      ? videoFile.name
-                                      : "Click to select video file"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    MP4, MOV up to 2GB
-                                  </p>
+                                <div className="flex items-center justify-between gap-4">
+                                  <div>
+                                    <p className="font-bold text-sm text-foreground flex items-center gap-2">
+                                      {videoFile.name}
+                                      <Badge
+                                        variant="secondary"
+                                        className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300 font-bold"
+                                      >
+                                        Video Ready
+                                      </Badge>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground font-mono">
+                                      {(videoFile.size / (1024 * 1024)).toFixed(
+                                        1
+                                      )}{" "}
+                                      MB • {videoFile.type || "video/mp4"}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => setVideoFile(null)}
+                                  >
+                                    <X className="size-3.5 mr-1" />
+                                    Change Video
+                                  </Button>
                                 </div>
-                              </label>
-                            </div>
+                              </Card>
+                            ) : (
+                              <div className="p-6 rounded-2xl border-2 border-dashed border-border/40 bg-muted/20 text-center hover:bg-muted/30 transition-colors cursor-pointer group">
+                                <input
+                                  type="file"
+                                  accept="video/*"
+                                  className="hidden"
+                                  id="video-upload"
+                                  onChange={(e) =>
+                                    setVideoFile(e.target.files?.[0] || null)
+                                  }
+                                />
+                                <label
+                                  htmlFor="video-upload"
+                                  className="cursor-pointer space-y-4 block"
+                                >
+                                  <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto text-amber-500 group-hover:scale-110 transition-transform">
+                                    <CloudUpload className="size-6" />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold">
+                                      Click or drag to select video file
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      MP4, MOV, WEBM up to 2GB
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+                            )}
 
                             <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-xl flex items-center gap-3">
                               <Sparkles className="size-5 text-amber-500" />

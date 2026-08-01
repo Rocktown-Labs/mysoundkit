@@ -97,6 +97,10 @@ const collaboratorSchema = z.object({
 const projectFormSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
   description: z.string().optional(),
+  genre: z
+    .string()
+    .min(1, "Project primary genre is required")
+    .default("R&B/Soul"),
   name: z.string().min(2, "Project name is required"),
   newTracks: z
     .array(
@@ -144,6 +148,7 @@ export function NewProjectForm() {
   const defaultProjectFormValues: ProjectFormValues = {
     collaborators: [],
     description: "",
+    genre: "R&B/Soul",
     name: "",
     newTracks: [],
     projectCoverObjectKey: "",
@@ -221,14 +226,14 @@ export function NewProjectForm() {
 
     try {
       const project = await createProjectMutation.mutateAsync({
-        assetIds: [],
+        assetIds: coverKey ? [coverKey] : [],
         collaboratorNames: values.collaborators.map(
           (collaborator) => collaborator.name
         ),
         description: values.description || undefined,
         isPublic: true,
         newTracks: values.newTracks.map((track) => ({
-          genre: track.genre,
+          genre: track.genre || values.genre || "R&B/Soul",
           title: track.name,
         })),
         projectType: values.type,
@@ -501,7 +506,7 @@ export function NewProjectForm() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <FormField
                     control={form.control}
                     name="name"
@@ -550,6 +555,44 @@ export function NewProjectForm() {
                         </FormItem>
                       );
                     }}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="genre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Primary Genre{" "}
+                          <span className="text-destructive">*</span>
+                        </FormLabel>
+                        <Select
+                          onValueChange={(val) => {
+                            field.onChange(val);
+                            const currentTracks = form.getValues("newTracks");
+                            const updated = currentTracks.map((t) => ({
+                              ...t,
+                              genre: t.genre || val,
+                            }));
+                            form.setValue("newTracks", updated);
+                          }}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder="Select primary genre" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {SUPPORTED_GENRES.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
 
@@ -710,10 +753,45 @@ export function NewProjectForm() {
                                   <FormControl>
                                     <Input
                                       {...producersField}
-                                      placeholder="Search friends or type names"
+                                      placeholder="Type names (separated by commas)"
                                       className="h-8 text-sm bg-background/50"
                                     />
                                   </FormControl>
+                                  {Boolean(producersField.value) && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {producersField.value
+                                        ?.split(",")
+                                        .map((p) => p.trim())
+                                        .filter(Boolean)
+                                        .map((producerName) => (
+                                          <Badge
+                                            key={producerName}
+                                            variant="secondary"
+                                            className="text-[10px] bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 py-0.5 px-2"
+                                          >
+                                            <span>{producerName}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updated =
+                                                  producersField.value
+                                                    ?.split(",")
+                                                    .map((p) => p.trim())
+                                                    .filter(
+                                                      (p) => p !== producerName
+                                                    )
+                                                    .join(", ");
+                                                producersField.onChange(
+                                                  updated
+                                                );
+                                              }}
+                                            >
+                                              <X className="size-3 hover:text-destructive" />
+                                            </button>
+                                          </Badge>
+                                        ))}
+                                    </div>
+                                  )}
                                 </FormItem>
                               )}
                             />
@@ -728,10 +806,43 @@ export function NewProjectForm() {
                                   <FormControl>
                                     <Input
                                       {...writersField}
-                                      placeholder="Search friends or type names"
+                                      placeholder="Type names (separated by commas)"
                                       className="h-8 text-sm bg-background/50"
                                     />
                                   </FormControl>
+                                  {Boolean(writersField.value) && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {writersField.value
+                                        ?.split(",")
+                                        .map((w) => w.trim())
+                                        .filter(Boolean)
+                                        .map((writerName) => (
+                                          <Badge
+                                            key={writerName}
+                                            variant="secondary"
+                                            className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 py-0.5 px-2"
+                                          >
+                                            <span>{writerName}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updated =
+                                                  writersField.value
+                                                    ?.split(",")
+                                                    .map((w) => w.trim())
+                                                    .filter(
+                                                      (w) => w !== writerName
+                                                    )
+                                                    .join(", ");
+                                                writersField.onChange(updated);
+                                              }}
+                                            >
+                                              <X className="size-3 hover:text-destructive" />
+                                            </button>
+                                          </Badge>
+                                        ))}
+                                    </div>
+                                  )}
                                 </FormItem>
                               )}
                             />
