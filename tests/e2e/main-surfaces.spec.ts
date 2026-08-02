@@ -106,7 +106,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Music Videos" })
     ).toBeVisible();
     await expect(page.getByText("Featured Videos")).toBeVisible();
-    await expect(page.getByText("Hip Hop").first()).toBeVisible();
+    await expect(page.getByText("Hip-Hop/Rap").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
   });
 
