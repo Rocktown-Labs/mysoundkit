@@ -54,6 +54,8 @@
 
 ### Fixed
 
+- Fixed track and project creation so server drafts are created before large R2 uploads, staged files upload on Complete, saved drafts appear in dashboard lists, and failed uploads leave recoverable draft records.
+- Fixed track and project delete actions with title-confirmation dialogs, visible deleting state, and list revalidation.
 - Fixed track and project upload persistence so submitted cover art and audio/project assets create durable asset rows instead of disappearing after form submission.
 - Fixed the dashboard track transcription button so it queues the real processing workflow instead of rendering fake lyrics.
 - Fixed route string drift in the dashboard live track stats route.

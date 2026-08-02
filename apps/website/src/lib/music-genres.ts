@@ -1,5 +1,5 @@
 export const musicGenres = [
-  { label: "Hip Hop", value: "hip-hop" },
+  { label: "Hip-Hop/Rap", value: "hip-hop-rap" },
   { label: "R&B/Soul", value: "rb-soul" },
   { label: "Electronic", value: "electronic" },
   { label: "Pop", value: "pop" },
@@ -30,5 +30,9 @@ export const genreValueFromLabel = (label: string) => {
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-|-$/gu, "");
 
-  return normalized === "r-b-soul" ? "rb-soul" : normalized;
+  if (normalized === "r-b-soul") {
+    return "rb-soul";
+  }
+
+  return normalized === "hip-hop-rap" ? "hip-hop-rap" : normalized;
 };

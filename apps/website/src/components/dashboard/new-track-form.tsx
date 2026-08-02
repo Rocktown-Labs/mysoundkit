@@ -80,6 +80,7 @@ import { authClient } from "@/lib/auth-client";
 import {
   soundkitQueryKeys,
   useCreateOpenVerseMutation,
+  useCreateTrackMutation,
   useGenresQuery,
   usePeopleSearchQuery,
   useUpdateTrackMutation,
@@ -89,7 +90,7 @@ import { cn } from "@/lib/utils";
 const SUPPORTED_GENRES = [
   "Afrobeats",
   "Electronic",
-  "Hip-Hop",
+  "Hip-Hop/Rap",
   "Jazz",
   "Latin",
   "Pop",
@@ -98,7 +99,6 @@ const SUPPORTED_GENRES = [
   "Spoken Word",
 ] as const;
 
-const tracksPost = apiClient.v1.tracks.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 
 const SINGLE_PRICE_USD = 1.29;
@@ -205,7 +205,7 @@ const defaultTrackFormValues: TrackFormValues = {
   coverObjectKey: "",
   credits: [],
   description: "",
-  genre: "",
+  genre: "Hip-Hop/Rap",
   isForSale: false,
   isrc: "",
   key: "",
@@ -299,8 +299,13 @@ export function NewTrackForm({
   const masterUploadResolverRef = useRef<
     ((preview: UploadedTrackPreview | null) => void) | null
   >(null);
+  const pendingMasterTrackRef = useRef<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   const createOpenVerseMutation = useCreateOpenVerseMutation();
+  const createTrackMutation = useCreateTrackMutation();
   const updateTrackMutation = useUpdateTrackMutation(trackId ?? "");
   const { data: session } = authClient.useSession();
   const peopleSearch = usePeopleSearchQuery(creditQuery);
@@ -428,7 +433,6 @@ export function NewTrackForm({
       if (file.type.startsWith("image/") && !coverFound) {
         setSelectedCoverFile(file);
         coverFound = true;
-        void uploadCover([file]);
       } else if (
         (file.type.startsWith("audio/") ||
           file.name.endsWith(".wav") ||
@@ -439,7 +443,6 @@ export function NewTrackForm({
       ) {
         setSelectedMasterFile(file);
         masterFound = true;
-        void upload([file]);
         if (!form.getValues("name")) {
           const cleanName = file.name
             .replace(/\.[^/.]+$/, "")
@@ -513,53 +516,20 @@ export function NewTrackForm({
     });
   };
 
-  const createDraftTrackFromUpload = async ({
+  const attachMasterUploadToTrack = async ({
     file,
     objectKey,
     remoteUrl,
+    track,
   }: {
     file: File;
     objectKey: string;
     remoteUrl: string;
+    track: {
+      id: string;
+      title: string;
+    };
   }) => {
-    const values = trackFormSchema.parse(form.getValues());
-    const release = mapStatusToRelease(values.status);
-    const track = await rpcJson(
-      await tracksPost({
-        json: {
-          assetIds: [],
-          catalogItemType: "single",
-          collaborators: values.credits.map((credit) => ({
-            inviteEmail: credit.inviteEmail,
-            name: credit.displayName,
-            role: credit.role,
-            userId: credit.userId,
-          })),
-          description: values.description || undefined,
-          genre: values.genre,
-          isForSale: values.isForSale,
-          isOpenVerse: release.isOpenVerse,
-          isPublic: release.isPublic,
-          isrc: values.isrc || undefined,
-          musicalKey: values.key || undefined,
-          price: values.isForSale ? SINGLE_PRICE_USD : undefined,
-          priceCents: values.isForSale
-            ? Math.round(SINGLE_PRICE_USD * 100)
-            : undefined,
-          productionStatus: release.productionStatus,
-          purchaseMode: "digital_download",
-          releaseAt: values.releaseAt || undefined,
-          releaseStrategy: release.releaseStrategy,
-          sourceObjectKey: objectKey,
-          streamingLinks: {
-            appleMusic: values.streamingAppleMusic || undefined,
-            spotify: values.streamingSpotify || undefined,
-            youtube: values.streamingYoutube || undefined,
-          },
-          title: values.name,
-        },
-      })
-    );
     if (coverUpload) {
       await rpcJson(
         await trackAssetPost({
@@ -617,10 +587,6 @@ export function NewTrackForm({
     };
 
     posthog.capture("track_uploaded", {
-      genre: values.genre,
-      is_for_sale: values.isForSale,
-      production_status: release.productionStatus,
-      release_strategy: release.releaseStrategy,
       title: track.title,
       track_id: track.id,
     });
@@ -693,10 +659,25 @@ export function NewTrackForm({
       const objectKey = uploadedFile.objectInfo.key;
       const remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
 
-      void createDraftTrackFromUpload({
+      const pendingTrack = pendingMasterTrackRef.current;
+
+      if (!pendingTrack) {
+        toast({
+          description:
+            "Upload finished, but SoundKit could not find the track draft to attach it to.",
+          title: "Track attach failed",
+          variant: "destructive",
+        });
+        masterUploadResolverRef.current?.(null);
+        masterUploadResolverRef.current = null;
+        return;
+      }
+
+      void attachMasterUploadToTrack({
         file: sourceFile,
         objectKey,
         remoteUrl,
+        track: pendingTrack,
       }).catch((draftError: unknown) => {
         posthog.captureException(draftError);
         toast({
@@ -704,7 +685,7 @@ export function NewTrackForm({
             draftError instanceof Error
               ? draftError.message
               : "Upload finished but the track could not be created.",
-          title: "Track create failed",
+          title: "Track attach failed",
           variant: "destructive",
         });
         if (masterUploadResolverRef.current) {
@@ -799,6 +780,81 @@ export function NewTrackForm({
     setSelectedMasterFile(file);
   };
 
+  const handleSaveTrackDraft = async () => {
+    const values = form.getValues();
+
+    if (values.name.trim().length < 2) {
+      toast({
+        description: "Add a track title before saving a draft.",
+        title: "Track title required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!values.genre) {
+      toast({
+        description: "Select a genre before saving a draft.",
+        title: "Genre required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitStage("creating");
+    setSubmitProgress(30);
+
+    try {
+      await createTrackMutation.mutateAsync({
+        assetIds: [],
+        catalogItemType: "single",
+        collaborators: values.credits.map((credit) => ({
+          inviteEmail: credit.inviteEmail,
+          name: credit.displayName,
+          role: credit.role,
+          userId: credit.userId,
+        })),
+        description: values.description || undefined,
+        genre: values.genre,
+        isForSale: false,
+        isOpenVerse: false,
+        isPublic: false,
+        isrc: values.isrc || undefined,
+        musicalKey: values.key || undefined,
+        productionStatus: "demo",
+        purchaseMode: "digital_download",
+        releaseStrategy: "private",
+        streamingLinks: {
+          appleMusic: values.streamingAppleMusic || undefined,
+          spotify: values.streamingSpotify || undefined,
+          youtube: values.streamingYoutube || undefined,
+        },
+        title: values.name,
+      });
+      clearDraft();
+      allowNavigation();
+      toast({
+        description:
+          selectedMasterFile || selectedCoverFile
+            ? "Metadata saved. Staged files will upload when you complete the track."
+            : "Track draft saved.",
+        title: "Draft saved",
+      });
+      router.navigate({ to: "/dashboard/tracks" });
+    } catch (error) {
+      posthog.captureException(error);
+      toast({
+        description:
+          error instanceof Error ? error.message : "Failed to save draft.",
+        title: "Draft save failed",
+        variant: "destructive",
+      });
+      setSubmitStage("idle");
+      setIsSubmitting(false);
+    }
+  };
+
   const onSubmit = async (values: TrackFormValues) => {
     setIsSubmitting(true);
     setSubmitStage("uploading");
@@ -867,7 +923,11 @@ export function NewTrackForm({
           const keyPromise = new Promise<string>((resolve) => {
             coverUploadResolverRef.current = resolve;
           });
-          void uploadCover([selectedCoverFile]);
+          uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+            posthog.captureException(uploadError);
+            coverUploadResolverRef.current?.("");
+            coverUploadResolverRef.current = null;
+          });
           // Wait for the real upload instead of falling back to a blob: URL.
           // A blob: URL dies with this tab and would leave the track with
           // permanently broken cover art.
@@ -897,15 +957,58 @@ export function NewTrackForm({
       setSubmitProgress(50);
 
       let trackPreview = uploadedTrack;
+      let createdTrackForUpload: { id: string; title: string } | null = null;
 
       if (!trackPreview && selectedMasterFile) {
         try {
+          const release = mapStatusToRelease(values.status);
+          createdTrackForUpload = await createTrackMutation.mutateAsync({
+            assetIds: [],
+            catalogItemType: "single",
+            collaborators: values.credits.map((credit) => ({
+              inviteEmail: credit.inviteEmail,
+              name: credit.displayName,
+              role: credit.role,
+              userId: credit.userId,
+            })),
+            description: values.description || undefined,
+            genre: values.genre,
+            isForSale: values.isForSale,
+            isOpenVerse: release.isOpenVerse,
+            isPublic: release.isPublic,
+            isrc: values.isrc || undefined,
+            musicalKey: values.key || undefined,
+            price: values.isForSale ? SINGLE_PRICE_USD : undefined,
+            priceCents: values.isForSale
+              ? Math.round(SINGLE_PRICE_USD * 100)
+              : undefined,
+            productionStatus: release.productionStatus,
+            purchaseMode: "digital_download",
+            releaseAt: values.releaseAt || undefined,
+            releaseStrategy: release.releaseStrategy,
+            streamingLinks: {
+              appleMusic: values.streamingAppleMusic || undefined,
+              spotify: values.streamingSpotify || undefined,
+              youtube: values.streamingYoutube || undefined,
+            },
+            title: values.name,
+          });
+          pendingMasterTrackRef.current = {
+            id: createdTrackForUpload.id,
+            title: createdTrackForUpload.title,
+          };
+          setSubmitStage("uploading");
+          setSubmitProgress(55);
           const previewPromise = new Promise<UploadedTrackPreview | null>(
             (resolve) => {
               masterUploadResolverRef.current = resolve;
             }
           );
-          void upload([selectedMasterFile]);
+          upload([selectedMasterFile]).catch((uploadError: unknown) => {
+            posthog.captureException(uploadError);
+            masterUploadResolverRef.current?.(null);
+            masterUploadResolverRef.current = null;
+          });
           const resultPreview = await Promise.race([
             previewPromise,
             new Promise<UploadedTrackPreview | null>((res) =>
@@ -922,14 +1025,21 @@ export function NewTrackForm({
         if (!trackPreview) {
           coverUploadResolverRef.current = null;
           masterUploadResolverRef.current = null;
+          pendingMasterTrackRef.current = null;
           toast({
-            description:
-              "The master audio upload did not finish. Please retry so SoundKit can save a real storage file.",
+            description: createdTrackForUpload
+              ? "Your track draft was saved, but the master audio upload did not finish. Open the draft from Tracks and retry the upload."
+              : "The master audio upload did not finish. Please retry so SoundKit can save a real storage file.",
             title: "Upload incomplete",
             variant: "destructive",
           });
           setSubmitStage("idle");
           setIsSubmitting(false);
+          if (createdTrackForUpload) {
+            clearDraft();
+            allowNavigation();
+            router.navigate({ to: "/dashboard/tracks" });
+          }
           return;
         }
       }
@@ -992,6 +1102,7 @@ export function NewTrackForm({
 
       clearDraft();
       allowNavigation();
+      pendingMasterTrackRef.current = null;
       posthog.capture("track_upload_settled", {
         genre: values.genre,
         isPublic: values.status === "ready" || values.status === "open_verse",
@@ -2271,23 +2382,33 @@ export function NewTrackForm({
                   >
                     Back
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="min-w-[150px] shadow-lg shadow-primary/20"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <LoaderCircle className="mr-2 size-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        Complete Setup
-                        <Check className="ml-2 size-4" />
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={isSubmitting}
+                      onClick={handleSaveTrackDraft}
+                      type="button"
+                      variant="outline"
+                    >
+                      Save Draft
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="min-w-[150px] shadow-lg shadow-primary/20"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <LoaderCircle className="mr-2 size-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          Complete Setup
+                          <Check className="ml-2 size-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>

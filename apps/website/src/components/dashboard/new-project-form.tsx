@@ -1,9 +1,10 @@
 "use client";
-/* eslint-disable complexity, import/first, no-empty-function, no-nested-ternary, no-promise-executor-return, promise/avoid-new, react/jsx-handler-names, require-await, require-unicode-regexp, unicorn/max-nested-calls */
+/* eslint-disable complexity, import/first, no-empty-function, no-nested-ternary, no-promise-executor-return, promise/avoid-new, promise/prefer-await-to-then, react/jsx-handler-names, require-await, require-unicode-regexp, unicorn/max-nested-calls */
 
 import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHog } from "@posthog/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import {
   Plus,
@@ -30,7 +31,7 @@ import * as z from "zod";
 const SUPPORTED_GENRES = [
   "Afrobeats",
   "Electronic",
-  "Hip-Hop",
+  "Hip-Hop/Rap",
   "Jazz",
   "Latin",
   "Pop",
@@ -78,11 +79,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import {
+  apiClient,
   MEDIA_BASE_URL,
   MEDIA_UPLOAD_URL,
   PROJECT_ASSETS_UPLOAD_URL,
+  rpcJson,
 } from "@/lib/api";
 import {
+  soundkitQueryKeys,
   useCreateProjectMutation,
   useGenresQuery,
   useTracksQuery,
@@ -141,6 +145,9 @@ const projectFormSchema = z.object({
 });
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
+const projectGet = apiClient.v1.projects[":projectId"].$get;
+const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
+
 interface GenreOption {
   name: string;
 }
@@ -155,6 +162,7 @@ const isGenreOption = (value: unknown): value is GenreOption =>
 
 export function NewProjectForm() {
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const genresQuery = useGenresQuery();
   const genreRows = Array.isArray(genresQuery.data)
@@ -188,7 +196,7 @@ export function NewProjectForm() {
   const defaultProjectFormValues: ProjectFormValues = {
     collaborators: [],
     description: "",
-    genre: "R&B/Soul",
+    genre: "Hip-Hop/Rap",
     name: "",
     newTracks: [],
     projectCoverObjectKey: "",
@@ -231,6 +239,58 @@ export function NewProjectForm() {
     name: "newTracks",
   });
 
+  const handleSaveProjectDraft = async () => {
+    const values = form.getValues();
+
+    if (values.name.trim().length < 2) {
+      toast({
+        description: "Add a project title before saving a draft.",
+        title: "Project title required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const project = await createProjectMutation.mutateAsync({
+        assetIds: [],
+        collaboratorNames: values.collaborators.map(
+          (collaborator) => collaborator.name
+        ),
+        description: values.description || undefined,
+        isPublic: false,
+        newTracks: values.newTracks.map((track) => ({
+          genre: track.genre || values.genre || "Hip-Hop/Rap",
+          title: track.name,
+        })),
+        projectType: values.type,
+        streamingLinks: {},
+        title: values.name,
+        trackIds: values.selectedExistingTracks,
+        ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
+      });
+      clearDraft();
+      allowNavigation();
+      toast({
+        description:
+          selectedCoverFile ||
+          values.newTracks.some((track) => track.file instanceof File)
+            ? "Project metadata saved. Staged files will upload when you complete the project."
+            : `${project.title} was saved as a draft.`,
+        title: "Draft saved",
+      });
+      router.navigate({ to: "/dashboard/projects" });
+    } catch (error) {
+      posthog.captureException(error);
+      toast({
+        description:
+          error instanceof Error ? error.message : "Failed to save draft.",
+        title: "Draft save failed",
+        variant: "destructive",
+      });
+    }
+  };
+
   const onSubmit = async (values: ProjectFormValues) => {
     if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
       toast({
@@ -248,9 +308,23 @@ export function NewProjectForm() {
       const keyPromise = new Promise<string>((resolve) => {
         coverUploadResolverRef.current = resolve;
       });
-      void uploadCover([selectedCoverFile]);
-      coverKey = await keyPromise;
+      uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+        posthog.captureException(uploadError);
+        coverUploadResolverRef.current?.("");
+        coverUploadResolverRef.current = null;
+      });
+      coverKey = await Promise.race([
+        keyPromise,
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 60_000)),
+      ]);
       if (!coverKey) {
+        coverUploadResolverRef.current = null;
+        toast({
+          description:
+            "Project cover upload did not finish. Please retry before creating this project.",
+          title: "Artwork upload incomplete",
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -265,68 +339,13 @@ export function NewProjectForm() {
     }
 
     try {
-      let { newTracks } = values;
-      const pendingTrackFiles = values.newTracks
-        .map((track, index) => ({
-          file: track.file instanceof File ? track.file : null,
-          index,
-        }))
-        .filter(
-          (entry): entry is { file: File; index: number } =>
-            Boolean(entry.file) && !newTracks[entry.index]?.assetId
-        );
-
-      if (pendingTrackFiles.length > 0) {
-        const uploadedAssets = await uploadProjectTrackFiles(
-          pendingTrackFiles.map(({ file }) => file)
-        );
-
-        if (!uploadedAssets) {
-          toast({
-            description:
-              "One or more project track files did not finish uploading. Please retry before creating the project.",
-            title: "Project upload incomplete",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        newTracks = values.newTracks.map((track, index) => {
-          const pendingIndex = pendingTrackFiles.findIndex(
-            (entry) => entry.index === index
-          );
-          const uploadedAsset =
-            pendingIndex === -1 ? null : uploadedAssets[pendingIndex];
-
-          if (!uploadedAsset) {
-            return track;
-          }
-
-          return {
-            ...track,
-            assetId: uploadedAsset.objectKey,
-            fileName: uploadedAsset.fileName,
-            mimeType: uploadedAsset.mimeType,
-            sizeBytes: uploadedAsset.sizeBytes,
-          };
-        });
-      }
-
-      const projectTracks = newTracks.map((track) => {
+      const projectTracks = values.newTracks.map((track) => {
         const projectTrack = {
-          genre: track.genre || values.genre || "R&B/Soul",
+          genre: track.genre || values.genre || "Hip-Hop/Rap",
           title: track.name,
         };
 
-        return {
-          ...projectTrack,
-          ...(track.assetId ? { assetId: track.assetId } : {}),
-          ...(track.fileName ? { fileName: track.fileName } : {}),
-          ...(track.mimeType ? { mimeType: track.mimeType } : {}),
-          ...(typeof track.sizeBytes === "number"
-            ? { sizeBytes: track.sizeBytes }
-            : {}),
-        };
+        return projectTrack;
       });
 
       const projectPayload = {
@@ -345,6 +364,70 @@ export function NewProjectForm() {
       };
 
       const project = await createProjectMutation.mutateAsync(projectPayload);
+      const pendingTrackFiles = values.newTracks
+        .map((track, index) => ({
+          file: track.file instanceof File ? track.file : null,
+          index,
+        }))
+        .filter(
+          (entry): entry is { file: File; index: number } =>
+            Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
+        );
+
+      if (pendingTrackFiles.length > 0) {
+        const uploadedAssets = await uploadProjectTrackFiles(
+          pendingTrackFiles.map(({ file }) => file)
+        );
+
+        if (!uploadedAssets) {
+          toast({
+            description:
+              "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
+            title: "Project draft saved",
+            variant: "destructive",
+          });
+          await queryClient.invalidateQueries({
+            queryKey: soundkitQueryKeys.projects,
+          });
+          router.navigate({ to: "/dashboard/projects" });
+          return;
+        }
+
+        const projectDetail = await rpcJson(
+          await projectGet({ param: { projectId: project.id } })
+        );
+        const newProjectTracks = projectDetail.tracks.filter(
+          (track) => !values.selectedExistingTracks.includes(track.id)
+        );
+
+        for (const [uploadIndex, pendingTrack] of pendingTrackFiles.entries()) {
+          const uploadedAsset = uploadedAssets[uploadIndex];
+          const projectTrack = newProjectTracks[pendingTrack.index];
+
+          if (!(uploadedAsset && projectTrack)) {
+            continue;
+          }
+
+          await rpcJson(
+            await trackAssetPost({
+              json: {
+                assetKind: "master",
+                metadata: {
+                  originalFileName: uploadedAsset.fileName,
+                  url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
+                },
+                mimeType: uploadedAsset.mimeType,
+                objectKey: uploadedAsset.objectKey,
+                sizeBytes: uploadedAsset.sizeBytes,
+                status: "uploaded",
+                storageProvider: "r2",
+              },
+              param: { trackId: projectTrack.id },
+            })
+          );
+        }
+      }
+
       posthog.capture("project_created", {
         collaborator_count: values.collaborators.length,
         existing_track_count: values.selectedExistingTracks.length,
@@ -382,7 +465,7 @@ export function NewProjectForm() {
     for (const file of files) {
       append({
         file,
-        genre: "Hip-Hop",
+        genre: form.getValues("genre") || "Hip-Hop/Rap",
         name: file.name.replace(/\.[^/.]+$/, ""),
         producers: "",
         writers: "",
@@ -485,7 +568,11 @@ export function NewProjectForm() {
       }
     );
 
-    void uploadProjectAssets(files);
+    uploadProjectAssets(files).catch((uploadError: unknown) => {
+      posthog.captureException(uploadError);
+      projectAssetsUploadResolverRef.current?.(null);
+      projectAssetsUploadResolverRef.current = null;
+    });
 
     return Promise.race([
       uploadPromise,
@@ -1405,30 +1492,44 @@ export function NewProjectForm() {
                   >
                     Back
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={
-                      createProjectMutation.isPending || isProjectAssetUploading
-                    }
-                    className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-                  >
-                    {isProjectAssetUploading ? (
-                      <>
-                        <LoaderCircle className="mr-2 size-4 animate-spin" />
-                        Uploading {Math.round(projectAssetProgress)}%
-                      </>
-                    ) : createProjectMutation.isPending ? (
-                      <>
-                        <LoaderCircle className="mr-2 size-4 animate-spin" />
-                        Creating Project...
-                      </>
-                    ) : (
-                      <>
-                        Launch Project
-                        <Check className="ml-2 size-4" />
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={
+                        createProjectMutation.isPending ||
+                        isProjectAssetUploading
+                      }
+                      onClick={handleSaveProjectDraft}
+                      type="button"
+                      variant="outline"
+                    >
+                      Save Draft
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={
+                        createProjectMutation.isPending ||
+                        isProjectAssetUploading
+                      }
+                      className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                    >
+                      {isProjectAssetUploading ? (
+                        <>
+                          <LoaderCircle className="mr-2 size-4 animate-spin" />
+                          Uploading {Math.round(projectAssetProgress)}%
+                        </>
+                      ) : createProjectMutation.isPending ? (
+                        <>
+                          <LoaderCircle className="mr-2 size-4 animate-spin" />
+                          Creating Project...
+                        </>
+                      ) : (
+                        <>
+                          Launch Project
+                          <Check className="ml-2 size-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>

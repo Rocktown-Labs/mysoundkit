@@ -1,6 +1,8 @@
+/* eslint-disable complexity, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  genres,
   projectAssets,
   projectTracks,
   projects,
@@ -40,6 +42,29 @@ const app = new OpenAPIHono<AppEnv>();
 const getUploadBucketName = () =>
   (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
   null;
+
+const ensureGenreId = async (genreName: string) => {
+  const db = createDb();
+  const genreSlug = genreName.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-");
+  const [genreRow] = await db
+    .select({ id: genres.id })
+    .from(genres)
+    .where(eq(genres.slug, genreSlug))
+    .limit(1);
+
+  if (genreRow) {
+    return genreRow.id;
+  }
+
+  const genreId = crypto.randomUUID();
+  await db.insert(genres).values({
+    id: genreId,
+    name: genreName,
+    slug: genreSlug,
+  });
+
+  return genreId;
+};
 
 app.openapi(
   createRoute({
@@ -174,9 +199,10 @@ app.openapi(
 
       for (const newTrack of body.newTracks) {
         const trackId = crypto.randomUUID();
+        const genreId = await ensureGenreId(newTrack.genre);
         await db.insert(tracks).values({
           catalogItemType: "single",
-          genreId: null,
+          genreId,
           id: trackId,
           isForSale: false,
           isPublic: body.isPublic,
@@ -246,17 +272,17 @@ app.openapi(
         await buildProjectSummary(project),
         HttpStatusCodes.CREATED
       );
-    } catch (err: unknown) {
+    } catch (error: unknown) {
       logError({
-        error: err instanceof Error ? err.message : String(err),
+        error: error instanceof Error ? error.message : String(error),
         message: "POST /v1/projects error",
         userId: user.id,
       });
       return c.json(
         {
           message:
-            err instanceof Error
-              ? err.message
+            error instanceof Error
+              ? error.message
               : "Failed to create project record.",
         },
         HttpStatusCodes.INTERNAL_SERVER_ERROR

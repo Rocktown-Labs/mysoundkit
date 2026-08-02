@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { createDb } from "@soundkit/db";
 import {
   genres,
@@ -14,7 +15,7 @@ import {
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 const formatDuration = (durationMs: number | null | undefined) => {
   if (!durationMs) {
@@ -73,7 +74,7 @@ const publicProjectAssetUrl = (
     (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
       .VITE_MEDIA_URL ??
     ""
-  ).replace(/\/+$/, "");
+  ).replace(/\/+$/u, "");
 
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
 };
@@ -361,7 +362,8 @@ export const buildProjectDetail = async (
       .select({ row: tracks })
       .from(projectTracks)
       .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
-      .where(eq(projectTracks.projectId, row.id)),
+      .where(eq(projectTracks.projectId, row.id))
+      .orderBy(asc(projectTracks.position)),
   ]);
 
   const trackSummaries = [];

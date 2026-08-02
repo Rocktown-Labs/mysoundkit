@@ -9,8 +9,19 @@ import {
   Plus,
   Users,
 } from "lucide-react";
+import { useState } from "react";
 
 import { StatsGrid } from "@/components/dashboard/stats-grid";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,7 +31,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useProjectsQuery } from "@/lib/soundkit-api-hooks";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/use-toast";
+import {
+  useDeleteProjectMutation,
+  useProjectsQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/projects/")({
   component: ProjectsPage,
@@ -40,6 +56,12 @@ const getStatusClassName = (status: string) => {
 
 function ProjectsPage() {
   const { data: projects = [], error, isLoading } = useProjectsQuery();
+  const deleteProjectMutation = useDeleteProjectMutation();
+  const [deleteCandidate, setDeleteCandidate] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const releasedCount = projects.filter(
     (project) => project.status === "released"
   ).length;
@@ -160,7 +182,17 @@ function ProjectsPage() {
                     </DropdownMenuItem>
                     <DropdownMenuItem>Edit Project</DropdownMenuItem>
                     <DropdownMenuItem>Add Tracks</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      disabled={deleteProjectMutation.isPending}
+                      onClick={() => {
+                        setDeleteCandidate({
+                          id: project.id,
+                          title: project.title,
+                        });
+                        setDeleteConfirmation("");
+                      }}
+                    >
                       Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -244,6 +276,72 @@ function ProjectsPage() {
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !deleteProjectMutation.isPending) {
+            setDeleteCandidate(null);
+            setDeleteConfirmation("");
+          }
+        }}
+        open={Boolean(deleteCandidate)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the project dashboard record. Type the
+              project title to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="font-medium text-sm">{deleteCandidate?.title}</p>
+            <Input
+              disabled={deleteProjectMutation.isPending}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder="Type the project title"
+              value={deleteConfirmation}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProjectMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                !deleteCandidate ||
+                deleteConfirmation !== deleteCandidate.title ||
+                deleteProjectMutation.isPending
+              }
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!deleteCandidate) {
+                  return;
+                }
+                try {
+                  await deleteProjectMutation.mutateAsync(deleteCandidate.id);
+                  toast({
+                    description: `"${deleteCandidate.title}" has been deleted.`,
+                    title: "Project Deleted",
+                  });
+                  setDeleteCandidate(null);
+                  setDeleteConfirmation("");
+                } catch {
+                  toast({
+                    description: "Failed to delete project. Please try again.",
+                    title: "Error",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {deleteProjectMutation.isPending
+                ? "Deleting..."
+                : "Delete Project"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

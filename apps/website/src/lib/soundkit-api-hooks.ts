@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 
-import { apiClient, rpcJson } from "./api";
+import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
 const meProfilePatch = apiClient.v1.me.profile.$patch;
@@ -688,6 +688,39 @@ export const useUpdateProjectMutation = (projectId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
       queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.project(projectId),
+      });
+    },
+  });
+};
+
+export const useDeleteProjectMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch(`${API_V1_URL}/projects/${projectId}`, {
+        credentials: "include",
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        return response.json() as Promise<{ message: string }>;
+      }
+
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+      } | null;
+
+      throw new SoundKitApiError(
+        payload?.message ?? `Project delete failed: ${response.status}`,
+        response.status
+      );
+    },
+    onSuccess: (_, projectId) => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
+      queryClient.refetchQueries({ queryKey: soundkitQueryKeys.projects });
+      queryClient.removeQueries({
         queryKey: soundkitQueryKeys.project(projectId),
       });
     },
