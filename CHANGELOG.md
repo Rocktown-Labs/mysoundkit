@@ -48,6 +48,7 @@
 
 ### Changed
 
+- Redesigned the admin payments tab around payment health, a compact subscription catalog, clearer Stripe actions, and improved coupons/grants management.
 - Updated RealtimeKit REST client response handling to match Cloudflare's standard payload shape (`data`) and documented meeting fields.
 - Removed fake working rooms, demo catalog fallback audio, and placeholder Stripe prices/coupons across RealtimeKit, tracks, admin finance, and billing APIs.
 - Formatted repository codebase with oxfmt.

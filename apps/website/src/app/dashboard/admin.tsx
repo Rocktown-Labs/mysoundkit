@@ -1,10 +1,10 @@
+/* eslint-disable complexity, no-nested-ternary, oxc/branches-sharing-code, react/no-unescaped-entities */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Ban,
   CheckCircle2,
   CircleDollarSign,
-  CreditCard,
   Disc3,
   Globe2,
   MoreHorizontal,
@@ -32,7 +32,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -676,21 +682,28 @@ function PaymentsPanel() {
   const missingCheckoutEnv = data.plans.filter(
     (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
   );
+  const configuredPlanCount = data.plans.filter(
+    (plan) => plan.stripeMonthlyPriceId
+  ).length;
   const paymentMetrics = [
     {
       label: "Gross revenue",
+      supporting: "All successful transactions",
       value: formatCurrency(data.totals.grossRevenueCents),
     },
     {
       label: "Platform fees",
+      supporting: "SoundKit retained fees",
       value: formatCurrency(data.totals.platformFeeCents),
     },
     {
       label: "Transactions",
+      supporting: "Successful payments",
       value: data.totals.successfulTransactions.toLocaleString(),
     },
     {
       label: "Checkout plans",
+      supporting: `${configuredPlanCount} Stripe-linked plans`,
       value: `${data.configuredCheckoutPlans}/${data.planCount}`,
     },
   ];
@@ -717,80 +730,104 @@ function PaymentsPanel() {
   };
 
   return (
-    <div className="space-y-6">
-      {!data.stripeConfigured && (
-        <Alert variant="destructive">
-          <TriangleAlert className="size-4" />
-          <AlertTitle>Stripe is not configured</AlertTitle>
-          <AlertDescription>
-            Add `STRIPE_SECRET_KEY` before syncing products or importing price
-            IDs.
-          </AlertDescription>
-        </Alert>
-      )}
+    <div className="space-y-5">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CircleDollarSign className="size-4 text-primary" />
+                  Payments Health
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Stripe setup, checkout readiness, coupons, and admin grants.
+                </CardDescription>
+              </div>
+              <Badge
+                className="shrink-0"
+                variant={data.stripeConfigured ? "secondary" : "destructive"}
+              >
+                {data.stripeConfigured ? "Stripe Connected" : "Stripe Missing"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {paymentMetrics.map((metric) => (
+              <div
+                className="rounded-md border bg-background/70 p-3"
+                key={metric.label}
+              >
+                <p className="text-xs font-medium text-muted-foreground">
+                  {metric.label}
+                </p>
+                <p className="mt-2 font-semibold text-2xl tabular-nums">
+                  {metric.value}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {metric.supporting}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Next Action</CardTitle>
+            <CardDescription>
+              Use Stripe as the source for missing products, prices, and
+              coupons.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button
+              className="w-full justify-center"
+              disabled={syncMutation.isPending}
+              onClick={handleSync}
+            >
+              <RefreshCw
+                className={`size-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
+              />
+              {syncMutation.isPending ? "Syncing…" : "Sync Products & Prices"}
+            </Button>
+            <div className="rounded-md border p-3 text-xs text-muted-foreground">
+              {data.stripeConfigured ? (
+                <p>
+                  {missingCheckoutEnv.length > 0
+                    ? `${missingCheckoutEnv.length} plan needs deployed checkout env vars.`
+                    : "All linked checkout plans are ready."}
+                </p>
+              ) : (
+                <p>Add `STRIPE_SECRET_KEY` before syncing or importing IDs.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       {missingCheckoutEnv.length > 0 && (
         <Alert>
           <TriangleAlert className="size-4" />
-          <AlertTitle>Checkout env vars still need updating</AlertTitle>
+          <AlertTitle>Checkout Env Vars Need Updating</AlertTitle>
           <AlertDescription>
-            Synced DB price IDs are visible here, but Better Auth checkout still
-            reads deployed Stripe price env vars. Copy the matching monthly and
+            Synced DB price IDs are visible here. Copy the matching monthly and
             annual IDs into the listed env keys before testing paid checkout.
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {paymentMetrics.map((metric) => (
-          <Card className="gap-3 py-4" key={metric.label}>
-            <CardHeader className="flex flex-row items-center justify-between px-4">
-              <CardTitle className="text-sm font-medium">
-                {metric.label}
-              </CardTitle>
-              <CreditCard className="size-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="px-4">
-              <p className="text-2xl font-bold">{metric.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <PaymentPlanCatalog plans={data.plans} stripePrices={data.stripePrices} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Subscription catalog</h2>
-          <p className="text-sm text-muted-foreground">
-            Create missing Stripe Products and Prices or link existing prices.
-          </p>
-        </div>
-        <Button disabled={syncMutation.isPending} onClick={handleSync}>
-          <RefreshCw className="size-4" />
-          {syncMutation.isPending
-            ? "Syncing..."
-            : "Sync Missing Products & Prices"}
-        </Button>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        {data.plans.map((plan) => (
-          <PaymentPlanCard
-            key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
-            plan={plan}
-            stripePrices={data.stripePrices}
-          />
-        ))}
-      </div>
-
-      {/* Coupons & AI Credit Management Row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         <CouponsManagerCard />
         <IssueAICreditsCard />
-      </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-5 xl:grid-cols-2">
         <RecentTransactions transactions={data.recentTransactions} />
         <StripeCatalog prices={data.stripePrices} />
-      </div>
+      </section>
     </div>
   );
 }
@@ -802,9 +839,7 @@ function CouponsManagerCard() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [percentOff, setPercentOff] = useState("17");
-  const [duration, setDuration] = useState<"once" | "repeating" | "forever">(
-    "forever"
-  );
+  const duration = "forever" as const;
   const [maxRedemptions, setMaxRedemptions] = useState("");
 
   const {
@@ -943,14 +978,14 @@ function CouponsManagerCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
         <div>
           <CardTitle className="text-base">
             Stripe Coupons & Promo Codes
           </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
+          <CardDescription className="mt-1">
             Manage active promotional discount codes and sync with Stripe.
-          </p>
+          </CardDescription>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -963,14 +998,14 @@ function CouponsManagerCard() {
             <RefreshCw
               className={`size-3.5 ${syncPlansMutation.isPending ? "animate-spin" : ""}`}
             />
-            Sync to Stripe
+            Sync Coupons
           </Button>
           <Button
             size="sm"
             onClick={() => setIsDialogOpen(true)}
             className="font-bold"
           >
-            + Create Coupon
+            Create Coupon
           </Button>
         </div>
       </CardHeader>
@@ -991,25 +1026,25 @@ function CouponsManagerCard() {
                 <TableRow>
                   <TableCell
                     colSpan={5}
-                    className="text-center text-xs py-4 text-muted-foreground"
+                    className="py-8 text-center text-sm text-muted-foreground"
                   >
-                    Loading coupons...
+                    Loading coupons…
                   </TableCell>
                 </TableRow>
               ) : coupons.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={5}
-                    className="py-4 text-center text-muted-foreground text-xs"
+                    className="py-8 text-center text-sm text-muted-foreground"
                   >
                     {couponsData?.message ??
-                      "No Stripe coupons have been created yet."}
+                      "No coupons yet. Create one to grant discounts at checkout."}
                   </TableCell>
                 </TableRow>
               ) : (
                 coupons.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono font-bold text-xs">
+                    <TableCell className="font-mono text-xs font-bold">
                       {c.id}
                     </TableCell>
                     <TableCell className="text-xs font-medium">
@@ -1032,7 +1067,7 @@ function CouponsManagerCard() {
                         className="h-7 px-2 text-xs text-destructive hover:text-destructive"
                         onClick={() => handleDeleteCoupon(c.id)}
                       >
-                        Delete
+                        Archive
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -1056,8 +1091,10 @@ function CouponsManagerCard() {
               <div className="grid gap-2">
                 <Label htmlFor="couponName">Coupon Name</Label>
                 <Input
+                  autoComplete="off"
                   id="couponName"
-                  placeholder="e.g. Annual Special 17% Off"
+                  name="coupon-name"
+                  placeholder="Annual special 17% off…"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -1066,8 +1103,11 @@ function CouponsManagerCard() {
               <div className="grid gap-2">
                 <Label htmlFor="couponCode">Promo Code ID (Optional)</Label>
                 <Input
+                  autoComplete="off"
                   id="couponCode"
-                  placeholder="e.g. SUMMER17"
+                  name="coupon-code"
+                  placeholder="SUMMER17…"
+                  spellCheck={false}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                 />
@@ -1075,7 +1115,10 @@ function CouponsManagerCard() {
               <div className="grid gap-2">
                 <Label htmlFor="percentOff">Percentage Discount (% Off)</Label>
                 <Input
+                  autoComplete="off"
                   id="percentOff"
+                  inputMode="numeric"
+                  name="coupon-percent-off"
                   type="number"
                   placeholder="17"
                   value={percentOff}
@@ -1088,9 +1131,12 @@ function CouponsManagerCard() {
                   Max Redemptions (Optional)
                 </Label>
                 <Input
+                  autoComplete="off"
                   id="maxRedemptions"
+                  inputMode="numeric"
+                  name="coupon-max-redemptions"
                   type="number"
-                  placeholder="e.g. 100"
+                  placeholder="100…"
                   value={maxRedemptions}
                   onChange={(e) => setMaxRedemptions(e.target.value)}
                 />
@@ -1218,60 +1264,76 @@ function IssueAICreditsCard() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Grant AI Credits & Upsells</CardTitle>
-        <p className="text-xs text-muted-foreground mt-1">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <UserRoundCog className="size-4 text-primary" />
+          Grant Access & Credits
+        </CardTitle>
+        <CardDescription>
           Issue credits for AI Studio stem separation, mastering, and live
           BattleBot features.
-        </p>
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleIssueCredits} className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="targetUser">User Email or Handle</Label>
-            <Input
-              id="targetUser"
-              placeholder="e.g. artist@mysoundkit.com or @luna-eclipse"
-              value={targetUser}
-              onChange={(e) => setTargetUser(e.target.value)}
-              required
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="grantPlanCode">Premium plan</Label>
-            <Input
-              id="grantPlanCode"
-              placeholder="soundkit_premium_artist"
-              value={planCode}
-              onChange={(e) => setPlanCode(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="creditsAmount">AI Credits Amount</Label>
-            <Input
-              id="creditsAmount"
-              type="number"
-              placeholder="500"
-              value={credits}
-              onChange={(e) => setCredits(e.target.value)}
-              required
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2 md:col-span-2">
+              <Label htmlFor="targetUser">User Email or Handle</Label>
+              <Input
+                autoComplete="off"
+                id="targetUser"
+                name="target-user"
+                onChange={(e) => setTargetUser(e.target.value)}
+                placeholder="artist@mysoundkit.com or @luna-eclipse…"
+                spellCheck={false}
+                value={targetUser}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="grantPlanCode">Premium Plan</Label>
+              <Input
+                autoComplete="off"
+                id="grantPlanCode"
+                name="grant-plan-code"
+                onChange={(e) => setPlanCode(e.target.value)}
+                placeholder="soundkit_premium_artist…"
+                spellCheck={false}
+                value={planCode}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="creditsAmount">AI Credits</Label>
+              <Input
+                autoComplete="off"
+                id="creditsAmount"
+                inputMode="numeric"
+                name="credits-amount"
+                onChange={(e) => setCredits(e.target.value)}
+                placeholder="500"
+                type="number"
+                value={credits}
+                required
+              />
+            </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="issueReason">Reason / Campaign</Label>
             <Input
+              autoComplete="off"
               id="issueReason"
-              placeholder="e.g. VIP Upgrade Bonus"
+              name="issue-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
+              placeholder="VIP upgrade bonus…"
             />
           </div>
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full font-bold bg-purple-600 hover:bg-purple-700 text-white"
+            className="w-full font-bold"
           >
-            {isSubmitting ? "Granting Credits..." : "Grant AI Credits to User"}
+            {isSubmitting ? "Granting Credits…" : "Grant AI Credits"}
           </Button>
           <Button
             type="button"
@@ -1280,7 +1342,7 @@ function IssueAICreditsCard() {
             variant="outline"
             className="w-full font-bold"
           >
-            {isGrantingPremium ? "Granting Premium..." : "Grant Premium Access"}
+            {isGrantingPremium ? "Granting Premium…" : "Grant Premium Access"}
           </Button>
         </form>
       </CardContent>
@@ -1288,7 +1350,58 @@ function IssueAICreditsCard() {
   );
 }
 
-function PaymentPlanCard({
+function PaymentPlanCatalog({
+  plans,
+  stripePrices,
+}: Readonly<{
+  plans: AdminPaymentPlan[];
+  stripePrices: StripePriceOption[];
+}>) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">Subscription Catalog</CardTitle>
+            <CardDescription>
+              Link SoundKit plan rows to Stripe prices and checkout env keys.
+            </CardDescription>
+          </div>
+          <Badge variant="outline">{plans.length} Plans</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[220px]">Plan</TableHead>
+                <TableHead className="min-w-[130px]">Pricing</TableHead>
+                <TableHead className="min-w-[150px]">Checkout Status</TableHead>
+                <TableHead className="min-w-[360px]">
+                  Stripe Price IDs
+                </TableHead>
+                <TableHead className="min-w-[280px]">Env Keys</TableHead>
+                <TableHead className="w-[120px] text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {plans.map((plan) => (
+                <PaymentPlanRow
+                  key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
+                  plan={plan}
+                  stripePrices={stripePrices}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaymentPlanRow({
   plan,
   stripePrices,
 }: Readonly<{
@@ -1313,6 +1426,11 @@ function PaymentPlanCard({
   const monthlyCheckoutReady =
     Boolean(plan.stripeMonthlyPriceId) &&
     plan.stripeMonthlyPriceId === plan.envMonthlyPriceId;
+  const annualCheckoutReady =
+    !plan.annualPriceCents ||
+    (Boolean(plan.stripeAnnualPriceId) &&
+      plan.stripeAnnualPriceId === plan.envAnnualPriceId);
+  const checkoutReady = monthlyCheckoutReady && annualCheckoutReady;
 
   const handleImport = () => {
     importMutation.mutate(
@@ -1340,77 +1458,117 @@ function PaymentPlanCard({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{plan.name}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">{plan.code}</p>
+    <TableRow className="align-top">
+      <TableCell>
+        <div className="min-w-0">
+          <p className="font-semibold">{plan.name}</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
+            {plan.code}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="outline">{plan.audience}</Badge>
+            <Badge variant={plan.isActive ? "secondary" : "outline"}>
+              {plan.isActive ? "Active" : "Inactive"}
+            </Badge>
           </div>
-          <Badge variant={monthlyCheckoutReady ? "secondary" : "outline"}>
-            {monthlyCheckoutReady ? "Checkout ready" : "Needs env"}
-          </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 text-sm sm:grid-cols-2">
-          <MetricRow label="Audience" value={plan.audience} />
-          <MetricRow
-            label="Monthly"
-            value={formatCurrency(plan.monthlyPriceCents)}
-          />
-          <MetricRow
-            label="Annual"
-            value={
-              plan.annualPriceCents
+      </TableCell>
+      <TableCell>
+        <div className="space-y-1 text-sm">
+          <p>
+            <span className="text-muted-foreground">Monthly</span>{" "}
+            <span className="font-medium tabular-nums">
+              {formatCurrency(plan.monthlyPriceCents)}
+            </span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Annual</span>{" "}
+            <span className="font-medium tabular-nums">
+              {plan.annualPriceCents
                 ? formatCurrency(plan.annualPriceCents)
-                : "-"
-            }
-          />
-          <MetricRow label="Active" value={plan.isActive ? "Yes" : "No"} />
+                : "-"}
+            </span>
+          </p>
         </div>
-
-        <div className="grid gap-3">
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2">
+          <Badge variant={checkoutReady ? "secondary" : "outline"}>
+            {checkoutReady ? "Ready" : "Needs Setup"}
+          </Badge>
+          {!checkoutReady && (
+            <p className="max-w-[150px] text-xs text-muted-foreground">
+              Import Stripe IDs, then deploy matching env keys.
+            </p>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="grid gap-2">
           <PriceIdField
             id={`${plan.code}-monthly`}
-            label="Monthly Stripe price ID"
+            label="Monthly Price ID"
             onChange={setMonthlyPriceId}
             value={monthlyPriceId}
           />
           {plan.annualPriceCents && (
             <PriceIdField
               id={`${plan.code}-annual`}
-              label="Annual Stripe price ID"
+              label="Annual Price ID"
               onChange={setAnnualPriceId}
               value={annualPriceId}
             />
           )}
         </div>
-
-        <div className="rounded-md border p-3 text-xs text-muted-foreground">
-          <p>
-            Env monthly:{" "}
-            <span className="font-mono">
-              {plan.envMonthlyKey ?? "not required"}
-            </span>
-          </p>
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+          <EnvKeyLine
+            isReady={monthlyCheckoutReady}
+            label="Monthly"
+            value={plan.envMonthlyKey ?? "not required"}
+          />
           {plan.envAnnualKey && (
-            <p className="mt-1">
-              Env annual: <span className="font-mono">{plan.envAnnualKey}</span>
-            </p>
+            <EnvKeyLine
+              isReady={annualCheckoutReady}
+              label="Annual"
+              value={plan.envAnnualKey}
+            />
           )}
         </div>
-
+      </TableCell>
+      <TableCell className="text-right">
         <Button
           disabled={importMutation.isPending}
           onClick={handleImport}
+          size="sm"
           variant="outline"
         >
           <UploadCloud className="size-4" />
-          {importMutation.isPending ? "Saving" : "Import IDs"}
+          {importMutation.isPending ? "Saving…" : "Import"}
         </Button>
-      </CardContent>
-    </Card>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function EnvKeyLine({
+  isReady,
+  label,
+  value,
+}: Readonly<{ isReady: boolean; label: string; value: string }>) {
+  return (
+    <div className="flex min-w-0 items-start gap-2">
+      {isReady ? (
+        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
+      ) : (
+        <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+      )}
+      <div className="min-w-0">
+        <p className="font-medium text-foreground">{label}</p>
+        <p className="break-all font-mono">{value}</p>
+      </div>
+    </div>
   );
 }
 
@@ -1427,11 +1585,17 @@ function PriceIdField({
 }>) {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label className="text-xs" htmlFor={id}>
+        {label}
+      </Label>
       <Input
+        autoComplete="off"
+        className="h-8 font-mono text-xs"
         id={id}
+        name={id}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="price_..."
+        placeholder="price_…"
+        spellCheck={false}
         value={value}
       />
     </div>
@@ -1453,12 +1617,17 @@ function RecentTransactions({
 }>) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Recent transactions</CardTitle>
+        <CardDescription>
+          Latest successful payments and platform fees.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {transactions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No transactions yet.</p>
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            No transactions yet.
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -1477,11 +1646,15 @@ function RecentTransactions({
                     <TableCell>
                       <Badge variant="outline">{transaction.status}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="tabular-nums">
                       {formatCurrency(transaction.amountCents)}
                     </TableCell>
                     <TableCell>
-                      {new Date(transaction.createdAt).toLocaleDateString()}
+                      {new Intl.DateTimeFormat("en-US", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(transaction.createdAt))}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1497,14 +1670,17 @@ function RecentTransactions({
 function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Stripe prices</CardTitle>
+        <CardDescription>
+          Active Stripe price objects detected during sync.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {prices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
             No active Stripe prices found.
-          </p>
+          </div>
         ) : (
           prices.slice(0, 12).map((price) => (
             <div
@@ -1518,7 +1694,7 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
                 </p>
               </div>
               <div className="shrink-0 text-right text-sm">
-                <p>
+                <p className="tabular-nums">
                   {typeof price.unitAmount === "number"
                     ? formatCurrency(price.unitAmount)
                     : "-"}
