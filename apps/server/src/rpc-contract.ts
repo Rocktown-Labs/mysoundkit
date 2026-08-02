@@ -41,12 +41,14 @@ import type {
   trackSummarySchema,
   usernameAvailabilityResponseSchema,
   videoSummarySchema,
+  messageResponseSchema,
 } from "./lib/schemas";
 import {
   adminImportStripePlanBodySchema,
   adminSyncStripePlansBodySchema,
   createChallengeBodySchema,
   createConversationBodySchema,
+  createLiveExperienceBodySchema,
   createListeningPartyBodySchema,
   createLyricsRevisionBodySchema,
   createMessageBodySchema,
@@ -59,6 +61,9 @@ import {
   createTrackBodySchema,
   createVideoBodySchema,
   directVideoUploadBodySchema,
+  battleBotActionBodySchema,
+  joinLiveExperienceBodySchema,
+  liveSessionLockCheckBodySchema,
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   onboardingResponseSchema,
@@ -92,6 +97,84 @@ const checkoutResponseSchema = onboardingResponseSchema.pick({
   requiresCheckout: true,
   setupRequired: true,
 });
+
+const cloudflareStreamBodySchema = z.object({
+  title: z.string().optional(),
+});
+
+const genreCatalogItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+const notificationSummarySchema = z
+  .object({
+    body: z.string(),
+    createdAt: z.string(),
+    id: z.string(),
+    readAt: z.string().nullable(),
+    title: z.string(),
+    type: z.string(),
+  })
+  .passthrough();
+
+const notificationsResponseSchema = z.object({
+  notifications: z.array(notificationSummarySchema),
+  unreadCount: z.number().int().nonnegative(),
+});
+
+const followResponseSchema = z.object({
+  followed: z.boolean(),
+  followerCount: z.number().int().nonnegative(),
+});
+
+const liveExperienceSummarySchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(["battle", "party", "stream"]),
+    roomHref: z.string(),
+    status: z.string(),
+    title: z.string(),
+  })
+  .passthrough();
+
+const liveExperienceResponseSchema = z
+  .object({
+    defaults: z.object({}).passthrough(),
+    experience: liveExperienceSummarySchema,
+    lock: z.object({}).passthrough(),
+    notifications: z.array(z.object({}).passthrough()),
+    realtime: z.object({}).passthrough(),
+    streamInput: z.unknown().nullable(),
+  })
+  .passthrough();
+
+const liveParticipantResponseSchema = z
+  .object({
+    participant: z
+      .object({
+        authToken: z.string(),
+        meetingId: z.string(),
+        participantId: z.string(),
+        presetName: z.string(),
+      })
+      .passthrough(),
+    setupScreen: z.boolean(),
+  })
+  .passthrough();
+
+const liveExperienceActionResponseSchema = z
+  .object({
+    action: z.string().optional(),
+    battleBot: z.object({}).passthrough().optional(),
+    conflict: z.unknown().optional(),
+    experienceId: z.string().optional(),
+    hasConflict: z.boolean().optional(),
+    message: z.string().optional(),
+    snapshot: z.object({}).passthrough().optional(),
+  })
+  .passthrough();
 
 export const rpcContract = new Hono()
   .get("/v1/admin/access", (c) =>
@@ -187,6 +270,9 @@ export const rpcContract = new Hono()
   .get("/v1/discover/home", (c) =>
     c.json({} as z.infer<typeof discoverHomeResponseSchema>)
   )
+  .get("/v1/discover/genres", (c) =>
+    c.json([] as z.infer<typeof genreCatalogItemSchema>[])
+  )
   .get(
     "/v1/tracks/",
     validator("query", (value) =>
@@ -218,6 +304,9 @@ export const rpcContract = new Hono()
   .patch("/v1/tracks/:trackId", jsonValidator(updateTrackBodySchema), (c) =>
     c.json({} as z.infer<typeof trackDashboardDetailSchema>)
   )
+  .delete("/v1/tracks/:trackId", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
+  )
   .post(
     "/v1/tracks/:trackId/assets",
     jsonValidator(createTrackAssetBodySchema),
@@ -225,6 +314,9 @@ export const rpcContract = new Hono()
   )
   .post("/v1/tracks/:trackId/process", (c) =>
     c.json({} as z.infer<typeof trackProcessingStatusSchema>)
+  )
+  .post("/v1/tracks/:trackId/pre-save", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
   )
   .get("/v1/tracks/:trackId/lyrics", (c) =>
     c.json(null as z.infer<typeof lyricsRevisionSchema> | null)
@@ -335,8 +427,28 @@ export const rpcContract = new Hono()
     )
   )
   .post(
+    "/v1/live/experiences/",
+    jsonValidator(createLiveExperienceBodySchema),
+    (c) => c.json({} as z.infer<typeof liveExperienceResponseSchema>, 201)
+  )
+  .post(
+    "/v1/live/experiences/:experienceId/join",
+    jsonValidator(joinLiveExperienceBodySchema),
+    (c) => c.json({} as z.infer<typeof liveParticipantResponseSchema>, 201)
+  )
+  .post(
+    "/v1/live/experiences/:experienceId/battlebot",
+    jsonValidator(battleBotActionBodySchema),
+    (c) => c.json({} as z.infer<typeof liveExperienceActionResponseSchema>, 201)
+  )
+  .post(
+    "/v1/live/experiences/:experienceId/session-locks/check",
+    jsonValidator(liveSessionLockCheckBodySchema),
+    (c) => c.json({} as z.infer<typeof liveExperienceActionResponseSchema>, 200)
+  )
+  .post(
     "/v1/live/cloudflare-stream",
-    jsonValidator(z.object({ title: z.string().optional() })),
+    jsonValidator(cloudflareStreamBodySchema),
     (c) =>
       c.json(
         {} as {
@@ -363,6 +475,12 @@ export const rpcContract = new Hono()
         status: string;
       }
     )
+  )
+  .get("/v1/notifications/", (c) =>
+    c.json({} as z.infer<typeof notificationsResponseSchema>)
+  )
+  .post("/v1/notifications/read-all", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
   )
   .get(
     "/v1/open-verses/",
@@ -402,6 +520,9 @@ export const rpcContract = new Hono()
     "/v1/seller/account-link",
     jsonValidator(createSellerAccountLinkBodySchema),
     (c) => c.json({} as z.infer<typeof sellerOnboardingResponseSchema>)
+  )
+  .post("/v1/social/artists/:username/follow", (c) =>
+    c.json({} as z.infer<typeof followResponseSchema>)
   );
 
 export type AppType = typeof rpcContract;

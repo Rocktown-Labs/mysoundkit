@@ -71,6 +71,13 @@
       "when": 1784764800000,
       "tag": "0009_artist_profile_links_and_track_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785542400000,
+      "tag": "0010_ai_credit_grants",
+      "breakpoints": true
     }
   ]
 }

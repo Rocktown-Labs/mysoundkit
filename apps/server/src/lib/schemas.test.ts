@@ -154,7 +154,10 @@ describe("artist dashboard release schemas", () => {
       newTracks: [
         {
           assetId: "asset_track_1",
+          fileName: "intro-tape.wav",
           genre: "Hip-Hop",
+          mimeType: "audio/wav",
+          sizeBytes: 12_000_000,
           title: "Intro Tape",
         },
         {

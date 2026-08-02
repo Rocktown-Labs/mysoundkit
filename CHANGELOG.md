@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added a dashboard lyrics workspace for artist-entered sectioned lyrics, draft sync points, manual timestamp editing, pending revision saves, and synced lyrics approval.
+- Added OpenAI timestamped vocal transcription after StemSplit processing, storing word-derived timed lyric lines for track playback and live overlays.
+- Added persistent AI credit grants and real admin finance actions for Stripe coupon syncing, premium grants, and credit grants.
+- Added React hook import smoke protection to CI to catch missing hook imports before browser smoke tests crash.
 - Added POST /v1/admin/finance/payments/grant-premium endpoint enabling admins to grant active premium subscription rows to users.
 - Added "Grant Premium Access" action and real coupon view to the admin finance dashboard UI.
 - Added Open Verse Submissions Review Desk to `/dashboard/open-verses/$genre/$id`, enabling creators to audition contender vocal takes and accept them directly into official track credits and splits.
@@ -50,6 +54,9 @@
 
 ### Fixed
 
+- Fixed track and project upload persistence so submitted cover art and audio/project assets create durable asset rows instead of disappearing after form submission.
+- Fixed the dashboard track transcription button so it queues the real processing workflow instead of rendering fake lyrics.
+- Fixed route string drift in the dashboard live track stats route.
 - Fixed Sentry issue `SOUNDKIT-WEB-A` (`ReferenceError: Can't find variable: toast`) on track detail page.
 - Fixed missing `challengeSearch` and `challengeSchedule` state declarations in `LivePreviewShowcase`.
 - Fixed cart provider allowing multiple duplicate digital download purchases of tracks and projects.

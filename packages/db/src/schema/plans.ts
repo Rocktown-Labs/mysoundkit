@@ -9,7 +9,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-import { subscription } from "./auth";
+import { subscription, user } from "./auth";
 
 export const planCatalog = pgTable(
   "plan_catalog_v2",
@@ -50,5 +50,26 @@ export const subscriptionEntitlements = pgTable(
     index("subscription_entitlements_v2_subscription_id_idx").on(
       table.subscriptionId
     ),
+  ]
+);
+
+export const aiCreditGrants = pgTable(
+  "ai_credit_grants",
+  {
+    amount: integer("amount").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    grantedByUserId: text("granted_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey(),
+    reason: text("reason"),
+    source: text("source").default("admin_grant").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("ai_credit_grants_user_id_idx").on(table.userId),
+    index("ai_credit_grants_created_at_idx").on(table.createdAt),
   ]
 );

@@ -103,7 +103,6 @@ import { cn } from "@/lib/utils";
 
 const tracksPost = apiClient.v1.tracks.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
-const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
 
 const SINGLE_PRICE_USD = 1.29;
 
@@ -160,6 +159,17 @@ const trackFormSchema = z
   );
 
 type TrackFormValues = z.infer<typeof trackFormSchema>;
+interface GenreOption {
+  name: string;
+}
+
+const isGenreOption = (value: unknown): value is GenreOption =>
+  Boolean(
+    value &&
+    typeof value === "object" &&
+    "name" in value &&
+    typeof value.name === "string"
+  );
 
 const mapStatusToRelease = (
   status: TrackFormValues["status"],
@@ -230,10 +240,6 @@ interface UploadedAssetPreview {
   remoteUrl: string;
 }
 
-const queueTrackProcessing = async (trackId: string) => {
-  await rpcJson(await trackProcessPost({ param: { trackId } }));
-};
-
 interface NewTrackFormProps {
   initialTrack?: Record<string, unknown> | null;
   trackId?: string;
@@ -247,9 +253,12 @@ export function NewTrackForm({
   const queryClient = useQueryClient();
   const router = useRouter();
   const genresQuery = useGenresQuery();
+  const genreRows = Array.isArray(genresQuery.data)
+    ? genresQuery.data.filter(isGenreOption)
+    : [];
   const availableGenres =
-    genresQuery.data && genresQuery.data.length > 0
-      ? genresQuery.data.map((g) => g.name)
+    genreRows.length > 0
+      ? genreRows.map((genre) => genre.name)
       : SUPPORTED_GENRES;
   const { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
     useAudioPlayer();
@@ -306,7 +315,7 @@ export function NewTrackForm({
 
   // Prefill when editing an existing track
   useEffect(() => {
-    if (!initialTrack) return;
+    if (!initialTrack) {return;}
     const isPublic = Boolean(initialTrack.isPublic);
     const isForSale = Boolean(initialTrack.isForSale);
     const rawCollaborators = Array.isArray(initialTrack.collaborators)
@@ -369,15 +378,15 @@ export function NewTrackForm({
 
   // Restore preview metadata from localStorage if a local draft exists
   useEffect(() => {
-    if (initialTrack) return;
+    if (initialTrack) {return;}
     try {
       const metaKey = "soundkit:new-track-draft:meta";
       const storedMeta = window.localStorage.getItem(metaKey);
       if (storedMeta) {
         const { coverUpload: storedCover, uploadedTrack: storedMaster } =
           JSON.parse(storedMeta);
-        if (storedCover && !coverUpload) setCoverUpload(storedCover);
-        if (storedMaster && !uploadedTrack) setUploadedTrack(storedMaster);
+        if (storedCover && !coverUpload) {setCoverUpload(storedCover);}
+        if (storedMaster && !uploadedTrack) {setUploadedTrack(storedMaster);}
       }
     } catch {
       // Ignore storage errors
@@ -386,7 +395,7 @@ export function NewTrackForm({
 
   // Persist preview metadata to localStorage
   useEffect(() => {
-    if (initialTrack) return;
+    if (initialTrack) {return;}
     try {
       const metaKey = "soundkit:new-track-draft:meta";
       if (coverUpload || uploadedTrack) {
@@ -403,7 +412,7 @@ export function NewTrackForm({
   }, [coverUpload, uploadedTrack, initialTrack]);
 
   const handleBatchFileUpload = (files: FileList | File[]) => {
-    const fileList = Array.from(files);
+    const fileList = [...files];
     let masterFound = false;
     let coverFound = false;
     let stemsFound = false;
@@ -495,23 +504,6 @@ export function NewTrackForm({
       description: "Track draft cleared. You can start fresh.",
       title: "Draft reset",
     });
-  };
-
-  const startBackgroundProcessing = async (trackId: string) => {
-    try {
-      await queueTrackProcessing(trackId);
-      await queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(trackId),
-      });
-    } catch (processingError) {
-      posthog.captureException(processingError);
-      toast({
-        description:
-          "The track was uploaded, but background processing could not start. You can retry from the track dashboard.",
-        title: "Processing not started",
-        variant: "destructive",
-      });
-    }
   };
 
   const createDraftTrackFromUpload = async ({
@@ -620,8 +612,8 @@ export function NewTrackForm({
     posthog.capture("track_uploaded", {
       genre: values.genre,
       is_for_sale: values.isForSale,
-      production_status: values.productionStatus,
-      release_strategy: values.releaseStrategy,
+      production_status: release.productionStatus,
+      release_strategy: release.releaseStrategy,
       title: track.title,
       track_id: track.id,
     });
@@ -650,11 +642,9 @@ export function NewTrackForm({
 
     toast({
       description:
-        "Your master is playable now. SoundKit will try to transcribe lyrics after upload.",
+        "Your master is saved. Processing can be started later from the track dashboard.",
       title: "Track uploaded",
     });
-
-    void startBackgroundProcessing(track.id);
 
     if (masterUploadResolverRef.current) {
       masterUploadResolverRef.current(preview);
@@ -847,11 +837,11 @@ export function NewTrackForm({
           params: { id: trackId },
           to: "/dashboard/tracks/$id",
         });
-      } catch (err) {
-        posthog.captureException(err);
+      } catch (error) {
+        posthog.captureException(error);
         toast({
           description:
-            err instanceof Error ? err.message : "Failed to update track.",
+            error instanceof Error ? error.message : "Failed to update track.",
           title: "Update Failed",
           variant: "destructive",
         });
@@ -923,102 +913,17 @@ export function NewTrackForm({
         }
 
         if (!trackPreview) {
-          const objectKey = `tracks/master_${Date.now()}_${selectedMasterFile.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")}`;
-          const remoteUrl = URL.createObjectURL(selectedMasterFile);
-          const release = mapStatusToRelease(values.status, values.releaseAt);
-
-          const track = await rpcJson(
-            await tracksPost({
-              json: {
-                assetIds: [],
-                catalogItemType: "single",
-                collaborators: values.credits.map((credit) => ({
-                  inviteEmail: credit.inviteEmail,
-                  name: credit.displayName,
-                  role: credit.role,
-                  userId: credit.userId,
-                })),
-                description: values.description || undefined,
-                genre: values.genre,
-                isForSale: values.isForSale,
-                isOpenVerse: release.isOpenVerse,
-                isPublic: release.isPublic,
-                isrc: values.isrc || undefined,
-                musicalKey: values.key || undefined,
-                price: values.isForSale ? SINGLE_PRICE_USD : undefined,
-                priceCents: values.isForSale
-                  ? Math.round(SINGLE_PRICE_USD * 100)
-                  : undefined,
-                productionStatus: release.productionStatus,
-                purchaseMode: "digital_download",
-                releaseAt: values.releaseAt || undefined,
-                releaseStrategy: release.releaseStrategy,
-                sourceObjectKey: objectKey,
-                streamingLinks: {
-                  appleMusic: values.streamingAppleMusic || undefined,
-                  spotify: values.streamingSpotify || undefined,
-                  youtube: values.streamingYoutube || undefined,
-                },
-                title: values.name,
-              },
-            })
-          );
-
-          if (coverKey) {
-            await rpcJson(
-              await trackAssetPost({
-                json: {
-                  assetKind: "cover_art",
-                  metadata: {
-                    originalFileName: selectedCoverFile?.name ?? "cover.jpg",
-                    url:
-                      coverUrl && !coverUrl.startsWith("blob:")
-                        ? coverUrl
-                        : "/placeholder.svg",
-                  },
-                  mimeType: selectedCoverFile?.type || "image/jpeg",
-                  objectKey: coverKey,
-                  status: "ready",
-                  storageProvider: "r2",
-                },
-                param: { trackId: track.id },
-              })
-            );
-          }
-
-          const detail = await rpcJson(
-            await trackAssetPost({
-              json: {
-                assetKind: "master",
-                metadata: {
-                  originalFileName: selectedMasterFile.name,
-                  url:
-                    remoteUrl && !remoteUrl.startsWith("blob:")
-                      ? remoteUrl
-                      : undefined,
-                },
-                mimeType: selectedMasterFile.type || "audio/mpeg",
-                objectKey,
-                sizeBytes: selectedMasterFile.size,
-                status: "ready",
-                storageProvider: "r2",
-              },
-              param: { trackId: track.id },
-            })
-          );
-
-          const masterAsset = detail.assets.find(
-            (asset) => asset.assetKind === "master"
-          );
-
-          trackPreview = {
-            assetId: masterAsset?.id ?? "",
-            objectKey,
-            remoteUrl,
-            statusMessage: "Uploaded and processed.",
-            title: track.title,
-            trackId: track.id,
-          };
+          coverUploadResolverRef.current = null;
+          masterUploadResolverRef.current = null;
+          toast({
+            description:
+              "The master audio upload did not finish. Please retry so SoundKit can save a real storage file.",
+            title: "Upload incomplete",
+            variant: "destructive",
+          });
+          setSubmitStage("idle");
+          setIsSubmitting(false);
+          return;
         }
       }
 
@@ -1071,9 +976,9 @@ export function NewTrackForm({
         description:
           values.status === "ready"
             ? `${values.name} is ready and live.`
-            : values.status === "open_verse"
+            : (values.status === "open_verse"
               ? `${values.name} is published to Open Verses.`
-              : `${values.name} is saved as a private draft.`,
+              : `${values.name} is saved as a private draft.`),
         title:
           values.status === "ready" ? "Track is live" : "Track setup complete",
       });
@@ -1254,7 +1159,7 @@ export function NewTrackForm({
             </div>
           </Card>
         </div>
-      ) : isSubmitting ? (
+      ) : (isSubmitting ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4">
           <Card className="w-full max-w-md border-primary/30 shadow-2xl p-6 space-y-6 text-center">
             <div className="mx-auto size-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center">
@@ -1291,7 +1196,7 @@ export function NewTrackForm({
             </div>
           </Card>
         </div>
-      ) : null}
+      ) : null)}
 
       {hasSavedDraft && (
         <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -1516,14 +1421,14 @@ export function NewTrackForm({
                                 : "Selected",
                             },
                           ]
-                        : coverUpload
+                        : (coverUpload
                           ? [
                               {
                                 name: coverUpload.fileName,
                                 status: "R2 Stored",
                               },
                             ]
-                          : []
+                          : [])
                     }
                     onFileUpload={handleCoverUpload}
                     progress={isCoverUploading ? coverProgress : undefined}
@@ -1689,14 +1594,14 @@ export function NewTrackForm({
                                     : "Selected",
                                 },
                               ]
-                            : uploadedTrack
+                            : (uploadedTrack
                               ? [
                                   {
                                     name: uploadedTrack.title,
                                     status: "Uploaded",
                                   },
                                 ]
-                              : []
+                              : [])
                         }
                         onFileUpload={handleMasterUpload}
                         progress={isUploading ? averageProgress : undefined}

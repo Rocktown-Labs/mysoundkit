@@ -4,8 +4,10 @@ import {
   projectAssets,
   projectTracks,
   projects,
+  trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
+import { env } from "@soundkit/env/server";
 import { desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -34,6 +36,10 @@ import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const getUploadBucketName = () =>
+  (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
+  null;
 
 app.openapi(
   createRoute({
@@ -181,6 +187,25 @@ app.openapi(
           slug: uniqueSlug(newTrack.title),
           title: newTrack.title,
         });
+
+        if (newTrack.assetId) {
+          await db.insert(trackAssets).values({
+            assetKind: "master",
+            bucketName: getUploadBucketName(),
+            id: crypto.randomUUID(),
+            metadata: {
+              originalFileName: newTrack.fileName ?? newTrack.title,
+            },
+            mimeType: newTrack.mimeType ?? null,
+            objectKey: newTrack.assetId,
+            sizeBytes: newTrack.sizeBytes ?? null,
+            status: "uploaded",
+            storageProvider: "r2",
+            trackId,
+            uploaderUserId: user.id,
+          });
+        }
+
         newTrackIds.push(trackId);
       }
 
@@ -197,14 +222,20 @@ app.openapi(
       }
 
       if (body.assetIds.length > 0) {
-        await db
-          .update(projectAssets)
-          .set({
+        await db.insert(projectAssets).values(
+          body.assetIds.map((objectKey) => ({
+            assetKind: "cover_art" as const,
+            bucketName: getUploadBucketName(),
+            id: crypto.randomUUID(),
+            mimeType: "image/*",
+            objectKey,
             projectId,
-            updatedAt: now,
+            sizeBytes: null,
+            status: "uploaded" as const,
+            storageProvider: "r2" as const,
             uploaderUserId: user.id,
-          })
-          .where(eq(projectAssets.projectId, body.assetIds[0] ?? ""));
+          }))
+        );
       }
 
       if (!project) {

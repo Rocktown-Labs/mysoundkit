@@ -35,6 +35,9 @@ const trackPatch = apiClient.v1.tracks[":trackId"].$patch;
 const trackDelete = apiClient.v1.tracks[":trackId"].$delete;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
+const trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post;
+const trackLyricsReviewPatch =
+  apiClient.v1.tracks[":trackId"].lyrics[":lyricsId"].$patch;
 const projectsGet = apiClient.v1.projects.index.$get;
 const projectsPost = apiClient.v1.projects.index.$post;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
@@ -88,10 +91,17 @@ type SearchQuery = InferRequestType<typeof searchGet>["query"];
 type ArtistRankingQuery = InferRequestType<typeof artistsGet>["query"];
 type PublicExploreQuery = InferRequestType<typeof tracksGet>["query"];
 export type TrackSummary = InferResponseType<typeof tracksGet, 200>[number];
+export type TrackDetail = InferResponseType<typeof trackGet, 200>;
 type CreateTrackBody = InferRequestType<typeof tracksPost>["json"];
 type UpdateTrackBody = InferRequestType<typeof trackPatch>["json"];
 type CreateTrackAssetBody = InferRequestType<typeof trackAssetPost>["json"];
 type TrackProcessingStatus = InferResponseType<typeof trackProcessPost, 200>;
+type CreateLyricsRevisionBody = InferRequestType<
+  typeof trackLyricsPost
+>["json"];
+type ReviewLyricsRevisionBody = InferRequestType<
+  typeof trackLyricsReviewPatch
+>["json"];
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
@@ -595,11 +605,55 @@ export const useCreateTrackAssetMutation = (trackId: string) => {
   });
 };
 
-export const useProcessTrackMutation = (trackId: string) =>
-  useMutation({
+export const useProcessTrackMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
     mutationFn: async (): Promise<TrackProcessingStatus> =>
       rpcJson(await trackProcessPost({ param: { trackId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      }),
   });
+};
+
+export const useCreateTrackLyricsMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateLyricsRevisionBody) =>
+      rpcJson(await trackLyricsPost({ json: body, param: { trackId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      }),
+  });
+};
+
+export const useReviewTrackLyricsMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      body,
+      lyricsId,
+    }: {
+      body: ReviewLyricsRevisionBody;
+      lyricsId: string;
+    }) =>
+      rpcJson(
+        await trackLyricsReviewPatch({
+          json: body,
+          param: { lyricsId, trackId },
+        })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      }),
+  });
+};
 
 export const useProjectsQuery = () =>
   useQuery({

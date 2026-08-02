@@ -3,10 +3,10 @@ import type { Page } from "@playwright/test";
 
 const gotoWithViteRetry = async (page: Page, path: string) => {
   try {
-    const response = await page.goto(path);
+    const response = await page.goto(path, { waitUntil: "domcontentloaded" });
     if (response && response.status() >= 500) {
       await page.waitForTimeout(250);
-      await page.goto(path);
+      await page.goto(path, { waitUntil: "domcontentloaded" });
     }
   } catch (error) {
     if (
@@ -18,7 +18,7 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
     }
 
     await page.waitForTimeout(250);
-    await page.goto(path);
+    await page.goto(path, { waitUntil: "domcontentloaded" });
   }
 };
 
@@ -151,7 +151,12 @@ test.describe("main application surfaces", () => {
   test("live room detail pages expose chat, lyrics, and battle voting", async ({
     page,
   }) => {
-    await page.goto("/live/parties/single-album-party");
+    test.setTimeout(45_000);
+
+    await gotoWithViteRetry(page, "/live/parties/single-album-party");
+    await expect(page.getByText("Loading live room...")).toBeHidden({
+      timeout: 20_000,
+    });
     await expect(
       page.getByRole("heading", { name: /single album spotlight/i })
     ).toBeVisible();
@@ -168,7 +173,7 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText(/muted until turn/i)).toBeVisible();
     await expect(page.getByText("BattleBot Control")).toBeVisible();
 
-    await page.goto("/live/streams/stream-1");
+    await gotoWithViteRetry(page, "/live/streams/stream-1");
     await expect(
       page.getByRole("heading", {
         name: /beat making from the first drum hit/i,

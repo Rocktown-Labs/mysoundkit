@@ -360,6 +360,12 @@ describe("SoundKit API authentication boundaries", () => {
   it.each([
     ["summary", "/v1/admin/finance/summary", undefined],
     ["payments", "/v1/admin/finance/payments", undefined],
+    ["coupons", "/v1/admin/finance/payments/coupons", undefined],
+    [
+      "coupon creation",
+      "/v1/admin/finance/payments/coupons",
+      jsonRequest({ name: "VIP Launch", percentOff: 25 }),
+    ],
     ["payment sync", "/v1/admin/finance/payments/sync-plans", jsonRequest({})],
     [
       "payment import",
@@ -368,6 +374,16 @@ describe("SoundKit API authentication boundaries", () => {
         code: "soundkit_premium_artist",
         monthlyPriceId: "price_test",
       }),
+    ],
+    [
+      "premium grant",
+      "/v1/admin/finance/payments/grant-premium",
+      jsonRequest({ target: "artist@example.com" }),
+    ],
+    [
+      "AI credit grant",
+      "/v1/admin/finance/payments/issue-credits",
+      jsonRequest({ credits: 500, target: "artist@example.com" }),
     ],
   ])(
     "keeps finance administration restricted for %s",

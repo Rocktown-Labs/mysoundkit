@@ -242,6 +242,10 @@ export const server = await Worker("server", {
       alchemy.secret.env.MUX_WEBHOOK_SECRET,
       "MUX_WEBHOOK_SECRET"
     ),
+    OPENAI_API_KEY: requiredSecret(
+      alchemy.secret.env.OPENAI_API_KEY,
+      "OPENAI_API_KEY"
+    ),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     STEMSPLIT_API_KEY: requiredSecret(
       alchemy.secret.env.STEMSPLIT_API_KEY,

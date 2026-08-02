@@ -20,6 +20,7 @@
     "deploy:prod": "turbo run deploy --filter=@soundkit/infra",
     "destroy": "turbo run destroy --filter=@soundkit/infra",
     "check": "ultracite check",
+    "check:react-hooks": "node scripts/check-react-hook-imports.mjs",
     "fix": "ultracite fix",
     "test": "pnpm run test:unit && pnpm run test:worker",
     "test:all": "pnpm run test && pnpm run test:e2e",

@@ -55,6 +55,24 @@ const publicAssetUrl = (
     (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
       .VITE_MEDIA_URL ??
     ""
+  ).replace(/\/+$/u, "");
+
+  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+};
+
+const publicProjectAssetUrl = (
+  asset: InferSelectModel<typeof projectAssets> | undefined
+) => {
+  if (!asset) {
+    return null;
+  }
+
+  const baseUrl = (
+    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+      .MEDIA_PUBLIC_URL ??
+    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+      .VITE_MEDIA_URL ??
+    ""
   ).replace(/\/+$/, "");
 
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
@@ -288,7 +306,7 @@ export const buildProjectSummary = async (
 
   return {
     collaboratorCount: collaboratorRows.length,
-    coverArtUrl: coverAsset?.objectKey ?? null,
+    coverArtUrl: publicProjectAssetUrl(coverAsset),
     description: row.description,
     id: row.id,
     isPublic: row.isPublic,

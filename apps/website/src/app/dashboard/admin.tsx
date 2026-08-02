@@ -158,7 +158,7 @@ function AdminDashboard() {
           <OverviewPanel />
         </TabsContent>
         <TabsContent value="users" className="mt-6">
-          <UsersPanel currentUserId={session.user.id} />
+          <UsersPanel currentUserId={session?.user.id ?? ""} />
         </TabsContent>
         <TabsContent value="payments" className="mt-6">
           <PaymentsPanel />
@@ -817,7 +817,10 @@ function CouponsManagerCard() {
         credentials: "include",
       });
       if (!res.ok) {
-        throw new Error("Failed to load coupons");
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to load coupons");
       }
       return (await res.json()) as {
         coupons: {
@@ -831,6 +834,8 @@ function CouponsManagerCard() {
           times_redeemed?: number;
           valid: boolean;
         }[];
+        message?: string;
+        stripeConfigured?: boolean;
       };
     },
     queryKey: ["admin", "stripe-coupons"],
@@ -861,7 +866,10 @@ function CouponsManagerCard() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to create coupon");
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to create coupon");
       }
 
       setIsDialogOpen(false);
@@ -873,9 +881,12 @@ function CouponsManagerCard() {
         description: `Stripe coupon created and ready for checkout.`,
         title: "Coupon Created",
       });
-    } catch {
+    } catch (error) {
       toast({
-        description: "Could not create coupon. Please try again.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not create coupon. Please try again.",
         title: "Error",
         variant: "destructive",
       });
@@ -892,16 +903,20 @@ function CouponsManagerCard() {
         }
       );
       if (!res.ok) {
-        throw new Error("Failed to delete coupon");
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to delete coupon");
       }
       refetch();
       toast({
         description: `Coupon ${couponId} archived.`,
         title: "Coupon Deleted",
       });
-    } catch {
+    } catch (error) {
       toast({
-        description: "Could not delete coupon.",
+        description:
+          error instanceof Error ? error.message : "Could not delete coupon.",
         title: "Error",
         variant: "destructive",
       });
@@ -987,7 +1002,8 @@ function CouponsManagerCard() {
                     colSpan={5}
                     className="py-4 text-center text-muted-foreground text-xs"
                   >
-                    No Stripe coupons have been created yet.
+                    {couponsData?.message ??
+                      "No Stripe coupons have been created yet."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1120,7 +1136,7 @@ function IssueAICreditsCard() {
           body: JSON.stringify({
             credits: Number(credits),
             reason,
-            userId: targetUser.trim(),
+            target: targetUser.trim(),
           }),
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -1129,7 +1145,10 @@ function IssueAICreditsCard() {
       );
 
       if (!res.ok) {
-        throw new Error("Failed to grant AI credits");
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to grant AI credits");
       }
 
       setIsSubmitting(false);
@@ -1163,7 +1182,7 @@ function IssueAICreditsCard() {
           body: JSON.stringify({
             ...(isEmail
               ? { email: targetUser.trim() }
-              : { userId: targetUser.trim() }),
+              : { target: targetUser.trim() }),
             planCode,
           }),
           credentials: "include",

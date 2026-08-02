@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@tanstack/react-router";
-import { Lock, Play, ShieldAlert, Sparkles, Trophy } from "lucide-react";
+import { Lock, ShieldAlert, Sparkles } from "lucide-react";
 import React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +27,10 @@ export function LiveRoomAccessGuard({
 }: LiveRoomAccessGuardProps) {
   const { data: session, isPending: isAuthPending } = authClient.useSession();
   const entitlementsQuery = useMeEntitlementsQuery();
-
-  const isLoading = isAuthPending || entitlementsQuery.isLoading;
   const user = session?.user;
   const isSignedIn = Boolean(user);
+  const isLoading =
+    isAuthPending || (isSignedIn && entitlementsQuery.isLoading);
 
   const entitlements = entitlementsQuery.data;
   const isPremium = Boolean(
@@ -50,7 +50,7 @@ export function LiveRoomAccessGuard({
 
   // Grant access if user is authenticated and holds a Premium plan
   if (isSignedIn && isPremium) {
-    return <>{children}</>;
+    return children;
   }
 
   return (

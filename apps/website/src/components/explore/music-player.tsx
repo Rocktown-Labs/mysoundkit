@@ -21,7 +21,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";

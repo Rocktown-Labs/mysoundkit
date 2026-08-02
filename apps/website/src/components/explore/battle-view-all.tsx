@@ -304,8 +304,8 @@ export function BattleViewAll({
     genreFromSearch !== null ||
     sortFromSearch !== null;
 
-  const [regionType, setRegionType] = useState<"north-america" | "global">(() =>
-    regionTypeFromSearch === "global" ? "global" : DEFAULT_REGION_TYPE
+  const [regionType, setRegionType] = useState<"north-america" | "global">(
+    () => (regionTypeFromSearch === "global" ? "global" : DEFAULT_REGION_TYPE)
   );
 
   const [region, setRegion] = useState(

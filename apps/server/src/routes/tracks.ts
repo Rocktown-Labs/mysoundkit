@@ -1416,7 +1416,7 @@ app.openapi(
         message:
           masterAsset.objectKey && getTrackProcessingWorkflow()
             ? "Track processing workflow started."
-            : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and GOOGLE_GENERATIVE_AI_API_KEY to run it.",
+            : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
         status: "queued" as const,
       },
       HttpStatusCodes.ACCEPTED

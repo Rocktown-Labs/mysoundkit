@@ -1,10 +1,15 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import { userProfiles } from "@soundkit/db/schema/app";
 import { subscription, user } from "@soundkit/db/schema/auth";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
-import { planCatalog } from "@soundkit/db/schema/plans";
+import {
+  aiCreditGrants,
+  planCatalog,
+  subscriptionEntitlements,
+} from "@soundkit/db/schema/plans";
 import { env } from "@soundkit/env/server";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -28,16 +33,15 @@ import {
   listStripeProducts,
   retrieveStripePrice,
 } from "@/lib/stripe";
-import type {
-  StripeCouponSummary,
-  StripePriceSummary,
-  StripeProductSummary,
-} from "@/lib/stripe";
+import type { StripePriceSummary, StripeProductSummary } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+
+const normalizeTargetIdentifier = (value: string | undefined) =>
+  value?.trim().replace(/^@/u, "").toLowerCase() ?? "";
 
 const planEnvKeys: Record<
   string,
@@ -325,6 +329,66 @@ const loadPaymentOverview = async () => {
       successfulTransactions: Number(transactionSummary?.count ?? 0),
     },
   };
+};
+
+const resolveAdminTargetUser = async ({
+  email,
+  target,
+  userId,
+}: {
+  email?: string;
+  target?: string;
+  userId?: string;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const db = createDb();
+  const normalizedTarget = normalizeTargetIdentifier(target);
+  const normalizedEmail =
+    email?.trim().toLowerCase() ||
+    (normalizedTarget.includes("@") ? normalizedTarget : "");
+  const normalizedUserId = userId?.trim() || "";
+  const normalizedUsername =
+    normalizedTarget && !normalizedTarget.includes("@") ? normalizedTarget : "";
+
+  if (!(normalizedUserId || normalizedEmail || normalizedUsername)) {
+    return null;
+  }
+
+  const [targetUser] = await db
+    .select({
+      email: user.email,
+      id: user.id,
+      name: user.name,
+      username: userProfiles.username,
+    })
+    .from(user)
+    .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+    .where(
+      or(
+        normalizedUserId ? eq(user.id, normalizedUserId) : undefined,
+        normalizedEmail ? eq(user.email, normalizedEmail) : undefined,
+        normalizedUsername
+          ? eq(userProfiles.username, normalizedUsername)
+          : undefined
+      )
+    )
+    .limit(1);
+
+  return targetUser ?? null;
+};
+
+const loadAiCreditBalance = async (userId: string) => {
+  const [balance] = await createDb()
+    .select({
+      amount: sql<number>`coalesce(sum(${aiCreditGrants.amount}), 0)`,
+    })
+    .from(aiCreditGrants)
+    .where(eq(aiCreditGrants.userId, userId));
+
+  return Number(balance?.amount ?? 0);
 };
 
 app.openapi(
@@ -624,34 +688,6 @@ app.openapi(
   }
 );
 
-// --- Stripe & Fallback Coupons API ---
-const fallbackCoupons: StripeCouponSummary[] = [
-  {
-    amount_off: null,
-    currency: "usd",
-    duration: "forever",
-    duration_in_months: null,
-    id: "PROMO50",
-    max_redemptions: 100,
-    name: "50% Off Artist Pro",
-    percent_off: 50,
-    times_redeemed: 12,
-    valid: true,
-  },
-  {
-    amount_off: 2000,
-    currency: "usd",
-    duration: "once",
-    duration_in_months: null,
-    id: "SOUNDKIT2026",
-    max_redemptions: 50,
-    name: "$20 Launch Special",
-    percent_off: null,
-    times_redeemed: 4,
-    valid: true,
-  },
-];
-
 app.get("/payments/coupons", async (c) => {
   if (!isAdminUser(c.get("user"))) {
     return c.json(
@@ -660,13 +696,34 @@ app.get("/payments/coupons", async (c) => {
     );
   }
 
-  const stripeCoupons = await listStripeCoupons().catch(() => null);
-  const coupons =
-    stripeCoupons?.data && stripeCoupons.data.length > 0
-      ? stripeCoupons.data
-      : fallbackCoupons;
+  if (!getEnvValue("STRIPE_SECRET_KEY")) {
+    return c.json(
+      {
+        coupons: [],
+        message: "STRIPE_SECRET_KEY is required to list Stripe coupons.",
+        stripeConfigured: false,
+      },
+      HttpStatusCodes.OK
+    );
+  }
 
-  return c.json({ coupons }, HttpStatusCodes.OK);
+  const stripeCoupons = await listStripeCoupons().catch(() => null);
+
+  if (!stripeCoupons) {
+    return c.json(
+      {
+        coupons: [],
+        message: "Unable to load Stripe coupons.",
+        stripeConfigured: true,
+      },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  return c.json(
+    { coupons: stripeCoupons.data, stripeConfigured: true },
+    HttpStatusCodes.OK
+  );
 });
 
 app.post("/payments/coupons", async (c) => {
@@ -698,40 +755,32 @@ app.post("/payments/coupons", async (c) => {
     );
   }
 
-  let createdCoupon: StripeCouponSummary | null = null;
-  if (getEnvValue("STRIPE_SECRET_KEY")) {
-    createdCoupon = await createStripeCoupon({
-      amountOff: body.amountOff,
-      appliesToProducts: body.appliesToProducts,
-      currency: body.currency ?? "usd",
-      duration: body.duration ?? "once",
-      durationInMonths: body.durationInMonths,
-      id: body.id,
-      maxRedemptions: body.maxRedemptions,
-      metadata: body.metadata,
-      name: body.name,
-      percentOff: body.percentOff,
-      redeemBy: body.redeemBy,
-    }).catch(() => null);
+  if (!getEnvValue("STRIPE_SECRET_KEY")) {
+    return c.json(
+      { message: "STRIPE_SECRET_KEY is required to create Stripe coupons." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
+  const createdCoupon = await createStripeCoupon({
+    amountOff: body.amountOff,
+    appliesToProducts: body.appliesToProducts,
+    currency: body.currency ?? "usd",
+    duration: body.duration ?? "once",
+    durationInMonths: body.durationInMonths,
+    id: body.id,
+    maxRedemptions: body.maxRedemptions,
+    metadata: body.metadata,
+    name: body.name,
+    percentOff: body.percentOff,
+    redeemBy: body.redeemBy,
+  }).catch(() => null);
+
   if (!createdCoupon) {
-    const couponId =
-      body.id || `COUPON_${Date.now().toString(36).toUpperCase()}`;
-    const newCoupon: StripeCouponSummary = {
-      amount_off: body.amountOff ?? null,
-      currency: body.currency ?? "usd",
-      duration: body.duration ?? "once",
-      duration_in_months: body.durationInMonths ?? null,
-      id: couponId,
-      max_redemptions: body.maxRedemptions ?? null,
-      name: body.name,
-      percent_off: body.percentOff ?? null,
-      times_redeemed: 0,
-      valid: true,
-    };
-    createdCoupon = newCoupon;
-    fallbackCoupons.unshift(newCoupon);
+    return c.json(
+      { message: "Stripe coupon creation failed." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
   return c.json(
@@ -756,13 +805,20 @@ app.delete("/payments/coupons/:id", async (c) => {
     );
   }
 
-  if (getEnvValue("STRIPE_SECRET_KEY")) {
-    await deleteStripeCoupon(couponId).catch(() => null);
+  if (!getEnvValue("STRIPE_SECRET_KEY")) {
+    return c.json(
+      { message: "STRIPE_SECRET_KEY is required to delete Stripe coupons." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
-  const idx = fallbackCoupons.findIndex((c) => c.id === couponId);
-  if (idx !== -1) {
-    fallbackCoupons.splice(idx, 1);
+  const deletedCoupon = await deleteStripeCoupon(couponId).catch(() => null);
+
+  if (!deletedCoupon) {
+    return c.json(
+      { message: "Stripe coupon deletion failed." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
   return c.json(
@@ -790,23 +846,17 @@ app.post("/payments/grant-premium", async (c) => {
     email?: string;
     planCode?: string;
     referenceId?: string;
+    target?: string;
     userId?: string;
   };
   const planCode = body.planCode?.trim() || "soundkit_premium_artist";
+  await ensureDefaultPlansSeeded();
   const db = createDb();
-  const targetUserId = body.userId?.trim();
-  const targetEmail = body.email?.trim().toLowerCase();
-  const [targetUser] = targetUserId
-    ? await db
-        .select({ email: user.email, id: user.id })
-        .from(user)
-        .where(eq(user.id, targetUserId))
-        .limit(1)
-    : await db
-        .select({ email: user.email, id: user.id })
-        .from(user)
-        .where(eq(user.email, targetEmail ?? ""))
-        .limit(1);
+  const targetUser = await resolveAdminTargetUser({
+    email: body.email,
+    target: body.target,
+    userId: body.userId,
+  });
 
   if (!targetUser) {
     return c.json(
@@ -819,6 +869,11 @@ app.post("/payments/grant-premium", async (c) => {
   const now = new Date();
   const periodEnd = new Date(now);
   periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  const [plan] = await db
+    .select({ entitlements: planCatalog.entitlements })
+    .from(planCatalog)
+    .where(eq(planCatalog.code, planCode))
+    .limit(1);
 
   const [existing] = await db
     .select({ id: subscription.id })
@@ -833,32 +888,49 @@ app.post("/payments/grant-premium", async (c) => {
 
   const subscriptionId = existing?.id ?? crypto.randomUUID();
 
-  if (existing) {
-    await db
-      .update(subscription)
-      .set({
+  await (existing
+    ? db
+        .update(subscription)
+        .set({
+          billingInterval: "year",
+          cancelAt: null,
+          cancelAtPeriodEnd: false,
+          canceledAt: null,
+          endedAt: null,
+          periodEnd,
+          periodStart: now,
+          status: "active",
+        })
+        .where(eq(subscription.id, existing.id))
+    : db.insert(subscription).values({
         billingInterval: "year",
-        cancelAt: null,
         cancelAtPeriodEnd: false,
-        canceledAt: null,
-        endedAt: null,
+        id: subscriptionId,
         periodEnd,
         periodStart: now,
+        plan: planCode,
+        referenceId,
+        seats: 1,
         status: "active",
-      })
-      .where(eq(subscription.id, existing.id));
-  } else {
-    await db.insert(subscription).values({
-      billingInterval: "year",
-      cancelAtPeriodEnd: false,
-      id: subscriptionId,
-      periodEnd,
-      periodStart: now,
-      plan: planCode,
-      referenceId,
-      seats: 1,
-      status: "active",
-    });
+      }));
+
+  await db
+    .delete(subscriptionEntitlements)
+    .where(eq(subscriptionEntitlements.subscriptionId, subscriptionId));
+
+  const entitlementRows = Object.entries({
+    is_premium: true,
+    premium_access: true,
+    ...plan?.entitlements,
+  }).map(([key, value]) => ({
+    entitlementKey: key,
+    entitlementValue: String(value),
+    id: crypto.randomUUID(),
+    subscriptionId,
+  }));
+
+  if (entitlementRows.length > 0) {
+    await db.insert(subscriptionEntitlements).values(entitlementRows);
   }
 
   return c.json(
@@ -882,25 +954,66 @@ app.post("/payments/issue-credits", async (c) => {
     );
   }
 
+  if (!isDatabaseConfigured()) {
+    return c.json(
+      { message: "Database is required to issue AI credits." },
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
   const body = (await c.req.json().catch(() => ({}))) as {
     credits?: number;
+    email?: string;
     reason?: string;
+    target?: string;
     userId?: string;
   };
+  const credits = Number(body.credits ?? 0);
 
-  if (!body.userId || !body.credits) {
+  if (!Number.isInteger(credits) || credits <= 0) {
     return c.json(
-      { message: "Target userId and credits count are required." },
+      { message: "A positive integer credit count is required." },
       HttpStatusCodes.BAD_REQUEST
     );
   }
 
+  const targetUser = await resolveAdminTargetUser({
+    email: body.email,
+    target: body.target,
+    userId: body.userId,
+  });
+
+  if (!targetUser) {
+    return c.json(
+      { message: "Target user was not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
+  }
+
+  const grantId = crypto.randomUUID();
+  const reason = body.reason?.trim() || "Administrative grant";
+  await createDb()
+    .insert(aiCreditGrants)
+    .values({
+      amount: credits,
+      grantedByUserId: c.get("user")?.id ?? null,
+      id: grantId,
+      reason,
+      source: "admin_grant",
+      userId: targetUser.id,
+    });
+
+  const balance = await loadAiCreditBalance(targetUser.id);
+
   return c.json(
     {
-      creditsIssued: body.credits,
-      message: `Successfully issued ${body.credits} AI credits to user ${body.userId}.`,
-      reason: body.reason ?? "Administrative grant",
-      userId: body.userId,
+      balance,
+      creditsIssued: credits,
+      grantId,
+      message: `Successfully issued ${credits} AI credits to ${targetUser.email}.`,
+      reason,
+      user: targetUser,
+      userId: targetUser.id,
     },
     HttpStatusCodes.OK
   );

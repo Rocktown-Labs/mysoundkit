@@ -1242,7 +1242,10 @@ export const createProjectBodySchema = z.object({
     .array(
       z.object({
         assetId: z.string().optional(),
+        fileName: z.string().optional(),
         genre: z.string().min(1),
+        mimeType: z.string().optional(),
+        sizeBytes: z.number().int().nonnegative().optional(),
         title: z.string().min(1),
       })
     )
