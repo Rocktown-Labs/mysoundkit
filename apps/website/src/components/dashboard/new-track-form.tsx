@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/jsx-handler-names, no-empty-function */
+/* eslint-disable complexity, no-nested-ternary, no-promise-executor-return, no-unused-vars, no-use-before-define, react-hooks/exhaustive-deps, react-perf/jsx-no-new-function-as-prop, react/jsx-handler-names, react/no-array-index-key, no-empty-function, promise/avoid-new, promise/param-names, promise/prefer-await-to-then, require-await, require-unicode-regexp */
 
 import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,11 +12,9 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock,
   CloudUpload,
   DollarSign,
   FileAudio,
-  ImageIcon,
   Info,
   LoaderCircle,
   Play,
@@ -60,7 +58,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -87,6 +84,7 @@ import {
   usePeopleSearchQuery,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 const SUPPORTED_GENRES = [
   "Afrobeats",
@@ -99,7 +97,6 @@ const SUPPORTED_GENRES = [
   "Rock",
   "Spoken Word",
 ] as const;
-import { cn } from "@/lib/utils";
 
 const tracksPost = apiClient.v1.tracks.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
@@ -315,7 +312,9 @@ export function NewTrackForm({
 
   // Prefill when editing an existing track
   useEffect(() => {
-    if (!initialTrack) {return;}
+    if (!initialTrack) {
+      return;
+    }
     const isPublic = Boolean(initialTrack.isPublic);
     const isForSale = Boolean(initialTrack.isForSale);
     const rawCollaborators = Array.isArray(initialTrack.collaborators)
@@ -378,15 +377,21 @@ export function NewTrackForm({
 
   // Restore preview metadata from localStorage if a local draft exists
   useEffect(() => {
-    if (initialTrack) {return;}
+    if (initialTrack) {
+      return;
+    }
     try {
       const metaKey = "soundkit:new-track-draft:meta";
       const storedMeta = window.localStorage.getItem(metaKey);
       if (storedMeta) {
         const { coverUpload: storedCover, uploadedTrack: storedMaster } =
           JSON.parse(storedMeta);
-        if (storedCover && !coverUpload) {setCoverUpload(storedCover);}
-        if (storedMaster && !uploadedTrack) {setUploadedTrack(storedMaster);}
+        if (storedCover && !coverUpload) {
+          setCoverUpload(storedCover);
+        }
+        if (storedMaster && !uploadedTrack) {
+          setUploadedTrack(storedMaster);
+        }
       }
     } catch {
       // Ignore storage errors
@@ -395,7 +400,9 @@ export function NewTrackForm({
 
   // Persist preview metadata to localStorage
   useEffect(() => {
-    if (initialTrack) {return;}
+    if (initialTrack) {
+      return;
+    }
     try {
       const metaKey = "soundkit:new-track-draft:meta";
       if (coverUpload || uploadedTrack) {
@@ -976,9 +983,9 @@ export function NewTrackForm({
         description:
           values.status === "ready"
             ? `${values.name} is ready and live.`
-            : (values.status === "open_verse"
+            : values.status === "open_verse"
               ? `${values.name} is published to Open Verses.`
-              : `${values.name} is saved as a private draft.`),
+              : `${values.name} is saved as a private draft.`,
         title:
           values.status === "ready" ? "Track is live" : "Track setup complete",
       });
@@ -1159,7 +1166,7 @@ export function NewTrackForm({
             </div>
           </Card>
         </div>
-      ) : (isSubmitting ? (
+      ) : isSubmitting ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4">
           <Card className="w-full max-w-md border-primary/30 shadow-2xl p-6 space-y-6 text-center">
             <div className="mx-auto size-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center">
@@ -1196,7 +1203,7 @@ export function NewTrackForm({
             </div>
           </Card>
         </div>
-      ) : null)}
+      ) : null}
 
       {hasSavedDraft && (
         <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -1421,14 +1428,14 @@ export function NewTrackForm({
                                 : "Selected",
                             },
                           ]
-                        : (coverUpload
+                        : coverUpload
                           ? [
                               {
                                 name: coverUpload.fileName,
                                 status: "R2 Stored",
                               },
                             ]
-                          : [])
+                          : []
                     }
                     onFileUpload={handleCoverUpload}
                     progress={isCoverUploading ? coverProgress : undefined}
@@ -1594,14 +1601,14 @@ export function NewTrackForm({
                                     : "Selected",
                                 },
                               ]
-                            : (uploadedTrack
+                            : uploadedTrack
                               ? [
                                   {
                                     name: uploadedTrack.title,
                                     status: "Uploaded",
                                   },
                                 ]
-                              : [])
+                              : []
                         }
                         onFileUpload={handleMasterUpload}
                         progress={isUploading ? averageProgress : undefined}

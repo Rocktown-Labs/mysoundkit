@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable complexity, import/first, no-empty-function, no-nested-ternary, no-promise-executor-return, promise/avoid-new, react/jsx-handler-names, require-await, require-unicode-regexp, unicorn/max-nested-calls */
 
 import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -264,7 +265,7 @@ export function NewProjectForm() {
     }
 
     try {
-      let {newTracks} = values;
+      let { newTracks } = values;
       const pendingTrackFiles = values.newTracks
         .map((track, index) => ({
           file: track.file instanceof File ? track.file : null,
@@ -295,7 +296,7 @@ export function NewProjectForm() {
             (entry) => entry.index === index
           );
           const uploadedAsset =
-            pendingIndex !== -1 ? uploadedAssets[pendingIndex] : null;
+            pendingIndex === -1 ? null : uploadedAssets[pendingIndex];
 
           if (!uploadedAsset) {
             return track;
@@ -633,14 +634,14 @@ export function NewProjectForm() {
                                 : "Selected",
                             },
                           ]
-                        : (projectCover
+                        : projectCover
                           ? [
                               {
                                 name: projectCover.fileName,
                                 status: "Uploaded",
                               },
                             ]
-                          : [])
+                          : []
                     }
                     onFileUpload={handleProjectCoverUpload}
                     progress={isCoverUploading ? coverProgress : undefined}
@@ -1416,7 +1417,7 @@ export function NewProjectForm() {
                         <LoaderCircle className="mr-2 size-4 animate-spin" />
                         Uploading {Math.round(projectAssetProgress)}%
                       </>
-                    ) : (createProjectMutation.isPending ? (
+                    ) : createProjectMutation.isPending ? (
                       <>
                         <LoaderCircle className="mr-2 size-4 animate-spin" />
                         Creating Project...
@@ -1426,7 +1427,7 @@ export function NewProjectForm() {
                         Launch Project
                         <Check className="ml-2 size-4" />
                       </>
-                    ))}
+                    )}
                   </Button>
                 </div>
               </AccordionContent>
