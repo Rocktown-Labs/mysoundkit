@@ -236,6 +236,27 @@ describe("SoundKit Worker API", () => {
     expect(uploadBody.message).toContain("not configured");
   });
 
+  it("exposes the full genre catalog even when the database is not configured", async () => {
+    const response = await SELF.fetch("http://soundkit.test/v1/discover/genres");
+    const body = await readJson<{ name: string; slug: string }[]>(response);
+
+    expect(response.status).toBe(200);
+    expect(body.length).toBeGreaterThanOrEqual(9);
+    expect(body.map((genre) => genre.slug)).toEqual(
+      expect.arrayContaining([
+        "afrobeats",
+        "electronic",
+        "hip-hop",
+        "jazz",
+        "latin",
+        "pop",
+        "rb-soul",
+        "rock",
+        "spoken-word",
+      ])
+    );
+  });
+
   it("guards live battle creation behind signed-in premium artist access", async () => {
     const response = await SELF.fetch(
       "http://soundkit.test/v1/battles/challenge",

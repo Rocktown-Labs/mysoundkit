@@ -137,20 +137,25 @@ app.openapi(
       return c.json(fallbackGenres, HttpStatusCodes.OK);
     }
 
+    const genresBySlug = new Map(
+      fallbackGenres.map((genre) => [genre.slug, genre])
+    );
+
     try {
       const db = createDb();
       const rows = await db.select().from(genres);
-      if (rows.length > 0) {
-        return c.json(
-          rows.map((r) => ({ id: r.id, name: r.name, slug: r.slug })),
-          HttpStatusCodes.OK
-        );
+      for (const row of rows) {
+        genresBySlug.set(row.slug, {
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+        });
       }
     } catch {
-      // Fallback if table not ready
+      // Fall back to the catalog if the table is not ready
     }
 
-    return c.json(fallbackGenres, HttpStatusCodes.OK);
+    return c.json([...genresBySlug.values()], HttpStatusCodes.OK);
   }
 );
 

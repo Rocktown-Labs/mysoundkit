@@ -694,6 +694,20 @@ export function NewTrackForm({
         }
       });
     },
+    onUploadFail: ({ failedFiles }) => {
+      const [failed] = failedFiles;
+      posthog.captureException(failed?.error);
+      toast({
+        description:
+          failed?.error?.message ?? "The master audio could not be stored.",
+        title: "Master upload failed",
+        variant: "destructive",
+      });
+      if (masterUploadResolverRef.current) {
+        masterUploadResolverRef.current(null);
+        masterUploadResolverRef.current = null;
+      }
+    },
     route: "track-source",
   });
 
@@ -745,6 +759,20 @@ export function NewTrackForm({
       });
       if (coverUploadResolverRef.current) {
         coverUploadResolverRef.current(objectKey);
+        coverUploadResolverRef.current = null;
+      }
+    },
+    onUploadFail: ({ failedFiles }) => {
+      const [failed] = failedFiles;
+      posthog.captureException(failed?.error);
+      toast({
+        description:
+          failed?.error?.message ?? "The cover art could not be stored.",
+        title: "Cover upload failed",
+        variant: "destructive",
+      });
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current("");
         coverUploadResolverRef.current = null;
       }
     },

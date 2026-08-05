@@ -18,7 +18,10 @@ export const jsonBodyMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   try {
-    await c.req.json();
+    // Read the JSON through a clone so the original body stream is left
+    // intact for handlers that parse `c.req.raw` themselves (e.g. the
+    // @better-upload signed-URL route).
+    await c.req.raw.clone().json();
   } catch (error) {
     return jsonError(
       c,

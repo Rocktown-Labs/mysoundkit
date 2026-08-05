@@ -55,6 +55,10 @@
 
 ### Fixed
 
+- Fixed uploads failing before R2 storage by validating JSON request bodies against a cloned stream so the original body remains readable by the signed-URL upload handler instead of returning `400 Invalid JSON body`.
+- Fixed the genre selector collapsing to a single option by merging persisted genre rows with the full fallback catalog so the dropdown always shows every supported genre.
+- Fixed track and project wizard uploads hanging for up to two minutes when a file upload to object storage fails by wiring `onUploadFail` handlers that surface the error and resume submission immediately.
+- Added signed-URL upload trace logging (`upload_signed_url_requested`/`_issued`/`_rejected`) so Cloudflare invocation logs show upload request outcomes per route.
 - Fixed track and project creation so server drafts are created before large R2 uploads, staged files upload on Complete, saved drafts appear in dashboard lists, and failed uploads leave recoverable draft records.
 - Fixed track and project delete actions with title-confirmation dialogs, visible deleting state, and list revalidation.
 - Fixed track and project upload persistence so submitted cover art and audio/project assets create durable asset rows instead of disappearing after form submission.

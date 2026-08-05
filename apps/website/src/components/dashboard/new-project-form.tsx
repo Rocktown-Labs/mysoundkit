@@ -520,6 +520,20 @@ export function NewProjectForm() {
         coverUploadResolverRef.current = null;
       }
     },
+    onUploadFail: ({ failedFiles }) => {
+      const [failed] = failedFiles;
+      posthog.captureException(failed?.error);
+      toast({
+        description:
+          failed?.error?.message ?? "The artwork could not be stored.",
+        title: "Artwork upload failed",
+        variant: "destructive",
+      });
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current("");
+        coverUploadResolverRef.current = null;
+      }
+    },
     route: "media",
   });
 
@@ -556,6 +570,18 @@ export function NewProjectForm() {
       }));
 
       projectAssetsUploadResolverRef.current?.(assets);
+      projectAssetsUploadResolverRef.current = null;
+    },
+    onUploadFail: ({ failedFiles }) => {
+      const [failed] = failedFiles;
+      posthog.captureException(failed?.error);
+      toast({
+        description:
+          failed?.error?.message ?? "The project files could not be stored.",
+        title: "Project file upload failed",
+        variant: "destructive",
+      });
+      projectAssetsUploadResolverRef.current?.(null);
       projectAssetsUploadResolverRef.current = null;
     },
     route: "project-assets",
