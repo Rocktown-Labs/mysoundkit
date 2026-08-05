@@ -110,6 +110,10 @@ const media = await R2Bucket("media", {
         methods: ["GET", "HEAD", "PUT", "POST"],
         origins: [SITE_URL, API_URL],
       },
+      // @better-upload multipart uploads read the ETag response header from
+      // the part PUT to build the CompleteMultipartUpload request, so it must
+      // be exposed to the browser across origins.
+      exposeHeaders: ["ETag"],
     },
   ],
   domains: app.local
