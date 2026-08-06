@@ -3,7 +3,6 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { MusicPlayer } from "@/components/explore/music-player";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { requireDashboardUser } from "@/lib/soundkit.functions";
 
@@ -20,13 +19,12 @@ function DashboardLayout() {
         <AppSidebar />
         <div className="flex flex-1 flex-col">
           <DashboardHeader />
-          <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
+          <main className="flex-1 p-4 md:p-6 pb-32 md:pb-28">
             <Outlet />
           </main>
         </div>
       </div>
       <MobileNav />
-      <MusicPlayer />
     </SidebarProvider>
   );
 }

@@ -37,6 +37,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import {
   createTrackPlaybackSession,
   recordPlaybackProgress,
@@ -832,7 +833,7 @@ app.openapi(
         }
       }
 
-      const genreSlug = body.genre.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+      const genreSlug = canonicalGenreSlug(body.genre);
       const [genreRow] = await withRetry("find track genre", () =>
         db
           .select({ id: genres.id })
@@ -846,7 +847,7 @@ app.openapi(
         await withRetry("create track genre", () =>
           db.insert(genres).values({
             id: genreId,
-            name: body.genre,
+            name: canonicalGenreName(body.genre),
             slug: genreSlug,
           })
         );
@@ -858,15 +859,15 @@ app.openapi(
       const rawPriceNum =
         typeof body.price === "number"
           ? body.price
-          : body.price
+          : (body.price
             ? Number(body.price)
-            : null;
+            : null);
       const salePriceUsd =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_USD
-          : rawPriceNum !== null && !isNaN(rawPriceNum)
+          : (rawPriceNum !== null && !isNaN(rawPriceNum)
             ? rawPriceNum
-            : null;
+            : null);
       const salePriceCents =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_CENTS
@@ -943,17 +944,17 @@ app.openapi(
       }
 
       return c.json(await buildTrackSummary(track), HttpStatusCodes.CREATED);
-    } catch (err: unknown) {
+    } catch (error: unknown) {
       logError({
-        error: err instanceof Error ? err.message : String(err),
+        error: error instanceof Error ? error.message : String(error),
         message: "POST /v1/tracks error",
         userId: user.id,
       });
       return c.json(
         {
           message:
-            err instanceof Error
-              ? err.message
+            error instanceof Error
+              ? error.message
               : "Failed to create track record.",
         },
         HttpStatusCodes.INTERNAL_SERVER_ERROR
@@ -1014,7 +1015,7 @@ app.openapi(
 
     let updatedGenreId: string | undefined;
     if (body.genre) {
-      const genreSlug = body.genre.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+      const genreSlug = canonicalGenreSlug(body.genre);
       const [genreRow] = await db
         .select({ id: genres.id })
         .from(genres)
@@ -1025,7 +1026,7 @@ app.openapi(
         updatedGenreId = crypto.randomUUID();
         await db.insert(genres).values({
           id: updatedGenreId,
-          name: body.genre,
+          name: canonicalGenreName(body.genre),
           slug: genreSlug,
         });
       }
@@ -1803,7 +1804,9 @@ app.openapi(
     const coverAsset = assetRows.find(
       (asset) => asset.assetKind === "cover_art"
     );
-    const firstAudioAsset = assetRows.find((asset) => asset.durationMs);
+    const firstAudioAsset =
+      assetRows.find((asset) => asset.assetKind === "master") ??
+      assetRows.find((asset) => asset.durationMs);
     const priceCents = priceCentsFromTrack({
       price: row.price,
       priceCents: row.priceCents,
@@ -1828,7 +1831,7 @@ app.openapi(
         artist: {
           avatarUrl: row.artistAvatarUrl,
           followers: null,
-          genre: row.genreName,
+          genre: row.genreName ? canonicalGenreName(row.genreName) : null,
           handle: row.artistUsername ?? row.ownerUserId,
           id: row.ownerUserId,
           listeners: null,
@@ -1849,7 +1852,7 @@ app.openapi(
         currency: row.currency,
         description: row.description,
         duration: formatDuration(firstAudioAsset?.durationMs ?? null),
-        genre: row.genreName,
+        genre: row.genreName ? canonicalGenreName(row.genreName) : null,
         id: row.id,
         isOwned,
         isPurchasable: row.isForSale,
@@ -1872,7 +1875,7 @@ app.openapi(
         purchaseMode: row.purchaseMode,
         slug: row.slug,
         streamCount: null,
-        tags: row.genreName ? [row.genreName] : [],
+        tags: row.genreName ? [canonicalGenreName(row.genreName)] : [],
         title: row.title,
         visualContent: [],
       },

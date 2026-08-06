@@ -14,6 +14,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleArtists, sampleProjects, sampleTracks } from "@/lib/sample-data";
 import {
   publicSearchQuerySchema,
@@ -251,7 +252,9 @@ app.openapi(
     const response = publicSearchResultSchema.parse({
       artists: artistRows.map((artist) => ({
         followers: artist.followerCount,
-        genre: artist.genre ?? "Uncategorized",
+        genre: artist.genre
+          ? canonicalGenreName(artist.genre)
+          : "Uncategorized",
         id: artist.id,
         location: locationLabel({
           city: artist.city,

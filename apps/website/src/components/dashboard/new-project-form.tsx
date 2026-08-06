@@ -24,7 +24,7 @@ import {
   RotateCcw,
   Info,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 
@@ -90,6 +90,7 @@ import {
   useCreateProjectMutation,
   useGenresQuery,
   useTracksQuery,
+  useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
@@ -160,7 +161,15 @@ const isGenreOption = (value: unknown): value is GenreOption =>
     typeof value.name === "string"
   );
 
-export function NewProjectForm() {
+interface NewProjectFormProps {
+  initialProject?: Record<string, unknown> | null;
+  projectId?: string;
+}
+
+export function NewProjectForm({
+  initialProject,
+  projectId,
+}: NewProjectFormProps = {}) {
   const posthog = usePostHog();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -192,6 +201,7 @@ export function NewProjectForm() {
     isLoading: tracksLoading,
   } = useTracksQuery();
   const createProjectMutation = useCreateProjectMutation();
+  const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
 
   const defaultProjectFormValues: ProjectFormValues = {
     collaborators: [],
@@ -211,6 +221,58 @@ export function NewProjectForm() {
     resolver: zodResolver(projectFormSchema),
   });
 
+  // Prefill when editing an existing project
+  useEffect(() => {
+    if (!initialProject) {
+      return;
+    }
+
+    const assetRows = Array.isArray(initialProject.assets)
+      ? (initialProject.assets as Record<string, unknown>[])
+      : [];
+    const coverAsset = assetRows.find(
+      (asset) => asset.assetKind === "cover_art"
+    );
+    const coverObjectKey =
+      (coverAsset?.objectKey as string) ||
+      (initialProject.coverArtUrl as string);
+    const projectTracks = Array.isArray(initialProject.tracks)
+      ? (initialProject.tracks as Record<string, unknown>[])
+      : [];
+    const firstGenre =
+      projectTracks.find((track) => typeof track.genre === "string")?.genre ||
+      "Hip-Hop/Rap";
+
+    const rawProjectType = initialProject.projectType as string;
+    const projectType: ProjectFormValues["type"] =
+      rawProjectType === "album" ||
+      rawProjectType === "ep" ||
+      rawProjectType === "mixtape"
+        ? rawProjectType
+        : "album";
+
+    form.reset({
+      collaborators: [],
+      description: (initialProject.description as string) ?? "",
+      genre: firstGenre as string,
+      name: (initialProject.title as string) ?? "",
+      newTracks: [],
+      projectCoverObjectKey: coverObjectKey ?? "",
+      releaseDate: (initialProject.releaseDate as string) ?? "",
+      rightsAccepted: true,
+      selectedExistingTracks: projectTracks.map((track) => track.id as string),
+      type: projectType,
+    });
+
+    if (initialProject.coverArtUrl) {
+      setProjectCover({
+        fileName: `${(initialProject.title as string) || "project"}-cover.jpg`,
+        objectKey: coverObjectKey ?? "",
+        remoteUrl: initialProject.coverArtUrl as string,
+      });
+    }
+  }, [initialProject, form]);
+
   const {
     allowNavigation,
     blockerDialog,
@@ -221,7 +283,9 @@ export function NewProjectForm() {
     additionalDirtyState: Boolean(selectedCoverFile),
     defaultValues: defaultProjectFormValues,
     form,
-    storageKey: "soundkit:new-project-draft",
+    storageKey: projectId
+      ? `soundkit:edit-project-draft-${projectId}`
+      : "soundkit:new-project-draft",
   });
 
   const resetProjectDraft = () => {
@@ -292,6 +356,73 @@ export function NewProjectForm() {
   };
 
   const onSubmit = async (values: ProjectFormValues) => {
+    // Edit Mode submission
+    if (projectId) {
+      try {
+        let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
+
+        if (selectedCoverFile && !coverKey) {
+          const keyPromise = new Promise<string>((resolve) => {
+            coverUploadResolverRef.current = resolve;
+          });
+          uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+            posthog.captureException(uploadError);
+            coverUploadResolverRef.current?.("");
+            coverUploadResolverRef.current = null;
+          });
+          coverKey = await Promise.race([
+            keyPromise,
+            new Promise<string>((resolve) =>
+              setTimeout(() => resolve(""), 60_000)
+            ),
+          ]);
+          if (!coverKey) {
+            coverUploadResolverRef.current = null;
+            toast({
+              description:
+                "Project cover upload did not finish. Please retry before saving.",
+              title: "Artwork upload incomplete",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        await updateProjectMutation.mutateAsync({
+          assetIds: coverKey ? [coverKey] : undefined,
+          description: values.description || undefined,
+          isPublic: true,
+          projectType: values.type,
+          releaseDate: values.releaseDate || undefined,
+          streamingLinks: {},
+          title: values.name,
+        });
+
+        posthog.capture("project_updated", {
+          project_id: projectId,
+          project_type: values.type,
+        });
+        toast({
+          description: `${values.name} was updated successfully.`,
+          title: "Project Updated",
+        });
+        clearDraft();
+        allowNavigation();
+        router.navigate({
+          params: { id: projectId },
+          to: "/dashboard/projects/$id",
+        });
+      } catch (error) {
+        posthog.captureException(error);
+        toast({
+          description: "Failed to update project. Please try again.",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
       toast({
         description:
@@ -686,7 +817,7 @@ export function NewProjectForm() {
 
       <div className="space-y-2 text-center">
         <h1 className="text-4xl font-bold font-[family-name:var(--font-playfair)] tracking-tight">
-          Create New Project
+          {projectId ? "Edit Project" : "Create New Project"}
         </h1>
         <p className="text-muted-foreground max-w-lg mx-auto">
           Bundle your tracks into a cohesive release. Manage artwork, credits,
@@ -808,7 +939,7 @@ export function NewProjectForm() {
                           <FormLabel>Project Type</FormLabel>
                           <Select
                             onValueChange={handleProjectTypeChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger className="bg-background/50">
@@ -845,7 +976,7 @@ export function NewProjectForm() {
                             }));
                             form.setValue("newTracks", updated);
                           }}
-                          defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger className="bg-background/50">
@@ -1519,21 +1650,24 @@ export function NewProjectForm() {
                     Back
                   </Button>
                   <div className="flex gap-2">
-                    <Button
-                      disabled={
-                        createProjectMutation.isPending ||
-                        isProjectAssetUploading
-                      }
-                      onClick={handleSaveProjectDraft}
-                      type="button"
-                      variant="outline"
-                    >
-                      Save Draft
-                    </Button>
+                    {!projectId && (
+                      <Button
+                        disabled={
+                          createProjectMutation.isPending ||
+                          isProjectAssetUploading
+                        }
+                        onClick={handleSaveProjectDraft}
+                        type="button"
+                        variant="outline"
+                      >
+                        Save Draft
+                      </Button>
+                    )}
                     <Button
                       type="submit"
                       disabled={
                         createProjectMutation.isPending ||
+                        updateProjectMutation.isPending ||
                         isProjectAssetUploading
                       }
                       className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
@@ -1543,14 +1677,17 @@ export function NewProjectForm() {
                           <LoaderCircle className="mr-2 size-4 animate-spin" />
                           Uploading {Math.round(projectAssetProgress)}%
                         </>
-                      ) : createProjectMutation.isPending ? (
+                      ) : createProjectMutation.isPending ||
+                        updateProjectMutation.isPending ? (
                         <>
                           <LoaderCircle className="mr-2 size-4 animate-spin" />
-                          Creating Project...
+                          {projectId
+                            ? "Saving Changes..."
+                            : "Creating Project..."}
                         </>
                       ) : (
                         <>
-                          Launch Project
+                          {projectId ? "Save Changes" : "Launch Project"}
                           <Check className="ml-2 size-4" />
                         </>
                       )}

@@ -17,6 +17,7 @@ export interface PlayerTrack {
   album?: string;
   artist: string;
   cover?: string | null;
+  autoplay?: boolean;
   duration?: number | null;
   id: string;
   src: string;

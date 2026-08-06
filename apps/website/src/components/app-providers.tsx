@@ -6,6 +6,7 @@ import { lazy, Suspense, useState } from "react";
 
 import { AudioPlayerProvider } from "@/components/audio-player-provider";
 import { CartProvider } from "@/components/cart-provider";
+import { MusicPlayer } from "@/components/explore/music-player";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -36,6 +37,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
         <KeyboardShortcutsProvider>
           <AudioPlayerProvider>
             <CartProvider>{children}</CartProvider>
+            <MusicPlayer />
           </AudioPlayerProvider>
         </KeyboardShortcutsProvider>
         <Toaster />

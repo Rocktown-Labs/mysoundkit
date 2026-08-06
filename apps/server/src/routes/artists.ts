@@ -16,6 +16,7 @@ import {
   genreSlugFromExploreFilter,
   stateFromExploreRegion,
 } from "@/lib/public-explore";
+import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleArtists } from "@/lib/sample-data";
 import { artistRankingQuerySchema, artistSummarySchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -173,7 +174,7 @@ app.openapi(
       rows.map((artist, index) => {
         const rawName = artist.stageName ?? artist.displayName ?? artist.name;
         const name = capitalizeWords(rawName);
-        const genre = capitalizeWords(artist.genre ?? "Hip-Hop");
+        const genre = canonicalGenreName(artist.genre ?? "Hip Hop");
         const hasActivity =
           Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0;
         const rank = hasActivity ? index + offset + 1 : null;
@@ -269,7 +270,7 @@ app.openapi(
 
         const rawName = artist.stageName ?? artist.displayName ?? artist.name;
         const name = capitalizeWords(rawName);
-        const genre = capitalizeWords(artist.genre ?? "Hip-Hop");
+        const genre = canonicalGenreName(artist.genre ?? "Hip Hop");
         const hasActivity =
           Number(artist.trackCount) > 0 ||
           Number(artist.followerCount) > 0 ||

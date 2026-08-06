@@ -19,6 +19,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { canonicalGenreName, genreCatalog } from "@/lib/genre-catalog";
 import { loadPlatformSettings } from "@/lib/platform-settings";
 import { sampleArtists, sampleBattles, sampleTracks } from "@/lib/sample-data";
 import { discoverHomeResponseSchema } from "@/lib/schemas";
@@ -117,21 +118,7 @@ app.openapi(
     tags: ["Discover"],
   }),
   async (c) => {
-    const fallbackGenres = [
-      { id: "g_hip_hop", name: "Hip Hop", slug: "hip-hop" },
-      { id: "g_rb_soul", name: "R&B/Soul", slug: "rb-soul" },
-      { id: "g_electronic", name: "Electronic", slug: "electronic" },
-      { id: "g_pop", name: "Pop", slug: "pop" },
-      { id: "g_spoken_word", name: "Spoken Word", slug: "spoken-word" },
-      { id: "g_rock", name: "Rock", slug: "rock" },
-      { id: "g_jazz", name: "Jazz", slug: "jazz" },
-      { id: "g_afrobeats", name: "Afrobeats", slug: "afrobeats" },
-      { id: "g_latin", name: "Latin", slug: "latin" },
-      { id: "g_country", name: "Country", slug: "country" },
-      { id: "g_reggae", name: "Reggae", slug: "reggae" },
-      { id: "g_indie", name: "Indie", slug: "indie" },
-      { id: "g_metal", name: "Metal", slug: "metal" },
-    ];
+    const fallbackGenres = genreCatalog;
 
     if (!isDatabaseConfigured()) {
       return c.json(fallbackGenres, HttpStatusCodes.OK);
@@ -147,7 +134,7 @@ app.openapi(
       for (const row of rows) {
         genresBySlug.set(row.slug, {
           id: row.id,
-          name: row.name,
+          name: canonicalGenreName(row.name),
           slug: row.slug,
         });
       }

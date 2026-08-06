@@ -20,6 +20,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
@@ -99,7 +100,7 @@ app.openapi(
       rankFeaturedBattles(
         rows.map((row) => ({
           ...row,
-          genre: row.genre ?? "Uncategorized",
+          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
         }))
       ),
       HttpStatusCodes.OK
@@ -672,7 +673,9 @@ app.openapi(
           rankFeaturedBattles([
             {
               ...row,
-              genre: row.genre ?? "Uncategorized",
+              genre: row.genre
+                ? canonicalGenreName(row.genre)
+                : "Uncategorized",
             },
           ])[0],
           HttpStatusCodes.OK

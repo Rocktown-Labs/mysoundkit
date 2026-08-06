@@ -10,7 +10,7 @@ import {
   tracks,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -25,6 +25,7 @@ import {
   isAuthenticatedUser,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { sampleProjects } from "@/lib/sample-data";
 import {
   createProjectBodySchema,
@@ -43,9 +44,16 @@ const getUploadBucketName = () =>
   (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
   null;
 
+const getUploadPublicBaseUrl = () =>
+  (
+    (env as unknown as { MEDIA_PUBLIC_URL?: string }).MEDIA_PUBLIC_URL ??
+    (env as unknown as { VITE_MEDIA_URL?: string }).VITE_MEDIA_URL ??
+    ""
+  ).replace(/\/+$/u, "");
+
 const ensureGenreId = async (genreName: string) => {
   const db = createDb();
-  const genreSlug = genreName.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-");
+  const genreSlug = canonicalGenreSlug(genreName);
   const [genreRow] = await db
     .select({ id: genres.id })
     .from(genres)
@@ -59,7 +67,7 @@ const ensureGenreId = async (genreName: string) => {
   const genreId = crypto.randomUUID();
   await db.insert(genres).values({
     id: genreId,
-    name: genreName,
+    name: canonicalGenreName(genreName),
     slug: genreSlug,
   });
 
@@ -235,6 +243,29 @@ app.openapi(
         newTrackIds.push(trackId);
       }
 
+      const projectCoverKey = body.assetIds[0] ?? null;
+
+      if (projectCoverKey) {
+        await db.insert(trackAssets).values(
+          newTrackIds.map((trackId) => ({
+            assetKind: "cover_art" as const,
+            bucketName: getUploadBucketName(),
+            id: crypto.randomUUID(),
+            metadata: {
+              originalFileName: body.title,
+              url: `${getUploadPublicBaseUrl()}/${projectCoverKey}`,
+            },
+            mimeType: "image/*",
+            objectKey: projectCoverKey,
+            sizeBytes: null,
+            status: "uploaded" as const,
+            storageProvider: "r2" as const,
+            trackId,
+            uploaderUserId: user.id,
+          }))
+        );
+      }
+
       const projectTrackRows = [...existingTrackIds, ...newTrackIds].map(
         (trackId, index) => ({
           position: index,
@@ -360,6 +391,31 @@ app.openapi(
         { message: "Project not found." },
         HttpStatusCodes.NOT_FOUND
       );
+    }
+
+    const coverObjectKey = body.assetIds?.[0] ?? null;
+
+    if (coverObjectKey) {
+      await db
+        .delete(projectAssets)
+        .where(
+          and(
+            eq(projectAssets.projectId, project.id),
+            eq(projectAssets.assetKind, "cover_art")
+          )
+        );
+      await db.insert(projectAssets).values({
+        assetKind: "cover_art",
+        bucketName: getUploadBucketName(),
+        id: crypto.randomUUID(),
+        mimeType: "image/*",
+        objectKey: coverObjectKey,
+        projectId: project.id,
+        sizeBytes: null,
+        status: "uploaded",
+        storageProvider: "r2",
+        uploaderUserId: user.id,
+      });
     }
 
     return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);

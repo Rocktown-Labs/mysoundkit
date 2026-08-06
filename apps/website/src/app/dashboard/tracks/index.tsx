@@ -117,7 +117,7 @@ function TracksPage() {
       id: track.id,
       src: track.playbackUrl ?? "",
       title: track.title,
-      trackHref: `/dashboard/tracks/${track.id}`,
+      trackHref: `/tracks/${track.id}`,
     }));
 
   const playTrack = (trackId: string) => {

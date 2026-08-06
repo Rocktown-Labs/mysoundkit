@@ -17,6 +17,8 @@ import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, sql } from "drizzle-orm";
 
+import { canonicalGenreName } from "@/lib/genre-catalog";
+
 const formatDuration = (durationMs: number | null | undefined) => {
   if (!durationMs) {
     return "0:00";
@@ -144,7 +146,7 @@ export const mapTrackSummary = ({
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
     duration: formatDuration(primaryAudioAsset?.durationMs),
     fileAvailability: fileAvailabilityFromAssets(assets),
-    genre: genre ?? "Uncategorized",
+    genre: genre ? canonicalGenreName(genre) : "Uncategorized",
     id: row.id,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
@@ -212,7 +214,7 @@ export const buildTrackSummary = async (
     artistUsername: profile?.username ?? null,
     assets: assetRows,
     collaboratorCount: collaboratorRows.length,
-    genre: genreRow?.name ?? null,
+    genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
     row,
   });
 };

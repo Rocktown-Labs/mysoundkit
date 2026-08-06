@@ -325,9 +325,15 @@ export function NewTrackForm({
     const rawCollaborators = Array.isArray(initialTrack.collaborators)
       ? (initialTrack.collaborators as Record<string, unknown>[])
       : [];
+    const assets = Array.isArray(initialTrack.assets)
+      ? (initialTrack.assets as Record<string, unknown>[])
+      : [];
+    const coverAsset = assets.find((asset) => asset.assetKind === "cover_art");
+    const coverObjectKey =
+      (coverAsset?.objectKey as string) || (initialTrack.coverArtUrl as string);
 
     form.reset({
-      coverObjectKey: (initialTrack.coverArtUrl as string) ?? "",
+      coverObjectKey: coverObjectKey ?? "",
       credits: rawCollaborators.map((c) => ({
         displayName:
           (c.name as string) || (c.displayName as string) || "Collaborator",
@@ -363,7 +369,7 @@ export function NewTrackForm({
     if (initialTrack.coverArtUrl) {
       setCoverUpload({
         fileName: `${(initialTrack.title as string) || "track"}-cover.jpg`,
-        objectKey: initialTrack.coverArtUrl as string,
+        objectKey: coverObjectKey ?? "",
         remoteUrl: initialTrack.coverArtUrl as string,
       });
     }
@@ -595,21 +601,23 @@ export function NewTrackForm({
       {
         artist: "You",
         artistHref: "/dashboard/profile",
+        autoplay: false,
         cover: coverUpload?.remoteUrl || "/placeholder.svg",
         id: track.id,
         src: remoteUrl,
         title: track.title,
-        trackHref: `/dashboard/tracks/${track.id}`,
+        trackHref: `/tracks/${track.id}`,
       },
     ]);
     setCurrentTrack({
       artist: "You",
       artistHref: "/dashboard/profile",
+      autoplay: false,
       cover: coverUpload?.remoteUrl || "/placeholder.svg",
       id: track.id,
       src: remoteUrl,
       title: track.title,
-      trackHref: `/dashboard/tracks/${track.id}`,
+      trackHref: `/tracks/${track.id}`,
     });
     setStep("assets");
 
@@ -894,6 +902,50 @@ export function NewTrackForm({
         setSubmitStage("creating");
         setSubmitProgress(60);
         const release = mapStatusToRelease(values.status, values.releaseAt);
+
+        if (selectedCoverFile) {
+          setSubmitStage("uploading");
+          const coverKeyPromise = new Promise<string>((resolve) => {
+            coverUploadResolverRef.current = resolve;
+          });
+          uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+            posthog.captureException(uploadError);
+            coverUploadResolverRef.current?.("");
+            coverUploadResolverRef.current = null;
+          });
+          const uploadedCoverKey = await Promise.race([
+            coverKeyPromise,
+            new Promise<string>((res) => setTimeout(() => res(""), 60_000)),
+          ]);
+          if (uploadedCoverKey) {
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: "cover_art",
+                  metadata: {
+                    originalFileName:
+                      coverUpload?.fileName ?? selectedCoverFile.name,
+                    url: `${MEDIA_BASE_URL}/${uploadedCoverKey}`,
+                  },
+                  mimeType: "image/*",
+                  objectKey: uploadedCoverKey,
+                  status: "ready",
+                  storageProvider: "r2",
+                },
+                param: { trackId },
+              })
+            );
+          } else {
+            coverUploadResolverRef.current = null;
+            toast({
+              description:
+                "Cover upload did not finish in time. The track keeps its existing artwork.",
+              title: "Continuing without new cover",
+            });
+          }
+          setSubmitStage("creating");
+        }
+
         await updateTrackMutation.mutateAsync({
           description: values.description || undefined,
           genre: values.genre,
@@ -1455,7 +1507,7 @@ export function NewTrackForm({
                         </FormLabel>
                         <Select
                           onValueChange={field.onChange}
-                          defaultValue={field.value}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger className="bg-background/50">

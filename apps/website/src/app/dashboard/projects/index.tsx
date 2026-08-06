@@ -180,7 +180,12 @@ function ProjectsPage() {
                       <Download className="h-4 w-4 mr-2" />
                       Download All
                     </DropdownMenuItem>
-                    <DropdownMenuItem>Edit Project</DropdownMenuItem>
+                    <Link
+                      to="/dashboard/projects/$id/edit"
+                      params={{ id: project.id }}
+                    >
+                      <DropdownMenuItem>Edit Project</DropdownMenuItem>
+                    </Link>
                     <DropdownMenuItem>Add Tracks</DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"

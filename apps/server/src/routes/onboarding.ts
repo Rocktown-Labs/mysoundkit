@@ -17,6 +17,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
 import { normalizeProfileLinks } from "@/lib/profile-links";
 import {
@@ -28,7 +29,7 @@ import {
   usernameAvailabilityResponseSchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
-import { ensureWorkspaceForUser, slugify } from "@/lib/workspace";
+import { ensureWorkspaceForUser } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
 const RESERVED_USERNAMES = new Set(["soundkit"]);
@@ -95,7 +96,8 @@ const checkUsernameAvailability = async (
 
 const ensureGenre = async (name: string) => {
   const db = createDb();
-  const slug = slugify(name);
+  const canonicalName = canonicalGenreName(name);
+  const slug = canonicalGenreSlug(name);
   const [existing] = await db
     .select({ id: genres.id })
     .from(genres)
@@ -109,7 +111,7 @@ const ensureGenre = async (name: string) => {
   const genreId = crypto.randomUUID();
   await db.insert(genres).values({
     id: genreId,
-    name,
+    name: canonicalName,
     slug,
   });
 
