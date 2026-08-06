@@ -389,8 +389,9 @@ export const usePeopleSearchQuery = (q: string) =>
     queryKey: soundkitQueryKeys.peopleSearch(q.trim()),
   });
 
-export const useConversationsQuery = () =>
+export const useConversationsQuery = (enabled = true) =>
   useQuery<ConversationSummary[]>({
+    enabled,
     queryFn: async () => rpcJson(await conversationsGet()),
     queryKey: soundkitQueryKeys.conversations,
   });

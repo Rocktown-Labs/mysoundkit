@@ -835,6 +835,9 @@ export const playlistSchema = z.object({
 export const conversationSummarySchema = z.object({
   conversationType: z.enum(["direct", "group", "battle_live"]),
   id: z.string(),
+  participantAvatarUrl: z.string().nullable(),
+  participantName: z.string().nullable(),
+  participantUsername: z.string().nullable(),
   title: z.string(),
   unreadCount: z.number(),
   updatedAt: z.string(),

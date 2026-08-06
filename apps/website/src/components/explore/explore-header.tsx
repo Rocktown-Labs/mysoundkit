@@ -10,8 +10,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 
 import { CartDrawer } from "@/components/cart-drawer";
 import { useCart } from "@/components/cart-provider";
@@ -25,14 +24,23 @@ const SEARCH_DEBOUNCE_MS = 250;
 const resultLinkClassName =
   "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer";
 
+const canOpenDashboardForUser = (user?: {
+  accountType: string;
+  onboardingCompletedAt?: string | null;
+  role?: string | null;
+}) =>
+  Boolean(user?.onboardingCompletedAt) &&
+  (user?.accountType === "artist" || user?.role === "admin");
+
+// The search, cart, and account controls intentionally share one responsive header.
+// eslint-disable-next-line complexity
 export function ExploreHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { cart, setIsCartOpen } = useCart();
   const meQuery = useMeQuery();
   const me = meQuery.data;
   const isSignedIn = Boolean(me);
-  const canOpenDashboard =
-    me?.user.accountType === "artist" || me?.user.role === "admin";
+  const canOpenDashboard = canOpenDashboardForUser(me?.user);
 
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
@@ -194,7 +202,7 @@ export function ExploreHeader() {
                           {project.title}
                         </span>
                         <span className="block truncate text-[10px] text-muted-foreground">
-                          {project.artistName} • {project.type}
+                          {project.artistName} • {project.projectType}
                         </span>
                       </span>
                     </Link>

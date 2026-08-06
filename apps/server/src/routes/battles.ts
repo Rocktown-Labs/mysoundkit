@@ -1,12 +1,15 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  battleChallenges,
   battleRounds,
   battleStats,
   battles,
   genres,
   trackLyrics,
   tracks,
+  userNotifications,
+  userProfiles,
 } from "@soundkit/db/schema/app";
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
@@ -20,7 +23,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { canonicalGenreName } from "@/lib/genre-catalog";
+import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
@@ -265,6 +268,10 @@ app.openapi(
         messageResponseSchema,
         "Premium artist access required"
       ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Opponent artist not found"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -295,8 +302,97 @@ app.openapi(
     }
 
     const body = c.req.valid("json");
+    const opponentUsername = body.opponentUsername.trim().replace(/^@/u, "");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: `Challenge created for ${opponentUsername}` },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const db = createDb();
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+
+    const genreSlug = canonicalGenreSlug(body.genre);
+    const [genreRow] = await db
+      .select({ id: genres.id })
+      .from(genres)
+      .where(eq(genres.slug, genreSlug))
+      .limit(1);
+    const genreId = genreRow?.id ?? crypto.randomUUID();
+
+    if (!genreRow) {
+      await db.insert(genres).values({
+        description: null,
+        id: genreId,
+        name: canonicalGenreName(body.genre),
+        slug: genreSlug,
+      });
+    }
+
+    const [opponentProfile] = await db
+      .select({ userId: userProfiles.userId })
+      .from(userProfiles)
+      .where(
+        and(
+          eq(userProfiles.accountType, "artist"),
+          eq(userProfiles.username, opponentUsername)
+        )
+      )
+      .limit(1);
+
+    if (!opponentProfile || opponentProfile.userId === user.id) {
+      return c.json(
+        { message: "Choose an existing artist other than yourself." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const parsedProposedDate = body.proposedDate
+      ? new Date(body.proposedDate)
+      : null;
+    const proposedDate =
+      parsedProposedDate && !Number.isNaN(parsedProposedDate.getTime())
+        ? parsedProposedDate
+        : null;
+
+    await db.insert(battleChallenges).values({
+      challengerOrganizationId: organizationId,
+      challengerUserId: user.id,
+      format: body.format,
+      genreId,
+      id: crypto.randomUUID(),
+      message: body.message ?? null,
+      opponentArtistUserId: opponentProfile?.userId ?? null,
+      opponentUsernameSnapshot: opponentUsername,
+      proposedDate,
+      proposedTimeLabel: body.proposedTimeLabel ?? null,
+      status: "pending",
+    });
+
+    const [challengerProfile] = await db
+      .select({ username: userProfiles.username })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, user.id))
+      .limit(1);
+    const challengerUsername =
+      challengerProfile?.username ?? user.name ?? "artist";
+
+    await db.insert(userNotifications).values({
+      id: crypto.randomUUID(),
+      link: "/dashboard/live/challenge",
+      message: `@${challengerUsername} challenged you to a ${body.format.replaceAll("_", " ")} ${canonicalGenreName(body.genre)} battle.`,
+      title: "New Battle Challenge",
+      type: "battle_challenge",
+      userId: opponentProfile.userId,
+    });
+
     return c.json(
-      { message: `Challenge created for ${body.opponentUsername}` },
+      { message: `Challenge created for ${opponentUsername}` },
       HttpStatusCodes.CREATED
     );
   }
