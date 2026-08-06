@@ -48,6 +48,7 @@
 
 ### Changed
 
+- Reworked the dashboard video upload flow to use resumable UpChunk chunked uploads to Mux, client-side file validation, live progress bars, and real project/track linkage instead of mock history.
 - Redesigned the admin payments tab around payment health, a compact subscription catalog, clearer Stripe actions, and improved coupons/grants management.
 - Updated RealtimeKit REST client response handling to match Cloudflare's standard payload shape (`data`) and documented meeting fields.
 - Removed fake working rooms, demo catalog fallback audio, and placeholder Stripe prices/coupons across RealtimeKit, tracks, admin finance, and billing APIs.
@@ -57,6 +58,8 @@
 
 - Fixed browser multipart uploads crashing on R2's part-upload response (`TypeError: null is not an object (evaluating 'getResponseHeader("ETag").replace')`) by exposing the `ETag` response header through the media bucket CORS rule so `@better-upload` can read it when building the complete-multipart request.
 - Fixed uploads failing before R2 storage by validating JSON request bodies against a cloned stream so the original body remains readable by the signed-URL upload handler instead of returning `400 Invalid JSON body`.
+- Fixed Mux webhook retries dead-locking by only short-circuiting already-processed or ignored events and marking failed event rows so Mux's retry queue resumes, and by persisting a derived thumbnail URL when `video.asset.ready` fires.
+- Added a `DELETE /v1/videos/:videoId` endpoint with ownership checks and Mux asset/upload cleanup, plus a dashboard delete confirmation dialog wired to it.
 - Fixed the genre selector collapsing to a single option by merging persisted genre rows with the full fallback catalog so the dropdown always shows every supported genre.
 - Fixed track and project wizard uploads hanging for up to two minutes when a file upload to object storage fails by wiring `onUploadFail` handlers that surface the error and resume submission immediately.
 - Added signed-URL upload trace logging (`upload_signed_url_requested`/`_issued`/`_rejected`) so Cloudflare invocation logs show upload request outcomes per route.

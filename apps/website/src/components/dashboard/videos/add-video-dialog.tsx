@@ -1,15 +1,18 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
   Film,
   LoaderCircle,
+  Lock,
   Sparkles,
   Upload,
   Youtube,
+  Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -44,6 +47,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
+import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
+import { uploadVideoFile, validateVideoFile } from "@/lib/video-upload";
 
 const videoFormSchema = z.object({
   description: z.string().optional(),
@@ -70,7 +75,8 @@ interface AddVideoDialogProps {
 
 const uploadDirectVideo = async (
   values: VideoFormValues,
-  videoFile: File
+  videoFile: File,
+  onProgress: (percent: number) => void
 ): Promise<void> => {
   const createResponse = await fetch(`${API_V1_URL}/videos/direct-upload`, {
     body: JSON.stringify({
@@ -94,15 +100,11 @@ const uploadDirectVideo = async (
     throw new Error(createPayload.message ?? "Failed to create upload.");
   }
 
-  const uploadResponse = await fetch(createPayload.uploadUrl, {
-    body: videoFile,
-    headers: { "Content-Type": videoFile.type || "video/mp4" },
-    method: "PUT",
+  await uploadVideoFile({
+    file: videoFile,
+    onProgress,
+    uploadUrl: createPayload.uploadUrl,
   });
-
-  if (!uploadResponse.ok) {
-    throw new Error("Video upload failed before Mux could process it.");
-  }
 };
 
 const saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
@@ -133,12 +135,16 @@ const saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
 export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
   const [step, setStep] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<{
     muxPlaybackId?: string;
     externalPlaybackUrl?: string;
     title: string;
   } | null>(null);
+  const { data: entitlements, isLoading: isEntitlementsLoading } =
+    useMeEntitlementsQuery();
+  const isPremium = entitlements?.isPremium ?? true;
 
   const form = useForm<VideoFormValues>({
     defaultValues: {
@@ -167,6 +173,15 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
       return;
     }
 
+    if (values.sourceType === "upload" && !isPremium) {
+      toast({
+        description: "A premium artist subscription is required to upload.",
+        title: "Premium required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (step === 1) {
       // Prepare preview
       setPreviewData({
@@ -183,7 +198,7 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
     setIsUploading(true);
     try {
       if (values.sourceType === "upload" && videoFile) {
-        await uploadDirectVideo(values, videoFile);
+        await uploadDirectVideo(values, videoFile, setUploadProgress);
         toast({
           description: "Your video is being processed by Mux.",
           title: "Upload started",
@@ -200,6 +215,7 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
       setStep(1);
       form.reset();
       setVideoFile(null);
+      setUploadProgress(null);
     } catch (error) {
       toast({
         description:
@@ -230,7 +246,9 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
     submitButtonContent = (
       <>
         <LoaderCircle className="mr-2 size-4 animate-spin" />
-        Processing...
+        {uploadProgress !== null && sourceType === "upload"
+          ? `Uploading ${Math.round(uploadProgress)}%`
+          : "Processing..."}
       </>
     );
   }
@@ -379,9 +397,18 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                               <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 h-12">
                                 <TabsTrigger
                                   value="upload"
+                                  disabled={
+                                    isPremium === false &&
+                                    !isEntitlementsLoading
+                                  }
                                   className="flex items-center gap-2 data-[state=active]:bg-card"
                                 >
-                                  <Upload className="size-4" />
+                                  {isPremium === false &&
+                                  !isEntitlementsLoading ? (
+                                    <Lock className="size-4" />
+                                  ) : (
+                                    <Upload className="size-4" />
+                                  )}
                                   Direct Upload
                                 </TabsTrigger>
                                 <TabsTrigger
@@ -397,53 +424,93 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
                                   value="upload"
                                   className="mt-0 space-y-4"
                                 >
-                                  <div className="space-y-2">
-                                    <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                                      Video File
-                                    </Label>
-                                    <Input
-                                      type="file"
-                                      accept="video/*"
-                                      onChange={(e) =>
-                                        setVideoFile(
-                                          e.target.files?.[0] || null
-                                        )
-                                      }
-                                      className="bg-card/50"
-                                    />
-                                    <p className="text-[10px] text-muted-foreground">
-                                      Max file size: 2GB. Supported: MP4, MOV,
-                                      WebM.
-                                    </p>
-                                  </div>
-                                  <FormField
-                                    control={form.control}
-                                    name="playbackPolicy"
-                                    render={({ field: policyField }) => (
-                                      <FormItem>
-                                        <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                                          Playback Policy
-                                        </FormLabel>
-                                        <Select
-                                          onValueChange={(value) =>
-                                            policyField.onChange(value)
-                                          }
-                                          defaultValue={policyField.value}
-                                        >
-                                          <FormControl>
-                                            <SelectTrigger className="bg-card/50">
-                                              <SelectValue placeholder="Select policy" />
-                                            </SelectTrigger>
-                                          </FormControl>
-                                          <SelectContent>
-                                            <SelectItem value="public">
-                                              Public (Everyone can view)
-                                            </SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </FormItem>
-                                    )}
-                                  />
+                                  {isPremium === false &&
+                                  !isEntitlementsLoading ? (
+                                    <div className="space-y-3 text-center py-2">
+                                      <div className="mx-auto size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                                        <Zap className="size-5" />
+                                      </div>
+                                      <p className="text-sm font-semibold">
+                                        Verified uploads require Premium
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Upgrade to upload music videos hosted on
+                                        SoundKit with Mux transcoding.
+                                      </p>
+                                      <Button asChild size="sm">
+                                        <Link to="/dashboard/billing">
+                                          <Zap className="mr-2 size-3.5" />
+                                          Upgrade Account
+                                        </Link>
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="space-y-2">
+                                        <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                          Video File
+                                        </Label>
+                                        <Input
+                                          type="file"
+                                          accept="video/mp4,video/quicktime,video/webm"
+                                          onChange={(e) => {
+                                            const file =
+                                              e.target.files?.[0] || null;
+                                            if (!file) {
+                                              setVideoFile(null);
+                                              return;
+                                            }
+                                            const validationError =
+                                              validateVideoFile(file);
+                                            if (validationError) {
+                                              toast({
+                                                description: validationError,
+                                                title: "Invalid video",
+                                                variant: "destructive",
+                                              });
+                                              e.target.value = "";
+                                              setVideoFile(null);
+                                              return;
+                                            }
+                                            setVideoFile(file);
+                                          }}
+                                          className="bg-card/50"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground">
+                                          Max file size: 2GB. Supported: MP4,
+                                          MOV, WebM.
+                                        </p>
+                                      </div>
+                                      <FormField
+                                        control={form.control}
+                                        name="playbackPolicy"
+                                        render={({ field: policyField }) => (
+                                          <FormItem>
+                                            <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                              Playback Policy
+                                            </FormLabel>
+                                            <Select
+                                              onValueChange={(value) =>
+                                                policyField.onChange(value)
+                                              }
+                                              defaultValue={policyField.value}
+                                            >
+                                              <FormControl>
+                                                <SelectTrigger className="bg-card/50">
+                                                  <SelectValue placeholder="Select policy" />
+                                                </SelectTrigger>
+                                              </FormControl>
+                                              <SelectContent>
+                                                <SelectItem value="public">
+                                                  Public (Everyone can view)
+                                                </SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </FormItem>
+                                        )}
+                                      />
+                                    </>
+                                  )}
                                 </TabsContent>
                                 <TabsContent value="youtube" className="mt-0">
                                   <FormField

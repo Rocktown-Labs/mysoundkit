@@ -513,6 +513,9 @@ export const rpcContract = new Hono()
     jsonValidator(directVideoUploadBodySchema),
     (c) => c.json({} as z.infer<typeof directVideoUploadResponseSchema>, 201)
   )
+  .delete("/v1/videos/:videoId", (c) =>
+    c.json({} as z.infer<typeof messageResponseSchema>)
+  )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)
   )

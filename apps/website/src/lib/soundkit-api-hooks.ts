@@ -74,6 +74,7 @@ const openVerseSubmissionPost =
   apiClient.v1["open-verses"][":listingId"].submissions.$post;
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
+const videoDelete = apiClient.v1.videos[":videoId"].$delete;
 const notificationsGet = apiClient.v1.notifications.index.$get;
 const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
 const trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post;
@@ -926,6 +927,19 @@ export const useCreateVideoMutation = () => {
   return useMutation({
     mutationFn: async (body: CreateVideoBody) =>
       rpcJson(await videosPost({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      }),
+  });
+};
+
+export const useDeleteVideoMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (videoId: string) =>
+      rpcJson(await videoDelete({ param: { videoId } })),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.videosPrefix,

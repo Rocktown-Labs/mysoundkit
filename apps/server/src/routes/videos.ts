@@ -506,4 +506,77 @@ app.openapi(
   }
 );
 
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/{videoId}",
+    request: {
+      params: z.object({
+        videoId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(messageResponseSchema, "Video deleted"),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Ownership required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Video not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Videos"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { videoId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ message: "Video deleted." }, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const [video] = await db
+      .select()
+      .from(videos)
+      .where(eq(videos.id, videoId))
+      .limit(1);
+
+    if (!video) {
+      return c.json({ message: "Video not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    if (video.ownerUserId !== user.id) {
+      return c.json(
+        forbiddenMessage("You can only delete your own videos."),
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const mux = getMuxClient();
+
+    if (mux) {
+      if (video.muxAssetId) {
+        await mux.video.assets.delete(video.muxAssetId).catch(() => null);
+      } else if (video.muxUploadId) {
+        await mux.video.uploads.cancel(video.muxUploadId).catch(() => null);
+      }
+    }
+
+    await db.delete(videos).where(eq(videos.id, videoId));
+
+    return c.json({ message: "Video deleted." }, HttpStatusCodes.OK);
+  }
+);
+
 export default app;
