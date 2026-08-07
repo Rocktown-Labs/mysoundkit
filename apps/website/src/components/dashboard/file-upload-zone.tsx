@@ -115,7 +115,7 @@ export function FileUploadZone({
           : "border-border/40 hover:border-primary/60 bg-card/30 hover:bg-card/50",
         hasFiles && "border-primary/40 bg-primary/5",
         variant === "compact" && "min-h-[120px]",
-        isArtwork && "aspect-square min-h-0 w-full max-w-md"
+        isArtwork && "aspect-square min-h-0 w-full max-w-md mx-auto"
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

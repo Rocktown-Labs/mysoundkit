@@ -58,6 +58,7 @@
 
 ### Fixed
 
+- Fixed new track pages crashing when restored drafts omitted `status`, and made track/project artwork selectors consistently square, centered, and image-first.
 - Fixed new track submissions retaining stale local draft/media metadata and failing to attach uploaded cover artwork to the persisted track asset record.
 - Fixed cover artwork upload cards rendering as wide clipped previews by using a square image-first layout with visible artwork controls.
 - Fixed browser multipart uploads crashing on R2's part-upload response (`TypeError: null is not an object (evaluating 'getResponseHeader("ETag").replace')`) by exposing the `ETag` response header through the media bucket CORS rule so `@better-upload` can read it when building the complete-multipart request.

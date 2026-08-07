@@ -870,6 +870,11 @@ export function NewProjectForm({
                     title="Upload Project Cover"
                     description="Used for the entire collection"
                     acceptedTypes=".png,.jpg,.jpeg"
+                    previewUrl={
+                      selectedCoverFile
+                        ? URL.createObjectURL(selectedCoverFile)
+                        : (projectCover?.remoteUrl ?? null)
+                    }
                     files={
                       selectedCoverFile
                         ? [
@@ -890,6 +895,14 @@ export function NewProjectForm({
                           : []
                     }
                     onFileUpload={handleProjectCoverUpload}
+                    onRemove={() => {
+                      setSelectedCoverFile(null);
+                      setProjectCover(null);
+                      form.setValue("projectCoverObjectKey", "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
                     progress={isCoverUploading ? coverProgress : undefined}
                     status={
                       isCoverUploading

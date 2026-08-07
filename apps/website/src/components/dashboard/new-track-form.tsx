@@ -1989,7 +1989,8 @@ export function NewTrackForm({
               <AccordionContent className="pt-2 pb-6 space-y-8">
                 <div className="rounded-xl border border-border/40 bg-muted/20 p-4 text-sm">
                   <p className="font-semibold capitalize">
-                    Status: {form.watch("status").replaceAll("_", " ")}
+                    Status:{" "}
+                    {(form.watch("status") ?? "draft").replaceAll("_", " ")}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Change status in Track Details. Ready makes the single live

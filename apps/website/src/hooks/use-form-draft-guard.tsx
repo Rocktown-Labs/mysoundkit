@@ -60,13 +60,18 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     try {
       const stored = window.localStorage.getItem(storageKey);
       if (stored) {
-        form.reset(JSON.parse(stored) as TFieldValues);
+        const parsedDraft = JSON.parse(stored) as Partial<TFieldValues>;
+        form.reset(
+          defaultValues
+            ? ({ ...defaultValues, ...parsedDraft } as TFieldValues)
+            : (parsedDraft as TFieldValues)
+        );
         setHasSavedDraft(true);
       }
     } catch {
       window.localStorage.removeItem(storageKey);
     }
-  }, [form, storageKey]);
+  }, [defaultValues, form, storageKey]);
 
   // Persist values whenever they change.
   useEffect(() => {
