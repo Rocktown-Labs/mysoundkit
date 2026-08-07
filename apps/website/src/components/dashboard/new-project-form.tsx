@@ -571,7 +571,9 @@ export function NewProjectForm({
         description: `${project.title} is now in your project dashboard.`,
         title: "Project Created",
       });
-      clearDraft();
+      resetDraft();
+      setSelectedCoverFile(null);
+      setProjectCover(null);
       allowNavigation();
       router.navigate({ to: "/dashboard/projects" });
     } catch (error) {
