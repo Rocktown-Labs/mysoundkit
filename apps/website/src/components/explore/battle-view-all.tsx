@@ -13,9 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { musicGenres } from "@/lib/music-genres";
 import { useBattlesQuery } from "@/lib/soundkit-api-hooks";
 import type { BattleSummary } from "@/lib/soundkit-api-hooks";
-import { musicGenres } from "@/lib/music-genres";
 
 import { BattleFilters } from "./battle-filters";
 
@@ -174,9 +174,7 @@ const groupBattlesByGenre = (battles: BattleSummary[]) => {
     grouped.set(groupKey, group);
   }
 
-  const knownGenreValues = new Set(
-    musicGenres.map((genre) => genre.value)
-  );
+  const knownGenreValues = new Set(musicGenres.map((genre) => genre.value));
   const orderedGenres = musicGenres.map((genre) => ({
     battles: grouped.get(genre.value) ?? [],
     genre: genre.label,
@@ -306,8 +304,8 @@ export function BattleViewAll({
     genreFromSearch !== null ||
     sortFromSearch !== null;
 
-  const [regionType, setRegionType] = useState<"north-america" | "global">(() =>
-    regionTypeFromSearch === "global" ? "global" : DEFAULT_REGION_TYPE
+  const [regionType, setRegionType] = useState<"north-america" | "global">(
+    () => (regionTypeFromSearch === "global" ? "global" : DEFAULT_REGION_TYPE)
   );
 
   const [region, setRegion] = useState(

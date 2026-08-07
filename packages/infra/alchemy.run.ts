@@ -110,6 +110,10 @@ const media = await R2Bucket("media", {
         methods: ["GET", "HEAD", "PUT", "POST"],
         origins: [SITE_URL, API_URL],
       },
+      // @better-upload multipart uploads read the ETag response header from
+      // the part PUT to build the CompleteMultipartUpload request, so it must
+      // be exposed to the browser across origins.
+      exposeHeaders: ["ETag"],
     },
   ],
   domains: app.local
@@ -241,6 +245,10 @@ export const server = await Worker("server", {
     MUX_WEBHOOK_SECRET: requiredSecret(
       alchemy.secret.env.MUX_WEBHOOK_SECRET,
       "MUX_WEBHOOK_SECRET"
+    ),
+    OPENAI_API_KEY: requiredSecret(
+      alchemy.secret.env.OPENAI_API_KEY,
+      "OPENAI_API_KEY"
     ),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     STEMSPLIT_API_KEY: requiredSecret(

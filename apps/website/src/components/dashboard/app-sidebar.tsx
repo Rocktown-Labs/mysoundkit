@@ -93,12 +93,6 @@ export function AppSidebar() {
       url: "/dashboard/live",
     },
     {
-      icon: Music,
-      isActive: isRouteActive("/dashboard/live/my-kit"),
-      title: "My Kit",
-      url: "/dashboard/live/my-kit",
-    },
-    {
       icon: Users,
       isActive: isRouteActive("/dashboard/live/parties"),
       title: "Parties",
@@ -109,6 +103,12 @@ export function AppSidebar() {
       isActive: isRouteActive("/dashboard/live/streams"),
       title: "Streams",
       url: "/dashboard/live/streams",
+    },
+    {
+      icon: Music,
+      isActive: isRouteActive("/dashboard/live/my-kit"),
+      title: "My Kits",
+      url: "/dashboard/live/my-kit",
     },
     {
       icon: BarChart3,

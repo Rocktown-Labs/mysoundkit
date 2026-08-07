@@ -590,3 +590,65 @@ export const recordPlaybackProgress = async ({
     result: "qualified" as PlaybackQualificationResult,
   };
 };
+
+export const recordLiveSessionTrackPlayback = async ({
+  db,
+  experienceId,
+  kind,
+  listenerUserIds,
+  playedSeconds,
+  trackId,
+}: {
+  db: SoundKitDb;
+  experienceId: string;
+  kind: "live_battle" | "live_stream" | "listening_party";
+  listenerUserIds: string[];
+  playedSeconds: number;
+  trackId: string;
+}) => {
+  const results: {
+    listenerUserId: string;
+    result: PlaybackQualificationResult;
+  }[] = [];
+
+  const sourceType =
+    kind === "live_battle"
+      ? "battle"
+      : kind === "live_stream"
+        ? "vod"
+        : "listening_party";
+
+  for (const listenerUserId of listenerUserIds) {
+    const session = await createTrackPlaybackSession({
+      db,
+      input: {
+        entitlementSnapshot: {
+          activePlanCode: "soundkit_premium_artist",
+          isPremium: true,
+          status: "active",
+        },
+        listenerUserId,
+        sourceId: experienceId,
+        sourceType,
+        trackId,
+      },
+    });
+
+    if (session) {
+      const progress = await recordPlaybackProgress({
+        db,
+        input: {
+          durationSeconds: session.durationSeconds ?? playedSeconds,
+          ended: true,
+          listenerUserId,
+          playedSeconds,
+          sessionId: session.id,
+          trackId,
+        },
+      });
+      results.push({ listenerUserId, result: progress.result });
+    }
+  }
+
+  return results;
+};

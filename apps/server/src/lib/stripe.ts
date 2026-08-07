@@ -20,7 +20,7 @@ export const stripeRequest = async <T>({
   path,
 }: {
   connectedAccountId?: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "DELETE";
   params?: URLSearchParams;
   path: string;
 }): Promise<T | null> => {
@@ -160,6 +160,105 @@ export const createStripeRecurringPrice = ({
   });
 };
 
+export interface StripeCouponSummary {
+  amount_off?: number | null;
+  applies_to?: { products?: string[] } | null;
+  currency?: string | null;
+  duration: "once" | "repeating" | "forever";
+  duration_in_months?: number | null;
+  id: string;
+  max_redemptions?: number | null;
+  metadata?: Record<string, string> | null;
+  name?: string | null;
+  percent_off?: number | null;
+  redeem_by?: number | null;
+  times_redeemed?: number;
+  valid: boolean;
+}
+
+export const listStripeCoupons = () => {
+  const params = new URLSearchParams();
+  appendValue(params, "limit", 100);
+
+  return stripeRequest<StripeListResponse<StripeCouponSummary>>({
+    method: "GET",
+    params,
+    path: "/coupons",
+  });
+};
+
+export const createStripeCoupon = ({
+  amountOff,
+  appliesToProducts,
+  currency = "usd",
+  duration = "once",
+  durationInMonths,
+  id,
+  maxRedemptions,
+  metadata,
+  name,
+  percentOff,
+  redeemBy,
+}: {
+  amountOff?: number;
+  appliesToProducts?: string[];
+  currency?: string;
+  duration?: "once" | "repeating" | "forever";
+  durationInMonths?: number;
+  id?: string;
+  maxRedemptions?: number;
+  metadata?: Record<string, string>;
+  name?: string;
+  percentOff?: number;
+  redeemBy?: number;
+}) => {
+  const params = new URLSearchParams();
+  appendValue(params, "duration", duration);
+  if (id) {
+    appendValue(params, "id", id);
+  }
+  if (name) {
+    appendValue(params, "name", name);
+  }
+  if (percentOff) {
+    appendValue(params, "percent_off", percentOff);
+  }
+  if (amountOff) {
+    appendValue(params, "amount_off", amountOff);
+    appendValue(params, "currency", currency);
+  }
+  if (duration === "repeating" && durationInMonths) {
+    appendValue(params, "duration_in_months", durationInMonths);
+  }
+  if (maxRedemptions) {
+    appendValue(params, "max_redemptions", maxRedemptions);
+  }
+  if (redeemBy) {
+    appendValue(params, "redeem_by", redeemBy);
+  }
+  if (appliesToProducts && appliesToProducts.length > 0) {
+    for (const [index, prodId] of appliesToProducts.entries()) {
+      appendValue(params, `applies_to[products][${index}]`, prodId);
+    }
+  }
+  if (metadata) {
+    for (const [key, val] of Object.entries(metadata)) {
+      appendValue(params, `metadata[${key}]`, val);
+    }
+  }
+
+  return stripeRequest<StripeCouponSummary>({
+    params,
+    path: "/coupons",
+  });
+};
+
+export const deleteStripeCoupon = (couponId: string) =>
+  stripeRequest<{ deleted: boolean; id: string }>({
+    method: "DELETE",
+    path: `/coupons/${encodeURIComponent(couponId)}`,
+  });
+
 export const createDestinationCheckout = ({
   applicationFeeCents,
   cancelUrl,
@@ -184,6 +283,7 @@ export const createDestinationCheckout = ({
 }) => {
   const params = new URLSearchParams();
   appendValue(params, "mode", "payment");
+  appendValue(params, "allow_promotion_codes", true);
   appendValue(params, "success_url", successUrl);
   appendValue(params, "cancel_url", cancelUrl);
   appendValue(params, "customer_email", customerEmail);
@@ -251,6 +351,7 @@ export const createConnectedSubscriptionCheckout = ({
 }) => {
   const params = new URLSearchParams();
   appendValue(params, "mode", "subscription");
+  appendValue(params, "allow_promotion_codes", true);
   appendValue(params, "success_url", successUrl);
   appendValue(params, "cancel_url", cancelUrl);
   appendValue(params, "customer_email", customerEmail);

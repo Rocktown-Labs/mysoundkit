@@ -5,6 +5,7 @@ import {
   artistProfileRoles,
   artistProfiles,
   genres,
+  openVerseListings,
   playbackSessions,
   purchases,
   trackAssets,
@@ -36,6 +37,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import {
   createTrackPlaybackSession,
   recordPlaybackProgress,
@@ -45,7 +47,7 @@ import {
   stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
-import { sampleCatalogItems, sampleTracks } from "@/lib/sample-data";
+import { sampleTracks } from "@/lib/sample-data";
 import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
@@ -70,6 +72,7 @@ import {
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
+import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
 const databaseUnavailableMessage = {
@@ -211,7 +214,7 @@ app.openapi(
     const isPublicScope = query.scope === "public";
 
     if (!isDatabaseConfigured()) {
-      return c.json(sampleTracks, HttpStatusCodes.OK);
+      return c.json([], HttpStatusCodes.OK);
     }
 
     if (isPublicScope || !isAuthenticatedUser(user)) {
@@ -248,10 +251,6 @@ app.openapi(
 
       for (const row of rows) {
         summaries.push(await buildTrackSummary(row.tracks));
-      }
-
-      if (summaries.length === 0) {
-        return c.json(sampleTracks, HttpStatusCodes.OK);
       }
 
       return c.json(summaries, HttpStatusCodes.OK);
@@ -339,31 +338,49 @@ app.openapi(
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
-    const playbackSession = await createTrackPlaybackSession({
-      db: createDb(),
-      input: {
-        city: body.city,
-        clientType: body.clientType,
-        clientVersion: body.clientVersion,
-        countryCode: body.countryCode,
-        entitlementSnapshot: {
-          activePlanCode: entitlements.activePlanCode,
-          isPremium: entitlements.isPremium,
-          status: entitlements.status,
+    try {
+      const playbackSession = await createTrackPlaybackSession({
+        db: createDb(),
+        input: {
+          city: body.city,
+          clientType: body.clientType,
+          clientVersion: body.clientVersion,
+          countryCode: body.countryCode,
+          entitlementSnapshot: {
+            activePlanCode: entitlements.activePlanCode,
+            isPremium: entitlements.isPremium,
+            status: entitlements.status,
+          },
+          listenerUserId: user.id,
+          regionCode: body.regionCode,
+          sourceId: body.sourceId,
+          sourceType: body.sourceType,
+          trackId,
         },
-        listenerUserId: user.id,
-        regionCode: body.regionCode,
-        sourceId: body.sourceId,
-        sourceType: body.sourceType,
-        trackId,
-      },
-    });
+      });
 
-    if (!playbackSession) {
-      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+      if (!playbackSession) {
+        return c.json(
+          {
+            canQualify: false,
+            durationSeconds: null,
+            id: crypto.randomUUID(),
+          },
+          HttpStatusCodes.CREATED
+        );
+      }
+
+      return c.json(playbackSession, HttpStatusCodes.CREATED);
+    } catch {
+      return c.json(
+        {
+          canQualify: false,
+          durationSeconds: null,
+          id: crypto.randomUUID(),
+        },
+        HttpStatusCodes.CREATED
+      );
     }
-
-    return c.json(playbackSession, HttpStatusCodes.CREATED);
   }
 );
 
@@ -676,6 +693,10 @@ app.openapi(
         setupRequiredResponseSchema,
         "Seller onboarding required"
       ),
+      [HttpStatusCodes.INTERNAL_SERVER_ERROR]: jsonContent(
+        messageResponseSchema,
+        "Internal server error"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"
@@ -715,6 +736,7 @@ app.openapi(
           id: "track_new",
           isForSale: body.isForSale,
           isPublic: body.isPublic,
+          isrc: body.isrc ?? null,
           lyricsStatus: "missing" as const,
           musicalKey: body.musicalKey ?? null,
           organizationId: null,
@@ -727,6 +749,7 @@ app.openapi(
           releaseAt: body.releaseAt ?? null,
           releaseStrategy: body.releaseStrategy,
           slug: body.title.toLowerCase().replaceAll(" ", "-"),
+          streamingLinks: body.streamingLinks ?? {},
           title: body.title,
           updatedAt: new Date().toISOString(),
         },
@@ -734,184 +757,209 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
-    const [profile] = await db
-      .select({ accountType: userProfiles.accountType })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, user.id))
-      .limit(1);
-
-    if (profile?.accountType !== "artist") {
-      return c.json(
-        {
-          code: "setup_required" as const,
-          message: "Convert to an artist account before creating tracks.",
-        },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-
-    if (body.isForSale) {
-      const sellerEnabled = await isSellerEnabled({
-        organizationId,
-        userId: user.id,
+    try {
+      const db = createDb();
+      const organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
       });
+      const [profile] = await db
+        .select({ accountType: userProfiles.accountType })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1);
 
-      if (!sellerEnabled) {
-        const accountLink = await createSellerAccountLink({
-          organizationId,
-          refreshUrl: new URL(
-            "/dashboard/settings/payouts",
-            c.req.url
-          ).toString(),
-          returnUrl: new URL("/dashboard", c.req.url).toString(),
-          user,
-        });
-
+      if (profile?.accountType !== "artist") {
         return c.json(
           {
             code: "setup_required" as const,
-            message:
-              accountLink.accountLinkUrl ??
-              "Stripe Connect onboarding is required before publishing tracks for sale.",
+            message: "Convert to an artist account before creating tracks.",
           },
           HttpStatusCodes.FORBIDDEN
         );
       }
-    }
 
-    if (body.sourceObjectKey) {
-      const [existingTrack] = await withRetry(
-        "find track by source object",
-        () =>
-          db
-            .select({ track: tracks })
-            .from(trackAssets)
-            .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
-            .where(
-              and(
-                eq(trackAssets.objectKey, body.sourceObjectKey ?? ""),
-                eq(tracks.ownerUserId, user.id)
+      if (body.isForSale) {
+        const sellerEnabled = await isSellerEnabled({
+          organizationId,
+          userId: user.id,
+        });
+
+        if (!sellerEnabled) {
+          const accountLink = await createSellerAccountLink({
+            organizationId,
+            refreshUrl: new URL(
+              "/dashboard/settings/payouts",
+              c.req.url
+            ).toString(),
+            returnUrl: new URL("/dashboard", c.req.url).toString(),
+            user,
+          });
+
+          return c.json(
+            {
+              code: "setup_required" as const,
+              message:
+                accountLink.accountLinkUrl ??
+                "Stripe Connect onboarding is required before publishing tracks for sale.",
+            },
+            HttpStatusCodes.FORBIDDEN
+          );
+        }
+      }
+
+      if (body.sourceObjectKey) {
+        const [existingTrack] = await withRetry(
+          "find track by source object",
+          () =>
+            db
+              .select({ track: tracks })
+              .from(trackAssets)
+              .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+              .where(
+                and(
+                  eq(trackAssets.objectKey, body.sourceObjectKey ?? ""),
+                  eq(tracks.ownerUserId, user.id)
+                )
               )
-            )
-            .limit(1)
-      );
+              .limit(1)
+        );
 
-      if (existingTrack) {
-        return c.json(
-          await buildTrackSummary(existingTrack.track),
-          HttpStatusCodes.CREATED
+        if (existingTrack) {
+          return c.json(
+            await buildTrackSummary(existingTrack.track),
+            HttpStatusCodes.CREATED
+          );
+        }
+      }
+
+      const genreSlug = canonicalGenreSlug(body.genre);
+      const [genreRow] = await withRetry("find track genre", () =>
+        db
+          .select({ id: genres.id })
+          .from(genres)
+          .where(eq(genres.slug, genreSlug))
+          .limit(1)
+      );
+      const genreId = genreRow?.id ?? crypto.randomUUID();
+
+      if (!genreRow) {
+        await withRetry("create track genre", () =>
+          db.insert(genres).values({
+            id: genreId,
+            name: canonicalGenreName(body.genre),
+            slug: genreSlug,
+          })
         );
       }
-    }
 
-    const genreSlug = body.genre.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
-    const [genreRow] = await withRetry("find track genre", () =>
-      db
-        .select({ id: genres.id })
-        .from(genres)
-        .where(eq(genres.slug, genreSlug))
-        .limit(1)
-    );
-    const genreId = genreRow?.id ?? crypto.randomUUID();
-
-    if (!genreRow) {
-      await withRetry("create track genre", () =>
-        db.insert(genres).values({
-          id: genreId,
-          name: body.genre,
-          slug: genreSlug,
-        })
-      );
-    }
-
-    const trackId = crypto.randomUUID();
-    const now = new Date();
-    const isSingle = body.catalogItemType === "single";
-    const salePriceUsd =
-      body.isForSale && isSingle
-        ? SINGLE_TRACK_PRICE_USD
-        : (body.price ?? null);
-    const salePriceCents =
-      body.isForSale && isSingle
-        ? SINGLE_TRACK_PRICE_CENTS
-        : (body.priceCents ??
-          (typeof body.price === "number"
-            ? Math.round(body.price * 100)
-            : null));
-    const [track] = await withRetry("create track", () =>
-      db
-        .insert(tracks)
-        .values({
-          bpm: body.bpm ?? null,
-          catalogItemType: body.catalogItemType,
-          createdAt: now,
-          description: body.description ?? null,
-          genreId,
-          id: trackId,
-          isForSale: body.isForSale,
-          isPublic: body.isPublic,
-          musicalKey: body.musicalKey ?? null,
-          organizationId,
-          ownerUserId: user.id,
-          price: salePriceUsd?.toFixed(2) ?? null,
-          priceCents: salePriceCents,
-          productionStatus: body.productionStatus,
-          publishedAt: body.isPublic ? now : null,
-          purchaseMode: body.purchaseMode,
-          releaseAt: body.releaseAt ? new Date(body.releaseAt) : null,
-          releaseStrategy: body.releaseStrategy,
-          slug: uniqueSlug(body.title),
-          title: body.title,
-          updatedAt: now,
-        })
-        .returning()
-    );
-
-    if (body.assetIds.length > 0) {
-      await withRetry("attach existing track asset", () =>
+      const trackId = crypto.randomUUID();
+      const now = new Date();
+      const isSingle = body.catalogItemType === "single";
+      const rawPriceNum =
+        typeof body.price === "number"
+          ? body.price
+          : (body.price
+            ? Number(body.price)
+            : null);
+      const salePriceUsd =
+        body.isForSale && isSingle
+          ? SINGLE_TRACK_PRICE_USD
+          : (rawPriceNum !== null && !isNaN(rawPriceNum)
+            ? rawPriceNum
+            : null);
+      const salePriceCents =
+        body.isForSale && isSingle
+          ? SINGLE_TRACK_PRICE_CENTS
+          : (body.priceCents ??
+            (salePriceUsd === null ? null : Math.round(salePriceUsd * 100)));
+      const [track] = await withRetry("create track", () =>
         db
-          .update(trackAssets)
-          .set({
-            trackId,
-            updatedAt: now,
-            uploaderUserId: user.id,
-          })
-          .where(eq(trackAssets.id, body.assetIds[0] ?? ""))
-      );
-    }
-
-    if (body.collaborators.length > 0) {
-      await withRetry("insert track collaborators", () =>
-        db.insert(trackCollaborators).values(
-          body.collaborators.map((collaborator) => ({
-            canDelete: false,
-            canEdit: true,
-            canUpload: true,
-            collaboratorRole: collaborator.role,
-            collaboratorUserId: collaborator.userId ?? null,
+          .insert(tracks)
+          .values({
+            bpm: body.bpm ?? null,
+            catalogItemType: body.catalogItemType,
             createdAt: now,
-            id: crypto.randomUUID(),
-            invitationStatus: collaborator.userId
-              ? ("accepted" as const)
-              : ("pending" as const),
-            inviteEmail: collaborator.inviteEmail ?? null,
-            invitedByUserId: user.id,
-            trackId,
-          }))
-        )
+            description: body.description ?? null,
+            genreId,
+            id: trackId,
+            isForSale: body.isForSale,
+            isPublic: body.isPublic,
+            isrc: body.isrc ?? null,
+            musicalKey: body.musicalKey ?? null,
+            organizationId,
+            ownerUserId: user.id,
+            price:
+              typeof salePriceUsd === "number" ? salePriceUsd.toFixed(2) : null,
+            priceCents: salePriceCents,
+            productionStatus: body.productionStatus,
+            publishedAt: body.isPublic ? now : null,
+            purchaseMode: body.purchaseMode,
+            releaseAt: body.releaseAt ? new Date(body.releaseAt) : null,
+            releaseStrategy: body.releaseStrategy,
+            slug: uniqueSlug(body.title),
+            title: body.title,
+            updatedAt: now,
+          })
+          .returning()
+      );
+
+      if (body.assetIds.length > 0) {
+        await withRetry("attach existing track asset", () =>
+          db
+            .update(trackAssets)
+            .set({
+              trackId,
+              updatedAt: now,
+              uploaderUserId: user.id,
+            })
+            .where(eq(trackAssets.id, body.assetIds[0] ?? ""))
+        );
+      }
+
+      if (body.collaborators.length > 0) {
+        await withRetry("insert track collaborators", () =>
+          db.insert(trackCollaborators).values(
+            body.collaborators.map((collaborator) => ({
+              canDelete: false,
+              canEdit: true,
+              canUpload: true,
+              collaboratorRole: collaborator.role,
+              collaboratorUserId: collaborator.userId ?? null,
+              createdAt: now,
+              id: crypto.randomUUID(),
+              invitationStatus: collaborator.userId
+                ? ("accepted" as const)
+                : ("pending" as const),
+              inviteEmail: collaborator.inviteEmail ?? null,
+              invitedByUserId: user.id,
+              trackId,
+            }))
+          )
+        );
+      }
+
+      if (!track) {
+        throw new Error("Failed to create track.");
+      }
+
+      return c.json(await buildTrackSummary(track), HttpStatusCodes.CREATED);
+    } catch (error: unknown) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        message: "POST /v1/tracks error",
+        userId: user.id,
+      });
+      return c.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to create track record.",
+        },
+        HttpStatusCodes.INTERNAL_SERVER_ERROR
       );
     }
-
-    if (!track) {
-      throw new Error("Failed to create track.");
-    }
-
-    return c.json(await buildTrackSummary(track), HttpStatusCodes.CREATED);
   }
 );
 
@@ -964,13 +1012,35 @@ app.openapi(
       user,
     });
     const db = createDb();
+
+    let updatedGenreId: string | undefined;
+    if (body.genre) {
+      const genreSlug = canonicalGenreSlug(body.genre);
+      const [genreRow] = await db
+        .select({ id: genres.id })
+        .from(genres)
+        .where(eq(genres.slug, genreSlug));
+      if (genreRow) {
+        updatedGenreId = genreRow.id;
+      } else {
+        updatedGenreId = crypto.randomUUID();
+        await db.insert(genres).values({
+          id: updatedGenreId,
+          name: canonicalGenreName(body.genre),
+          slug: genreSlug,
+        });
+      }
+    }
+
     const [track] = await db
       .update(tracks)
       .set({
         bpm: body.bpm,
         description: body.description,
+        genreId: updatedGenreId,
         isForSale: body.isForSale,
         isPublic: body.isPublic,
+        isrc: body.isrc,
         musicalKey: body.musicalKey,
         price: body.price?.toFixed(2),
         priceCents: body.priceCents,
@@ -986,6 +1056,43 @@ app.openapi(
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    if (body.isOpenVerse !== undefined) {
+      if (body.isOpenVerse) {
+        const [existingListing] = await db
+          .select({ id: openVerseListings.id })
+          .from(openVerseListings)
+          .where(eq(openVerseListings.trackId, trackId))
+          .limit(1);
+
+        if (existingListing) {
+          await db
+            .update(openVerseListings)
+            .set({ status: "open", updatedAt: new Date() })
+            .where(eq(openVerseListings.id, existingListing.id));
+        } else {
+          await db.insert(openVerseListings).values({
+            bpm: track.bpm,
+            description:
+              track.description ?? `Open verse slot for ${track.title}`,
+            genreId: track.genreId,
+            id: crypto.randomUUID(),
+            maxSubmissions: 50,
+            musicalKey: track.musicalKey,
+            organizationId,
+            ownerUserId: user.id,
+            status: "open",
+            title: `${track.title} - open verse`,
+            trackId: track.id,
+          });
+        }
+      } else {
+        await db
+          .update(openVerseListings)
+          .set({ status: "closed", updatedAt: new Date() })
+          .where(eq(openVerseListings.trackId, trackId));
+      }
     }
 
     return c.json(await buildTrackDetail(track), HttpStatusCodes.OK);
@@ -1310,7 +1417,7 @@ app.openapi(
         message:
           masterAsset.objectKey && getTrackProcessingWorkflow()
             ? "Track processing workflow started."
-            : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and GOOGLE_GENERATIVE_AI_API_KEY to run it.",
+            : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
         status: "queued" as const,
       },
       HttpStatusCodes.ACCEPTED
@@ -1599,18 +1706,9 @@ app.openapi(
   }),
   async (c) => {
     const { trackId } = c.req.valid("param");
-    const [fallbackItem] = sampleCatalogItems;
 
-    if (!fallbackItem) {
-      throw new Error("Sample catalog is empty.");
-    }
-
-    const sampleItem =
-      sampleCatalogItems.find((entry) => entry.id === trackId) ??
-      sampleCatalogItems.find((entry) => entry.slug === trackId);
-
-    if (sampleItem || !isDatabaseConfigured()) {
-      return c.json(sampleItem ?? fallbackItem, HttpStatusCodes.OK);
+    if (!isDatabaseConfigured()) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const db = createDb();
@@ -1654,6 +1752,7 @@ app.openapi(
         id: tracks.id,
         isForSale: tracks.isForSale,
         isVerified: artistProfiles.isVerified,
+        isrc: tracks.isrc,
         musicalKey: tracks.musicalKey,
         ownerUserId: tracks.ownerUserId,
         price: tracks.price,
@@ -1670,7 +1769,7 @@ app.openapi(
       .where(eq(tracks.id, trackId));
 
     if (!row) {
-      return c.json(fallbackItem, HttpStatusCodes.OK);
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const [roleRows, assetRows, licenseRows] = await Promise.all([
@@ -1705,7 +1804,9 @@ app.openapi(
     const coverAsset = assetRows.find(
       (asset) => asset.assetKind === "cover_art"
     );
-    const firstAudioAsset = assetRows.find((asset) => asset.durationMs);
+    const firstAudioAsset =
+      assetRows.find((asset) => asset.assetKind === "master") ??
+      assetRows.find((asset) => asset.durationMs);
     const priceCents = priceCentsFromTrack({
       price: row.price,
       priceCents: row.priceCents,
@@ -1730,7 +1831,7 @@ app.openapi(
         artist: {
           avatarUrl: row.artistAvatarUrl,
           followers: null,
-          genre: row.genreName,
+          genre: row.genreName ? canonicalGenreName(row.genreName) : null,
           handle: row.artistUsername ?? row.ownerUserId,
           id: row.ownerUserId,
           listeners: null,
@@ -1751,11 +1852,12 @@ app.openapi(
         currency: row.currency,
         description: row.description,
         duration: formatDuration(firstAudioAsset?.durationMs ?? null),
-        genre: row.genreName,
+        genre: row.genreName ? canonicalGenreName(row.genreName) : null,
         id: row.id,
         isOwned,
         isPurchasable: row.isForSale,
         isStreamable: true,
+        isrc: row.isrc,
         licenseOptions: licenseRows.map((license) => ({
           currency: license.currency,
           id: license.id,
@@ -1773,7 +1875,7 @@ app.openapi(
         purchaseMode: row.purchaseMode,
         slug: row.slug,
         streamCount: null,
-        tags: row.genreName ? [row.genreName] : [],
+        tags: row.genreName ? [canonicalGenreName(row.genreName)] : [],
         title: row.title,
         visualContent: [],
       },

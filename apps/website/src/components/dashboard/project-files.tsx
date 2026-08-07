@@ -5,8 +5,10 @@ import {
   FileAudio,
   ImageIcon,
   File,
+  LoaderCircle,
 } from "lucide-react";
 
+import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,75 +18,97 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useProjectQuery } from "@/lib/soundkit-api-hooks";
 
 interface ProjectFilesProps {
   projectId: string;
 }
 
-const mockFiles = [
-  {
-    icon: FileAudio,
-    id: 1,
-    name: "Summer_Vibes_Instrumental_v3.wav",
-    size: "45.2 MB",
-    status: "complete",
-    type: "instrumental",
-    uploadedAt: "2 hours ago",
-    uploadedBy: "You",
-  },
-  {
-    icon: FileAudio,
-    id: 2,
-    name: "Lead_Vocals_Final.wav",
-    size: "32.1 MB",
-    status: "complete",
-    type: "vocals",
-    uploadedAt: "3 hours ago",
-    uploadedBy: "Producer Mike",
-  },
-  {
-    icon: FileAudio,
-    id: 3,
-    name: "Adlibs_Collection.wav",
-    size: "18.7 MB",
-    status: "complete",
-    type: "adlibs",
-    uploadedAt: "1 day ago",
-    uploadedBy: "You",
-  },
-  {
-    icon: File,
-    id: 4,
-    name: "Summer_Vibes_Session.logicx",
-    size: "2.3 GB",
-    status: "complete",
-    type: "session",
-    uploadedAt: "2 days ago",
-    uploadedBy: "Producer Mike",
-  },
-  {
-    icon: ImageIcon,
-    id: 5,
-    name: "Cover_Art_Final.png",
-    size: "4.2 MB",
-    status: "complete",
-    type: "coverArt",
-    uploadedAt: "1 week ago",
-    uploadedBy: "You",
-  },
-  {
-    icon: FileAudio,
-    id: 6,
-    name: "Reference_Track.mp3",
-    size: "8.1 MB",
-    status: "complete",
-    type: "reference",
-    uploadedAt: "2 weeks ago",
-    uploadedBy: "Producer Mike",
-  },
-];
+const formatBytes = (sizeBytes: number | null | undefined) => {
+  if (!sizeBytes || sizeBytes <= 0) {
+    return "—";
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const assetKindLabel = (assetKind: string) => assetKind.replaceAll("_", " ");
+
+const assetKindIcon = (assetKind: string) => {
+  if (assetKind === "cover_art") {
+    return ImageIcon;
+  }
+  if (assetKind.includes("audio") || assetKind === "master") {
+    return FileAudio;
+  }
+  return File;
+};
 
 export function ProjectFiles({ projectId }: ProjectFilesProps) {
+  const projectQuery = useProjectQuery(projectId);
+  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const project = projectQuery.data;
+  const tracks = project?.tracks ?? [];
+  const assets = project?.assets ?? [];
+
+  const handlePlayTrack = (track: (typeof tracks)[number]) => {
+    if (!track.playbackUrl) {
+      return;
+    }
+    const playerTrack = {
+      artist: track.artistName,
+      artistHref: track.artistUsername
+        ? `/artist/${track.artistUsername}`
+        : "/dashboard/profile",
+      cover: track.coverArtUrl ?? "/placeholder.svg",
+      id: track.id,
+      src: track.playbackUrl,
+      title: track.title,
+      trackHref: `/dashboard/tracks/${track.id}`,
+    };
+    setQueue([playerTrack]);
+    setCurrentTrack(playerTrack);
+  };
+
+  const playableTracks = tracks.filter((track) => Boolean(track.playbackUrl));
+
+  const handlePlayAll = () => {
+    if (playableTracks.length === 0) {
+      return;
+    }
+    const queue = playableTracks.map((track) => ({
+      artist: track.artistName,
+      artistHref: track.artistUsername
+        ? `/artist/${track.artistUsername}`
+        : "/dashboard/profile",
+      cover: track.coverArtUrl ?? "/placeholder.svg",
+      id: track.id,
+      src: track.playbackUrl as string,
+      title: track.title,
+      trackHref: `/dashboard/tracks/${track.id}`,
+    }));
+    setQueue(queue);
+    setCurrentTrack(queue[0]);
+  };
+
+  if (projectQuery.isLoading) {
+    return (
+      <Card className="bg-card/50 backdrop-blur-sm border-border/40">
+        <CardHeader>
+          <CardTitle className="font-[family-name:var(--font-playfair)]">
+            Project Files
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 animate-spin" />
+          Loading files…
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border/40">
       <CardHeader>
@@ -94,59 +118,118 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
               Project Files
             </CardTitle>
             <CardDescription>
-              All files associated with this project
+              Tracks and assets associated with this project
             </CardDescription>
           </div>
-          <Button className="bg-primary hover:bg-primary/90">
-            <Upload className="h-4 w-4 mr-2" />
-            Upload File
+          <Button
+            className="bg-primary hover:bg-primary/90"
+            disabled={playableTracks.length === 0}
+            onClick={handlePlayAll}
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Play All
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {mockFiles.map((file) => {
-          const IconComponent = file.icon;
-          return (
-            <div
-              key={file.id}
-              className="flex items-center justify-between p-4 rounded-lg border border-border/40 bg-background/50 hover:bg-background/80 transition-colors"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
-                  <IconComponent className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <div className="font-medium">{file.name}</div>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <Badge variant="outline" className="text-xs">
-                      {file.type}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {file.size}
-                    </span>
-                    <span className="text-sm text-muted-foreground">•</span>
-                    <span className="text-sm text-muted-foreground">
-                      {file.uploadedAt} by {file.uploadedBy}
-                    </span>
+        {tracks.length === 0 && assets.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/40 p-8 text-center text-sm text-muted-foreground">
+            No files attached to this project yet.
+          </div>
+        ) : (
+          <>
+            {tracks.map((track) => {
+              const hasAudio = Boolean(track.playbackUrl);
+              const IconComponent = hasAudio ? FileAudio : File;
+              return (
+                <div
+                  key={track.id}
+                  className="flex items-center justify-between p-4 rounded-lg border border-border/40 bg-background/50 hover:bg-background/80 transition-colors"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
+                      <IconComponent className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-medium">{track.title}</div>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Badge variant="outline" className="text-xs">
+                          {track.genre}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {track.duration}
+                        </span>
+                        {track.productionStatus ? (
+                          <>
+                            <span className="text-sm text-muted-foreground">
+                              •
+                            </span>
+                            <span className="text-sm text-muted-foreground capitalize">
+                              {track.productionStatus}
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {hasAudio ? (
+                      <Button
+                        onClick={() => handlePlayTrack(track)}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <Play className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    <Button disabled size="sm" variant="ghost">
+                      <Download className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-              </div>
+              );
+            })}
 
-              <div className="flex items-center space-x-2">
-                {file.type === "instrumental" ||
-                file.type === "vocals" ||
-                file.type === "reference" ? (
-                  <Button variant="ghost" size="sm">
-                    <Play className="h-4 w-4" />
+            {assets.map((asset) => {
+              const IconComponent = assetKindIcon(asset.assetKind);
+              const name =
+                asset.objectKey?.split("/").pop() ??
+                assetKindLabel(asset.assetKind);
+              return (
+                <div
+                  key={asset.id}
+                  className="flex items-center justify-between p-4 rounded-lg border border-border/40 bg-background/50 hover:bg-background/80 transition-colors"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-primary/20 rounded-lg flex items-center justify-center">
+                      <IconComponent className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-medium capitalize">{name}</div>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {assetKindLabel(asset.assetKind)}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {formatBytes(asset.sizeBytes)}
+                        </span>
+                        <span className="text-sm text-muted-foreground">•</span>
+                        <span className="text-sm text-muted-foreground">
+                          {asset.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button disabled size="sm" variant="ghost">
+                    <Download className="h-4 w-4" />
                   </Button>
-                ) : null}
-                <Button variant="ghost" size="sm">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          );
-        })}
+                </div>
+              );
+            })}
+          </>
+        )}
 
         {/* Upload Areas for Missing Files */}
         <div className="border-2 border-dashed border-border/40 rounded-lg p-6 text-center">

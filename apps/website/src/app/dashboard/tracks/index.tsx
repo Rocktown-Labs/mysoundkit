@@ -7,12 +7,25 @@ import {
   Mic2,
   MoreVertical,
   Music,
+  Pencil,
   PlayCircle,
   Plus,
+  Trash2,
 } from "lucide-react";
+import { useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,10 +33,33 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/use-toast";
+import {
+  useDeleteTrackMutation,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
 import { getDashboardTracks } from "@/lib/soundkit.functions";
+
+const formatDateSafe = (isoString?: string | null) => {
+  if (!isoString) {
+    return "Just now";
+  }
+  try {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return "Recently";
+  }
+};
 
 export const Route = createFileRoute("/dashboard/tracks/")({
   component: TracksPage,
@@ -33,7 +69,13 @@ export const Route = createFileRoute("/dashboard/tracks/")({
 function TracksPage() {
   const initialTracks = Route.useLoaderData();
   const { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks);
+  const deleteTrackMutation = useDeleteTrackMutation();
   const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const [deleteCandidate, setDeleteCandidate] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const completedCount = tracks.filter(
     (track) => track.productionStatus === "complete"
   ).length;
@@ -75,7 +117,7 @@ function TracksPage() {
       id: track.id,
       src: track.playbackUrl ?? "",
       title: track.title,
-      trackHref: `/dashboard/tracks/${track.id}`,
+      trackHref: `/tracks/${track.id}`,
     }));
 
   const playTrack = (trackId: string) => {
@@ -184,11 +226,44 @@ function TracksPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled={!track.playbackUrl}>
+                    <DropdownMenuItem
+                      disabled={!track.playbackUrl}
+                      onClick={() => {
+                        if (
+                          track.playbackUrl &&
+                          typeof window !== "undefined"
+                        ) {
+                          window.open(track.playbackUrl, "_blank");
+                        }
+                      }}
+                    >
                       <Download className="mr-2 size-4" />
                       Download Master
                     </DropdownMenuItem>
-                    <DropdownMenuItem>Edit Track</DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        to="/dashboard/tracks/$id/edit"
+                        params={{ id: track.id }}
+                      >
+                        <Pencil className="mr-2 size-4" />
+                        Edit Track
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      disabled={deleteTrackMutation.isPending}
+                      onClick={() => {
+                        setDeleteCandidate({
+                          id: track.id,
+                          title: track.title,
+                        });
+                        setDeleteConfirmation("");
+                      }}
+                    >
+                      <Trash2 className="mr-2 size-4" />
+                      Delete Track
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -233,17 +308,77 @@ function TracksPage() {
                     <Activity className="size-3 text-primary" />
                     {track.collaboratorCount} collaborator(s)
                   </span>
-                  <span>
-                    {track.updatedAt
-                      ? new Date(track.updatedAt).toLocaleDateString()
-                      : "Just now"}
-                  </span>
+                  <span>{formatDateSafe(track.updatedAt)}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !deleteTrackMutation.isPending) {
+            setDeleteCandidate(null);
+            setDeleteConfirmation("");
+          }
+        }}
+        open={Boolean(deleteCandidate)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete track?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the track and its dashboard record. Type
+              the track title to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{deleteCandidate?.title}</p>
+            <Input
+              disabled={deleteTrackMutation.isPending}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder="Type the track title"
+              value={deleteConfirmation}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTrackMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                !deleteCandidate ||
+                deleteConfirmation !== deleteCandidate.title ||
+                deleteTrackMutation.isPending
+              }
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!deleteCandidate) {
+                  return;
+                }
+                try {
+                  await deleteTrackMutation.mutateAsync(deleteCandidate.id);
+                  toast({
+                    description: `"${deleteCandidate.title}" has been deleted.`,
+                    title: "Track Deleted",
+                  });
+                  setDeleteCandidate(null);
+                  setDeleteConfirmation("");
+                } catch {
+                  toast({
+                    description: "Failed to delete track. Please try again.",
+                    title: "Error",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              {deleteTrackMutation.isPending ? "Deleting..." : "Delete Track"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

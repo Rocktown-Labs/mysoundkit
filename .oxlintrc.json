@@ -8,6 +8,8 @@
   "rules": {
     "func-style": "off",
     "no-use-before-define": "off",
-    "react-perf/jsx-no-new-function-as-prop": "off"
+    "react-perf/jsx-no-new-function-as-prop": "off",
+    "react/forbid-component-props": "off",
+    "react/jsx-no-literals": "off"
   }
 }

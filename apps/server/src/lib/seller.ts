@@ -30,10 +30,10 @@ const stripeFetch = async <T>({
       "Content-Type": "application/x-www-form-urlencoded",
     },
     method,
-  });
+  }).catch(() => null);
 
-  if (!response.ok) {
-    throw new Error(`Stripe request failed with ${response.status}`);
+  if (!(response && response.ok)) {
+    return null;
   }
 
   return (await response.json()) as T;
@@ -91,9 +91,15 @@ export const isSellerEnabled = async ({
   organizationId: string | null;
   userId: string;
 }) => {
-  const seller = await getSellerAccount({ organizationId, userId });
+  try {
+    const seller = await getSellerAccount({ organizationId, userId });
 
-  return seller?.onboardingStatus === "enabled" && seller.chargesEnabled;
+    return Boolean(
+      seller?.onboardingStatus === "enabled" && seller.chargesEnabled
+    );
+  } catch {
+    return false;
+  }
 };
 
 export const createSellerAccountLink = async ({

@@ -80,7 +80,16 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                     isActive={item.isActive}
                     tooltip={item.title}
                   >
-                    <Link to={item.url ?? "/"}>
+                    <Link
+                      activeOptions={
+                        item.url === "/dashboard" ? { exact: true } : undefined
+                      }
+                      activeProps={{
+                        className:
+                          "bg-primary/10 text-primary font-bold dark:bg-primary/15 dark:text-primary",
+                      }}
+                      to={item.url ?? "/"}
+                    >
                       {item.icon && <item.icon />}
                       <span>{item.title}</span>
                     </Link>
@@ -112,7 +121,18 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                       isActive={item.isActive}
                       tooltip={item.title}
                     >
-                      <Link to={item.url}>
+                      <Link
+                        activeOptions={
+                          item.url === "/dashboard"
+                            ? { exact: true }
+                            : undefined
+                        }
+                        activeProps={{
+                          className:
+                            "bg-primary/10 text-primary font-bold dark:bg-primary/15 dark:text-primary",
+                        }}
+                        to={item.url}
+                      >
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
                       </Link>
@@ -147,7 +167,13 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                             asChild
                             isActive={subItem.isActive}
                           >
-                            <Link to={subItem.url}>
+                            <Link
+                              activeProps={{
+                                className:
+                                  "text-primary font-bold dark:text-primary",
+                              }}
+                              to={subItem.url}
+                            >
                               <span>{subItem.title}</span>
                             </Link>
                           </SidebarMenuSubButton>

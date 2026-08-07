@@ -23,13 +23,18 @@ import {
   FileJson,
   Layers,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { useCart } from "@/components/cart-provider";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  AppleMusicIcon,
+  SpotifyIcon,
+  YoutubeMusicIcon,
+} from "@/components/ui/brand-icons";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -45,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 
 // --- Types ---
@@ -120,6 +126,11 @@ interface MockCatalogItem {
   musicalKey?: string;
   duration?: string;
   streamCount?: string;
+  streamingLinks?: {
+    appleMusic?: string;
+    spotify?: string;
+    youtube?: string;
+  };
   description?: string;
   priceCents?: number | null;
   priceLabel: string;
@@ -131,210 +142,6 @@ interface MockCatalogItem {
   licenseOptions?: MockLicenseOption[];
   visualContent?: MockVisualContent[];
 }
-
-// --- Mock Data ---
-
-const MOCK_ARTISTS: Record<string, MockArtist> = {
-  dual: {
-    avatarUrl: "/diverse-user-avatars.png",
-    followers: "12K",
-    genre: "Electronic / Pop",
-    handle: "arivera",
-    id: "a3",
-    listeners: "85K",
-    location: "Brooklyn, NY",
-    name: "Alex Rivera",
-    roles: ["musician", "producer"],
-    verified: false,
-  },
-  luna: {
-    avatarUrl: "/diverse-user-avatars.png",
-    followers: "124K",
-    genre: "R&B / Soul",
-    handle: "luna-eclipse",
-    id: "a1",
-    listeners: "1.2M",
-    location: "Los Angeles, CA",
-    name: "Luna Eclipse",
-    roles: ["musician"],
-    verified: true,
-  },
-  metro: {
-    avatarUrl: "/diverse-user-avatars.png",
-    battleRank: "#1",
-    battleRecord: "120-2",
-    followers: "8.4M",
-    genre: "Hip-Hop / Trap",
-    handle: "metroboomin",
-    id: "a2",
-    listeners: "45M",
-    location: "Atlanta, GA",
-    name: "Metro Boomin",
-    roles: ["producer"],
-    verified: true,
-  },
-};
-
-const MOCK_CATALOG: MockCatalogItem[] = [
-  {
-    artist: MOCK_ARTISTS.luna,
-    assets: [
-      {
-        duration: "3:24",
-        id: "as1",
-        included: true,
-        kind: "master",
-        label: "High Quality Master",
-        subtitle: "24-bit WAV",
-      },
-      {
-        duration: "3:24",
-        id: "as2",
-        included: true,
-        kind: "clean",
-        label: "Radio Edit",
-        subtitle: "Clean Version",
-      },
-      {
-        id: "as3",
-        included: true,
-        kind: "booklet",
-        label: "Digital Booklet",
-        subtitle: "PDF Artwork",
-      },
-    ],
-    coverArtUrl: "/summer-music-album-cover.png",
-    description:
-      "A smooth R&B track perfect for late-night drives. Inspired by the coastal vibes of California.",
-    duration: "3:24",
-    genre: "R&B / Soul",
-    id: "single-1",
-    isPurchasable: true,
-    isStreamable: true,
-    playbackUrl: "/demo-audio/fantasy26.wav",
-    priceCents: 129,
-    priceLabel: "1.29",
-    purchaseMode: "digital_download",
-    streamCount: "2,420,150",
-    title: "Summer Nights",
-    type: "single",
-    visualContent: [
-      {
-        id: "v1",
-        thumbnailUrl: "/music-battle-live-performance-video.jpg",
-        title: "Official Music Video",
-        type: "video",
-        views: "1.2M",
-      },
-    ],
-  },
-  {
-    artist: MOCK_ARTISTS.metro,
-    assets: [
-      {
-        duration: "2:45",
-        id: "as4",
-        included: true,
-        kind: "tagged_mp3",
-        label: "Tagged Preview",
-      },
-      {
-        duration: "2:45",
-        id: "as5",
-        included: true,
-        kind: "untagged_wav",
-        label: "Untagged WAV",
-      },
-      {
-        id: "as6",
-        included: true,
-        kind: "stems",
-        label: "Track Stems",
-        subtitle: "12 Individual tracks",
-      },
-      {
-        id: "as7",
-        included: true,
-        kind: "midi",
-        label: "MIDI Files",
-        subtitle: "Melody & Bass",
-      },
-    ],
-    bpm: 142,
-    coverArtUrl: "/hip-hop-album-cover.png",
-    description:
-      "Hard hitting trap beat with aggressive 808s and cinematic textures.",
-    duration: "2:45",
-    genre: "Hip-Hop / Trap",
-    id: "beat-1",
-    isPurchasable: true,
-    isStreamable: true,
-    playbackUrl: "/demo-audio/long-way-26.wav",
-    licenseOptions: [
-      {
-        id: "l1",
-        name: "Basic Lease",
-        priceCents: 2999,
-        priceLabel: "29.99",
-        rightsSummary: ["5,000 Streams", "MP3 + WAV", "Non-Exclusive"],
-      },
-      {
-        id: "l2",
-        name: "Premium Lease",
-        priceCents: 7999,
-        priceLabel: "79.99",
-        rightsSummary: [
-          "Unlimited Streams",
-          "Includes Stems",
-          "Commercial Use",
-        ],
-      },
-      {
-        id: "l3",
-        isExclusive: true,
-        name: "Exclusive",
-        priceCents: 49_999,
-        priceLabel: "499.99",
-        rightsSummary: ["Full Ownership", "Removed from Store", "Contract PDF"],
-      },
-    ],
-    musicalKey: "Dm",
-    priceCents: 2999,
-    priceLabel: "29.99",
-    purchaseMode: "license",
-    streamCount: "500,420",
-    title: "Dark Knights",
-    type: "beat",
-  },
-  {
-    artist: MOCK_ARTISTS.dual,
-    assets: [
-      {
-        id: "as8",
-        included: true,
-        kind: "master",
-        label: "Complete Album",
-        subtitle: "9 Tracks (FLAC)",
-      },
-      { id: "as9", included: true, kind: "artwork", label: "Digital Artwork" },
-    ],
-    coverArtUrl: "/night-music-album-cover.png",
-    description:
-      "The debut studio album exploring neon-noir soundscapes and digital isolation.",
-    genre: "Electronic / Pop",
-    id: "owned-1",
-    isOwned: true,
-    isPurchasable: false,
-    isStreamable: true,
-    playbackUrl: "/demo-audio/dumbledore.wav",
-    priceCents: 1499,
-    priceLabel: "14.99",
-    purchaseMode: "digital_download",
-    streamCount: "8,245,100",
-    title: "Midnight Chronicles",
-    type: "album",
-  },
-];
 
 const formatDisplayPrice = (priceLabel: string) =>
   priceLabel.startsWith("$") ? priceLabel : `$${priceLabel}`;
@@ -351,13 +158,89 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     throw new Error(`Track detail request failed with ${response.status}`);
   }
 
-  const data = (await response.json()) as MockCatalogItem & {
-    catalogItemType?: CatalogItemType;
+  const rawData = (await response.json()) as Record<string, unknown>;
+
+  const artistObj = (
+    rawData.artist && typeof rawData.artist === "object" ? rawData.artist : {}
+  ) as Record<string, unknown>;
+
+  const artistName =
+    typeof artistObj.name === "string"
+      ? artistObj.name
+      : typeof rawData.artistName === "string"
+        ? rawData.artistName
+        : "SoundKit Artist";
+
+  const artistHandle =
+    typeof artistObj.handle === "string"
+      ? artistObj.handle
+      : typeof rawData.artistUsername === "string"
+        ? rawData.artistUsername
+        : "artist";
+
+  const artistAvatarUrl =
+    typeof artistObj.avatarUrl === "string"
+      ? artistObj.avatarUrl
+      : typeof rawData.coverArtUrl === "string"
+        ? rawData.coverArtUrl
+        : "/placeholder.svg";
+
+  const normalizedArtist = {
+    avatarUrl: artistAvatarUrl,
+    followers:
+      typeof artistObj.followers === "string" ? artistObj.followers : null,
+    genre:
+      typeof artistObj.genre === "string"
+        ? artistObj.genre
+        : typeof rawData.genre === "string"
+          ? rawData.genre
+          : "Uncategorized",
+    handle: artistHandle,
+    id:
+      typeof artistObj.id === "string"
+        ? artistObj.id
+        : typeof rawData.ownerUserId === "string"
+          ? rawData.ownerUserId
+          : "artist",
+    listeners:
+      typeof artistObj.listeners === "string" ? artistObj.listeners : null,
+    location:
+      typeof artistObj.location === "string" ? artistObj.location : null,
+    name: artistName,
+    roles: Array.isArray(artistObj.roles)
+      ? (artistObj.roles as ("musician" | "producer")[])
+      : ["musician"],
+    verified: Boolean(artistObj.verified ?? rawData.isVerified),
   };
 
+  const rawPlaybackUrl =
+    typeof rawData.playbackUrl === "string" &&
+    rawData.playbackUrl.length > 0 &&
+    !rawData.playbackUrl.startsWith("blob:")
+      ? rawData.playbackUrl
+      : null;
+
+  const rawCoverArtUrl =
+    typeof rawData.coverArtUrl === "string" &&
+    rawData.coverArtUrl.length > 0 &&
+    !rawData.coverArtUrl.startsWith("blob:")
+      ? rawData.coverArtUrl
+      : "/placeholder.svg";
+
   return {
-    ...data,
-    type: data.catalogItemType ?? data.type,
+    ...(rawData as unknown as MockCatalogItem),
+    artist: normalizedArtist,
+    coverArtUrl: rawCoverArtUrl,
+    playbackUrl: rawPlaybackUrl,
+    priceLabel:
+      typeof rawData.priceLabel === "string"
+        ? rawData.priceLabel
+        : typeof rawData.price === "number"
+          ? `$${rawData.price.toFixed(2)}`
+          : "$1.99",
+    title: typeof rawData.title === "string" ? rawData.title : "Untitled Track",
+    type:
+      (rawData.catalogItemType as CatalogItemType) ?? rawData.type ?? "track",
   };
 };
 
@@ -368,18 +251,56 @@ export const Route = createFileRoute("/_explore/tracks/$id")({
 function TrackPage() {
   const { id } = Route.useParams();
   const router = useRouter();
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const { setCurrentTrack, setQueue, addToQueue } = useAudioPlayer();
+  const { addItem } = useCart();
+  const [isLiked, setIsLiked] = useState(false);
 
-  const fallbackItem = useMemo(
-    () => MOCK_CATALOG.find((entry) => entry.id === id) || MOCK_CATALOG[0],
-    [id]
-  );
-  const { data } = useQuery({
+  const {
+    data: item,
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
     queryFn: () => fetchCatalogItem(id),
     queryKey: ["track-detail", id],
     retry: false,
   });
-  const item = data ?? fallbackItem;
+  const [selectedLicense, setSelectedLicense] =
+    useState<MockLicenseOption | null>(null);
+
+  useEffect(() => {
+    setSelectedLicense(item?.licenseOptions?.[0] ?? null);
+  }, [item?.id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center px-6 text-sm text-muted-foreground">
+          Loading track...
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !item) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-4 px-6 text-center">
+          <h1 className="font-bold text-2xl">Track unavailable</h1>
+          <p className="text-muted-foreground text-sm">
+            {error instanceof Error
+              ? error.message
+              : "This track could not be loaded from the API."}
+          </p>
+          <Button variant="outline" onClick={() => router.history.back()}>
+            <ArrowLeft className="size-4" />
+            Back to catalog
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const playerTrack = {
     artist: item.artist.name,
     artistHref: `/artist/${item.artist.handle}`,
@@ -390,21 +311,79 @@ function TrackPage() {
     trackHref: `/tracks/${item.id}`,
   };
 
-  const [selectedLicense, setSelectedLicense] = useState(
-    item.licenseOptions?.[0] || null
-  );
   const playCurrentTrack = () => {
     if (!item.playbackUrl) {
+      toast({
+        description: "No stream URL found for this track.",
+        title: "Playback unavailable",
+        variant: "destructive",
+      });
       return;
     }
 
     setQueue([playerTrack]);
     setCurrentTrack(playerTrack);
+    toast({
+      description: `${item.title} by ${item.artist.name}`,
+      title: "Now Playing",
+    });
   };
 
-  useEffect(() => {
-    setSelectedLicense(item.licenseOptions?.[0] || null);
-  }, [item.id, item.licenseOptions]);
+  const handleQueueTrack = () => {
+    if (addToQueue) {
+      addToQueue(playerTrack);
+    } else {
+      setQueue((prev) => [...prev, playerTrack]);
+    }
+    toast({
+      description: `Added "${item.title}" to play queue.`,
+      title: "Queue Updated",
+    });
+  };
+
+  const handleBuyTrack = () => {
+    addItem({
+      artistName: item.artist.name,
+      coverArtUrl: item.coverArtUrl,
+      priceCents: item.priceCents ?? 199,
+      productType:
+        item.type === "album" || item.type === "ep" ? "project" : "track",
+      purchaseMode: "digital_download",
+      title: item.title,
+      trackId: item.id,
+    });
+    toast({
+      description: `"${item.title}" (${item.priceLabel || "$1.99"}) added to cart.`,
+      title: "Added to Cart",
+    });
+  };
+
+  const handleShare = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      toast({
+        description: "Track URL copied to clipboard.",
+        title: "Link Copied",
+      });
+    }
+  };
+
+  const handleToggleLike = () => {
+    setIsLiked((prev) => !prev);
+    toast({
+      description: isLiked
+        ? `Removed "${item.title}" from your favorites.`
+        : `Saved "${item.title}" to your favorites.`,
+      title: isLiked ? "Removed from Favorites" : "Saved to Favorites",
+    });
+  };
+
+  const handleDownloadAsset = (label: string) => {
+    toast({
+      description: `Preparing download package for ${label}...`,
+      title: "Starting Download",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -421,23 +400,37 @@ function TrackPage() {
             Catalog
           </Button>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="size-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={handleShare}
+              title="Share Track"
+            >
               <Share2 className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-8">
-              <MoreVertical className="size-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={handleToggleLike}
+              title="Favorite"
+            >
+              <Heart
+                className={`size-4 ${isLiked ? "fill-rose-500 text-rose-500" : ""}`}
+              />
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-16">
-        <div className="grid lg:grid-cols-12 gap-16">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* Main Track Section */}
-          <div className="lg:col-span-8 space-y-12">
+          <div className="space-y-8">
             {/* High-Impact Industrial Hero */}
-            <div className="flex flex-col md:flex-row gap-10 items-start">
-              <div className="size-64 md:size-80 shrink-0 relative group">
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+              <div className="size-60 md:size-72 shrink-0 relative group">
                 <AppImage
                   src={item.coverArtUrl}
                   alt={item.title}
@@ -460,7 +453,7 @@ function TrackPage() {
                 )}
               </div>
 
-              <div className="flex-1 space-y-8 pt-2">
+              <div className="flex-1 space-y-6 pt-2">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <Badge
@@ -475,7 +468,7 @@ function TrackPage() {
                       </div>
                     )}
                   </div>
-                  <h1 className="text-5xl md:text-7xl font-black font-[family-name:var(--font-playfair)] tracking-tighter leading-[0.85] uppercase">
+                  <h1 className="text-4xl md:text-6xl font-black font-[family-name:var(--font-playfair)] tracking-tighter leading-[0.9] uppercase">
                     {item.title}
                   </h1>
                   <Link
@@ -483,7 +476,7 @@ function TrackPage() {
                     params={{ username: item.artist.handle }}
                     className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors group mt-4"
                   >
-                    <span className="font-black text-xl uppercase tracking-tighter">
+                    <span className="font-black text-lg uppercase tracking-tighter">
                       {item.artist.name}
                     </span>
                     <CheckCircle2 className="size-4 text-primary fill-primary/10" />
@@ -494,33 +487,54 @@ function TrackPage() {
                   {item.isStreamable && (
                     <Button
                       size="lg"
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-10 h-14 uppercase tracking-[0.1em] rounded-none shadow-xl shadow-primary/20 flex-1 sm:flex-none"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg shadow-xl shadow-primary/20 flex-1 sm:flex-none"
                       disabled={!item.playbackUrl}
                       onClick={playCurrentTrack}
                     >
-                      <Play className="size-5 mr-3 fill-current" /> Play Preview
+                      <Play className="size-5 mr-3 fill-current" /> Play
                     </Button>
                   )}
                   <Button
                     size="lg"
                     variant="outline"
-                    className="border-border/40 hover:bg-muted font-black px-8 h-14 uppercase tracking-[0.1em] rounded-none flex-1 sm:flex-none"
+                    className="border-border/40 hover:bg-muted font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
                     disabled={!item.playbackUrl}
-                    onClick={playCurrentTrack}
+                    onClick={handleQueueTrack}
                   >
                     <Plus className="size-5 mr-2" /> Queue
                   </Button>
+                  {item.isPurchasable && (
+                    <Button
+                      size="lg"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
+                      onClick={handleBuyTrack}
+                    >
+                      <ShoppingCart className="size-5 mr-2" /> Buy{" "}
+                      {item.priceLabel || "$1.99"}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="icon"
-                    className="size-14 rounded-none border-border/40 hover:text-rose-500 hover:border-rose-500/40"
+                    onClick={handleToggleLike}
+                    className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
                   >
-                    <Heart className="size-6" />
+                    <Heart
+                      className={`size-6 ${isLiked ? "fill-current" : ""}`}
+                    />
                   </Button>
                 </div>
 
+                <TrackPlatformLinks links={item.streamingLinks ?? {}} />
+
+                {item.description ? (
+                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                    {item.description}
+                  </p>
+                ) : null}
+
                 {/* Technical Metadata Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-8 border-t border-border/10">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-5 pt-5 border-t border-border/10">
                   {item.streamCount && (
                     <div>
                       <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
@@ -567,13 +581,13 @@ function TrackPage() {
             <section className="space-y-4">
               <div className="flex items-center justify-between px-2">
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
-                  Package Contents
+                  Included Files & Stems
                 </h3>
                 <Badge
                   variant="outline"
                   className="text-[8px] font-black border-border/60 uppercase tracking-widest rounded-none h-4"
                 >
-                  Hi-Res Audio
+                  After Purchase
                 </Badge>
               </div>
               <div className="bg-card/20 border border-border/40 rounded-none overflow-hidden divide-y divide-border/10 shadow-sm">
@@ -601,7 +615,10 @@ function TrackPage() {
                           )}
                         </div>
                         <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60 font-black">
-                          {asset.subtitle || asset.kind.replace("_", " ")}{" "}
+                          {asset.subtitle ||
+                            (asset.kind
+                              ? asset.kind.replaceAll("_", " ")
+                              : "Asset")}{" "}
                           {asset.duration && `• ${asset.duration}`}
                         </p>
                       </div>
@@ -612,6 +629,7 @@ function TrackPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={playCurrentTrack}
                             className="h-8 font-black text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity text-primary"
                           >
                             <Play className="size-3 mr-1.5 fill-current" />{" "}
@@ -620,6 +638,8 @@ function TrackPage() {
                           <Button
                             variant="outline"
                             size="icon"
+                            onClick={() => handleDownloadAsset(asset.label)}
+                            title={`Download ${asset.label}`}
                             className="size-9 rounded-none border-border/40 hover:bg-white/5 transition-all"
                           >
                             <Download className="size-4" />
@@ -640,163 +660,76 @@ function TrackPage() {
               </div>
             </section>
 
-            {/* Visual Content - Grid */}
-            {item.visualContent && item.visualContent.length > 0 && (
-              <section className="space-y-4">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60 px-2">
-                  Visual Production
+            {/* Related Content & Releases Section */}
+            <section className="space-y-4 pt-6 border-t border-border/20">
+              <div className="flex items-center justify-between px-2">
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
+                  Related Tracks & Releases
                 </h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {item.visualContent.map((visual) => (
-                    <div
-                      key={visual.id}
-                      className="group block space-y-3 cursor-pointer"
-                    >
-                      <div className="aspect-video rounded-none overflow-hidden border border-border/40 relative bg-muted/20">
-                        <AppImage
-                          src={visual.thumbnailUrl}
-                          alt={visual.title}
-                          width={400}
-                          height={225}
-                          className="size-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Play className="size-12 text-white fill-current shadow-2xl" />
-                        </div>
-                        {visual.views && (
-                          <div className="absolute bottom-3 right-3 bg-black px-2 py-1 text-[9px] font-black text-white uppercase tracking-widest border border-white/10">
-                            {visual.views} Views
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between px-1">
-                        <p className="font-black text-xs uppercase tracking-[0.1em] group-hover:text-primary transition-colors">
-                          {visual.title}
-                        </p>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-40">
-                          {visual.type}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-
-          {/* Right Sidebar - Commercial Core */}
-          <div className="lg:col-span-4 space-y-8">
-            <CommerceCard
-              item={item}
-              selectedLicense={selectedLicense}
-              onLicenseChange={setSelectedLicense}
-            />
-
-            {/* Artist Sidebar Card */}
-            <Card className="bg-card/20 border-border/40 rounded-none overflow-hidden">
-              <CardContent className="p-8 space-y-8">
                 <Link
-                  to="/artist/$username"
-                  params={{ username: item.artist.handle }}
-                  className="flex flex-col items-center group"
+                  to="/tracks"
+                  className="text-xs text-primary font-bold hover:underline"
                 >
-                  <div className="relative mb-6">
-                    <div className="absolute -inset-2 bg-primary rounded-full blur-2xl opacity-0 group-hover:opacity-20 transition duration-1000" />
-                    <Avatar className="size-28 border border-border/40 rounded-full relative overflow-hidden grayscale group-hover:grayscale-0 transition-all duration-500">
-                      <AvatarImage
-                        src={item.artist.avatarUrl}
-                        className="object-cover"
-                      />
-                      <AvatarFallback>AT</AvatarFallback>
-                    </Avatar>
-                  </div>
-                  <div className="text-center space-y-2">
-                    <h4 className="text-2xl font-black group-hover:text-primary transition-colors font-[family-name:var(--font-playfair)] tracking-tighter uppercase leading-none">
-                      {item.artist.name}
-                    </h4>
-                    <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-                      {item.artist.roles.map((r) => (
-                        <Badge
-                          key={r}
-                          variant="secondary"
-                          className="text-[8px] uppercase tracking-[0.2em] h-4 bg-muted font-black px-1.5 rounded-none"
-                        >
-                          {r}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
+                  View Catalog →
                 </Link>
-
-                <div className="grid grid-cols-2 gap-4 text-center border-y border-border/10 py-6">
-                  <div>
-                    <p className="text-xl font-black tabular-nums">
-                      {item.artist.followers}
-                    </p>
-                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black opacity-60">
-                      Followers
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xl font-black tabular-nums">
-                      {item.artist.listeners}
-                    </p>
-                    <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-black opacity-60">
-                      Listeners
-                    </p>
-                  </div>
-                </div>
-
-                {item.artist.battleRank && (
-                  <div className="bg-white/[0.03] border border-border/40 rounded-none p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="size-10 bg-primary flex items-center justify-center text-primary-foreground shadow-lg">
-                        <Trophy className="size-5" />
-                      </div>
-                      <div>
-                        <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black opacity-60">
-                          Global Rank
-                        </p>
-                        <p className="text-base font-black">
-                          {item.artist.battleRank}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black opacity-60">
-                        Record
-                      </p>
-                      <p className="text-base font-black text-emerald-500">
-                        {item.artist.battleRecord}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <Button className="w-full h-12 font-black uppercase text-xs tracking-[0.2em] rounded-none shadow-xl shadow-primary/10">
-                    Follow Artist
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 font-black uppercase text-xs tracking-[0.2em] border-border/40 hover:bg-white/5 rounded-none"
-                  >
-                    <MessageCircle className="size-4 mr-2" /> Message
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Tips */}
-            <div className="px-2 space-y-4">
-              <div className="flex items-start gap-4 p-4 bg-muted/20 border-l-2 border-primary">
-                <Zap className="size-5 text-primary shrink-0 mt-0.5" />
-                <p className="text-[11px] leading-relaxed text-muted-foreground font-medium italic">
-                  "Every digital purchase directly supports the artist and gives
-                  you lifetime access to high-fidelity audio masters."
-                </p>
               </div>
-            </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "Hip-Hop",
+                    id: "rel-1",
+                    price: "$1.99",
+                    title: "Midnight Echoes",
+                  },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "Electronic",
+                    id: "rel-2",
+                    price: "$4.99",
+                    title: "Synth Waves (Stems)",
+                  },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "R&B",
+                    id: "rel-3",
+                    price: "$9.99",
+                    title: "Urban Rhythms Kit",
+                  },
+                  {
+                    cover: item.coverArtUrl,
+                    genre: "Soul",
+                    id: "rel-4",
+                    price: "$1.99",
+                    title: "Velvet Nights",
+                  },
+                ].map((rel) => (
+                  <Link
+                    key={rel.id}
+                    to="/tracks/$id"
+                    params={{ id: rel.id }}
+                    className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
+                  >
+                    <div className="aspect-square rounded-lg overflow-hidden bg-muted mb-2 relative">
+                      <AppImage
+                        src={rel.cover}
+                        alt={rel.title}
+                        width={200}
+                        height={200}
+                        className="object-cover size-full group-hover:scale-105 transition-transform"
+                      />
+                      <Badge className="absolute top-2 right-2 bg-black/70 text-white text-[9px] font-bold">
+                        {rel.price}
+                      </Badge>
+                    </div>
+                    <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">
+                      {rel.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{rel.genre}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -805,6 +738,51 @@ function TrackPage() {
 }
 
 // --- Dynamic Components ---
+
+function TrackPlatformLinks({
+  links,
+}: {
+  links: NonNullable<MockCatalogItem["streamingLinks"]>;
+}) {
+  const platformLinks = [
+    links.spotify
+      ? { href: links.spotify, icon: SpotifyIcon, label: "Spotify" }
+      : null,
+    links.appleMusic
+      ? { href: links.appleMusic, icon: AppleMusicIcon, label: "Apple Music" }
+      : null,
+    links.youtube
+      ? { href: links.youtube, icon: YoutubeMusicIcon, label: "YouTube" }
+      : null,
+  ].filter((link): link is Exclude<typeof link, null> => Boolean(link));
+
+  if (platformLinks.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+        Also on
+      </span>
+      {platformLinks.map((link) => {
+        const Icon = link.icon;
+        return (
+          <a
+            key={link.label}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={link.label}
+            className="flex size-9 items-center justify-center rounded-full border border-border/40 bg-muted/30 text-muted-foreground transition hover:border-primary/40 hover:text-primary"
+          >
+            <Icon className="size-4" />
+          </a>
+        );
+      })}
+    </div>
+  );
+}
 
 function AssetIcon({ kind }: { kind: MockCatalogAsset["kind"] }) {
   switch (kind) {
@@ -976,14 +954,30 @@ function CommerceCard({
             )}
           </div>
         </CardHeader>
-        <CardContent className="p-8 mt-auto pt-0">
-          <Button
-            size="lg"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-500/20 h-16 rounded-none"
-            onClick={() => void addLicensePurchase()}
-          >
-            Purchase License
-          </Button>
+        <CardContent className="p-8 mt-auto pt-0 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full border-blue-500/40 text-blue-400 hover:bg-blue-500/10 font-bold uppercase tracking-wider text-xs h-14 rounded-lg"
+              onClick={() => void addLicensePurchase()}
+            >
+              <ShoppingCart className="size-4 mr-2" /> Add to Cart
+            </Button>
+            <Button
+              size="lg"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-wider text-xs shadow-xl shadow-blue-500/20 h-14 rounded-lg"
+              onClick={async () => {
+                await addLicensePurchase();
+                toast({
+                  description: "Proceeding to instant license checkout...",
+                  title: "Buy Now",
+                });
+              }}
+            >
+              <Zap className="size-4 mr-2 fill-current" /> Buy Now
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
@@ -991,11 +985,11 @@ function CommerceCard({
 
   // Digital Download Release (Single/Album/EP)
   return (
-    <Card className="bg-primary/5 border border-primary/20 shadow-2xl relative overflow-hidden flex flex-col rounded-none">
+    <Card className="bg-primary/5 border border-primary/20 shadow-2xl relative overflow-hidden flex flex-col rounded-xl">
       <div className="absolute top-0 left-0 w-1.5 h-full bg-primary" />
       <CardHeader className="p-8">
         <div className="flex items-center justify-between mb-6">
-          <Badge className="bg-primary/10 text-primary border-primary/20 uppercase text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-none">
+          <Badge className="bg-primary/10 text-primary border-primary/20 uppercase text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-md">
             Official Release
           </Badge>
           <ShoppingCart className="size-5 text-primary" />
@@ -1011,42 +1005,34 @@ function CommerceCard({
         <ul className="space-y-4">
           <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
             <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" /> All
-            tracks & audio masters
+            tracks &amp; audio masters
           </li>
           <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
             <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{" "}
-            High-resolution artwork
-          </li>
-          <li className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-foreground/80">
-            <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />{" "}
-            Lifetime library access
+            Uncompressed WAV &amp; 320kbps MP3
           </li>
         </ul>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <Button
-            size="lg"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-[0.15em] shadow-xl shadow-primary/20 h-14 rounded-none"
-            onClick={() => void addDigitalPurchase()}
-          >
-            Buy Now
-          </Button>
+        <div className="grid grid-cols-2 gap-3 pt-2">
           <Button
             size="lg"
             variant="outline"
-            className="w-full border-primary/40 hover:bg-primary/10 text-primary font-black uppercase tracking-[0.15em] h-14 rounded-none"
-            onClick={() => {
-              void addItem({
-                artistName: item.artist.name,
-                coverArtUrl: item.coverArtUrl,
-                priceCents: item.priceCents ?? priceCentsFromLabel(item.priceLabel),
-                productType: "track",
-                purchaseMode: "digital_download",
-                title: item.title,
-                trackId: item.id,
+            className="w-full border-primary/30 text-primary hover:bg-primary/10 font-bold uppercase tracking-wider text-xs h-14 rounded-lg"
+            onClick={() => void addDigitalPurchase()}
+          >
+            <ShoppingCart className="size-4 mr-2" /> Add to Cart
+          </Button>
+          <Button
+            size="lg"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold uppercase tracking-wider text-xs shadow-xl shadow-primary/20 h-14 rounded-lg"
+            onClick={async () => {
+              await addDigitalPurchase();
+              toast({
+                description: "Proceeding to checkout...",
+                title: "Buy Now",
               });
             }}
           >
-            <ShoppingCart className="size-4 mr-2" /> Add to Cart
+            <Zap className="size-4 mr-2 fill-current" /> Buy Now
           </Button>
         </div>
         <p className="text-[8px] text-center text-muted-foreground uppercase font-black tracking-[0.3em] opacity-40">

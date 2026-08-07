@@ -5,6 +5,7 @@ import { LoaderCircle, Upload } from "lucide-react";
 import { useId, useState } from "react";
 import type { ChangeEvent } from "react";
 
+import { ImageCropperDialog } from "@/components/dashboard/image-cropper-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { MEDIA_BASE_URL, PROFILE_MEDIA_UPLOAD_URL } from "@/lib/api";
@@ -23,6 +24,8 @@ export function ArtistAvatarUpload({
 }) {
   const inputId = useId();
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedObjectUrl, setSelectedObjectUrl] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
 
   const { averageProgress, isPending, upload } = useUploadFiles({
@@ -53,7 +56,7 @@ export function ArtistAvatarUpload({
     route: "profile-media",
   });
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -61,7 +64,14 @@ export function ArtistAvatarUpload({
       return;
     }
 
-    setLocalPreviewUrl(URL.createObjectURL(file));
+    setSelectedFile(file);
+    setSelectedObjectUrl(URL.createObjectURL(file));
+  };
+
+  const uploadCroppedFile = async (file: File, previewUrl: string) => {
+    setLocalPreviewUrl(previewUrl);
+    setSelectedFile(null);
+    setSelectedObjectUrl("");
     setStatusMessage("Uploading your profile picture...");
     await upload([file]);
   };
@@ -96,6 +106,19 @@ export function ArtistAvatarUpload({
         id={inputId}
         onChange={handleFileChange}
         type="file"
+      />
+
+      <ImageCropperDialog
+        aspectRatio={1}
+        file={selectedFile}
+        objectUrl={selectedObjectUrl}
+        onCancel={() => {
+          setSelectedFile(null);
+          setSelectedObjectUrl("");
+        }}
+        onCropped={uploadCroppedFile}
+        open={Boolean(selectedFile && selectedObjectUrl)}
+        title="Crop Profile Picture"
       />
 
       {isPending ? (

@@ -13,7 +13,6 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { samplePlans, sampleWorkspace } from "@/lib/sample-data";
 import {
   entitlementSummarySchema,
   messageResponseSchema,
@@ -43,10 +42,6 @@ app.openapi(
   async (c) => {
     const plans = await getCatalogPlans();
 
-    if (plans.length === 0) {
-      return c.json(samplePlans, HttpStatusCodes.OK);
-    }
-
     return c.json(
       plans.map((plan) => ({
         annualPriceCents: plan.annualPriceCents,
@@ -65,6 +60,7 @@ app.openapi(
 const checkoutBodySchema = z.object({
   cancelUrl: z.url(),
   planCode: z.string(),
+  promoCode: z.string().optional(),
   referenceId: z.string().optional(),
   seats: z.number().int().positive().optional(),
   successUrl: z.url(),
@@ -81,6 +77,7 @@ app.openapi(
       [HttpStatusCodes.OK]: jsonContent(
         z.object({
           checkoutUrl: z.string().url().nullable(),
+          discountApplied: z.string().optional(),
           requiresCheckout: z.boolean(),
           setupRequired: z.boolean(),
         }),
@@ -110,6 +107,7 @@ app.openapi(
     const checkout = await checkoutForPlan({
       cancelUrl: body.cancelUrl,
       planCode: body.planCode,
+      promoCode: body.promoCode,
       referenceId,
       request: c.req.raw,
       seats: body.seats,
@@ -154,7 +152,7 @@ app.openapi(
         activePlanCode: entitlements.activePlanCode,
         entitlements,
         status: entitlements.status,
-        workspace: entitlements.referenceId ? sampleWorkspace : null,
+        workspace: null,
       },
       HttpStatusCodes.OK
     );

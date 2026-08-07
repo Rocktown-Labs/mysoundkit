@@ -12,6 +12,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { logInfo, logWarn } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -235,6 +236,15 @@ const createUploadRouter = (): Router | null => {
 
           const userId = await requireArtistUploadUser(req);
 
+          logInfo({
+            event: "upload_presigned_url_requested",
+            fileCount: files.length,
+            fileNames: files.map((f) => f.name),
+            fileSizes: files.map((f) => f.size),
+            route: "track-source",
+            userId,
+          });
+
           return {
             generateObjectInfo: ({ file }) => ({
               key: createObjectKey({
@@ -280,7 +290,7 @@ app.openapi(
 const handleUploadRoute = (
   uploadPath: "/media" | "/profile-media" | "/project-assets" | "/track-source"
 ) =>
-  app.on(["GET", "POST"], uploadPath, (c) => {
+  app.on(["GET", "POST"], uploadPath, async (c) => {
     const uploadRouter = createUploadRouter();
 
     if (!uploadRouter) {
@@ -294,6 +304,39 @@ const handleUploadRoute = (
         },
         HttpStatusCodes.SERVICE_UNAVAILABLE
       );
+    }
+
+    const userId = c.get("user")?.id ?? null;
+
+    if (c.req.method === "POST") {
+      const startedAt = Date.now();
+      logInfo({
+        event: "upload_signed_url_requested",
+        route: uploadPath,
+        userId,
+      });
+
+      const response = await handleRequest(c.req.raw, uploadRouter);
+
+      if (response.status >= 400) {
+        logWarn({
+          durationMs: Date.now() - startedAt,
+          event: "upload_signed_url_rejected",
+          route: uploadPath,
+          status: response.status,
+          userId,
+        });
+      } else {
+        logInfo({
+          durationMs: Date.now() - startedAt,
+          event: "upload_signed_url_issued",
+          route: uploadPath,
+          status: response.status,
+          userId,
+        });
+      }
+
+      return response;
     }
 
     return handleRequest(c.req.raw, uploadRouter);

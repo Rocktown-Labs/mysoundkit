@@ -49,6 +49,9 @@ jobs:
       - name: Check types
         run: pnpm run check-types
 
+      - name: Check React hook imports
+        run: pnpm run check:react-hooks
+
       - name: Run unit and Worker tests
         run: pnpm run test
 
@@ -167,6 +170,7 @@ jobs:
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
           MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
@@ -261,6 +265,7 @@ jobs:
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
           MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
@@ -329,6 +334,7 @@ jobs:
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
           MUX_WEBHOOK_SECRET: ${{ secrets.MUX_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
           STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
           STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID }}

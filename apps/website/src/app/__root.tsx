@@ -30,7 +30,10 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
       </head>
       <body className="font-sans bg-background text-foreground antialiased">
         <PostHogProvider
-          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
+          apiKey={
+            import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN ||
+            "phc_placeholder_key"
+          }
           options={{
             api_host: "/ingest",
             capture_exceptions: true,
@@ -89,8 +92,43 @@ function NotFoundComponent() {
   );
 }
 
+function GlobalErrorFallback({ reset }: { reset: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg space-y-4">
+        <h2 className="text-2xl font-bold">Something went wrong</h2>
+        <p className="text-sm text-muted-foreground">
+          An unexpected error occurred. Our team has been notified
+          automatically.
+        </p>
+        <div className="pt-2 flex justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => reset()}
+            className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 cursor-pointer"
+          >
+            Try Again
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.location.href = "/";
+              }
+            }}
+            className="rounded-full border border-border px-5 py-2 text-sm font-medium transition hover:bg-muted cursor-pointer"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   component: RootComponent,
+  errorComponent: GlobalErrorFallback,
   head: () => ({
     links: [
       {

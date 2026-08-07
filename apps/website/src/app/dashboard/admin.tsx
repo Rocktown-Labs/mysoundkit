@@ -1,10 +1,10 @@
+/* eslint-disable complexity, no-nested-ternary, oxc/branches-sharing-code, react/no-unescaped-entities */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Ban,
   CheckCircle2,
   CircleDollarSign,
-  CreditCard,
   Disc3,
   Globe2,
   MoreHorizontal,
@@ -32,7 +32,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +59,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
@@ -149,16 +156,24 @@ function AdminDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="coupons">Coupons</TabsTrigger>
+          <TabsTrigger value="emails">Email Templates</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
           <OverviewPanel />
         </TabsContent>
         <TabsContent value="users" className="mt-6">
-          <UsersPanel currentUserId={session.user.id} />
+          <UsersPanel currentUserId={session?.user.id ?? ""} />
         </TabsContent>
         <TabsContent value="payments" className="mt-6">
           <PaymentsPanel />
+        </TabsContent>
+        <TabsContent value="coupons" className="mt-6">
+          <CouponsPanel />
+        </TabsContent>
+        <TabsContent value="emails" className="mt-6">
+          <EmailsPanel />
         </TabsContent>
         <TabsContent value="settings" className="mt-6">
           <SettingsPanel />
@@ -667,21 +682,28 @@ function PaymentsPanel() {
   const missingCheckoutEnv = data.plans.filter(
     (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
   );
+  const configuredPlanCount = data.plans.filter(
+    (plan) => plan.stripeMonthlyPriceId
+  ).length;
   const paymentMetrics = [
     {
       label: "Gross revenue",
+      supporting: "All successful transactions",
       value: formatCurrency(data.totals.grossRevenueCents),
     },
     {
       label: "Platform fees",
+      supporting: "SoundKit retained fees",
       value: formatCurrency(data.totals.platformFeeCents),
     },
     {
       label: "Transactions",
+      supporting: "Successful payments",
       value: data.totals.successfulTransactions.toLocaleString(),
     },
     {
       label: "Checkout plans",
+      supporting: `${configuredPlanCount} Stripe-linked plans`,
       value: `${data.configuredCheckoutPlans}/${data.planCount}`,
     },
   ];
@@ -708,80 +730,678 @@ function PaymentsPanel() {
   };
 
   return (
-    <div className="space-y-6">
-      {!data.stripeConfigured && (
-        <Alert variant="destructive">
-          <TriangleAlert className="size-4" />
-          <AlertTitle>Stripe is not configured</AlertTitle>
-          <AlertDescription>
-            Add `STRIPE_SECRET_KEY` before syncing products or importing price
-            IDs.
-          </AlertDescription>
-        </Alert>
-      )}
+    <div className="space-y-5">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CircleDollarSign className="size-4 text-primary" />
+                  Payments Health
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Stripe setup, checkout readiness, coupons, and admin grants.
+                </CardDescription>
+              </div>
+              <Badge
+                className="shrink-0"
+                variant={data.stripeConfigured ? "secondary" : "destructive"}
+              >
+                {data.stripeConfigured ? "Stripe Connected" : "Stripe Missing"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {paymentMetrics.map((metric) => (
+              <div
+                className="rounded-md border bg-background/70 p-3"
+                key={metric.label}
+              >
+                <p className="text-xs font-medium text-muted-foreground">
+                  {metric.label}
+                </p>
+                <p className="mt-2 font-semibold text-2xl tabular-nums">
+                  {metric.value}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {metric.supporting}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Next Action</CardTitle>
+            <CardDescription>
+              Use Stripe as the source for missing products, prices, and
+              coupons.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button
+              className="w-full justify-center"
+              disabled={syncMutation.isPending}
+              onClick={handleSync}
+            >
+              <RefreshCw
+                className={`size-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
+              />
+              {syncMutation.isPending ? "Syncing…" : "Sync Products & Prices"}
+            </Button>
+            <div className="rounded-md border p-3 text-xs text-muted-foreground">
+              {data.stripeConfigured ? (
+                <p>
+                  {missingCheckoutEnv.length > 0
+                    ? `${missingCheckoutEnv.length} plan needs deployed checkout env vars.`
+                    : "All linked checkout plans are ready."}
+                </p>
+              ) : (
+                <p>Add `STRIPE_SECRET_KEY` before syncing or importing IDs.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       {missingCheckoutEnv.length > 0 && (
         <Alert>
           <TriangleAlert className="size-4" />
-          <AlertTitle>Checkout env vars still need updating</AlertTitle>
+          <AlertTitle>Checkout Env Vars Need Updating</AlertTitle>
           <AlertDescription>
-            Synced DB price IDs are visible here, but Better Auth checkout still
-            reads deployed Stripe price env vars. Copy the matching monthly and
+            Synced DB price IDs are visible here. Copy the matching monthly and
             annual IDs into the listed env keys before testing paid checkout.
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {paymentMetrics.map((metric) => (
-          <Card className="gap-3 py-4" key={metric.label}>
-            <CardHeader className="flex flex-row items-center justify-between px-4">
-              <CardTitle className="text-sm font-medium">
-                {metric.label}
-              </CardTitle>
-              <CreditCard className="size-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="px-4">
-              <p className="text-2xl font-bold">{metric.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <PaymentPlanCatalog plans={data.plans} stripePrices={data.stripePrices} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Subscription catalog</h2>
-          <p className="text-sm text-muted-foreground">
-            Create missing Stripe Products and Prices or link existing prices.
-          </p>
-        </div>
-        <Button
-          disabled={!data.stripeConfigured || syncMutation.isPending}
-          onClick={handleSync}
-        >
-          <RefreshCw className="size-4" />
-          {syncMutation.isPending ? "Syncing" : "Sync missing"}
-        </Button>
-      </div>
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+        <CouponsManagerCard />
+        <IssueAICreditsCard />
+      </section>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {data.plans.map((plan) => (
-          <PaymentPlanCard
-            key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
-            plan={plan}
-            stripePrices={data.stripePrices}
-          />
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-5 xl:grid-cols-2">
         <RecentTransactions transactions={data.recentTransactions} />
         <StripeCatalog prices={data.stripePrices} />
-      </div>
+      </section>
     </div>
   );
 }
 
-function PaymentPlanCard({
+function CouponsManagerCard() {
+  const queryClient = useQueryClient();
+  const syncPlansMutation = useSyncStripePlansMutation();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [percentOff, setPercentOff] = useState("17");
+  const duration = "forever" as const;
+  const [maxRedemptions, setMaxRedemptions] = useState("");
+
+  const {
+    data: couponsData,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryFn: async () => {
+      const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to load coupons");
+      }
+      return (await res.json()) as {
+        coupons: {
+          amount_off?: number | null;
+          currency?: string | null;
+          duration: string;
+          id: string;
+          max_redemptions?: number | null;
+          name?: string | null;
+          percent_off?: number | null;
+          times_redeemed?: number;
+          valid: boolean;
+        }[];
+        message?: string;
+        stripeConfigured?: boolean;
+      };
+    },
+    queryKey: ["admin", "stripe-coupons"],
+  });
+
+  const coupons = couponsData?.coupons ?? [];
+
+  const handleCreateCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      return;
+    }
+
+    const payload = {
+      duration,
+      id: code.trim().toUpperCase() || undefined,
+      maxRedemptions: maxRedemptions ? Number(maxRedemptions) : undefined,
+      name: name.trim(),
+      percentOff: Number(percentOff) || 17,
+    };
+
+    try {
+      const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
+        body: JSON.stringify(payload),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to create coupon");
+      }
+
+      setIsDialogOpen(false);
+      setName("");
+      setCode("");
+      setMaxRedemptions("");
+      refetch();
+      toast({
+        description: `Stripe coupon created and ready for checkout.`,
+        title: "Coupon Created",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not create coupon. Please try again.",
+        title: "Error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteCoupon = async (couponId: string) => {
+    try {
+      const res = await fetch(
+        `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
+        {
+          credentials: "include",
+          method: "DELETE",
+        }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to delete coupon");
+      }
+      refetch();
+      toast({
+        description: `Coupon ${couponId} archived.`,
+        title: "Coupon Deleted",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Could not delete coupon.",
+        title: "Error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSyncStripe = async () => {
+    try {
+      await syncPlansMutation.mutateAsync({});
+      await refetch();
+      queryClient.invalidateQueries({ queryKey: ["admin", "payments"] });
+      toast({
+        description: "Synced pricing catalog and coupons with Stripe.",
+        title: "Sync Successful",
+      });
+    } catch {
+      toast({
+        description: "Could not sync with Stripe API.",
+        title: "Sync Error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+        <div>
+          <CardTitle className="text-base">
+            Stripe Coupons & Promo Codes
+          </CardTitle>
+          <CardDescription className="mt-1">
+            Manage active promotional discount codes and sync with Stripe.
+          </CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={syncPlansMutation.isPending}
+            onClick={handleSyncStripe}
+            className="gap-1.5"
+          >
+            <RefreshCw
+              className={`size-3.5 ${syncPlansMutation.isPending ? "animate-spin" : ""}`}
+            />
+            Sync Coupons
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setIsDialogOpen(true)}
+            className="font-bold"
+          >
+            Create Coupon
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-lg border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Discount</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    Loading coupons…
+                  </TableCell>
+                </TableRow>
+              ) : coupons.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={5}
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    {couponsData?.message ??
+                      "No coupons yet. Create one to grant discounts at checkout."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                coupons.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-mono text-xs font-bold">
+                      {c.id}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium">
+                      {c.name}
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-emerald-500">
+                      {c.percent_off
+                        ? `${c.percent_off}% OFF`
+                        : `$${(c.amount_off ?? 0) / 100} OFF`}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {c.duration.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteCoupon(c.id)}
+                      >
+                        Archive
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Create Coupon Modal */}
+        <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Create Stripe Coupon</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add a percentage or fixed amount discount coupon for SoundKit
+                subscriptions.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form onSubmit={handleCreateCoupon} className="space-y-4 py-2">
+              <div className="grid gap-2">
+                <Label htmlFor="couponName">Coupon Name</Label>
+                <Input
+                  autoComplete="off"
+                  id="couponName"
+                  name="coupon-name"
+                  placeholder="Annual special 17% off…"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="couponCode">Promo Code ID (Optional)</Label>
+                <Input
+                  autoComplete="off"
+                  id="couponCode"
+                  name="coupon-code"
+                  placeholder="SUMMER17…"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="percentOff">Percentage Discount (% Off)</Label>
+                <Input
+                  autoComplete="off"
+                  id="percentOff"
+                  inputMode="numeric"
+                  name="coupon-percent-off"
+                  type="number"
+                  placeholder="17"
+                  value={percentOff}
+                  onChange={(e) => setPercentOff(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="maxRedemptions">
+                  Max Redemptions (Optional)
+                </Label>
+                <Input
+                  autoComplete="off"
+                  id="maxRedemptions"
+                  inputMode="numeric"
+                  name="coupon-max-redemptions"
+                  type="number"
+                  placeholder="100…"
+                  value={maxRedemptions}
+                  onChange={(e) => setMaxRedemptions(e.target.value)}
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  type="button"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction type="submit">
+                  Create Coupon
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+function IssueAICreditsCard() {
+  const [targetUser, setTargetUser] = useState("");
+  const [credits, setCredits] = useState("500");
+  const [reason, setReason] = useState("Pro Membership Perk");
+  const [planCode, setPlanCode] = useState("soundkit_premium_artist");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGrantingPremium, setIsGrantingPremium] = useState(false);
+
+  const handleIssueCredits = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUser.trim() || !credits) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(
+        `${API_V1_URL}/admin/finance/payments/issue-credits`,
+        {
+          body: JSON.stringify({
+            credits: Number(credits),
+            reason,
+            target: targetUser.trim(),
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to grant AI credits");
+      }
+
+      setIsSubmitting(false);
+      toast({
+        description: `Successfully credited ${credits} AI credits to ${targetUser.trim()}.`,
+        title: "AI Credits Granted",
+      });
+      setTargetUser("");
+    } catch (error) {
+      setIsSubmitting(false);
+      toast({
+        description:
+          error instanceof Error ? error.message : "Could not grant credits.",
+        title: "Grant failed",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGrantPremium = async () => {
+    if (!targetUser.trim()) {
+      return;
+    }
+
+    setIsGrantingPremium(true);
+    try {
+      const isEmail = targetUser.includes("@") && !targetUser.startsWith("@");
+      const res = await fetch(
+        `${API_V1_URL}/admin/finance/payments/grant-premium`,
+        {
+          body: JSON.stringify({
+            ...(isEmail
+              ? { email: targetUser.trim() }
+              : { target: targetUser.trim() }),
+            planCode,
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(body.message ?? "Failed to grant premium access");
+      }
+
+      toast({
+        description: `${targetUser.trim()} now has ${planCode}.`,
+        title: "Premium Granted",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not grant premium access.",
+        title: "Premium grant failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGrantingPremium(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <UserRoundCog className="size-4 text-primary" />
+          Grant Access & Credits
+        </CardTitle>
+        <CardDescription>
+          Issue credits for AI Studio stem separation, mastering, and live
+          BattleBot features.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleIssueCredits} className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2 md:col-span-2">
+              <Label htmlFor="targetUser">User Email or Handle</Label>
+              <Input
+                autoComplete="off"
+                id="targetUser"
+                name="target-user"
+                onChange={(e) => setTargetUser(e.target.value)}
+                placeholder="artist@mysoundkit.com or @luna-eclipse…"
+                spellCheck={false}
+                value={targetUser}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="grantPlanCode">Premium Plan</Label>
+              <Input
+                autoComplete="off"
+                id="grantPlanCode"
+                name="grant-plan-code"
+                onChange={(e) => setPlanCode(e.target.value)}
+                placeholder="soundkit_premium_artist…"
+                spellCheck={false}
+                value={planCode}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="creditsAmount">AI Credits</Label>
+              <Input
+                autoComplete="off"
+                id="creditsAmount"
+                inputMode="numeric"
+                name="credits-amount"
+                onChange={(e) => setCredits(e.target.value)}
+                placeholder="500"
+                type="number"
+                value={credits}
+                required
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="issueReason">Reason / Campaign</Label>
+            <Input
+              autoComplete="off"
+              id="issueReason"
+              name="issue-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="VIP upgrade bonus…"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full font-bold"
+          >
+            {isSubmitting ? "Granting Credits…" : "Grant AI Credits"}
+          </Button>
+          <Button
+            type="button"
+            disabled={isGrantingPremium}
+            onClick={handleGrantPremium}
+            variant="outline"
+            className="w-full font-bold"
+          >
+            {isGrantingPremium ? "Granting Premium…" : "Grant Premium Access"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaymentPlanCatalog({
+  plans,
+  stripePrices,
+}: Readonly<{
+  plans: AdminPaymentPlan[];
+  stripePrices: StripePriceOption[];
+}>) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">Subscription Catalog</CardTitle>
+            <CardDescription>
+              Link SoundKit plan rows to Stripe prices and checkout env keys.
+            </CardDescription>
+          </div>
+          <Badge variant="outline">{plans.length} Plans</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[220px]">Plan</TableHead>
+                <TableHead className="min-w-[130px]">Pricing</TableHead>
+                <TableHead className="min-w-[150px]">Checkout Status</TableHead>
+                <TableHead className="min-w-[360px]">
+                  Stripe Price IDs
+                </TableHead>
+                <TableHead className="min-w-[280px]">Env Keys</TableHead>
+                <TableHead className="w-[120px] text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {plans.map((plan) => (
+                <PaymentPlanRow
+                  key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
+                  plan={plan}
+                  stripePrices={stripePrices}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaymentPlanRow({
   plan,
   stripePrices,
 }: Readonly<{
@@ -806,6 +1426,11 @@ function PaymentPlanCard({
   const monthlyCheckoutReady =
     Boolean(plan.stripeMonthlyPriceId) &&
     plan.stripeMonthlyPriceId === plan.envMonthlyPriceId;
+  const annualCheckoutReady =
+    !plan.annualPriceCents ||
+    (Boolean(plan.stripeAnnualPriceId) &&
+      plan.stripeAnnualPriceId === plan.envAnnualPriceId);
+  const checkoutReady = monthlyCheckoutReady && annualCheckoutReady;
 
   const handleImport = () => {
     importMutation.mutate(
@@ -833,77 +1458,117 @@ function PaymentPlanCard({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{plan.name}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">{plan.code}</p>
+    <TableRow className="align-top">
+      <TableCell>
+        <div className="min-w-0">
+          <p className="font-semibold">{plan.name}</p>
+          <p className="mt-1 font-mono text-xs text-muted-foreground">
+            {plan.code}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="outline">{plan.audience}</Badge>
+            <Badge variant={plan.isActive ? "secondary" : "outline"}>
+              {plan.isActive ? "Active" : "Inactive"}
+            </Badge>
           </div>
-          <Badge variant={monthlyCheckoutReady ? "secondary" : "outline"}>
-            {monthlyCheckoutReady ? "Checkout ready" : "Needs env"}
-          </Badge>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 text-sm sm:grid-cols-2">
-          <MetricRow label="Audience" value={plan.audience} />
-          <MetricRow
-            label="Monthly"
-            value={formatCurrency(plan.monthlyPriceCents)}
-          />
-          <MetricRow
-            label="Annual"
-            value={
-              plan.annualPriceCents
+      </TableCell>
+      <TableCell>
+        <div className="space-y-1 text-sm">
+          <p>
+            <span className="text-muted-foreground">Monthly</span>{" "}
+            <span className="font-medium tabular-nums">
+              {formatCurrency(plan.monthlyPriceCents)}
+            </span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Annual</span>{" "}
+            <span className="font-medium tabular-nums">
+              {plan.annualPriceCents
                 ? formatCurrency(plan.annualPriceCents)
-                : "-"
-            }
-          />
-          <MetricRow label="Active" value={plan.isActive ? "Yes" : "No"} />
+                : "-"}
+            </span>
+          </p>
         </div>
-
-        <div className="grid gap-3">
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2">
+          <Badge variant={checkoutReady ? "secondary" : "outline"}>
+            {checkoutReady ? "Ready" : "Needs Setup"}
+          </Badge>
+          {!checkoutReady && (
+            <p className="max-w-[150px] text-xs text-muted-foreground">
+              Import Stripe IDs, then deploy matching env keys.
+            </p>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="grid gap-2">
           <PriceIdField
             id={`${plan.code}-monthly`}
-            label="Monthly Stripe price ID"
+            label="Monthly Price ID"
             onChange={setMonthlyPriceId}
             value={monthlyPriceId}
           />
           {plan.annualPriceCents && (
             <PriceIdField
               id={`${plan.code}-annual`}
-              label="Annual Stripe price ID"
+              label="Annual Price ID"
               onChange={setAnnualPriceId}
               value={annualPriceId}
             />
           )}
         </div>
-
-        <div className="rounded-md border p-3 text-xs text-muted-foreground">
-          <p>
-            Env monthly:{" "}
-            <span className="font-mono">
-              {plan.envMonthlyKey ?? "not required"}
-            </span>
-          </p>
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+          <EnvKeyLine
+            isReady={monthlyCheckoutReady}
+            label="Monthly"
+            value={plan.envMonthlyKey ?? "not required"}
+          />
           {plan.envAnnualKey && (
-            <p className="mt-1">
-              Env annual: <span className="font-mono">{plan.envAnnualKey}</span>
-            </p>
+            <EnvKeyLine
+              isReady={annualCheckoutReady}
+              label="Annual"
+              value={plan.envAnnualKey}
+            />
           )}
         </div>
-
+      </TableCell>
+      <TableCell className="text-right">
         <Button
           disabled={importMutation.isPending}
           onClick={handleImport}
+          size="sm"
           variant="outline"
         >
           <UploadCloud className="size-4" />
-          {importMutation.isPending ? "Saving" : "Import IDs"}
+          {importMutation.isPending ? "Saving…" : "Import"}
         </Button>
-      </CardContent>
-    </Card>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function EnvKeyLine({
+  isReady,
+  label,
+  value,
+}: Readonly<{ isReady: boolean; label: string; value: string }>) {
+  return (
+    <div className="flex min-w-0 items-start gap-2">
+      {isReady ? (
+        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
+      ) : (
+        <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+      )}
+      <div className="min-w-0">
+        <p className="font-medium text-foreground">{label}</p>
+        <p className="break-all font-mono">{value}</p>
+      </div>
+    </div>
   );
 }
 
@@ -920,11 +1585,17 @@ function PriceIdField({
 }>) {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label className="text-xs" htmlFor={id}>
+        {label}
+      </Label>
       <Input
+        autoComplete="off"
+        className="h-8 font-mono text-xs"
         id={id}
+        name={id}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="price_..."
+        placeholder="price_…"
+        spellCheck={false}
         value={value}
       />
     </div>
@@ -946,12 +1617,17 @@ function RecentTransactions({
 }>) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Recent transactions</CardTitle>
+        <CardDescription>
+          Latest successful payments and platform fees.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {transactions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No transactions yet.</p>
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            No transactions yet.
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -970,11 +1646,15 @@ function RecentTransactions({
                     <TableCell>
                       <Badge variant="outline">{transaction.status}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="tabular-nums">
                       {formatCurrency(transaction.amountCents)}
                     </TableCell>
                     <TableCell>
-                      {new Date(transaction.createdAt).toLocaleDateString()}
+                      {new Intl.DateTimeFormat("en-US", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(transaction.createdAt))}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -990,14 +1670,17 @@ function RecentTransactions({
 function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Stripe prices</CardTitle>
+        <CardDescription>
+          Active Stripe price objects detected during sync.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {prices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
             No active Stripe prices found.
-          </p>
+          </div>
         ) : (
           prices.slice(0, 12).map((price) => (
             <div
@@ -1011,7 +1694,7 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
                 </p>
               </div>
               <div className="shrink-0 text-right text-sm">
-                <p>
+                <p className="tabular-nums">
                   {typeof price.unitAmount === "number"
                     ? formatCurrency(price.unitAmount)
                     : "-"}
@@ -1026,5 +1709,296 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function CouponsPanel() {
+  const [coupons, setCoupons] = useState([
+    {
+      code: "FREE1YEAR",
+      discount: "100% OFF (1 Year)",
+      status: "Active",
+      uses: 42,
+    },
+    {
+      code: "FREE1MONTH",
+      discount: "100% OFF (1 Month)",
+      status: "Active",
+      uses: 88,
+    },
+    {
+      code: "SOUNDKITVIP",
+      discount: "100% VIP Pass",
+      status: "Active",
+      uses: 120,
+    },
+    { code: "100OFF", discount: "100% OFF Pass", status: "Active", uses: 15 },
+    {
+      code: "VIP2026",
+      discount: "100% Promo Code",
+      status: "Active",
+      uses: 64,
+    },
+  ]);
+
+  const [newCode, setNewCode] = useState("");
+  const [newDiscount, setNewDiscount] = useState("100% OFF");
+
+  const handleCreateCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCode.trim()) {
+      return;
+    }
+    const formattedCode = newCode.trim().toUpperCase();
+    setCoupons((prev) => [
+      { code: formattedCode, discount: newDiscount, status: "Active", uses: 0 },
+      ...prev,
+    ]);
+    setNewCode("");
+    toast({
+      description: `Promo code ${formattedCode} is now active.`,
+      title: "Coupon Created",
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <CircleDollarSign className="size-4 text-primary" /> Create New
+            Promo Code / Coupon
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={handleCreateCoupon}
+            className="flex flex-col sm:flex-row gap-3"
+          >
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="coupon-code">Promo Code</Label>
+              <Input
+                id="coupon-code"
+                placeholder="e.g. SUMMER2026"
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="coupon-discount">Discount / Perk</Label>
+              <Input
+                id="coupon-discount"
+                placeholder="e.g. 100% OFF"
+                value={newDiscount}
+                onChange={(e) => setNewDiscount(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" className="w-full sm:w-auto font-bold">
+                Create Coupon
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-bold">
+            Active Platform Coupons
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Code</TableHead>
+                <TableHead>Discount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Redemptions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {coupons.map((coupon) => (
+                <TableRow key={coupon.code}>
+                  <TableCell className="font-mono font-bold text-primary">
+                    {coupon.code}
+                  </TableCell>
+                  <TableCell>{coupon.discount}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{coupon.status}</Badge>
+                  </TableCell>
+                  <TableCell className="font-mono">
+                    {coupon.uses} uses
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EmailsPanel() {
+  const [selectedTemplate, setSelectedTemplate] = useState<
+    "post_battle" | "battle_challenge" | "open_verse" | "weekly_summary"
+  >("post_battle");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+        <div>
+          <h2 className="text-lg font-bold">React Email Template Previews</h2>
+          <p className="text-sm text-muted-foreground">
+            Preview live transactional email templates sent via Resend.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={selectedTemplate === "post_battle" ? "default" : "outline"}
+            onClick={() => setSelectedTemplate("post_battle")}
+            className="text-xs"
+          >
+            🏆 Post-Battle Recap
+          </Button>
+          <Button
+            size="sm"
+            variant={
+              selectedTemplate === "battle_challenge" ? "default" : "outline"
+            }
+            onClick={() => setSelectedTemplate("battle_challenge")}
+            className="text-xs"
+          >
+            ⚔️ Battle Challenge
+          </Button>
+          <Button
+            size="sm"
+            variant={selectedTemplate === "open_verse" ? "default" : "outline"}
+            onClick={() => setSelectedTemplate("open_verse")}
+            className="text-xs"
+          >
+            🎙️ Open Verse Collab
+          </Button>
+          <Button
+            size="sm"
+            variant={
+              selectedTemplate === "weekly_summary" ? "default" : "outline"
+            }
+            onClick={() => setSelectedTemplate("weekly_summary")}
+            className="text-xs"
+          >
+            📊 Weekly Summary
+          </Button>
+        </div>
+      </div>
+
+      {/* Rendered Email Template HTML Box */}
+      <Card className="p-6 bg-zinc-950 border-zinc-800 text-white max-w-2xl mx-auto shadow-2xl rounded-2xl">
+        {selectedTemplate === "post_battle" && (
+          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
+            <div className="border-b pb-4">
+              <h2 className="text-xl font-bold text-rose-600">
+                🏆 Battle Recap &amp; Tracklist
+              </h2>
+              <p className="text-xs text-zinc-500 mt-1">
+                Winner: <strong>MetroFlow</strong> (3 - 2)
+              </p>
+            </div>
+            <p className="text-sm">
+              Hey Alex, here is the tracklist played during the live battle:
+            </p>
+            <ul className="bg-zinc-50 p-4 rounded-lg text-xs space-y-2 border">
+              <li>
+                Round 1: <strong>Metro Bounce (WAV)</strong>
+              </li>
+              <li>
+                Round 2: <strong>Nightfall Vibe (Master)</strong>
+              </li>
+              <li>
+                Round 3: <strong>Cyberpunk Anthem (Unreleased)</strong>
+              </li>
+            </ul>
+            <a
+              href="/live/preview"
+              className="inline-block bg-rose-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow"
+            >
+              Watch Battle Replay
+            </a>
+          </div>
+        )}
+
+        {selectedTemplate === "battle_challenge" && (
+          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
+            <h2 className="text-xl font-bold text-purple-600">
+              Swords Up! New Battle Challenge
+            </h2>
+            <p className="text-sm">Hey ProducerKev,</p>
+            <p className="text-sm">
+              <strong>MetroFlow</strong> has challenged you to a{" "}
+              <strong>Best of 5</strong> battle on SoundKit!
+            </p>
+            <blockquote className="border-l-4 border-purple-600 pl-3 italic text-xs text-zinc-600">
+              "Let's see who has the best drum processing."
+            </blockquote>
+            <a
+              href="/dashboard/live/challenge"
+              className="inline-block bg-purple-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
+            >
+              Respond to Challenge
+            </a>
+          </div>
+        )}
+
+        {selectedTemplate === "open_verse" && (
+          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
+            <h2 className="text-xl font-bold text-pink-600">
+              Private Open Verse Collab Invitation
+            </h2>
+            <p className="text-sm">Hey Sarah,</p>
+            <p className="text-sm">
+              <strong>MetroFlow</strong> invited you to collaborate on their
+              private Open Verse: <strong>"Midnight Mixtape Track 4"</strong>.
+            </p>
+            <a
+              href="/dashboard/open-verses"
+              className="inline-block bg-pink-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
+            >
+              Join Collaboration
+            </a>
+          </div>
+        )}
+
+        {selectedTemplate === "weekly_summary" && (
+          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
+            <h2 className="text-xl font-bold text-blue-600">
+              Your Weekly SoundKit Performance Summary
+            </h2>
+            <p className="text-sm">Hey MetroFlow,</p>
+            <p className="text-sm">Here is your weekly artist recap:</p>
+            <ul className="bg-blue-50 p-4 rounded-lg text-xs space-y-1.5 border border-blue-100">
+              <li>
+                <strong>Weekly Qualified Streams:</strong> 12,480
+              </li>
+              <li>
+                <strong>Active Fan Count:</strong> 850
+              </li>
+              <li>
+                <strong>Payout Pool Share:</strong> $342.50
+              </li>
+            </ul>
+            <a
+              href="/dashboard"
+              className="inline-block bg-blue-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
+            >
+              Open Artist Dashboard
+            </a>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }

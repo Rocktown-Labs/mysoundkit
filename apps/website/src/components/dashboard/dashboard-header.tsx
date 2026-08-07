@@ -1,6 +1,7 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link } from "@tanstack/react-router";
 import { Bell, FolderOpen, Music, Search, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,14 @@ const resultLinkClassName =
 export function DashboardHeader() {
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const trimmedSearchValue = debouncedSearchValue.trim();
+
+  useHotkey("Mod+K", (event) => {
+    event.preventDefault();
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  });
 
   const notificationsQuery = useNotificationsQuery();
   const markReadMutation = useMarkNotificationsReadMutation();
@@ -64,6 +72,7 @@ export function DashboardHeader() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             type="search"
             placeholder="Search tracks, projects, artists..."
             className="pl-9 w-full"
@@ -176,11 +185,17 @@ export function DashboardHeader() {
           <DropdownMenuContent align="end" className="w-80 p-2">
             <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 mb-1">
               <p className="font-semibold text-sm">Notifications</p>
-              {unreadCount > 0 ? (
-                <span className="text-[10px] bg-primary/15 text-primary font-mono px-1.5 py-0.5 rounded-md font-bold">
-                  {unreadCount} UNREAD
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2">
+                {unreadCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => markReadMutation.mutate({ all: true })}
+                    className="text-[10px] text-primary hover:underline font-medium"
+                  >
+                    Mark all read
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             {notifications.length === 0 ? (
@@ -208,7 +223,7 @@ export function DashboardHeader() {
                         </p>
                       </Link>
                     ) : (
-                      <div>
+                      <div className="w-full">
                         <div className="flex items-center justify-between w-full">
                           <p className="text-xs font-semibold">{item.title}</p>
                           {!item.read && (

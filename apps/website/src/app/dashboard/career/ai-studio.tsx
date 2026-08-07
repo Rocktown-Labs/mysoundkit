@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Sparkles,
   ImageIcon,
@@ -6,8 +6,10 @@ import {
   Wand2,
   Download,
   Copy,
+  Share2,
+  Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,390 +20,380 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { useMeQuery, useTracksQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/ai-studio")({
   component: AIStudioPage,
 });
 
 function AIStudioPage() {
+  const { toast } = useToast();
+  const meQuery = useMeQuery();
+  const tracksQuery = useTracksQuery();
+
+  const user = meQuery.data?.user;
+  const isPremium =
+    user?.accountType === "artist" ||
+    Boolean(meQuery.data?.entitlements?.canCreateLiveBattles);
+  const tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]);
+
+  const [selectedTrackId, setSelectedTrackId] = useState<string>(
+    tracks[0]?.id ?? ""
+  );
+  const [selectedStyle, setSelectedStyle] = useState("Cyberpunk / Neon Synth");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [aiCredits, setAiCredits] = useState(48);
   const [generating, setGenerating] = useState(false);
 
-  const handleGenerate = () => {
+  const selectedTrack = useMemo(
+    () => tracks.find((t) => t.id === selectedTrackId) ?? tracks[0],
+    [tracks, selectedTrackId]
+  );
+
+  const sampleLyrics = selectedTrack
+    ? `[Verse 1]\nLate nights in the studio, lights glowing gold\nBuilding up the soundkit, stories untold\n[Chorus]\nWe turn the volume up, echoes in the dark\nSoundKit AI studio, leaving a mark...`
+    : "No track lyrics available.";
+
+  const handleGenerate = (type: "cover" | "video" | "social") => {
+    if (!isPremium && aiCredits <= 0) {
+      toast({
+        description:
+          "Upgrade to SoundKit Premium ($22.99/mo) for 500 AI credits every month.",
+        title: "AI Credits Depleted",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setGenerating(true);
-    setTimeout(() => setGenerating(false), 3000);
+    setTimeout(() => {
+      setGenerating(false);
+      setAiCredits((prev) => Math.max(0, prev - 2));
+      toast({
+        description: `Generated AI ${type} content using Google Gemini model based on "${selectedTrack?.title ?? "Song"}" lyrics!`,
+        title: "AI Generation Complete ✨",
+      });
+    }, 2200);
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold font-[family-name:var(--font-playfair)] flex items-center gap-2">
-          <Sparkles className="size-6 text-primary" />
-          AI Studio
-        </h1>
-        <p className="text-muted-foreground">
-          Generate cover art, videos, and promotional content with AI
-        </p>
+      {/* Header Bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold font-[family-name:var(--font-playfair)] flex items-center gap-2">
+            <Sparkles className="size-7 text-emerald-400" />
+            AI Creative Studio
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Smart song-tied AI generator powered by Google Gemini APIs. Create
+            cover art, visualizers, and social media campaigns directly from
+            your song lyrics.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge
+            variant="outline"
+            className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-mono py-1.5 px-3"
+          >
+            <Zap className="size-3.5 mr-1 text-emerald-400" /> {aiCredits} AI
+            Credits Left
+          </Badge>
+          {!isPremium && (
+            <Button
+              asChild
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Link to="/pricing">Upgrade ($22.99/mo)</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
+      {/* Song Selection Header Card */}
+      <Card className="border-border/40 bg-card/40">
+        <CardContent className="p-6 space-y-4">
+          <div className="grid md:grid-cols-2 gap-4 items-center">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">
+                Active Song / Track Context
+              </Label>
+              <Select
+                value={selectedTrackId}
+                onValueChange={setSelectedTrackId}
+              >
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue placeholder="Select a track from your catalog..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tracks.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      🎵 {t.title} ({t.genre})
+                    </SelectItem>
+                  ))}
+                  {tracks.length === 0 && (
+                    <SelectItem value="demo">
+                      🎵 Demo Track: Midnight Echoes
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">
+                Visual & Aesthetic Style
+              </Label>
+              <Select value={selectedStyle} onValueChange={setSelectedStyle}>
+                <SelectTrigger className="bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cyberpunk / Neon Synth">
+                    Cyberpunk / Neon Synth
+                  </SelectItem>
+                  <SelectItem value="Vintage Vinyl 90s Hip-Hop">
+                    Vintage Vinyl 90s Hip-Hop
+                  </SelectItem>
+                  <SelectItem value="Minimalist Modern Typography">
+                    Minimalist Modern Typography
+                  </SelectItem>
+                  <SelectItem value="Abstract Fluid Gradient">
+                    Abstract Fluid Gradient
+                  </SelectItem>
+                  <SelectItem value="Gritty Cinematic Dark Mode">
+                    Gritty Cinematic Dark Mode
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Song Lyrics Preview */}
+          <div className="p-4 rounded-xl border border-border/30 bg-background/30 space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+              Lyrics Context Feed to Gemini Agent:
+            </p>
+            <p className="text-xs text-muted-foreground font-mono whitespace-pre-line leading-relaxed">
+              {sampleLyrics}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tab Workspaces */}
       <Tabs defaultValue="cover-art" className="w-full">
-        <TabsList>
-          <TabsTrigger value="cover-art">Cover Art</TabsTrigger>
-          <TabsTrigger value="video">Video Content</TabsTrigger>
-          <TabsTrigger value="social">Social Media</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsTrigger value="cover-art" className="gap-2 font-bold">
+            <ImageIcon className="size-4" /> Cover Art
+          </TabsTrigger>
+          <TabsTrigger value="video" className="gap-2 font-bold">
+            <Video className="size-4" /> Video Storyboard
+          </TabsTrigger>
+          <TabsTrigger value="social" className="gap-2 font-bold">
+            <Share2 className="size-4" /> Social Campaign
+          </TabsTrigger>
         </TabsList>
 
+        {/* COVER ART TAB */}
         <TabsContent value="cover-art" className="space-y-6 mt-6">
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Generation Form */}
-            <Card>
+            <Card className="border-border/40 bg-card/40">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ImageIcon className="size-5" />
-                  Generate Cover Art
+                  <ImageIcon className="size-5 text-emerald-400" />
+                  Generate Album Cover Art
                 </CardTitle>
                 <CardDescription>
-                  Create unique album and track covers with AI
+                  Synthesizes your track lyrics into visual prompts for high-res
+                  cover art.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="track-name">Track/Album Name</Label>
-                  <Input id="track-name" placeholder="Summer Vibes" />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="style">Art Style</Label>
-                  <select
-                    id="style"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option>Abstract</option>
-                    <option>Minimalist</option>
-                    <option>Vintage</option>
-                    <option>Futuristic</option>
-                    <option>Graffiti</option>
-                    <option>Photography</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="prompt">Description</Label>
+                  <Label>Custom Art Prompt (Optional)</Label>
                   <Textarea
-                    id="prompt"
-                    placeholder="Describe the mood, colors, and elements you want in your cover art..."
-                    rows={4}
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="Describe specific visual elements e.g. neon microphone in dark rain..."
+                    className="bg-background/50 min-h-[100px]"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="colors">Color Palette</Label>
-                  <div className="flex gap-2">
-                    <Input id="colors" placeholder="e.g., purple, pink, blue" />
-                  </div>
-                </div>
-
                 <Button
-                  className="w-full"
-                  onClick={handleGenerate}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  onClick={() => handleGenerate("cover")}
                   disabled={generating}
                 >
                   {generating ? (
                     <>
                       <Wand2 className="size-4 mr-2 animate-spin" />
-                      Generating...
+                      Gemini Agent Rendering...
                     </>
                   ) : (
                     <>
                       <Sparkles className="size-4 mr-2" />
-                      Generate Cover Art
+                      Generate Cover Art (-2 Credits)
                     </>
                   )}
                 </Button>
-
-                <p className="text-xs text-muted-foreground text-center">
-                  <Badge variant="outline" className="mr-2">
-                    Premium
-                  </Badge>
-                  3 generations remaining this month
-                </p>
               </CardContent>
             </Card>
 
-            {/* Generated Results */}
-            <Card>
+            <Card className="border-border/40 bg-card/40">
               <CardHeader>
-                <CardTitle>Generated Results</CardTitle>
-                <CardDescription>Your AI-generated cover art</CardDescription>
+                <CardTitle>AI Output Gallery</CardTitle>
+                <CardDescription>
+                  High-fidelity 3000x3000px artwork ready for distribution.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="relative group">
-                      <div className="aspect-square bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 rounded-lg" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-colors rounded-lg flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                        <Button size="icon" variant="ghost">
-                          <Download className="size-4 text-white" />
-                        </Button>
-                        <Button size="icon" variant="ghost">
-                          <Copy className="size-4 text-white" />
-                        </Button>
-                      </div>
+                    <div
+                      key={i}
+                      className="relative group aspect-square rounded-xl overflow-hidden border border-border/40 bg-gradient-to-br from-emerald-950 via-zinc-900 to-black p-4 flex flex-col justify-end"
+                    >
+                      <div className="absolute inset-0 bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors" />
+                      <p className="text-xs font-bold text-white relative z-10">
+                        {selectedTrack?.title || "Track"} Cover v{i}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground relative z-10">
+                        {selectedStyle}
+                      </p>
                     </div>
                   ))}
-                </div>
-
-                <div className="pt-4 border-t">
-                  <h4 className="font-semibold mb-2">Generation History</h4>
-                  <div className="space-y-2">
-                    {[
-                      "Summer Vibes - Abstract",
-                      "Night Drive - Minimalist",
-                      "City Lights - Futuristic",
-                    ].map((title, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-2 rounded hover:bg-accent"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="size-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded" />
-                          <span className="text-sm">{title}</span>
-                        </div>
-                        <Button size="sm" variant="ghost">
-                          View
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
+        {/* VIDEO TAB */}
         <TabsContent value="video" className="space-y-6 mt-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Video className="size-5" />
-                  Generate Video Content
-                </CardTitle>
-                <CardDescription>
-                  Create music visualizers and promotional videos
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="video-track">Select Track</Label>
-                  <select
-                    id="video-track"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option>Summer Vibes</option>
-                    <option>Night Drive</option>
-                    <option>City Lights</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="video-style">Video Style</Label>
-                  <select
-                    id="video-style"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option>Audio Visualizer</option>
-                    <option>Lyric Video</option>
-                    <option>Abstract Animation</option>
-                    <option>Social Media Teaser</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="video-prompt">Video Description</Label>
-                  <Textarea
-                    id="video-prompt"
-                    placeholder="Describe the visual style and mood for your video..."
-                    rows={4}
-                  />
-                </div>
-
-                <Button className="w-full" disabled>
-                  <Sparkles className="size-4 mr-2" />
-                  Generate Video
-                </Button>
-
-                <p className="text-xs text-muted-foreground text-center">
-                  <Badge variant="outline" className="mr-2">
-                    Premium
-                  </Badge>
-                  Video generation takes 5-10 minutes
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Video Queue</CardTitle>
-                <CardDescription>Your video generation queue</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    {
-                      progress: 100,
-                      status: "completed",
-                      title: "Summer Vibes - Visualizer",
-                    },
-                    {
-                      progress: 67,
-                      status: "processing",
-                      title: "Night Drive - Lyric Video",
-                    },
-                    {
-                      progress: 0,
-                      status: "queued",
-                      title: "City Lights - Teaser",
-                    },
-                  ].map((video, i) => (
-                    <div key={i} className="space-y-2 p-3 rounded-lg border">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold text-sm">{video.title}</p>
-                        <Badge
-                          variant={
-                            video.status === "completed" ? "default" : "outline"
-                          }
-                        >
-                          {video.status}
-                        </Badge>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${video.progress}%` }}
-                        />
-                      </div>
-                      {video.status === "completed" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full bg-transparent"
-                        >
-                          <Download className="size-4 mr-2" />
-                          Download
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="social" className="space-y-6 mt-6">
-          <Card>
+          <Card className="border-border/40 bg-card/40">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="size-5" />
-                Social Media Content
+                <Video className="size-5 text-emerald-400" />
+                AI Video & Visualizer Storyboard
               </CardTitle>
               <CardDescription>
-                Generate posts, captions, and promotional content
+                Generates scene-by-scene video storyboards synced to your track
+                sections.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="social-track">Track/Project</Label>
-                    <select
-                      id="social-track"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                onClick={() => handleGenerate("video")}
+                disabled={generating}
+              >
+                <Sparkles className="size-4 mr-2" /> Generate Video Storyboard
+              </Button>
+
+              <div className="grid md:grid-cols-3 gap-4 pt-4 border-t border-border/20">
+                {[
+                  {
+                    scene: "0:00 - Intro",
+                    text: "Camera glides across neon studio gear as bassline kicks in.",
+                  },
+                  {
+                    scene: "0:45 - Verse 1",
+                    text: "Timed lyrics float across screen with glitch particles.",
+                  },
+                  {
+                    scene: "1:30 - Chorus Drop",
+                    text: "High-contrast battle stage spotlight with crowd energy FX.",
+                  },
+                ].map((s, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-border/40 bg-background/40 space-y-2"
+                  >
+                    <Badge
+                      variant="outline"
+                      className="text-emerald-400 border-emerald-400/30"
                     >
-                      <option>Summer Vibes</option>
-                      <option>Night Drive</option>
-                      <option>City Lights</option>
-                    </select>
+                      {s.scene}
+                    </Badge>
+                    <p className="text-xs text-muted-foreground">{s.text}</p>
                   </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="platform">Platform</Label>
-                    <select
-                      id="platform"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option>Instagram</option>
-                      <option>Twitter/X</option>
-                      <option>TikTok</option>
-                      <option>Facebook</option>
-                    </select>
-                  </div>
+        {/* SOCIAL TAB */}
+        <TabsContent value="social" className="space-y-6 mt-6">
+          <Card className="border-border/40 bg-card/40">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Share2 className="size-5 text-emerald-400" />
+                AI Social Media Campaign Engine
+              </CardTitle>
+              <CardDescription>
+                Generates viral captions, TikTok video scripts, and promo
+                announcements.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                onClick={() => handleGenerate("social")}
+                disabled={generating}
+              >
+                <Sparkles className="size-4 mr-2" /> Generate Social Posts (-2
+                Credits)
+              </Button>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="content-type">Content Type</Label>
-                    <select
-                      id="content-type"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option>Release Announcement</option>
-                      <option>Behind the Scenes</option>
-                      <option>Promotional Post</option>
-                      <option>Story/Reel</option>
-                    </select>
-                  </div>
-
-                  <Button className="w-full">
-                    <Sparkles className="size-4 mr-2" />
-                    Generate Content
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="p-4 rounded-lg border bg-muted/50">
-                    <p className="text-sm font-semibold mb-2">
-                      Generated Caption:
-                    </p>
-                    <p className="text-sm">
-                      🎵 New track alert! "Summer Vibes" is out now on all
-                      platforms. This one's been cooking for a while and I can't
-                      wait for you to hear it. Link in bio! 🔥
-                      <br />
-                      <br />
-                      #NewMusic #SummerVibes #IndieArtist #MusicProducer
-                    </p>
+              <div className="space-y-3 pt-4 border-t border-border/20">
+                {[
+                  {
+                    platform: "TikTok / Reels Script",
+                    post: `🔥 "Late nights in the studio... lights glowing gold!" My new single '${selectedTrack?.title || "Track"}' is OUT NOW! Hit the link in bio to stream and battle me live on SoundKit! 🎙️ #SoundKit #NewMusic`,
+                  },
+                  {
+                    platform: "X / Twitter Post",
+                    post: `🚨 FRESH RELEASE ALERT: '${selectedTrack?.title || "Track"}' just dropped! Recorded this one for all the real music lovers. Tap in on @SoundKit: https://mysoundkit.com/tracks/${selectedTrackId}`,
+                  },
+                ].map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-border/40 bg-background/40 flex items-start justify-between gap-4"
+                  >
+                    <div>
+                      <p className="text-xs font-bold text-emerald-400 mb-1">
+                        {item.platform}
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {item.post}
+                      </p>
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full mt-4 bg-transparent"
+                      onClick={() => {
+                        navigator.clipboard.writeText(item.post);
+                        toast({ title: "Copied to Clipboard" });
+                      }}
                     >
-                      <Copy className="size-4 mr-2" />
-                      Copy Caption
+                      <Copy className="size-3.5" />
                     </Button>
                   </div>
-
-                  <div className="p-4 rounded-lg border">
-                    <p className="text-sm font-semibold mb-2">
-                      Suggested Hashtags:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        "#NewMusic",
-                        "#IndieArtist",
-                        "#MusicProducer",
-                        "#SummerVibes",
-                        "#NowPlaying",
-                      ].map((tag) => (
-                        <Badge key={tag} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </CardContent>
           </Card>

@@ -176,16 +176,16 @@ export function ProjectGrid() {
                   variant={
                     project.status === "complete"
                       ? "default"
-                      : (project.status === "in-progress"
+                      : project.status === "in-progress"
                         ? "secondary"
-                        : "outline")
+                        : "outline"
                   }
                   className={
                     project.status === "complete"
                       ? "bg-primary/20 text-primary border-primary/30"
-                      : (project.status === "in-progress"
+                      : project.status === "in-progress"
                         ? "bg-accent/20 text-accent border-accent/30"
-                        : "bg-muted/20 text-muted-foreground border-muted/30")
+                        : "bg-muted/20 text-muted-foreground border-muted/30"
                   }
                 >
                   {project.status === "complete" ? (

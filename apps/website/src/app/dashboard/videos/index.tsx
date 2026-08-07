@@ -11,6 +11,16 @@ import {
 import { useState } from "react";
 
 import { StatsGrid } from "@/components/dashboard/stats-grid";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +31,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useVideosQuery } from "@/lib/soundkit-api-hooks";
+import { toast } from "@/hooks/use-toast";
+import {
+  useDeleteVideoMutation,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
+import type { VideoSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/videos/")({
   component: DashboardVideosPage,
@@ -29,7 +44,10 @@ export const Route = createFileRoute("/dashboard/videos/")({
 
 function DashboardVideosPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [pendingDeleteVideo, setPendingDeleteVideo] =
+    useState<VideoSummary | null>(null);
   const videosQuery = useVideosQuery();
+  const deleteVideoMutation = useDeleteVideoMutation();
   const videos = videosQuery.data ?? [];
   const verifiedUploads = videos.filter(
     (video) => video.sourceProvider === "mux"
@@ -222,7 +240,10 @@ function DashboardVideosPage() {
                         <DropdownMenuItem>Edit Details</DropdownMenuItem>
                         <DropdownMenuItem>Change Visibility</DropdownMenuItem>
                         <DropdownMenuItem>View Analytics</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => setPendingDeleteVideo(video)}
+                        >
                           Delete Video
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -256,6 +277,54 @@ function DashboardVideosPage() {
           </CardContent>
         </Card>
       </div>
+      <AlertDialog
+        open={pendingDeleteVideo !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteVideo(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this video?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteVideo?.title ?? ""} will be permanently removed from
+              SoundKit. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => {
+                if (!pendingDeleteVideo) {
+                  return;
+                }
+                deleteVideoMutation.mutate(pendingDeleteVideo.id, {
+                  onError: (error) =>
+                    toast({
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Could not delete this video.",
+                      title: "Delete Failed",
+                      variant: "destructive",
+                    }),
+                  onSuccess: () =>
+                    toast({
+                      description: `${pendingDeleteVideo.title} was deleted.`,
+                      title: "Video Deleted",
+                    }),
+                });
+                setPendingDeleteVideo(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

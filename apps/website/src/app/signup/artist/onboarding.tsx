@@ -120,6 +120,9 @@ const wizardText = {
   producerDescription:
     "Sell or stream beats, license instrumentals, and battle.",
   producerTitle: "Producer",
+  publishingSubtitle:
+    "Use your writer name and PRO details for credits and royalties.",
+  publishingTitle: "Credits & Publishing",
   rolesSubtitle: "Choose one or both. The dashboard stays the same.",
   rolesTitle: "What Do You Create?",
   setupTitle: "Set Up Your Artist Profile",
@@ -304,9 +307,18 @@ function ArtistOnboardingPage() {
   >([]);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [primaryGenre, setPrimaryGenre] = useState("");
+  const [appleMusicUrl, setAppleMusicUrl] = useState("");
+  const [instagramHandle, setInstagramHandle] = useState("");
+  const [proAffiliation, setProAffiliation] = useState("");
+  const [proMemberId, setProMemberId] = useState("");
   const [selectedPlanCode, setSelectedPlanCode] = useState(
     "soundkit_premium_artist"
   );
+  const [songwriterLegalName, setSongwriterLegalName] = useState("");
+  const [spotifyUrl, setSpotifyUrl] = useState("");
+  const [tiktokHandle, setTiktokHandle] = useState("");
+  const [twitterHandle, setTwitterHandle] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isDraftReady, setIsDraftReady] = useState(false);
   const radarInitializedRef = useRef(false);
   const selectedLocationQueryRef = useRef("");
@@ -638,15 +650,24 @@ function ArtistOnboardingPage() {
     try {
       const response = await fetch(`${API_V1_URL}/onboarding/artist`, {
         body: JSON.stringify({
+          appleMusicUrl: appleMusicUrl || undefined,
           avatarObjectKey: avatarObjectKey || undefined,
           avatarUrl: avatarUrl || undefined,
           city: city || "Los Angeles",
+          instagramHandle: instagramHandle || undefined,
           primaryGenre: primaryGenre || "Hip-Hop",
+          proAffiliation: proAffiliation || "None",
+          proMemberId: proMemberId || undefined,
           roles,
           selectedPlanCode,
+          songwriterLegalName: songwriterLegalName || undefined,
+          spotifyUrl: spotifyUrl || undefined,
           state: stateValue || "CA",
           teamInviteEmails: [],
+          tiktokHandle: tiktokHandle || undefined,
+          twitterHandle: twitterHandle || undefined,
           username: normalizedUsername,
+          youtubeUrl: youtubeUrl || undefined,
         }),
         credentials: "include",
         headers: {
@@ -1133,21 +1154,27 @@ function ArtistOnboardingPage() {
                     <Label htmlFor="spotify">{wizardText.spotifyLabel}</Label>
                     <Input
                       id="spotify"
-                      placeholder="https://open.spotify.com/artist/..."
+                      onChange={(event) => setSpotifyUrl(event.target.value)}
+                      placeholder="@artist or https://open.spotify.com/artist/..."
+                      value={spotifyUrl}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="apple">{wizardText.appleMusicLabel}</Label>
                     <Input
                       id="apple"
-                      placeholder="https://music.apple.com/artist/..."
+                      onChange={(event) => setAppleMusicUrl(event.target.value)}
+                      placeholder="@artist or https://music.apple.com/artist/..."
+                      value={appleMusicUrl}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="youtube">{wizardText.youtubeLabel}</Label>
                     <Input
                       id="youtube"
-                      placeholder="https://youtube.com/@..."
+                      onChange={(event) => setYoutubeUrl(event.target.value)}
+                      placeholder="@channel or https://youtube.com/@..."
+                      value={youtubeUrl}
                     />
                   </div>
                 </div>
@@ -1198,15 +1225,76 @@ function ArtistOnboardingPage() {
                     <Label htmlFor="instagram">
                       {wizardText.instagramLabel}
                     </Label>
-                    <Input id="instagram" placeholder="@yourhandle" />
+                    <Input
+                      id="instagram"
+                      onChange={(event) =>
+                        setInstagramHandle(event.target.value)
+                      }
+                      placeholder="@yourhandle"
+                      value={instagramHandle}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="tiktok">{wizardText.tiktokLabel}</Label>
-                    <Input id="tiktok" placeholder="@yourhandle" />
+                    <Input
+                      id="tiktok"
+                      onChange={(event) => setTiktokHandle(event.target.value)}
+                      placeholder="@yourhandle"
+                      value={tiktokHandle}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="twitter">{wizardText.twitterLabel}</Label>
-                    <Input id="twitter" placeholder="@yourhandle" />
+                    <Input
+                      id="twitter"
+                      onChange={(event) => setTwitterHandle(event.target.value)}
+                      placeholder="@yourhandle"
+                      value={twitterHandle}
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t pt-6 mt-6">
+                  <h3 className="font-bold text-lg">
+                    {wizardText.publishingTitle}
+                  </h3>
+                  <p className="mb-4 text-muted-foreground text-sm">
+                    {wizardText.publishingSubtitle}
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="songwriter-legal-name">
+                        Songwriter / Legal Name
+                      </Label>
+                      <Input
+                        id="songwriter-legal-name"
+                        onChange={(event) =>
+                          setSongwriterLegalName(event.target.value)
+                        }
+                        placeholder="Cameron Stewart"
+                        value={songwriterLegalName}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pro-affiliation">ASCAP / BMI</Label>
+                      <Input
+                        id="pro-affiliation"
+                        onChange={(event) =>
+                          setProAffiliation(event.target.value)
+                        }
+                        placeholder="BMI"
+                        value={proAffiliation}
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="pro-member-id">PRO Number</Label>
+                      <Input
+                        id="pro-member-id"
+                        onChange={(event) => setProMemberId(event.target.value)}
+                        placeholder="Writer member number"
+                        value={proMemberId}
+                      />
+                    </div>
                   </div>
                 </div>
 

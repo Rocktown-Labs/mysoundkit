@@ -4,6 +4,7 @@ import {
   genres,
   openVerseListings,
   openVerseSubmissions,
+  trackCollaborators,
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
@@ -416,6 +417,210 @@ app.openapi(
         createdAt: submission.createdAt.toISOString(),
       },
       HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{listingId}/submissions",
+    request: {
+      params: z.object({ listingId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.array(
+          openVerseSubmissionSchema.extend({
+            submitterAvatarUrl: z.string().nullable().optional(),
+            submitterDisplayName: z.string().optional(),
+            submitterUsername: z.string().optional(),
+          })
+        ),
+        "List of open verse submissions"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const { listingId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        [
+          {
+            assetId: "asset_vocal_1",
+            createdAt: new Date().toISOString(),
+            id: "sub_1",
+            listingId,
+            message: "Fire verse recorded over the 16-bar hook!",
+            status: "submitted" as const,
+            submitterAvatarUrl: "/diverse-user-avatars.png",
+            submitterDisplayName: "Marcus Key",
+            submitterUserId: "user_marcus",
+            submitterUsername: "marcuskey",
+          },
+          {
+            assetId: "asset_vocal_2",
+            createdAt: new Date().toISOString(),
+            id: "sub_2",
+            listingId,
+            message: "Smooth R&B vocal take for your second verse slot.",
+            status: "submitted" as const,
+            submitterAvatarUrl: "/diverse-user-avatars.png",
+            submitterDisplayName: "Aria Vance",
+            submitterUserId: "user_aria",
+            submitterUsername: "ariavance",
+          },
+        ],
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    const rows = await db
+      .select({
+        assetId: openVerseSubmissions.assetId,
+        createdAt: openVerseSubmissions.createdAt,
+        id: openVerseSubmissions.id,
+        listingId: openVerseSubmissions.listingId,
+        message: openVerseSubmissions.message,
+        status: openVerseSubmissions.status,
+        submitterAvatarUrl: userProfiles.avatarUrl,
+        submitterDisplayName: userProfiles.displayName,
+        submitterUserId: openVerseSubmissions.submitterUserId,
+        submitterUsername: userProfiles.username,
+      })
+      .from(openVerseSubmissions)
+      .leftJoin(
+        userProfiles,
+        eq(userProfiles.userId, openVerseSubmissions.submitterUserId)
+      )
+      .where(eq(openVerseSubmissions.listingId, listingId))
+      .orderBy(desc(openVerseSubmissions.createdAt));
+
+    return c.json(
+      rows.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+        submitterDisplayName: r.submitterDisplayName ?? "Contender Artist",
+        submitterUsername: r.submitterUsername ?? r.submitterUserId,
+      })),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{listingId}/submissions/{submissionId}/accept",
+    request: {
+      params: z.object({
+        listingId: z.string(),
+        submissionId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          message: z.string(),
+          status: z.string(),
+        }),
+        "Submission accepted and added to track credits"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Open verse or submission not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { listingId, submissionId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          message:
+            "Vocal submission accepted! Artist added to song credits & splits.",
+          status: "accepted",
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    const [listing] = await db
+      .select()
+      .from(openVerseListings)
+      .where(eq(openVerseListings.id, listingId))
+      .limit(1);
+
+    if (!listing) {
+      return c.json(
+        { message: "Open verse listing not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [submission] = await db
+      .select()
+      .from(openVerseSubmissions)
+      .where(
+        and(
+          eq(openVerseSubmissions.id, submissionId),
+          eq(openVerseSubmissions.listingId, listingId)
+        )
+      )
+      .limit(1);
+
+    if (!submission) {
+      return c.json(
+        { message: "Submission not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    // Update submission status
+    await db
+      .update(openVerseSubmissions)
+      .set({ status: "accepted", updatedAt: new Date() })
+      .where(eq(openVerseSubmissions.id, submissionId));
+
+    // Register artist as track collaborator in song credits
+    await db
+      .insert(trackCollaborators)
+      .values({
+        canDelete: false,
+        canEdit: true,
+        canUpload: true,
+        collaboratorRole: "songwriter",
+        collaboratorUserId: submission.submitterUserId,
+        id: crypto.randomUUID(),
+        invitationStatus: "accepted",
+        invitedByUserId: user.id,
+        trackId: listing.trackId,
+      })
+      .onConflictDoNothing();
+
+    return c.json(
+      {
+        message:
+          "Vocal submission accepted! Artist added to song credits & splits.",
+        status: "accepted",
+      },
+      HttpStatusCodes.OK
     );
   }
 );

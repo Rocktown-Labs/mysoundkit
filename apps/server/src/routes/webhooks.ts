@@ -225,6 +225,8 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
   }
 
   if (eventType === "video.asset.ready") {
+    const playbackId = getPlaybackId(eventData.playback_ids);
+
     await db
       .update(videos)
       .set({
@@ -233,8 +235,11 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
             ? Math.round(eventData.duration * 1000)
             : null,
         muxAssetId: assetId,
-        muxPlaybackId: getPlaybackId(eventData.playback_ids),
+        muxPlaybackId: playbackId,
         status: "ready",
+        thumbnailUrl: playbackId
+          ? `https://image.mux.com/${playbackId}/thumbnail.jpg`
+          : null,
       })
       .where(eq(videos.id, video.id));
     if (assetId) {
@@ -424,6 +429,7 @@ app.openapi(
       ? await db
           .select({
             id: webhookEvents.id,
+            status: webhookEvents.status,
           })
           .from(webhookEvents)
           .where(
@@ -434,25 +440,44 @@ app.openapi(
           )
       : [];
 
-    if (existingEvent) {
+    if (
+      existingEvent &&
+      (existingEvent.status === "processed" ||
+        existingEvent.status === "ignored")
+    ) {
       return c.json(
         { message: "Mux webhook already processed." },
         HttpStatusCodes.OK
       );
     }
 
-    const eventRowId = crypto.randomUUID();
+    const eventRowId = existingEvent?.id ?? crypto.randomUUID();
 
-    await db.insert(webhookEvents).values({
-      eventType,
-      externalEventId,
-      id: eventRowId,
-      payload,
-      provider: "mux",
-      status: "received",
-    });
+    if (!existingEvent) {
+      await db.insert(webhookEvents).values({
+        eventType,
+        externalEventId,
+        id: eventRowId,
+        payload,
+        provider: "mux",
+        status: "received",
+      });
+    }
 
-    const status = await updateVideoFromMuxEvent(event);
+    let status: "processed" | "ignored";
+
+    try {
+      status = await updateVideoFromMuxEvent(event);
+    } catch (error) {
+      await db
+        .update(webhookEvents)
+        .set({
+          processedAt: new Date(),
+          status: "failed",
+        })
+        .where(eq(webhookEvents.id, eventRowId));
+      throw error;
+    }
 
     await db
       .update(webhookEvents)

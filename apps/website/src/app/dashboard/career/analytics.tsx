@@ -18,8 +18,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useBattlesQuery, useListeningPartiesQuery, useProjectsQuery, useTracksQuery, useVideosQuery } from '@/lib/soundkit-api-hooks';
-import type { TrackSummary } from '@/lib/soundkit-api-hooks';
+import {
+  useBattlesQuery,
+  useListeningPartiesQuery,
+  useProjectsQuery,
+  useTracksQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,

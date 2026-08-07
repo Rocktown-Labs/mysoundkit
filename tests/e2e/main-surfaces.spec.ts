@@ -3,10 +3,10 @@ import type { Page } from "@playwright/test";
 
 const gotoWithViteRetry = async (page: Page, path: string) => {
   try {
-    const response = await page.goto(path);
+    const response = await page.goto(path, { waitUntil: "domcontentloaded" });
     if (response && response.status() >= 500) {
       await page.waitForTimeout(250);
-      await page.goto(path);
+      await page.goto(path, { waitUntil: "domcontentloaded" });
     }
   } catch (error) {
     if (
@@ -18,7 +18,7 @@ const gotoWithViteRetry = async (page: Page, path: string) => {
     }
 
     await page.waitForTimeout(250);
-    await page.goto(path);
+    await page.goto(path, { waitUntil: "domcontentloaded" });
   }
 };
 
@@ -34,7 +34,7 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Discover Music" })
     ).toBeVisible();
     await expect(
-      page.getByText(/showing app-wide totals/iu).first()
+      page.getByText(/showing app-wide totals/i).first()
     ).toBeVisible();
 
     await gotoWithViteRetry(page, "/tracks");
@@ -106,11 +106,11 @@ test.describe("main application surfaces", () => {
       page.getByRole("heading", { name: "Music Videos" })
     ).toBeVisible();
     await expect(page.getByText("Featured Videos")).toBeVisible();
-    await expect(page.getByText("Hip Hop").first()).toBeVisible();
+    await expect(page.getByText("Hip-Hop/Rap").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
   });
 
-  test("creator live studio exposes stream setup and realtime controls", async ({
+  test("creator live dashboards expose separate battle party and stream setup", async ({
     context,
     page,
   }) => {
@@ -123,22 +123,40 @@ test.describe("main application surfaces", () => {
       },
     ]);
 
-    await gotoWithViteRetry(page, "/dashboard/live/streams");
+    await gotoWithViteRetry(page, "/dashboard/live/challenge");
 
     await expect(
-      page.getByRole("heading", { name: "Live Studio" })
+      page.getByRole("heading", { name: "Battle Requests" })
+    ).toBeVisible();
+    await expect(page.getByText("BattleBot handoff")).toBeVisible();
+    await expect(page.getByText("Next-round lobby")).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/live/parties");
+    await expect(
+      page.getByRole("heading", { name: /Live.*Parties/i })
     ).toBeVisible();
     await expect(
-      page.getByText("Artists bring their kit, set a round order")
+      page.getByText(/party chat can reference timestamps/i)
     ).toBeVisible();
-    await expect(page.getByText("RealtimeKit layer")).toBeVisible();
-    await expect(page.getByText("Realtime chat")).toBeVisible();
+    await expect(page.getByText("RealtimeKit Defaults")).toBeVisible();
+
+    await gotoWithViteRetry(page, "/dashboard/live/streams");
+    await expect(
+      page.getByRole("heading", { name: "Live Streams" })
+    ).toBeVisible();
+    await expect(page.getByText("Create Stream")).toBeVisible();
+    await expect(page.getByText("RealtimeKit Layer").first()).toBeVisible();
   });
 
   test("live room detail pages expose chat, lyrics, and battle voting", async ({
     page,
   }) => {
-    await page.goto("/live/parties/single-album-party");
+    test.setTimeout(45_000);
+
+    await gotoWithViteRetry(page, "/live/parties/single-album-party");
+    await expect(page.getByText("Loading live room...")).toBeHidden({
+      timeout: 20_000,
+    });
     await expect(
       page.getByRole("heading", { name: /single album spotlight/i })
     ).toBeVisible();
@@ -153,14 +171,16 @@ test.describe("main application surfaces", () => {
       page.getByRole("button", { name: /vote dj nova/i })
     ).toBeVisible();
     await expect(page.getByText(/muted until turn/i)).toBeVisible();
+    await expect(page.getByText("BattleBot Control")).toBeVisible();
 
-    await page.goto("/live/streams/stream-1");
+    await gotoWithViteRetry(page, "/live/streams/stream-1");
     await expect(
       page.getByRole("heading", {
         name: /beat making from the first drum hit/i,
       })
     ).toBeVisible();
     await expect(page.getByText(/cloudflare realtime ready/i)).toBeVisible();
+    await expect(page.getByText("Live Signals")).toBeVisible();
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {

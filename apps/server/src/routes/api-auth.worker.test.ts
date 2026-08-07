@@ -267,6 +267,45 @@ const protectedRequests: {
     path: "/v1/live/cloudflare-stream",
   },
   {
+    init: jsonRequest(
+      {
+        kind: "stream",
+        scheduleMode: "asap",
+        source: "browser",
+        title: "My RealtimeKit Stream",
+      },
+      "POST"
+    ),
+    label: "live experience creation",
+    path: "/v1/live/experiences",
+  },
+  {
+    init: jsonRequest({ role: "viewer" }, "POST"),
+    label: "live experience participant token creation",
+    path: "/v1/live/experiences/live_stream_123/join",
+  },
+  {
+    init: jsonRequest(
+      {
+        candidateStartsAt: "2026-07-22T20:00:00.000Z",
+      },
+      "POST"
+    ),
+    label: "live experience session lock checks",
+    path: "/v1/live/experiences/live_stream_123/session-locks/check",
+  },
+  {
+    init: jsonRequest(
+      {
+        action: "snapshot_voters",
+        participants: [],
+      },
+      "POST"
+    ),
+    label: "live experience BattleBot actions",
+    path: "/v1/live/experiences/live_battle_123/battlebot",
+  },
+  {
     label: "cloudflare stream live input retrieval",
     path: "/v1/live/cloudflare-stream/stream_123",
   },
@@ -321,6 +360,12 @@ describe("SoundKit API authentication boundaries", () => {
   it.each([
     ["summary", "/v1/admin/finance/summary", undefined],
     ["payments", "/v1/admin/finance/payments", undefined],
+    ["coupons", "/v1/admin/finance/payments/coupons", undefined],
+    [
+      "coupon creation",
+      "/v1/admin/finance/payments/coupons",
+      jsonRequest({ name: "VIP Launch", percentOff: 25 }),
+    ],
     ["payment sync", "/v1/admin/finance/payments/sync-plans", jsonRequest({})],
     [
       "payment import",
@@ -329,6 +374,16 @@ describe("SoundKit API authentication boundaries", () => {
         code: "soundkit_premium_artist",
         monthlyPriceId: "price_test",
       }),
+    ],
+    [
+      "premium grant",
+      "/v1/admin/finance/payments/grant-premium",
+      jsonRequest({ target: "artist@example.com" }),
+    ],
+    [
+      "AI credit grant",
+      "/v1/admin/finance/payments/issue-credits",
+      jsonRequest({ credits: 500, target: "artist@example.com" }),
     ],
   ])(
     "keeps finance administration restricted for %s",

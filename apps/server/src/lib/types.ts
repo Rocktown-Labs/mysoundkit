@@ -24,6 +24,8 @@ export interface AppEnv {
     SENTRY_DSN?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;
+    CLOUDFLARE_REALTIMEKIT_APP_ID?: string;
+    SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
   };
   Variables: AppVariables;
 }

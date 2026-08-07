@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
@@ -16,6 +17,7 @@ export interface PlayerTrack {
   album?: string;
   artist: string;
   cover?: string | null;
+  autoplay?: boolean;
   duration?: number | null;
   id: string;
   src: string;
@@ -26,14 +28,23 @@ export interface PlayerTrack {
 
 interface AudioPlayerContextValue {
   currentTrack: PlayerTrack | null;
+  isPlaying: boolean;
   queue: PlayerTrack[];
+  registerTogglePlay: (fn: (() => void) | null) => void;
   setCurrentTrack: (track: PlayerTrack | null) => void;
+  setIsPlaying: (playing: boolean) => void;
   setQueue: (queue: PlayerTrack[]) => void;
   setVisible: (visible: boolean) => void;
+  togglePlay: () => void;
   visible: boolean;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue | null>(null);
+
+const isPlayableSrc = (src: unknown): src is string =>
+  // blob: URLs die with the tab session that created them, so never restore
+  // them from localStorage (they render broken art and reject playback).
+  typeof src === "string" && src.length > 0 && !src.startsWith("blob:");
 
 const isPlayerTrack = (value: unknown): value is PlayerTrack => {
   if (!(value && typeof value === "object")) {
@@ -45,29 +56,27 @@ const isPlayerTrack = (value: unknown): value is PlayerTrack => {
   return (
     typeof track.artist === "string" &&
     typeof track.id === "string" &&
-    typeof track.src === "string" &&
+    isPlayableSrc(track.src) &&
     typeof track.title === "string"
   );
 };
 
+const EMPTY_PLAYER_STATE = {
+  currentTrack: null as PlayerTrack | null,
+  queue: [] as PlayerTrack[],
+  visible: false,
+};
+
 const readStoredPlayerState = () => {
   if (typeof window === "undefined") {
-    return {
-      currentTrack: null as PlayerTrack | null,
-      queue: [] as PlayerTrack[],
-      visible: false,
-    };
+    return EMPTY_PLAYER_STATE;
   }
 
   try {
     const raw = window.localStorage.getItem(audioPlayerStorageKey);
 
     if (!raw) {
-      return {
-        currentTrack: null as PlayerTrack | null,
-        queue: [] as PlayerTrack[],
-        visible: false,
-      };
+      return EMPTY_PLAYER_STATE;
     }
 
     const parsed = JSON.parse(raw) as {
@@ -76,36 +85,57 @@ const readStoredPlayerState = () => {
       visible?: unknown;
     };
 
+    const currentTrack = isPlayerTrack(parsed.currentTrack)
+      ? parsed.currentTrack
+      : null;
+    const queue = Array.isArray(parsed.queue)
+      ? parsed.queue.filter(isPlayerTrack)
+      : [];
+
     return {
-      currentTrack: isPlayerTrack(parsed.currentTrack)
-        ? parsed.currentTrack
-        : null,
-      queue: Array.isArray(parsed.queue)
-        ? parsed.queue.filter(isPlayerTrack)
-        : [],
-      visible: parsed.visible === true,
+      currentTrack,
+      queue,
+      // Only restore visibility when there is a playable track to show.
+      visible: parsed.visible === true && currentTrack !== null,
     };
   } catch {
-    return {
-      currentTrack: null as PlayerTrack | null,
-      queue: [] as PlayerTrack[],
-      visible: false,
-    };
+    return EMPTY_PLAYER_STATE;
   }
 };
 
 export function AudioPlayerProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const [initialState] = useState(readStoredPlayerState);
-  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(
-    initialState.currentTrack
-  );
-  const [queue, setQueue] = useState<PlayerTrack[]>(initialState.queue);
-  const [visible, setVisible] = useState(initialState.visible);
+  // Always initialize empty so the first client render matches the
+  // server-rendered HTML; restore persisted state after mount instead,
+  // otherwise hydration fails (React error #418) and the app crashes.
+  const [currentTrack, setCurrentTrack] = useState<PlayerTrack | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [queue, setQueue] = useState<PlayerTrack[]>([]);
+  const [visible, setVisible] = useState(false);
+  const [hasRestored, setHasRestored] = useState(false);
+  const togglePlayRef = useRef<(() => void) | null>(null);
+
+  const registerTogglePlay = useCallback((fn: (() => void) | null) => {
+    togglePlayRef.current = fn;
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (togglePlayRef.current) {
+      togglePlayRef.current();
+    }
+  }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    const stored = readStoredPlayerState();
+    setCurrentTrack(stored.currentTrack);
+    setQueue(stored.queue);
+    setVisible(stored.visible);
+    setHasRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestored || typeof window === "undefined") {
       return;
     }
 
@@ -113,7 +143,7 @@ export function AudioPlayerProvider({
       audioPlayerStorageKey,
       JSON.stringify({ currentTrack, queue, visible })
     );
-  }, [currentTrack, queue, visible]);
+  }, [hasRestored, currentTrack, queue, visible]);
 
   const handleSetCurrentTrack = useCallback((track: PlayerTrack | null) => {
     setCurrentTrack(track);
@@ -123,13 +153,25 @@ export function AudioPlayerProvider({
   const value = useMemo(
     () => ({
       currentTrack,
+      isPlaying,
       queue,
+      registerTogglePlay,
       setCurrentTrack: handleSetCurrentTrack,
+      setIsPlaying,
       setQueue,
       setVisible,
+      togglePlay,
       visible,
     }),
-    [currentTrack, handleSetCurrentTrack, queue, visible]
+    [
+      currentTrack,
+      isPlaying,
+      handleSetCurrentTrack,
+      queue,
+      registerTogglePlay,
+      togglePlay,
+      visible,
+    ]
   );
 
   return (

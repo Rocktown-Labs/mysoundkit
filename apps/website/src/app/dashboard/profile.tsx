@@ -17,6 +17,7 @@ import { useInView } from "react-intersection-observer";
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
 import { AppImage } from "@/components/ui/app-image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/profile")({
   component: DashboardProfilePage,
@@ -43,36 +44,44 @@ const fetchPosts = async ({ pageParam = 0 }) => {
     ][(pageParam * 9 + i) % 4],
     likes: Math.floor(Math.random() * 5000) + 100,
     title: `Release ${pageParam * 9 + i + 1}`,
-    type: i % 3 === 0 ? "project" : (i % 3 === 1 ? "video" : "track"),
+    type: i % 3 === 0 ? "project" : i % 3 === 1 ? "video" : "track",
   }));
 };
 
 function DashboardProfilePage() {
   const { ref, inView } = useInView();
-
+  const meQuery = useMeQuery();
+  const profile = meQuery.data?.user;
   const user = {
-    avatar: "/diverse-user-avatars.png",
-    battleRank: "#4",
-    battleRecord: "32-6",
-    bio: "Hip-hop producer and artist based in LA. Creating vibes since 2020. 💎",
-    coverImage: "/hip-hop-battle-stage.jpg",
-    followers: "5.2K",
-    following: "342",
-    genre: "Hip-Hop / Rap",
-    joinedDate: "Jan 2024",
+    avatar: profile?.avatarUrl ?? "/diverse-user-avatars.png",
+    battleRecord: "0",
+    bio: profile?.bio ?? "No public bio yet.",
+    coverImage: profile?.headerUrl ?? "",
+    followers: "0",
+    following: "0",
+    genre: "Hip-Hop",
+    joinedDate: profile?.onboardingCompletedAt
+      ? new Intl.DateTimeFormat("en", {
+          month: "short",
+          year: "numeric",
+        }).format(new Date(profile.onboardingCompletedAt))
+      : "SoundKit",
     links: {
-      apple: "https://music.apple.com",
-      instagram: "https://instagram.com",
-      spotify: "https://spotify.com",
-      twitter: "https://twitter.com",
-      youtube: "https://youtube.com",
+      appleMusic: profile?.links?.appleMusic,
+      instagram: profile?.links?.instagram,
+      personalSite: profile?.links?.personalSite,
+      soundcloud: profile?.links?.soundcloud,
+      spotify: profile?.links?.spotify,
+      tiktok: profile?.links?.tiktok,
+      twitter: profile?.links?.twitter,
+      youtube: profile?.links?.youtube,
     },
-    location: "Los Angeles, CA",
-    monthlyListeners: "84.2K",
-    name: "John Doe",
-    tracks: 24,
-    username: "johndoe",
-    verified: true,
+    location: [profile?.city, profile?.state].filter(Boolean).join(", "),
+    monthlyListeners: "0",
+    name: profile?.stageName ?? profile?.displayName ?? "SoundKit Artist",
+    tracks: 0,
+    username: profile?.username ?? "profile",
+    verified: false,
   };
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -137,13 +146,13 @@ function DashboardProfilePage() {
           <div ref={ref} className="py-10 flex justify-center">
             {isFetchingNextPage ? (
               <LoaderCircle className="size-6 text-primary animate-spin" />
-            ) : (hasNextPage ? (
+            ) : hasNextPage ? (
               <div className="h-10" />
             ) : (
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
                 End of Feed
               </p>
-            ))}
+            )}
           </div>
         </TabsContent>
 
@@ -185,9 +194,9 @@ function PostGridItem({ post }: { post: any }) {
   const linkProps =
     post.type === "video"
       ? ({ params: { id: post.id }, to: "/videos/$id" } as const)
-      : (post.type === "project"
+      : post.type === "project"
         ? ({ params: { id: post.id }, to: "/projects/$id" } as const)
-        : ({ params: { id: post.id }, to: "/tracks/$id" } as const));
+        : ({ params: { id: post.id }, to: "/tracks/$id" } as const);
 
   return (
     <Link
@@ -220,7 +229,7 @@ function PostGridItem({ post }: { post: any }) {
           <Heart className="size-4 md:size-5 fill-current" />
           <span className="font-bold text-sm md:text-base">
             {post.likes > 1000
-              ? `${(post.likes / 1000).toFixed(1)  }K`
+              ? `${(post.likes / 1000).toFixed(1)}K`
               : post.likes}
           </span>
         </div>

@@ -7,6 +7,7 @@ import {
   Lock,
   CreditCard,
   ArrowLeft,
+  LogOut,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -22,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { authClient } from "@/lib/auth-client";
 import {
   premiumPlanCodeForAccount,
   premiumSuccessPathForAccount,
@@ -236,8 +238,22 @@ function AccountSettingsPage() {
                 Update your password and security settings
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <Button variant="outline">Change Password</Button>
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  void authClient.signOut({
+                    fetchOptions: {
+                      onSuccess: () => window.location.assign("/"),
+                    },
+                  });
+                }}
+              >
+                <LogOut className="mr-2 size-4" />
+                Sign Out
+              </Button>
             </CardContent>
           </Card>
 

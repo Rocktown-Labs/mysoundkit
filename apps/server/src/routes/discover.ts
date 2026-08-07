@@ -1,11 +1,25 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+
+const genreCatalogSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+  })
+);
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { artistProfiles, tracks, userProfiles } from "@soundkit/db/schema/app";
+import {
+  artistProfiles,
+  genres,
+  tracks,
+  userProfiles,
+} from "@soundkit/db/schema/app";
 import { desc, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { canonicalGenreName, genreCatalog } from "@/lib/genre-catalog";
 import { loadPlatformSettings } from "@/lib/platform-settings";
 import { sampleArtists, sampleBattles, sampleTracks } from "@/lib/sample-data";
 import { discoverHomeResponseSchema } from "@/lib/schemas";
@@ -88,6 +102,47 @@ app.openapi(
       },
       HttpStatusCodes.OK
     );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/genres",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        genreCatalogSchema,
+        "Music genres catalog"
+      ),
+    },
+    tags: ["Discover"],
+  }),
+  async (c) => {
+    const fallbackGenres = genreCatalog;
+
+    if (!isDatabaseConfigured()) {
+      return c.json(fallbackGenres, HttpStatusCodes.OK);
+    }
+
+    const genresBySlug = new Map(
+      fallbackGenres.map((genre) => [genre.slug, genre])
+    );
+
+    try {
+      const db = createDb();
+      const rows = await db.select().from(genres);
+      for (const row of rows) {
+        genresBySlug.set(row.slug, {
+          id: row.id,
+          name: canonicalGenreName(row.name),
+          slug: row.slug,
+        });
+      }
+    } catch {
+      // Fall back to the catalog if the table is not ready
+    }
+
+    return c.json([...genresBySlug.values()], HttpStatusCodes.OK);
   }
 );
 

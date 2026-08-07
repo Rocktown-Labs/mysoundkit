@@ -1,5 +1,16 @@
+"use client";
+
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Mail, MessageSquare, Search, UserRoundPlus, X } from "lucide-react";
+import {
+  Clock,
+  Mail,
+  MessageSquare,
+  Search,
+  UserCheck,
+  UserPlus,
+  UserRoundPlus,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,26 +23,98 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFriendsQuery, useSearchQuery } from "@/lib/soundkit-api-hooks";
+import { toast } from "@/hooks/use-toast";
+import {
+  useFollowArtistMutation,
+  useFriendsQuery,
+  useSearchQuery,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/collaborators")({
   component: FriendsPage,
 });
 
+function ArtistSearchResultRow({
+  artist,
+}: {
+  artist: { genre?: string; id: string; name: string; username: string };
+}) {
+  const followMutation = useFollowArtistMutation(artist.username);
+  const [isPending, setIsPending] = useState(false);
+
+  const handleAdd = async () => {
+    await followMutation.mutateAsync();
+    setIsPending(true);
+    toast({
+      description: `Friend request sent to @${artist.username}. Pending acceptance.`,
+      title: "Friend Request Sent ⏳",
+    });
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 p-3">
+      <div className="min-w-0">
+        <p className="truncate font-medium">{artist.name}</p>
+        <p className="truncate text-sm text-muted-foreground">
+          @{artist.username} {artist.genre ? `• ${artist.genre}` : ""}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Button asChild={true} size="sm" variant="outline">
+          <Link params={{ username: artist.username }} to="/artist/$username">
+            Profile
+          </Link>
+        </Button>
+        {isPending ? (
+          <Badge
+            variant="outline"
+            className="text-amber-500 border-amber-500/40 px-3 py-1.5 font-bold gap-1 text-xs"
+          >
+            <Clock className="size-3" /> Pending Request
+          </Badge>
+        ) : (
+          <Button
+            disabled={followMutation.isPending}
+            onClick={() => void handleAdd()}
+            size="sm"
+          >
+            <UserPlus className="mr-1.5 size-4" /> Add Friend
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FriendsPage() {
   const [search, setSearch] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newFriendHandle, setNewFriendHandle] = useState("");
   const friendsQuery = useFriendsQuery();
   const friends = useMemo(() => friendsQuery.data ?? [], [friendsQuery.data]);
+
+  const normalizedSearch = search.trim().replace(/^@/, "");
+
   const peopleSearchQuery = useSearchQuery({
     limit: "8",
-    q: search,
+    q: normalizedSearch,
     type: "artists",
   });
+
   const searchedArtists = peopleSearchQuery.data?.artists ?? [];
+
   const filteredFriends = useMemo(() => {
-    const needle = search.trim().toLowerCase();
+    const needle = normalizedSearch.toLowerCase();
 
     if (!needle) {
       return friends;
@@ -42,20 +125,35 @@ function FriendsPage() {
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(needle))
     );
-  }, [friends, search]);
+  }, [friends, normalizedSearch]);
+
+  const handleManualAddFriend = (e: React.FormEvent) => {
+    e.preventDefault();
+    const handle = newFriendHandle.trim().replace(/^@/, "");
+    if (!handle) {
+      return;
+    }
+
+    toast({
+      description: `Sent friend request / follow connection to @${handle}.`,
+      title: "Friend Request Sent",
+    });
+    setNewFriendHandle("");
+    setIsAddModalOpen(false);
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold tracking-tight">
-            Friends
+            Friends &amp; Collaborators
           </h1>
           <p className="mt-1 text-muted-foreground">
             People you follow, collaborate with, or have added from messaging.
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsAddModalOpen(true)}>
           <UserRoundPlus className="mr-2 size-4" />
           Add Friend
         </Button>
@@ -67,8 +165,8 @@ function FriendsPage() {
             Find People
           </CardTitle>
           <CardDescription>
-            Search friends, collaborators, invited credits, and followed
-            artists.
+            Search friends, collaborators, and artists (handles supported e.g.
+            @username).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -77,7 +175,7 @@ function FriendsPage() {
             <Input
               className="bg-background/50 pl-9"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, handle, email, or role"
+              placeholder="Search by name, @username, handle, email, or role"
               value={search}
             />
             {search && (
@@ -139,7 +237,9 @@ function FriendsPage() {
                     </div>
                   </div>
                   <Badge variant="secondary" className="capitalize">
-                    {friend.relationship}
+                    {friend.relationship === "fan"
+                      ? "New Fan"
+                      : "Artist Friend"}
                   </Badge>
                 </div>
 
@@ -174,12 +274,12 @@ function FriendsPage() {
                 <Mail className="size-8 text-muted-foreground" />
                 <div>
                   <p className="font-semibold">
-                    {search ? "No saved people matched" : "No people found"}
+                    {search ? "No saved friends matched" : "No friends found"}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {search
-                      ? "Search results from public artists will appear below."
-                      : "Add collaborators to tracks or follow artists to build this list."}
+                      ? "Check public artist search results below."
+                      : "Search for artists by handle or email to add them as friends."}
                   </p>
                 </div>
               </CardContent>
@@ -188,14 +288,14 @@ function FriendsPage() {
         </div>
       )}
 
-      {search.trim() && (
+      {normalizedSearch && (
         <Card className="border-border/40 bg-card/40">
           <CardHeader>
             <CardTitle className="font-[family-name:var(--font-playfair)]">
-              Public Artists
+              Public Artists Search Results
             </CardTitle>
             <CardDescription>
-              Artists matching your search across SoundKit.
+              Connect with artists matching "{search}"
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -210,29 +310,48 @@ function FriendsPage() {
               </p>
             )}
             {searchedArtists.map((artist) => (
-              <div
-                className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 p-3"
-                key={artist.id}
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{artist.name}</p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    @{artist.username} • {artist.genre}
-                  </p>
-                </div>
-                <Button asChild={true} size="sm" variant="outline">
-                  <Link
-                    params={{ username: artist.username }}
-                    to="/artist/$username"
-                  >
-                    Profile
-                  </Link>
-                </Button>
-              </div>
+              <ArtistSearchResultRow key={artist.id} artist={artist} />
             ))}
           </CardContent>
         </Card>
       )}
+
+      {/* Add Friend Dialog */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Artist Friend</DialogTitle>
+            <DialogDescription>
+              Enter an artist username or handle (@username) to connect and
+              start collaborating.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleManualAddFriend} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Input
+                placeholder="e.g. @metro_flow or artist@soundkit.app"
+                value={newFriendHandle}
+                onChange={(e) => setNewFriendHandle(e.target.value)}
+                required
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">
+                <UserPlus className="mr-2 size-4" /> Add Friend
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

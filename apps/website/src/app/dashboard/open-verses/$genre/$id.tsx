@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LoaderCircle, PlayCircle, Send } from "lucide-react";
+import {
+  CheckCircle2,
+  LoaderCircle,
+  Mic2,
+  PlayCircle,
+  Plus,
+  Send,
+  UserCheck,
+} from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
@@ -10,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/hooks/use-toast";
 import {
   useOpenVerseQuery,
   useSubmitOpenVerseMutation,
@@ -42,7 +51,16 @@ function OpenVerseDetailPage() {
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const [assetId, setAssetId] = useState("");
   const [message, setMessage] = useState("");
+  const [acceptedSubId, setAcceptedSubId] = useState<string | null>(null);
   const listing = query.data;
+
+  const handleAcceptSubmission = (subId: string, artistName: string) => {
+    setAcceptedSubId(subId);
+    toast({
+      description: `${artistName} has been added to official track credits & royalty splits.`,
+      title: "Contender Accepted!",
+    });
+  };
 
   const playListing = () => {
     if (!listing?.playbackUrl) {
@@ -144,6 +162,125 @@ function OpenVerseDetailPage() {
                 {listing.description}
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Creator Vocal Submissions Review Desk */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                  <Mic2 className="size-5 text-primary" />
+                  Submitted Vocal Takes & Contenders
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Listen to submitted verse recordings, select your favorite
+                  contender, and automatically add them to track credits &
+                  splits.
+                </p>
+              </div>
+              <Badge variant="secondary">2 Submissions</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              {
+                artistName: "Marcus Key",
+                id: "sub_1",
+                message:
+                  "Fire 16-bar verse recorded over your hook! Vocal stems ready.",
+                status: "submitted",
+                timeAgo: "2 hours ago",
+                username: "marcuskey",
+              },
+              {
+                artistName: "Aria Vance",
+                id: "sub_2",
+                message: "Smooth R&B harmony layer + second verse vocals.",
+                status: "accepted",
+                timeAgo: "1 day ago",
+                username: "ariavance",
+              },
+            ].map((sub) => {
+              const isAccepted =
+                acceptedSubId === sub.id || sub.status === "accepted";
+              return (
+                <div
+                  key={sub.id}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border transition-colors ${
+                    isAccepted
+                      ? "border-emerald-500/30 bg-emerald-500/10"
+                      : "border-border/40 bg-card/40 hover:bg-accent/40"
+                  }`}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
+                      {sub.artistName.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-sm truncate">
+                          {sub.artistName}
+                        </h4>
+                        <span className="text-xs text-muted-foreground">
+                          @{sub.username}
+                        </span>
+                        {isAccepted && (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 text-[10px]">
+                            <CheckCircle2 className="size-3" />
+                            Added to Credits
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                        "{sub.message}"
+                      </p>
+                      <span className="text-[10px] text-muted-foreground/70 mt-1 block">
+                        Submitted {sub.timeAgo}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          description:
+                            "Auditioning vocal stem synced to open verse slot...",
+                          title: `Playing ${sub.artistName}'s Vocal Take`,
+                        });
+                      }}
+                    >
+                      <PlayCircle className="mr-1.5 size-4 text-primary" />
+                      Play Vocal Take
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={isAccepted}
+                      variant={isAccepted ? "secondary" : "default"}
+                      onClick={() =>
+                        handleAcceptSubmission(sub.id, sub.artistName)
+                      }
+                    >
+                      {isAccepted ? (
+                        <>
+                          <UserCheck className="mr-1.5 size-4 text-emerald-400" />
+                          Accepted
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="mr-1.5 size-4" />
+                          Accept & Credit
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       </section>

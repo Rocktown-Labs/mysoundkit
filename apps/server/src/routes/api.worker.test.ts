@@ -138,7 +138,7 @@ describe("SoundKit Worker API", () => {
     );
   });
 
-  it("returns fallback discovery and catalog read models when storage is not configured", async () => {
+  it("returns discovery and catalog read models when storage is not configured", async () => {
     const [discoverResponse, tracksResponse, videosResponse, battlesResponse] =
       await Promise.all([
         SELF.fetch("http://soundkit.test/v1/discover/home"),
@@ -156,48 +156,25 @@ describe("SoundKit Worker API", () => {
     const videos = await readJson<unknown[]>(videosResponse);
     const battles = await readJson<unknown[]>(battlesResponse);
 
-    expect(tracks.length).toBeGreaterThan(0);
+    expect(tracks).toEqual([]);
     expect(videos.length).toBeGreaterThan(0);
     expect(battles.length).toBeGreaterThan(0);
   });
 
-  it("serves live room state with chat, lyrics, and battle voting metadata", async () => {
+  it("reports live room state as unavailable without a Durable Object binding", async () => {
     const partyResponse = await SELF.fetch(
       "http://soundkit.test/v1/live/rooms/single-album-party"
     );
     const battleResponse = await SELF.fetch(
       "http://soundkit.test/v1/live/rooms/battle-1"
     );
-    const party = await readJson<{
-      chat: unknown[];
-      currentTrackId: string;
-      kind: string;
-      tracklist: { lyrics: unknown[]; status: string }[];
-    }>(partyResponse);
-    const battle = await readJson<{
-      battle: {
-        artists: { isMuted: boolean; name: string }[];
-        rounds: {
-          status: string;
-          voteTotals: Record<string, number>;
-        }[];
-        tiePolicy: string;
-      };
-      kind: string;
-    }>(battleResponse);
+    const party = await readJson<{ message: string }>(partyResponse);
+    const battle = await readJson<{ message: string }>(battleResponse);
 
-    expect(partyResponse.status).toBe(200);
-    expect(party.kind).toBe("party");
-    expect(party.currentTrackId).toBeTruthy();
-    expect(party.chat.length).toBeGreaterThan(0);
-    expect(party.tracklist.some((track) => track.lyrics.length > 0)).toBe(true);
-    expect(battleResponse.status).toBe(200);
-    expect(battle.kind).toBe("battle");
-    expect(battle.battle.artists.some((artist) => artist.isMuted)).toBe(true);
-    expect(
-      battle.battle.rounds.some((round) => round.status === "voting")
-    ).toBe(true);
-    expect(battle.battle.tiePolicy).toContain("tiebreaker");
+    expect(partyResponse.status).toBe(503);
+    expect(party.message).toContain("Durable Object");
+    expect(battleResponse.status).toBe(503);
+    expect(battle.message).toContain("Durable Object");
   });
 
   it("keeps dashboard and commerce mutations behind authentication", async () => {
@@ -257,6 +234,27 @@ describe("SoundKit Worker API", () => {
     expect(statusBody.message).toContain("UPLOAD_BUCKET_NAME");
     expect(uploadResponse.status).toBe(503);
     expect(uploadBody.message).toContain("not configured");
+  });
+
+  it("exposes the full genre catalog even when the database is not configured", async () => {
+    const response = await SELF.fetch("http://soundkit.test/v1/discover/genres");
+    const body = await readJson<{ name: string; slug: string }[]>(response);
+
+    expect(response.status).toBe(200);
+    expect(body.length).toBeGreaterThanOrEqual(9);
+    expect(body.map((genre) => genre.slug)).toEqual(
+      expect.arrayContaining([
+        "afrobeats",
+        "electronic",
+        "hip-hop",
+        "jazz",
+        "latin",
+        "pop",
+        "rb-soul",
+        "rock",
+        "spoken-word",
+      ])
+    );
   });
 
   it("guards live battle creation behind signed-in premium artist access", async () => {

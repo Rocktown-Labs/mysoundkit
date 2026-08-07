@@ -4,6 +4,19 @@
 
 ### Added
 
+- Added a dashboard lyrics workspace for artist-entered sectioned lyrics, draft sync points, manual timestamp editing, pending revision saves, and synced lyrics approval.
+- Added OpenAI timestamped vocal transcription after StemSplit processing, storing word-derived timed lyric lines for track playback and live overlays.
+- Added persistent AI credit grants and real admin finance actions for Stripe coupon syncing, premium grants, and credit grants.
+- Added React hook import smoke protection to CI to catch missing hook imports before browser smoke tests crash.
+- Added POST /v1/admin/finance/payments/grant-premium endpoint enabling admins to grant active premium subscription rows to users.
+- Added "Grant Premium Access" action and real coupon view to the admin finance dashboard UI.
+- Added Open Verse Submissions Review Desk to `/dashboard/open-verses/$genre/$id`, enabling creators to audition contender vocal takes and accept them directly into official track credits and splits.
+- Added Open Verse toggle sync (`isOpenVerse`) to `PATCH /v1/tracks/:trackId` for enabling or closing open verse listings on existing tracks post-creation.
+- Added secret unlisted link sharing mechanism for private tracks so non-members can stream full-quality audio via direct link without logging in or appearing in public explore feeds.
+- Added global Keyboard Shortcuts System (`KeyboardShortcutsProvider`) featuring `Cmd+K` command search palette, `?` shortcuts cheat sheet, and input-protected media hotkeys (`Space`, `M`, `Shift+Left`, `Shift+Right`).
+- Added Mini Player floating pill widget and interactive reorderable/clearable queue drawer with persistent local storage.
+- Added pre-commit `lefthook.yml` quality gates (`oxfmt`, `oxlint`, `check-types`) and gated `package.json` build script.
+- Added `GlobalErrorFallback` component to root TanStack router configuration to gracefully capture unexpected client exceptions.
 - Added deferred upload support for projects and tracks, delaying R2 bucket asset uploads until form submission.
 - Added an "Open Verse" configuration switch to the track wizard, enabling inline publishing of open verse slots on submission.
 - Added real-time creator battle statistics to the dashboard live metrics, replacing placeholder mock stats.
@@ -30,9 +43,38 @@
 - Added a Live Studio setup flow for battles, parties, and streams with stream details, audience feature toggles, encoder credentials, chat preview, and stream health panels.
 - Added app-wide genre rails across tracks, videos, artists, shop, and live discovery routes so every supported genre has a horizontal section and filtered view-all link.
 - Added dynamic Better Auth base URL and Cloudflare preview origin allowlists so PR previews and worker subdomains can authenticate against the API.
+- Added separate RealtimeKit-oriented live dashboards and room scaffolds for battles, listening parties, and streams, including BattleBot lobby/voting rules, party playlist/lyrics cues, stream analytics panels, and artist-only profile challenge actions.
+- Added authenticated live experience APIs for RealtimeKit meeting creation, participant preset tokens, BattleBot voter snapshots, notification fanout payloads, and single-session conflict checks.
+
+### Changed
+
+- Replaced the artist floating chat mock with real API-backed conversations and messages, restricted the widget to artist accounts, and added fan-accessible sign-out from Account Settings.
+- Made battle challenge issuance persist challenge records and notify the challenged artist, with consistent Premium Artist gating across challenge entry points.
+- Reworked the dashboard video upload flow to use resumable UpChunk chunked uploads to Mux, client-side file validation, live progress bars, and real project/track linkage instead of mock history.
+- Redesigned the admin payments tab around payment health, a compact subscription catalog, clearer Stripe actions, and improved coupons/grants management.
+- Updated RealtimeKit REST client response handling to match Cloudflare's standard payload shape (`data`) and documented meeting fields.
+- Removed fake working rooms, demo catalog fallback audio, and placeholder Stripe prices/coupons across RealtimeKit, tracks, admin finance, and billing APIs.
+- Formatted repository codebase with oxfmt.
 
 ### Fixed
 
+- Fixed new track submissions retaining stale local draft/media metadata and failing to attach uploaded cover artwork to the persisted track asset record.
+- Fixed cover artwork upload cards rendering as wide clipped previews by using a square image-first layout with visible artwork controls.
+- Fixed browser multipart uploads crashing on R2's part-upload response (`TypeError: null is not an object (evaluating 'getResponseHeader("ETag").replace')`) by exposing the `ETag` response header through the media bucket CORS rule so `@better-upload` can read it when building the complete-multipart request.
+- Fixed uploads failing before R2 storage by validating JSON request bodies against a cloned stream so the original body remains readable by the signed-URL upload handler instead of returning `400 Invalid JSON body`.
+- Fixed Mux webhook retries dead-locking by only short-circuiting already-processed or ignored events and marking failed event rows so Mux's retry queue resumes, and by persisting a derived thumbnail URL when `video.asset.ready` fires.
+- Added a `DELETE /v1/videos/:videoId` endpoint with ownership checks and Mux asset/upload cleanup, plus a dashboard delete confirmation dialog wired to it.
+- Fixed the genre selector collapsing to a single option by merging persisted genre rows with the full fallback catalog so the dropdown always shows every supported genre.
+- Fixed track and project wizard uploads hanging for up to two minutes when a file upload to object storage fails by wiring `onUploadFail` handlers that surface the error and resume submission immediately.
+- Added signed-URL upload trace logging (`upload_signed_url_requested`/`_issued`/`_rejected`) so Cloudflare invocation logs show upload request outcomes per route.
+- Fixed track and project creation so server drafts are created before large R2 uploads, staged files upload on Complete, saved drafts appear in dashboard lists, and failed uploads leave recoverable draft records.
+- Fixed track and project delete actions with title-confirmation dialogs, visible deleting state, and list revalidation.
+- Fixed track and project upload persistence so submitted cover art and audio/project assets create durable asset rows instead of disappearing after form submission.
+- Fixed the dashboard track transcription button so it queues the real processing workflow instead of rendering fake lyrics.
+- Fixed route string drift in the dashboard live track stats route.
+- Fixed Sentry issue `SOUNDKIT-WEB-A` (`ReferenceError: Can't find variable: toast`) on track detail page.
+- Fixed missing `challengeSearch` and `challengeSchedule` state declarations in `LivePreviewShowcase`.
+- Fixed cart provider allowing multiple duplicate digital download purchases of tracks and projects.
 - Fixed the Explore tracks filter JSX so the region type handler is declared once.
 - Fixed the Explore videos route crash caused by stale filter setter references after URL search parameter syncing.
 - Replaced the expanded and collapsed Explore sidebar brand images with styled text marks.

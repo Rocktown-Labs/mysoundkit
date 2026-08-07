@@ -10,7 +10,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -251,7 +251,15 @@ app.openapi(
     }
 
     if (!isDatabaseConfigured()) {
-      return c.json(sampleConversations, HttpStatusCodes.OK);
+      return c.json(
+        sampleConversations.map((conversation) => ({
+          ...conversation,
+          participantAvatarUrl: null,
+          participantName: null,
+          participantUsername: null,
+        })),
+        HttpStatusCodes.OK
+      );
     }
 
     const db = createDb();
@@ -271,14 +279,55 @@ app.openapi(
       .orderBy(desc(conversations.updatedAt))
       .limit(50);
 
+    const conversationIds = rows.map((row) => row.id);
+    const otherParticipants =
+      conversationIds.length > 0
+        ? await db
+            .select({
+              avatarUrl: userProfiles.avatarUrl,
+              conversationId: conversationParticipants.conversationId,
+              displayName: userProfiles.displayName,
+              userId: userProfiles.userId,
+              username: userProfiles.username,
+            })
+            .from(conversationParticipants)
+            .innerJoin(
+              userProfiles,
+              eq(userProfiles.userId, conversationParticipants.userId)
+            )
+            .where(
+              and(
+                inArray(
+                  conversationParticipants.conversationId,
+                  conversationIds
+                ),
+                ne(conversationParticipants.userId, user.id)
+              )
+            )
+        : [];
+    const participantByConversationId = new Map(
+      otherParticipants.map((participant) => [
+        participant.conversationId,
+        participant,
+      ])
+    );
+
     return c.json(
-      rows.map((row) => ({
-        conversationType: row.conversationType,
-        id: row.id,
-        title: row.title ?? "Untitled conversation",
-        unreadCount: 0,
-        updatedAt: row.updatedAt.toISOString(),
-      })),
+      rows.map((row) => {
+        const participant = participantByConversationId.get(row.id);
+
+        return {
+          conversationType: row.conversationType,
+          id: row.id,
+          participantAvatarUrl: participant?.avatarUrl ?? null,
+          participantName:
+            participant?.displayName ?? participant?.username ?? null,
+          participantUsername: participant?.username ?? null,
+          title: row.title ?? "Untitled conversation",
+          unreadCount: 0,
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      }),
       HttpStatusCodes.OK
     );
   }
@@ -325,6 +374,9 @@ app.openapi(
         {
           conversationType,
           id: "conv_new",
+          participantAvatarUrl: null,
+          participantName: null,
+          participantUsername: null,
           title: body.title ?? "New conversation",
           unreadCount: 0,
           updatedAt: now.toISOString(),
@@ -360,6 +412,9 @@ app.openapi(
       {
         conversationType,
         id: conversation?.id ?? conversationId,
+        participantAvatarUrl: null,
+        participantName: null,
+        participantUsername: null,
         title: conversation?.title ?? body.title ?? "New conversation",
         unreadCount: 0,
         updatedAt: (conversation?.updatedAt ?? now).toISOString(),

@@ -48,6 +48,7 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const formIsDirty = form.formState.isDirty;
   const hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState);
+  const skipNextPersistenceRef = useRef(false);
 
   // Keep latest dirty state readable from blocker callbacks.
   const dirtyRef = useRef(hasUnsavedChanges);
@@ -70,6 +71,11 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   // Persist values whenever they change.
   useEffect(() => {
     const subscription = form.watch((values) => {
+      if (skipNextPersistenceRef.current) {
+        skipNextPersistenceRef.current = false;
+        return;
+      }
+
       try {
         window.localStorage.setItem(
           storageKey,
@@ -102,12 +108,16 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   };
 
   const resetDraft = () => {
+    skipNextPersistenceRef.current = true;
     clearDraft();
     if (defaultValues) {
       form.reset(defaultValues);
     } else {
       form.reset();
     }
+    queueMicrotask(() => {
+      skipNextPersistenceRef.current = false;
+    });
   };
 
   const blockerDialog = (

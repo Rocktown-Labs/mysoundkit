@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
+  profileLinks,
   userProfiles,
   workspaceProfiles,
 } from "@soundkit/db/schema/app";
@@ -17,6 +18,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { normalizeProfileLinks } from "@/lib/profile-links";
 import {
   entitlementSummarySchema,
   meResponseSchema,
@@ -28,22 +30,38 @@ import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
 
+const getDefaultUserSummary = (user: AuthenticatedUser) => ({
+  accountType: "artist" as const,
+  avatarUrl: null,
+  bio: null,
+  city: null,
+  displayName: user.name ?? user.email ?? "SoundKit User",
+  headerUrl: null,
+  id: user.id,
+  links: {},
+  onboardingCompletedAt: null,
+  proAffiliation: null,
+  proMemberId: null,
+  role: user.role ?? null,
+  songwriterLegalName: null,
+  stageName: user.name ?? null,
+  state: null,
+  username: user.email?.split("@")[0] ?? "soundkit-user",
+});
+
+const formatPlatformKey = (platform: string) => {
+  if (platform === "apple_music") {
+    return "appleMusic";
+  }
+  if (platform === "personal_site") {
+    return "personalSite";
+  }
+  return platform;
+};
+
 const getUserSummary = async (user: AuthenticatedUser) => {
   if (!isDatabaseConfigured()) {
-    return {
-      accountType: "artist" as const,
-      avatarUrl: null,
-      bio: null,
-      city: null,
-      displayName: user.name ?? user.email ?? "SoundKit User",
-      headerUrl: null,
-      id: user.id,
-      onboardingCompletedAt: null,
-      role: user.role ?? null,
-      stageName: user.name ?? null,
-      state: null,
-      username: user.email?.split("@")[0] ?? "soundkit-user",
-    };
+    return getDefaultUserSummary(user);
   }
 
   const db = createDb();
@@ -56,6 +74,9 @@ const getUserSummary = async (user: AuthenticatedUser) => {
       displayName: userProfiles.displayName,
       headerUrl: userProfiles.headerUrl,
       onboardingCompletedAt: userProfiles.onboardingCompletedAt,
+      proAffiliation: artistProfiles.proAffiliation,
+      proMemberId: artistProfiles.proMemberId,
+      songwriterLegalName: artistProfiles.songwriterLegalName,
       stageName: artistProfiles.stageName,
       state: userProfiles.state,
       username: userProfiles.username,
@@ -66,20 +87,19 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     .limit(1);
 
   if (!profile) {
-    return {
-      accountType: "artist" as const,
-      avatarUrl: null,
-      bio: null,
-      city: null,
-      displayName: user.name ?? user.email ?? "SoundKit User",
-      headerUrl: null,
-      id: user.id,
-      onboardingCompletedAt: null,
-      role: user.role ?? null,
-      state: null,
-      username: user.email?.split("@")[0] ?? "soundkit-user",
-    };
+    return getDefaultUserSummary(user);
   }
+
+  const links = await db
+    .select({
+      platform: profileLinks.platform,
+      url: profileLinks.url,
+    })
+    .from(profileLinks)
+    .where(eq(profileLinks.userId, user.id));
+  const profileLinkMap = Object.fromEntries(
+    links.map((link) => [formatPlatformKey(link.platform), link.url])
+  );
 
   return {
     accountType: profile.accountType,
@@ -89,9 +109,14 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     displayName: profile.displayName ?? user.name ?? profile.username,
     headerUrl: profile.headerUrl,
     id: user.id,
+    links: profileLinkMap,
     onboardingCompletedAt: profile.onboardingCompletedAt?.toISOString() ?? null,
+    proAffiliation: profile.proAffiliation,
+    proMemberId: profile.proMemberId,
     role: user.role ?? null,
-    stageName: profile.stageName ?? profile.displayName ?? user.name ?? profile.username,
+    songwriterLegalName: profile.songwriterLegalName,
+    stageName:
+      profile.stageName ?? profile.displayName ?? user.name ?? profile.username,
     state: profile.state,
     username: profile.username,
   };
@@ -174,13 +199,15 @@ app.openapi(
   }
 );
 
+const workspaceSummaryArraySchema = workspaceSummarySchema.array();
+
 app.openapi(
   createRoute({
     method: "get",
     path: "/workspaces",
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        workspaceSummarySchema.array(),
+        workspaceSummaryArraySchema,
         "Current user workspaces"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -264,7 +291,14 @@ app.openapi(
     }
 
     const db = createDb();
-    const { stageName, ...userProfileBody } = body;
+    const {
+      links,
+      proAffiliation,
+      proMemberId,
+      songwriterLegalName,
+      stageName,
+      ...userProfileBody
+    } = body;
 
     if (Object.keys(userProfileBody).length > 0) {
       await db
@@ -273,17 +307,52 @@ app.openapi(
         .where(eq(userProfiles.userId, user.id));
     }
 
-    if (stageName !== undefined) {
+    const artistProfileBody = {
+      ...(proAffiliation === undefined ? {} : { proAffiliation }),
+      ...(proMemberId === undefined ? {} : { proMemberId }),
+      ...(songwriterLegalName === undefined ? {} : { songwriterLegalName }),
+      ...(stageName === undefined ? {} : { stageName }),
+    };
+
+    if (Object.keys(artistProfileBody).length > 0) {
       await db
         .insert(artistProfiles)
         .values({
-          stageName,
+          ...artistProfileBody,
           userId: user.id,
         })
         .onConflictDoUpdate({
-          set: { stageName },
+          set: artistProfileBody,
           target: artistProfiles.userId,
         });
+    }
+
+    if (links) {
+      const normalizedLinks = normalizeProfileLinks([
+        { platform: "spotify", value: links.spotify },
+        { platform: "apple_music", value: links.appleMusic },
+        { platform: "youtube", value: links.youtube },
+        { platform: "instagram", value: links.instagram },
+        { platform: "twitter", value: links.twitter },
+        { platform: "tiktok", value: links.tiktok },
+        { platform: "soundcloud", value: links.soundcloud },
+        { platform: "personal_site", value: links.personalSite },
+      ]);
+
+      await db.delete(profileLinks).where(eq(profileLinks.userId, user.id));
+
+      if (normalizedLinks.length > 0) {
+        await db.insert(profileLinks).values(
+          normalizedLinks.map((link, index) => ({
+            handle: link.handle,
+            id: crypto.randomUUID(),
+            platform: link.platform,
+            sortOrder: index,
+            url: link.url,
+            userId: user.id,
+          }))
+        );
+      }
     }
 
     return c.json({ message: "Profile updated." }, HttpStatusCodes.OK);

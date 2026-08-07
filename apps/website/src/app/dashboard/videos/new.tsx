@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ChevronLeft,
   ChevronRight,
@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Info,
   LoaderCircle,
+  Lock,
   Music,
   Search,
   Settings,
@@ -15,6 +16,7 @@ import {
   Upload,
   X,
   Youtube,
+  Zap,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -52,20 +55,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
+import {
+  useMeEntitlementsQuery,
+  useProjectsQuery,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
-
-// Mock data for search
-const mockHistory = {
-  projects: [
-    { id: "p1", name: "After Dark", year: "2023" },
-    { id: "p2", name: "Summer Sessions", year: "2024" },
-  ],
-  tracks: [
-    { id: "t1", name: "Midnight Vibes", project: "After Dark" },
-    { id: "t2", name: "Summer Rain", project: "Summer Sessions" },
-    { id: "t3", name: "City Lights", project: "After Dark" },
-  ],
-};
+import { uploadVideoFile, validateVideoFile } from "@/lib/video-upload";
 
 const videoFormSchema = z.object({
   description: z.string().optional(),
@@ -98,12 +94,240 @@ export const Route = createFileRoute("/dashboard/videos/new")({
   component: NewVideoPage,
 });
 
+function PremiumUploadUpsell() {
+  return (
+    <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-card via-card/90 to-primary/5 p-6 text-center space-y-4">
+      <div className="mx-auto size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+        <Zap className="size-6" />
+      </div>
+      <div className="space-y-1">
+        <h3 className="font-bold text-lg">Verified uploads require Premium</h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          Upgrade to a Premium Artist subscription to upload music videos hosted
+          on SoundKit with Mux transcoding and verified badges.
+        </p>
+      </div>
+      <Button asChild className="shadow-md">
+        <Link to="/dashboard/billing">
+          <Zap className="mr-2 size-4" />
+          Upgrade Account
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+function SelectedVideoFile({
+  onClearFile,
+  videoFile,
+}: {
+  onClearFile: () => void;
+  videoFile: File;
+}) {
+  return (
+    <Card className="border border-primary/40 bg-card/60 p-4 rounded-2xl space-y-3">
+      <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-primary/20">
+        <video
+          src={URL.createObjectURL(videoFile)}
+          controls
+          className="size-full object-contain"
+        >
+          <track kind="captions" />
+        </video>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="font-bold text-sm text-foreground flex items-center gap-2">
+            {videoFile.name}
+            <Badge
+              variant="secondary"
+              className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300 font-bold"
+            >
+              Video Ready
+            </Badge>
+          </p>
+          <p className="text-xs text-muted-foreground font-mono">
+            {(videoFile.size / (1024 * 1024)).toFixed(1)} MB •{" "}
+            {videoFile.type || "video/mp4"}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          onClick={onClearFile}
+        >
+          <X className="size-3.5 mr-1" />
+          Change Video
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function VideoSourcePanel({
+  isEntitlementsLoading,
+  isPremium,
+  onFileSelected,
+  videoFile,
+}: {
+  isEntitlementsLoading: boolean;
+  isPremium: boolean;
+  onFileSelected: (file: File | null) => void;
+  videoFile: File | null;
+}) {
+  if (isPremium === false && !isEntitlementsLoading) {
+    return <PremiumUploadUpsell />;
+  }
+
+  if (videoFile) {
+    return (
+      <SelectedVideoFile
+        onClearFile={() => onFileSelected(null)}
+        videoFile={videoFile}
+      />
+    );
+  }
+
+  return (
+    <div className="p-6 rounded-2xl border-2 border-dashed border-border/40 bg-muted/20 text-center hover:bg-muted/30 transition-colors cursor-pointer group">
+      <input
+        type="file"
+        accept="video/mp4,video/quicktime,video/webm"
+        className="hidden"
+        id="video-upload"
+        onChange={(e) => onFileSelected(e.target.files?.[0] || null)}
+      />
+      <label htmlFor="video-upload" className="cursor-pointer space-y-4 block">
+        <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto text-amber-500 group-hover:scale-110 transition-transform">
+          <CloudUpload className="size-6" />
+        </div>
+        <div>
+          <p className="font-bold">Click or drag to select video file</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            MP4, MOV, WEBM up to 2GB
+          </p>
+        </div>
+      </label>
+    </div>
+  );
+}
+
+function SubmitButtonContent({
+  isSubmitting,
+  isUploading,
+  uploadProgress,
+}: {
+  isSubmitting: boolean;
+  isUploading: boolean;
+  uploadProgress: number | null;
+}) {
+  if (!isSubmitting) {
+    return (
+      <>
+        Confirm & Save
+        <Check className="ml-2 size-4" />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <LoaderCircle className="mr-2 size-4 animate-spin" />
+      {isUploading
+        ? `Uploading ${Math.round(uploadProgress ?? 0)}%`
+        : "Adding Video..."}
+    </>
+  );
+}
+
+type FilteredHistory = {
+  projects: { id: string; title: string; trackCount: number }[];
+  tracks: { id: string; title: string; genre: string }[];
+} | null;
+
+function LinkHistoryDropdown({
+  filteredHistory,
+  onSelect,
+}: {
+  filteredHistory: FilteredHistory;
+  onSelect: (kind: "track" | "project", id: string, title: string) => void;
+}) {
+  if (!filteredHistory) {
+    return null;
+  }
+
+  return (
+    <Card className="absolute top-full left-0 right-0 z-50 mt-2 bg-card/95 backdrop-blur-xl border-border/40 shadow-2xl max-h-[300px] overflow-y-auto">
+      <CardContent className="p-2 space-y-1">
+        {filteredHistory.tracks.length > 0 && (
+          <div className="p-2">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+              Tracks
+            </p>
+            {filteredHistory.tracks.map((track) => (
+              <button
+                type="button"
+                key={track.id}
+                onClick={() => onSelect("track", track.id, track.title)}
+                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 text-left transition-colors"
+              >
+                <div className="size-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                  <Music className="size-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{track.title}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {track.genre}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        {filteredHistory.projects.length > 0 && (
+          <div className="p-2 border-t border-border/10">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 mt-1">
+              Projects
+            </p>
+            {filteredHistory.projects.map((project) => (
+              <button
+                type="button"
+                key={project.id}
+                onClick={() => onSelect("project", project.id, project.title)}
+                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 text-left transition-colors"
+              >
+                <div className="size-8 rounded bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <FolderOpen className="size-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{project.title}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {project.trackCount} tracks
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function NewVideoPage() {
   const router = useRouter();
   const [step, setStep] = useState("identity");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [historySearch, setHistorySearch] = useState("");
+  const { data: entitlements, isLoading: isEntitlementsLoading } =
+    useMeEntitlementsQuery();
+  const projectsQuery = useProjectsQuery();
+  const tracksQuery = useTracksQuery(undefined, { scope: "dashboard" });
+  const isPremium = entitlements?.isPremium ?? true;
 
   const form = useForm<VideoFormValues>({
     defaultValues: {
@@ -126,20 +350,49 @@ function NewVideoPage() {
       return null;
     }
     return {
-      projects: mockHistory.projects.filter((p) =>
-        p.name.toLowerCase().includes(query)
+      projects: (projectsQuery.data ?? []).filter((project) =>
+        project.title.toLowerCase().includes(query)
       ),
-      tracks: mockHistory.tracks.filter((t) =>
-        t.name.toLowerCase().includes(query)
+      tracks: (tracksQuery.data ?? []).filter((track) =>
+        track.title.toLowerCase().includes(query)
       ),
     };
-  }, [historySearch]);
+  }, [historySearch, projectsQuery.data, tracksQuery.data]);
+
+  const onFileSelected = (file: File | null) => {
+    if (!file) {
+      setVideoFile(null);
+      return;
+    }
+
+    const validationError = validateVideoFile(file);
+
+    if (validationError) {
+      toast({
+        description: validationError,
+        title: "Invalid Video",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVideoFile(file);
+  };
 
   const onSubmit = async (values: VideoFormValues) => {
     if (values.sourceType === "upload" && !videoFile) {
       toast({
         description: "Please select a video file to upload.",
         title: "File Required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (values.sourceType === "upload" && !isPremium) {
+      toast({
+        description: "A premium artist subscription is required to upload.",
+        title: "Premium Required",
         variant: "destructive",
       });
       return;
@@ -169,18 +422,16 @@ function NewVideoPage() {
           uploadUrl?: string;
         };
 
-        if (!createResponse.ok || !createPayload.uploadUrl) {
+        if (!createResponse.ok) {
           throw new Error(createPayload.message ?? "Failed to create upload.");
         }
 
-        const uploadResponse = await fetch(createPayload.uploadUrl, {
-          body: videoFile,
-          headers: { "Content-Type": videoFile.type || "video/mp4" },
-          method: "PUT",
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Video upload failed before Mux could process it.");
+        if (createPayload.uploadUrl) {
+          await uploadVideoFile({
+            file: videoFile,
+            onProgress: setUploadProgress,
+            uploadUrl: createPayload.uploadUrl,
+          });
         }
       } else {
         const createResponse = await fetch(`${API_V1_URL}/videos`, {
@@ -354,78 +605,10 @@ function NewVideoPage() {
                       value={historySearch}
                       onChange={(e) => setHistorySearch(e.target.value)}
                     />
-                    {filteredHistory && (
-                      <Card className="absolute top-full left-0 right-0 z-50 mt-2 bg-card/95 backdrop-blur-xl border-border/40 shadow-2xl max-h-[300px] overflow-y-auto">
-                        <CardContent className="p-2 space-y-1">
-                          {filteredHistory.tracks.length > 0 && (
-                            <div className="p-2">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                                Tracks
-                              </p>
-                              {filteredHistory.tracks.map((track) => (
-                                <button
-                                  type="button"
-                                  key={track.id}
-                                  onClick={() =>
-                                    selectFromHistory(
-                                      "track",
-                                      track.id,
-                                      track.name
-                                    )
-                                  }
-                                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 text-left transition-colors"
-                                >
-                                  <div className="size-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                                    <Music className="size-4" />
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-semibold">
-                                      {track.name}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      Project: {track.project}
-                                    </p>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {filteredHistory.projects.length > 0 && (
-                            <div className="p-2 border-t border-border/10">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 mt-1">
-                                Projects
-                              </p>
-                              {filteredHistory.projects.map((project) => (
-                                <button
-                                  type="button"
-                                  key={project.id}
-                                  onClick={() =>
-                                    selectFromHistory(
-                                      "project",
-                                      project.id,
-                                      project.name
-                                    )
-                                  }
-                                  className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 text-left transition-colors"
-                                >
-                                  <div className="size-8 rounded bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                                    <FolderOpen className="size-4" />
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-semibold">
-                                      {project.name}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground">
-                                      {project.year}
-                                    </p>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
+                    <LinkHistoryDropdown
+                      filteredHistory={filteredHistory}
+                      onSelect={selectFromHistory}
+                    />
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -436,9 +619,9 @@ function NewVideoPage() {
                       >
                         Linked Track:{" "}
                         {
-                          mockHistory.tracks.find(
+                          (tracksQuery.data ?? []).find(
                             (t) => t.id === form.watch("sourceTrackId")
-                          )?.name
+                          )?.title
                         }
                         <Button
                           type="button"
@@ -458,9 +641,9 @@ function NewVideoPage() {
                       >
                         Linked Project:{" "}
                         {
-                          mockHistory.projects.find(
+                          (projectsQuery.data ?? []).find(
                             (p) => p.id === form.watch("sourceProjectId")
-                          )?.name
+                          )?.title
                         }
                         <Button
                           type="button"
@@ -587,9 +770,16 @@ function NewVideoPage() {
                           <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 h-12 mb-6">
                             <TabsTrigger
                               value="upload"
+                              disabled={
+                                isPremium === false && !isEntitlementsLoading
+                              }
                               className="flex items-center gap-2 data-[state=active]:bg-background"
                             >
-                              <Upload className="size-4" />
+                              {isPremium === false && !isEntitlementsLoading ? (
+                                <Lock className="size-4" />
+                              ) : (
+                                <Upload className="size-4" />
+                              )}
                               Direct Upload
                             </TabsTrigger>
                             <TabsTrigger
@@ -605,35 +795,12 @@ function NewVideoPage() {
                             value="upload"
                             className="space-y-6 mt-0"
                           >
-                            <div className="p-6 rounded-2xl border-2 border-dashed border-border/40 bg-muted/20 text-center hover:bg-muted/30 transition-colors cursor-pointer group">
-                              <input
-                                type="file"
-                                accept="video/*"
-                                className="hidden"
-                                id="video-upload"
-                                onChange={(e) =>
-                                  setVideoFile(e.target.files?.[0] || null)
-                                }
-                              />
-                              <label
-                                htmlFor="video-upload"
-                                className="cursor-pointer space-y-4 block"
-                              >
-                                <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto text-amber-500 group-hover:scale-110 transition-transform">
-                                  <CloudUpload className="size-6" />
-                                </div>
-                                <div>
-                                  <p className="font-bold">
-                                    {videoFile
-                                      ? videoFile.name
-                                      : "Click to select video file"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    MP4, MOV up to 2GB
-                                  </p>
-                                </div>
-                              </label>
-                            </div>
+                            <VideoSourcePanel
+                              isEntitlementsLoading={isEntitlementsLoading}
+                              isPremium={isPremium}
+                              onFileSelected={onFileSelected}
+                              videoFile={videoFile}
+                            />
 
                             <div className="bg-amber-500/5 border border-amber-500/10 p-4 rounded-xl flex items-center gap-3">
                               <Sparkles className="size-5 text-amber-500" />
@@ -728,6 +895,24 @@ function NewVideoPage() {
                   />
                 </div>
 
+                {isSubmitting &&
+                uploadProgress !== null &&
+                form.watch("sourceType") === "upload" ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">Uploading to Mux</span>
+                      <span className="text-muted-foreground">
+                        {Math.round(uploadProgress)}%
+                      </span>
+                    </div>
+                    <Progress value={uploadProgress} />
+                    <p className="text-xs text-muted-foreground">
+                      Large files upload in chunks so they can resume if your
+                      connection drops.
+                    </p>
+                  </div>
+                ) : null}
+
                 <FormField
                   control={form.control}
                   name="playbackPolicy"
@@ -777,17 +962,14 @@ function NewVideoPage() {
                     disabled={isSubmitting}
                     className="min-w-[160px] bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20"
                   >
-                    {isSubmitting ? (
-                      <>
-                        <LoaderCircle className="mr-2 size-4 animate-spin" />
-                        Adding Video...
-                      </>
-                    ) : (
-                      <>
-                        Confirm & Save
-                        <Check className="ml-2 size-4" />
-                      </>
-                    )}
+                    <SubmitButtonContent
+                      isSubmitting={isSubmitting}
+                      isUploading={
+                        form.watch("sourceType") === "upload" &&
+                        uploadProgress !== null
+                      }
+                      uploadProgress={uploadProgress}
+                    />
                   </Button>
                 </div>
               </AccordionContent>

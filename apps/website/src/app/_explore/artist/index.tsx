@@ -203,11 +203,16 @@ function ArtistPage() {
   const navigate = Route.useNavigate();
 
   const savedRegionType =
-    typeof window !== "undefined"
-      ? (localStorage.getItem("exploreRegionType") as "north-america" | "global" | null)
-      : null;
+    typeof window === "undefined"
+      ? null
+      : (localStorage.getItem("exploreRegionType") as
+          | "north-america"
+          | "global"
+          | null);
   const savedRegion =
-    typeof window !== "undefined" ? localStorage.getItem("exploreRegion") : null;
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem("exploreRegion");
 
   const regionType = search.regionType ?? savedRegionType ?? "north-america";
   const region = search.region ?? savedRegion ?? "us-arkansas";

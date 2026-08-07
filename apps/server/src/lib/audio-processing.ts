@@ -9,12 +9,18 @@ import {
   workflowJobs,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { embed, generateText } from "ai";
+import { embed } from "ai";
 import { and, eq, ne } from "drizzle-orm";
 
 const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1";
+const OPENAI_TRANSCRIPTION_URL =
+  "https://api.openai.com/v1/audio/transcriptions";
 const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2";
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
+const MAX_OPENAI_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_LYRIC_LINE_CHARACTERS = 64;
+const MAX_WORDS_PER_LYRIC_LINE = 9;
+const LYRIC_LINE_BREAK_SECONDS = 1.2;
 
 type StemSplitJobStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 
@@ -45,6 +51,25 @@ export interface TrackProcessingWorkflowPayload {
   trackId: string;
 }
 
+interface OpenAiTranscriptionWord {
+  end?: number;
+  start?: number;
+  word?: string;
+}
+
+interface OpenAiVerboseTranscriptionResponse {
+  duration?: number;
+  language?: string;
+  text?: string;
+  words?: OpenAiTranscriptionWord[];
+}
+
+interface TimedLyricLine {
+  endMs: number;
+  startMs: number;
+  text: string;
+}
+
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
 
@@ -61,7 +86,7 @@ const getObjectPublicUrl = (objectKey: string) => {
     return null;
   }
 
-  return `${mediaPublicUrl.replace(/\/+$/, "")}/${objectKey}`;
+  return `${mediaPublicUrl.replace(/\/+$/u, "")}/${objectKey}`;
 };
 
 const sha256 = async (value: string) => {
@@ -207,6 +232,137 @@ const saveStemAsset = async ({
   return asset ?? null;
 };
 
+const secondsToMilliseconds = (seconds: number) =>
+  Math.max(0, Math.round(seconds * 1000));
+
+const cleanTranscriptionWord = (word: string) =>
+  word.trim().replaceAll(/\s+/gu, " ");
+
+export const buildTimedLyricLinesFromWords = (
+  words: OpenAiTranscriptionWord[]
+): TimedLyricLine[] => {
+  const lines: TimedLyricLine[] = [];
+  let currentWords: string[] = [];
+  let currentStartMs: null | number = null;
+  let currentEndMs: null | number = null;
+  let previousEndSeconds: null | number = null;
+
+  const flushLine = () => {
+    const text = currentWords.join(" ").trim();
+
+    if (text && currentStartMs !== null && currentEndMs !== null) {
+      lines.push({
+        endMs: Math.max(currentEndMs, currentStartMs + 1),
+        startMs: currentStartMs,
+        text,
+      });
+    }
+
+    currentWords = [];
+    currentStartMs = null;
+    currentEndMs = null;
+  };
+
+  for (const word of words) {
+    if (
+      typeof word.start !== "number" ||
+      typeof word.end !== "number" ||
+      !word.word
+    ) {
+      continue;
+    }
+
+    const text = cleanTranscriptionWord(word.word);
+
+    if (!text) {
+      continue;
+    }
+
+    const shouldBreakForPause =
+      previousEndSeconds !== null &&
+      word.start - previousEndSeconds >= LYRIC_LINE_BREAK_SECONDS;
+    const nextLineText = [...currentWords, text].join(" ");
+    const shouldBreakForLength =
+      currentWords.length >= MAX_WORDS_PER_LYRIC_LINE ||
+      nextLineText.length > MAX_LYRIC_LINE_CHARACTERS;
+
+    if (
+      currentWords.length > 0 &&
+      (shouldBreakForPause || shouldBreakForLength)
+    ) {
+      flushLine();
+    }
+
+    currentStartMs ??= secondsToMilliseconds(word.start);
+    currentEndMs = secondsToMilliseconds(word.end);
+    currentWords.push(text);
+    previousEndSeconds = word.end;
+  }
+
+  flushLine();
+
+  return lines;
+};
+
+const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
+  const response = await fetch(sourceUrl);
+
+  if (!response.ok) {
+    throw new Error(`Vocal stem download failed: ${response.status}`);
+  }
+
+  const contentLength = Number(response.headers.get("content-length"));
+
+  if (contentLength > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
+    throw new Error("Vocal stem is too large for OpenAI transcription.");
+  }
+
+  const audio = await response.blob();
+
+  if (audio.size > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
+    throw new Error("Vocal stem is too large for OpenAI transcription.");
+  }
+
+  return new File([audio], "vocals.mp3", {
+    type: response.headers.get("content-type") ?? "audio/mpeg",
+  });
+};
+
+const transcribeAudioWithOpenAi = async (sourceUrl: string) => {
+  const apiKey = getEnvValue("OPENAI_API_KEY");
+
+  if (!apiKey) {
+    return null;
+  }
+
+  const formData = new FormData();
+  formData.set("file", await fetchAudioFileForOpenAi(sourceUrl));
+  formData.set("model", "whisper-1");
+  formData.set("response_format", "verbose_json");
+  formData.append("timestamp_granularities[]", "word");
+  formData.set(
+    "prompt",
+    "Transcribe song vocals as lyrics. Preserve line-friendly punctuation and avoid adding section labels that are not sung."
+  );
+
+  const response = await fetch(OPENAI_TRANSCRIPTION_URL, {
+    body: formData,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(
+      `OpenAI transcription failed: ${response.status} ${message.slice(0, 160)}`
+    );
+  }
+
+  return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
+};
+
 const transcribeVocals = async ({
   objectKey,
   trackId,
@@ -216,34 +372,18 @@ const transcribeVocals = async ({
 }) => {
   const sourceUrl = getObjectPublicUrl(objectKey);
 
-  if (!sourceUrl || !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")) {
+  if (!sourceUrl) {
     return null;
   }
 
-  const result = await generateText({
-    messages: [
-      {
-        content: [
-          {
-            text: "Transcribe these vocals into clean song lyrics. Return only the lyrics text.",
-            type: "text",
-          },
-          {
-            data: new URL(sourceUrl),
-            mediaType: "audio/mpeg",
-            type: "file",
-          },
-        ],
-        role: "user",
-      },
-    ],
-    model: google("gemini-3-flash"),
-  });
-  const text = result.text.trim();
+  const result = await transcribeAudioWithOpenAi(sourceUrl);
+  const text = result?.text?.trim() ?? "";
 
   if (!text) {
     return null;
   }
+
+  const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []);
 
   const db = createDb();
   const [lyrics] = await db
@@ -252,11 +392,16 @@ const transcribeVocals = async ({
       id: crypto.randomUUID(),
       language: "en",
       metadata: {
-        model: "gemini-3-flash",
+        duration: result?.duration ?? null,
+        language: result?.language ?? null,
+        model: "whisper-1",
+        provider: "openai",
+        timestampGranularity: "word",
       },
       sourceType: "machine_transcription",
       status: "pending_review",
       text,
+      timedLines: timedLines.length > 0 ? timedLines : null,
       trackId,
     })
     .returning();
@@ -266,7 +411,7 @@ const transcribeVocals = async ({
 
 const embeddingModelName = () =>
   getEnvValue("GOOGLE_EMBEDDING_MODEL")
-    .replace(/^google\//, "")
+    .replace(/^google\//u, "")
     .trim() || DEFAULT_EMBEDDING_MODEL;
 
 const saveEmbedding = async ({
@@ -385,12 +530,21 @@ export const processCompletedStemSplitJob = async ({
     })
     .where(eq(trackAssets.id, assetId));
 
-  const lyrics = vocalsAsset?.objectKey
-    ? await transcribeVocals({
+  let lyrics = null;
+
+  if (vocalsAsset?.objectKey) {
+    try {
+      lyrics = await transcribeVocals({
         objectKey: vocalsAsset.objectKey,
         trackId,
-      })
-    : null;
+      });
+    } catch (error) {
+      console.error("OpenAI lyric transcription failed", {
+        error: error instanceof Error ? error.message : String(error),
+        trackId,
+      });
+    }
+  }
 
   await db
     .update(tracks)

@@ -64,6 +64,20 @@
       "when": 1784678400000,
       "tag": "0008_global_explore_home_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784764800000,
+      "tag": "0009_artist_profile_links_and_track_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785542400000,
+      "tag": "0010_ai_credit_grants",
+      "breakpoints": true
     }
   ]
 }

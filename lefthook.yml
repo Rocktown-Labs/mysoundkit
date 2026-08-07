@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    oxfmt:
+      glob: "*.{js,ts,jsx,tsx,json,md}"
+      run: npx oxfmt {staged_files} && git add {staged_files}
+    oxlint:
+      glob: "*.{js,ts,jsx,tsx}"
+      run: npx oxlint {staged_files}
+    check-types:
+      run: pnpm run check-types

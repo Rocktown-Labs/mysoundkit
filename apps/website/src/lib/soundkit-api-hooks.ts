@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 
-import { apiClient, rpcJson } from "./api";
+import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
 const meProfilePatch = apiClient.v1.me.profile.$patch;
@@ -26,13 +26,18 @@ const artistsGet = apiClient.v1.artists.index.$get;
 const artistGet = apiClient.v1.artists[":username"].$get;
 const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
 const discoverHomeGet = apiClient.v1.discover.home.$get;
+const genresGet = apiClient.v1.discover.genres.$get;
 const searchGet = apiClient.v1.search.$get;
 const tracksGet = apiClient.v1.tracks.index.$get;
 const tracksPost = apiClient.v1.tracks.index.$post;
 const trackGet = apiClient.v1.tracks[":trackId"].$get;
 const trackPatch = apiClient.v1.tracks[":trackId"].$patch;
+const trackDelete = apiClient.v1.tracks[":trackId"].$delete;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
+const trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post;
+const trackLyricsReviewPatch =
+  apiClient.v1.tracks[":trackId"].lyrics[":lyricsId"].$patch;
 const projectsGet = apiClient.v1.projects.index.$get;
 const projectsPost = apiClient.v1.projects.index.$post;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
@@ -41,6 +46,13 @@ const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
 const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
 const battlesGet = apiClient.v1.battles.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
+const liveExperiencePost = apiClient.v1.live.experiences.index.$post;
+const liveExperienceJoinPost =
+  apiClient.v1.live.experiences[":experienceId"].join.$post;
+const liveExperienceBattleBotPost =
+  apiClient.v1.live.experiences[":experienceId"].battlebot.$post;
+const liveExperienceSessionLockCheckPost =
+  apiClient.v1.live.experiences[":experienceId"]["session-locks"].check.$post;
 const libraryOverviewGet = apiClient.v1.library.overview.$get;
 const libraryPlaylistsGet = apiClient.v1.library.playlists.$get;
 const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
@@ -62,9 +74,11 @@ const openVerseSubmissionPost =
   apiClient.v1["open-verses"][":listingId"].submissions.$post;
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
+const videoDelete = apiClient.v1.videos[":videoId"].$delete;
 const notificationsGet = apiClient.v1.notifications.index.$get;
 const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
 const trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post;
+const artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post;
 const sellerStatusGet = apiClient.v1.seller.status.$get;
 const battleStatsGet = apiClient.v1.battles.stats.$get;
 const trackBattleHistoryGet =
@@ -78,10 +92,17 @@ type SearchQuery = InferRequestType<typeof searchGet>["query"];
 type ArtistRankingQuery = InferRequestType<typeof artistsGet>["query"];
 type PublicExploreQuery = InferRequestType<typeof tracksGet>["query"];
 export type TrackSummary = InferResponseType<typeof tracksGet, 200>[number];
+export type TrackDetail = InferResponseType<typeof trackGet, 200>;
 type CreateTrackBody = InferRequestType<typeof tracksPost>["json"];
 type UpdateTrackBody = InferRequestType<typeof trackPatch>["json"];
 type CreateTrackAssetBody = InferRequestType<typeof trackAssetPost>["json"];
 type TrackProcessingStatus = InferResponseType<typeof trackProcessPost, 200>;
+type CreateLyricsRevisionBody = InferRequestType<
+  typeof trackLyricsPost
+>["json"];
+type ReviewLyricsRevisionBody = InferRequestType<
+  typeof trackLyricsReviewPatch
+>["json"];
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
@@ -97,6 +118,7 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
+type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
 export type MeSummary = InferResponseType<typeof meGet, 200>;
 type EntitlementSummary = InferResponseType<typeof meEntitlementsGet, 200>;
@@ -131,6 +153,26 @@ export type LibraryWatchedItem = InferResponseType<
 type CreateBattleChallengeBody = InferRequestType<
   typeof battleChallengePost
 >["json"];
+type CreateLiveExperienceBody = InferRequestType<
+  typeof liveExperiencePost
+>["json"];
+type JoinLiveExperienceBody = InferRequestType<
+  typeof liveExperienceJoinPost
+>["json"];
+type BattleBotActionBody = InferRequestType<
+  typeof liveExperienceBattleBotPost
+>["json"];
+type LiveSessionLockCheckBody = InferRequestType<
+  typeof liveExperienceSessionLockCheckPost
+>["json"];
+export type LiveExperienceCreateResponse = InferResponseType<
+  typeof liveExperiencePost,
+  201
+>;
+export type LiveExperienceJoinResponse = InferResponseType<
+  typeof liveExperienceJoinPost,
+  201
+>;
 export type ListeningPartySummary = InferResponseType<
   typeof listeningPartiesGet,
   200
@@ -175,6 +217,7 @@ export const soundkitQueryKeys = {
   conversations: ["messages", "conversations"] as const,
   discoverHome: ["discover", "home"] as const,
   friends: ["messages", "friends"] as const,
+  genres: ["discover", "genres"] as const,
   libraryOverview: ["library", "overview"] as const,
   libraryPlaylists: ["library", "playlists"] as const,
   libraryPurchases: ["library", "purchases"] as const,
@@ -182,8 +225,10 @@ export const soundkitQueryKeys = {
   librarySaved: ["library", "saved"] as const,
   libraryWatched: ["library", "watched"] as const,
   listeningParties: ["listening-parties"] as const,
+  liveExperience: (id: string) => ["live", "experiences", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
+  notifications: ["notifications"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
   peopleSearch: (q: string) => ["messages", "people", q] as const,
@@ -326,6 +371,12 @@ export const useFriendsQuery = () =>
     queryKey: soundkitQueryKeys.friends,
   });
 
+export const useGenresQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await genresGet()),
+    queryKey: soundkitQueryKeys.genres,
+  });
+
 export const usePeopleSearchQuery = (q: string) =>
   useQuery({
     enabled: q.trim().length >= 2,
@@ -338,8 +389,9 @@ export const usePeopleSearchQuery = (q: string) =>
     queryKey: soundkitQueryKeys.peopleSearch(q.trim()),
   });
 
-export const useConversationsQuery = () =>
+export const useConversationsQuery = (enabled = true) =>
   useQuery<ConversationSummary[]>({
+    enabled,
     queryFn: async () => rpcJson(await conversationsGet()),
     queryKey: soundkitQueryKeys.conversations,
   });
@@ -429,6 +481,24 @@ export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>
     queryKey: soundkitQueryKeys.artists(query),
   });
 
+export const useFollowArtistMutation = (username: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<ArtistFollowResponse> =>
+      rpcJson(await artistFollowPost({ param: { username } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.artist(username),
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      });
+    },
+  });
+};
+
 export const useArtistOnboardingMutation = () =>
   useMutation({
     mutationFn: async (body: ArtistOnboardingBody) =>
@@ -504,6 +574,26 @@ export const useUpdateTrackMutation = (trackId: string) => {
   });
 };
 
+export const useDeleteTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await trackDelete({ param: { trackId } })),
+    onSuccess: (_, trackId) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.refetchQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.removeQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};
+
 export const useCreateTrackAssetMutation = (trackId: string) => {
   const queryClient = useQueryClient();
 
@@ -517,11 +607,55 @@ export const useCreateTrackAssetMutation = (trackId: string) => {
   });
 };
 
-export const useProcessTrackMutation = (trackId: string) =>
-  useMutation({
+export const useProcessTrackMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
     mutationFn: async (): Promise<TrackProcessingStatus> =>
       rpcJson(await trackProcessPost({ param: { trackId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      }),
   });
+};
+
+export const useCreateTrackLyricsMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateLyricsRevisionBody) =>
+      rpcJson(await trackLyricsPost({ json: body, param: { trackId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      }),
+  });
+};
+
+export const useReviewTrackLyricsMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      body,
+      lyricsId,
+    }: {
+      body: ReviewLyricsRevisionBody;
+      lyricsId: string;
+    }) =>
+      rpcJson(
+        await trackLyricsReviewPatch({
+          json: body,
+          param: { lyricsId, trackId },
+        })
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      }),
+  });
+};
 
 export const useProjectsQuery = () =>
   useQuery({
@@ -556,6 +690,39 @@ export const useUpdateProjectMutation = (projectId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
       queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.project(projectId),
+      });
+    },
+  });
+};
+
+export const useDeleteProjectMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const response = await fetch(`${API_V1_URL}/projects/${projectId}`, {
+        credentials: "include",
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        return response.json() as Promise<{ message: string }>;
+      }
+
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+      } | null;
+
+      throw new SoundKitApiError(
+        payload?.message ?? `Project delete failed: ${response.status}`,
+        response.status
+      );
+    },
+    onSuccess: (_, projectId) => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.projects });
+      queryClient.refetchQueries({ queryKey: soundkitQueryKeys.projects });
+      queryClient.removeQueries({
         queryKey: soundkitQueryKeys.project(projectId),
       });
     },
@@ -633,6 +800,61 @@ export const useCreateBattleChallengeMutation = () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
   });
 };
+
+export const useCreateLiveExperienceMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      body: CreateLiveExperienceBody
+    ): Promise<LiveExperienceCreateResponse> =>
+      rpcJson(await liveExperiencePost({ json: body })),
+    onSuccess: (experience) => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.listeningParties,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.liveExperience(experience.experience.id),
+      });
+    },
+  });
+};
+
+export const useJoinLiveExperienceMutation = (experienceId: string) =>
+  useMutation({
+    mutationFn: async (
+      body: JoinLiveExperienceBody
+    ): Promise<LiveExperienceJoinResponse> =>
+      rpcJson(
+        await liveExperienceJoinPost({
+          json: body,
+          param: { experienceId },
+        })
+      ),
+  });
+
+export const useBattleBotActionMutation = (experienceId: string) =>
+  useMutation({
+    mutationFn: async (body: BattleBotActionBody) =>
+      rpcJson(
+        await liveExperienceBattleBotPost({
+          json: body,
+          param: { experienceId },
+        })
+      ),
+  });
+
+export const useLiveSessionLockCheckMutation = (experienceId: string) =>
+  useMutation({
+    mutationFn: async (body: LiveSessionLockCheckBody) =>
+      rpcJson(
+        await liveExperienceSessionLockCheckPost({
+          json: body,
+          param: { experienceId },
+        })
+      ),
+  });
 
 const defaultOpenVerseQuery: OpenVerseQuery = { limit: "10" };
 
@@ -713,6 +935,19 @@ export const useCreateVideoMutation = () => {
   });
 };
 
+export const useDeleteVideoMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (videoId: string) =>
+      rpcJson(await videoDelete({ param: { videoId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.videosPrefix,
+      }),
+  });
+};
+
 export const useSellerStatusQuery = () =>
   useQuery({
     queryFn: async (): Promise<SellerStatus> =>
@@ -736,7 +971,7 @@ export const useTrackBattleHistoryQuery = (trackId: string) =>
 export const useNotificationsQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await notificationsGet()),
-    queryKey: ["notifications"],
+    queryKey: soundkitQueryKeys.notifications,
   });
 
 export const useMarkNotificationsReadMutation = () => {
@@ -745,7 +980,9 @@ export const useMarkNotificationsReadMutation = () => {
   return useMutation({
     mutationFn: async () => rpcJson(await notificationsReadAllPost()),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      }),
   });
 };
 

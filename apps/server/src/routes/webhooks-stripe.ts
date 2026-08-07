@@ -156,6 +156,17 @@ const processStripeEvent = async (event: StripeEvent) => {
     return;
   }
 
+  if (
+    eventType === "coupon.created" ||
+    eventType === "coupon.updated" ||
+    eventType === "coupon.deleted"
+  ) {
+    console.info(
+      `Stripe webhook coupon event received: ${eventType} (${object.id})`
+    );
+    return;
+  }
+
   if (eventType === "charge.refunded" && object.id) {
     const [transaction] = object.payment_intent
       ? await db

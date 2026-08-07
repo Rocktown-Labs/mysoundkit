@@ -537,10 +537,13 @@ export const artistProfiles = pgTable(
       () => organization.id,
       { onDelete: "set null" }
     ),
+    proAffiliation: text("pro_affiliation"),
+    proMemberId: text("pro_member_id"),
     projectCount: integer("project_count").default(0).notNull(),
     publicProfileEnabled: boolean("public_profile_enabled")
       .default(true)
       .notNull(),
+    songwriterLegalName: text("songwriter_legal_name"),
     stageName: text("stage_name"),
     trackCount: integer("track_count").default(0).notNull(),
     updatedAt: timestamp("updated_at")
@@ -721,6 +724,7 @@ export const tracks = pgTable(
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
+    isrc: text("isrc"),
     lyricsStatus: lyricsStatusEnum("lyrics_status")
       .default("missing")
       .notNull(),
@@ -745,6 +749,10 @@ export const tracks = pgTable(
       .default("private")
       .notNull(),
     slug: text("slug").notNull(),
+    streamingLinks: jsonb("streaming_links")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -962,6 +970,10 @@ export const projects = pgTable(
     releaseDate: timestamp("release_date"),
     slug: text("slug").notNull(),
     status: projectStatusEnum("status").default("draft").notNull(),
+    streamingLinks: jsonb("streaming_links")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

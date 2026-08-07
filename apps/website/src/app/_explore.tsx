@@ -3,7 +3,6 @@ import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { ExploreAppSidebar } from "@/components/explore/explore-app-sidebar";
 import { ExploreHeader } from "@/components/explore/explore-header";
 import { ExploreMobileNav } from "@/components/explore/explore-mobile-nav";
-import { MusicPlayer } from "@/components/explore/music-player";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 export const Route = createFileRoute("/_explore")({
@@ -23,7 +22,6 @@ function ExploreLayout() {
         </div>
       </div>
       <ExploreMobileNav />
-      <MusicPlayer />
     </SidebarProvider>
   );
 }

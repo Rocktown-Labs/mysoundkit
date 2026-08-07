@@ -185,6 +185,25 @@ export const createAuth = () => {
         : []),
       expo(),
     ],
+    rateLimit: {
+      customRules: {
+        "/forget-password": {
+          max: 3,
+          window: 60,
+        },
+        "/sign-in/email": {
+          max: 5,
+          window: 60,
+        },
+        "/sign-up/email": {
+          max: 5,
+          window: 60,
+        },
+      },
+      enabled: true,
+      max: 100,
+      window: 60,
+    },
     secret: env.BETTER_AUTH_SECRET,
     trustedOrigins: [
       env.CORS_ORIGIN,

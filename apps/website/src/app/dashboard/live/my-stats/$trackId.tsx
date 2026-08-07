@@ -52,11 +52,11 @@ function TrackBattleHistoryPage() {
           Failed to load battle history
         </p>
         <p className="text-sm text-muted-foreground max-w-xs">
-          There was an issue retrieving this track's history. Please verify the
-          track ID or try again.
+          There was an issue retrieving this track&apos;s history. Please verify
+          the track ID or try again.
         </p>
         <Button asChild variant="outline">
-          <Link to="/dashboard/live/my-stats/">
+          <Link to="/dashboard/live/my-stats">
             <ArrowLeft className="mr-2 size-4" />
             Back to Stats
           </Link>
@@ -79,7 +79,7 @@ function TrackBattleHistoryPage() {
           variant="ghost"
           className="text-muted-foreground hover:text-foreground"
         >
-          <Link to="/dashboard/live/my-stats/">
+          <Link to="/dashboard/live/my-stats">
             <ArrowLeft className="mr-2 size-4" />
             Back to My Stats
           </Link>
@@ -197,7 +197,7 @@ function TrackBattleHistoryPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {history.map((round, idx) => {
+              {history.map((round) => {
                 const totalVotes = round.votesFor + round.votesAgainst;
                 const votePercentage =
                   totalVotes > 0
@@ -207,7 +207,7 @@ function TrackBattleHistoryPage() {
 
                 return (
                   <div
-                    key={`${round.battleId}-${round.roundNumber}-${idx}`}
+                    key={`${round.battleId}-${round.roundNumber}`}
                     className="p-4 rounded-xl border border-border/40 bg-card/60 hover:bg-card/90 transition-all space-y-4"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

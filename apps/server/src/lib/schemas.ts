@@ -46,6 +46,12 @@ export const adminOverviewSchema = z.object({
   }),
 });
 
+export const adminFinanceSummarySchema = z.object({
+  platformFeeCents: z.number().int(),
+  successfulTransactionCents: z.number().int(),
+  transactionCount: z.number().int(),
+});
+
 export const adminAccessSchema = z.object({
   isAdmin: z.boolean(),
 });
@@ -58,6 +64,81 @@ export const platformSettingsSchema = z.object({
 
 export const updatePlatformSettingsBodySchema =
   platformSettingsSchema.partial();
+
+export const liveExperienceKindSchema = z.enum(["battle", "party", "stream"]);
+
+export const liveScheduleModeSchema = z.enum(["asap", "scheduled"]);
+
+export const liveParticipantRoleSchema = z.enum([
+  "artist",
+  "host",
+  "listener",
+  "viewer",
+]);
+
+export const battlePhaseSchema = z.enum([
+  "matching",
+  "lobby",
+  "round_active",
+  "voting",
+  "between_rounds",
+  "completed",
+]);
+
+export const createLiveExperienceBodySchema = z.object({
+  battleKitId: z.string().optional(),
+  description: z.string().optional(),
+  format: z.enum(["best_of_3", "best_of_5", "best_of_7"]).optional(),
+  genre: z.string().optional(),
+  kind: liveExperienceKindSchema,
+  opponentUsername: z.string().optional(),
+  playlistId: z.string().optional(),
+  projectId: z.string().optional(),
+  scheduleMode: liveScheduleModeSchema.default("asap"),
+  scheduledStartAt: z.string().optional(),
+  source: z.enum(["browser", "obs", "playlist"]).optional(),
+  title: z.string().min(1),
+  visibility: z.enum(["public", "unlisted", "private"]).default("public"),
+});
+
+export const joinLiveExperienceBodySchema = z.object({
+  phase: battlePhaseSchema.optional(),
+  role: liveParticipantRoleSchema.default("viewer"),
+});
+
+export const liveSessionLockCheckBodySchema = z.object({
+  candidateEndsAt: z.string().optional(),
+  candidateStartsAt: z.string(),
+  locks: z
+    .object({
+      endsAt: z.string().nullable().optional(),
+      experienceId: z.string(),
+      kind: liveExperienceKindSchema,
+      startsAt: z.string(),
+      status: z.enum(["scheduled", "live"]),
+    })
+    .array()
+    .default([]),
+});
+
+export const battleBotActionBodySchema = z.object({
+  action: z.enum([
+    "open_lobby",
+    "snapshot_voters",
+    "close_voting",
+    "move_lobby_to_round",
+    "complete_round",
+  ]),
+  participants: z
+    .object({
+      id: z.string(),
+      inLobby: z.boolean().optional(),
+      voted: z.boolean().optional(),
+    })
+    .array()
+    .default([]),
+  phase: battlePhaseSchema.optional(),
+});
 
 export const adminPaymentPlanSchema = z.object({
   annualPriceCents: z.number().int().nullable(),
@@ -142,8 +223,23 @@ export const userSummarySchema = z.object({
   displayName: z.string(),
   headerUrl: z.string().nullable().optional(),
   id: z.string(),
+  links: z
+    .object({
+      appleMusic: z.string().url().optional(),
+      instagram: z.string().url().optional(),
+      personalSite: z.string().url().optional(),
+      soundcloud: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      tiktok: z.string().url().optional(),
+      twitter: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .optional(),
   onboardingCompletedAt: z.string().nullable().optional(),
+  proAffiliation: z.string().nullable().optional(),
+  proMemberId: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
+  songwriterLegalName: z.string().nullable().optional(),
   stageName: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
   username: z.string(),
@@ -204,6 +300,21 @@ export const profileUpdateBodySchema = z.object({
   displayName: z.string().optional(),
   headerObjectKey: z.string().optional(),
   headerUrl: z.string().url().optional(),
+  links: z
+    .object({
+      appleMusic: z.string().optional(),
+      instagram: z.string().optional(),
+      personalSite: z.string().optional(),
+      soundcloud: z.string().optional(),
+      spotify: z.string().optional(),
+      tiktok: z.string().optional(),
+      twitter: z.string().optional(),
+      youtube: z.string().optional(),
+    })
+    .optional(),
+  proAffiliation: z.string().optional(),
+  proMemberId: z.string().optional(),
+  songwriterLegalName: z.string().optional(),
   stageName: z.string().optional(),
   state: z.string().optional(),
 });
@@ -233,7 +344,12 @@ export const artistSummarySchema = z.object({
   links: z
     .object({
       apple: z.string().url().optional(),
+      instagram: z.string().url().optional(),
+      personalSite: z.string().url().optional(),
+      soundcloud: z.string().url().optional(),
       spotify: z.string().url().optional(),
+      tiktok: z.string().url().optional(),
+      twitter: z.string().url().optional(),
       youtube: z.string().url().optional(),
     })
     .optional(),
@@ -290,6 +406,7 @@ export const trackSummarySchema = z.object({
   id: z.string(),
   isForSale: z.boolean(),
   isPublic: z.boolean().optional(),
+  isrc: z.string().nullable().optional(),
   lyricsStatus: z
     .enum(["missing", "generating", "pending_review", "approved", "failed"])
     .default("missing"),
@@ -306,6 +423,14 @@ export const trackSummarySchema = z.object({
   releaseAt: z.string().nullable().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   slug: z.string(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .default({})
+    .optional(),
   title: z.string(),
   updatedAt: z.string().optional(),
 });
@@ -564,6 +689,7 @@ export const trackCatalogDetailSchema = z.object({
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
   isStreamable: z.boolean(),
+  isrc: z.string().nullable().optional(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
   musicalKey: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
@@ -572,6 +698,14 @@ export const trackCatalogDetailSchema = z.object({
   purchaseMode: purchaseModeSchema,
   slug: z.string(),
   streamCount: z.string().nullable().optional(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .default({})
+    .optional(),
   tags: z.array(z.string()).default([]),
   title: z.string(),
   visualContent: catalogVisualContentSchema.array().default([]),
@@ -588,6 +722,14 @@ export const projectSummarySchema = z.object({
   releaseDate: z.string().nullable().optional(),
   slug: z.string(),
   status: z.enum(["draft", "scheduled", "released", "archived"]),
+  streamingLinks: z
+    .object({
+      appleMusic: z.string().url().optional(),
+      spotify: z.string().url().optional(),
+      youtube: z.string().url().optional(),
+    })
+    .default({})
+    .optional(),
   title: z.string(),
   trackCount: z.number(),
   updatedAt: z.string().optional(),
@@ -693,6 +835,9 @@ export const playlistSchema = z.object({
 export const conversationSummarySchema = z.object({
   conversationType: z.enum(["direct", "group", "battle_live"]),
   id: z.string(),
+  participantAvatarUrl: z.string().nullable(),
+  participantName: z.string().nullable(),
+  participantUsername: z.string().nullable(),
   title: z.string(),
   unreadCount: z.number(),
   updatedAt: z.string(),
@@ -815,25 +960,28 @@ export const commentSchema = z.object({
 
 export const onboardingArtistBodySchema = z
   .object({
-    appleMusicUrl: z.url().optional(),
+    appleMusicUrl: z.string().optional(),
     avatarObjectKey: z.string().min(1).optional(),
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
     instagramHandle: z.string().optional(),
     primaryGenre: z.string().min(1),
+    proAffiliation: z.string().default("None"),
+    proMemberId: z.string().optional(),
     roles: artistRoleSchema.array().min(1).default(["musician"]),
     selectedPlanCode: z.enum([
       "artist_free",
       "soundkit_premium_artist",
       "artist_team",
     ]),
-    spotifyUrl: z.url().optional(),
+    songwriterLegalName: z.string().optional(),
+    spotifyUrl: z.string().optional(),
     state: z.string().min(1),
     teamInviteEmails: z.array(z.email()).default([]),
     tiktokHandle: z.string().optional(),
     twitterHandle: z.string().optional(),
     username: usernameSchema,
-    youtubeUrl: z.url().optional(),
+    youtubeUrl: z.string().optional(),
   })
   .refine(
     ({ avatarObjectKey, avatarUrl }) =>
@@ -861,7 +1009,7 @@ export const onboardingFanBodySchema = z.object({
 });
 
 export const trackCollaboratorInputSchema = z.object({
-  inviteEmail: z.string().email().optional(),
+  inviteEmail: z.string().optional(),
   name: z.string().min(1).optional(),
   role: z.enum([
     "artist",
@@ -891,14 +1039,22 @@ export const createTrackBodySchema = z.object({
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
+  isrc: z.string().optional(),
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
   priceCents: z.number().int().nonnegative().optional(),
   productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
   purchaseMode: purchaseModeSchema.default("digital_download"),
-  releaseAt: z.string().datetime().optional(),
+  releaseAt: z.string().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   sourceObjectKey: z.string().optional(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.string().optional(),
+      spotify: z.string().optional(),
+      youtube: z.string().optional(),
+    })
+    .default({}),
   title: z.string().min(1),
 });
 
@@ -1089,13 +1245,23 @@ export const createProjectBodySchema = z.object({
     .array(
       z.object({
         assetId: z.string().optional(),
+        fileName: z.string().optional(),
         genre: z.string().min(1),
+        mimeType: z.string().optional(),
+        sizeBytes: z.number().int().nonnegative().optional(),
         title: z.string().min(1),
       })
     )
     .default([]),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
+  streamingLinks: z
+    .object({
+      appleMusic: z.url().optional(),
+      spotify: z.url().optional(),
+      youtube: z.url().optional(),
+    })
+    .default({}),
   title: z.string().min(1),
   trackIds: z.array(z.string()).default([]),
 });

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { createDb } from "@soundkit/db";
 import {
   genres,
@@ -14,7 +15,9 @@ import {
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
+
+import { canonicalGenreName } from "@/lib/genre-catalog";
 
 const formatDuration = (durationMs: number | null | undefined) => {
   if (!durationMs) {
@@ -55,7 +58,25 @@ const publicAssetUrl = (
     (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
       .VITE_MEDIA_URL ??
     ""
-  ).replace(/\/+$/, "");
+  ).replace(/\/+$/u, "");
+
+  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+};
+
+const publicProjectAssetUrl = (
+  asset: InferSelectModel<typeof projectAssets> | undefined
+) => {
+  if (!asset) {
+    return null;
+  }
+
+  const baseUrl = (
+    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+      .MEDIA_PUBLIC_URL ??
+    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+      .VITE_MEDIA_URL ??
+    ""
+  ).replace(/\/+$/u, "");
 
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
 };
@@ -125,10 +146,11 @@ export const mapTrackSummary = ({
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
     duration: formatDuration(primaryAudioAsset?.durationMs),
     fileAvailability: fileAvailabilityFromAssets(assets),
-    genre: genre ?? "Uncategorized",
+    genre: genre ? canonicalGenreName(genre) : "Uncategorized",
     id: row.id,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
+    isrc: row.isrc,
     lyricsStatus: row.lyricsStatus,
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
@@ -138,11 +160,22 @@ export const mapTrackSummary = ({
     priceCents: row.priceCents,
     productionStatus: row.productionStatus,
     purchaseMode: row.purchaseMode,
-    releaseAt: row.releaseAt?.toISOString() ?? null,
+    releaseAt:
+      row.releaseAt instanceof Date
+        ? row.releaseAt.toISOString()
+        : typeof row.releaseAt === "string"
+          ? row.releaseAt
+          : null,
     releaseStrategy: row.releaseStrategy,
     slug: row.slug,
+    streamingLinks: row.streamingLinks,
     title: row.title,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt:
+      row.updatedAt instanceof Date
+        ? row.updatedAt.toISOString()
+        : typeof row.updatedAt === "string"
+          ? row.updatedAt
+          : new Date().toISOString(),
   };
 };
 
@@ -181,7 +214,7 @@ export const buildTrackSummary = async (
     artistUsername: profile?.username ?? null,
     assets: assetRows,
     collaboratorCount: collaboratorRows.length,
-    genre: genreRow?.name ?? null,
+    genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
     row,
   });
 };
@@ -276,18 +309,29 @@ export const buildProjectSummary = async (
 
   return {
     collaboratorCount: collaboratorRows.length,
-    coverArtUrl: coverAsset?.objectKey ?? null,
+    coverArtUrl: publicProjectAssetUrl(coverAsset),
     description: row.description,
     id: row.id,
     isPublic: row.isPublic,
     progress,
     projectType: row.projectType,
-    releaseDate: row.releaseDate?.toISOString() ?? null,
+    releaseDate:
+      row.releaseDate instanceof Date
+        ? row.releaseDate.toISOString()
+        : typeof row.releaseDate === "string"
+          ? row.releaseDate
+          : null,
     slug: row.slug,
     status: row.status,
+    streamingLinks: row.streamingLinks,
     title: row.title,
     trackCount: trackRows.length,
-    updatedAt: row.updatedAt.toISOString(),
+    updatedAt:
+      row.updatedAt instanceof Date
+        ? row.updatedAt.toISOString()
+        : typeof row.updatedAt === "string"
+          ? row.updatedAt
+          : new Date().toISOString(),
   };
 };
 
@@ -320,7 +364,8 @@ export const buildProjectDetail = async (
       .select({ row: tracks })
       .from(projectTracks)
       .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
-      .where(eq(projectTracks.projectId, row.id)),
+      .where(eq(projectTracks.projectId, row.id))
+      .orderBy(asc(projectTracks.position)),
   ]);
 
   const trackSummaries = [];

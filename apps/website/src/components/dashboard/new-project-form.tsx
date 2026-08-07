@@ -1,8 +1,10 @@
 "use client";
+/* eslint-disable complexity, import/first, no-empty-function, no-nested-ternary, no-promise-executor-return, promise/avoid-new, promise/prefer-await-to-then, react/jsx-handler-names, require-await, require-unicode-regexp, unicorn/max-nested-calls */
 
 import { useUploadFiles } from "@better-upload/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHog } from "@posthog/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import {
   Plus,
@@ -20,15 +22,16 @@ import {
   Disc,
   LoaderCircle,
   RotateCcw,
+  Info,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import * as z from "zod";
 
 const SUPPORTED_GENRES = [
   "Afrobeats",
   "Electronic",
-  "Hip-Hop",
+  "Hip-Hop/Rap",
   "Jazz",
   "Latin",
   "Pop",
@@ -47,6 +50,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Form,
   FormControl,
@@ -67,10 +78,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
-import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
+  apiClient,
+  MEDIA_BASE_URL,
+  MEDIA_UPLOAD_URL,
+  PROJECT_ASSETS_UPLOAD_URL,
+  rpcJson,
+} from "@/lib/api";
+import {
+  soundkitQueryKeys,
   useCreateProjectMutation,
+  useGenresQuery,
   useTracksQuery,
+  useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
@@ -96,14 +116,22 @@ const collaboratorSchema = z.object({
 const projectFormSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
   description: z.string().optional(),
+  genre: z
+    .string()
+    .min(1, "Project primary genre is required")
+    .default("R&B/Soul"),
   name: z.string().min(2, "Project name is required"),
   newTracks: z
     .array(
       z.object({
+        assetId: z.string().optional(),
         file: z.any().optional(),
+        fileName: z.string().optional(),
         genre: z.string().min(1, "Genre is required"),
+        mimeType: z.string().optional(),
         name: z.string().min(1, "Track name is required"),
         producers: z.string().optional(),
+        sizeBytes: z.number().int().optional(),
         writers: z.string().optional(),
       })
     )
@@ -118,10 +146,41 @@ const projectFormSchema = z.object({
 });
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
+const projectGet = apiClient.v1.projects[":projectId"].$get;
+const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 
-export function NewProjectForm() {
+interface GenreOption {
+  name: string;
+}
+
+const isGenreOption = (value: unknown): value is GenreOption =>
+  Boolean(
+    value &&
+    typeof value === "object" &&
+    "name" in value &&
+    typeof value.name === "string"
+  );
+
+interface NewProjectFormProps {
+  initialProject?: Record<string, unknown> | null;
+  projectId?: string;
+}
+
+export function NewProjectForm({
+  initialProject,
+  projectId,
+}: NewProjectFormProps = {}) {
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
   const router = useRouter();
+  const genresQuery = useGenresQuery();
+  const genreRows = Array.isArray(genresQuery.data)
+    ? genresQuery.data.filter(isGenreOption)
+    : [];
+  const availableGenres =
+    genreRows.length > 0
+      ? genreRows.map((genre) => genre.name)
+      : SUPPORTED_GENRES;
   const [step, setStep] = useState("identity");
   const [newCollabName, setNewCollabName] = useState("");
   const [newCollabRole, setNewCollabRole] =
@@ -133,16 +192,21 @@ export function NewProjectForm() {
   } | null>(null);
   const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
   const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
+  const projectAssetsUploadResolverRef = useRef<
+    ((assets: ProjectTrackUploadResult[] | null) => void) | null
+  >(null);
   const {
     data: existingTracks = [],
     error: tracksError,
     isLoading: tracksLoading,
   } = useTracksQuery();
   const createProjectMutation = useCreateProjectMutation();
+  const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
 
   const defaultProjectFormValues: ProjectFormValues = {
     collaborators: [],
     description: "",
+    genre: "Hip-Hop/Rap",
     name: "",
     newTracks: [],
     projectCoverObjectKey: "",
@@ -157,6 +221,58 @@ export function NewProjectForm() {
     resolver: zodResolver(projectFormSchema),
   });
 
+  // Prefill when editing an existing project
+  useEffect(() => {
+    if (!initialProject) {
+      return;
+    }
+
+    const assetRows = Array.isArray(initialProject.assets)
+      ? (initialProject.assets as Record<string, unknown>[])
+      : [];
+    const coverAsset = assetRows.find(
+      (asset) => asset.assetKind === "cover_art"
+    );
+    const coverObjectKey =
+      (coverAsset?.objectKey as string) ||
+      (initialProject.coverArtUrl as string);
+    const projectTracks = Array.isArray(initialProject.tracks)
+      ? (initialProject.tracks as Record<string, unknown>[])
+      : [];
+    const firstGenre =
+      projectTracks.find((track) => typeof track.genre === "string")?.genre ||
+      "Hip-Hop/Rap";
+
+    const rawProjectType = initialProject.projectType as string;
+    const projectType: ProjectFormValues["type"] =
+      rawProjectType === "album" ||
+      rawProjectType === "ep" ||
+      rawProjectType === "mixtape"
+        ? rawProjectType
+        : "album";
+
+    form.reset({
+      collaborators: [],
+      description: (initialProject.description as string) ?? "",
+      genre: firstGenre as string,
+      name: (initialProject.title as string) ?? "",
+      newTracks: [],
+      projectCoverObjectKey: coverObjectKey ?? "",
+      releaseDate: (initialProject.releaseDate as string) ?? "",
+      rightsAccepted: true,
+      selectedExistingTracks: projectTracks.map((track) => track.id as string),
+      type: projectType,
+    });
+
+    if (initialProject.coverArtUrl) {
+      setProjectCover({
+        fileName: `${(initialProject.title as string) || "project"}-cover.jpg`,
+        objectKey: coverObjectKey ?? "",
+        remoteUrl: initialProject.coverArtUrl as string,
+      });
+    }
+  }, [initialProject, form]);
+
   const {
     allowNavigation,
     blockerDialog,
@@ -167,13 +283,15 @@ export function NewProjectForm() {
     additionalDirtyState: Boolean(selectedCoverFile),
     defaultValues: defaultProjectFormValues,
     form,
-    storageKey: "soundkit:new-project-draft",
+    storageKey: projectId
+      ? `soundkit:edit-project-draft-${projectId}`
+      : "soundkit:new-project-draft",
   });
 
   const resetProjectDraft = () => {
     resetDraft();
     setSelectedCoverFile(null);
-    setCoverUpload(null);
+    setProjectCover(null);
     toast({
       description: "Project draft cleared. You can start fresh.",
       title: "Draft reset",
@@ -185,7 +303,126 @@ export function NewProjectForm() {
     name: "newTracks",
   });
 
+  const handleSaveProjectDraft = async () => {
+    const values = form.getValues();
+
+    if (values.name.trim().length < 2) {
+      toast({
+        description: "Add a project title before saving a draft.",
+        title: "Project title required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const project = await createProjectMutation.mutateAsync({
+        assetIds: [],
+        collaboratorNames: values.collaborators.map(
+          (collaborator) => collaborator.name
+        ),
+        description: values.description || undefined,
+        isPublic: false,
+        newTracks: values.newTracks.map((track) => ({
+          genre: track.genre || values.genre || "Hip-Hop/Rap",
+          title: track.name,
+        })),
+        projectType: values.type,
+        streamingLinks: {},
+        title: values.name,
+        trackIds: values.selectedExistingTracks,
+        ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
+      });
+      clearDraft();
+      allowNavigation();
+      toast({
+        description:
+          selectedCoverFile ||
+          values.newTracks.some((track) => track.file instanceof File)
+            ? "Project metadata saved. Staged files will upload when you complete the project."
+            : `${project.title} was saved as a draft.`,
+        title: "Draft saved",
+      });
+      router.navigate({ to: "/dashboard/projects" });
+    } catch (error) {
+      posthog.captureException(error);
+      toast({
+        description:
+          error instanceof Error ? error.message : "Failed to save draft.",
+        title: "Draft save failed",
+        variant: "destructive",
+      });
+    }
+  };
+
   const onSubmit = async (values: ProjectFormValues) => {
+    // Edit Mode submission
+    if (projectId) {
+      try {
+        let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
+
+        if (selectedCoverFile && !coverKey) {
+          const keyPromise = new Promise<string>((resolve) => {
+            coverUploadResolverRef.current = resolve;
+          });
+          uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+            posthog.captureException(uploadError);
+            coverUploadResolverRef.current?.("");
+            coverUploadResolverRef.current = null;
+          });
+          coverKey = await Promise.race([
+            keyPromise,
+            new Promise<string>((resolve) =>
+              setTimeout(() => resolve(""), 60_000)
+            ),
+          ]);
+          if (!coverKey) {
+            coverUploadResolverRef.current = null;
+            toast({
+              description:
+                "Project cover upload did not finish. Please retry before saving.",
+              title: "Artwork upload incomplete",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        await updateProjectMutation.mutateAsync({
+          assetIds: coverKey ? [coverKey] : undefined,
+          description: values.description || undefined,
+          isPublic: true,
+          projectType: values.type,
+          releaseDate: values.releaseDate || undefined,
+          streamingLinks: {},
+          title: values.name,
+        });
+
+        posthog.capture("project_updated", {
+          project_id: projectId,
+          project_type: values.type,
+        });
+        toast({
+          description: `${values.name} was updated successfully.`,
+          title: "Project Updated",
+        });
+        clearDraft();
+        allowNavigation();
+        router.navigate({
+          params: { id: projectId },
+          to: "/dashboard/projects/$id",
+        });
+      } catch (error) {
+        posthog.captureException(error);
+        toast({
+          description: "Failed to update project. Please try again.",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
       toast({
         description:
@@ -202,9 +439,23 @@ export function NewProjectForm() {
       const keyPromise = new Promise<string>((resolve) => {
         coverUploadResolverRef.current = resolve;
       });
-      void uploadCover([selectedCoverFile]);
-      coverKey = await keyPromise;
+      uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+        posthog.captureException(uploadError);
+        coverUploadResolverRef.current?.("");
+        coverUploadResolverRef.current = null;
+      });
+      coverKey = await Promise.race([
+        keyPromise,
+        new Promise<string>((resolve) => setTimeout(() => resolve(""), 60_000)),
+      ]);
       if (!coverKey) {
+        coverUploadResolverRef.current = null;
+        toast({
+          description:
+            "Project cover upload did not finish. Please retry before creating this project.",
+          title: "Artwork upload incomplete",
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -219,22 +470,95 @@ export function NewProjectForm() {
     }
 
     try {
-      const project = await createProjectMutation.mutateAsync({
-        assetIds: [],
+      const projectTracks = values.newTracks.map((track) => {
+        const projectTrack = {
+          genre: track.genre || values.genre || "Hip-Hop/Rap",
+          title: track.name,
+        };
+
+        return projectTrack;
+      });
+
+      const projectPayload = {
+        assetIds: coverKey ? [coverKey] : [],
         collaboratorNames: values.collaborators.map(
           (collaborator) => collaborator.name
         ),
-        description: values.description || undefined,
         isPublic: true,
-        newTracks: values.newTracks.map((track) => ({
-          genre: track.genre,
-          title: track.name,
-        })),
+        newTracks: projectTracks,
         projectType: values.type,
-        releaseDate: values.releaseDate || undefined,
+        streamingLinks: {},
         title: values.name,
         trackIds: values.selectedExistingTracks,
-      });
+        ...(values.description ? { description: values.description } : {}),
+        ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
+      };
+
+      const project = await createProjectMutation.mutateAsync(projectPayload);
+      const pendingTrackFiles = values.newTracks
+        .map((track, index) => ({
+          file: track.file instanceof File ? track.file : null,
+          index,
+        }))
+        .filter(
+          (entry): entry is { file: File; index: number } =>
+            Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
+        );
+
+      if (pendingTrackFiles.length > 0) {
+        const uploadedAssets = await uploadProjectTrackFiles(
+          pendingTrackFiles.map(({ file }) => file)
+        );
+
+        if (!uploadedAssets) {
+          toast({
+            description:
+              "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
+            title: "Project draft saved",
+            variant: "destructive",
+          });
+          await queryClient.invalidateQueries({
+            queryKey: soundkitQueryKeys.projects,
+          });
+          router.navigate({ to: "/dashboard/projects" });
+          return;
+        }
+
+        const projectDetail = await rpcJson(
+          await projectGet({ param: { projectId: project.id } })
+        );
+        const newProjectTracks = projectDetail.tracks.filter(
+          (track) => !values.selectedExistingTracks.includes(track.id)
+        );
+
+        for (const [uploadIndex, pendingTrack] of pendingTrackFiles.entries()) {
+          const uploadedAsset = uploadedAssets[uploadIndex];
+          const projectTrack = newProjectTracks[pendingTrack.index];
+
+          if (!(uploadedAsset && projectTrack)) {
+            continue;
+          }
+
+          await rpcJson(
+            await trackAssetPost({
+              json: {
+                assetKind: "master",
+                metadata: {
+                  originalFileName: uploadedAsset.fileName,
+                  url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
+                },
+                mimeType: uploadedAsset.mimeType,
+                objectKey: uploadedAsset.objectKey,
+                sizeBytes: uploadedAsset.sizeBytes,
+                status: "uploaded",
+                storageProvider: "r2",
+              },
+              param: { trackId: projectTrack.id },
+            })
+          );
+        }
+      }
+
       posthog.capture("project_created", {
         collaborator_count: values.collaborators.length,
         existing_track_count: values.selectedExistingTracks.length,
@@ -247,7 +571,9 @@ export function NewProjectForm() {
         description: `${project.title} is now in your project dashboard.`,
         title: "Project Created",
       });
-      clearDraft();
+      resetDraft();
+      setSelectedCoverFile(null);
+      setProjectCover(null);
       allowNavigation();
       router.navigate({ to: "/dashboard/projects" });
     } catch (error) {
@@ -272,7 +598,7 @@ export function NewProjectForm() {
     for (const file of files) {
       append({
         file,
-        genre: "Hip-Hop",
+        genre: form.getValues("genre") || "Hip-Hop/Rap",
         name: file.name.replace(/\.[^/.]+$/, ""),
         producers: "",
         writers: "",
@@ -327,8 +653,91 @@ export function NewProjectForm() {
         coverUploadResolverRef.current = null;
       }
     },
+    onUploadFail: ({ failedFiles }) => {
+      const [failed] = failedFiles;
+      posthog.captureException(failed?.error);
+      toast({
+        description:
+          failed?.error?.message ?? "The artwork could not be stored.",
+        title: "Artwork upload failed",
+        variant: "destructive",
+      });
+      if (coverUploadResolverRef.current) {
+        coverUploadResolverRef.current("");
+        coverUploadResolverRef.current = null;
+      }
+    },
     route: "media",
   });
+
+  interface ProjectTrackUploadResult {
+    fileName: string;
+    mimeType: string;
+    objectKey: string;
+    sizeBytes: number;
+  }
+
+  const {
+    averageProgress: projectAssetProgress,
+    isPending: isProjectAssetUploading,
+    upload: uploadProjectAssets,
+  } = useUploadFiles({
+    api: PROJECT_ASSETS_UPLOAD_URL,
+    credentials: "include",
+    onError: (uploadError) => {
+      posthog.captureException(uploadError);
+      toast({
+        description: uploadError.message,
+        title: "Project file upload failed",
+        variant: "destructive",
+      });
+      projectAssetsUploadResolverRef.current?.(null);
+      projectAssetsUploadResolverRef.current = null;
+    },
+    onUploadComplete: ({ files }) => {
+      const assets = files.map((uploadedFile) => ({
+        fileName: uploadedFile.raw.name,
+        mimeType: uploadedFile.raw.type || "application/octet-stream",
+        objectKey: uploadedFile.objectInfo.key,
+        sizeBytes: uploadedFile.raw.size,
+      }));
+
+      projectAssetsUploadResolverRef.current?.(assets);
+      projectAssetsUploadResolverRef.current = null;
+    },
+    onUploadFail: ({ failedFiles }) => {
+      const [failed] = failedFiles;
+      posthog.captureException(failed?.error);
+      toast({
+        description:
+          failed?.error?.message ?? "The project files could not be stored.",
+        title: "Project file upload failed",
+        variant: "destructive",
+      });
+      projectAssetsUploadResolverRef.current?.(null);
+      projectAssetsUploadResolverRef.current = null;
+    },
+    route: "project-assets",
+  });
+
+  const uploadProjectTrackFiles = async (files: File[]) => {
+    const uploadPromise = new Promise<ProjectTrackUploadResult[] | null>(
+      (resolve) => {
+        projectAssetsUploadResolverRef.current = resolve;
+      }
+    );
+
+    uploadProjectAssets(files).catch((uploadError: unknown) => {
+      posthog.captureException(uploadError);
+      projectAssetsUploadResolverRef.current?.(null);
+      projectAssetsUploadResolverRef.current = null;
+    });
+
+    return Promise.race([
+      uploadPromise,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 120_000)),
+    ]);
+  };
 
   const handleProjectCoverUpload = async (files: FileList) => {
     const [file] = [...files];
@@ -410,7 +819,7 @@ export function NewProjectForm() {
 
       <div className="space-y-2 text-center">
         <h1 className="text-4xl font-bold font-[family-name:var(--font-playfair)] tracking-tight">
-          Create New Project
+          {projectId ? "Edit Project" : "Create New Project"}
         </h1>
         <p className="text-muted-foreground max-w-lg mx-auto">
           Bundle your tracks into a cohesive release. Manage artwork, credits,
@@ -471,14 +880,14 @@ export function NewProjectForm() {
                                 : "Selected",
                             },
                           ]
-                        : (projectCover
+                        : projectCover
                           ? [
                               {
                                 name: projectCover.fileName,
                                 status: "Uploaded",
                               },
                             ]
-                          : [])
+                          : []
                     }
                     onFileUpload={handleProjectCoverUpload}
                     progress={isCoverUploading ? coverProgress : undefined}
@@ -500,7 +909,7 @@ export function NewProjectForm() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <FormField
                     control={form.control}
                     name="name"
@@ -532,7 +941,7 @@ export function NewProjectForm() {
                           <FormLabel>Project Type</FormLabel>
                           <Select
                             onValueChange={handleProjectTypeChange}
-                            defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger className="bg-background/50">
@@ -549,6 +958,44 @@ export function NewProjectForm() {
                         </FormItem>
                       );
                     }}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="genre"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          Primary Genre{" "}
+                          <span className="text-destructive">*</span>
+                        </FormLabel>
+                        <Select
+                          onValueChange={(val) => {
+                            field.onChange(val);
+                            const currentTracks = form.getValues("newTracks");
+                            const updated = currentTracks.map((t) => ({
+                              ...t,
+                              genre: t.genre || val,
+                            }));
+                            form.setValue("newTracks", updated);
+                          }}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder="Select primary genre" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableGenres.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
 
@@ -688,7 +1135,7 @@ export function NewProjectForm() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {SUPPORTED_GENRES.map((g) => (
+                                      {availableGenres.map((g) => (
                                         <SelectItem key={g} value={g}>
                                           {g}
                                         </SelectItem>
@@ -709,10 +1156,45 @@ export function NewProjectForm() {
                                   <FormControl>
                                     <Input
                                       {...producersField}
-                                      placeholder="Search friends or type names"
+                                      placeholder="Type names (separated by commas)"
                                       className="h-8 text-sm bg-background/50"
                                     />
                                   </FormControl>
+                                  {Boolean(producersField.value) && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {producersField.value
+                                        ?.split(",")
+                                        .map((p) => p.trim())
+                                        .filter(Boolean)
+                                        .map((producerName) => (
+                                          <Badge
+                                            key={producerName}
+                                            variant="secondary"
+                                            className="text-[10px] bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 py-0.5 px-2"
+                                          >
+                                            <span>{producerName}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updated =
+                                                  producersField.value
+                                                    ?.split(",")
+                                                    .map((p) => p.trim())
+                                                    .filter(
+                                                      (p) => p !== producerName
+                                                    )
+                                                    .join(", ");
+                                                producersField.onChange(
+                                                  updated
+                                                );
+                                              }}
+                                            >
+                                              <X className="size-3 hover:text-destructive" />
+                                            </button>
+                                          </Badge>
+                                        ))}
+                                    </div>
+                                  )}
                                 </FormItem>
                               )}
                             />
@@ -727,10 +1209,43 @@ export function NewProjectForm() {
                                   <FormControl>
                                     <Input
                                       {...writersField}
-                                      placeholder="Search friends or type names"
+                                      placeholder="Type names (separated by commas)"
                                       className="h-8 text-sm bg-background/50"
                                     />
                                   </FormControl>
+                                  {Boolean(writersField.value) && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {writersField.value
+                                        ?.split(",")
+                                        .map((w) => w.trim())
+                                        .filter(Boolean)
+                                        .map((writerName) => (
+                                          <Badge
+                                            key={writerName}
+                                            variant="secondary"
+                                            className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 py-0.5 px-2"
+                                          >
+                                            <span>{writerName}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updated =
+                                                  writersField.value
+                                                    ?.split(",")
+                                                    .map((w) => w.trim())
+                                                    .filter(
+                                                      (w) => w !== writerName
+                                                    )
+                                                    .join(", ");
+                                                writersField.onChange(updated);
+                                              }}
+                                            >
+                                              <X className="size-3 hover:text-destructive" />
+                                            </button>
+                                          </Badge>
+                                        ))}
+                                    </div>
+                                  )}
                                 </FormItem>
                               )}
                             />
@@ -741,90 +1256,142 @@ export function NewProjectForm() {
                   )}
                 </div>
 
-                {/* EXISTING TRACKS */}
+                {/* EXISTING TRACKS DROPDOWN WITH CHECKBOXES */}
                 <div className="space-y-4">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Select From Library
-                  </Label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {tracksLoading && (
-                      <div className="p-4 rounded-xl border border-border/40 bg-background/40 text-sm text-muted-foreground">
-                        Loading your tracks...
-                      </div>
-                    )}
-                    {tracksError && (
-                      <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-sm text-destructive">
-                        We could not load your tracks. Refresh and try again.
-                      </div>
-                    )}
-                    {!tracksLoading &&
-                      !tracksError &&
-                      existingTracks.length === 0 && (
-                        <div className="p-4 rounded-xl border-2 border-dashed border-border/30 bg-background/30 text-sm text-muted-foreground text-center">
-                          Upload tracks first or add new audio files here.
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                      Select From Previous Uploads
+                    </Label>
+                    <span className="text-xs font-mono text-emerald-400">
+                      {form.watch("selectedExistingTracks").length} selected
+                      from library
+                    </span>
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        className="w-full justify-between h-12 bg-background/50 border-border/40 text-left font-medium"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <ListMusic className="size-4 text-emerald-500 shrink-0" />
+                          {form.watch("selectedExistingTracks").length > 0
+                            ? `Selected ${form.watch("selectedExistingTracks").length} previous upload${
+                                form.watch("selectedExistingTracks").length ===
+                                1
+                                  ? ""
+                                  : "s"
+                              }`
+                            : "Click to select tracks from your library"}
+                        </span>
+                        <ChevronRight className="size-4 text-muted-foreground rotate-90" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      className="w-[calc(100vw-3rem)] max-w-xl max-h-80 overflow-y-auto p-2 space-y-1 bg-popover/95 backdrop-blur-xl border-border/60 shadow-2xl"
+                    >
+                      <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5">
+                        Library Tracks
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+
+                      {tracksLoading && (
+                        <div className="p-3 text-xs text-muted-foreground text-center">
+                          Loading your uploaded tracks...
                         </div>
                       )}
-                    {existingTracks.map((track) => {
-                      const isSelected = form
-                        .watch("selectedExistingTracks")
-                        .includes(track.id);
-                      return (
-                        <button
-                          type="button"
-                          key={track.id}
-                          className={cn(
-                            "flex w-full items-center justify-between p-4 rounded-xl border transition-all cursor-pointer group text-left",
-                            isSelected
-                              ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm"
-                              : "border-border/40 bg-background/40 hover:border-emerald-500/30"
-                          )}
-                          onClick={() => {
-                            toggleExistingTrack(track.id);
-                          }}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div
-                              className={cn(
-                                "size-5 rounded-full border-2 flex items-center justify-center transition-colors",
-                                isSelected
-                                  ? "bg-emerald-500 border-emerald-500"
-                                  : "border-border/60 group-hover:border-emerald-500/40"
-                              )}
+                      {tracksError && (
+                        <div className="p-3 text-xs text-destructive text-center">
+                          Failed to load tracks.
+                        </div>
+                      )}
+                      {!tracksLoading &&
+                        !tracksError &&
+                        existingTracks.length === 0 && (
+                          <div className="p-3 text-xs text-muted-foreground text-center">
+                            No previous uploads found in library.
+                          </div>
+                        )}
+
+                      {existingTracks.map((track) => {
+                        const isSelected = form
+                          .watch("selectedExistingTracks")
+                          .includes(track.id);
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={track.id}
+                            checked={isSelected}
+                            onCheckedChange={() =>
+                              toggleExistingTrack(track.id)
+                            }
+                            className="flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-accent"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <Music className="size-4 text-emerald-500 shrink-0" />
+                              <span className="font-semibold text-sm truncate">
+                                {track.title}
+                              </span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] uppercase px-1.5 py-0 shrink-0 ml-2"
                             >
-                              {isSelected && (
-                                <Check
-                                  className="size-3 text-white"
-                                  strokeWidth={4}
-                                />
-                              )}
-                            </div>
-                            <div className="size-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:text-emerald-500 transition-colors">
-                              <Music className="size-5" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-sm">{track.title}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              {track.genre}
+                            </Badge>
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* SELECTED TRACK CARDS DISPLAY */}
+                  {form.watch("selectedExistingTracks").length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                        Selected Library Tracks
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {existingTracks
+                          .filter((track) =>
+                            form
+                              .watch("selectedExistingTracks")
+                              .includes(track.id)
+                          )
+                          .map((track) => (
+                            <div
+                              key={`selected-${track.id}`}
+                              className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-sm"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <Check className="size-4 text-emerald-400 shrink-0" />
+                                <span className="font-bold truncate">
+                                  {track.title}
+                                </span>
                                 <Badge
-                                  variant="outline"
-                                  className="text-[9px] uppercase h-4 px-1"
+                                  variant="secondary"
+                                  className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300"
                                 >
                                   {track.genre}
                                 </Badge>
-                                <span className="text-[10px] text-muted-foreground font-mono">
-                                  {track.duration}
-                                </span>
-                                {track.assetStatus && (
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {track.assetStatus}
-                                  </span>
-                                )}
                               </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                                onClick={() => toggleExistingTrack(track.id)}
+                              >
+                                <X className="size-3.5 mr-1" />
+                                Remove
+                              </Button>
                             </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between pt-4">
@@ -1084,23 +1651,50 @@ export function NewProjectForm() {
                   >
                     Back
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={createProjectMutation.isPending}
-                    className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-                  >
-                    {createProjectMutation.isPending ? (
-                      <>
-                        <LoaderCircle className="mr-2 size-4 animate-spin" />
-                        Creating Project...
-                      </>
-                    ) : (
-                      <>
-                        Launch Project
-                        <Check className="ml-2 size-4" />
-                      </>
+                  <div className="flex gap-2">
+                    {!projectId && (
+                      <Button
+                        disabled={
+                          createProjectMutation.isPending ||
+                          isProjectAssetUploading
+                        }
+                        onClick={handleSaveProjectDraft}
+                        type="button"
+                        variant="outline"
+                      >
+                        Save Draft
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      type="submit"
+                      disabled={
+                        createProjectMutation.isPending ||
+                        updateProjectMutation.isPending ||
+                        isProjectAssetUploading
+                      }
+                      className="min-w-[180px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                    >
+                      {isProjectAssetUploading ? (
+                        <>
+                          <LoaderCircle className="mr-2 size-4 animate-spin" />
+                          Uploading {Math.round(projectAssetProgress)}%
+                        </>
+                      ) : createProjectMutation.isPending ||
+                        updateProjectMutation.isPending ? (
+                        <>
+                          <LoaderCircle className="mr-2 size-4 animate-spin" />
+                          {projectId
+                            ? "Saving Changes..."
+                            : "Creating Project..."}
+                        </>
+                      ) : (
+                        <>
+                          {projectId ? "Save Changes" : "Launch Project"}
+                          <Check className="ml-2 size-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>
