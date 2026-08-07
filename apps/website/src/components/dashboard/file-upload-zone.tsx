@@ -28,10 +28,24 @@ interface FileUploadZoneProps {
   variant?: "default" | "compact";
 }
 
+const EMPTY_FILES: readonly { name: string; status?: string }[] = [];
+
+const isArtworkTitle = (title: string) => {
+  const normalizedTitle = title.toLowerCase();
+
+  return (
+    normalizedTitle.includes("cover") ||
+    normalizedTitle.includes("artwork") ||
+    normalizedTitle.includes("art")
+  );
+};
+
+// This shared dropzone intentionally handles multiple upload and preview states.
+// eslint-disable-next-line complexity
 export function FileUploadZone({
   acceptedTypes,
   description,
-  files = [],
+  files = EMPTY_FILES,
   onFileUpload,
   onRemove,
   optional,
@@ -57,16 +71,16 @@ export function FileUploadZone({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    const { files } = e.dataTransfer;
-    if (files.length > 0) {
-      onFileUpload(files);
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles.length > 0) {
+      onFileUpload(droppedFiles);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { files } = e.target;
-    if (files && files.length > 0) {
-      onFileUpload(files);
+    const selectedFiles = e.target.files;
+    if (selectedFiles && selectedFiles.length > 0) {
+      onFileUpload(selectedFiles);
     }
   };
 
@@ -88,6 +102,7 @@ export function FileUploadZone({
   };
 
   const IconComponent = getIcon();
+  const isArtwork = isArtworkTitle(title);
   const hasFiles = files.length > 0 || Boolean(previewUrl);
   const hasProgress = typeof progress === "number";
 
@@ -99,7 +114,8 @@ export function FileUploadZone({
           ? "border-primary bg-primary/5 border-2"
           : "border-border/40 hover:border-primary/60 bg-card/30 hover:bg-card/50",
         hasFiles && "border-primary/40 bg-primary/5",
-        variant === "compact" && "min-h-[120px]"
+        variant === "compact" && "min-h-[120px]",
+        isArtwork && "aspect-square min-h-0 w-full max-w-md"
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -108,14 +124,14 @@ export function FileUploadZone({
     >
       {previewUrl ? (
         /* IN-BOX FULL IMAGE PREVIEW */
-        <div className="absolute inset-0 z-0 flex items-center justify-center bg-black/80">
+        <div className="absolute inset-0 z-0 flex flex-col justify-end bg-black/80">
           <img
             src={previewUrl}
             alt="Artwork preview"
             className="size-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/20 opacity-80 group-hover:opacity-95 transition-opacity" />
-          <div className="relative z-10 flex flex-col items-center justify-center p-4 text-center space-y-2">
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center justify-end p-4 text-center space-y-2">
             <div className="rounded-full bg-primary/20 p-2 border border-primary/40 backdrop-blur-md">
               <CheckCircle2 className="size-6 text-primary" />
             </div>
@@ -125,7 +141,7 @@ export function FileUploadZone({
             <p className="text-xs text-emerald-400 font-semibold">
               {status || "Artwork Attached"}
             </p>
-            <div className="flex items-center gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-2 pt-1 opacity-100 transition-opacity">
               <Button
                 type="button"
                 variant="secondary"

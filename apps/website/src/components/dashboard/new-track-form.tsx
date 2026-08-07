@@ -284,6 +284,7 @@ export function NewTrackForm({
   const [coverUpload, setCoverUpload] = useState<UploadedAssetPreview | null>(
     null
   );
+  const coverUploadRef = useRef<UploadedAssetPreview | null>(null);
   const [uploadedTrack, setUploadedTrack] =
     useState<UploadedTrackPreview | null>(null);
 
@@ -367,11 +368,13 @@ export function NewTrackForm({
     });
 
     if (initialTrack.coverArtUrl) {
-      setCoverUpload({
+      const restoredCover = {
         fileName: `${(initialTrack.title as string) || "track"}-cover.jpg`,
         objectKey: coverObjectKey ?? "",
         remoteUrl: initialTrack.coverArtUrl as string,
-      });
+      };
+      coverUploadRef.current = restoredCover;
+      setCoverUpload(restoredCover);
     }
 
     if (initialTrack.playbackUrl) {
@@ -398,6 +401,7 @@ export function NewTrackForm({
         const { coverUpload: storedCover, uploadedTrack: storedMaster } =
           JSON.parse(storedMeta);
         if (storedCover && !coverUpload) {
+          coverUploadRef.current = storedCover;
           setCoverUpload(storedCover);
         }
         if (storedMaster && !uploadedTrack) {
@@ -502,20 +506,28 @@ export function NewTrackForm({
     storageKey: "soundkit:new-track-draft",
   });
 
-  const resetTrackDraft = () => {
-    resetDraft();
+  const clearTrackMediaState = () => {
     setSelectedCoverFile(null);
     setSelectedMasterFile(null);
     setLeadVocalsFile(null);
     setAdlibsFile(null);
     setInstrumentalFile(null);
     setCoverUpload(null);
+    coverUploadRef.current = null;
+    pendingMasterTrackRef.current = null;
+    masterUploadResolverRef.current = null;
+    coverUploadResolverRef.current = null;
     setUploadedTrack(null);
     try {
       window.localStorage.removeItem("soundkit:new-track-draft:meta");
     } catch {
       // Ignore
     }
+  };
+
+  const resetTrackDraft = () => {
+    resetDraft();
+    clearTrackMediaState();
     toast({
       description: "Track draft cleared. You can start fresh.",
       title: "Draft reset",
@@ -536,17 +548,19 @@ export function NewTrackForm({
       title: string;
     };
   }) => {
-    if (coverUpload) {
+    const currentCoverUpload = coverUploadRef.current ?? coverUpload;
+
+    if (currentCoverUpload) {
       await rpcJson(
         await trackAssetPost({
           json: {
             assetKind: "cover_art",
             metadata: {
-              originalFileName: coverUpload.fileName,
-              url: coverUpload.remoteUrl,
+              originalFileName: currentCoverUpload.fileName,
+              url: currentCoverUpload.remoteUrl,
             },
             mimeType: "image/*",
-            objectKey: coverUpload.objectKey,
+            objectKey: currentCoverUpload.objectKey,
             status: "ready",
             storageProvider: "r2",
           },
@@ -756,6 +770,7 @@ export function NewTrackForm({
         remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
       };
 
+      coverUploadRef.current = nextCover;
       setCoverUpload(nextCover);
       form.setValue("coverObjectKey", objectKey, {
         shouldDirty: true,
@@ -1180,7 +1195,8 @@ export function NewTrackForm({
           values.status === "ready" ? "Track is live" : "Track setup complete",
       });
 
-      clearDraft();
+      resetDraft();
+      clearTrackMediaState();
       allowNavigation();
       pendingMasterTrackRef.current = null;
       posthog.capture("track_upload_settled", {
@@ -1346,7 +1362,7 @@ export function NewTrackForm({
                     setCreatedTrackInfo(null);
                     setSubmitStage("idle");
                     setIsSubmitting(false);
-                    form.reset();
+                    resetTrackDraft();
                     setStep("details");
                   }}
                 >

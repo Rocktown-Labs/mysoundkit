@@ -58,6 +58,8 @@
 
 ### Fixed
 
+- Fixed new track submissions retaining stale local draft/media metadata and failing to attach uploaded cover artwork to the persisted track asset record.
+- Fixed cover artwork upload cards rendering as wide clipped previews by using a square image-first layout with visible artwork controls.
 - Fixed browser multipart uploads crashing on R2's part-upload response (`TypeError: null is not an object (evaluating 'getResponseHeader("ETag").replace')`) by exposing the `ETag` response header through the media bucket CORS rule so `@better-upload` can read it when building the complete-multipart request.
 - Fixed uploads failing before R2 storage by validating JSON request bodies against a cloned stream so the original body remains readable by the signed-URL upload handler instead of returning `400 Invalid JSON body`.
 - Fixed Mux webhook retries dead-locking by only short-circuiting already-processed or ignored events and marking failed event rows so Mux's retry queue resumes, and by persisting a derived thumbnail URL when `video.asset.ready` fires.
