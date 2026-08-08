@@ -12,6 +12,8 @@ import { env } from "@soundkit/env/server";
 import { embed } from "ai";
 import { and, eq, ne } from "drizzle-orm";
 
+import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
+
 const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1";
 const OPENAI_TRANSCRIPTION_URL =
   "https://api.openai.com/v1/audio/transcriptions";
@@ -601,6 +603,8 @@ export const processCompletedStemSplitJob = async ({
         eq(trackStemJobs.stemsplitJobId, job.id)
       )
     );
+
+  await notifyTrackProcessingComplete({ trackId });
 };
 
 export const processTrackAudio = async ({

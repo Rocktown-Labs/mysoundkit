@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
@@ -16,8 +16,10 @@ import { platformFees, transactions } from "@soundkit/db/schema/payments";
 import { count, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
+import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
+import { backfillMissingTrackDurations } from "@/lib/media-metadata";
 import {
   loadPlatformSettings,
   platformDiscoverySettingsKey,
@@ -32,6 +34,17 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const backfillTrackDurationsBodySchema = z.object({
+  limit: z.number().int().positive().max(100).default(25),
+  trackIds: z.array(z.string().min(1)).default([]),
+});
+
+const backfillTrackDurationsResponseSchema = z.object({
+  failed: z.number().int().nonnegative(),
+  scanned: z.number().int().nonnegative(),
+  updated: z.number().int().nonnegative(),
+});
 
 const emptyOverview = () => ({
   commerce: {
@@ -227,6 +240,46 @@ app.openapi(
     }
 
     return c.json(await loadOverview(), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/tracks/backfill-durations",
+    request: {
+      body: jsonContentRequired(
+        backfillTrackDurationsBodySchema,
+        "Track duration backfill options"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        backfillTrackDurationsResponseSchema,
+        "Track duration backfill results"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const body = c.req.valid("json");
+    const result = await backfillMissingTrackDurations({
+      limit: body.limit,
+      trackIds: body.trackIds,
+    });
+
+    return c.json(result, HttpStatusCodes.OK);
   }
 );
 

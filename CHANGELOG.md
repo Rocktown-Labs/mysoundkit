@@ -64,6 +64,7 @@
 
 ### Fixed
 
+- Fixed audio settlement follow-up behavior so free artists publish once audio and cover art settle, premium artists continue into StemSplit/transcription, artists receive in-app live/processing notifications, and admins can backfill missing track durations.
 - Fixed audio upload publication so tracks and project tracks are first saved as private intake records, get master/cover assets attached with Media Bunny duration metadata, then settle into the processing workflow before becoming live.
 - Fixed new track pages crashing when restored drafts omitted `status`, and made track/project artwork selectors consistently square, centered, and image-first.
 - Fixed new track submissions retaining stale local draft/media metadata and failing to attach uploaded cover artwork to the persisted track asset record.

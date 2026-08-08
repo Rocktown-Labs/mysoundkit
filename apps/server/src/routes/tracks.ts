@@ -72,6 +72,7 @@ import {
   updateTrackBodySchema,
 } from "@/lib/schemas";
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
+import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
@@ -217,6 +218,19 @@ const getTrackProcessingWorkflow = () =>
       TRACK_PROCESSING_WORKFLOW?: Workflow<TrackProcessingWorkflowPayload>;
     }
   ).TRACK_PROCESSING_WORKFLOW ?? null;
+
+const isLiveRelease = ({
+  isPublic,
+  releaseAt,
+  releaseStrategy,
+}: {
+  isPublic: boolean;
+  releaseAt: Date | null;
+  releaseStrategy: "private" | "publish_when_ready" | "scheduled";
+}) =>
+  isPublic &&
+  releaseStrategy !== "private" &&
+  (!releaseAt || releaseAt.getTime() <= Date.now());
 
 const queueTrackAudioProcessing = async ({
   masterAsset,
@@ -1442,6 +1456,10 @@ app.openapi(
     const { trackId } = c.req.valid("param");
     const body = c.req.valid("json");
     const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
     const organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
@@ -1519,10 +1537,22 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    await queueTrackAudioProcessing({
-      masterAsset: { ...masterAsset, status: "ready" },
-      trackId,
-    });
+    if (
+      isLiveRelease({
+        isPublic: shouldPublish,
+        releaseAt,
+        releaseStrategy: body.releaseStrategy,
+      })
+    ) {
+      await notifyTrackLive({ trackId });
+    }
+
+    if (entitlements.isPremium) {
+      await queueTrackAudioProcessing({
+        masterAsset: { ...masterAsset, status: "ready" },
+        trackId,
+      });
+    }
 
     return c.json(await buildTrackDetail(settledTrack), HttpStatusCodes.OK);
   }
@@ -1545,6 +1575,10 @@ app.openapi(
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Track not found"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Premium subscription required"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
@@ -1573,6 +1607,21 @@ app.openapi(
 
     const { trackId } = c.req.valid("param");
     const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+
+    if (!entitlements.isPremium) {
+      return c.json(
+        {
+          message:
+            "A premium artist subscription is required for automated StemSplit and transcription processing.",
+        },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
     const organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,

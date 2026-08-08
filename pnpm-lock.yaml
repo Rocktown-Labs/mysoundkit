@@ -289,6 +289,9 @@ importers:
       hono:
         specifier: ^4.11.0
         version: 4.12.27
+      mediabunny:
+        specifier: ^1.52.3
+        version: 1.52.3
       stoker:
         specifier: ^2.0.1
         version: 2.0.1(@asteasolutions/zod-to-openapi@8.5.0(zod@4.4.3))(@hono/zod-openapi@1.4.0(hono@4.12.27)(zod@4.4.3))(hono@4.12.27)(openapi3-ts@4.6.0)
