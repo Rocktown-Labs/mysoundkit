@@ -1,11 +1,14 @@
 import { PostHogProvider } from "@posthog/react";
+import * as Sentry from "@sentry/tanstackstart-react";
 import {
   HeadContent,
   Link,
   Outlet,
   Scripts,
   createRootRouteWithContext,
+  useRouter,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 
 import { AppProviders } from "@/components/app-providers";
@@ -23,32 +26,38 @@ import appCss from "./globals.css?url";
 export type RouterAppContext = Record<string, never>;
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
+  const app = (
+    <AppProviders>
+      {children}
+      <Scripts />
+    </AppProviders>
+  );
+
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body className="font-sans bg-background text-foreground antialiased">
-        <PostHogProvider
-          apiKey={
-            import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN ||
-            "phc_placeholder_key"
-          }
-          options={{
-            api_host: "/ingest",
-            capture_exceptions: true,
-            debug: import.meta.env.DEV,
-            defaults: "2025-05-24",
-            ui_host:
-              import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
-              "https://us.posthog.com",
-          }}
-        >
-          <AppProviders>
-            {children}
-            <Scripts />
-          </AppProviders>
-        </PostHogProvider>
+        {posthogProjectToken ? (
+          <PostHogProvider
+            apiKey={posthogProjectToken}
+            options={{
+              api_host: "/ingest",
+              capture_exceptions: true,
+              debug: import.meta.env.DEV,
+              defaults: "2025-05-24",
+              ui_host:
+                import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
+                "https://us.posthog.com",
+            }}
+          >
+            {app}
+          </PostHogProvider>
+        ) : (
+          app
+        )}
       </body>
     </html>
   );
@@ -92,7 +101,19 @@ function NotFoundComponent() {
   );
 }
 
-function GlobalErrorFallback({ reset }: { reset: () => void }) {
+function GlobalErrorFallback({
+  error,
+  reset,
+}: {
+  error: unknown;
+  reset: () => void;
+}) {
+  const router = useRouter();
+
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-lg space-y-4">
@@ -104,7 +125,10 @@ function GlobalErrorFallback({ reset }: { reset: () => void }) {
         <div className="pt-2 flex justify-center gap-3">
           <button
             type="button"
-            onClick={() => reset()}
+            onClick={() => {
+              reset();
+              void router.invalidate();
+            }}
             className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 cursor-pointer"
           >
             Try Again

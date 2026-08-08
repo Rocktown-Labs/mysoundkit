@@ -153,6 +153,19 @@ const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 const projectsPost = apiClient.v1.projects.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 
+const defaultProjectFormValues: ProjectFormValues = {
+  collaborators: [],
+  description: "",
+  genre: "Hip-Hop/Rap",
+  name: "",
+  newTracks: [],
+  projectCoverObjectKey: "",
+  releaseDate: "",
+  rightsAccepted: false,
+  selectedExistingTracks: [],
+  type: "album",
+};
+
 interface GenreOption {
   name: string;
 }
@@ -195,6 +208,9 @@ export function NewProjectForm({
     remoteUrl: string;
   } | null>(null);
   const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
+    string | null
+  >(null);
   const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
   const projectAssetsUploadResolverRef = useRef<
     ((assets: ProjectTrackUploadResult[] | null) => void) | null
@@ -208,23 +224,22 @@ export function NewProjectForm({
   const settleTrackMutation = useSettleTrackMutation();
   const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
 
-  const defaultProjectFormValues: ProjectFormValues = {
-    collaborators: [],
-    description: "",
-    genre: "Hip-Hop/Rap",
-    name: "",
-    newTracks: [],
-    projectCoverObjectKey: "",
-    releaseDate: "",
-    rightsAccepted: false,
-    selectedExistingTracks: [],
-    type: "album",
-  };
-
   const form = useForm<ProjectFormValues>({
     defaultValues: defaultProjectFormValues,
     resolver: zodResolver(projectFormSchema),
   });
+
+  useEffect(() => {
+    if (!selectedCoverFile) {
+      setSelectedCoverPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedCoverFile);
+    setSelectedCoverPreviewUrl(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedCoverFile]);
 
   // Prefill when editing an existing project
   useEffect(() => {
@@ -941,9 +956,7 @@ export function NewProjectForm({
                     description="Used for the entire collection"
                     acceptedTypes=".png,.jpg,.jpeg"
                     previewUrl={
-                      selectedCoverFile
-                        ? URL.createObjectURL(selectedCoverFile)
-                        : (projectCover?.remoteUrl ?? null)
+                      selectedCoverPreviewUrl ?? projectCover?.remoteUrl ?? null
                     }
                     files={
                       selectedCoverFile
