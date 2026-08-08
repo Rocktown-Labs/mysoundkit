@@ -42,6 +42,7 @@ const backfillTrackDurationsBodySchema = z.object({
 
 const backfillTrackDurationsResponseSchema = z.object({
   failed: z.number().int().nonnegative(),
+  renamedCoverArt: z.number().int().nonnegative(),
   scanned: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
 });

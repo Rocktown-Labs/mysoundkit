@@ -764,17 +764,6 @@ export function MusicPlayer() {
         </div>
       </div>
     );
-  } else if (currentTrack && !visible) {
-    playerUi = (
-      <Button
-        className="fixed right-4 bottom-4 z-50 shadow-lg"
-        onClick={() => setVisible(true)}
-        type="button"
-      >
-        <Play className="mr-2 size-4 fill-current" />
-        Show Player
-      </Button>
-    );
   } else if (visible && currentTrack) {
     playerUi = (
       <div

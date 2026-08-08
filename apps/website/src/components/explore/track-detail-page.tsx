@@ -161,6 +161,77 @@ const formatDisplayPrice = (priceLabel: string) =>
 const priceCentsFromLabel = (priceLabel: string) =>
   Math.round(Number(priceLabel.replace("$", "")) * 100);
 
+const audioAssetKinds = new Set<MockCatalogAsset["kind"]>([
+  "master",
+  "clean",
+  "instrumental",
+  "alternate_mix",
+  "tagged_mp3",
+  "untagged_wav",
+]);
+
+const artworkAssetKinds = new Set<MockCatalogAsset["kind"]>([
+  "artwork",
+  "cover_art",
+]);
+
+const genericGeneratedImagePattern =
+  /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu;
+
+const getFileNameOnly = (fileName: string) =>
+  fileName.split(/[/?#]/u).at(-1)?.trim() ?? fileName.trim();
+
+const toDownloadSafeTrackName = (title: string) => {
+  const normalized = title
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-|-$/gu, "");
+
+  return normalized || "track";
+};
+
+const assetDisplayFileName = (asset: MockCatalogAsset, trackTitle: string) => {
+  const rawName = asset.fileName?.trim();
+
+  if (!artworkAssetKinds.has(asset.kind)) {
+    return rawName || asset.label;
+  }
+
+  const fileName = rawName ? getFileNameOnly(rawName) : "";
+  const stem = fileName.replace(/\.[^.]+$/u, "");
+
+  if (!(fileName && genericGeneratedImagePattern.test(stem))) {
+    return fileName || `${toDownloadSafeTrackName(trackTitle)}.png`;
+  }
+
+  return `${toDownloadSafeTrackName(trackTitle)}.png`;
+};
+
+const selectIncludedAssets = (
+  assets: MockCatalogAsset[],
+  itemType: CatalogItemType
+) => {
+  if (
+    !(
+      itemType === "single" ||
+      itemType === "beat" ||
+      itemType === "instrumental"
+    )
+  ) {
+    return assets;
+  }
+
+  const coverAsset = assets.find((asset) => artworkAssetKinds.has(asset.kind));
+  const masterAsset =
+    assets.find((asset) => asset.kind === "master") ??
+    assets.find((asset) => audioAssetKinds.has(asset.kind));
+
+  return [coverAsset, masterAsset].filter((asset): asset is MockCatalogAsset =>
+    Boolean(asset)
+  );
+};
+
 const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
   const response = await fetch(`${API_V1_URL}/tracks/${id}`, {
     credentials: "include",
@@ -197,10 +268,10 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
         ? rawData.coverArtUrl
         : "/placeholder.svg";
 
-  const normalizedArtist = {
+  const normalizedArtist: MockArtist = {
     avatarUrl: artistAvatarUrl,
     followers:
-      typeof artistObj.followers === "string" ? artistObj.followers : null,
+      typeof artistObj.followers === "string" ? artistObj.followers : undefined,
     genre:
       typeof artistObj.genre === "string"
         ? artistObj.genre
@@ -215,16 +286,16 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
           ? rawData.ownerUserId
           : "artist",
     listeners:
-      typeof artistObj.listeners === "string" ? artistObj.listeners : null,
+      typeof artistObj.listeners === "string" ? artistObj.listeners : undefined,
     location:
-      typeof artistObj.location === "string" ? artistObj.location : null,
+      typeof artistObj.location === "string" ? artistObj.location : undefined,
     name: artistName,
     roles: Array.isArray(artistObj.roles)
       ? artistObj.roles.filter(
           (role): role is ArtistRole =>
             role === "musician" || role === "producer"
         )
-      : ["musician"],
+      : (["musician"] as ArtistRole[]),
     verified: Boolean(artistObj.verified ?? rawData.isVerified),
   };
 
@@ -280,10 +351,9 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     retry: false,
   });
   const { data: relatedTrackResults = [] } = useTracksQuery(undefined, {
-    genre: item?.genre ?? "all",
-    limit: 24,
+    limit: 100,
     scope: "public",
-    sort: "plays-desc",
+    sort: "title-desc",
   });
   const [selectedLicense, setSelectedLicense] =
     useState<MockLicenseOption | null>(null);
@@ -337,12 +407,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     title: item.title,
     trackHref: canonicalTrackHref,
   };
+  const includedAssets = selectIncludedAssets(item.assets, item.type);
   const relatedTracks = relatedTrackResults
-    .filter((track) => track.id !== item.id)
-    .sort(
-      (a, b) => relatedTrackPriority(b, item) - relatedTrackPriority(a, item)
-    )
-    .slice(0, 4);
+    .filter((track) => isSameArtistTrack(track, item) && track.id !== item.id)
+    .sort(compareTrackUpdatedAtDesc)
+    .slice(0, 5);
 
   const playCurrentTrack = () => {
     if (!canPlayTrack) {
@@ -432,6 +501,8 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   };
 
   const handleDownloadAsset = (asset: MockCatalogAsset) => {
+    const fileName = assetDisplayFileName(asset, item.title);
+
     if (!asset.url) {
       toast({
         description: `No download link is available for ${asset.label} yet.`,
@@ -441,7 +512,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       return;
     }
     toast({
-      description: `Downloading ${asset.fileName ?? asset.label}...`,
+      description: `Downloading ${fileName}...`,
       title: "Starting Download",
     });
   };
@@ -485,12 +556,12 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* Main Track Section */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* High-Impact Industrial Hero */}
-            <div className="flex flex-col md:flex-row gap-8 items-start">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
               <div className="size-60 md:size-72 shrink-0 relative group">
                 <AppImage
                   src={item.coverArtUrl}
@@ -513,7 +584,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                 )}
               </div>
 
-              <div className="flex-1 space-y-6 pt-2">
+              <div className="flex-1 space-y-4 pt-2">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <Badge
@@ -543,7 +614,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                   </Link>
                 </div>
 
-                <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                   {canPlayTrack && (
                     <Button
                       size="lg"
@@ -593,13 +664,13 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                 <TrackPlatformLinks links={item.streamingLinks ?? {}} />
 
                 {item.description ? (
-                  <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                  <p className="max-w-2xl overflow-hidden text-sm leading-6 text-muted-foreground md:max-h-[4.5rem]">
                     {item.description}
                   </p>
                 ) : null}
 
                 {/* Technical Metadata Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-5 pt-5 border-t border-border/10">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border/10">
                   {item.streamCount && (
                     <div>
                       <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
@@ -658,68 +729,72 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                 )}
               </div>
               <div className="bg-card/20 border border-border/40 rounded-none overflow-hidden divide-y divide-border/10 shadow-sm">
-                {item.assets.length === 0 ? (
+                {includedAssets.length === 0 ? (
                   <p className="p-4 text-sm text-muted-foreground">
                     No downloadable files have been attached to this track yet.
                   </p>
                 ) : (
-                  item.assets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="group flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="size-10 bg-muted/40 flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border/20">
-                          <AssetIcon kind={asset.kind} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-black text-sm uppercase tracking-tight">
-                              {asset.fileName ?? asset.label}
-                            </p>
-                            {!asset.included && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[8px] h-3.5 px-1 uppercase font-black bg-muted/50 text-muted-foreground"
-                              >
-                                Processing
-                              </Badge>
-                            )}
+                  includedAssets.map((asset) => {
+                    const fileName = assetDisplayFileName(asset, item.title);
+
+                    return (
+                      <div
+                        key={asset.id}
+                        className="group flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="size-10 bg-muted/40 flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border/20">
+                            <AssetIcon kind={asset.kind} />
                           </div>
-                          <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60 font-black">
-                            {asset.subtitle ||
-                              (asset.kind
-                                ? asset.kind.replaceAll("_", " ")
-                                : "Asset")}{" "}
-                            {asset.duration && `• ${asset.duration}`}
-                          </p>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-black text-sm uppercase tracking-tight">
+                                {fileName}
+                              </p>
+                              {!asset.included && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[8px] h-3.5 px-1 uppercase font-black bg-muted/50 text-muted-foreground"
+                                >
+                                  Processing
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60 font-black">
+                              {asset.subtitle ||
+                                (asset.kind
+                                  ? asset.kind.replaceAll("_", " ")
+                                  : "Asset")}{" "}
+                              {asset.duration && `• ${asset.duration}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {asset.url ? (
+                            <a
+                              aria-label={`Download ${fileName}`}
+                              className="inline-flex size-9 items-center justify-center rounded-none border border-border/40 hover:bg-white/5 transition-all"
+                              download={fileName}
+                              href={asset.url}
+                              onClick={() => handleDownloadAsset(asset)}
+                              rel="noopener noreferrer"
+                              title={`Download ${fileName}`}
+                            >
+                              <Download className="size-4" />
+                            </a>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-9 rounded-none opacity-20"
+                            >
+                              <Download className="size-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {asset.url ? (
-                          <a
-                            aria-label={`Download ${asset.fileName ?? asset.label}`}
-                            className="inline-flex size-9 items-center justify-center rounded-none border border-border/40 hover:bg-white/5 transition-all"
-                            download={asset.fileName ?? true}
-                            href={asset.url}
-                            onClick={() => handleDownloadAsset(asset)}
-                            rel="noopener noreferrer"
-                            title={`Download ${asset.fileName ?? asset.label}`}
-                          >
-                            <Download className="size-4" />
-                          </a>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-9 rounded-none opacity-20"
-                          >
-                            <Download className="size-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </section>
@@ -728,23 +803,25 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
             <section className="space-y-4 pt-6 border-t border-border/20">
               <div className="flex items-center justify-between px-2">
                 <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
-                  Related Tracks & Releases
+                  More From This Artist
                 </h3>
                 <Link
-                  to="/tracks"
+                  to="/artist/$username"
+                  params={{ username: item.artist.handle }}
+                  hash="tracks"
                   className="text-xs text-primary font-bold hover:underline"
                 >
-                  View Catalog →
+                  View All →
                 </Link>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="flex gap-4 overflow-x-auto pb-2">
                 {relatedTracks.length > 0 ? (
                   relatedTracks.map((track) => (
                     <RelatedTrackCard key={track.id} track={track} />
                   ))
                 ) : (
                   <p className="col-span-full rounded-lg border border-dashed border-border/40 p-4 text-sm text-muted-foreground">
-                    More releases from this lane will appear here as artists
+                    More releases from this artist will appear here as they
                     publish new tracks.
                   </p>
                 )}
@@ -759,22 +836,17 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
 
 // --- Dynamic Components ---
 
-function relatedTrackPriority(
-  track: TrackSummary,
-  item: MockCatalogItem
-): number {
-  if (
+function isSameArtistTrack(track: TrackSummary, item: MockCatalogItem) {
+  return (
     track.artistUsername?.toLowerCase() === item.artist.handle.toLowerCase() ||
     track.artistName.toLowerCase() === item.artist.name.toLowerCase()
-  ) {
-    return 2;
-  }
+  );
+}
 
-  if (track.genre && item.genre && track.genre === item.genre) {
-    return 1;
-  }
-
-  return 0;
+function compareTrackUpdatedAtDesc(a: TrackSummary, b: TrackSummary) {
+  const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+  const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+  return bTime - aTime;
 }
 
 function RelatedTrackCard({ track }: { track: TrackSummary }) {
@@ -808,7 +880,7 @@ function RelatedTrackCard({ track }: { track: TrackSummary }) {
       <Link
         to="/tracks/$regionSlug/$slug"
         params={{ regionSlug: track.regionSlug, slug: track.slug }}
-        className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
+        className="group w-40 shrink-0 border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors sm:w-44"
       >
         {content}
       </Link>
@@ -819,7 +891,7 @@ function RelatedTrackCard({ track }: { track: TrackSummary }) {
     <Link
       to="/tracks/$id"
       params={{ id: track.id }}
-      className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
+      className="group w-40 shrink-0 border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors sm:w-44"
     >
       {content}
     </Link>

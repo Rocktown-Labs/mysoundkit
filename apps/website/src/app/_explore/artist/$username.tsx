@@ -2,6 +2,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Film, Grid3x3, LayoutGrid, LoaderCircle, Music } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
 import { TrackCard } from "@/components/explore/track-card";
@@ -12,6 +13,13 @@ import {
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
+
+const artistProfileTabs = ["all", "tracks", "projects", "videos"] as const;
+type ArtistProfileTab = (typeof artistProfileTabs)[number];
+
+const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
+  typeof value === "string" &&
+  artistProfileTabs.includes(value as ArtistProfileTab);
 
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
@@ -99,6 +107,15 @@ function ArtistProfilePage() {
   const { username } = Route.useParams();
   const artistQuery = useArtistQuery(username);
   const meQuery = useMeQuery();
+  const [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
+
+  useEffect(() => {
+    const hashTab = window.location.hash.replace("#", "");
+
+    if (isArtistProfileTab(hashTab)) {
+      setActiveTab(hashTab);
+    }
+  }, []);
 
   const currentUser = meQuery.data?.user;
   const artist = artistQuery.data;
@@ -148,7 +165,17 @@ function ArtistProfilePage() {
       user={artistToProfileUser(artist, artistTracks.length)}
       viewerAccountType={meQuery.data?.user.accountType ?? null}
     >
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(tab) => {
+          if (!isArtistProfileTab(tab)) {
+            return;
+          }
+
+          setActiveTab(tab);
+        }}
+        className="w-full"
+      >
         <div className="flex items-center justify-center border-border/10 border-t">
           <TabsList className="h-14 gap-8 bg-transparent md:gap-16">
             <TabsTrigger
