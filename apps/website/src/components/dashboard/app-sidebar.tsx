@@ -57,7 +57,7 @@ const careerNavigation: SidebarNavItem[] = [
   { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
   { href: "/dashboard/career/calendar", icon: CalendarDays, name: "Calendar" },
   { href: "/dashboard/team", icon: Users, name: "Team" },
-  { href: "/dashboard/career/ai-studio", icon: Megaphone, name: "Ads" },
+  { href: "/dashboard/ads", icon: Megaphone, name: "Ads" },
   { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 

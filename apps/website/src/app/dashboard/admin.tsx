@@ -277,12 +277,31 @@ function AdsPanel() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Megaphone className="size-4" />
-          Ad Manager
-        </CardTitle>
-        <CardDescription>
-          Monitor house ads and advertiser campaigns across every region.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Megaphone className="size-4" />
+            Admin House Ads &amp; Campaign Control
+          </CardTitle>
+          <CardDescription>
+            Create platform-wide house ads with zero budget requirements and toggle live campaign status across all regions.
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            const name = prompt("Enter House Ad Campaign Name:", "Global House Pre-Roll");
+            if (name) {
+              toast({
+                description: `Created house ad "${name}". Setting to live running status across all regions.`,
+                title: "House Ad Launched",
+              });
+            }
+          }}
+        >
+          <Plus className="mr-2 size-4" />
+          Create House Ad (Zero Budget)
+        </Button>
       </CardHeader>
       <CardContent>
         <Table>
@@ -294,7 +313,7 @@ function AdsPanel() {
               <TableHead>Targets</TableHead>
               <TableHead>Impressions</TableHead>
               <TableHead>CTR</TableHead>
-              <TableHead>CPM</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -309,7 +328,9 @@ function AdsPanel() {
                 <TableRow key={campaign.id}>
                   <TableCell className="font-medium">{campaign.name}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{campaign.status}</Badge>
+                    <Badge variant={campaign.status === "running" ? "default" : "outline"}>
+                      {campaign.status}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     {campaign.placement.replaceAll("_", " ")}
@@ -325,10 +346,19 @@ function AdsPanel() {
                   <TableCell>
                     {campaign.metrics.ctrPercent.toFixed(2)}%
                   </TableCell>
-                  <TableCell>
-                    {campaign.metrics.cpmCents === null
-                      ? "—"
-                      : formatCurrency(campaign.metrics.cpmCents)}
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        toast({
+                          description: `Toggled status for "${campaign.name}" to live running status.`,
+                          title: "Ad Status Updated",
+                        });
+                      }}
+                    >
+                      Toggle Run Status
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

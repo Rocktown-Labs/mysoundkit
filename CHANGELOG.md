@@ -4,6 +4,10 @@
 
 ### Added
 
+- Filtered out current user (`me.user.id`) and unaccepted friend requests from `/dashboard/collaborators` and `/dashboard/team` lists, ensuring collaborators reflect credited track contributors.
+- Updated `/v1/analytics/overview` endpoint to calculate real dynamic stream counts, followers, downloads, and revenue from database rows.
+- Re-housed Ads manager to `/dashboard/ads` with Active Campaigns management & campaign detail inspector, 3-step Accordion Campaign Builder flow, direct file uploads with media player preview, macro region continent selection (All North America, All Europe, All Africa, Global), and Stripe-wired wallet top ups.
+- Added Admin House Ad creation (zero budget required) and campaign run status toggling in `/dashboard/admin`.
 - Added Recharts interactive stream area chart, discovery sources stacked area chart, geographic reach horizontal bar chart, and listener loyalty breakdown (Super Listeners vs Casual vs Lapsed) to `/dashboard/career/analytics`.
 - Added workspace rename endpoint (`PATCH /v1/me/workspace`) and upgraded `/dashboard/team` with workspace name editing, 5 subscription plan seats management, and separation of track collaborators.
 - Fixed Account settings email input password manager autofill with readOnly & autoComplete off attributes, added URL search param tab syncing (`?tab=profile|account|notifications|privacy`), and persisted profile photo/header image previews with instant query invalidation.

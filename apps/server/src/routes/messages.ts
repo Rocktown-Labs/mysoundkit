@@ -742,7 +742,8 @@ app.openapi(
       });
     }
 
-    return c.json([...friends.values()], HttpStatusCodes.OK);
+    friends.delete(user.id);
+    return c.json(Array.from(friends.values()), HttpStatusCodes.OK);
   }
 );
 

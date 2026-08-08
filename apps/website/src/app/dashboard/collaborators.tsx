@@ -137,19 +137,25 @@ function FriendsPage() {
 
   const searchedArtists = peopleSearchQuery.data?.artists ?? [];
 
+  const meQuery = useMeQuery();
+  const currentUserId = meQuery.data?.user?.id;
+
   const filteredFriends = useMemo(() => {
     const needle = normalizedSearch.toLowerCase();
 
-    if (!needle) {
-      return friends;
-    }
+    return friends.filter((friend) => {
+      if (friend.id === currentUserId) {
+        return false;
+      }
+      if (!needle) {
+        return true;
+      }
 
-    return friends.filter((friend) =>
-      [friend.name, friend.email, friend.username, friend.role]
+      return [friend.name, friend.email, friend.username, friend.role]
         .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(needle))
-    );
-  }, [friends, normalizedSearch]);
+        .some((value) => value?.toLowerCase().includes(needle));
+    });
+  }, [friends, currentUserId, normalizedSearch]);
 
   const handleManualAddFriend = async (e: React.FormEvent) => {
     e.preventDefault();

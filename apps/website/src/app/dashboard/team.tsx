@@ -105,6 +105,7 @@ export function TeamPage() {
   };
 
   const filteredCollaborators = collaborators.filter((person) => {
+    if (person.id === user?.id) return false;
     const query = searchQuery.trim().toLowerCase();
     if (!query) return true;
     return [person.name, person.username, person.email, person.role]
