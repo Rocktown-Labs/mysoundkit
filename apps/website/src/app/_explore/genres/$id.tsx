@@ -3,10 +3,21 @@ import { ArrowLeft } from "lucide-react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { BattleCard } from "@/components/explore/battle-card";
+import { BattleFilters } from "@/components/explore/battle-filters";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import { musicGenres } from "@/lib/music-genres";
+import { useArtistsQuery, useTracksQuery } from "@/lib/soundkit-api-hooks";
+
+const sortOptions = [
+  { label: "Most Played", value: "plays-desc" },
+  { label: "Least Played", value: "plays-asc" },
+  { label: "Newest", value: "date-desc" },
+  { label: "Oldest", value: "date-asc" },
+  { label: "Title (A-Z)", value: "title-asc" },
+  { label: "Title (Z-A)", value: "title-desc" },
+];
 
 const genreData: Record<
   string,
@@ -64,28 +75,101 @@ const genreData: Record<
 
 export const Route = createFileRoute("/_explore/genres/$id")({
   component: GenreDetailPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
+  }),
 });
+
+const genreRouteIdFromValue = (value: string) =>
+  value === "hip-hop-rap" ? "hip-hop" : value;
+
+const formatFollowers = (followers: number) => {
+  if (followers >= 1000) {
+    return `${Math.round(followers / 1000)}K`;
+  }
+
+  return followers.toLocaleString();
+};
 
 function GenreDetailPage() {
   const { id } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const router = useRouter();
+  const genreOption = musicGenres.find(
+    (option) => genreRouteIdFromValue(option.value) === id
+  );
   const genre = genreData[id] || {
     description: "",
     emoji: "🎵",
-    name: "Genre",
-    queryGenre: id,
+    name: genreOption?.label ?? "Genre",
+    queryGenre: genreOption?.value ?? id,
   };
+
+  const savedRegionType =
+    typeof window === "undefined"
+      ? null
+      : (localStorage.getItem("exploreRegionType") as
+          | "north-america"
+          | "global"
+          | null);
+  const savedRegion =
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem("exploreRegion");
+
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const sort = search.sort ?? "plays-desc";
+
+  const updateFilters = (next: {
+    region?: string;
+    regionType?: "north-america" | "global";
+    sort?: string;
+  }) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
+    }
+
+    navigate({
+      replace: true,
+      search: {
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+      },
+    });
+  };
+
   const { data: topTracks = [] } = useTracksQuery(undefined, {
     genre: genre.queryGenre,
     limit: 12,
+    region,
+    regionType,
     scope: "public",
-    sort: "plays-desc",
+    sort,
   });
   const { data: newTracks = [] } = useTracksQuery(undefined, {
     genre: genre.queryGenre,
     limit: 12,
+    region,
+    regionType,
     scope: "public",
-    sort: "title-desc",
+    sort: "date-desc",
+  });
+  const { data: topArtists = [] } = useArtistsQuery({
+    category: "top",
+    genre: genre.queryGenre,
+    limit: 12,
+    region,
+    regionType,
+    sort: "rank-asc",
   });
 
   return (
@@ -115,6 +199,35 @@ function GenreDetailPage() {
           </div>
         </div>
       </div>
+
+      <BattleFilters
+        regionType={regionType}
+        region={region}
+        genre={genre.queryGenre}
+        sort={sort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => {
+          if (nextGenre === "all") {
+            router.navigate({ to: "/genres" });
+            return;
+          }
+
+          router.navigate({
+            params: { id: genreRouteIdFromValue(nextGenre) },
+            search: {
+              region,
+              regionType,
+              sort,
+            },
+            to: "/genres/$id",
+          });
+        }}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
+        sortOptions={sortOptions}
+      />
 
       {/* Top Tracks */}
       <section>
@@ -184,51 +297,23 @@ function GenreDetailPage() {
         />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
-            <ArtistCard
-              slug="luna-eclipse"
-              name="Luna Eclipse"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="124K"
-              verified
-            />
-            <ArtistCard
-              slug="neon-pulse"
-              name="Neon Pulse"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="89K"
-            />
-            <ArtistCard
-              slug="street-poet"
-              name="Street Poet"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="256K"
-              verified
-            />
-            <ArtistCard
-              slug="voltage-dreams"
-              name="Voltage Dreams"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="67K"
-            />
-            <ArtistCard
-              slug="cosmic-waves"
-              name="Cosmic Waves"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="145K"
-              verified
-            />
-            <ArtistCard
-              slug="rhythm-master"
-              name="Rhythm Master"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="98K"
-            />
+            {topArtists.length > 0 ? (
+              topArtists.map((artist) => (
+                <ArtistCard
+                  key={artist.username}
+                  slug={artist.username}
+                  name={artist.name}
+                  avatar={artist.avatarUrl ?? "/diverse-user-avatars.png"}
+                  genre={artist.genre}
+                  followers={formatFollowers(artist.followers)}
+                  verified={artist.verified}
+                />
+              ))
+            ) : (
+              <div className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
+                No {genre.name} artists found yet.
+              </div>
+            )}
           </div>
         </div>
       </section>

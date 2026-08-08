@@ -37,7 +37,8 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -48,7 +49,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { SIDEBAR_STATE_CHANGE_EVENT } from "@/components/ui/sidebar";
 import { Slider } from "@/components/ui/slider";
+import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
@@ -57,6 +60,22 @@ interface Device {
   id: string;
   name: string;
   type: "computer" | "phone" | "speaker";
+}
+
+interface AudioOutputDeviceInfo {
+  deviceId: string;
+  kind: string;
+  label: string;
+}
+
+interface AudioOutputMediaDevices extends MediaDevices {
+  selectAudioOutput?: (options?: {
+    deviceId?: string;
+  }) => Promise<AudioOutputDeviceInfo>;
+}
+
+interface SinkAudioElement extends HTMLAudioElement {
+  setSinkId?: (sinkId: string) => Promise<void>;
 }
 
 interface PlaybackTelemetrySession {
@@ -75,6 +94,7 @@ interface ServedAudioAd {
 }
 
 const playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1";
+const sidebarStateCookieName = "sidebar_state";
 const guestDailyPlaybackLimitSeconds = 300;
 
 const demoPlaybackQueue = [
@@ -201,6 +221,18 @@ const getDeviceIcon = (type: Device["type"]) => {
   return <Laptop2 className="size-4" />;
 };
 
+const readSidebarIsExpanded = () => {
+  if (typeof document === "undefined") {
+    return true;
+  }
+
+  const sidebarCookie = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(`${sidebarStateCookieName}=`));
+
+  return sidebarCookie ? sidebarCookie.endsWith("true") : true;
+};
+
 export function MusicPlayer() {
   const {
     currentTrack,
@@ -232,11 +264,13 @@ export function MusicPlayer() {
   const pendingContentSrcRef = useRef<string | null>(null);
   const playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null);
   const prerollServedTrackRef = useRef<string | null>(null);
-  const [devices, setDevices] = useState<Device[]>([
-    { active: true, id: "computer", name: "This Computer", type: "computer" },
-    { active: false, id: "phone", name: "Phone", type: "phone" },
-    { active: false, id: "speaker", name: "Studio Speaker", type: "speaker" },
-  ]);
+  const [audioOutput, setAudioOutput] = useState<Device>({
+    active: true,
+    id: "default",
+    name: "This Computer",
+    type: "computer",
+  });
+  const [sidebarExpanded, setSidebarExpanded] = useState(readSidebarIsExpanded);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlayingState] = useState(false);
@@ -255,6 +289,23 @@ export function MusicPlayer() {
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
   const [volume, setVolume] = useState(75);
   const [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null);
+
+  useEffect(() => {
+    const handleSidebarStateChange = (event: Event) => {
+      const { detail } = event as CustomEvent<{ open?: boolean }>;
+      setSidebarExpanded(detail?.open ?? readSidebarIsExpanded());
+    };
+
+    window.addEventListener(
+      SIDEBAR_STATE_CHANGE_EVENT,
+      handleSidebarStateChange
+    );
+    return () =>
+      window.removeEventListener(
+        SIDEBAR_STATE_CHANGE_EVENT,
+        handleSidebarStateChange
+      );
+  }, []);
 
   useHotkey("Space", (event) => {
     const target = event.target as HTMLElement | null;
@@ -789,6 +840,54 @@ export function MusicPlayer() {
     setQueue([]);
   };
 
+  const handleSelectAudioOutput = async () => {
+    const mediaDevices = navigator.mediaDevices as
+      | AudioOutputMediaDevices
+      | undefined;
+    const audio = audioRef.current as SinkAudioElement | null;
+
+    if (!mediaDevices?.selectAudioOutput || !audio?.setSinkId) {
+      toast({
+        description:
+          "Your browser does not support choosing speaker output from the web player yet.",
+        title: "Audio output unavailable",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const device = await mediaDevices.selectAudioOutput({
+        deviceId: audioOutput.id === "default" ? undefined : audioOutput.id,
+      });
+      await audio.setSinkId(device.deviceId);
+      setAudioOutput({
+        active: true,
+        id: device.deviceId,
+        name: device.label || "Selected audio output",
+        type: "speaker",
+      });
+      toast({
+        description: device.label || "Selected audio output",
+        title: "Audio output updated",
+      });
+    } catch (error) {
+      const errorName = error instanceof DOMException ? error.name : "";
+      if (errorName === "NotAllowedError") {
+        return;
+      }
+
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not switch audio output.",
+        title: "Audio output failed",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleClose = () => {
     audioRef.current?.pause();
     sendPlaybackProgress({ ended: true });
@@ -797,14 +896,198 @@ export function MusicPlayer() {
     setVisible(false);
   };
 
+  const queueSheet = (
+    <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
+      <SheetTrigger asChild={true}>
+        <Button className="relative size-8" size="icon" variant="ghost">
+          <ListMusic className="size-4" />
+          {queue.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+              {queue.length}
+            </span>
+          )}
+        </Button>
+      </SheetTrigger>
+      <SheetContent className="w-full sm:w-96" side="right">
+        <SheetHeader className="flex flex-row items-center justify-between gap-8 border-b pb-2 pr-8">
+          <SheetTitle className="font-semibold text-base">
+            Queue ({queue.length})
+          </SheetTitle>
+          <Button
+            className="h-7 text-muted-foreground text-xs hover:text-destructive"
+            onClick={handleClearQueue}
+            size="sm"
+            variant="ghost"
+          >
+            <Trash2 className="mr-1 size-3.5" />
+            Clear
+          </Button>
+        </SheetHeader>
+        <ScrollArea className="mt-4 h-[calc(100vh-8rem)] pr-2">
+          <div className="space-y-2">
+            {queue.map((track, index) => {
+              const isCurrent = track.id === currentTrack?.id;
+              return (
+                <div
+                  className={`group relative flex items-center justify-between gap-3 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
+                    isCurrent
+                      ? "border border-primary/20 bg-accent"
+                      : "border border-transparent bg-card/40"
+                  }`}
+                  key={`${track.id}-${index}`}
+                >
+                  <button
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                    onClick={() => setCurrentTrack(track)}
+                    type="button"
+                  >
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded bg-muted font-semibold text-muted-foreground text-xs">
+                      {isCurrent ? (
+                        <Play className="size-3.5 fill-primary text-primary" />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    <AppImage
+                      alt={track.title}
+                      className="shrink-0 rounded"
+                      height={36}
+                      layout="fixed"
+                      src={track.cover || "/placeholder.svg"}
+                      width={36}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`truncate font-medium text-sm ${
+                          isCurrent ? "font-bold text-primary" : ""
+                        }`}
+                      >
+                        {track.title}
+                      </p>
+                      <p className="truncate text-muted-foreground text-xs">
+                        {track.artist}
+                      </p>
+                    </div>
+                  </button>
+
+                  <div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100">
+                    <Button
+                      aria-label="Move up"
+                      className="size-6 p-0"
+                      disabled={index === 0}
+                      onClick={() => handleMoveQueueItemUp(index)}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <ChevronUp className="size-3.5" />
+                    </Button>
+                    <Button
+                      aria-label="Move down"
+                      className="size-6 p-0"
+                      disabled={index === queue.length - 1}
+                      onClick={() => handleMoveQueueItemDown(index)}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <ChevronDown className="size-3.5" />
+                    </Button>
+                    <Button
+                      aria-label="Remove item"
+                      className="size-6 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemoveQueueItem(index)}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
+  );
+
+  const deviceButton = (
+    <Button
+      aria-label={`Choose audio output. Current output: ${audioOutput.name}`}
+      className="size-8"
+      onClick={handleSelectAudioOutput}
+      size="icon"
+      title={`Output: ${audioOutput.name}`}
+      variant="ghost"
+    >
+      {getDeviceIcon(audioOutput.type)}
+    </Button>
+  );
+
+  const volumeMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild={true}>
+        <Button className="size-8" size="icon" variant="ghost">
+          {isMuted || volume === 0 ? (
+            <VolumeX className="size-4" />
+          ) : (
+            <Volume2 className="size-4" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Volume</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div
+          className="flex items-center gap-3 px-3 py-2"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <Button
+            aria-label={isMuted ? "Unmute" : "Mute"}
+            className="size-7"
+            onClick={() => setIsMuted(!isMuted)}
+            size="icon"
+            variant="ghost"
+          >
+            {isMuted || volume === 0 ? (
+              <VolumeX className="size-4" />
+            ) : (
+              <Volume2 className="size-4" />
+            )}
+          </Button>
+          <Slider
+            className="flex-1"
+            max={100}
+            onValueChange={(value) => {
+              const nextVolume = value[0] ?? 0;
+              setVolume(nextVolume);
+
+              if (nextVolume > 0) {
+                setIsMuted(false);
+              }
+            }}
+            step={1}
+            value={[isMuted ? 0 : volume]}
+          />
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  let fullPlayerSidebarOffset = "";
+  if (hasSidebar) {
+    fullPlayerSidebarOffset = sidebarExpanded
+      ? "lg:left-[var(--sidebar-width,16rem)]"
+      : "lg:left-[var(--sidebar-width-icon,3rem)]";
+  }
+
   let playerUi: ReactNode = null;
 
   if (currentTrack && isMiniPlayer) {
     playerUi = (
-      <div className="fixed left-1/2 -translate-x-1/2 bottom-4 z-50 flex items-center gap-3 rounded-full border border-border/60 bg-background/95 px-4 py-2 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-background/80 transition-all duration-300">
+      <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-border/60 bg-background/95 px-4 py-2 shadow-2xl backdrop-blur transition-all duration-300 supports-[backdrop-filter]:bg-background/80">
         <AppImage
           alt={currentTrack.title}
-          className="size-9 rounded-full object-cover animate-spin-slow"
+          className="size-9 animate-spin-slow rounded-full object-cover"
           height={36}
           layout="fixed"
           src={currentTrack.cover || "/placeholder.svg"}
@@ -812,13 +1095,13 @@ export function MusicPlayer() {
         />
         <div className="max-w-[160px] truncate text-xs leading-tight">
           <PlayerRouteLink
-            className="block truncate font-semibold"
+            className="block truncate font-semibold transition-colors hover:text-primary"
             href={currentTrack.trackHref}
           >
             {currentTrack.title}
           </PlayerRouteLink>
           <PlayerRouteLink
-            className="mt-0.5 block truncate text-muted-foreground"
+            className="mt-0.5 block truncate text-muted-foreground transition-colors hover:text-primary"
             href={currentTrack.artistHref}
           >
             {currentTrack.artist}
@@ -847,6 +1130,9 @@ export function MusicPlayer() {
           >
             <SkipForward className="size-3.5" />
           </Button>
+          {queueSheet}
+          <div className="hidden sm:block">{deviceButton}</div>
+          {volumeMenu}
           <Button
             aria-label="Expand player"
             className="size-7"
@@ -871,7 +1157,7 @@ export function MusicPlayer() {
   } else if (visible && currentTrack) {
     playerUi = (
       <div
-        className={`fixed right-0 bottom-0 left-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 ${hasSidebar ? "lg:left-64" : ""}`}
+        className={`fixed right-0 bottom-0 left-0 z-50 border-t bg-background/95 backdrop-blur transition-[left] duration-200 supports-[backdrop-filter]:bg-background/80 ${fullPlayerSidebarOffset}`}
       >
         <div className="absolute top-2 right-2 flex items-center gap-1">
           <Button
@@ -1014,162 +1300,9 @@ export function MusicPlayer() {
             </div>
 
             <div className="flex items-center justify-end gap-2 lg:w-1/4">
-              <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
-                <SheetTrigger asChild={true}>
-                  <Button
-                    className="size-8 relative"
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <ListMusic className="size-4" />
-                    {queue.length > 0 && (
-                      <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-                        {queue.length}
-                      </span>
-                    )}
-                  </Button>
-                </SheetTrigger>
-                <SheetContent className="w-full sm:w-96" side="right">
-                  <SheetHeader className="flex flex-row items-center justify-between gap-8 pb-2 pr-8 border-b">
-                    <SheetTitle className="text-base font-semibold">
-                      Queue ({queue.length})
-                    </SheetTitle>
-                    <Button
-                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                      onClick={handleClearQueue}
-                      size="sm"
-                      variant="ghost"
-                    >
-                      <Trash2 className="mr-1 size-3.5" />
-                      Clear
-                    </Button>
-                  </SheetHeader>
-                  <ScrollArea className="mt-4 h-[calc(100vh-8rem)] pr-2">
-                    <div className="space-y-2">
-                      {queue.map((track, index) => {
-                        const isCurrent = track.id === currentTrack?.id;
-                        return (
-                          <div
-                            className={`group relative flex items-center justify-between gap-3 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
-                              isCurrent
-                                ? "bg-accent border border-primary/20"
-                                : "bg-card/40 border border-transparent"
-                            }`}
-                            key={`${track.id}-${index}`}
-                          >
-                            <button
-                              className="flex flex-1 min-w-0 cursor-pointer items-center gap-3 text-left"
-                              onClick={() => setCurrentTrack(track)}
-                              type="button"
-                            >
-                              <div className="flex size-7 shrink-0 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
-                                {isCurrent ? (
-                                  <Play className="size-3.5 fill-primary text-primary" />
-                                ) : (
-                                  index + 1
-                                )}
-                              </div>
-                              <AppImage
-                                alt={track.title}
-                                className="rounded shrink-0"
-                                height={36}
-                                layout="fixed"
-                                src={track.cover || "/placeholder.svg"}
-                                width={36}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p
-                                  className={`truncate text-sm font-medium ${
-                                    isCurrent ? "text-primary font-bold" : ""
-                                  }`}
-                                >
-                                  {track.title}
-                                </p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {track.artist}
-                                </p>
-                              </div>
-                            </button>
+              {queueSheet}
 
-                            {/* Reorder and Remove Actions */}
-                            <div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100">
-                              <Button
-                                aria-label="Move up"
-                                className="size-6 p-0"
-                                disabled={index === 0}
-                                onClick={() => handleMoveQueueItemUp(index)}
-                                size="icon"
-                                variant="ghost"
-                              >
-                                <ChevronUp className="size-3.5" />
-                              </Button>
-                              <Button
-                                aria-label="Move down"
-                                className="size-6 p-0"
-                                disabled={index === queue.length - 1}
-                                onClick={() => handleMoveQueueItemDown(index)}
-                                size="icon"
-                                variant="ghost"
-                              >
-                                <ChevronDown className="size-3.5" />
-                              </Button>
-                              <Button
-                                aria-label="Remove item"
-                                className="size-6 p-0 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleRemoveQueueItem(index)}
-                                size="icon"
-                                variant="ghost"
-                              >
-                                <X className="size-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                </SheetContent>
-              </Sheet>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild={true}>
-                  <Button
-                    className="hidden size-8 lg:flex"
-                    size="icon"
-                    variant="ghost"
-                  >
-                    {getDeviceIcon(
-                      devices.find((device) => device.active)?.type ??
-                        "computer"
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-1.5 text-sm font-semibold">
-                    Available Devices
-                  </div>
-                  {devices.map((device) => (
-                    <DropdownMenuItem
-                      className="flex items-center gap-2"
-                      key={device.id}
-                      onClick={() =>
-                        setDevices((current) =>
-                          current.map((entry) => ({
-                            ...entry,
-                            active: entry.id === device.id,
-                          }))
-                        )
-                      }
-                    >
-                      {getDeviceIcon(device.type)}
-                      <span className="flex-1">{device.name}</span>
-                      {device.active && (
-                        <div className="size-2 rounded-full bg-primary" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="hidden lg:block">{deviceButton}</div>
 
               <div className="hidden items-center gap-2 lg:flex">
                 <Button

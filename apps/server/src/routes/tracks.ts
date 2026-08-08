@@ -289,6 +289,14 @@ const publicTrackOrderBy = (sort?: string) => {
     return desc(tracks.title);
   }
 
+  if (sort === "date-asc") {
+    return asc(tracks.updatedAt);
+  }
+
+  if (sort === "date-desc") {
+    return desc(tracks.updatedAt);
+  }
+
   if (sort === "plays-asc") {
     return asc(trackPlayCount);
   }
@@ -454,7 +462,11 @@ app.openapi(
       const order = publicTrackOrderBy(query.sort);
       const rows = await withRetry("list public tracks", () =>
         db
-          .select()
+          .select({
+            playCount: trackPlayCount,
+            state: userProfiles.state,
+            track: tracks,
+          })
           .from(tracks)
           .leftJoin(genres, eq(genres.id, tracks.genreId))
           .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
@@ -466,8 +478,9 @@ app.openapi(
 
       for (const row of rows) {
         summaries.push({
-          ...(await buildTrackSummary(row.tracks)),
-          regionSlug: regionSlugFromUser(row.user_profiles?.state) ?? null,
+          ...(await buildTrackSummary(row.track)),
+          plays: row.playCount ?? 0,
+          regionSlug: regionSlugFromUser(row.state) ?? null,
         });
       }
 

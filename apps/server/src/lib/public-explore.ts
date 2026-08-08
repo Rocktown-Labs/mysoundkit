@@ -1,3 +1,5 @@
+import { canonicalGenreSlug } from "@/lib/genre-catalog";
+
 const northAmericaStates = {
   "us-alabama": { abbreviation: "AL", name: "Alabama" },
   "us-alaska": { abbreviation: "AK", name: "Alaska" },
@@ -52,7 +54,7 @@ const northAmericaStates = {
 } as const;
 
 export const genreSlugFromExploreFilter = (genre: string | undefined) =>
-  genre && genre !== "all" ? genre : null;
+  genre && genre !== "all" ? canonicalGenreSlug(genre) : null;
 
 export const stateFromExploreRegion = ({
   region,
