@@ -42,6 +42,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { canShowChallengeAction } from "@/lib/live-experience";
+import { absoluteSiteUrl } from "@/lib/seo";
+import { shareLink } from "@/lib/share";
 import { useFollowArtistMutation } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
@@ -150,25 +152,49 @@ export function ProfileShell({
     setFollowerCount(result.followerCount.toLocaleString());
   };
 
-  const handleCopyLink = () => {
-    const url =
-      typeof window === "undefined"
-        ? `https://mysoundkit.com/artist/${user.username}`
-        : window.location.href;
-    void navigator.clipboard.writeText(url);
+  const profileShareUrl = absoluteSiteUrl(`/artist/${user.username}`);
+  const profileShareTitle = `Check out ${user.name} on SoundKit`;
+  const profileShareText = `Follow @${user.username} on SoundKit.`;
+
+  const handleNativeShare = async () => {
+    const outcome = await shareLink({
+      text: profileShareText,
+      title: profileShareTitle,
+      url: profileShareUrl,
+    });
+
+    if (outcome === "shared") {
+      setIsShareOpen(false);
+      return;
+    }
+
+    if (outcome === "unsupported") {
+      toast({
+        description: "Sharing is not supported on this device.",
+        title: "Unable to share",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsShareOpen(false);
     toast({
-      description: "Profile URL copied to clipboard.",
+      description: `Profile URL copied to clipboard: ${profileShareUrl}`,
+      title: "Link Copied",
+    });
+  };
+
+  const handleCopyLink = () => {
+    void navigator.clipboard.writeText(profileShareUrl);
+    toast({
+      description: `Profile URL copied to clipboard: ${profileShareUrl}`,
       title: "Link Copied",
     });
   };
 
   const handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {
-    const url = encodeURIComponent(
-      typeof window === "undefined"
-        ? `https://mysoundkit.com/artist/${user.username}`
-        : window.location.href
-    );
-    const text = encodeURIComponent(`Check out @${user.username} on SoundKit!`);
+    const url = encodeURIComponent(profileShareUrl);
+    const text = encodeURIComponent(profileShareTitle);
 
     let shareUrl = "";
     if (platform === "twitter") {
@@ -319,7 +345,7 @@ export function ProfileShell({
                             className="rounded-full border-border/40 bg-primary/15 h-11 px-5 font-bold text-primary"
                             onClick={() =>
                               router.navigate({
-                                search: { opponent: user.username },
+                                search: { opponent: user.username } as never,
                                 to: "/dashboard/live/challenge" as any,
                               })
                             }
@@ -474,6 +500,14 @@ export function ProfileShell({
           </DialogHeader>
 
           <div className="grid gap-3 py-3">
+            <Button
+              className="justify-start gap-3 h-12"
+              onClick={() => void handleNativeShare()}
+            >
+              <Share2 className="size-4" />
+              <span className="font-semibold text-sm">Share Profile</span>
+            </Button>
+
             <Button
               variant="outline"
               className="justify-start gap-3 h-12"

@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
 import { TrackCard } from "@/components/explore/track-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { absoluteSiteUrl, createShareMeta, seoDescription } from "@/lib/seo";
+import { loadPublicArtistSeo } from "@/lib/seo-data";
 import {
   useArtistQuery,
   useMeQuery,
@@ -23,6 +25,46 @@ const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
 
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
+  loader: ({ params }) =>
+    loadPublicArtistSeo(params.username).catch(() => null),
+  head: ({ loaderData, params }) => {
+    const artist = loaderData;
+    const artistName = artist?.name ?? `@${params.username}`;
+    const canonicalPath = `/artist/${artist?.username ?? params.username}`;
+    const title = `Check out ${artistName} on SoundKit`;
+    const description = seoDescription(
+      artist?.bio,
+      `Listen to tracks, watch videos, and follow ${artistName} on SoundKit.`
+    );
+    const head = createShareMeta({
+      canonicalPath,
+      description,
+      imageUrl: artist?.coverImageUrl ?? artist?.avatarUrl,
+      title,
+      type: "profile",
+    });
+
+    return {
+      ...head,
+      scripts: artist
+        ? [
+            {
+              children: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "MusicGroup",
+                genre: artist.genre,
+                image: absoluteSiteUrl(
+                  artist.coverImageUrl ?? artist.avatarUrl ?? "/placeholder.svg"
+                ),
+                name: artistName,
+                url: absoluteSiteUrl(canonicalPath),
+              }),
+              type: "application/ld+json",
+            },
+          ]
+        : [],
+    };
+  },
 });
 
 const formatCount = (value?: number) => {

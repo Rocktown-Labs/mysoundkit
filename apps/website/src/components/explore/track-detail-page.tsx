@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, downloadFileFromApi } from "@/lib/api";
+import { absoluteSiteUrl } from "@/lib/seo";
 import { shareLink } from "@/lib/share";
 import { useTracksQuery } from "@/lib/soundkit-api-hooks";
 import type { TrackSummary } from "@/lib/soundkit-api-hooks";
@@ -471,10 +472,12 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   };
 
   const handleShare = async () => {
+    const shareTitle = `Stream ${item.title} on SoundKit`;
+    const shareUrl = absoluteSiteUrl(canonicalTrackHref);
     const outcome = await shareLink({
-      text: `${item.title} by ${item.artist.name}`,
-      title: item.title,
-      url: window.location.href,
+      text: `Play ${item.title} by ${item.artist.name} on SoundKit.`,
+      title: shareTitle,
+      url: shareUrl,
     });
     if (outcome === "shared") {
       return;
@@ -488,7 +491,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       return;
     }
     toast({
-      description: "Track URL copied to clipboard.",
+      description: `Track URL copied to clipboard: ${shareUrl}`,
       title: "Link Copied",
     });
   };
@@ -578,276 +581,273 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-          {/* Main Track Section */}
-          <div className="space-y-6">
-            {/* High-Impact Industrial Hero */}
-            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
-              <div className="size-60 md:size-72 shrink-0 relative group">
-                <AppImage
-                  src={item.coverArtUrl}
-                  alt={item.title}
-                  width={512}
-                  height={512}
-                  className="size-full object-cover rounded-lg shadow-2xl border border-border/40"
-                />
-                {canPlayTrack && (
-                  <button
-                    aria-label={`Play ${item.title}`}
-                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/25 opacity-100 transition-all hover:bg-black/40 md:opacity-0 md:hover:opacity-100"
-                    onClick={playCurrentTrack}
-                    type="button"
-                  >
-                    <div className="size-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xl scale-90 group-hover:scale-100 transition-transform">
-                      <Play className="size-8 fill-current" />
-                    </div>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex-1 space-y-4 pt-2">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] uppercase font-black tracking-[0.2em] border-primary/40 text-primary bg-primary/5 px-2 py-0.5 h-5 rounded-none"
-                    >
-                      {item.type}
-                    </Badge>
-                    {item.artist.verified && (
-                      <div className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
-                        <ShieldCheck className="size-3" /> SoundKit Verified
-                      </div>
-                    )}
+        <div className="space-y-6">
+          {/* High-Impact Industrial Hero */}
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
+            <div className="size-60 md:size-72 shrink-0 relative group">
+              <AppImage
+                src={item.coverArtUrl}
+                alt={item.title}
+                width={512}
+                height={512}
+                className="size-full object-cover rounded-lg shadow-2xl border border-border/40"
+              />
+              {canPlayTrack && (
+                <button
+                  aria-label={`Play ${item.title}`}
+                  className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/25 opacity-100 transition-all hover:bg-black/40 md:opacity-0 md:hover:opacity-100"
+                  onClick={playCurrentTrack}
+                  type="button"
+                >
+                  <div className="size-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-2xl scale-90 group-hover:scale-100 transition-transform">
+                    <Play className="size-8 fill-current" />
                   </div>
-                  <h1 className="text-4xl md:text-6xl font-black font-[family-name:var(--font-playfair)] tracking-tighter leading-[0.9] uppercase">
-                    {item.title}
-                  </h1>
-                  <Link
-                    to="/artist/$username"
-                    params={{ username: item.artist.handle }}
-                    className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors group mt-4"
-                  >
-                    <span className="font-black text-lg uppercase tracking-tighter">
-                      {item.artist.name}
-                    </span>
-                    <CheckCircle2 className="size-4 text-primary fill-primary/10" />
-                  </Link>
-                </div>
-
-                <div className="flex items-center gap-3 flex-wrap">
-                  {canPlayTrack && (
-                    <Button
-                      size="lg"
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg shadow-xl shadow-primary/20 flex-1 sm:flex-none"
-                      onClick={playCurrentTrack}
-                    >
-                      <Play className="size-5 mr-3 fill-current" /> Play
-                    </Button>
-                  )}
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-border/40 hover:bg-muted font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
-                    disabled={!canPlayTrack}
-                    onClick={handleQueueTrack}
-                  >
-                    <Plus className="size-5 mr-2" /> Queue
-                  </Button>
-                  {item.isPurchasable && (
-                    <Button
-                      size="lg"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
-                      onClick={handleBuyTrack}
-                    >
-                      <ShoppingCart className="size-5 mr-2" /> Buy{" "}
-                      {item.priceLabel || "$1.99"}
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleToggleLike}
-                    className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
-                  >
-                    <Heart
-                      className={`size-6 ${isLiked ? "fill-current" : ""}`}
-                    />
-                  </Button>
-                </div>
-                {!canPlayTrack && (
-                  <p className="text-sm text-muted-foreground">
-                    Playback will appear here after a streamable audio asset is
-                    available.
-                  </p>
-                )}
-
-                <TrackPlatformLinks links={item.streamingLinks ?? {}} />
-
-                {item.description ? (
-                  <p className="max-w-2xl overflow-hidden text-sm leading-6 text-muted-foreground md:max-h-[4.5rem]">
-                    {item.description}
-                  </p>
-                ) : null}
-
-                {/* Technical Metadata Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border/10">
-                  {item.streamCount && (
-                    <div>
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
-                        Streams
-                      </p>
-                      <p className="text-xl font-black tabular-nums">
-                        {item.streamCount}
-                      </p>
-                    </div>
-                  )}
-                  {item.bpm && (
-                    <div>
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
-                        BPM
-                      </p>
-                      <p className="text-xl font-black tabular-nums">
-                        {item.bpm}
-                      </p>
-                    </div>
-                  )}
-                  {item.musicalKey && (
-                    <div>
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
-                        Musical Key
-                      </p>
-                      <p className="text-xl font-black">{item.musicalKey}</p>
-                    </div>
-                  )}
-                  {item.duration && (
-                    <div>
-                      <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
-                        Runtime
-                      </p>
-                      <p className="text-xl font-black tabular-nums">
-                        {item.duration}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+                </button>
+              )}
             </div>
 
-            {/* Assets Section - Industrial List */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
-                  Included Files
-                </h3>
-                {item.isForSale && (
+            <div className="flex-1 space-y-4 pt-2">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
                   <Badge
                     variant="outline"
-                    className="text-[8px] font-black border-border/60 uppercase tracking-widest rounded-none h-4"
+                    className="text-[10px] uppercase font-black tracking-[0.2em] border-primary/40 text-primary bg-primary/5 px-2 py-0.5 h-5 rounded-none"
                   >
-                    After Purchase
+                    {item.type}
                   </Badge>
-                )}
-              </div>
-              <div className="bg-card/20 border border-border/40 rounded-none overflow-hidden divide-y divide-border/10 shadow-sm">
-                {includedAssets.length === 0 ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No downloadable files have been attached to this track yet.
-                  </p>
-                ) : (
-                  includedAssets.map((asset) => {
-                    const fileName = assetDisplayFileName(asset, item.title);
-
-                    return (
-                      <div
-                        key={asset.id}
-                        className="group flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="size-10 bg-muted/40 flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border/20">
-                            <AssetIcon kind={asset.kind} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-black text-sm uppercase tracking-tight">
-                                {fileName}
-                              </p>
-                              {!asset.included && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[8px] h-3.5 px-1 uppercase font-black bg-muted/50 text-muted-foreground"
-                                >
-                                  Processing
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60 font-black">
-                              {asset.subtitle ||
-                                (asset.kind
-                                  ? asset.kind.replaceAll("_", " ")
-                                  : "Asset")}{" "}
-                              {asset.duration && `• ${asset.duration}`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {asset.downloadUrl ? (
-                            <Button
-                              aria-label={`Download ${fileName}`}
-                              className="size-9 rounded-none border border-border/40 hover:bg-white/5 transition-all"
-                              onClick={() => void handleDownloadAsset(asset)}
-                              size="icon"
-                              title={`Download ${fileName}`}
-                              variant="ghost"
-                            >
-                              <Download className="size-4" />
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-9 rounded-none opacity-20"
-                            >
-                              <Download className="size-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </section>
-
-            {/* Related Content & Releases Section */}
-            <section className="space-y-4 pt-6 border-t border-border/20">
-              <div className="flex items-center justify-between px-2">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
-                  More From This Artist
-                </h3>
+                  {item.artist.verified && (
+                    <div className="flex items-center gap-1 text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                      <ShieldCheck className="size-3" /> SoundKit Verified
+                    </div>
+                  )}
+                </div>
+                <h1 className="max-w-3xl break-words font-black font-[family-name:var(--font-playfair)] text-4xl uppercase leading-[0.92] tracking-normal md:text-5xl lg:text-6xl">
+                  {item.title}
+                </h1>
                 <Link
                   to="/artist/$username"
                   params={{ username: item.artist.handle }}
-                  hash="tracks"
-                  className="text-xs text-primary font-bold hover:underline"
+                  className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors group mt-4"
                 >
-                  View All →
+                  <span className="font-black text-lg uppercase tracking-tighter">
+                    {item.artist.name}
+                  </span>
+                  <CheckCircle2 className="size-4 text-primary fill-primary/10" />
                 </Link>
               </div>
-              <div className="flex gap-4 overflow-x-auto pb-2">
-                {relatedTracks.length > 0 ? (
-                  relatedTracks.map((track) => (
-                    <RelatedTrackCard key={track.id} track={track} />
-                  ))
-                ) : (
-                  <p className="col-span-full rounded-lg border border-dashed border-border/40 p-4 text-sm text-muted-foreground">
-                    More releases from this artist will appear here as they
-                    publish new tracks.
-                  </p>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                {canPlayTrack && (
+                  <Button
+                    size="lg"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg shadow-xl shadow-primary/20 flex-1 sm:flex-none"
+                    onClick={playCurrentTrack}
+                  >
+                    <Play className="size-5 mr-3 fill-current" /> Play
+                  </Button>
+                )}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-border/40 hover:bg-muted font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
+                  disabled={!canPlayTrack}
+                  onClick={handleQueueTrack}
+                >
+                  <Plus className="size-5 mr-2" /> Queue
+                </Button>
+                {item.isPurchasable && (
+                  <Button
+                    size="lg"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
+                    onClick={handleBuyTrack}
+                  >
+                    <ShoppingCart className="size-5 mr-2" /> Buy{" "}
+                    {item.priceLabel || "$1.99"}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleToggleLike}
+                  className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
+                >
+                  <Heart
+                    className={`size-6 ${isLiked ? "fill-current" : ""}`}
+                  />
+                </Button>
+              </div>
+              {!canPlayTrack && (
+                <p className="text-sm text-muted-foreground">
+                  Playback will appear here after a streamable audio asset is
+                  available.
+                </p>
+              )}
+
+              <TrackPlatformLinks links={item.streamingLinks ?? {}} />
+
+              {item.description ? (
+                <p className="max-w-2xl overflow-hidden text-sm leading-6 text-muted-foreground md:max-h-[4.5rem] lg:max-w-3xl">
+                  {item.description}
+                </p>
+              ) : null}
+
+              {/* Technical Metadata Row */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border/10">
+                {item.streamCount && (
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
+                      Streams
+                    </p>
+                    <p className="text-xl font-black tabular-nums">
+                      {item.streamCount}
+                    </p>
+                  </div>
+                )}
+                {item.bpm && (
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
+                      BPM
+                    </p>
+                    <p className="text-xl font-black tabular-nums">
+                      {item.bpm}
+                    </p>
+                  </div>
+                )}
+                {item.musicalKey && (
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
+                      Musical Key
+                    </p>
+                    <p className="text-xl font-black">{item.musicalKey}</p>
+                  </div>
+                )}
+                {item.duration && (
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground font-black mb-1.5 opacity-50">
+                      Runtime
+                    </p>
+                    <p className="text-xl font-black tabular-nums">
+                      {item.duration}
+                    </p>
+                  </div>
                 )}
               </div>
-            </section>
+            </div>
           </div>
+
+          {/* Assets Section - Industrial List */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
+                Included Files
+              </h3>
+              {item.isForSale && (
+                <Badge
+                  variant="outline"
+                  className="text-[8px] font-black border-border/60 uppercase tracking-widest rounded-none h-4"
+                >
+                  After Purchase
+                </Badge>
+              )}
+            </div>
+            <div className="bg-card/20 border border-border/40 rounded-none overflow-hidden divide-y divide-border/10 shadow-sm">
+              {includedAssets.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">
+                  No downloadable files have been attached to this track yet.
+                </p>
+              ) : (
+                includedAssets.map((asset) => {
+                  const fileName = assetDisplayFileName(asset, item.title);
+
+                  return (
+                    <div
+                      key={asset.id}
+                      className="group flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="size-10 bg-muted/40 flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border/20">
+                          <AssetIcon kind={asset.kind} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-sm uppercase tracking-tight">
+                              {fileName}
+                            </p>
+                            {!asset.included && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[8px] h-3.5 px-1 uppercase font-black bg-muted/50 text-muted-foreground"
+                              >
+                                Processing
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/60 font-black">
+                            {asset.subtitle ||
+                              (asset.kind
+                                ? asset.kind.replaceAll("_", " ")
+                                : "Asset")}{" "}
+                            {asset.duration && `• ${asset.duration}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {asset.downloadUrl ? (
+                          <Button
+                            aria-label={`Download ${fileName}`}
+                            className="size-9 rounded-none border border-border/40 hover:bg-white/5 transition-all"
+                            onClick={() => void handleDownloadAsset(asset)}
+                            size="icon"
+                            title={`Download ${fileName}`}
+                            variant="ghost"
+                          >
+                            <Download className="size-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-9 rounded-none opacity-20"
+                          >
+                            <Download className="size-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          {/* Related Content & Releases Section */}
+          <section className="space-y-4 pt-6 border-t border-border/20">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
+                More From This Artist
+              </h3>
+              <Link
+                to="/artist/$username"
+                params={{ username: item.artist.handle }}
+                hash="tracks"
+                className="text-xs text-primary font-bold hover:underline"
+              >
+                View All →
+              </Link>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {relatedTracks.length > 0 ? (
+                relatedTracks.map((track) => (
+                  <RelatedTrackCard key={track.id} track={track} />
+                ))
+              ) : (
+                <p className="col-span-full rounded-lg border border-dashed border-border/40 p-4 text-sm text-muted-foreground">
+                  More releases from this artist will appear here as they
+                  publish new tracks.
+                </p>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </div>

@@ -48,10 +48,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
+import { absoluteSiteUrl, createShareMeta } from "@/lib/seo";
+import { shareLink } from "@/lib/share";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/projects/$id")({
   component: ProjectPage,
+  head: ({ params }) =>
+    createShareMeta({
+      canonicalPath: `/projects/${params.id}`,
+      description:
+        "Play Coastal Echoes EP by Luna Eclipse on SoundKit, featuring streamable tracks and downloadable project files.",
+      imageUrl: "/hip-hop-album-cover.png",
+      title: "Play Coastal Echoes EP on SoundKit",
+      type: "music.album",
+    }),
 });
 
 function ProjectPage() {
@@ -187,6 +198,33 @@ function ProjectPage() {
     });
   };
 
+  const handleShare = async () => {
+    const shareUrl = absoluteSiteUrl(`/projects/${project.id}`);
+    const outcome = await shareLink({
+      text: `Play ${project.title} by ${project.artist} on SoundKit.`,
+      title: `Play ${project.title} on SoundKit`,
+      url: shareUrl,
+    });
+
+    if (outcome === "shared") {
+      return;
+    }
+
+    if (outcome === "unsupported") {
+      toast({
+        description: "Sharing is not supported on this device.",
+        title: "Unable to share",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      description: `Project URL copied to clipboard: ${shareUrl}`,
+      title: "Link Copied",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Professional Header */}
@@ -202,7 +240,13 @@ function ProjectPage() {
             Collection
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="size-9">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9"
+              onClick={() => void handleShare()}
+              title="Share Project"
+            >
               <Share2 className="size-4" />
             </Button>
             <Button variant="ghost" size="icon" className="size-9">
