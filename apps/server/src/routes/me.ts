@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
@@ -284,6 +284,67 @@ app.openapi(
       .where(eq(member.userId, user.id));
 
     return c.json(workspaces, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/workspace",
+    request: {
+      body: jsonContent(
+        z.object({ name: z.string().trim().min(1).max(100) }),
+        "Workspace name update"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(workspaceSummarySchema, "Updated workspace"),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    const { name } = c.req.valid("json");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          id: "ws_default",
+          name,
+          role: "owner",
+          slug: "my-workspace",
+          workspaceType: "artist_team" as const,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    const activeOrgId = user.id;
+
+    await db
+      .update(organization)
+      .set({ name })
+      .where(eq(organization.id, activeOrgId));
+
+    return c.json(
+      {
+        id: activeOrgId,
+        name,
+        role: "owner",
+        slug: "my-workspace",
+        workspaceType: "artist_team" as const,
+      },
+      HttpStatusCodes.OK
+    );
   }
 );
 

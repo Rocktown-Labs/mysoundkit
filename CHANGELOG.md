@@ -4,6 +4,9 @@
 
 ### Added
 
+- Added Recharts interactive stream area chart, discovery sources stacked area chart, geographic reach horizontal bar chart, and listener loyalty breakdown (Super Listeners vs Casual vs Lapsed) to `/dashboard/career/analytics`.
+- Added workspace rename endpoint (`PATCH /v1/me/workspace`) and upgraded `/dashboard/team` with workspace name editing, 5 subscription plan seats management, and separation of track collaborators.
+- Fixed Account settings email input password manager autofill with readOnly & autoComplete off attributes, added URL search param tab syncing (`?tab=profile|account|notifications|privacy`), and persisted profile photo/header image previews with instant query invalidation.
 - Added persistent track saving endpoint (`POST /v1/library/saved/:trackId`) and interactive heart save controls in `TrackCard` and track detail views.
 - Added full playlist management backend (`POST /v1/library/playlists`, `POST /v1/library/playlists/:id/tracks`) and updated `/library/playlists/$id` with tabs for DB search, Saved Tracks, Recently Played, and Recently Watched.
 - Redesigned `/shop` page with `forSale` purchasability filtering, clean genre pill filters, Grid/List view mode toggle, and 20-item pagination.

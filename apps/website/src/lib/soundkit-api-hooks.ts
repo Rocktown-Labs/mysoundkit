@@ -1151,6 +1151,22 @@ export const useRemovePlaylistTrackMutation = () => {
   });
 };
 
+export const useUpdateWorkspaceMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) =>
+      rpcJson(
+        await apiClient.v1.me.workspace.$patch({
+          json: { name },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
+    },
+  });
+};
+
 export const useCreateBattleChallengeMutation = () => {
   const queryClient = useQueryClient();
 
