@@ -451,6 +451,10 @@ app.openapi(
         eq(tracks.productionStatus, "complete"),
       ];
 
+      if (query.forSale) {
+        publicTrackConditions.push(eq(tracks.isForSale, true));
+      }
+
       if (genreSlug) {
         publicTrackConditions.push(eq(genres.slug, genreSlug));
       }

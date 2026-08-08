@@ -63,6 +63,13 @@ const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
 const libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get;
 const libraryRecentGet = apiClient.v1.library.recent.$get;
 const librarySavedGet = apiClient.v1.library.saved.$get;
+const librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post;
+const libraryPlaylistsPost = apiClient.v1.library.playlists.$post;
+const libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get;
+const libraryPlaylistTracksPost =
+  apiClient.v1.library.playlists[":id"].tracks.$post;
+const libraryPlaylistTrackDelete =
+  apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete;
 const libraryWatchedGet = apiClient.v1.library.watched.$get;
 const friendsGet = apiClient.v1.messages.friends.$get;
 const friendRequestsGet = apiClient.v1.messages["friend-requests"].$get;
@@ -307,6 +314,7 @@ export const soundkitQueryKeys = {
   friends: ["messages", "friends"] as const,
   genres: ["discover", "genres"] as const,
   libraryOverview: ["library", "overview"] as const,
+  libraryPlaylist: (id: string) => ["library", "playlists", id] as const,
   libraryPlaylists: ["library", "playlists"] as const,
   libraryPurchase: (purchaseId: string) =>
     ["library", "purchases", purchaseId] as const,
@@ -1046,6 +1054,102 @@ export const useLibraryWatchedQuery = () =>
     queryFn: async () => rpcJson(await libraryWatchedGet()),
     queryKey: soundkitQueryKeys.libraryWatched,
   });
+
+export const useToggleSaveTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await librarySaveTrackPost({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.librarySaved,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const useCreatePlaylistMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { description?: string; title: string }) =>
+      rpcJson(await libraryPlaylistsPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const usePlaylistQuery = (id: string) =>
+  useQuery({
+    enabled: Boolean(id),
+    queryFn: async () => rpcJson(await libraryPlaylistGet({ param: { id } })),
+    queryKey: soundkitQueryKeys.libraryPlaylist(id),
+  });
+
+export const useAddPlaylistTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      trackId,
+    }: {
+      playlistId: string;
+      trackId: string;
+    }) =>
+      rpcJson(
+        await libraryPlaylistTracksPost({
+          json: { trackId },
+          param: { id: playlistId },
+        })
+      ),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylist(variables.playlistId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+    },
+  });
+};
+
+export const useRemovePlaylistTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      trackId,
+    }: {
+      playlistId: string;
+      trackId: string;
+    }) =>
+      rpcJson(
+        await libraryPlaylistTrackDelete({
+          param: { id: playlistId, trackId },
+        })
+      ),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylist(variables.playlistId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+    },
+  });
+};
 
 export const useCreateBattleChallengeMutation = () => {
   const queryClient = useQueryClient();

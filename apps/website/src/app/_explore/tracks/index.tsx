@@ -119,10 +119,6 @@ function TracksPage() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold text-xl">Featured Songs</h2>
-            <p className="text-muted-foreground text-sm">
-              Ranked by the current filters, defaulting to Arkansas when no
-              local signal exists yet.
-            </p>
           </div>
           <Button asChild size="sm" variant="ghost">
             <Link
@@ -154,8 +150,7 @@ function TracksPage() {
           </div>
         ) : (
           <TrackEmptyState>
-            No songs found for this filter yet. Showing Arkansas by default
-            keeps discovery grounded until more local artists register.
+            No songs found for the selected filters.
           </TrackEmptyState>
         )}
       </div>

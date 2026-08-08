@@ -4,6 +4,11 @@
 
 ### Added
 
+- Added persistent track saving endpoint (`POST /v1/library/saved/:trackId`) and interactive heart save controls in `TrackCard` and track detail views.
+- Added full playlist management backend (`POST /v1/library/playlists`, `POST /v1/library/playlists/:id/tracks`) and updated `/library/playlists/$id` with tabs for DB search, Saved Tracks, Recently Played, and Recently Watched.
+- Redesigned `/shop` page with `forSale` purchasability filtering, clean genre pill filters, Grid/List view mode toggle, and 20-item pagination.
+- Fixed play count calculations on artist profiles to calculate the true sum of all track plays.
+- Removed outdated location filter text from public `/tracks` header.
 - Added transactional email templates suite (battle challenge, reminder, results, billing issue, collaborator invite, verification, friend requests, followers, open verse, org invite, password reset, receipts, sale notifications, welcome emails) and an asynchronous email delivery outbox service with retry/event tracking (`email_delivery_outbox` table).
 - Added artist friend requests system with collaborator management endpoints and dashboard workspace.
 - Expanded AI Studio with prompt assistant, stem generator, AI voice models, master track enhancement, and credit usage tracking.

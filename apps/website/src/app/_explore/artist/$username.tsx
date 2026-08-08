@@ -96,7 +96,8 @@ const formatJoinedDate = (joinedAt?: string) => {
 
 const artistToProfileUser = (
   artist: ArtistSummary,
-  trackCountOverride?: number
+  trackCountOverride?: number,
+  totalPlaysOverride?: number
 ) => ({
   avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
   battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
@@ -120,7 +121,9 @@ const artistToProfileUser = (
     youtube: artist.links?.youtube,
   },
   location: artist.location || artist.state || "SoundKit",
-  monthlyListeners: formatCount(artist.weeklyPlays),
+  monthlyListeners: formatCount(
+    totalPlaysOverride ?? artist.weeklyPlays ?? 0
+  ),
   name: artist.name,
   tracks: trackCountOverride ?? artist.trackCount ?? 0,
   username: artist.username,
@@ -200,11 +203,20 @@ function ArtistProfilePage() {
       isOwner
   );
 
+  const totalArtistPlays = artistTracks.reduce(
+    (sum, t) => sum + (t.plays || 0),
+    0
+  );
+
   return (
     <ProfileShell
       isOwner={isOwner}
       targetIsArtist={true}
-      user={artistToProfileUser(artist, artistTracks.length)}
+      user={artistToProfileUser(
+        artist,
+        artistTracks.length,
+        totalArtistPlays > 0 ? totalArtistPlays : (artist.weeklyPlays ?? 0)
+      )}
       viewerAccountType={meQuery.data?.user.accountType ?? null}
     >
       <Tabs

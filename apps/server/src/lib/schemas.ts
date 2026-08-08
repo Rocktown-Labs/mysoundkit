@@ -383,6 +383,7 @@ export const artistSummarySchema = z.object({
 });
 
 export const publicExploreQuerySchema = z.object({
+  forSale: z.coerce.boolean().optional(),
   genre: z.string().trim().max(80).default("all"),
   limit: z.coerce.number().int().positive().max(100).default(24),
   page: z.coerce.number().int().positive().default(1),

@@ -1,8 +1,13 @@
 import { Link } from "@tanstack/react-router";
-import { Play, Clock } from "lucide-react";
+import { Play, Clock, Heart } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  useLibrarySavedQuery,
+  useToggleSaveTrackMutation,
+} from "@/lib/soundkit-api-hooks";
 
 interface TrackCardProps {
   id: string;
@@ -27,6 +32,31 @@ export function TrackCard({
   regionSlug,
   slug,
 }: TrackCardProps) {
+  const { toast } = useToast();
+  const { data: savedTracks = [] } = useLibrarySavedQuery();
+  const toggleSaveMutation = useToggleSaveTrackMutation();
+  const isSaved = savedTracks.some((t) => t.id === id);
+
+  const handleToggleSave = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const res = await toggleSaveMutation.mutateAsync(id);
+      toast({
+        description: res.saved
+          ? `Saved "${title}" to your Saved Tracks.`
+          : `Removed "${title}" from your Saved Tracks.`,
+        title: res.saved ? "Saved to Library" : "Removed from Library",
+      });
+    } catch {
+      toast({
+        description: "Please sign in to save tracks.",
+        title: "Sign in required",
+        variant: "destructive",
+      });
+    }
+  };
+
   const trackLink =
     regionSlug && slug
       ? {
@@ -38,8 +68,8 @@ export function TrackCard({
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all group w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px] flex-shrink-0 p-0">
       <CardContent className="p-0 space-y-0">
-        <Link {...trackLink} className="block">
-          <div className="relative aspect-square overflow-hidden">
+        <div className="relative aspect-square overflow-hidden">
+          <Link {...trackLink} className="block w-full h-full">
             <AppImage
               src={cover || "/placeholder.svg"}
               alt={title}
@@ -53,8 +83,20 @@ export function TrackCard({
                 <Play className="size-5 md:size-6 fill-primary-foreground text-primary-foreground ml-0.5" />
               </div>
             </div>
-          </div>
-        </Link>
+          </Link>
+          <button
+            type="button"
+            onClick={handleToggleSave}
+            className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/40 hover:bg-black/70 text-white transition-colors"
+            title={isSaved ? "Remove from Saved" : "Save Track"}
+          >
+            <Heart
+              className={`size-3.5 ${
+                isSaved ? "fill-rose-500 text-rose-500" : ""
+              }`}
+            />
+          </button>
+        </div>
         <div className="p-2 md:p-3">
           <Link {...trackLink}>
             <h3 className="font-medium text-xs md:text-sm truncate group-hover:text-primary transition-colors">

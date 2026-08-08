@@ -3,6 +3,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
   genres,
+  playbackSessions,
   profileLinks,
   tracks,
   userProfiles,
@@ -192,7 +193,7 @@ app.openapi(
           state: artist.state,
           username: artist.username,
           verified: artist.isVerified,
-          weeklyPlays: Math.max(0, Number(artist.trackCount) * 1000),
+          weeklyPlays: 0,
         };
       }),
       HttpStatusCodes.OK
@@ -281,6 +282,16 @@ app.openapi(
             : "#1")
           : null;
 
+        const [playsRow] = await db
+          .select({
+            totalPlays: sql<number>`count(${playbackSessions.id})::int`,
+          })
+          .from(playbackSessions)
+          .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
+          .where(eq(tracks.ownerUserId, artist.id));
+
+        const totalPlays = playsRow?.totalPlays ?? 0;
+
         return c.json(
           {
             avatarUrl: artist.avatarUrl,
@@ -300,7 +311,7 @@ app.openapi(
             trackCount: artist.trackCount,
             username: artist.username,
             verified: artist.isVerified,
-            weeklyPlays: Math.max(0, artist.trackCount * 1000),
+            weeklyPlays: totalPlays,
           },
           HttpStatusCodes.OK
         );

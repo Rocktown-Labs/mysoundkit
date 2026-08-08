@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Music, Plus, ArrowLeft } from "lucide-react";
 import { useState } from "react";
 
@@ -16,7 +16,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useLibraryPlaylistsQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  useCreatePlaylistMutation,
+  useLibraryPlaylistsQuery,
+  useMeQuery,
+} from "@/lib/soundkit-api-hooks";
 
 import { columns } from "./-columns";
 import { DataTable } from "./-data-table";
@@ -26,11 +31,14 @@ export const Route = createFileRoute("/_explore/library/playlists/")({
 });
 
 function PlaylistsPage() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [playlistName, setPlaylistName] = useState("");
   const [playlistDescription, setPlaylistDescription] = useState("");
   const { data: me } = useMeQuery();
   const { data: playlists = [], isLoading } = useLibraryPlaylistsQuery();
+  const createPlaylistMutation = useCreatePlaylistMutation();
   const isSignedIn = Boolean(me?.user);
   const tableData = playlists.map((playlist) => ({
     description: playlist.description ?? "No description",
@@ -39,10 +47,31 @@ function PlaylistsPage() {
     trackCount: playlist.trackCount,
   }));
 
-  const handleCreatePlaylist = () => {
-    setOpen(false);
-    setPlaylistName("");
-    setPlaylistDescription("");
+  const handleCreatePlaylist = async () => {
+    if (!playlistName.trim()) return;
+    try {
+      const playlist = await createPlaylistMutation.mutateAsync({
+        description: playlistDescription,
+        title: playlistName,
+      });
+      setOpen(false);
+      setPlaylistName("");
+      setPlaylistDescription("");
+      toast({
+        description: `Created playlist "${playlist.title}".`,
+        title: "Playlist Created",
+      });
+      navigate({
+        params: { id: playlist.id },
+        to: "/library/playlists/$id",
+      });
+    } catch {
+      toast({
+        description: "Could not create playlist. Please try again.",
+        title: "Error creating playlist",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

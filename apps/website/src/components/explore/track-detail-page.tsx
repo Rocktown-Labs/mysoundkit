@@ -55,7 +55,11 @@ import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, downloadFileFromApi } from "@/lib/api";
 import { absoluteSiteUrl } from "@/lib/seo";
 import { shareLink } from "@/lib/share";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useLibrarySavedQuery,
+  useToggleSaveTrackMutation,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
 import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 // --- Types ---
@@ -342,7 +346,8 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   const router = useRouter();
   const { setCurrentTrack, setQueue, addToQueue } = useAudioPlayer();
   const { addItem } = useCart();
-  const [isLiked, setIsLiked] = useState(false);
+  const { data: savedTracks = [] } = useLibrarySavedQuery();
+  const toggleSaveMutation = useToggleSaveTrackMutation();
 
   const {
     data: item,
@@ -496,14 +501,27 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     });
   };
 
-  const handleToggleLike = () => {
-    setIsLiked((prev) => !prev);
-    toast({
-      description: isLiked
-        ? `Removed "${item.title}" from your favorites.`
-        : `Saved "${item.title}" to your favorites.`,
-      title: isLiked ? "Removed from Favorites" : "Saved to Favorites",
-    });
+  const isLiked = Boolean(
+    item?.id && savedTracks.some((t) => t.id === item.id)
+  );
+
+  const handleToggleLike = async () => {
+    if (!item?.id) return;
+    try {
+      const res = await toggleSaveMutation.mutateAsync(item.id);
+      toast({
+        description: res.saved
+          ? `Saved "${item.title}" to your Saved Tracks.`
+          : `Removed "${item.title}" from your Saved Tracks.`,
+        title: res.saved ? "Saved to Library" : "Removed from Library",
+      });
+    } catch {
+      toast({
+        description: "Please sign in to save tracks to your library.",
+        title: "Sign in required",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDownloadAsset = async (asset: MockCatalogAsset) => {
