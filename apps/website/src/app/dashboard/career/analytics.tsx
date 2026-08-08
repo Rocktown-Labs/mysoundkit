@@ -47,6 +47,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { Progress } from "@/components/ui/progress";
 import {
   useBattlesQuery,
   useListeningPartiesQuery,
@@ -100,19 +101,36 @@ const geographicData = [
 
 // Donut Chart data for Subscribers vs Free
 const subscriberDonutData = [
-  { name: "Subscriber Qualified Streams", value: 6800, fill: "hsl(var(--primary))" },
-  { name: "Free Listener Streams", value: 2600, fill: "hsl(var(--muted-foreground)/0.4)" },
+  {
+    name: "Subscriber Qualified Streams",
+    value: 6800,
+    fill: "hsl(var(--primary))",
+  },
+  {
+    name: "Free Listener Streams",
+    value: 2600,
+    fill: "hsl(var(--muted-foreground)/0.4)",
+  },
 ];
 
 const areaChartConfig: ChartConfig = {
   desktop: { label: "Desktop Streams", color: "hsl(var(--primary))" },
-  mobile: { label: "Mobile Streams", color: "hsl(var(--chart-2, 220 70% 50%))" },
+  mobile: {
+    label: "Mobile Streams",
+    color: "hsl(var(--chart-2, 220 70% 50%))",
+  },
 };
 
 const sourcesChartConfig: ChartConfig = {
-  algorithmic: { label: "Algorithmic Radio", color: "hsl(var(--chart-2, 160 60% 45%))" },
+  algorithmic: {
+    label: "Algorithmic Radio",
+    color: "hsl(var(--chart-2, 160 60% 45%))",
+  },
   direct: { label: "Direct & Profile", color: "hsl(var(--primary))" },
-  playlists: { label: "User Playlists", color: "hsl(var(--chart-3, 30 80% 55%))" },
+  playlists: {
+    label: "User Playlists",
+    color: "hsl(var(--chart-3, 30 80% 55%))",
+  },
 };
 
 const spike48hData = [
@@ -164,7 +182,8 @@ export function AnalyticsPage() {
             Catalog & Stream Analytics
           </h1>
           <p className="text-muted-foreground">
-            Track qualified subscriber streams, listener discovery, regional reach, and track engagement.
+            Track qualified subscriber streams, listener discovery, regional
+            reach, and track engagement.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -234,12 +253,26 @@ export function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={areaChartConfig} className="h-[260px] w-full">
-              <AreaChart data={trendData} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+            <ChartContainer
+              config={areaChartConfig}
+              className="h-[260px] w-full"
+            >
+              <AreaChart
+                data={trendData}
+                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
+                    <stop
+                      offset="5%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0.1}
+                    />
                   </linearGradient>
                   <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
@@ -247,7 +280,11 @@ export function AnalyticsPage() {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} tickFormatter={(v) => `${v}`} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `${v}`}
+                />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area
                   type="monotone"
@@ -276,22 +313,43 @@ export function AnalyticsPage() {
               Stream Discovery Sources
             </CardTitle>
             <CardDescription>
-              How listeners find your music: Direct Search, Algorithmic Radio, and Playlists.
+              How listeners find your music: Direct Search, Algorithmic Radio,
+              and Playlists.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={sourcesChartConfig} className="h-[260px] w-full">
-              <AreaChart data={sourcesData} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+            <ChartContainer
+              config={sourcesChartConfig}
+              className="h-[260px] w-full"
+            >
+              <AreaChart
+                data={sourcesData}
+                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="fillDirect" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
+                    <stop
+                      offset="5%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="hsl(var(--primary))"
+                      stopOpacity={0.1}
+                    />
                   </linearGradient>
                   <linearGradient id="fillAlgo" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
                   </linearGradient>
-                  <linearGradient id="fillPlaylists" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient
+                    id="fillPlaylists"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
                     <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
                     <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} />
                   </linearGradient>
@@ -336,17 +394,24 @@ export function AnalyticsPage() {
                 First 24 to 48-Hour Release Spike Tracker
               </CardTitle>
               <CardDescription>
-                Real-time stream progression during initial release windows to measure campaign momentum.
+                Real-time stream progression during initial release windows to
+                measure campaign momentum.
               </CardDescription>
             </div>
-            <Badge variant="outline" className="w-fit border-amber-500/40 text-amber-400">
+            <Badge
+              variant="outline"
+              className="w-fit border-amber-500/40 text-amber-400"
+            >
               Live Release Window
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
           <ChartContainer config={{}} className="h-[200px] w-full">
-            <AreaChart data={spike48hData} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+            <AreaChart
+              data={spike48hData}
+              margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+            >
               <defs>
                 <linearGradient id="fillSpike" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
@@ -366,6 +431,7 @@ export function AnalyticsPage() {
             </AreaChart>
           </ChartContainer>
         </CardContent>
+      </Card>
       {/* Granular Song Metrics: Skip Rate & 70% Duration Qualification Rate */}
       <Card>
         <CardHeader className="pb-4">
@@ -374,40 +440,50 @@ export function AnalyticsPage() {
             Granular Song Retention: 70% Duration Threshold vs. Full Completion
           </CardTitle>
           <CardDescription>
-            SoundKit stream qualification requires reaching at least 70% track playback duration (deduplicated per 24-hour listener window).
+            SoundKit stream qualification requires reaching at least 70% track
+            playback duration (deduplicated per 24-hour listener window).
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-3">
           <div className="space-y-2 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-emerald-400">70% Duration Milestone</span>
+              <span className="text-xs font-bold text-emerald-400">
+                70% Duration Milestone
+              </span>
               <span className="text-xl font-bold text-emerald-400">84.6%</span>
             </div>
             <Progress value={84.6} className="h-2 bg-emerald-950" />
             <p className="text-[11px] text-muted-foreground">
-              Listeners reaching at least 70% of song duration, qualifying for pool royalty payouts.
+              Listeners reaching at least 70% of song duration, qualifying for
+              pool royalty payouts.
             </p>
           </div>
 
           <div className="space-y-2 p-4 rounded-lg bg-sky-500/10 border border-sky-500/20">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-sky-400">Full Completion Rate (100%)</span>
+              <span className="text-xs font-bold text-sky-400">
+                Full Completion Rate (100%)
+              </span>
               <span className="text-xl font-bold text-sky-400">72.1%</span>
             </div>
             <Progress value={72.1} className="h-2 bg-sky-950" />
             <p className="text-[11px] text-muted-foreground">
-              Percentage of listeners who stream your song completely from start to finish.
+              Percentage of listeners who stream your song completely from start
+              to finish.
             </p>
           </div>
 
           <div className="space-y-2 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-rose-400">Early Skip Rate (&lt;70%)</span>
+              <span className="text-xs font-bold text-rose-400">
+                Early Skip Rate (&lt;70%)
+              </span>
               <span className="text-xl font-bold text-rose-400">15.4%</span>
             </div>
             <Progress value={15.4} className="h-2 bg-rose-950" />
             <p className="text-[11px] text-muted-foreground">
-              Listens abandoned before 70% duration. Streams from artist team seats are excluded.
+              Listens abandoned before 70% duration. Streams from artist team
+              seats are excluded.
             </p>
           </div>
         </CardContent>
@@ -423,7 +499,8 @@ export function AnalyticsPage() {
               Top Cities & Regional Reach (Tour Planning)
             </CardTitle>
             <CardDescription>
-              Real-time city-level listener data for targeted promos and tour date planning.
+              Real-time city-level listener data for targeted promos and tour
+              date planning.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -443,7 +520,11 @@ export function AnalyticsPage() {
                   style={{ fontSize: "12px" }}
                 />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="plays" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                <Bar
+                  dataKey="plays"
+                  fill="hsl(var(--primary))"
+                  radius={[0, 4, 4, 0]}
+                />
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -463,11 +544,14 @@ export function AnalyticsPage() {
           <CardContent className="space-y-4 py-2">
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-emerald-400">🔥 Super Listeners (42%)</span>
+                <span className="text-emerald-400">
+                  🔥 Super Listeners (42%)
+                </span>
                 <span>{(totalPlays * 0.42).toFixed(0)} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Dedicated fans streaming catalog tracks regularly. High repeat listening depth.
+                Dedicated fans streaming catalog tracks regularly. High repeat
+                listening depth.
               </p>
             </div>
 
@@ -483,7 +567,9 @@ export function AnalyticsPage() {
 
             <div className="space-y-2 pt-2 border-t border-border/30">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-muted-foreground">💤 Lapsed / Inactive (13%)</span>
+                <span className="text-muted-foreground">
+                  💤 Lapsed / Inactive (13%)
+                </span>
                 <span>{(totalPlays * 0.13).toFixed(0)} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
@@ -517,7 +603,8 @@ export function AnalyticsPage() {
               <div className="space-y-3">
                 {[...tracks]
                   .toSorted(
-                    (left: TrackSummary, right: TrackSummary) => right.plays - left.plays
+                    (left: TrackSummary, right: TrackSummary) =>
+                      right.plays - left.plays
                   )
                   .slice(0, 8)
                   .map((track, index) => (
@@ -553,7 +640,10 @@ export function AnalyticsPage() {
                             {track.title}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0"
+                            >
                               {track.genre ?? "Single"}
                             </Badge>
                             {track.isPurchasable && (
@@ -566,7 +656,10 @@ export function AnalyticsPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <Badge variant="outline" className="font-semibold text-xs">
+                        <Badge
+                          variant="outline"
+                          className="font-semibold text-xs"
+                        >
                           {track.plays.toLocaleString()} plays
                         </Badge>
                       </div>

@@ -84,7 +84,7 @@ app.openapi(
   }),
   async (c) => {
     if (!isDatabaseConfigured()) {
-      return c.json(rankFeaturedBattles(sampleBattles), HttpStatusCodes.OK);
+      return c.json([], HttpStatusCodes.OK);
     }
 
     const db = createDb();
@@ -101,10 +101,6 @@ app.openapi(
       .from(battles)
       .leftJoin(genres, eq(genres.id, battles.genreId))
       .orderBy(desc(battles.viewerCount));
-
-    if (rows.length === 0) {
-      return c.json(rankFeaturedBattles(sampleBattles), HttpStatusCodes.OK);
-    }
 
     return c.json(
       rankFeaturedBattles(
@@ -933,11 +929,7 @@ app.openapi(
       }
     }
 
-    const rankedFallbackBattles = rankFeaturedBattles(sampleBattles);
-    const battle =
-      rankedFallbackBattles.find((entry) => entry.id === battleId) ??
-      rankedFallbackBattles[0];
-    return c.json(battle, HttpStatusCodes.OK);
+    return c.json({ message: "Battle not found" }, HttpStatusCodes.NOT_FOUND);
   }
 );
 

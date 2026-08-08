@@ -2,17 +2,13 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Calendar,
   CalendarDays,
   Headphones,
-  Info,
   ListMusic,
   MessageSquare,
   Plus,
   Radio,
-  Sparkles,
   Users,
-  Video,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -38,11 +34,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import type { LiveScheduleMode } from "@/lib/live-experience";
 import {
+  useCreateLiveExperienceMutation,
   useCreateListeningPartyMutation,
   useListeningPartiesQuery,
   useProjectsQuery,
@@ -52,22 +48,24 @@ export const Route = createFileRoute("/dashboard/live/parties")({
   component: DashboardLivePartiesPage,
 });
 
-type PartyCreationType = "release_auto" | "artist_manual" | "fan_community";
+type PartyCreationType = "release_auto" | "artist_manual";
 
 function DashboardLivePartiesPage() {
   const [creationType, setCreationType] =
     useState<PartyCreationType>("artist_manual");
   const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
   const [hostPresence, setHostPresence] = useState<"video" | "chat">("chat");
+  const [selectedProjectId, setSelectedProjectId] = useState("no-project");
 
   const partiesQuery = useListeningPartiesQuery();
   const projectsQuery = useProjectsQuery();
   const createParty = useCreateListeningPartyMutation();
+  const createLiveExperience = useCreateLiveExperienceMutation();
 
   const parties = partiesQuery.data ?? [];
-  // Exclude single-track projects so listening parties always use album, EP, or mixtape playlists
-  const multiTrackProjects = (projectsQuery.data ?? []).filter(
-    (project) => project.projectType !== "single"
+  const projects = projectsQuery.data ?? [];
+  const selectedProject = projects.find(
+    (project) => project.id === selectedProjectId
   );
   const liveParties = parties.filter((party) => party.status === "live");
   const scheduledParties = parties.filter(
@@ -79,48 +77,67 @@ function DashboardLivePartiesPage() {
     const form = new FormData(event.currentTarget);
 
     const title = String(form.get("title") ?? "").trim();
-    const projectId = String(form.get("projectId") ?? "");
+    const projectId =
+      selectedProjectId === "no-project" ? "" : selectedProjectId;
     const description = String(form.get("description") ?? "");
 
-    if (!projectId) {
-      toast({
-        description:
-          "Select an album, EP, mixtape, or playlist to continue. Listening parties cannot be held for a single track.",
-        title: "Tracklist project required",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const scheduledStartAt =
-      scheduleMode === "asap" && creationType !== "release_auto"
-        ? new Date().toISOString()
-        : new Date(
-            String(form.get("scheduledStartAt") ?? Date.now())
-          ).toISOString();
+      creationType === "release_auto" && selectedProject?.releaseDate
+        ? new Date(selectedProject.releaseDate).toISOString()
+        : scheduleMode === "asap"
+          ? new Date().toISOString()
+          : new Date(
+              String(form.get("scheduledStartAt") ?? Date.now())
+            ).toISOString();
 
     const effectivePlaybackMode =
       creationType === "release_auto" ? "programmed_release" : "artist_hosted";
 
+    const partyTitle = title || selectedProject?.title || "Listening Party";
+
+    if (!projectId) {
+      createLiveExperience.mutate(
+        {
+          description,
+          kind: "party",
+          scheduleMode,
+          scheduledStartAt,
+          source: "playlist",
+          title: partyTitle,
+          visibility: "public",
+        },
+        {
+          onSuccess: () => {
+            toast({
+              description:
+                "Projectless live party room created. You can share the room once it opens.",
+              title: "Party Room Created",
+            });
+            event.currentTarget.reset();
+            setSelectedProjectId("no-project");
+          },
+        }
+      );
+      return;
+    }
+
     createParty.mutate(
       {
         description,
-        playbackMode: effectivePlaybackMode as
-          | "artist_hosted"
-          | "programmed_release",
+        playbackMode: effectivePlaybackMode,
         projectId,
         scheduledStartAt,
-        title: title || "Listening Party",
+        title: partyTitle,
       },
       {
-        onSuccess: (res) => {
-          const roomId = res.party.liveRoomId || res.party.id;
+        onSuccess: () => {
           toast({
             description:
               "Listening party created! Fans can join to listen together and chat.",
             title: "Party Created",
           });
           event.currentTarget.reset();
+          setSelectedProjectId("no-project");
         },
       }
     );
@@ -184,37 +201,32 @@ function DashboardLivePartiesPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* 3 Party Creation Modes */}
-                <Tabs
-                  value={creationType}
-                  onValueChange={(val) =>
-                    setCreationType(val as PartyCreationType)
+                <RadioGroup
+                  className="grid gap-3 sm:grid-cols-2"
+                  onValueChange={(value) =>
+                    setCreationType(value as PartyCreationType)
                   }
+                  value={creationType}
                 >
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="release_auto">
-                      <Sparkles className="mr-1.5 size-4" /> Release Premiere
-                    </TabsTrigger>
-                    <TabsTrigger value="artist_manual">
-                      <Radio className="mr-1.5 size-4" /> Artist Hosted
-                    </TabsTrigger>
-                    <TabsTrigger value="fan_community">
-                      <Users className="mr-1.5 size-4" /> Fan Party
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <div className="mt-4 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground flex items-center gap-2">
-                    <Info className="size-4 shrink-0 text-primary" />
-                    <span>
-                      {creationType === "release_auto" &&
-                        "Auto-schedules a premiere party on the release date of an upcoming EP or album project. Artist can join via camera or chat."}
-                      {creationType === "artist_manual" &&
-                        "Manual artist-led listening party for a project or playlist. Choose video stage or chat-only presence."}
-                      {creationType === "fan_community" &&
-                        "Fan/Community created listening room. Starts without video stage (audio tracklist + synced chat)."}
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+                    <RadioGroupItem value="artist_manual" />
+                    <span className="text-sm">
+                      <span className="block font-medium">Host a party</span>
+                      <span className="text-muted-foreground">
+                        Start now or schedule a listening room.
+                      </span>
                     </span>
-                  </div>
-                </Tabs>
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+                    <RadioGroupItem value="release_auto" />
+                    <span className="text-sm">
+                      <span className="block font-medium">Release party</span>
+                      <span className="text-muted-foreground">
+                        Use the selected release date when available.
+                      </span>
+                    </span>
+                  </label>
+                </RadioGroup>
 
                 <form className="space-y-4" onSubmit={submitParty}>
                   <div className="space-y-2">
@@ -233,15 +245,19 @@ function DashboardLivePartiesPage() {
 
                   {/* Project / Playlist Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="projectId">
-                      Album, EP, Mixtape, or Playlist
-                    </Label>
-                    <Select name="projectId" required>
+                    <Label htmlFor="projectId">Project or Release</Label>
+                    <Select
+                      onValueChange={setSelectedProjectId}
+                      value={selectedProjectId}
+                    >
                       <SelectTrigger id="projectId">
-                        <SelectValue placeholder="Choose a multi-track project or playlist" />
+                        <SelectValue placeholder="Choose a project or go projectless" />
                       </SelectTrigger>
                       <SelectContent>
-                        {multiTrackProjects.map((project) => (
+                        <SelectItem value="no-project">
+                          No project, just open a room
+                        </SelectItem>
+                        {projects.map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.title} ({project.projectType.toUpperCase()}
                             )
@@ -249,48 +265,46 @@ function DashboardLivePartiesPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {multiTrackProjects.length === 0 && (
-                      <p className="text-xs text-amber-500 mt-1">
-                        No albums or EPs found. Create a multi-track project
-                        first in Projects.
-                      </p>
-                    )}
+                    {creationType === "release_auto" &&
+                      selectedProject &&
+                      !selectedProject.releaseDate && (
+                        <p className="mt-1 text-amber-500 text-xs">
+                          This project has no release date yet, so choose a date
+                          below.
+                        </p>
+                      )}
                   </div>
 
                   {/* Host Presence Option (Disabled for Fan Party) */}
-                  {creationType !== "fan_community" && (
-                    <div className="space-y-2">
-                      <Label>Host Presence</Label>
-                      <RadioGroup
-                        className="grid grid-cols-2 gap-3"
-                        onValueChange={(val) =>
-                          setHostPresence(val as "video" | "chat")
-                        }
-                        value={hostPresence}
-                      >
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                          <RadioGroupItem value="chat" />
-                          <span className="text-xs">
-                            <span className="block font-medium">Chat Host</span>
-                            <span className="text-muted-foreground">
-                              Badge artist in chat
-                            </span>
+                  <div className="space-y-2">
+                    <Label>Host Presence</Label>
+                    <RadioGroup
+                      className="grid grid-cols-2 gap-3"
+                      onValueChange={(val) =>
+                        setHostPresence(val as "video" | "chat")
+                      }
+                      value={hostPresence}
+                    >
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+                        <RadioGroupItem value="chat" />
+                        <span className="text-xs">
+                          <span className="block font-medium">Chat Host</span>
+                          <span className="text-muted-foreground">
+                            Join the room chat
                           </span>
-                        </label>
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                          <RadioGroupItem value="video" />
-                          <span className="text-xs">
-                            <span className="block font-medium">
-                              Video Host
-                            </span>
-                            <span className="text-muted-foreground">
-                              Join with camera video
-                            </span>
+                        </span>
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
+                        <RadioGroupItem value="video" />
+                        <span className="text-xs">
+                          <span className="block font-medium">Video Host</span>
+                          <span className="text-muted-foreground">
+                            Join with camera
                           </span>
-                        </label>
-                      </RadioGroup>
-                    </div>
-                  )}
+                        </span>
+                      </label>
+                    </RadioGroup>
+                  </div>
 
                   {/* Start Timing */}
                   {creationType === "release_auto" ? null : (
@@ -328,7 +342,8 @@ function DashboardLivePartiesPage() {
                   )}
 
                   {(scheduleMode === "scheduled" ||
-                    creationType === "release_auto") && (
+                    (creationType === "release_auto" &&
+                      !selectedProject?.releaseDate)) && (
                     <div className="space-y-2">
                       <Label htmlFor="scheduledStartAt">Date and Time</Label>
                       <Input
@@ -353,11 +368,11 @@ function DashboardLivePartiesPage() {
                   <Button
                     className="w-full"
                     disabled={
-                      createParty.isPending || multiTrackProjects.length === 0
+                      createParty.isPending || createLiveExperience.isPending
                     }
                   >
                     <Plus className="mr-2 size-4" />
-                    {createParty.isPending
+                    {createParty.isPending || createLiveExperience.isPending
                       ? "Creating Room..."
                       : "Create Listening Party"}
                   </Button>
@@ -391,24 +406,7 @@ function DashboardLivePartiesPage() {
                   </div>
                 )}
 
-                {/* Display listening rooms including fan-hosted listening rooms */}
-                {(
-                  [
-                    ...parties,
-                    {
-                      hostName: "@sound_lover99",
-                      id: "fan_party_demo_1",
-                      isFanParty: true,
-                      liveRoomId: "single-album-party",
-                      playbackMode: "fan_hosted",
-                      scheduledStartAt: new Date(
-                        Date.now() + 3_600_000
-                      ).toISOString(),
-                      status: "scheduled",
-                      title: "Late Night Album Room (Fan Hosted)",
-                    },
-                  ] as const
-                ).map((party) => (
+                {parties.map((party) => (
                   <div
                     key={party.id}
                     className="rounded-lg border p-4 space-y-2 bg-background/50"
@@ -417,14 +415,6 @@ function DashboardLivePartiesPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-sm">{party.title}</p>
-                          {"isFanParty" in party && party.isFanParty && (
-                            <Badge
-                              variant="secondary"
-                              className="text-[10px] py-0"
-                            >
-                              Fan Party ({party.hostName})
-                            </Badge>
-                          )}
                         </div>
                         <p className="text-xs text-muted-foreground">
                           {new Date(party.scheduledStartAt).toLocaleString()}
@@ -446,10 +436,7 @@ function DashboardLivePartiesPage() {
                       <Button asChild size="sm">
                         <Link
                           params={{
-                            id:
-                              "liveRoomId" in party && party.liveRoomId
-                                ? party.liveRoomId
-                                : party.id,
+                            id: party.liveRoomId ?? party.id,
                           }}
                           to="/live/parties/$id"
                         >

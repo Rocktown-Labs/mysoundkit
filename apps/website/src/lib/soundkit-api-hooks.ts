@@ -49,7 +49,10 @@ const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
 const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
 const battlesGet = apiClient.v1.battles.index.$get;
+const battleChallengesGet = apiClient.v1.battles.challenges.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
+const battleChallengePatch =
+  apiClient.v1.battles.challenges[":challengeId"].$patch;
 const liveExperiencePost = apiClient.v1.live.experiences.index.$post;
 const liveExperienceJoinPost =
   apiClient.v1.live.experiences[":experienceId"].join.$post;
@@ -157,6 +160,10 @@ type UpdateNotificationSettingsBody = InferRequestType<
   typeof meNotificationSettingsPatch
 >["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
+export type BattleChallengesResponse = InferResponseType<
+  typeof battleChallengesGet,
+  200
+>;
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
 export type LibraryPlaylist = InferResponseType<
   typeof libraryPlaylistsGet,
@@ -184,6 +191,9 @@ export type LibraryWatchedItem = InferResponseType<
 >[number];
 type CreateBattleChallengeBody = InferRequestType<
   typeof battleChallengePost
+>["json"];
+type UpdateBattleChallengeBody = InferRequestType<
+  typeof battleChallengePatch
 >["json"];
 type CreateLiveExperienceBody = InferRequestType<
   typeof liveExperiencePost
@@ -304,6 +314,7 @@ export const soundkitQueryKeys = {
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battles: ["battles"] as const,
+  battleChallenges: ["battles", "challenges"] as const,
   battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
   conversationMessages: (conversationId: string) =>
@@ -1010,6 +1021,12 @@ export const useBattlesQuery = () =>
     queryKey: soundkitQueryKeys.battles,
   });
 
+export const useBattleChallengesQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await battleChallengesGet()),
+    queryKey: soundkitQueryKeys.battleChallenges,
+  });
+
 export const useLibraryOverviewQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await libraryOverviewGet()),
@@ -1173,8 +1190,35 @@ export const useCreateBattleChallengeMutation = () => {
   return useMutation({
     mutationFn: async (body: CreateBattleChallengeBody) =>
       rpcJson(await battleChallengePost({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleChallenges,
+      });
+    },
+  });
+};
+
+export const useUpdateBattleChallengeMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      challengeId,
+      status,
+    }: UpdateBattleChallengeBody & { challengeId: string }) =>
+      rpcJson(
+        await battleChallengePatch({
+          json: { status },
+          param: { challengeId },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleChallenges,
+      });
+    },
   });
 };
 

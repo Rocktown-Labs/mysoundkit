@@ -3,9 +3,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
-  BarChart3,
-  CheckCircle2,
-  MapPin,
   Music,
   Plus,
   Search,
@@ -15,7 +12,7 @@ import {
   UserX,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -42,138 +39,94 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { musicGenres } from "@/lib/music-genres";
 import {
+  useArtistsQuery,
+  useBattleChallengesQuery,
   useBattlesQuery,
   useCreateBattleChallengeMutation,
   useGenresQuery,
   useMeQuery,
   useTracksQuery,
+  useUpdateBattleChallengeMutation,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/live/")({
   component: BattleHubPage,
 });
 
-interface BattleRequestItem {
-  format: string;
-  genre: string;
-  id: string;
-  message: string;
-  opponentUsername: string;
-  proposedDate?: string;
-  proposedTimeLabel?: string;
-  senderUsername: string;
-  status: "pending" | "confirmed" | "denied";
-}
-
-const initialIncomingRequests: BattleRequestItem[] = [
-  {
-    format: "Best of 5",
-    genre: "Hip-Hop",
-    id: "req_in_1",
-    message: "Let's bring our best 5 tracks to the main stage tonight!",
-    opponentUsername: "you",
-    proposedDate: "2026-07-25",
-    proposedTimeLabel: "9:00 PM ET",
-    senderUsername: "metro_flow",
-    status: "pending",
-  },
-  {
-    format: "Best of 3",
-    genre: "R&B/Soul",
-    id: "req_in_2",
-    message: "Quick 3-round soul clash this Friday.",
-    opponentUsername: "you",
-    proposedDate: "2026-07-26",
-    proposedTimeLabel: "8:00 PM ET",
-    senderUsername: "luna_eclipse",
-    status: "pending",
-  },
-];
-
-const candidateArtists = [
-  {
-    genre: "Hip-Hop",
-    name: "Metro Flow",
-    status: "Open to Battle",
-    username: "metro_flow",
-  },
-  {
-    genre: "Electronic",
-    name: "Neon Pulse",
-    status: "Open to Battle",
-    username: "neon_pulse",
-  },
-  {
-    genre: "R&B/Soul",
-    name: "Luna Eclipse",
-    status: "Kit Ready",
-    username: "luna_eclipse",
-  },
-  {
-    genre: "Pop",
-    name: "Starlet Beat",
-    status: "Open to Battle",
-    username: "starlet_beat",
-  },
-];
-
 function BattleHubPage() {
   const meQuery = useMeQuery();
   const tracksQuery = useTracksQuery();
   const battlesQuery = useBattlesQuery();
+  const battleChallengesQuery = useBattleChallengesQuery();
   const genresQuery = useGenresQuery();
   const createChallenge = useCreateBattleChallengeMutation();
+  const updateChallenge = useUpdateBattleChallengeMutation();
 
   const availableGenres =
     genresQuery.data && genresQuery.data.length > 0
       ? genresQuery.data.map((g) => ({ label: g.name, value: g.slug }))
       : musicGenres;
 
-  const userOnboardingGenre = meQuery.data?.user.onboardingGenre || "hip-hop";
+  const defaultGenre = availableGenres[0]?.value ?? "hip-hop";
   const userTracks = tracksQuery.data ?? [];
   const hasNoTracksOrKits = userTracks.length === 0;
 
-  const [selectedGenre, setSelectedGenre] =
-    useState<string>(userOnboardingGenre);
+  const [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre);
   const [selectedFormat, setSelectedFormat] = useState<string>("best_of_5");
   const [targetUsername, setTargetUsername] = useState<string>("");
-  const [incomingRequests, setIncomingRequests] = useState<BattleRequestItem[]>(
-    initialIncomingRequests
-  );
-  const [outgoingRequests, setOutgoingRequests] = useState<BattleRequestItem[]>(
-    []
-  );
   const [opponentMode, setOpponentMode] = useState<"direct" | "match">(
     "direct"
   );
+  const artistsQuery = useArtistsQuery({
+    genre: selectedGenre,
+    limit: "8",
+    region: "all",
+    regionType: "global",
+  });
+
+  useEffect(() => {
+    setSelectedGenre((current) => current || defaultGenre);
+  }, [defaultGenre]);
 
   const battles = battlesQuery.data ?? [];
+  const incomingRequests = battleChallengesQuery.data?.incoming ?? [];
+  const outgoingRequests = battleChallengesQuery.data?.outgoing ?? [];
+  const candidateArtists = (artistsQuery.data ?? []).filter(
+    (artist) =>
+      Boolean(artist.username) &&
+      artist.username !== meQuery.data?.user.username
+  );
   const liveBattles = battles.filter((battle) => battle.status === "live");
   const scheduledBattles = battles.filter(
     (battle) => battle.status === "scheduled"
   );
 
   const handleConfirmRequest = (id: string) => {
-    setIncomingRequests((current) =>
-      current.map((req) =>
-        req.id === id ? { ...req, status: "confirmed" } : req
-      )
+    updateChallenge.mutate(
+      { challengeId: id, status: "accepted" },
+      {
+        onSuccess: () => {
+          toast({
+            description: "Battle challenge accepted.",
+            title: "Challenge Accepted",
+          });
+        },
+      }
     );
-    toast({
-      description:
-        "Battle confirmed! Matchup scheduled and notifications fanned out to followers.",
-      title: "Challenge Confirmed",
-    });
   };
 
   const handleDenyRequest = (id: string) => {
-    setIncomingRequests((current) =>
-      current.map((req) => (req.id === id ? { ...req, status: "denied" } : req))
+    updateChallenge.mutate(
+      { challengeId: id, status: "declined" },
+      {
+        onSuccess: () => {
+          toast({
+            description: "Battle challenge request declined.",
+            title: "Challenge Declined",
+          });
+        },
+      }
     );
-    toast({
-      description: "Battle challenge request declined.",
-      title: "Challenge Denied",
-    });
   };
 
   const submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
@@ -207,18 +160,6 @@ function BattleHubPage() {
       },
       {
         onSuccess: () => {
-          const newReq: BattleRequestItem = {
-            format: selectedFormat,
-            genre: selectedGenre,
-            id: `req_out_${Date.now()}`,
-            message,
-            opponentUsername: opponent,
-            proposedDate,
-            proposedTimeLabel,
-            senderUsername: meQuery.data?.user.username || "me",
-            status: "pending",
-          };
-          setOutgoingRequests((current) => [newReq, ...current]);
           toast({
             description: `Battle challenge request sent to @${opponent}.`,
             title: "Challenge Sent",
@@ -298,7 +239,8 @@ function BattleHubPage() {
           <MetricCard
             label="Pending Requests"
             value={
-              incomingRequests.filter((r) => r.status === "pending").length
+              incomingRequests.filter((request) => request.status === "pending")
+                .length
             }
           />
         </div>
@@ -323,8 +265,9 @@ function BattleHubPage() {
                     <TabsTrigger value="incoming">
                       Incoming (
                       {
-                        incomingRequests.filter((r) => r.status === "pending")
-                          .length
+                        incomingRequests.filter(
+                          (request) => request.status === "pending"
+                        ).length
                       }
                       )
                     </TabsTrigger>
@@ -347,15 +290,15 @@ function BattleHubPage() {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-base">
-                                @{req.senderUsername}
+                                @{req.challengerUsername ?? "artist"}
                               </p>
                               <Badge
                                 variant={
-                                  req.status === "confirmed"
+                                  req.status === "accepted"
                                     ? "default"
-                                    : (req.status === "denied"
+                                    : req.status === "declined"
                                       ? "destructive"
-                                      : "outline")
+                                      : "outline"
                                 }
                               >
                                 {req.status}
@@ -377,6 +320,7 @@ function BattleHubPage() {
                           {req.status === "pending" ? (
                             <div className="flex gap-2">
                               <Button
+                                disabled={updateChallenge.isPending}
                                 size="sm"
                                 onClick={() => handleConfirmRequest(req.id)}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -384,6 +328,7 @@ function BattleHubPage() {
                                 <UserCheck className="mr-1.5 size-4" /> Confirm
                               </Button>
                               <Button
+                                disabled={updateChallenge.isPending}
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleDenyRequest(req.id)}
@@ -414,7 +359,7 @@ function BattleHubPage() {
                         >
                           <div>
                             <p className="font-semibold">
-                              To: @{req.opponentUsername}
+                              To: @{req.opponentUsername ?? "artist"}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {req.genre} &bull;{" "}
@@ -591,10 +536,24 @@ function BattleHubPage() {
                       </div>
                     ) : (
                       <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-2 bg-muted/20">
+                        {artistsQuery.isLoading && (
+                          <p className="p-2 text-muted-foreground text-xs">
+                            Loading artists in this genre...
+                          </p>
+                        )}
+                        {!artistsQuery.isLoading &&
+                          candidateArtists.length === 0 && (
+                            <p className="p-2 text-muted-foreground text-xs">
+                              No artists found for this genre yet. Search by
+                              username instead.
+                            </p>
+                          )}
                         {candidateArtists.map((artist) => (
                           <div
                             key={artist.username}
-                            onClick={() => setTargetUsername(artist.username)}
+                            onClick={() =>
+                              setTargetUsername(artist.username ?? "")
+                            }
                             className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${
                               targetUsername === artist.username
                                 ? "bg-primary/20 border border-primary/40 font-medium"
@@ -607,7 +566,7 @@ function BattleHubPage() {
                                 @{artist.username} &bull; {artist.genre}
                               </p>
                             </div>
-                            <Badge variant="outline">{artist.status}</Badge>
+                            <Badge variant="outline">Same genre</Badge>
                           </div>
                         ))}
                       </div>
@@ -655,25 +614,6 @@ function BattleHubPage() {
                 </form>
               </CardContent>
             </Card>
-
-            <QuickLink
-              description="Preset your strongest tracks for live formats."
-              icon={Music}
-              label="My Kits"
-              to="/dashboard/live/my-kit"
-            />
-            <QuickLink
-              description="Wins, losses, and track battle analytics."
-              icon={BarChart3}
-              label="My Stats"
-              to="/dashboard/live/my-stats"
-            />
-            <QuickLink
-              description="Explore public battle arenas."
-              icon={MapPin}
-              label="Explore Public Battles"
-              to="/live/battles"
-            />
           </div>
         </div>
       </div>
@@ -691,35 +631,6 @@ function MetricCard({ label, value }: { label: string; value: number }) {
       </CardHeader>
       <CardContent className="text-3xl font-bold">
         {value.toLocaleString()}
-      </CardContent>
-    </Card>
-  );
-}
-
-function QuickLink({
-  description,
-  icon: Icon,
-  label,
-  to,
-}: {
-  description: string;
-  icon: typeof Music;
-  label: string;
-  to: "/dashboard/live/my-kit" | "/dashboard/live/my-stats" | "/live/battles";
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Icon className="size-5 text-primary" />
-          <CardTitle className="text-base">{label}</CardTitle>
-        </div>
-        <CardDescription className="text-xs">{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <Button asChild className="w-full" variant="outline" size="sm">
-          <Link to={to}>Open</Link>
-        </Button>
       </CardContent>
     </Card>
   );

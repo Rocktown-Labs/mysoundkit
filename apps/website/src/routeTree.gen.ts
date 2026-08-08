@@ -27,6 +27,7 @@ import { Route as DashboardCommunityRouteImport } from './app/dashboard/communit
 import { Route as DashboardCollaboratorsRouteImport } from './app/dashboard/collaborators'
 import { Route as DashboardBillingRouteImport } from './app/dashboard/billing'
 import { Route as DashboardAiStudioRouteImport } from './app/dashboard/ai-studio'
+import { Route as DashboardAdsRouteImport } from './app/dashboard/ads'
 import { Route as DashboardAdminRouteImport } from './app/dashboard/admin'
 import { Route as ExploreShopRouteImport } from './app/_explore/shop'
 import { Route as ExploreNewReleasesRouteImport } from './app/_explore/new-releases'
@@ -38,6 +39,7 @@ import { Route as DashboardOpenVersesIndexRouteImport } from './app/dashboard/op
 import { Route as DashboardLiveIndexRouteImport } from './app/dashboard/live/index'
 import { Route as ExploreVideosIndexRouteImport } from './app/_explore/videos/index'
 import { Route as ExploreTracksIndexRouteImport } from './app/_explore/tracks/index'
+import { Route as ExploreProjectsIndexRouteImport } from './app/_explore/projects/index'
 import { Route as ExploreLiveIndexRouteImport } from './app/_explore/live/index'
 import { Route as ExploreLibraryIndexRouteImport } from './app/_explore/library/index'
 import { Route as ExploreGenresIndexRouteImport } from './app/_explore/genres/index'
@@ -76,6 +78,7 @@ import { Route as ExploreArtistNewRouteImport } from './app/_explore/artist/new'
 import { Route as ExploreArtistUsernameRouteImport } from './app/_explore/artist/$username'
 import { Route as DashboardTracksIdIndexRouteImport } from './app/dashboard/tracks/$id/index'
 import { Route as DashboardLiveMyStatsIndexRouteImport } from './app/dashboard/live/my-stats/index'
+import { Route as ExploreProjectsIdIndexRouteImport } from './app/_explore/projects/$id/index'
 import { Route as ExploreLiveStreamsIndexRouteImport } from './app/_explore/live/streams/index'
 import { Route as ExploreLivePartiesIndexRouteImport } from './app/_explore/live/parties/index'
 import { Route as ExploreLiveBattlesIndexRouteImport } from './app/_explore/live/battles/index'
@@ -96,6 +99,7 @@ import { Route as ExploreLiveBattlesUpcomingRouteImport } from './app/_explore/l
 import { Route as ExploreLiveBattlesMustSeeRouteImport } from './app/_explore/live/battles/must-see'
 import { Route as ExploreLiveBattlesLeaderboardRouteImport } from './app/_explore/live/battles/leaderboard'
 import { Route as ExploreLiveBattlesIdRouteImport } from './app/_explore/live/battles/$id'
+import { Route as ExploreLibraryPurchasedPurchaseIdRouteImport } from './app/_explore/library/purchased/$purchaseId'
 import { Route as ExploreLibraryPlaylistsIdIndexRouteImport } from './app/_explore/library/playlists/$id/index'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -187,6 +191,11 @@ const DashboardAiStudioRoute = DashboardAiStudioRouteImport.update({
   path: '/ai-studio',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardAdsRoute = DashboardAdsRouteImport.update({
+  id: '/ads',
+  path: '/ads',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardAdminRoute = DashboardAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -241,6 +250,11 @@ const ExploreVideosIndexRoute = ExploreVideosIndexRouteImport.update({
 const ExploreTracksIndexRoute = ExploreTracksIndexRouteImport.update({
   id: '/tracks/',
   path: '/tracks/',
+  getParentRoute: () => ExploreRoute,
+} as any)
+const ExploreProjectsIndexRoute = ExploreProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
   getParentRoute: () => ExploreRoute,
 } as any)
 const ExploreLiveIndexRoute = ExploreLiveIndexRouteImport.update({
@@ -437,6 +451,11 @@ const DashboardLiveMyStatsIndexRoute =
     path: '/live/my-stats/',
     getParentRoute: () => DashboardRoute,
   } as any)
+const ExploreProjectsIdIndexRoute = ExploreProjectsIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ExploreProjectsIdRoute,
+} as any)
 const ExploreLiveStreamsIndexRoute = ExploreLiveStreamsIndexRouteImport.update({
   id: '/streams/',
   path: '/streams/',
@@ -549,6 +568,12 @@ const ExploreLiveBattlesIdRoute = ExploreLiveBattlesIdRouteImport.update({
   path: '/battles/$id',
   getParentRoute: () => ExploreLiveRoute,
 } as any)
+const ExploreLibraryPurchasedPurchaseIdRoute =
+  ExploreLibraryPurchasedPurchaseIdRouteImport.update({
+    id: '/library/purchased/$purchaseId',
+    path: '/library/purchased/$purchaseId',
+    getParentRoute: () => ExploreRoute,
+  } as any)
 const ExploreLibraryPlaylistsIdIndexRoute =
   ExploreLibraryPlaylistsIdIndexRouteImport.update({
     id: '/library/playlists/$id/',
@@ -568,6 +593,7 @@ export interface FileRoutesByFullPath {
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
   '/dashboard/admin': typeof DashboardAdminRoute
+  '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
@@ -585,7 +611,7 @@ export interface FileRoutesByFullPath {
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
-  '/projects/$id': typeof ExploreProjectsIdRoute
+  '/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
@@ -614,6 +640,7 @@ export interface FileRoutesByFullPath {
   '/genres/': typeof ExploreGenresIndexRoute
   '/library/': typeof ExploreLibraryIndexRoute
   '/live/': typeof ExploreLiveIndexRoute
+  '/projects/': typeof ExploreProjectsIndexRoute
   '/tracks/': typeof ExploreTracksIndexRoute
   '/videos/': typeof ExploreVideosIndexRoute
   '/dashboard/live/': typeof DashboardLiveIndexRoute
@@ -621,6 +648,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/projects/': typeof DashboardProjectsIndexRoute
   '/dashboard/tracks/': typeof DashboardTracksIndexRoute
   '/dashboard/videos/': typeof DashboardVideosIndexRoute
+  '/library/purchased/$purchaseId': typeof ExploreLibraryPurchasedPurchaseIdRoute
   '/live/battles/$id': typeof ExploreLiveBattlesIdRoute
   '/live/battles/leaderboard': typeof ExploreLiveBattlesLeaderboardRoute
   '/live/battles/must-see': typeof ExploreLiveBattlesMustSeeRoute
@@ -641,6 +669,7 @@ export interface FileRoutesByFullPath {
   '/live/battles/': typeof ExploreLiveBattlesIndexRoute
   '/live/parties/': typeof ExploreLivePartiesIndexRoute
   '/live/streams/': typeof ExploreLiveStreamsIndexRoute
+  '/projects/$id/': typeof ExploreProjectsIdIndexRoute
   '/dashboard/live/my-stats/': typeof DashboardLiveMyStatsIndexRoute
   '/dashboard/tracks/$id/': typeof DashboardTracksIdIndexRoute
   '/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
@@ -654,6 +683,7 @@ export interface FileRoutesByTo {
   '/new-releases': typeof ExploreNewReleasesRoute
   '/shop': typeof ExploreShopRoute
   '/dashboard/admin': typeof DashboardAdminRoute
+  '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
@@ -672,7 +702,6 @@ export interface FileRoutesByTo {
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
-  '/projects/$id': typeof ExploreProjectsIdRoute
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
@@ -701,6 +730,7 @@ export interface FileRoutesByTo {
   '/genres': typeof ExploreGenresIndexRoute
   '/library': typeof ExploreLibraryIndexRoute
   '/live': typeof ExploreLiveIndexRoute
+  '/projects': typeof ExploreProjectsIndexRoute
   '/tracks': typeof ExploreTracksIndexRoute
   '/videos': typeof ExploreVideosIndexRoute
   '/dashboard/live': typeof DashboardLiveIndexRoute
@@ -708,6 +738,7 @@ export interface FileRoutesByTo {
   '/dashboard/projects': typeof DashboardProjectsIndexRoute
   '/dashboard/tracks': typeof DashboardTracksIndexRoute
   '/dashboard/videos': typeof DashboardVideosIndexRoute
+  '/library/purchased/$purchaseId': typeof ExploreLibraryPurchasedPurchaseIdRoute
   '/live/battles/$id': typeof ExploreLiveBattlesIdRoute
   '/live/battles/leaderboard': typeof ExploreLiveBattlesLeaderboardRoute
   '/live/battles/must-see': typeof ExploreLiveBattlesMustSeeRoute
@@ -728,6 +759,7 @@ export interface FileRoutesByTo {
   '/live/battles': typeof ExploreLiveBattlesIndexRoute
   '/live/parties': typeof ExploreLivePartiesIndexRoute
   '/live/streams': typeof ExploreLiveStreamsIndexRoute
+  '/projects/$id': typeof ExploreProjectsIdIndexRoute
   '/dashboard/live/my-stats': typeof DashboardLiveMyStatsIndexRoute
   '/dashboard/tracks/$id': typeof DashboardTracksIdIndexRoute
   '/library/playlists/$id': typeof ExploreLibraryPlaylistsIdIndexRoute
@@ -745,6 +777,7 @@ export interface FileRoutesById {
   '/_explore/new-releases': typeof ExploreNewReleasesRoute
   '/_explore/shop': typeof ExploreShopRoute
   '/dashboard/admin': typeof DashboardAdminRoute
+  '/dashboard/ads': typeof DashboardAdsRoute
   '/dashboard/ai-studio': typeof DashboardAiStudioRoute
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/collaborators': typeof DashboardCollaboratorsRoute
@@ -763,7 +796,7 @@ export interface FileRoutesById {
   '/_explore/genres/$id': typeof ExploreGenresIdRoute
   '/_explore/library/settings': typeof ExploreLibrarySettingsRoute
   '/_explore/live/preview': typeof ExploreLivePreviewRoute
-  '/_explore/projects/$id': typeof ExploreProjectsIdRoute
+  '/_explore/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/_explore/tracks/$id': typeof ExploreTracksIdRoute
   '/_explore/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
@@ -792,6 +825,7 @@ export interface FileRoutesById {
   '/_explore/genres/': typeof ExploreGenresIndexRoute
   '/_explore/library/': typeof ExploreLibraryIndexRoute
   '/_explore/live/': typeof ExploreLiveIndexRoute
+  '/_explore/projects/': typeof ExploreProjectsIndexRoute
   '/_explore/tracks/': typeof ExploreTracksIndexRoute
   '/_explore/videos/': typeof ExploreVideosIndexRoute
   '/dashboard/live/': typeof DashboardLiveIndexRoute
@@ -799,6 +833,7 @@ export interface FileRoutesById {
   '/dashboard/projects/': typeof DashboardProjectsIndexRoute
   '/dashboard/tracks/': typeof DashboardTracksIndexRoute
   '/dashboard/videos/': typeof DashboardVideosIndexRoute
+  '/_explore/library/purchased/$purchaseId': typeof ExploreLibraryPurchasedPurchaseIdRoute
   '/_explore/live/battles/$id': typeof ExploreLiveBattlesIdRoute
   '/_explore/live/battles/leaderboard': typeof ExploreLiveBattlesLeaderboardRoute
   '/_explore/live/battles/must-see': typeof ExploreLiveBattlesMustSeeRoute
@@ -819,6 +854,7 @@ export interface FileRoutesById {
   '/_explore/live/battles/': typeof ExploreLiveBattlesIndexRoute
   '/_explore/live/parties/': typeof ExploreLivePartiesIndexRoute
   '/_explore/live/streams/': typeof ExploreLiveStreamsIndexRoute
+  '/_explore/projects/$id/': typeof ExploreProjectsIdIndexRoute
   '/dashboard/live/my-stats/': typeof DashboardLiveMyStatsIndexRoute
   '/dashboard/tracks/$id/': typeof DashboardTracksIdIndexRoute
   '/_explore/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
@@ -837,6 +873,7 @@ export interface FileRouteTypes {
     | '/new-releases'
     | '/shop'
     | '/dashboard/admin'
+    | '/dashboard/ads'
     | '/dashboard/ai-studio'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
@@ -883,6 +920,7 @@ export interface FileRouteTypes {
     | '/genres/'
     | '/library/'
     | '/live/'
+    | '/projects/'
     | '/tracks/'
     | '/videos/'
     | '/dashboard/live/'
@@ -890,6 +928,7 @@ export interface FileRouteTypes {
     | '/dashboard/projects/'
     | '/dashboard/tracks/'
     | '/dashboard/videos/'
+    | '/library/purchased/$purchaseId'
     | '/live/battles/$id'
     | '/live/battles/leaderboard'
     | '/live/battles/must-see'
@@ -910,6 +949,7 @@ export interface FileRouteTypes {
     | '/live/battles/'
     | '/live/parties/'
     | '/live/streams/'
+    | '/projects/$id/'
     | '/dashboard/live/my-stats/'
     | '/dashboard/tracks/$id/'
     | '/library/playlists/$id/'
@@ -923,6 +963,7 @@ export interface FileRouteTypes {
     | '/new-releases'
     | '/shop'
     | '/dashboard/admin'
+    | '/dashboard/ads'
     | '/dashboard/ai-studio'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
@@ -941,7 +982,6 @@ export interface FileRouteTypes {
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
-    | '/projects/$id'
     | '/tracks/$id'
     | '/videos/$id'
     | '/dashboard/career/ai-studio'
@@ -970,6 +1010,7 @@ export interface FileRouteTypes {
     | '/genres'
     | '/library'
     | '/live'
+    | '/projects'
     | '/tracks'
     | '/videos'
     | '/dashboard/live'
@@ -977,6 +1018,7 @@ export interface FileRouteTypes {
     | '/dashboard/projects'
     | '/dashboard/tracks'
     | '/dashboard/videos'
+    | '/library/purchased/$purchaseId'
     | '/live/battles/$id'
     | '/live/battles/leaderboard'
     | '/live/battles/must-see'
@@ -997,6 +1039,7 @@ export interface FileRouteTypes {
     | '/live/battles'
     | '/live/parties'
     | '/live/streams'
+    | '/projects/$id'
     | '/dashboard/live/my-stats'
     | '/dashboard/tracks/$id'
     | '/library/playlists/$id'
@@ -1013,6 +1056,7 @@ export interface FileRouteTypes {
     | '/_explore/new-releases'
     | '/_explore/shop'
     | '/dashboard/admin'
+    | '/dashboard/ads'
     | '/dashboard/ai-studio'
     | '/dashboard/billing'
     | '/dashboard/collaborators'
@@ -1060,6 +1104,7 @@ export interface FileRouteTypes {
     | '/_explore/genres/'
     | '/_explore/library/'
     | '/_explore/live/'
+    | '/_explore/projects/'
     | '/_explore/tracks/'
     | '/_explore/videos/'
     | '/dashboard/live/'
@@ -1067,6 +1112,7 @@ export interface FileRouteTypes {
     | '/dashboard/projects/'
     | '/dashboard/tracks/'
     | '/dashboard/videos/'
+    | '/_explore/library/purchased/$purchaseId'
     | '/_explore/live/battles/$id'
     | '/_explore/live/battles/leaderboard'
     | '/_explore/live/battles/must-see'
@@ -1087,6 +1133,7 @@ export interface FileRouteTypes {
     | '/_explore/live/battles/'
     | '/_explore/live/parties/'
     | '/_explore/live/streams/'
+    | '/_explore/projects/$id/'
     | '/dashboard/live/my-stats/'
     | '/dashboard/tracks/$id/'
     | '/_explore/library/playlists/$id/'
@@ -1230,6 +1277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAiStudioRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/ads': {
+      id: '/dashboard/ads'
+      path: '/ads'
+      fullPath: '/dashboard/ads'
+      preLoaderRoute: typeof DashboardAdsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/admin': {
       id: '/dashboard/admin'
       path: '/admin'
@@ -1305,6 +1359,13 @@ declare module '@tanstack/react-router' {
       path: '/tracks'
       fullPath: '/tracks/'
       preLoaderRoute: typeof ExploreTracksIndexRouteImport
+      parentRoute: typeof ExploreRoute
+    }
+    '/_explore/projects/': {
+      id: '/_explore/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof ExploreProjectsIndexRouteImport
       parentRoute: typeof ExploreRoute
     }
     '/_explore/live/': {
@@ -1573,6 +1634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardLiveMyStatsIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_explore/projects/$id/': {
+      id: '/_explore/projects/$id/'
+      path: '/'
+      fullPath: '/projects/$id/'
+      preLoaderRoute: typeof ExploreProjectsIdIndexRouteImport
+      parentRoute: typeof ExploreProjectsIdRoute
+    }
     '/_explore/live/streams/': {
       id: '/_explore/live/streams/'
       path: '/streams'
@@ -1713,6 +1781,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreLiveBattlesIdRouteImport
       parentRoute: typeof ExploreLiveRoute
     }
+    '/_explore/library/purchased/$purchaseId': {
+      id: '/_explore/library/purchased/$purchaseId'
+      path: '/library/purchased/$purchaseId'
+      fullPath: '/library/purchased/$purchaseId'
+      preLoaderRoute: typeof ExploreLibraryPurchasedPurchaseIdRouteImport
+      parentRoute: typeof ExploreRoute
+    }
     '/_explore/library/playlists/$id/': {
       id: '/_explore/library/playlists/$id/'
       path: '/library/playlists/$id'
@@ -1755,6 +1830,17 @@ const ExploreLiveRouteWithChildren = ExploreLiveRoute._addFileChildren(
   ExploreLiveRouteChildren,
 )
 
+interface ExploreProjectsIdRouteChildren {
+  ExploreProjectsIdIndexRoute: typeof ExploreProjectsIdIndexRoute
+}
+
+const ExploreProjectsIdRouteChildren: ExploreProjectsIdRouteChildren = {
+  ExploreProjectsIdIndexRoute: ExploreProjectsIdIndexRoute,
+}
+
+const ExploreProjectsIdRouteWithChildren =
+  ExploreProjectsIdRoute._addFileChildren(ExploreProjectsIdRouteChildren)
+
 interface ExploreRouteChildren {
   ExploreLiveRoute: typeof ExploreLiveRouteWithChildren
   ExploreNewReleasesRoute: typeof ExploreNewReleasesRoute
@@ -1766,15 +1852,17 @@ interface ExploreRouteChildren {
   ExploreArtistTopRoute: typeof ExploreArtistTopRoute
   ExploreGenresIdRoute: typeof ExploreGenresIdRoute
   ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute
-  ExploreProjectsIdRoute: typeof ExploreProjectsIdRoute
+  ExploreProjectsIdRoute: typeof ExploreProjectsIdRouteWithChildren
   ExploreTracksIdRoute: typeof ExploreTracksIdRoute
   ExploreVideosIdRoute: typeof ExploreVideosIdRoute
   ExploreArtistIndexRoute: typeof ExploreArtistIndexRoute
   ExploreCommunitiesIndexRoute: typeof ExploreCommunitiesIndexRoute
   ExploreGenresIndexRoute: typeof ExploreGenresIndexRoute
   ExploreLibraryIndexRoute: typeof ExploreLibraryIndexRoute
+  ExploreProjectsIndexRoute: typeof ExploreProjectsIndexRoute
   ExploreTracksIndexRoute: typeof ExploreTracksIndexRoute
   ExploreVideosIndexRoute: typeof ExploreVideosIndexRoute
+  ExploreLibraryPurchasedPurchaseIdRoute: typeof ExploreLibraryPurchasedPurchaseIdRoute
   ExploreTracksRegionSlugSlugRoute: typeof ExploreTracksRegionSlugSlugRoute
   ExploreVideosRegionSlugSlugRoute: typeof ExploreVideosRegionSlugSlugRoute
   ExploreLibraryPlaylistsIndexRoute: typeof ExploreLibraryPlaylistsIndexRoute
@@ -1796,15 +1884,18 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreArtistTopRoute: ExploreArtistTopRoute,
   ExploreGenresIdRoute: ExploreGenresIdRoute,
   ExploreLibrarySettingsRoute: ExploreLibrarySettingsRoute,
-  ExploreProjectsIdRoute: ExploreProjectsIdRoute,
+  ExploreProjectsIdRoute: ExploreProjectsIdRouteWithChildren,
   ExploreTracksIdRoute: ExploreTracksIdRoute,
   ExploreVideosIdRoute: ExploreVideosIdRoute,
   ExploreArtistIndexRoute: ExploreArtistIndexRoute,
   ExploreCommunitiesIndexRoute: ExploreCommunitiesIndexRoute,
   ExploreGenresIndexRoute: ExploreGenresIndexRoute,
   ExploreLibraryIndexRoute: ExploreLibraryIndexRoute,
+  ExploreProjectsIndexRoute: ExploreProjectsIndexRoute,
   ExploreTracksIndexRoute: ExploreTracksIndexRoute,
   ExploreVideosIndexRoute: ExploreVideosIndexRoute,
+  ExploreLibraryPurchasedPurchaseIdRoute:
+    ExploreLibraryPurchasedPurchaseIdRoute,
   ExploreTracksRegionSlugSlugRoute: ExploreTracksRegionSlugSlugRoute,
   ExploreVideosRegionSlugSlugRoute: ExploreVideosRegionSlugSlugRoute,
   ExploreLibraryPlaylistsIndexRoute: ExploreLibraryPlaylistsIndexRoute,
@@ -1845,6 +1936,7 @@ const DashboardProjectsIdRouteWithChildren =
 
 interface DashboardRouteChildren {
   DashboardAdminRoute: typeof DashboardAdminRoute
+  DashboardAdsRoute: typeof DashboardAdsRoute
   DashboardAiStudioRoute: typeof DashboardAiStudioRoute
   DashboardBillingRoute: typeof DashboardBillingRoute
   DashboardCollaboratorsRoute: typeof DashboardCollaboratorsRoute
@@ -1885,6 +1977,7 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAdminRoute: DashboardAdminRoute,
+  DashboardAdsRoute: DashboardAdsRoute,
   DashboardAiStudioRoute: DashboardAiStudioRoute,
   DashboardBillingRoute: DashboardBillingRoute,
   DashboardCollaboratorsRoute: DashboardCollaboratorsRoute,

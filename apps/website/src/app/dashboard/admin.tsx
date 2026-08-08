@@ -9,6 +9,7 @@ import {
   Globe2,
   Megaphone,
   MoreHorizontal,
+  Plus,
   Radio,
   RefreshCw,
   Search,
@@ -275,8 +276,6 @@ function AdsPanel() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
           <CardTitle className="flex items-center gap-2">
@@ -284,13 +283,17 @@ function AdsPanel() {
             Admin House Ads &amp; Campaign Control
           </CardTitle>
           <CardDescription>
-            Create platform-wide house ads with zero budget requirements and toggle live campaign status across all regions.
+            Create platform-wide house ads with zero budget requirements and
+            toggle live campaign status across all regions.
           </CardDescription>
         </div>
         <Button
           size="sm"
           onClick={() => {
-            const name = prompt("Enter House Ad Campaign Name:", "Global House Pre-Roll");
+            const name = prompt(
+              "Enter House Ad Campaign Name:",
+              "Global House Pre-Roll"
+            );
             if (name) {
               toast({
                 description: `Created house ad "${name}". Setting to live running status across all regions.`,
@@ -328,7 +331,11 @@ function AdsPanel() {
                 <TableRow key={campaign.id}>
                   <TableCell className="font-medium">{campaign.name}</TableCell>
                   <TableCell>
-                    <Badge variant={campaign.status === "running" ? "default" : "outline"}>
+                    <Badge
+                      variant={
+                        campaign.status === "running" ? "default" : "outline"
+                      }
+                    >
                       {campaign.status}
                     </Badge>
                   </TableCell>

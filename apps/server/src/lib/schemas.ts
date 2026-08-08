@@ -932,6 +932,33 @@ export const battleSummarySchema = z.object({
   visibility: z.enum(["public", "premium_only"]),
 });
 
+export const battleChallengeStatusSchema = z.enum([
+  "pending",
+  "accepted",
+  "declined",
+  "canceled",
+  "expired",
+]);
+
+export const battleChallengeSummarySchema = z.object({
+  challengerUsername: z.string().nullable(),
+  createdAt: z.string(),
+  direction: z.enum(["incoming", "outgoing"]),
+  format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
+  genre: z.string(),
+  id: z.string(),
+  message: z.string().nullable(),
+  opponentUsername: z.string().nullable(),
+  proposedDate: z.string().nullable(),
+  proposedTimeLabel: z.string().nullable(),
+  status: battleChallengeStatusSchema,
+});
+
+export const battleChallengesResponseSchema = z.object({
+  incoming: battleChallengeSummarySchema.array(),
+  outgoing: battleChallengeSummarySchema.array(),
+});
+
 export const libraryOverviewSchema = z.object({
   playlistCount: z.number(),
   purchaseCount: z.number(),
@@ -1438,6 +1465,10 @@ export const createChallengeBodySchema = z.object({
   opponentUsername: z.string().min(1),
   proposedDate: z.string().optional(),
   proposedTimeLabel: z.string().optional(),
+});
+
+export const updateBattleChallengeBodySchema = z.object({
+  status: z.enum(["accepted", "declined", "canceled"]),
 });
 
 export const battleEligibilityBodySchema = z.object({

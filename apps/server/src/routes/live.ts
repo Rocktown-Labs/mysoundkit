@@ -361,19 +361,6 @@ app.post("/experiences", async (c) => {
 
   const body = parseResult.data;
   const startsAt = body.scheduledStartAt ?? new Date().toISOString();
-  let meeting: RealtimeMeeting;
-
-  try {
-    meeting = await createRealtimeMeeting({
-      env: c.env,
-      kind: body.kind,
-      title: body.title.trim(),
-    });
-  } catch (error) {
-    console.error("Unable to create live experience meeting", error);
-    return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
-  }
-
   let streamInput = null;
 
   if (body.kind === "stream" && body.source === "obs") {
@@ -393,6 +380,27 @@ app.post("/experiences", async (c) => {
       );
     }
   }
+
+  let meeting: RealtimeMeeting;
+
+  try {
+    meeting = await createRealtimeMeeting({
+      env: c.env,
+      kind: body.kind,
+      title: body.title.trim(),
+    });
+  } catch (error) {
+    if (streamInput) {
+      meeting = createMockRealtimeMeeting({
+        kind: body.kind,
+        title: body.title.trim(),
+      });
+    } else {
+      console.error("Unable to create live experience meeting", error);
+      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    }
+  }
+
   const experienceId = `live_${body.kind}_${crypto.randomUUID()}`;
   const roomHref = `/live/${
     body.kind === "party" ? "parties" : `${body.kind}s`

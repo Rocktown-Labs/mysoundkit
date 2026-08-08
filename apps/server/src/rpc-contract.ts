@@ -8,6 +8,7 @@ import type {
   adminOverviewSchema,
   platformSettingsSchema,
   artistSummarySchema,
+  battleChallengesResponseSchema,
   battleSummarySchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
@@ -80,6 +81,7 @@ import {
   reviewLyricsRevisionBodySchema,
   settleTrackBodySchema,
   updatePlatformSettingsBodySchema,
+  updateBattleChallengeBodySchema,
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
@@ -379,6 +381,9 @@ export const rpcContract = new Hono()
   .get("/v1/battles/", (c) =>
     c.json([] as z.infer<typeof battleSummarySchema>[])
   )
+  .get("/v1/battles/challenges", (c) =>
+    c.json({} as z.infer<typeof battleChallengesResponseSchema>)
+  )
   .get("/v1/library/overview", (c) =>
     c.json({} as z.infer<typeof libraryOverviewSchema>)
   )
@@ -401,6 +406,11 @@ export const rpcContract = new Hono()
     "/v1/battles/challenge",
     jsonValidator(createChallengeBodySchema),
     (c) => c.json({ message: "" }, 201)
+  )
+  .patch(
+    "/v1/battles/challenges/:challengeId",
+    jsonValidator(updateBattleChallengeBodySchema),
+    (c) => c.json({} as z.infer<typeof messageResponseSchema>)
   )
   .get("/v1/battles/stats", (c) =>
     c.json(

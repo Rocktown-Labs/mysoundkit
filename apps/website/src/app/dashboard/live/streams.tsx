@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api";
+import { SoundKitApiError, apiClient } from "@/lib/api";
 import { liveExperienceConfigs } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
 import {
@@ -103,7 +103,7 @@ function DashboardLiveStreamsPage() {
   const [category, setCategory] = useState("Music");
   const [visibility, setVisibility] = useState("Public");
   const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
-  const [source, setSource] = useState<StreamSource>("browser");
+  const [source, setSource] = useState<StreamSource>("obs");
   const [activeStream, setActiveStream] = useState<ActiveStream | null>(
     readSavedStream
   );
@@ -171,9 +171,13 @@ function DashboardLiveStreamsPage() {
         description: "Stream room, chat, and encoder credentials are ready.",
         title: "Live stream created",
       });
-    } catch {
+    } catch (error) {
+      const description =
+        error instanceof SoundKitApiError
+          ? error.message
+          : "Could not create the live stream room. Please try again.";
       toast({
-        description: "Could not create the live stream room. Please try again.",
+        description,
         title: "Error starting stream",
         variant: "destructive",
       });
@@ -490,21 +494,17 @@ function RealAnalyticsPanel({
           Realtime Stream Analytics
         </CardTitle>
         <CardDescription>
-          Live telemetry metrics powered by Cloudflare Realtime.
+          Live telemetry appears after OBS connects to the stream input.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 text-sm">
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">RealtimeKit Layer</span>
-          <Badge variant="outline" className="text-primary">
-            Active
-          </Badge>
+          <span className="text-muted-foreground">Stream Input</span>
+          <Badge variant="outline">{activeStream?.status ?? "Offline"}</Badge>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Active Viewers</span>
-          <span className="font-bold text-foreground">
-            {activeStream ? "142" : "0"}
-          </span>
+          <span className="font-bold text-foreground">0</span>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Stream Latency</span>
@@ -512,30 +512,24 @@ function RealAnalyticsPanel({
             variant="outline"
             className="font-mono text-emerald-500 border-emerald-500/40"
           >
-            {activeStream ? "1.1s Low-Latency" : "Offline"}
+            {activeStream ? activeStream.status : "Offline"}
           </Badge>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Chat Velocity</span>
-          <span className="font-mono text-xs font-semibold">
-            {activeStream ? "28 msgs/min" : "0 msgs/min"}
-          </span>
+          <span className="font-mono text-xs font-semibold">0 msgs/min</span>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Peak Viewers</span>
-          <span className="font-semibold">{activeStream ? "310" : "0"}</span>
+          <span className="font-semibold">0</span>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Retention Rate</span>
-          <span className="font-semibold text-primary">
-            {activeStream ? "88%" : "N/A"}
-          </span>
+          <span className="font-semibold text-primary">N/A</span>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
           <span className="text-muted-foreground">Encoding / Quality</span>
-          <span className="font-mono text-xs">
-            {activeStream ? "1080p60 6Mbps" : "N/A"}
-          </span>
+          <span className="font-mono text-xs">N/A</span>
         </div>
       </CardContent>
     </Card>
@@ -575,7 +569,9 @@ function ControlRoom({
                 : "Join with browser camera when broadcast begins."}
             </CardDescription>
           </div>
-          <Badge variant="destructive" className="animate-pulse">
+          <Badge
+            variant={activeStream.status === "live" ? "destructive" : "outline"}
+          >
             {activeStream.status}
           </Badge>
         </div>
@@ -599,12 +595,12 @@ function ControlRoom({
             <CredentialRow
               field="RTMPS URL"
               onCopy={onCopy}
-              value={activeStream.rtmpsUrl}
+              value={activeStream.rtmpsUrl || "Waiting for Cloudflare Stream"}
             />
             <CredentialRow
               field="Stream Key"
               onCopy={onCopy}
-              value={visibleKey}
+              value={activeStream.rtmpsKey ? visibleKey : "Unavailable"}
             />
             <Button
               onClick={toggleShowStreamKey}
@@ -827,7 +823,7 @@ function StreamLibrary({
       <CardContent>
         {isLoading ? (
           <p className="text-muted-foreground text-sm">Loading videos...</p>
-        ) : (liveRecordings.length === 0 ? (
+        ) : liveRecordings.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center">
             <Tv className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-3 font-semibold text-sm">
@@ -860,7 +856,7 @@ function StreamLibrary({
               </div>
             ))}
           </div>
-        ))}
+        )}
       </CardContent>
     </Card>
   );
