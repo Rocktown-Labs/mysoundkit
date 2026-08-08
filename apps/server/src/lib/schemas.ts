@@ -287,6 +287,20 @@ export const entitlementSummarySchema = z.object({
   status: z.string().nullable(),
 });
 
+export const notificationSettingsSchema = z.object({
+  emailCollaborations: z.boolean(),
+  emailComments: z.boolean(),
+  emailFollowers: z.boolean(),
+  emailSales: z.boolean(),
+  emailTrackProcessing: z.boolean(),
+  pushMentions: z.boolean(),
+  pushMessages: z.boolean(),
+  pushReleases: z.boolean(),
+});
+
+export const updateNotificationSettingsBodySchema =
+  notificationSettingsSchema.partial();
+
 export const meResponseSchema = z.object({
   activeWorkspace: workspaceSummarySchema.nullable(),
   user: userSummarySchema,

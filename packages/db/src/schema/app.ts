@@ -288,6 +288,7 @@ export const webhookProviderEnum = pgEnum("webhook_provider", [
   "mux",
   "stemsplit",
   "battle_service",
+  "resend",
 ]);
 export const webhookStatusEnum = pgEnum("webhook_status", [
   "received",
@@ -669,6 +670,9 @@ export const notificationSettings = pgTable("notification_settings", {
   emailComments: boolean("email_comments").default(true).notNull(),
   emailFollowers: boolean("email_followers").default(true).notNull(),
   emailSales: boolean("email_sales").default(true).notNull(),
+  emailTrackProcessing: boolean("email_track_processing")
+    .default(true)
+    .notNull(),
   pushMentions: boolean("push_mentions").default(true).notNull(),
   pushMessages: boolean("push_messages").default(true).notNull(),
   pushReleases: boolean("push_releases").default(true).notNull(),

@@ -15,6 +15,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { processCompletedStemSplitJob } from "@/lib/audio-processing";
+import { verifyResendWebhook } from "@/lib/email";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -75,6 +76,32 @@ const getEventData = (event: unknown) => {
 const getStringValue = (value: unknown) =>
   typeof value === "string" && value.length > 0 ? value : null;
 
+const getResendEventId = (event: unknown) => {
+  if (
+    typeof event === "object" &&
+    event !== null &&
+    "id" in event &&
+    typeof event.id === "string"
+  ) {
+    return event.id;
+  }
+
+  return null;
+};
+
+const getResendEventType = (event: unknown) => {
+  if (
+    typeof event === "object" &&
+    event !== null &&
+    "type" in event &&
+    typeof event.type === "string"
+  ) {
+    return event.type;
+  }
+
+  return "unknown";
+};
+
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
 
@@ -94,7 +121,7 @@ const verifyStemSplitSignature = async ({
     return false;
   }
 
-  const signatureHex = signature.replace(/^sha256=/, "");
+  const signatureHex = signature.replace(/^sha256=/u, "");
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -684,6 +711,94 @@ app.openapi(
       { message: "StemSplit webhook accepted." },
       HttpStatusCodes.OK
     );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/resend",
+    responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid Resend webhook signature"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Resend webhook accepted"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Resend webhook secret unavailable"
+      ),
+    },
+    tags: ["Webhooks"],
+  }),
+  async (c) => {
+    const payload = await c.req.raw.text();
+
+    try {
+      const event = await verifyResendWebhook({
+        headers: c.req.raw.headers,
+        payload,
+      });
+
+      if (!event) {
+        return c.json(
+          { message: "Resend webhook verification is not configured." },
+          HttpStatusCodes.SERVICE_UNAVAILABLE
+        );
+      }
+
+      const externalEventId = getResendEventId(event);
+      const eventType = getResendEventType(event);
+
+      if (!(isDatabaseConfigured() && externalEventId)) {
+        return c.json(
+          { message: "Resend webhook accepted." },
+          HttpStatusCodes.OK
+        );
+      }
+
+      const db = createDb();
+      const [existingEvent] = await db
+        .select({ id: webhookEvents.id })
+        .from(webhookEvents)
+        .where(
+          and(
+            eq(webhookEvents.provider, "resend"),
+            eq(webhookEvents.externalEventId, externalEventId)
+          )
+        )
+        .limit(1);
+
+      if (existingEvent) {
+        return c.json(
+          { message: "Resend webhook already processed." },
+          HttpStatusCodes.OK
+        );
+      }
+
+      await db.insert(webhookEvents).values({
+        eventType,
+        externalEventId,
+        id: crypto.randomUUID(),
+        payload: event as unknown as Record<string, unknown>,
+        processedAt: new Date(),
+        provider: "resend",
+        status: "processed",
+      });
+
+      return c.json(
+        { message: "Resend webhook accepted." },
+        HttpStatusCodes.OK
+      );
+    } catch {
+      return c.json(
+        { message: "Invalid Resend webhook signature." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
   }
 );
 

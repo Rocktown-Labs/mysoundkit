@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added Resend-backed track lifecycle emails with React Email templates, a local transactional email preview package, notification preference controls, and a verified Resend webhook endpoint.
 - Added a dashboard lyrics workspace for artist-entered sectioned lyrics, draft sync points, manual timestamp editing, pending revision saves, and synced lyrics approval.
 - Added OpenAI timestamped vocal transcription after StemSplit processing, storing word-derived timed lyric lines for track playback and live overlays.
 - Added persistent AI credit grants and real admin finance actions for Stripe coupon syncing, premium grants, and credit grants.

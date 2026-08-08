@@ -10,6 +10,9 @@ import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
 const meProfilePatch = apiClient.v1.me.profile.$patch;
+const meNotificationSettingsGet = apiClient.v1.me["notification-settings"].$get;
+const meNotificationSettingsPatch =
+  apiClient.v1.me["notification-settings"].$patch;
 const meEntitlementsGet = apiClient.v1.me.entitlements.$get;
 const billingCheckoutPost = apiClient.v1.billing.checkout.$post;
 const adminAccessGet = apiClient.v1.admin.access.$get;
@@ -138,6 +141,9 @@ export type BillingCheckoutResponse = InferResponseType<
   200
 >;
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
+type UpdateNotificationSettingsBody = InferRequestType<
+  typeof meNotificationSettingsPatch
+>["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
 export type LibraryPlaylist = InferResponseType<
@@ -238,6 +244,7 @@ export const soundkitQueryKeys = {
   liveExperience: (id: string) => ["live", "experiences", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
+  meNotificationSettings: ["me", "notification-settings"] as const,
   notifications: ["notifications"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
@@ -350,6 +357,25 @@ export const useUpdateMeProfileMutation = () => {
       rpcJson(await meProfilePatch({ json: body })),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me }),
+  });
+};
+
+export const useNotificationSettingsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await meNotificationSettingsGet()),
+    queryKey: soundkitQueryKeys.meNotificationSettings,
+  });
+
+export const useUpdateNotificationSettingsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: UpdateNotificationSettingsBody) =>
+      rpcJson(await meNotificationSettingsPatch({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.meNotificationSettings,
+      }),
   });
 };
 

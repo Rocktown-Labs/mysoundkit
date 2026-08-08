@@ -157,7 +157,6 @@ function AdminDashboard() {
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="coupons">Coupons</TabsTrigger>
-          <TabsTrigger value="emails">Email Templates</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
@@ -171,9 +170,6 @@ function AdminDashboard() {
         </TabsContent>
         <TabsContent value="coupons" className="mt-6">
           <CouponsPanel />
-        </TabsContent>
-        <TabsContent value="emails" className="mt-6">
-          <EmailsPanel />
         </TabsContent>
         <TabsContent value="settings" className="mt-6">
           <SettingsPanel />
@@ -1836,168 +1832,6 @@ function CouponsPanel() {
             </TableBody>
           </Table>
         </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function EmailsPanel() {
-  const [selectedTemplate, setSelectedTemplate] = useState<
-    "post_battle" | "battle_challenge" | "open_verse" | "weekly_summary"
-  >("post_battle");
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-        <div>
-          <h2 className="text-lg font-bold">React Email Template Previews</h2>
-          <p className="text-sm text-muted-foreground">
-            Preview live transactional email templates sent via Resend.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={selectedTemplate === "post_battle" ? "default" : "outline"}
-            onClick={() => setSelectedTemplate("post_battle")}
-            className="text-xs"
-          >
-            🏆 Post-Battle Recap
-          </Button>
-          <Button
-            size="sm"
-            variant={
-              selectedTemplate === "battle_challenge" ? "default" : "outline"
-            }
-            onClick={() => setSelectedTemplate("battle_challenge")}
-            className="text-xs"
-          >
-            ⚔️ Battle Challenge
-          </Button>
-          <Button
-            size="sm"
-            variant={selectedTemplate === "open_verse" ? "default" : "outline"}
-            onClick={() => setSelectedTemplate("open_verse")}
-            className="text-xs"
-          >
-            🎙️ Open Verse Collab
-          </Button>
-          <Button
-            size="sm"
-            variant={
-              selectedTemplate === "weekly_summary" ? "default" : "outline"
-            }
-            onClick={() => setSelectedTemplate("weekly_summary")}
-            className="text-xs"
-          >
-            📊 Weekly Summary
-          </Button>
-        </div>
-      </div>
-
-      {/* Rendered Email Template HTML Box */}
-      <Card className="p-6 bg-zinc-950 border-zinc-800 text-white max-w-2xl mx-auto shadow-2xl rounded-2xl">
-        {selectedTemplate === "post_battle" && (
-          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <div className="border-b pb-4">
-              <h2 className="text-xl font-bold text-rose-600">
-                🏆 Battle Recap &amp; Tracklist
-              </h2>
-              <p className="text-xs text-zinc-500 mt-1">
-                Winner: <strong>MetroFlow</strong> (3 - 2)
-              </p>
-            </div>
-            <p className="text-sm">
-              Hey Alex, here is the tracklist played during the live battle:
-            </p>
-            <ul className="bg-zinc-50 p-4 rounded-lg text-xs space-y-2 border">
-              <li>
-                Round 1: <strong>Metro Bounce (WAV)</strong>
-              </li>
-              <li>
-                Round 2: <strong>Nightfall Vibe (Master)</strong>
-              </li>
-              <li>
-                Round 3: <strong>Cyberpunk Anthem (Unreleased)</strong>
-              </li>
-            </ul>
-            <a
-              href="/live/preview"
-              className="inline-block bg-rose-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow"
-            >
-              Watch Battle Replay
-            </a>
-          </div>
-        )}
-
-        {selectedTemplate === "battle_challenge" && (
-          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <h2 className="text-xl font-bold text-purple-600">
-              Swords Up! New Battle Challenge
-            </h2>
-            <p className="text-sm">Hey ProducerKev,</p>
-            <p className="text-sm">
-              <strong>MetroFlow</strong> has challenged you to a{" "}
-              <strong>Best of 5</strong> battle on SoundKit!
-            </p>
-            <blockquote className="border-l-4 border-purple-600 pl-3 italic text-xs text-zinc-600">
-              "Let's see who has the best drum processing."
-            </blockquote>
-            <a
-              href="/dashboard/live/challenge"
-              className="inline-block bg-purple-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
-            >
-              Respond to Challenge
-            </a>
-          </div>
-        )}
-
-        {selectedTemplate === "open_verse" && (
-          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <h2 className="text-xl font-bold text-pink-600">
-              Private Open Verse Collab Invitation
-            </h2>
-            <p className="text-sm">Hey Sarah,</p>
-            <p className="text-sm">
-              <strong>MetroFlow</strong> invited you to collaborate on their
-              private Open Verse: <strong>"Midnight Mixtape Track 4"</strong>.
-            </p>
-            <a
-              href="/dashboard/open-verses"
-              className="inline-block bg-pink-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
-            >
-              Join Collaboration
-            </a>
-          </div>
-        )}
-
-        {selectedTemplate === "weekly_summary" && (
-          <div className="space-y-4 font-sans p-6 bg-white text-zinc-900 rounded-xl">
-            <h2 className="text-xl font-bold text-blue-600">
-              Your Weekly SoundKit Performance Summary
-            </h2>
-            <p className="text-sm">Hey MetroFlow,</p>
-            <p className="text-sm">Here is your weekly artist recap:</p>
-            <ul className="bg-blue-50 p-4 rounded-lg text-xs space-y-1.5 border border-blue-100">
-              <li>
-                <strong>Weekly Qualified Streams:</strong> 12,480
-              </li>
-              <li>
-                <strong>Active Fan Count:</strong> 850
-              </li>
-              <li>
-                <strong>Payout Pool Share:</strong> $342.50
-              </li>
-            </ul>
-            <a
-              href="/dashboard"
-              className="inline-block bg-blue-600 text-white font-bold text-xs px-5 py-2.5 rounded-full shadow mt-2"
-            >
-              Open Artist Dashboard
-            </a>
-          </div>
-        )}
       </Card>
     </div>
   );

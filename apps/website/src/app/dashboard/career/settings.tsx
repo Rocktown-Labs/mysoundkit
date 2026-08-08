@@ -21,22 +21,127 @@ import { toast } from "@/components/ui/use-toast";
 import {
   useMeEntitlementsQuery,
   useMeQuery,
+  useNotificationSettingsQuery,
   useUpdateMeProfileMutation,
+  useUpdateNotificationSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/settings")({
   component: SettingsPage,
 });
 
+const defaultNotificationSettings = {
+  emailCollaborations: true,
+  emailComments: true,
+  emailFollowers: true,
+  emailSales: true,
+  emailTrackProcessing: true,
+  pushMentions: true,
+  pushMessages: true,
+  pushReleases: true,
+};
+
+type NotificationSettingKey = keyof typeof defaultNotificationSettings;
+
+const emailNotificationItems: {
+  description: string;
+  key: NotificationSettingKey;
+  title: string;
+}[] = [
+  {
+    description: "Get notified when someone follows you",
+    key: "emailFollowers",
+    title: "New Followers",
+  },
+  {
+    description: "Get notified when your uploaded tracks are live or processed",
+    key: "emailTrackProcessing",
+    title: "Track Processing",
+  },
+  {
+    description: "Get notified when someone comments on your tracks",
+    key: "emailComments",
+    title: "Comments",
+  },
+  {
+    description: "Get notified about collaboration requests",
+    key: "emailCollaborations",
+    title: "Collaborations",
+  },
+  {
+    description: "Get notified when someone purchases your music",
+    key: "emailSales",
+    title: "Sales",
+  },
+];
+
+const pushNotificationItems: {
+  description: string;
+  key: NotificationSettingKey;
+  title: string;
+}[] = [
+  {
+    description: "Get notified about new messages",
+    key: "pushMessages",
+    title: "Messages",
+  },
+  {
+    description: "Get notified when someone mentions you",
+    key: "pushMentions",
+    title: "Mentions",
+  },
+  {
+    description: "Get notified about new releases from artists you follow",
+    key: "pushReleases",
+    title: "Releases",
+  },
+];
+
+const privacyNotificationItems = [
+  {
+    description: "Make your profile visible at mysoundkit.com/johndoe",
+    key: "public-profile",
+    title: "Public Profile",
+  },
+  {
+    description: "Display number of tracks on your profile",
+    key: "track-count",
+    title: "Show Track Count",
+  },
+  {
+    description: "Display your follower count publicly",
+    key: "followers",
+    title: "Show Followers",
+  },
+  {
+    description: "Display who you've collaborated with",
+    key: "collaborators",
+    title: "Show Collaborators",
+  },
+];
+
+// Existing settings sections are intentionally consolidated into one screen.
+// eslint-disable-next-line complexity
 function SettingsPage() {
   const meQuery = useMeQuery();
   const entitlementsQuery = useMeEntitlementsQuery();
+  const notificationSettingsQuery = useNotificationSettingsQuery();
   const updateProfile = useUpdateMeProfileMutation();
+  const updateNotificationSettings = useUpdateNotificationSettingsMutation();
   const user = meQuery.data?.user;
   const entitlements = entitlementsQuery.data;
+  const notificationSettings = {
+    ...defaultNotificationSettings,
+    ...notificationSettingsQuery.data,
+  };
   const location = [user?.city, user?.state].filter(Boolean).join(", ");
   const [isDirty, setIsDirty] = useState(false);
-  const [bioLength, setBioLength] = useState(user?.bio?.length ?? 0);
+  const updateNotificationSetting = (
+    key: NotificationSettingKey,
+    checked: boolean
+  ) => {
+    updateNotificationSettings.mutate({ [key]: checked });
+  };
 
   const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -445,37 +550,27 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                {
-                  description: "Get notified when someone follows you",
-                  title: "New Followers",
-                },
-                {
-                  description: "Weekly summary of your track plays",
-                  title: "Track Plays",
-                },
-                {
-                  description:
-                    "Get notified when someone comments on your tracks",
-                  title: "Comments",
-                },
-                {
-                  description: "Get notified about collaboration requests",
-                  title: "Collaborations",
-                },
-                {
-                  description: "Get notified when someone purchases your music",
-                  title: "Sales",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
+              {emailNotificationItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-4"
+                >
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
                     <p className="text-sm text-muted-foreground">
                       {item.description}
                     </p>
                   </div>
-                  <Switch defaultChecked={i < 3} />
+                  <Switch
+                    checked={notificationSettings[item.key]}
+                    disabled={
+                      notificationSettingsQuery.isLoading ||
+                      updateNotificationSettings.isPending
+                    }
+                    onCheckedChange={(checked) =>
+                      updateNotificationSetting(item.key, checked)
+                    }
+                  />
                 </div>
               ))}
             </CardContent>
@@ -489,29 +584,27 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                {
-                  description: "Get notified about new messages",
-                  title: "Messages",
-                },
-                {
-                  description: "Get notified when someone mentions you",
-                  title: "Mentions",
-                },
-                {
-                  description:
-                    "Get notified about new releases from artists you follow",
-                  title: "Releases",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
+              {pushNotificationItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-4"
+                >
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
                     <p className="text-sm text-muted-foreground">
                       {item.description}
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch
+                    checked={notificationSettings[item.key]}
+                    disabled={
+                      notificationSettingsQuery.isLoading ||
+                      updateNotificationSettings.isPending
+                    }
+                    onCheckedChange={(checked) =>
+                      updateNotificationSetting(item.key, checked)
+                    }
+                  />
                 </div>
               ))}
             </CardContent>
@@ -527,26 +620,11 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                {
-                  description:
-                    "Make your profile visible at mysoundkit.com/johndoe",
-                  title: "Public Profile",
-                },
-                {
-                  description: "Display number of tracks on your profile",
-                  title: "Show Track Count",
-                },
-                {
-                  description: "Display your follower count publicly",
-                  title: "Show Followers",
-                },
-                {
-                  description: "Display who you've collaborated with",
-                  title: "Show Collaborators",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
+              {privacyNotificationItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between"
+                >
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
                     <p className="text-sm text-muted-foreground">

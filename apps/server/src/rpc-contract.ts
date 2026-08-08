@@ -23,6 +23,7 @@ import type {
   lyricsRevisionSchema,
   meResponseSchema,
   messageSchema,
+  notificationSettingsSchema,
   openVerseListingSchema,
   openVersePageSchema,
   openVerseSubmissionSchema,
@@ -79,6 +80,7 @@ import {
   reviewLyricsRevisionBodySchema,
   settleTrackBodySchema,
   updatePlatformSettingsBodySchema,
+  updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
@@ -210,6 +212,14 @@ export const rpcContract = new Hono()
   .get("/v1/me/", (c) => c.json({} as z.infer<typeof meResponseSchema>))
   .patch("/v1/me/profile", jsonValidator(profileUpdateBodySchema), (c) =>
     c.json({ message: "" })
+  )
+  .get("/v1/me/notification-settings", (c) =>
+    c.json({} as z.infer<typeof notificationSettingsSchema>)
+  )
+  .patch(
+    "/v1/me/notification-settings",
+    jsonValidator(updateNotificationSettingsBodySchema),
+    (c) => c.json({} as z.infer<typeof notificationSettingsSchema>)
   )
   .get("/v1/me/entitlements", (c) =>
     c.json({} as z.infer<typeof entitlementSummarySchema>)

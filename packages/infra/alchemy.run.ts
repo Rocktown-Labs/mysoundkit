@@ -250,6 +250,11 @@ export const server = await Worker("server", {
       alchemy.secret.env.OPENAI_API_KEY,
       "OPENAI_API_KEY"
     ),
+    SOUNDKIT_PUBLIC_URL: SITE_URL,
+    ...optionalEnvBinding("RESEND_API_KEY"),
+    ...optionalEnvBinding("RESEND_WEBHOOK_SECRET"),
+    ...optionalEnvBinding("SOUNDKIT_EMAIL_FROM"),
+    ...optionalEnvBinding("SOUNDKIT_EMAIL_REPLY_TO"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
     STEMSPLIT_API_KEY: requiredSecret(
       alchemy.secret.env.STEMSPLIT_API_KEY,
