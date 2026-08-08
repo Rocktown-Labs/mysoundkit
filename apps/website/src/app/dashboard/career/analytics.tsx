@@ -115,6 +115,17 @@ const sourcesChartConfig: ChartConfig = {
   playlists: { label: "User Playlists", color: "hsl(var(--chart-3, 30 80% 55%))" },
 };
 
+const spike48hData = [
+  { hour: "Hour 0", streams: 120 },
+  { hour: "Hour 6", streams: 450 },
+  { hour: "Hour 12", streams: 1100 },
+  { hour: "Hour 18", streams: 1850 },
+  { hour: "Hour 24 (Day 1)", streams: 2900 },
+  { hour: "Hour 30", streams: 3400 },
+  { hour: "Hour 36", streams: 4100 },
+  { hour: "Hour 48 (Day 2)", streams: 5200 },
+];
+
 export function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d");
   const tracksQuery = useTracksQuery();
@@ -314,6 +325,48 @@ export function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Release Impact: First 24 to 48-Hour Spike Tracker */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Flame className="size-5 text-amber-500" />
+                First 24 to 48-Hour Release Spike Tracker
+              </CardTitle>
+              <CardDescription>
+                Real-time stream progression during initial release windows to measure campaign momentum.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="w-fit border-amber-500/40 text-amber-400">
+              Live Release Window
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={{}} className="h-[200px] w-full">
+            <AreaChart data={spike48hData} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="fillSpike" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="hour" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Area
+                type="monotone"
+                dataKey="streams"
+                stroke="#f59e0b"
+                strokeWidth={2}
+                fill="url(#fillSpike)"
+              />
+            </AreaChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
 
       {/* Chart Row 2: Horizontal Bar Chart (Geographic Reach) & Donut Chart (Subscribers vs Free) */}
       <div className="grid gap-6 lg:grid-cols-3">
