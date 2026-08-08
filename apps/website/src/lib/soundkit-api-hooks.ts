@@ -34,6 +34,7 @@ const trackGet = apiClient.v1.tracks[":trackId"].$get;
 const trackPatch = apiClient.v1.tracks[":trackId"].$patch;
 const trackDelete = apiClient.v1.tracks[":trackId"].$delete;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
+const trackSettlePost = apiClient.v1.tracks[":trackId"].settle.$post;
 const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
 const trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post;
 const trackLyricsReviewPatch =
@@ -99,6 +100,7 @@ export type TrackDetail = InferResponseType<typeof trackGet, 200>;
 type CreateTrackBody = InferRequestType<typeof tracksPost>["json"];
 type UpdateTrackBody = InferRequestType<typeof trackPatch>["json"];
 type CreateTrackAssetBody = InferRequestType<typeof trackAssetPost>["json"];
+type SettleTrackBody = InferRequestType<typeof trackSettlePost>["json"];
 type TrackProcessingStatus = InferResponseType<typeof trackProcessPost, 200>;
 type CreateLyricsRevisionBody = InferRequestType<
   typeof trackLyricsPost
@@ -612,6 +614,28 @@ export const useCreateTrackAssetMutation = (trackId: string) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.track(trackId),
       }),
+  });
+};
+
+export const useSettleTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      body,
+      trackId,
+    }: {
+      body: SettleTrackBody;
+      trackId: string;
+    }) => rpcJson(await trackSettlePost({ json: body, param: { trackId } })),
+    onSuccess: (_, { trackId }) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
   });
 };
 

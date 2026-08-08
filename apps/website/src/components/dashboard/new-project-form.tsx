@@ -85,10 +85,12 @@ import {
   PROJECT_ASSETS_UPLOAD_URL,
   rpcJson,
 } from "@/lib/api";
+import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
   useCreateProjectMutation,
   useGenresQuery,
+  useSettleTrackMutation,
   useTracksQuery,
   useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -147,6 +149,8 @@ const projectFormSchema = z.object({
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
+const projectPatch = apiClient.v1.projects[":projectId"].$patch;
+const projectsPost = apiClient.v1.projects.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 
 interface GenreOption {
@@ -201,6 +205,7 @@ export function NewProjectForm({
     isLoading: tracksLoading,
   } = useTracksQuery();
   const createProjectMutation = useCreateProjectMutation();
+  const settleTrackMutation = useSettleTrackMutation();
   const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
 
   const defaultProjectFormValues: ProjectFormValues = {
@@ -470,6 +475,20 @@ export function NewProjectForm({
     }
 
     try {
+      const filelessNewTrack = values.newTracks.find(
+        (track) => !(track.file instanceof File) && !track.assetId
+      );
+
+      if (filelessNewTrack) {
+        toast({
+          description:
+            "Every new project track needs an uploaded audio file before the project can be created.",
+          title: "Track audio required",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const projectTracks = values.newTracks.map((track) => {
         const projectTrack = {
           genre: track.genre || values.genre || "Hip-Hop/Rap",
@@ -484,7 +503,7 @@ export function NewProjectForm({
         collaboratorNames: values.collaborators.map(
           (collaborator) => collaborator.name
         ),
-        isPublic: true,
+        isPublic: false,
         newTracks: projectTracks,
         projectType: values.type,
         streamingLinks: {},
@@ -494,20 +513,39 @@ export function NewProjectForm({
         ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
       };
 
-      const project = await createProjectMutation.mutateAsync(projectPayload);
-      const pendingTrackFiles = values.newTracks
-        .map((track, index) => ({
+      const project = await rpcJson(
+        await projectsPost({ json: projectPayload })
+      );
+      const pendingTrackFiles = await Promise.all(
+        values.newTracks.map(async (track, index) => ({
+          durationMs:
+            track.file instanceof File
+              ? await readAudioDurationMs(track.file)
+              : null,
           file: track.file instanceof File ? track.file : null,
           index,
         }))
-        .filter(
-          (entry): entry is { file: File; index: number } =>
-            Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
-        );
+      );
+      const pendingTrackUploads = pendingTrackFiles.filter(
+        (
+          entry
+        ): entry is {
+          durationMs: number | null;
+          file: File;
+          index: number;
+        } => Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
+      );
 
-      if (pendingTrackFiles.length > 0) {
+      const projectDetail = await rpcJson(
+        await projectGet({ param: { projectId: project.id } })
+      );
+      const newProjectTracks = projectDetail.tracks.filter(
+        (track) => !values.selectedExistingTracks.includes(track.id)
+      );
+
+      if (pendingTrackUploads.length > 0) {
         const uploadedAssets = await uploadProjectTrackFiles(
-          pendingTrackFiles.map(({ file }) => file)
+          pendingTrackUploads.map(({ file }) => file)
         );
 
         if (!uploadedAssets) {
@@ -524,14 +562,10 @@ export function NewProjectForm({
           return;
         }
 
-        const projectDetail = await rpcJson(
-          await projectGet({ param: { projectId: project.id } })
-        );
-        const newProjectTracks = projectDetail.tracks.filter(
-          (track) => !values.selectedExistingTracks.includes(track.id)
-        );
-
-        for (const [uploadIndex, pendingTrack] of pendingTrackFiles.entries()) {
+        for (const [
+          uploadIndex,
+          pendingTrack,
+        ] of pendingTrackUploads.entries()) {
           const uploadedAsset = uploadedAssets[uploadIndex];
           const projectTrack = newProjectTracks[pendingTrack.index];
 
@@ -543,7 +577,9 @@ export function NewProjectForm({
             await trackAssetPost({
               json: {
                 assetKind: "master",
+                durationMs: pendingTrack.durationMs ?? undefined,
                 metadata: {
+                  durationMs: pendingTrack.durationMs,
                   originalFileName: uploadedAsset.fileName,
                   url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
                 },
@@ -559,6 +595,40 @@ export function NewProjectForm({
         }
       }
 
+      for (const projectTrack of newProjectTracks) {
+        await settleTrackMutation.mutateAsync({
+          body: {
+            isPublic: true,
+            productionStatus: "complete",
+            releaseAt: values.releaseDate || undefined,
+            releaseStrategy: values.releaseDate
+              ? "scheduled"
+              : "publish_when_ready",
+            requireCoverArt: true,
+          },
+          trackId: projectTrack.id,
+        });
+      }
+
+      const settledProject = await rpcJson(
+        await projectPatch({
+          json: {
+            assetIds: coverKey ? [coverKey] : undefined,
+            description: values.description || undefined,
+            isPublic: true,
+            projectType: values.type,
+            releaseDate: values.releaseDate || undefined,
+            streamingLinks: {},
+            title: values.name,
+          },
+          param: { projectId: project.id },
+        })
+      );
+
+      await queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
+
       posthog.capture("project_created", {
         collaborator_count: values.collaborators.length,
         existing_track_count: values.selectedExistingTracks.length,
@@ -568,7 +638,7 @@ export function NewProjectForm({
         project_type: values.type,
       });
       toast({
-        description: `${project.title} is now in your project dashboard.`,
+        description: `${settledProject.title} is now in your project dashboard.`,
         title: "Project Created",
       });
       resetDraft();

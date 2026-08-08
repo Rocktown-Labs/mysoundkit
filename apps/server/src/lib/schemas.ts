@@ -1076,6 +1076,14 @@ export const createTrackBodySchema = z.object({
   title: z.string().min(1),
 });
 
+export const settleTrackBodySchema = z.object({
+  isPublic: z.boolean(),
+  productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
+  releaseAt: z.string().optional(),
+  releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
+  requireCoverArt: z.boolean().default(false),
+});
+
 export const peopleSearchQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(20).default(8),
   q: z.string().trim().min(1).max(80),
@@ -1263,6 +1271,7 @@ export const createProjectBodySchema = z.object({
     .array(
       z.object({
         assetId: z.string().optional(),
+        durationMs: z.number().int().nonnegative().optional(),
         fileName: z.string().optional(),
         genre: z.string().min(1),
         mimeType: z.string().optional(),

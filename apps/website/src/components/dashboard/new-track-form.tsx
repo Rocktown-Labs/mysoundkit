@@ -77,12 +77,14 @@ import {
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
   useCreateOpenVerseMutation,
   useCreateTrackMutation,
   useGenresQuery,
   usePeopleSearchQuery,
+  useSettleTrackMutation,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
@@ -224,6 +226,7 @@ const defaultTrackFormValues: TrackFormValues = {
 
 interface UploadedTrackPreview {
   assetId: string;
+  durationMs?: number | null;
   objectKey: string;
   remoteUrl: string;
   statusMessage: string;
@@ -292,6 +295,9 @@ export function NewTrackForm({
   const [selectedMasterFile, setSelectedMasterFile] = useState<File | null>(
     null
   );
+  const [selectedMasterDurationMs, setSelectedMasterDurationMs] = useState<
+    number | null
+  >(null);
   const [leadVocalsFile, setLeadVocalsFile] = useState<File | null>(null);
   const [adlibsFile, setAdlibsFile] = useState<File | null>(null);
   const [instrumentalFile, setInstrumentalFile] = useState<File | null>(null);
@@ -307,6 +313,7 @@ export function NewTrackForm({
 
   const createOpenVerseMutation = useCreateOpenVerseMutation();
   const createTrackMutation = useCreateTrackMutation();
+  const settleTrackMutation = useSettleTrackMutation();
   const updateTrackMutation = useUpdateTrackMutation(trackId ?? "");
   const { data: session } = authClient.useSession();
   const peopleSearch = usePeopleSearchQuery(creditQuery);
@@ -452,6 +459,7 @@ export function NewTrackForm({
         !masterFound
       ) {
         setSelectedMasterFile(file);
+        void readAudioDurationMs(file).then(setSelectedMasterDurationMs);
         masterFound = true;
         if (!form.getValues("name")) {
           const cleanName = file.name
@@ -511,6 +519,7 @@ export function NewTrackForm({
   const clearTrackMediaState = () => {
     setSelectedCoverFile(null);
     setSelectedMasterFile(null);
+    setSelectedMasterDurationMs(null);
     setLeadVocalsFile(null);
     setAdlibsFile(null);
     setInstrumentalFile(null);
@@ -537,11 +546,13 @@ export function NewTrackForm({
   };
 
   const attachMasterUploadToTrack = async ({
+    durationMs,
     file,
     objectKey,
     remoteUrl,
     track,
   }: {
+    durationMs: number | null;
     file: File;
     objectKey: string;
     remoteUrl: string;
@@ -574,7 +585,9 @@ export function NewTrackForm({
       await trackAssetPost({
         json: {
           assetKind: "master",
+          durationMs: durationMs ?? undefined,
           metadata: {
+            durationMs,
             originalFileName: file.name,
             url: remoteUrl,
           },
@@ -600,6 +613,7 @@ export function NewTrackForm({
 
     const preview = {
       assetId: masterAsset?.id ?? "",
+      durationMs,
       objectKey,
       remoteUrl,
       statusMessage:
@@ -675,26 +689,31 @@ export function NewTrackForm({
         return;
       }
 
-      void attachMasterUploadToTrack({
-        file: sourceFile,
-        objectKey,
-        remoteUrl,
-        track: pendingTrack,
-      }).catch((draftError: unknown) => {
-        posthog.captureException(draftError);
-        toast({
-          description:
-            draftError instanceof Error
-              ? draftError.message
-              : "Upload finished but the track could not be created.",
-          title: "Track attach failed",
-          variant: "destructive",
+      void readAudioDurationMs(sourceFile)
+        .then((durationMs) =>
+          attachMasterUploadToTrack({
+            durationMs: selectedMasterDurationMs ?? durationMs,
+            file: sourceFile,
+            objectKey,
+            remoteUrl,
+            track: pendingTrack,
+          })
+        )
+        .catch((draftError: unknown) => {
+          posthog.captureException(draftError);
+          toast({
+            description:
+              draftError instanceof Error
+                ? draftError.message
+                : "Upload finished but the track could not be created.",
+            title: "Track attach failed",
+            variant: "destructive",
+          });
+          if (masterUploadResolverRef.current) {
+            masterUploadResolverRef.current(null);
+            masterUploadResolverRef.current = null;
+          }
         });
-        if (masterUploadResolverRef.current) {
-          masterUploadResolverRef.current(null);
-          masterUploadResolverRef.current = null;
-        }
-      });
     },
     onUploadFail: ({ failedFiles }) => {
       const [failed] = failedFiles;
@@ -809,6 +828,7 @@ export function NewTrackForm({
     }
 
     setSelectedMasterFile(file);
+    setSelectedMasterDurationMs(await readAudioDurationMs(file));
   };
 
   const handleSaveTrackDraft = async () => {
@@ -1036,7 +1056,6 @@ export function NewTrackForm({
 
       if (!trackPreview && selectedMasterFile) {
         try {
-          const release = mapStatusToRelease(values.status);
           createdTrackForUpload = await createTrackMutation.mutateAsync({
             assetIds: [],
             catalogItemType: "single",
@@ -1049,18 +1068,17 @@ export function NewTrackForm({
             description: values.description || undefined,
             genre: values.genre,
             isForSale: values.isForSale,
-            isOpenVerse: release.isOpenVerse,
-            isPublic: release.isPublic,
+            isOpenVerse: false,
+            isPublic: false,
             isrc: values.isrc || undefined,
             musicalKey: values.key || undefined,
             price: values.isForSale ? SINGLE_PRICE_USD : undefined,
             priceCents: values.isForSale
               ? Math.round(SINGLE_PRICE_USD * 100)
               : undefined,
-            productionStatus: release.productionStatus,
+            productionStatus: "demo",
             purchaseMode: "digital_download",
-            releaseAt: values.releaseAt || undefined,
-            releaseStrategy: release.releaseStrategy,
+            releaseStrategy: "private",
             streamingLinks: {
               appleMusic: values.streamingAppleMusic || undefined,
               spotify: values.streamingSpotify || undefined,
@@ -1132,6 +1150,31 @@ export function NewTrackForm({
 
       setSubmitStage("processing");
       setSubmitProgress(80);
+      const release = mapStatusToRelease(values.status, values.releaseAt);
+      const requireCoverArt = values.status !== "draft";
+
+      if (requireCoverArt && !coverKey) {
+        toast({
+          description:
+            "Add cover art before making this track live. The uploaded master is saved as a private draft.",
+          title: "Cover art required",
+          variant: "destructive",
+        });
+        setSubmitStage("idle");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const settledTrack = await settleTrackMutation.mutateAsync({
+        body: {
+          isPublic: release.isPublic,
+          productionStatus: release.productionStatus,
+          releaseAt: values.releaseAt || undefined,
+          releaseStrategy: release.releaseStrategy,
+          requireCoverArt,
+        },
+        trackId: trackPreview.trackId,
+      });
 
       if (values.status === "open_verse") {
         await createOpenVerseMutation.mutateAsync({
@@ -1158,7 +1201,7 @@ export function NewTrackForm({
         coverUrl: coverUrl || "/placeholder.svg",
         genre: values.genre,
         id: trackPreview.trackId,
-        isPublic: values.status === "ready" || values.status === "open_verse",
+        isPublic: Boolean(settledTrack.isPublic),
         playbackUrl: trackPreview.remoteUrl,
         status: values.status,
         title: values.name,

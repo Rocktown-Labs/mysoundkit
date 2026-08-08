@@ -77,6 +77,7 @@ import {
   peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
+  settleTrackBodySchema,
   updatePlatformSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
@@ -312,6 +313,11 @@ export const rpcContract = new Hono()
   .post(
     "/v1/tracks/:trackId/assets",
     jsonValidator(createTrackAssetBodySchema),
+    (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
+  )
+  .post(
+    "/v1/tracks/:trackId/settle",
+    jsonValidator(settleTrackBodySchema),
     (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
   )
   .post("/v1/tracks/:trackId/process", (c) =>

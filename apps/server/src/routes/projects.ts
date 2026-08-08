@@ -184,13 +184,14 @@ app.openapi(
       const db = createDb();
       const projectId = crypto.randomUUID();
       const now = new Date();
+      const hasNewTracks = body.newTracks.length > 0;
       const [project] = await db
         .insert(projects)
         .values({
           createdAt: now,
           description: body.description ?? null,
           id: projectId,
-          isPublic: body.isPublic,
+          isPublic: body.isPublic && !hasNewTracks,
           organizationId,
           ownerUserId: user.id,
           projectType: body.projectType,
@@ -213,7 +214,7 @@ app.openapi(
           genreId,
           id: trackId,
           isForSale: false,
-          isPublic: body.isPublic,
+          isPublic: false,
           organizationId,
           ownerUserId: user.id,
           productionStatus: "demo",
@@ -228,6 +229,7 @@ app.openapi(
             bucketName: getUploadBucketName(),
             id: crypto.randomUUID(),
             metadata: {
+              durationMs: newTrack.durationMs ?? null,
               originalFileName: newTrack.fileName ?? newTrack.title,
             },
             mimeType: newTrack.mimeType ?? null,

@@ -63,6 +63,7 @@ import {
   playbackSessionResponseSchema,
   reviewLyricsRevisionBodySchema,
   setupRequiredResponseSchema,
+  settleTrackBodySchema,
   trackCatalogDetailSchema,
   trackDashboardDetailSchema,
   trackProcessingStatusSchema,
@@ -216,6 +217,100 @@ const getTrackProcessingWorkflow = () =>
       TRACK_PROCESSING_WORKFLOW?: Workflow<TrackProcessingWorkflowPayload>;
     }
   ).TRACK_PROCESSING_WORKFLOW ?? null;
+
+const queueTrackAudioProcessing = async ({
+  masterAsset,
+  trackId,
+}: {
+  masterAsset: typeof trackAssets.$inferSelect;
+  trackId: string;
+}) => {
+  const db = createDb();
+  const [existingJob] = await withRetry("find existing stem job", () =>
+    db
+      .select()
+      .from(trackStemJobs)
+      .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
+      .limit(1)
+  );
+
+  const [job] =
+    existingJob?.status === "queued" || existingJob?.status === "processing"
+      ? [existingJob]
+      : await withRetry("create stem job", () =>
+          db
+            .insert(trackStemJobs)
+            .values({
+              id: crypto.randomUUID(),
+              inputAssetId: masterAsset.id,
+              outputFormat: "MP3",
+              outputType: "BOTH",
+              status: "queued" as const,
+              trackId,
+            })
+            .returning()
+        );
+
+  if (job && !job.workflowInstanceId) {
+    await withRetry("mark lyrics generating", () =>
+      db
+        .update(tracks)
+        .set({
+          lyricsStatus: "generating",
+          updatedAt: new Date(),
+        })
+        .where(eq(tracks.id, trackId))
+    );
+
+    await withRetry("create workflow job row", () =>
+      createWorkflowJobRow({
+        input: {
+          assetId: masterAsset.id,
+          objectKey: masterAsset.objectKey,
+          trackId,
+        },
+        jobType: "track_audio_processing",
+        targetId: trackId,
+        targetType: "track",
+      })
+    );
+
+    const workflow = getTrackProcessingWorkflow();
+
+    if (workflow && masterAsset.objectKey) {
+      const instance = await workflow.create({
+        id: job.id,
+        params: {
+          assetId: masterAsset.id,
+          objectKey: masterAsset.objectKey,
+          trackId,
+        },
+        retention: {
+          errorRetention: "7 days",
+          successRetention: "7 days",
+        },
+      });
+
+      await withRetry("save workflow instance id", () =>
+        db
+          .update(trackStemJobs)
+          .set({
+            workflowInstanceId: instance.id,
+          })
+          .where(eq(trackStemJobs.id, job.id))
+      );
+    }
+  }
+
+  return {
+    jobId: job?.id ?? null,
+    message:
+      masterAsset.objectKey && getTrackProcessingWorkflow()
+        ? "Track processing workflow started."
+        : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
+    status: "queued" as const,
+  };
+};
 
 app.openapi(
   createRoute({
@@ -1300,6 +1395,142 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/{trackId}/settle",
+    request: {
+      body: jsonContentRequired(
+        settleTrackBodySchema,
+        "Track settlement payload"
+      ),
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        trackDashboardDetailSchema,
+        "Track settled"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Required assets missing"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is required before settling track media." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const session = c.get("session");
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const db = createDb();
+    const [track] = await db
+      .select()
+      .from(tracks)
+      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+      .limit(1);
+
+    if (!track) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const assetRows = await db
+      .select()
+      .from(trackAssets)
+      .where(eq(trackAssets.trackId, trackId));
+    const masterAsset = assetRows.find(
+      (asset) =>
+        asset.assetKind === "master" &&
+        Boolean(asset.objectKey) &&
+        (asset.status === "ready" || asset.status === "uploaded")
+    );
+    const coverAsset = assetRows.find(
+      (asset) => asset.assetKind === "cover_art" && Boolean(asset.objectKey)
+    );
+
+    if (!masterAsset) {
+      return c.json(
+        {
+          message:
+            "Master audio must finish uploading before this track can be settled.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (body.requireCoverArt && !coverAsset) {
+      return c.json(
+        {
+          message:
+            "Cover art must finish uploading before this track can go live.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    await withRetry("mark master asset ready", () =>
+      db
+        .update(trackAssets)
+        .set({ status: "ready", updatedAt: new Date() })
+        .where(eq(trackAssets.id, masterAsset.id))
+    );
+
+    const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null;
+    const shouldPublish = body.isPublic;
+    const [settledTrack] = await withRetry("settle track", () =>
+      db
+        .update(tracks)
+        .set({
+          isPublic: shouldPublish,
+          productionStatus: body.productionStatus,
+          publishedAt: shouldPublish ? (track.publishedAt ?? new Date()) : null,
+          releaseAt,
+          releaseStrategy: body.releaseStrategy,
+          updatedAt: new Date(),
+        })
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .returning()
+    );
+
+    if (!settledTrack) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    await queueTrackAudioProcessing({
+      masterAsset: { ...masterAsset, status: "ready" },
+      trackId,
+    });
+
+    return c.json(await buildTrackDetail(settledTrack), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/{trackId}/process",
     request: {
       params: z.object({
@@ -1375,93 +1606,12 @@ app.openapi(
       );
     }
 
-    const [existingJob] = await withRetry("find existing stem job", () =>
-      db
-        .select()
-        .from(trackStemJobs)
-        .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
-        .limit(1)
-    );
+    const processing = await queueTrackAudioProcessing({
+      masterAsset,
+      trackId,
+    });
 
-    const [job] =
-      existingJob?.status === "queued" || existingJob?.status === "processing"
-        ? [existingJob]
-        : await withRetry("create stem job", () =>
-            db
-              .insert(trackStemJobs)
-              .values({
-                id: crypto.randomUUID(),
-                inputAssetId: masterAsset.id,
-                outputFormat: "MP3",
-                outputType: "BOTH",
-                status: "queued" as const,
-                trackId,
-              })
-              .returning()
-          );
-
-    if (job && !job.workflowInstanceId) {
-      await withRetry("mark lyrics generating", () =>
-        db
-          .update(tracks)
-          .set({
-            lyricsStatus: "generating",
-            updatedAt: new Date(),
-          })
-          .where(eq(tracks.id, trackId))
-      );
-
-      await withRetry("create workflow job row", () =>
-        createWorkflowJobRow({
-          input: {
-            assetId: masterAsset.id,
-            objectKey: masterAsset.objectKey,
-            trackId,
-          },
-          jobType: "track_audio_processing",
-          targetId: trackId,
-          targetType: "track",
-        })
-      );
-
-      const workflow = getTrackProcessingWorkflow();
-
-      if (workflow && masterAsset.objectKey) {
-        const instance = await workflow.create({
-          id: job.id,
-          params: {
-            assetId: masterAsset.id,
-            objectKey: masterAsset.objectKey,
-            trackId,
-          },
-          retention: {
-            errorRetention: "7 days",
-            successRetention: "7 days",
-          },
-        });
-
-        await withRetry("save workflow instance id", () =>
-          db
-            .update(trackStemJobs)
-            .set({
-              workflowInstanceId: instance.id,
-            })
-            .where(eq(trackStemJobs.id, job.id))
-        );
-      }
-    }
-
-    return c.json(
-      {
-        jobId: job?.id ?? null,
-        message:
-          masterAsset.objectKey && getTrackProcessingWorkflow()
-            ? "Track processing workflow started."
-            : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
-        status: "queued" as const,
-      },
-      HttpStatusCodes.ACCEPTED
-    );
+    return c.json(processing, HttpStatusCodes.ACCEPTED);
   }
 );
 

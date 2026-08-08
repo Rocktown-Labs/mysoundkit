@@ -8,6 +8,7 @@ import {
   friendSummarySchema,
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
+  settleTrackBodySchema,
   userSummarySchema,
 } from "./schemas";
 
@@ -186,6 +187,17 @@ describe("artist dashboard release schemas", () => {
       mimeType: "image/jpeg",
       objectKey: "tracks/track_1/cover.jpg",
       sizeBytes: 512_000,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts settlement instructions after audio assets are attached", () => {
+    const result = settleTrackBodySchema.safeParse({
+      isPublic: true,
+      productionStatus: "complete",
+      releaseStrategy: "publish_when_ready",
+      requireCoverArt: true,
     });
 
     expect(result.success).toBe(true);
