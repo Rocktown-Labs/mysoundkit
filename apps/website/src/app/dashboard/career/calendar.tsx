@@ -459,14 +459,14 @@ function CareerCalendarPage() {
                             </p>
                           )}
 
-                          <div className="flex items-center justify-between pt-2 border-t border-border/20 text-xs">
+                          <div className="flex items-center justify-between pt-2 border-t border-border/20 text-xs gap-2">
                             <Select
                               value={task.column}
                               onValueChange={(val: any) =>
                                 moveTask(task.id, val)
                               }
                             >
-                              <SelectTrigger className="h-7 text-[10px] bg-background/50">
+                              <SelectTrigger className="h-7 text-[10px] bg-background/50 flex-1">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -482,6 +482,18 @@ function CareerCalendarPage() {
                                 </SelectItem>
                               </SelectContent>
                             </Select>
+
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              className="h-7 text-[10px] gap-1 px-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                              asChild
+                            >
+                              <Link to="/live">
+                                <Swords className="size-3" /> Battle
+                              </Link>
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>

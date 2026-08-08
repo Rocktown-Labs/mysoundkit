@@ -4,6 +4,10 @@
 
 ### Added
 
+- Enhanced Project Creation with non-closing multi-select checkboxes for library tracks, aligned credits step with 1-click self-crediting, and fixed "Save Draft" button to store drafts with `status: "draft"` instead of publishing.
+- Created public `/projects` explore route and public album detail route (`/projects/$id`) with album/EP/mixtape type chips, search, genre filtering, and full tracklist stream controls.
+- Added Projects section under Songs on the home page (`/`) and added Projects link to public navigation sidebars.
+- Unified Calendar and Release & Promo Kanban into `/dashboard/career/calendar` with 1-click "Battle Challenge" action buttons on Kanban cards.
 - Filtered out current user (`me.user.id`) and unaccepted friend requests from `/dashboard/collaborators` and `/dashboard/team` lists, ensuring collaborators reflect credited track contributors.
 - Updated `/v1/analytics/overview` endpoint to calculate real dynamic stream counts, followers, downloads, and revenue from database rows.
 - Re-housed Ads manager to `/dashboard/ads` with Active Campaigns management & campaign detail inspector, 3-step Accordion Campaign Builder flow, direct file uploads with media player preview, macro region continent selection (All North America, All Europe, All Africa, Global), and Stripe-wired wallet top ups.

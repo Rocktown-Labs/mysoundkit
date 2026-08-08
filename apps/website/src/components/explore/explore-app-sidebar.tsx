@@ -33,6 +33,7 @@ import { useMeQuery } from "@/lib/soundkit-api-hooks";
 const discoverLinks: SidebarNavItem[] = [
   { href: "/", icon: MapPin, label: "Home" },
   { href: "/tracks", icon: Music, label: "Songs" },
+  { href: "/projects", icon: Disc, label: "Projects" },
   { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
   { href: "/genres", icon: Tags, label: "Genres" },

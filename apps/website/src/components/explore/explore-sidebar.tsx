@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 const discoverLinks = [
   { href: "/", icon: MapPin, label: "Home" },
   { href: "/tracks", icon: Music, label: "Songs" },
+  { href: "/projects", icon: Disc, label: "Projects" },
   { href: "/videos", icon: Video, label: "Videos" },
   { href: "/artist", icon: Users, label: "Artists" },
   { href: "/shop", icon: ShoppingBag, label: "Shop" },

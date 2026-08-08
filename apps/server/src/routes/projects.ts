@@ -526,10 +526,10 @@ app.openapi(
     const [project] = await db
       .select()
       .from(projects)
-      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+      .where(eq(projects.id, projectId))
       .limit(1);
 
-    if (!project) {
+    if (!project || (!project.isPublic && project.ownerUserId !== user?.id && project.organizationId !== organizationId)) {
       return c.json(
         {
           message: "Project not found.",

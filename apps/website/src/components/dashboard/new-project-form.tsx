@@ -1420,13 +1420,13 @@ export function NewProjectForm({
                           <DropdownMenuCheckboxItem
                             key={track.id}
                             checked={isSelected}
+                            onSelect={(e) => e.preventDefault()}
                             onCheckedChange={() =>
                               toggleExistingTrack(track.id)
                             }
                             className="flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-accent"
                           >
                             <div className="flex items-center gap-3 min-w-0">
-                              <Music className="size-4 text-emerald-500 shrink-0" />
                               <span className="font-semibold text-sm truncate">
                                 {track.title}
                               </span>

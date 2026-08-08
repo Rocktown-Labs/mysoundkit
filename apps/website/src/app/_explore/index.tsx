@@ -257,6 +257,67 @@ function LocalExplorePage({
           </section>
 
           <div className="space-y-6 md:space-y-8 lg:space-y-10 pb-8 md:pb-10 lg:pb-12">
+            {/* Projects & Albums Section under Songs */}
+            <section>
+              <SectionHeader
+                title={
+                  isGlobalView
+                    ? "Featured Projects & Albums Across SoundKit"
+                    : `Featured Projects & Albums in ${activeRegion}`
+                }
+                description="Explore full-length Albums, EPs, and Mixtapes with chips for each release type."
+                icon={<Disc className="size-5 md:size-6 text-primary" />}
+                viewAllHref="/projects"
+              />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
+                  <div className="size-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border/20">
+                    <Disc className="size-8 text-primary" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">Album</Badge>
+                      <Badge variant="outline" className="text-[10px]">Hip-Hop</Badge>
+                    </div>
+                    <Link to="/projects" className="font-bold text-sm truncate block group-hover:text-primary transition-colors">
+                      Midnight Chronicles
+                    </Link>
+                    <p className="text-xs text-muted-foreground">12 Tracks • 2026</p>
+                  </div>
+                </Card>
+                <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
+                  <div className="size-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border/20">
+                    <Disc className="size-8 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">EP</Badge>
+                      <Badge variant="outline" className="text-[10px]">R&amp;B</Badge>
+                    </div>
+                    <Link to="/projects" className="font-bold text-sm truncate block group-hover:text-primary transition-colors">
+                      Summer Sunset Sessions
+                    </Link>
+                    <p className="text-xs text-muted-foreground">5 Tracks • 2026</p>
+                  </div>
+                </Card>
+                <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
+                  <div className="size-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border/20">
+                    <Disc className="size-8 text-sky-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">Mixtape</Badge>
+                      <Badge variant="outline" className="text-[10px]">Afrobeats</Badge>
+                    </div>
+                    <Link to="/projects" className="font-bold text-sm truncate block group-hover:text-primary transition-colors">
+                      Lagos Rhythm Vol. 1
+                    </Link>
+                    <p className="text-xs text-muted-foreground">8 Tracks • 2026</p>
+                  </div>
+                </Card>
+              </div>
+            </section>
+
             <section>
               <SectionHeader
                 title={
