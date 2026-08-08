@@ -21,6 +21,7 @@ export interface AppVariables {
 export interface AppEnv {
   Bindings: {
     LIVE_ROOMS?: DurableObjectNamespace;
+    MEDIA_BUCKET?: R2Bucket;
     SENTRY_DSN?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;

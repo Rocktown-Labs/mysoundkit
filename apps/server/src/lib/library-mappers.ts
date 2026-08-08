@@ -40,6 +40,7 @@ export interface PurchasedCatalogRow {
   projectId: string | null;
   purchasedAt: Date;
   title: string;
+  trackDownloadUrl?: string | null;
   trackId: string | null;
 }
 
@@ -56,7 +57,7 @@ export const toPurchasedCatalogItem = (row: PurchasedCatalogRow) => {
     artist: "SoundKit Artist",
     artistSlug: fallbackArtistSlug,
     cover: fallbackCover,
-    downloadUrl: row.trackId ? `/downloads/${row.trackId}` : null,
+    downloadUrl: row.trackDownloadUrl ?? null,
     duration: null,
     id: productId,
     licenseName: row.licenseOptionId ? "Licensed Instrumental" : null,

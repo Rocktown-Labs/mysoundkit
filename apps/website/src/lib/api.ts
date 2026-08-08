@@ -49,3 +49,58 @@ export const rpcJson = async <T>(
     response.status
   );
 };
+
+const fileNameFromContentDisposition = (value: string | null) => {
+  if (!value) {
+    return null;
+  }
+
+  const utf8Match = /filename\*=UTF-8''([^;]+)/iu.exec(value);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const quotedMatch = /filename="([^"]+)"/iu.exec(value);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+
+  const bareMatch = /filename=([^;]+)/iu.exec(value);
+  return bareMatch?.[1]?.trim() ?? null;
+};
+
+export const downloadFileFromApi = async ({
+  fallbackFileName,
+  url,
+}: {
+  fallbackFileName: string;
+  url: string;
+}) => {
+  const href = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  const response = await fetch(href, { credentials: "include" });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+
+    throw new SoundKitApiError(
+      payload?.message ?? `Download failed: ${response.status}`,
+      response.status
+    );
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download =
+    fileNameFromContentDisposition(
+      response.headers.get("Content-Disposition")
+    ) ?? fallbackFileName;
+  anchor.rel = "noopener noreferrer";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+};

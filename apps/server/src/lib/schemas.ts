@@ -419,6 +419,7 @@ export const trackSummarySchema = z.object({
   genre: z.string(),
   id: z.string(),
   downloadsAllowed: z.boolean().default(true).optional(),
+  downloadUrl: z.string().nullable().optional(),
   downloadsRequireFirstPlay: z.boolean().default(false).optional(),
   downloadsRequirePurchase: z.boolean().default(true).optional(),
   isForSale: z.boolean(),
@@ -545,6 +546,7 @@ export const publicSearchResultSchema = z.object({
 export const dashboardAssetSchema = z.object({
   assetKind: z.string(),
   bucketName: z.string().nullable(),
+  downloadUrl: z.string().nullable().optional(),
   durationMs: z.number().int().nullable(),
   id: z.string(),
   metadata: z.unknown().nullable().optional(),
@@ -653,6 +655,7 @@ export const catalogArtistSchema = z.object({
 });
 
 export const catalogAssetSchema = z.object({
+  downloadUrl: z.string().nullable().optional(),
   duration: z.string().nullable().optional(),
   fileName: z.string().nullable().optional(),
   format: z.string().nullable().optional(),

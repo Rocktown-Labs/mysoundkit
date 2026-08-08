@@ -52,7 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL } from "@/lib/api";
+import { API_V1_URL, downloadFileFromApi } from "@/lib/api";
 import { shareLink } from "@/lib/share";
 import { useTracksQuery } from "@/lib/soundkit-api-hooks";
 import type { TrackSummary } from "@/lib/soundkit-api-hooks";
@@ -98,8 +98,8 @@ interface MockCatalogAsset {
   format?: string;
   included: boolean;
   duration?: string;
-  /** Publicly fetchable URL for this asset (media bucket or metadata url). */
-  url?: string | null;
+  /** Guarded API path that authorizes and streams this asset. */
+  downloadUrl?: string | null;
   /** Suggested download file name, e.g. "long-way.wav". */
   fileName?: string | null;
 }
@@ -147,6 +147,9 @@ interface MockCatalogItem {
   isOwned?: boolean;
   isPurchasable: boolean;
   isStreamable: boolean;
+  downloadsAllowed?: boolean;
+  downloadsRequireFirstPlay?: boolean;
+  downloadsRequirePurchase?: boolean;
   playbackUrl?: string | null;
   assets: MockCatalogAsset[];
   licenseOptions?: MockLicenseOption[];
@@ -500,10 +503,10 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     });
   };
 
-  const handleDownloadAsset = (asset: MockCatalogAsset) => {
+  const handleDownloadAsset = async (asset: MockCatalogAsset) => {
     const fileName = assetDisplayFileName(asset, item.title);
 
-    if (!asset.url) {
+    if (!asset.downloadUrl) {
       toast({
         description: `No download link is available for ${asset.label} yet.`,
         title: "Download unavailable",
@@ -511,6 +514,24 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       });
       return;
     }
+
+    try {
+      await downloadFileFromApi({
+        fallbackFileName: fileName,
+        url: asset.downloadUrl,
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error
+            ? error.message
+            : `Download is unavailable for ${asset.label}.`,
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
       description: `Downloading ${fileName}...`,
       title: "Starting Download",
@@ -770,18 +791,17 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {asset.url ? (
-                            <a
+                          {asset.downloadUrl ? (
+                            <Button
                               aria-label={`Download ${fileName}`}
-                              className="inline-flex size-9 items-center justify-center rounded-none border border-border/40 hover:bg-white/5 transition-all"
-                              download={fileName}
-                              href={asset.url}
-                              onClick={() => handleDownloadAsset(asset)}
-                              rel="noopener noreferrer"
+                              className="size-9 rounded-none border border-border/40 hover:bg-white/5 transition-all"
+                              onClick={() => void handleDownloadAsset(asset)}
+                              size="icon"
                               title={`Download ${fileName}`}
+                              variant="ghost"
                             >
                               <Download className="size-4" />
-                            </a>
+                            </Button>
                           ) : (
                             <Button
                               variant="ghost"

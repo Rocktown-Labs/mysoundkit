@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
+import { downloadFileFromApi } from "@/lib/api";
 import {
   useDeleteTrackMutation,
   useTracksQuery,
@@ -129,6 +130,35 @@ function TracksPage() {
 
     setQueue(playableTracks);
     setCurrentTrack(track);
+  };
+
+  const downloadTrackMaster = async (track: (typeof tracks)[number]) => {
+    if (!track.downloadUrl) {
+      toast({
+        description: "No guarded master download is available for this track.",
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await downloadFileFromApi({
+        fallbackFileName: `${track.title}.download`,
+        url: track.downloadUrl,
+      });
+      toast({
+        description: `Downloading ${track.title}...`,
+        title: "Starting Download",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Unable to download master.",
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -227,15 +257,8 @@ function TracksPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      disabled={!track.playbackUrl}
-                      onClick={() => {
-                        if (
-                          track.playbackUrl &&
-                          typeof window !== "undefined"
-                        ) {
-                          window.open(track.playbackUrl, "_blank");
-                        }
-                      }}
+                      disabled={!track.downloadUrl}
+                      onClick={() => void downloadTrackMaster(track)}
                     >
                       <Download className="mr-2 size-4" />
                       Download Master

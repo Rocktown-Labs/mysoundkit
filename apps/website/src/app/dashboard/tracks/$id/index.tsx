@@ -34,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
+import { downloadFileFromApi } from "@/lib/api";
 import { shareLink } from "@/lib/share";
 import {
   useCreateTrackLyricsMutation,
@@ -556,6 +557,35 @@ function TrackFilesPanel({
   onPlay: () => void;
   playbackUrl: null | string | undefined;
 }) {
+  const handleDownloadMaster = async () => {
+    if (!masterAsset?.downloadUrl) {
+      toast({
+        description: "No guarded master download is available for this track.",
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await downloadFileFromApi({
+        fallbackFileName: masterAsset.objectKey?.split("/").pop() ?? "master",
+        url: masterAsset.downloadUrl,
+      });
+      toast({
+        description: "Downloading master file...",
+        title: "Starting Download",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Unable to download master.",
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <Card>
@@ -593,7 +623,13 @@ function TrackFilesPanel({
                     <Play className="size-4" />
                   </Button>
                 ) : null}
-                <Button disabled size="sm" type="button" variant="ghost">
+                <Button
+                  disabled={!masterAsset.downloadUrl}
+                  onClick={() => void handleDownloadMaster()}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
                   <Download className="size-4" />
                 </Button>
               </div>

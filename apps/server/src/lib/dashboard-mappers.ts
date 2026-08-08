@@ -89,6 +89,10 @@ const mapAssetForDashboard = (
 ) => ({
   assetKind: asset.assetKind,
   bucketName: asset.bucketName,
+  downloadUrl:
+    "trackId" in asset && asset.trackId
+      ? `/v1/tracks/${asset.trackId}/assets/${asset.id}/download`
+      : null,
   durationMs: "durationMs" in asset ? asset.durationMs : null,
   id: asset.id,
   metadata: "metadata" in asset ? asset.metadata : null,
@@ -149,6 +153,9 @@ export const mapTrackSummary = ({
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
     duration: formatDuration(primaryAudioAsset?.durationMs),
     downloadsAllowed: row.downloadsAllowed,
+    downloadUrl: primaryAudioAsset
+      ? `/v1/tracks/${row.id}/assets/${primaryAudioAsset.id}/download`
+      : null,
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
     downloadsRequirePurchase: row.downloadsRequirePurchase,
     fileAvailability: fileAvailabilityFromAssets(assets),

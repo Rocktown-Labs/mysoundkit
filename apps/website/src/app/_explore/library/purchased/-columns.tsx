@@ -5,6 +5,8 @@ import { ArrowUpDown, Play, Download } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import { downloadFileFromApi } from "@/lib/api";
 
 export interface PurchasedTrack {
   id: string;
@@ -156,12 +158,50 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     ),
   },
   {
-    cell: () => (
-      <Button size="sm" variant="outline">
-        <Download className="mr-2 h-4 w-4" />
-        Download
-      </Button>
-    ),
+    cell: ({ row }) => {
+      const item = row.original;
+
+      const handleDownload = async () => {
+        if (!item.downloadUrl) {
+          toast({
+            description: "No guarded download is available for this purchase.",
+            title: "Download unavailable",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        try {
+          await downloadFileFromApi({
+            fallbackFileName: `${item.title}.download`,
+            url: item.downloadUrl,
+          });
+          toast({
+            description: `Downloading ${item.title}...`,
+            title: "Starting Download",
+          });
+        } catch (error) {
+          toast({
+            description:
+              error instanceof Error ? error.message : "Unable to download.",
+            title: "Download unavailable",
+            variant: "destructive",
+          });
+        }
+      };
+
+      return (
+        <Button
+          disabled={!item.downloadUrl}
+          onClick={() => void handleDownload()}
+          size="sm"
+          variant="outline"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Download
+        </Button>
+      );
+    },
     id: "actions",
   },
 ];

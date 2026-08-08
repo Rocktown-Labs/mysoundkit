@@ -7,7 +7,9 @@ import {
   genres,
   openVerseListings,
   playbackSessions,
+  projectTracks,
   purchases,
+  qualifiedStreams,
   trackAssets,
   trackCollaborators,
   trackLicenseOptions,
@@ -19,7 +21,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -171,6 +173,88 @@ const trackAssetFileName = (
   }
 
   return null;
+};
+
+const quotedDownloadFileName = (fileName: string) =>
+  fileName.replaceAll(/[\\"]/gu, "_");
+
+const getMediaBucket = (bindings: AppEnv["Bindings"]) =>
+  bindings.MEDIA_BUCKET ??
+  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
+  null;
+
+const hasPurchasedTrack = async ({
+  db,
+  trackId,
+  userId,
+}: {
+  db: ReturnType<typeof createDb>;
+  trackId: string;
+  userId: string;
+}) => {
+  const [directPurchase] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .where(
+      and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
+    )
+    .limit(1);
+
+  if (directPurchase) {
+    return true;
+  }
+
+  const [projectPurchase] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .innerJoin(projectTracks, eq(projectTracks.projectId, purchases.projectId))
+    .where(
+      and(eq(purchases.buyerUserId, userId), eq(projectTracks.trackId, trackId))
+    )
+    .limit(1);
+
+  return Boolean(projectPurchase);
+};
+
+const hasPlayedTrackOnce = async ({
+  db,
+  trackId,
+  userId,
+}: {
+  db: ReturnType<typeof createDb>;
+  trackId: string;
+  userId: string;
+}) => {
+  const [qualified] = await db
+    .select({ id: qualifiedStreams.id })
+    .from(qualifiedStreams)
+    .where(
+      and(
+        eq(qualifiedStreams.userId, userId),
+        eq(qualifiedStreams.trackId, trackId),
+        eq(qualifiedStreams.status, "qualified")
+      )
+    )
+    .limit(1);
+
+  if (qualified) {
+    return true;
+  }
+
+  const [endedSession] = await db
+    .select({ id: playbackSessions.id })
+    .from(playbackSessions)
+    .where(
+      and(
+        eq(playbackSessions.userId, userId),
+        eq(playbackSessions.trackId, trackId),
+        eq(playbackSessions.status, "ended"),
+        gt(playbackSessions.playedSeconds, 0)
+      )
+    )
+    .limit(1);
+
+  return Boolean(endedSession);
 };
 
 const assetKindLabels = {
@@ -1934,6 +2018,171 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "get",
+    path: "/{trackId}/assets/{assetId}/download",
+    request: {
+      params: z.object({
+        assetId: z.string(),
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: {
+        content: {
+          "application/octet-stream": {
+            schema: z.string().openapi({ format: "binary" }),
+          },
+        },
+        description: "Authorized track asset download",
+      },
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Download not allowed"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track asset not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Download storage unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        databaseUnavailableMessage,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const bucket = getMediaBucket(c.env as AppEnv["Bindings"]);
+
+    if (!bucket) {
+      return c.json(
+        { message: "Download storage is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const { assetId, trackId } = c.req.valid("param");
+    const db = createDb();
+    const [row] = await db
+      .select({
+        asset: trackAssets,
+        track: {
+          downloadsAllowed: tracks.downloadsAllowed,
+          downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: tracks.downloadsRequirePurchase,
+          id: tracks.id,
+          ownerUserId: tracks.ownerUserId,
+          title: tracks.title,
+        },
+      })
+      .from(trackAssets)
+      .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+      .where(and(eq(trackAssets.id, assetId), eq(tracks.id, trackId)))
+      .limit(1);
+
+    if (!(row?.asset.objectKey && row.asset.status === "ready")) {
+      return c.json(
+        { message: "Downloadable asset not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const isOwner = row.track.ownerUserId === user.id;
+    const hasPurchase = await hasPurchasedTrack({
+      db,
+      trackId,
+      userId: user.id,
+    });
+
+    if (!isOwner) {
+      if (!row.track.downloadsAllowed) {
+        return c.json(
+          { message: "The artist has disabled downloads for this track." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+
+      if (row.track.downloadsRequirePurchase && !hasPurchase) {
+        return c.json(
+          { message: "Purchase this track before downloading its files." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+
+      if (
+        !row.track.downloadsRequirePurchase &&
+        row.track.downloadsRequireFirstPlay &&
+        !(await hasPlayedTrackOnce({ db, trackId, userId: user.id }))
+      ) {
+        return c.json(
+          { message: "Play this track once before downloading its files." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+    }
+
+    const object = await bucket.get(row.asset.objectKey);
+
+    if (!object) {
+      return c.json(
+        { message: "Download file is no longer available." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if (hasPurchase) {
+      await db
+        .update(purchases)
+        .set({
+          downloadCount: sql`${purchases.downloadCount} + 1`,
+          lastDownloadedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(purchases.buyerUserId, user.id),
+            eq(purchases.trackId, trackId)
+          )
+        );
+    }
+
+    const fileName =
+      trackAssetFileName(row.asset) ??
+      `${uniqueSlug(row.track.title)}.download`;
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${quotedDownloadFileName(fileName)}"`
+    );
+    headers.set(
+      "Content-Type",
+      row.asset.mimeType ?? "application/octet-stream"
+    );
+    headers.set("Cache-Control", "private, no-store");
+    headers.set("Content-Length", String(object.size));
+
+    return new Response(object.body, { headers, status: HttpStatusCodes.OK });
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
     path: "/{trackId}",
     request: {
       params: z.object({
@@ -2069,6 +2318,7 @@ app.openapi(
     const assets = assetRows
       .filter((asset) => catalogAssetKinds.has(asset.assetKind))
       .map((asset) => ({
+        downloadUrl: `/v1/tracks/${row.id}/assets/${asset.id}/download`,
         duration: formatDuration(asset.durationMs),
         fileName: trackAssetFileName(asset),
         format: asset.mimeType,
@@ -2079,7 +2329,6 @@ app.openapi(
           assetKindLabels[asset.assetKind as keyof typeof assetKindLabels] ??
           "Track Asset",
         subtitle: asset.mimeType,
-        url: publicTrackAssetUrl(asset),
       }));
 
     return c.json(

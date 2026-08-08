@@ -8,6 +8,7 @@ import {
   playlistTracks,
   purchases,
   recentPlays,
+  trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
@@ -454,15 +455,40 @@ app.openapi(
       .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
       .where(eq(purchases.buyerUserId, user.id));
 
-    return c.json(
-      rows.map((row) =>
-        toPurchasedCatalogItem({
+    const items = await Promise.all(
+      rows.map(async (row) => {
+        const [asset] = row.trackId
+          ? await db
+              .select({ id: trackAssets.id })
+              .from(trackAssets)
+              .where(
+                and(
+                  eq(trackAssets.trackId, row.trackId),
+                  inArray(trackAssets.assetKind, [
+                    "master",
+                    "tagged_mp3",
+                    "untagged_wav",
+                    "variant_audio",
+                    "instrumental",
+                  ])
+                )
+              )
+              .orderBy(desc(trackAssets.durationMs))
+              .limit(1)
+          : [];
+
+        return toPurchasedCatalogItem({
           ...row,
           projectId: row.purchaseProjectId ?? row.orderProjectId,
-        })
-      ),
-      HttpStatusCodes.OK
+          trackDownloadUrl:
+            row.trackId && asset
+              ? `/v1/tracks/${row.trackId}/assets/${asset.id}/download`
+              : null,
+        });
+      })
     );
+
+    return c.json(items, HttpStatusCodes.OK);
   }
 );
 
