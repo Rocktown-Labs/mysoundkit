@@ -366,48 +366,48 @@ export function AnalyticsPage() {
             </AreaChart>
           </ChartContainer>
         </CardContent>
-      {/* Granular Song Metrics: Skip Rate & Completion Rate */}
+      {/* Granular Song Metrics: Skip Rate & 70% Duration Qualification Rate */}
       <Card>
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Activity className="size-5 text-emerald-400" />
-            Granular Song Retention: Skip Rate vs. Completion Rate
+            Granular Song Retention: 70% Duration Threshold vs. Full Completion
           </CardTitle>
           <CardDescription>
-            Measures listener retention milestones: 30-second qualified stream threshold vs. 100% completion rates.
+            SoundKit stream qualification requires reaching at least 70% track playback duration (deduplicated per 24-hour listener window).
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-3">
           <div className="space-y-2 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-emerald-400">30-Second Milestone Rate</span>
-              <span className="text-xl font-bold text-emerald-400">91.2%</span>
+              <span className="text-xs font-bold text-emerald-400">70% Duration Milestone</span>
+              <span className="text-xl font-bold text-emerald-400">84.6%</span>
             </div>
-            <Progress value={91.2} className="h-2 bg-emerald-950" />
+            <Progress value={84.6} className="h-2 bg-emerald-950" />
             <p className="text-[11px] text-muted-foreground">
-              Listeners passing the 30-second threshold required for qualified stream payouts.
+              Listeners reaching at least 70% of song duration, qualifying for pool royalty payouts.
             </p>
           </div>
 
           <div className="space-y-2 p-4 rounded-lg bg-sky-500/10 border border-sky-500/20">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-sky-400">Full Completion Rate (&gt;90%)</span>
-              <span className="text-xl font-bold text-sky-400">78.4%</span>
+              <span className="text-xs font-bold text-sky-400">Full Completion Rate (100%)</span>
+              <span className="text-xl font-bold text-sky-400">72.1%</span>
             </div>
-            <Progress value={78.4} className="h-2 bg-sky-950" />
+            <Progress value={72.1} className="h-2 bg-sky-950" />
             <p className="text-[11px] text-muted-foreground">
-              Percentage of listeners who stream your song to completion without skipping.
+              Percentage of listeners who stream your song completely from start to finish.
             </p>
           </div>
 
           <div className="space-y-2 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-rose-400">Early Skip Rate (&lt;30s)</span>
-              <span className="text-xl font-bold text-rose-400">8.8%</span>
+              <span className="text-xs font-bold text-rose-400">Early Skip Rate (&lt;70%)</span>
+              <span className="text-xl font-bold text-rose-400">15.4%</span>
             </div>
-            <Progress value={8.8} className="h-2 bg-rose-950" />
+            <Progress value={15.4} className="h-2 bg-rose-950" />
             <p className="text-[11px] text-muted-foreground">
-              Listens abandoned before 30 seconds. Low skip rates boost algorithmic playlisting.
+              Listens abandoned before 70% duration. Streams from artist team seats are excluded.
             </p>
           </div>
         </CardContent>
