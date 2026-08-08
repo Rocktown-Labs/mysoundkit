@@ -13,6 +13,8 @@ export interface PlaylistTrack {
   cover: string;
   duration: string;
   addedAt: string;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 export const columns: ColumnDef<PlaylistTrack>[] = [
@@ -41,8 +43,19 @@ export const columns: ColumnDef<PlaylistTrack>[] = [
     accessorKey: "title",
     cell: ({ row }) => (
       <Link
-        to="/tracks/$id"
-        params={{ id: row.original.id }}
+        params={
+          row.original.regionSlug && row.original.slug
+            ? {
+                regionSlug: row.original.regionSlug,
+                slug: row.original.slug,
+              }
+            : { id: row.original.id }
+        }
+        to={
+          row.original.regionSlug && row.original.slug
+            ? "/tracks/$regionSlug/$slug"
+            : "/tracks/$id"
+        }
         className="font-medium hover:text-primary"
       >
         {row.getValue("title")}

@@ -503,6 +503,8 @@ export function NewTrackForm({
     ),
     defaultValues: defaultTrackFormValues,
     form,
+    persist: !initialTrack,
+    restoreOnMount: !initialTrack,
     storageKey: "soundkit:new-track-draft",
   });
 
@@ -611,28 +613,6 @@ export function NewTrackForm({
       track_id: track.id,
     });
     setUploadedTrack(preview);
-    setQueue([
-      {
-        artist: "You",
-        artistHref: "/dashboard/profile",
-        autoplay: false,
-        cover: coverUpload?.remoteUrl || "/placeholder.svg",
-        id: track.id,
-        src: remoteUrl,
-        title: track.title,
-        trackHref: `/tracks/${track.id}`,
-      },
-    ]);
-    setCurrentTrack({
-      artist: "You",
-      artistHref: "/dashboard/profile",
-      autoplay: false,
-      cover: coverUpload?.remoteUrl || "/placeholder.svg",
-      id: track.id,
-      src: remoteUrl,
-      title: track.title,
-      trackHref: `/tracks/${track.id}`,
-    });
     setStep("assets");
 
     toast({
@@ -1818,6 +1798,10 @@ export function NewTrackForm({
                               : []
                         }
                         onFileUpload={handleMasterUpload}
+                        onRemove={() => {
+                          setSelectedMasterFile(null);
+                          setUploadedTrack(null);
+                        }}
                         progress={isUploading ? averageProgress : undefined}
                         status={
                           isUploading
@@ -1836,6 +1820,7 @@ export function NewTrackForm({
                         description="Optional but recommended"
                         acceptedTypes=".wav,.mp3,.aiff"
                         onFileUpload={(files) => setInstrumentalFile(files[0])}
+                        onRemove={() => setInstrumentalFile(null)}
                         files={
                           instrumentalFile
                             ? [
@@ -1917,6 +1902,7 @@ export function NewTrackForm({
                       description="Clean vocal tracks"
                       acceptedTypes=".wav,.mp3,.aiff"
                       onFileUpload={(files) => setLeadVocalsFile(files[0])}
+                      onRemove={() => setLeadVocalsFile(null)}
                       files={
                         leadVocalsFile
                           ? [{ name: leadVocalsFile.name, status: "Selected" }]
@@ -1930,6 +1916,7 @@ export function NewTrackForm({
                       description="Background components"
                       acceptedTypes=".wav,.mp3,.aiff"
                       onFileUpload={(files) => setAdlibsFile(files[0])}
+                      onRemove={() => setAdlibsFile(null)}
                       files={
                         adlibsFile
                           ? [{ name: adlibsFile.name, status: "Selected" }]

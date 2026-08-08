@@ -114,13 +114,41 @@ function ShopPage() {
                   <TableCell>
                     <div className="flex justify-end gap-2">
                       <Button asChild size="sm" variant="ghost">
-                        <Link to="/tracks/$id" params={{ id: track.id }}>
+                        <Link
+                          params={
+                            track.regionSlug && track.slug
+                              ? {
+                                  regionSlug: track.regionSlug,
+                                  slug: track.slug,
+                                }
+                              : { id: track.id }
+                          }
+                          to={
+                            track.regionSlug && track.slug
+                              ? "/tracks/$regionSlug/$slug"
+                              : "/tracks/$id"
+                          }
+                        >
                           <Play className="size-4" />
                           Play
                         </Link>
                       </Button>
                       <Button asChild size="sm">
-                        <Link to="/tracks/$id" params={{ id: track.id }}>
+                        <Link
+                          params={
+                            track.regionSlug && track.slug
+                              ? {
+                                  regionSlug: track.regionSlug,
+                                  slug: track.slug,
+                                }
+                              : { id: track.id }
+                          }
+                          to={
+                            track.regionSlug && track.slug
+                              ? "/tracks/$regionSlug/$slug"
+                              : "/tracks/$id"
+                          }
+                        >
                           Buy
                         </Link>
                       </Button>

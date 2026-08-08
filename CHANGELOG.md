@@ -45,6 +45,10 @@
 - Added dynamic Better Auth base URL and Cloudflare preview origin allowlists so PR previews and worker subdomains can authenticate against the API.
 - Added separate RealtimeKit-oriented live dashboards and room scaffolds for battles, listening parties, and streams, including BattleBot lobby/voting rules, party playlist/lyrics cues, stream analytics panels, and artist-only profile challenge actions.
 - Added authenticated live experience APIs for RealtimeKit meeting creation, participant preset tokens, BattleBot voter snapshots, notification fanout payloads, and single-session conflict checks.
+- Added region-slug canonical URLs for track and video detail pages (`/tracks/$regionSlug/$slug`, `/videos/$regionSlug/$slug`), with id-or-slug server resolution and legacy `/$id` routes retained as wrappers.
+- Added a video comments system with a `video_comments` database table, authenticated `GET/POST /v1/videos/:videoId/comments` endpoints, and a comments section on the video detail page.
+- Added genre and visibility controls to the video upload form and a unique `videos.slug` column for canonical video URLs.
+- Added a queue drawer with reorder, clear, and remove controls, a native share sheet with clipboard fallback on track pages, and ready-cover-first download actions in the track download manager.
 
 ### Changed
 
@@ -55,6 +59,8 @@
 - Updated RealtimeKit REST client response handling to match Cloudflare's standard payload shape (`data`) and documented meeting fields.
 - Removed fake working rooms, demo catalog fallback audio, and placeholder Stripe prices/coupons across RealtimeKit, tracks, admin finance, and billing APIs.
 - Formatted repository codebase with oxfmt.
+- Updated all track and video list links across explore, shop, and dashboard surfaces to use canonical region-slug URLs when available, falling back to legacy id routes.
+- Converted track and video detail pages from route components into shared prop-driven `TrackDetailPage`/`VideoDetailPage` components reused by both canonical and legacy routes.
 
 ### Fixed
 
@@ -89,3 +95,7 @@
 - Standardized genre options by converting input text boxes into Select dropdowns supporting all standard genres across dashboard wizards (projects, tracks, and videos).
 - Fixed battles router precedence bug where wildcard `/{battleId}` route captured requests intended for `/stats` route.
 - Fixed missing authentication checks on Cloudflare Stream live broadcast routes and verified authentication boundaries via integration tests.
+- Fixed the music player route matching for region-slug track URLs so playback highlights and queue sync still resolve under the new canonical URLs.
+- Fixed track drafts restored in edit mode overwriting save values by adding persist/restore-on-mount options to the form draft guard.
+- Fixed duplicate tracks entering the playback queue by deduping queue additions by track id.
+- Fixed track downloads attaching the wrong asset by exposing ready covers first in the track asset mapping and cleaning up prior `cover_art`/`master` assets on re-upload.

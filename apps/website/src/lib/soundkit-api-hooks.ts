@@ -74,6 +74,9 @@ const openVerseSubmissionPost =
   apiClient.v1["open-verses"][":listingId"].submissions.$post;
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
+const videoGet = apiClient.v1.videos[":videoId"].$get;
+const videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get;
+const videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post;
 const videoDelete = apiClient.v1.videos[":videoId"].$delete;
 const notificationsGet = apiClient.v1.notifications.index.$get;
 const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
@@ -117,6 +120,11 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 >["json"];
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
+export type VideoDetail = InferResponseType<typeof videoGet, 200>;
+export type VideoComment = InferResponseType<
+  typeof videoCommentsGet,
+  200
+>[number];
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
@@ -944,6 +952,40 @@ export const useDeleteVideoMutation = () => {
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.videosPrefix,
+      }),
+  });
+};
+
+export const useVideoQuery = (videoId: string) =>
+  useQuery({
+    enabled: videoId.length > 0,
+    queryFn: async (): Promise<VideoDetail> =>
+      rpcJson(await videoGet({ param: { videoId } })),
+    queryKey: [...soundkitQueryKeys.videosPrefix, "detail", videoId],
+  });
+
+export const useVideoCommentsQuery = (videoId: string) =>
+  useQuery({
+    enabled: videoId.length > 0,
+    queryFn: async (): Promise<VideoComment[]> =>
+      rpcJson(await videoCommentsGet({ param: { videoId } })),
+    queryKey: [...soundkitQueryKeys.videosPrefix, videoId, "comments"],
+  });
+
+export const useCreateVideoCommentMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ body, videoId }: { body: string; videoId: string }) =>
+      rpcJson(
+        await videoCommentsPost({
+          json: { body },
+          param: { videoId },
+        })
+      ),
+    onSuccess: (_comment, { videoId }) =>
+      queryClient.invalidateQueries({
+        queryKey: [...soundkitQueryKeys.videosPrefix, videoId, "comments"],
       }),
   });
 };

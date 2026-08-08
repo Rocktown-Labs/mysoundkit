@@ -216,11 +216,26 @@ export function FileUploadZone({
                   className="flex items-center justify-between gap-3 text-xs"
                 >
                   <span className="truncate font-medium">{file.name}</span>
-                  {file.status && (
-                    <span className="shrink-0 text-emerald-400 font-medium">
-                      {file.status}
-                    </span>
-                  )}
+                  <span className="flex shrink-0 items-center gap-2">
+                    {file.status && (
+                      <span className="text-emerald-400 font-medium">
+                        {file.status}
+                      </span>
+                    )}
+                    {onRemove && (
+                      <button
+                        aria-label={`Remove ${file.name}`}
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemove();
+                        }}
+                        type="button"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
@@ -250,7 +265,7 @@ export function FileUploadZone({
         accept={acceptedTypes}
         onChange={handleFileSelect}
         onClick={(e) => e.stopPropagation()}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        className="sr-only"
         multiple={false}
       />
     </Card>

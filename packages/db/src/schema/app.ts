@@ -1180,6 +1180,9 @@ export const videos = pgTable(
     description: text("description"),
     durationMs: integer("duration_ms"),
     externalPlaybackUrl: text("external_playback_url"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     id: text("id").primaryKey(),
     isPublic: boolean("is_public").default(true).notNull(),
     muxAssetId: text("mux_asset_id"),
@@ -1196,6 +1199,8 @@ export const videos = pgTable(
       .default("public")
       .notNull(),
     publishedAt: timestamp("published_at"),
+    releaseAt: timestamp("release_at"),
+    slug: text("slug").notNull(),
     sourceProjectId: text("source_project_id").references(() => projects.id, {
       onDelete: "set null",
     }),
@@ -1217,7 +1222,26 @@ export const videos = pgTable(
       .notNull(),
     videoKind: videoKindEnum("video_kind").notNull(),
   },
-  (table) => [index("videos_owner_user_id_idx").on(table.ownerUserId)]
+  (table) => [
+    index("videos_owner_user_id_idx").on(table.ownerUserId),
+    uniqueIndex("videos_slug_idx").on(table.slug),
+  ]
+);
+
+export const videoComments = pgTable(
+  "video_comments",
+  {
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("video_comments_video_id_idx").on(table.videoId)]
 );
 
 export const muxAssets = pgTable(

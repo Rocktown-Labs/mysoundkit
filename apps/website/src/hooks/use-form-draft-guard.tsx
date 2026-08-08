@@ -29,7 +29,11 @@ interface UseFormDraftGuardOptions<TFieldValues extends FieldValues> {
   /** Extra dirty state not tracked by react-hook-form (e.g. selected files). */
   additionalDirtyState?: boolean;
   form: UseFormReturn<TFieldValues>;
+  /** Disable restoring an existing draft on mount (use when editing existing records). */
+  restoreOnMount?: boolean;
   storageKey: string;
+  /** Disable writing the draft back to localStorage (use when editing existing records). */
+  persist?: boolean;
 }
 
 /**
@@ -41,6 +45,8 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   additionalDirtyState,
   defaultValues,
   form,
+  persist = true,
+  restoreOnMount = true,
   storageKey,
 }: UseFormDraftGuardOptions<TFieldValues> & {
   defaultValues?: TFieldValues;
@@ -57,6 +63,9 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
 
   // Restore a saved draft once on mount (client only).
   useEffect(() => {
+    if (!restoreOnMount) {
+      return;
+    }
     try {
       const stored = window.localStorage.getItem(storageKey);
       if (stored) {
@@ -71,10 +80,13 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     } catch {
       window.localStorage.removeItem(storageKey);
     }
-  }, [defaultValues, form, storageKey]);
+  }, [defaultValues, form, restoreOnMount, storageKey]);
 
   // Persist values whenever they change.
   useEffect(() => {
+    if (!persist) {
+      return;
+    }
     const subscription = form.watch((values) => {
       if (skipNextPersistenceRef.current) {
         skipNextPersistenceRef.current = false;
@@ -91,7 +103,7 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, storageKey]);
+  }, [form, persist, storageKey]);
 
   const { proceed, reset, status } = useBlocker({
     enableBeforeUnload: () => dirtyRef.current && !bypassRef.current,

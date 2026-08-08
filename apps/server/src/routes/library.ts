@@ -58,6 +58,8 @@ const toRecentTrack = async ({
     duration: summary.duration,
     id: summary.id,
     lastPlayed: lastPlayedAt.toISOString(),
+    regionSlug: summary.regionSlug ?? null,
+    slug: summary.slug,
     timesPlayed: playCount,
     title: summary.title,
   };
@@ -79,7 +81,9 @@ const toSavedTrack = async ({
     duration: summary.duration,
     genre: summary.genre,
     id: summary.id,
+    regionSlug: summary.regionSlug ?? null,
     savedAt: savedAt.toISOString(),
+    slug: summary.slug,
     title: summary.title,
   };
 };
@@ -396,6 +400,8 @@ app.openapi(
           creatorSlug: summary.artistUsername ?? fallbackArtistSlug,
           duration: summary.duration,
           id: row.session.sourceId ?? summary.id,
+          regionSlug: summary.regionSlug ?? null,
+          slug: summary.slug,
           thumbnail: summary.coverArtUrl ?? fallbackCover,
           title: summary.title,
           type: toWatchedItemType(row.session.sourceType),

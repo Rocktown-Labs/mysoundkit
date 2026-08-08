@@ -109,6 +109,9 @@ function PlayerRouteLink({
 }) {
   const artistMatch = href?.match(/^\/artist\/(?<username>[^/]+)$/u);
   const trackMatch = href?.match(/^\/tracks\/(?<id>[^/]+)$/u);
+  const regionTrackMatch = href?.match(
+    /^\/tracks\/(?<regionSlug>[^/]+)\/(?<slug>[^/]+)$/u
+  );
   const dashboardTrackMatch = href?.match(
     /^\/dashboard\/tracks\/(?<id>[^/]+)$/u
   );
@@ -119,6 +122,21 @@ function PlayerRouteLink({
         className={className}
         params={{ username: artistMatch.groups.username }}
         to="/artist/$username"
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  if (regionTrackMatch?.groups?.regionSlug && regionTrackMatch?.groups?.slug) {
+    return (
+      <Link
+        className={className}
+        params={{
+          regionSlug: regionTrackMatch.groups.regionSlug,
+          slug: regionTrackMatch.groups.slug,
+        }}
+        to="/tracks/$regionSlug/$slug"
       >
         {children}
       </Link>
@@ -332,14 +350,6 @@ export function MusicPlayer() {
       JSON.stringify({ isMuted, repeatMode, volume })
     );
   }, [isMuted, repeatMode, volume]);
-
-  useEffect(() => {
-    if (queue.length > 0 || currentTrack?.src) {
-      return;
-    }
-
-    setQueue([...demoPlaybackQueue]);
-  }, [currentTrack?.src, queue.length, setQueue]);
 
   const sendPlaybackProgress = ({
     ended = false,
@@ -667,16 +677,12 @@ export function MusicPlayer() {
     setQueue(nextQueue);
   };
 
-  const handleRemoveQueueItem = (trackId: string) => {
-    setQueue(queue.filter((t) => t.id !== trackId));
+  const handleRemoveQueueItem = (index: number) => {
+    setQueue(queue.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const handleClearQueue = () => {
-    if (currentTrack) {
-      setQueue([currentTrack]);
-    } else {
-      setQueue([]);
-    }
+    setQueue([]);
   };
 
   const handleClose = () => {
@@ -928,7 +934,7 @@ export function MusicPlayer() {
                   <ScrollArea className="mt-4 h-[calc(100vh-8rem)] pr-2">
                     <div className="space-y-2">
                       {queue.map((track, index) => {
-                        const isCurrent = track.id === currentTrack.id;
+                        const isCurrent = track.id === currentTrack?.id;
                         return (
                           <div
                             className={`group relative flex items-center justify-between gap-2 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
@@ -997,7 +1003,7 @@ export function MusicPlayer() {
                               <Button
                                 aria-label="Remove item"
                                 className="size-6 p-0 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleRemoveQueueItem(track.id)}
+                                onClick={() => handleRemoveQueueItem(index)}
                                 size="icon"
                                 variant="ghost"
                               >

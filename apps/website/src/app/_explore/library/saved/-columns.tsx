@@ -14,6 +14,8 @@ export interface SavedTrack {
   duration: string;
   genre: string;
   savedAt: string;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 export const columns: ColumnDef<SavedTrack>[] = [
@@ -42,8 +44,19 @@ export const columns: ColumnDef<SavedTrack>[] = [
     accessorKey: "title",
     cell: ({ row }) => (
       <Link
-        to="/tracks/$id"
-        params={{ id: row.original.id }}
+        params={
+          row.original.regionSlug && row.original.slug
+            ? {
+                regionSlug: row.original.regionSlug,
+                slug: row.original.slug,
+              }
+            : { id: row.original.id }
+        }
+        to={
+          row.original.regionSlug && row.original.slug
+            ? "/tracks/$regionSlug/$slug"
+            : "/tracks/$id"
+        }
         className="font-medium hover:text-primary"
       >
         {row.getValue("title")}

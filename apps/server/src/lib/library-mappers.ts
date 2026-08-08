@@ -66,6 +66,8 @@ export const toPurchasedCatalogItem = (row: PurchasedCatalogRow) => {
     productType,
     purchaseMode,
     purchasedAt: row.purchasedAt.toISOString(),
+    regionSlug: null,
+    slug: null,
     title: row.title,
   };
 };

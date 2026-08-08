@@ -21,6 +21,8 @@ export interface PurchasedTrack {
   purchaseMode?: "digital_download" | "license";
   purchasedAt: string;
   downloadUrl?: string | null;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 export const columns: ColumnDef<PurchasedTrack>[] = [
@@ -67,8 +69,19 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
 
       return (
         <Link
-          to="/tracks/$id"
-          params={{ id: productId }}
+          params={
+            row.original.regionSlug && row.original.slug
+              ? {
+                  regionSlug: row.original.regionSlug,
+                  slug: row.original.slug,
+                }
+              : { id: productId }
+          }
+          to={
+            row.original.regionSlug && row.original.slug
+              ? "/tracks/$regionSlug/$slug"
+              : "/tracks/$id"
+          }
           className="font-medium hover:text-primary"
         >
           {row.getValue("title")}

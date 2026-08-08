@@ -18,6 +18,7 @@ import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import { canonicalGenreName } from "@/lib/genre-catalog";
+import { regionSlugFromUser } from "@/lib/public-explore";
 
 const formatDuration = (durationMs: number | null | undefined) => {
   if (!durationMs) {
@@ -119,6 +120,7 @@ export const mapTrackSummary = ({
   assets,
   collaboratorCount,
   genre,
+  regionSlug = null,
   row,
 }: {
   artistName: string;
@@ -126,6 +128,7 @@ export const mapTrackSummary = ({
   assets: InferSelectModel<typeof trackAssets>[];
   collaboratorCount: number;
   genre: string | null;
+  regionSlug?: string | null;
   row: InferSelectModel<typeof tracks>;
 }) => {
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art");
@@ -167,6 +170,7 @@ export const mapTrackSummary = ({
           ? row.releaseAt
           : null,
     releaseStrategy: row.releaseStrategy,
+    regionSlug,
     slug: row.slug,
     streamingLinks: row.streamingLinks,
     title: row.title,
@@ -186,6 +190,7 @@ export const buildTrackSummary = async (
   const [profile] = await db
     .select({
       displayName: userProfiles.displayName,
+      state: userProfiles.state,
       userName: authUser.name,
       username: userProfiles.username,
     })
@@ -215,6 +220,7 @@ export const buildTrackSummary = async (
     assets: assetRows,
     collaboratorCount: collaboratorRows.length,
     genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
+    regionSlug: regionSlugFromUser(profile?.state) ?? null,
     row,
   });
 };

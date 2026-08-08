@@ -67,3 +67,36 @@ export const stateFromExploreRegion = ({
 
   return northAmericaStates[region as keyof typeof northAmericaStates] ?? null;
 };
+
+const regionEntryByStateValue = (state?: string | null) => {
+  if (!state) {
+    return null;
+  }
+
+  const normalized = state.trim().toLowerCase();
+  const entry = (
+    Object.entries(northAmericaStates) as [
+      string,
+      {
+        abbreviation: string;
+        name: string;
+      },
+    ][]
+  ).find(
+    ([, value]) =>
+      value.abbreviation.toLowerCase() === normalized ||
+      value.name.toLowerCase() === normalized
+  );
+
+  return entry?.[1] ?? null;
+};
+
+/**
+ * Maps a user profile state value ("AR", "Arkansas") to a compact region slug
+ * for public URLs, e.g. "us-ar".
+ */
+export const regionSlugFromUser = (state?: string | null) => {
+  const entry = regionEntryByStateValue(state);
+
+  return entry ? `us-${entry.abbreviation.toLowerCase()}` : null;
+};

@@ -422,6 +422,7 @@ export const trackSummarySchema = z.object({
   purchaseMode: purchaseModeSchema.optional(),
   releaseAt: z.string().nullable().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
+  regionSlug: z.string().nullable().optional(),
   slug: z.string(),
   streamingLinks: z
     .object({
@@ -636,6 +637,7 @@ export const catalogArtistSchema = z.object({
 
 export const catalogAssetSchema = z.object({
   duration: z.string().nullable().optional(),
+  fileName: z.string().nullable().optional(),
   format: z.string().nullable().optional(),
   id: z.string(),
   included: z.boolean(),
@@ -651,9 +653,11 @@ export const catalogAssetSchema = z.object({
     "stems",
     "midi",
     "license_pdf",
+    "cover_art",
   ]),
   label: z.string(),
   subtitle: z.string().nullable().optional(),
+  url: z.string().nullable().optional(),
 });
 
 export const catalogLicenseOptionSchema = z.object({
@@ -686,6 +690,7 @@ export const trackCatalogDetailSchema = z.object({
   duration: z.string().nullable().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
+  isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
   isStreamable: z.boolean(),
@@ -696,6 +701,7 @@ export const trackCatalogDetailSchema = z.object({
   priceCents: z.number().int().nullable(),
   priceLabel: z.string(),
   purchaseMode: purchaseModeSchema,
+  regionSlug: z.string().nullable().optional(),
   slug: z.string(),
   streamCount: z.string().nullable().optional(),
   streamingLinks: z
@@ -772,9 +778,13 @@ export const videoSummarySchema = z.object({
   description: z.string().nullable().optional(),
   duration: z.string().optional(),
   externalPlaybackUrl: z.string().url().nullable().optional(),
+  genre: z.string().nullable().optional(),
   id: z.string(),
   muxPlaybackId: z.string().nullable(),
   playbackPolicy: z.enum(["public", "signed"]),
+  releaseAt: z.string().nullable().optional(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   sourceProjectId: z.string().nullable().optional(),
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
   sourceTrackId: z.string().nullable().optional(),
@@ -889,6 +899,8 @@ export const libraryRecentTrackSchema = z.object({
   duration: z.string(),
   id: z.string(),
   lastPlayed: z.string(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   timesPlayed: z.number().int().nonnegative(),
   title: z.string(),
 });
@@ -900,7 +912,9 @@ export const librarySavedTrackSchema = z.object({
   duration: z.string(),
   genre: z.string(),
   id: z.string(),
+  regionSlug: z.string().nullable().optional(),
   savedAt: z.string(),
+  slug: z.string().nullable().optional(),
   title: z.string(),
 });
 
@@ -909,6 +923,8 @@ export const libraryWatchedItemSchema = z.object({
   creatorSlug: z.string(),
   duration: z.string(),
   id: z.string(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   thumbnail: z.string(),
   title: z.string(),
   type: z.enum(["battle", "community", "party", "stream", "video"]),
@@ -929,6 +945,8 @@ export const purchasedCatalogItemSchema = z.object({
   productType: commerceProductTypeSchema,
   purchaseMode: purchaseModeSchema,
   purchasedAt: z.string(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   title: z.string(),
 });
 
@@ -1271,7 +1289,14 @@ export const updateProjectBodySchema = createProjectBodySchema.partial();
 export const createVideoBodySchema = z.object({
   description: z.string().optional(),
   externalPlaybackUrl: z.url().optional(),
+  genre: z.string().min(1).optional(),
+  isPublic: z.boolean().default(true),
   playbackPolicy: z.enum(["public", "signed"]).default("public"),
+  releaseAt: z
+    .string()
+    .datetime()
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   sourceProjectId: z.string().optional(),
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
   sourceTrackId: z.string().optional(),
@@ -1288,7 +1313,14 @@ export const createVideoBodySchema = z.object({
 
 export const directVideoUploadBodySchema = z.object({
   description: z.string().optional(),
+  genre: z.string().min(1).optional(),
+  isPublic: z.boolean().default(true),
   playbackPolicy: z.literal("public").default("public"),
+  releaseAt: z
+    .string()
+    .datetime()
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   sourceProjectId: z.string().optional(),
   sourceTrackId: z.string().min(1).optional(),
   title: z.string().min(1),
@@ -1309,6 +1341,19 @@ export const directVideoUploadResponseSchema = z.object({
   uploadId: z.string(),
   uploadUrl: z.url(),
   videoId: z.string(),
+});
+
+export const videoCommentSchema = z.object({
+  authorAvatarUrl: z.string().nullable().optional(),
+  authorName: z.string().nullable().optional(),
+  body: z.string(),
+  createdAt: z.string(),
+  id: z.string(),
+  userId: z.string(),
+});
+
+export const createVideoCommentBodySchema = z.object({
+  body: z.string().min(1).max(2000),
 });
 
 export const createPlaylistBodySchema = z.object({

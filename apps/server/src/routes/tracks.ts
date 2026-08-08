@@ -19,7 +19,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -44,6 +44,7 @@ import {
 } from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
+  regionSlugFromUser,
   stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
@@ -150,11 +151,32 @@ const publicTrackAssetUrl = (
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
 };
 
+const trackAssetFileName = (
+  asset: typeof trackAssets.$inferSelect | undefined
+) => {
+  if (!asset) {
+    return null;
+  }
+
+  const metadata = asset.metadata as Record<string, unknown> | null | undefined;
+  const metadataFileName = metadata?.originalFileName;
+  if (typeof metadataFileName === "string" && metadataFileName.trim()) {
+    return metadataFileName;
+  }
+
+  if (asset.objectKey) {
+    return asset.objectKey.split("/").pop() ?? null;
+  }
+
+  return null;
+};
+
 const assetKindLabels = {
   alternate_mix: "Alternate Mix",
   artwork: "Artwork",
   booklet: "Digital Booklet",
   clean: "Clean Version",
+  cover_art: "Cover Artwork",
   instrumental: "Instrumental",
   license_pdf: "License Agreement",
   master: "High Quality Master",
@@ -250,7 +272,10 @@ app.openapi(
       const summaries = [];
 
       for (const row of rows) {
-        summaries.push(await buildTrackSummary(row.tracks));
+        summaries.push({
+          ...(await buildTrackSummary(row.tracks)),
+          regionSlug: regionSlugFromUser(row.user_profiles?.state) ?? null,
+        });
       }
 
       return c.json(summaries, HttpStatusCodes.OK);
@@ -859,15 +884,15 @@ app.openapi(
       const rawPriceNum =
         typeof body.price === "number"
           ? body.price
-          : (body.price
+          : body.price
             ? Number(body.price)
-            : null);
+            : null;
       const salePriceUsd =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_USD
-          : (rawPriceNum !== null && !isNaN(rawPriceNum)
+          : rawPriceNum !== null && !isNaN(rawPriceNum)
             ? rawPriceNum
-            : null);
+            : null;
       const salePriceCents =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_CENTS
@@ -1234,6 +1259,21 @@ app.openapi(
 
     if (existingAsset) {
       return c.json(await buildTrackDetail(track), HttpStatusCodes.CREATED);
+    }
+
+    // A track should have a single cover art and a single master; replace any
+    // prior rows of the same kind instead of accumulating duplicates.
+    if (body.assetKind === "cover_art" || body.assetKind === "master") {
+      await withRetry("replace track asset kind", () =>
+        db
+          .delete(trackAssets)
+          .where(
+            and(
+              eq(trackAssets.trackId, trackId),
+              eq(trackAssets.assetKind, body.assetKind)
+            )
+          )
+      );
     }
 
     await withRetry("create track asset", () =>
@@ -1759,6 +1799,7 @@ app.openapi(
         priceCents: tracks.priceCents,
         purchaseMode: tracks.purchaseMode,
         slug: tracks.slug,
+        state: userProfiles.state,
         title: tracks.title,
       })
       .from(tracks)
@@ -1766,7 +1807,8 @@ app.openapi(
       .leftJoin(artistProfiles, eq(artistProfiles.userId, tracks.ownerUserId))
       .leftJoin(authUser, eq(authUser.id, tracks.ownerUserId))
       .leftJoin(genres, eq(genres.id, tracks.genreId))
-      .where(eq(tracks.id, trackId));
+      .where(or(eq(tracks.id, trackId), eq(tracks.slug, trackId)))
+      .limit(1);
 
     if (!row) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -1801,9 +1843,10 @@ app.openapi(
       roleRows.length > 0
         ? roleRows.map((roleRow) => roleRow.role)
         : ["musician"];
-    const coverAsset = assetRows.find(
-      (asset) => asset.assetKind === "cover_art"
-    );
+    const coverAsset =
+      assetRows.find(
+        (asset) => asset.assetKind === "cover_art" && asset.status === "ready"
+      ) ?? assetRows.find((asset) => asset.assetKind === "cover_art");
     const firstAudioAsset =
       assetRows.find((asset) => asset.assetKind === "master") ??
       assetRows.find((asset) => asset.durationMs);
@@ -1816,6 +1859,7 @@ app.openapi(
       .filter((asset) => catalogAssetKinds.has(asset.assetKind))
       .map((asset) => ({
         duration: formatDuration(asset.durationMs),
+        fileName: trackAssetFileName(asset),
         format: asset.mimeType,
         id: asset.id,
         included: asset.status === "ready",
@@ -1824,6 +1868,7 @@ app.openapi(
           assetKindLabels[asset.assetKind as keyof typeof assetKindLabels] ??
           "Track Asset",
         subtitle: asset.mimeType,
+        url: publicTrackAssetUrl(asset),
       }));
 
     return c.json(
@@ -1854,6 +1899,7 @@ app.openapi(
         duration: formatDuration(firstAudioAsset?.durationMs ?? null),
         genre: row.genreName ? canonicalGenreName(row.genreName) : null,
         id: row.id,
+        isForSale: row.isForSale,
         isOwned,
         isPurchasable: row.isForSale,
         isStreamable: true,
@@ -1873,6 +1919,7 @@ app.openapi(
         priceCents,
         priceLabel: formatPrice(priceCents),
         purchaseMode: row.purchaseMode,
+        regionSlug: regionSlugFromUser(row.state) ?? null,
         slug: row.slug,
         streamCount: null,
         tags: row.genreName ? [canonicalGenreName(row.genreName)] : [],

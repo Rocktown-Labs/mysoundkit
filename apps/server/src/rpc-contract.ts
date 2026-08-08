@@ -40,6 +40,7 @@ import type {
   trackProcessingStatusSchema,
   trackSummarySchema,
   usernameAvailabilityResponseSchema,
+  videoCommentSchema,
   videoSummarySchema,
   messageResponseSchema,
 } from "./lib/schemas";
@@ -60,6 +61,7 @@ import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
   createVideoBodySchema,
+  createVideoCommentBodySchema,
   directVideoUploadBodySchema,
   battleBotActionBodySchema,
   joinLiveExperienceBodySchema,
@@ -515,6 +517,17 @@ export const rpcContract = new Hono()
   )
   .delete("/v1/videos/:videoId", (c) =>
     c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .get("/v1/videos/:videoId", (c) =>
+    c.json({} as z.infer<typeof videoSummarySchema>)
+  )
+  .get("/v1/videos/:videoId/comments", (c) =>
+    c.json([] as z.infer<typeof videoCommentSchema>[])
+  )
+  .post(
+    "/v1/videos/:videoId/comments",
+    jsonValidator(createVideoCommentBodySchema),
+    (c) => c.json({} as z.infer<typeof videoCommentSchema>, 201)
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)

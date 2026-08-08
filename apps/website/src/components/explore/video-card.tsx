@@ -12,6 +12,8 @@ export interface ExploreVideoCardData {
   duration: string;
   id: string;
   playbackPolicy: "premium_only_live" | "public" | "signed";
+  regionSlug?: string | null;
+  slug?: string | null;
   status: string;
   thumbnail: string;
   title: string;
@@ -43,9 +45,16 @@ export function VideoCard({
   video: ExploreVideoCardData;
 }) {
   const isPremiumLive = video.playbackPolicy === "premium_only_live";
+  const videoLink =
+    video.regionSlug && video.slug
+      ? {
+          params: { regionSlug: video.regionSlug, slug: video.slug },
+          to: "/videos/$regionSlug/$slug" as const,
+        }
+      : { params: { id: video.id }, to: "/videos/$id" as const };
 
   return (
-    <Link to="/videos/$id" params={{ id: video.id }}>
+    <Link {...videoLink}>
       <Card className="overflow-hidden border-border/50 bg-card/60 transition-colors hover:border-primary/60">
         <div
           className={`relative ${compact ? "aspect-[16/10]" : "aspect-video"}`}

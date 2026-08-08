@@ -14,6 +14,8 @@ export interface RecentTrack {
   duration: string;
   timesPlayed: number;
   lastPlayed: string;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 export const columns: ColumnDef<RecentTrack>[] = [
@@ -42,8 +44,19 @@ export const columns: ColumnDef<RecentTrack>[] = [
     accessorKey: "title",
     cell: ({ row }) => (
       <Link
-        to="/tracks/$id"
-        params={{ id: row.original.id }}
+        params={
+          row.original.regionSlug && row.original.slug
+            ? {
+                regionSlug: row.original.regionSlug,
+                slug: row.original.slug,
+              }
+            : { id: row.original.id }
+        }
+        to={
+          row.original.regionSlug && row.original.slug
+            ? "/tracks/$regionSlug/$slug"
+            : "/tracks/$id"
+        }
         className="font-medium hover:text-primary"
       >
         {row.getValue("title")}
