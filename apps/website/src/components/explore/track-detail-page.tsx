@@ -54,6 +54,8 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import { shareLink } from "@/lib/share";
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 // --- Types ---
 
@@ -277,6 +279,12 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     queryKey: ["track-detail", id],
     retry: false,
   });
+  const { data: relatedTrackResults = [] } = useTracksQuery(undefined, {
+    genre: item?.genre ?? "all",
+    limit: 24,
+    scope: "public",
+    sort: "plays-desc",
+  });
   const [selectedLicense, setSelectedLicense] =
     useState<MockLicenseOption | null>(null);
 
@@ -313,6 +321,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     );
   }
 
+  const canPlayTrack = Boolean(item.playbackUrl);
+  const canonicalTrackHref =
+    item.regionSlug && item.slug
+      ? `/tracks/${item.regionSlug}/${item.slug}`
+      : `/tracks/${item.id}`;
   const playerTrack = {
     artist: item.artist.name,
     artistHref: `/artist/${item.artist.handle}`,
@@ -322,11 +335,17 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     slug: item.slug,
     src: item.playbackUrl ?? "",
     title: item.title,
-    trackHref: `/tracks/${item.id}`,
+    trackHref: canonicalTrackHref,
   };
+  const relatedTracks = relatedTrackResults
+    .filter((track) => track.id !== item.id)
+    .sort(
+      (a, b) => relatedTrackPriority(b, item) - relatedTrackPriority(a, item)
+    )
+    .slice(0, 4);
 
   const playCurrentTrack = () => {
-    if (!item.playbackUrl) {
+    if (!canPlayTrack) {
       toast({
         description: "No stream URL found for this track.",
         title: "Playback unavailable",
@@ -344,6 +363,15 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   };
 
   const handleQueueTrack = () => {
+    if (!canPlayTrack) {
+      toast({
+        description: "No stream URL found for this track.",
+        title: "Queue unavailable",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const added = addToQueue(playerTrack);
     toast({
       description: added
@@ -471,11 +499,10 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                   height={512}
                   className="size-full object-cover rounded-lg shadow-2xl border border-border/40"
                 />
-                {item.isStreamable && (
+                {canPlayTrack && (
                   <button
                     aria-label={`Play ${item.title}`}
-                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/40 opacity-0 transition-all hover:opacity-100"
-                    disabled={!item.playbackUrl}
+                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg bg-black/25 opacity-100 transition-all hover:bg-black/40 md:opacity-0 md:hover:opacity-100"
                     onClick={playCurrentTrack}
                     type="button"
                   >
@@ -517,11 +544,10 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                 </div>
 
                 <div className="flex items-center gap-4 flex-wrap">
-                  {item.isStreamable && (
+                  {canPlayTrack && (
                     <Button
                       size="lg"
                       className="bg-primary hover:bg-primary/90 text-primary-foreground font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg shadow-xl shadow-primary/20 flex-1 sm:flex-none"
-                      disabled={!item.playbackUrl}
                       onClick={playCurrentTrack}
                     >
                       <Play className="size-5 mr-3 fill-current" /> Play
@@ -531,7 +557,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                     size="lg"
                     variant="outline"
                     className="border-border/40 hover:bg-muted font-black px-8 h-12 uppercase tracking-[0.1em] rounded-lg flex-1 sm:flex-none"
-                    disabled={!item.playbackUrl}
+                    disabled={!canPlayTrack}
                     onClick={handleQueueTrack}
                   >
                     <Plus className="size-5 mr-2" /> Queue
@@ -557,6 +583,12 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                     />
                   </Button>
                 </div>
+                {!canPlayTrack && (
+                  <p className="text-sm text-muted-foreground">
+                    Playback will appear here after a streamable audio asset is
+                    available.
+                  </p>
+                )}
 
                 <TrackPlatformLinks links={item.streamingLinks ?? {}} />
 
@@ -706,60 +738,16 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                 </Link>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  {
-                    cover: item.coverArtUrl,
-                    genre: "Hip-Hop",
-                    id: "rel-1",
-                    price: "$1.99",
-                    title: "Midnight Echoes",
-                  },
-                  {
-                    cover: item.coverArtUrl,
-                    genre: "Electronic",
-                    id: "rel-2",
-                    price: "$4.99",
-                    title: "Synth Waves (Stems)",
-                  },
-                  {
-                    cover: item.coverArtUrl,
-                    genre: "R&B",
-                    id: "rel-3",
-                    price: "$9.99",
-                    title: "Urban Rhythms Kit",
-                  },
-                  {
-                    cover: item.coverArtUrl,
-                    genre: "Soul",
-                    id: "rel-4",
-                    price: "$1.99",
-                    title: "Velvet Nights",
-                  },
-                ].map((rel) => (
-                  <Link
-                    key={rel.id}
-                    to="/tracks/$id"
-                    params={{ id: rel.id }}
-                    className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
-                  >
-                    <div className="aspect-square rounded-lg overflow-hidden bg-muted mb-2 relative">
-                      <AppImage
-                        src={rel.cover}
-                        alt={rel.title}
-                        width={200}
-                        height={200}
-                        className="object-cover size-full group-hover:scale-105 transition-transform"
-                      />
-                      <Badge className="absolute top-2 right-2 bg-black/70 text-white text-[9px] font-bold">
-                        {rel.price}
-                      </Badge>
-                    </div>
-                    <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">
-                      {rel.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{rel.genre}</p>
-                  </Link>
-                ))}
+                {relatedTracks.length > 0 ? (
+                  relatedTracks.map((track) => (
+                    <RelatedTrackCard key={track.id} track={track} />
+                  ))
+                ) : (
+                  <p className="col-span-full rounded-lg border border-dashed border-border/40 p-4 text-sm text-muted-foreground">
+                    More releases from this lane will appear here as artists
+                    publish new tracks.
+                  </p>
+                )}
               </div>
             </section>
           </div>
@@ -770,6 +758,73 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
 }
 
 // --- Dynamic Components ---
+
+function relatedTrackPriority(
+  track: TrackSummary,
+  item: MockCatalogItem
+): number {
+  if (
+    track.artistUsername?.toLowerCase() === item.artist.handle.toLowerCase() ||
+    track.artistName.toLowerCase() === item.artist.name.toLowerCase()
+  ) {
+    return 2;
+  }
+
+  if (track.genre && item.genre && track.genre === item.genre) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function RelatedTrackCard({ track }: { track: TrackSummary }) {
+  const content = (
+    <>
+      <div className="aspect-square rounded-lg overflow-hidden bg-muted mb-2 relative">
+        <AppImage
+          src={track.coverArtUrl ?? "/placeholder.svg"}
+          alt={track.title}
+          width={200}
+          height={200}
+          className="object-cover size-full group-hover:scale-105 transition-transform"
+        />
+        <Badge className="absolute top-2 right-2 bg-black/70 text-white text-[9px] font-bold">
+          {track.priceCents
+            ? `$${(track.priceCents / 100).toFixed(2)}`
+            : "Play"}
+        </Badge>
+      </div>
+      <p className="font-bold text-sm truncate group-hover:text-primary transition-colors">
+        {track.title}
+      </p>
+      <p className="text-xs text-muted-foreground truncate">
+        {track.artistName}
+      </p>
+    </>
+  );
+
+  if (track.regionSlug && track.slug) {
+    return (
+      <Link
+        to="/tracks/$regionSlug/$slug"
+        params={{ regionSlug: track.regionSlug, slug: track.slug }}
+        className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      to="/tracks/$id"
+      params={{ id: track.id }}
+      className="group border border-border/40 bg-card/20 rounded-xl p-3 hover:border-primary/50 transition-colors"
+    >
+      {content}
+    </Link>
+  );
+}
 
 function TrackPlatformLinks({
   links,

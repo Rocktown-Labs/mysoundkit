@@ -706,15 +706,15 @@ export function MusicPlayer() {
           src={currentTrack.cover || "/placeholder.svg"}
           width={36}
         />
-        <div className="max-w-[140px] truncate text-xs">
+        <div className="max-w-[160px] truncate text-xs leading-tight">
           <PlayerRouteLink
-            className="truncate font-semibold"
+            className="block truncate font-semibold"
             href={currentTrack.trackHref}
           >
             {currentTrack.title}
           </PlayerRouteLink>
           <PlayerRouteLink
-            className="truncate text-muted-foreground"
+            className="mt-0.5 block truncate text-muted-foreground"
             href={currentTrack.artistHref}
           >
             {currentTrack.artist}
@@ -917,7 +917,7 @@ export function MusicPlayer() {
                   </Button>
                 </SheetTrigger>
                 <SheetContent className="w-full sm:w-96" side="right">
-                  <SheetHeader className="flex flex-row items-center justify-between pb-2 border-b">
+                  <SheetHeader className="flex flex-row items-center justify-between gap-8 pb-2 pr-8 border-b">
                     <SheetTitle className="text-base font-semibold">
                       Queue ({queue.length})
                     </SheetTitle>
@@ -937,7 +937,7 @@ export function MusicPlayer() {
                         const isCurrent = track.id === currentTrack?.id;
                         return (
                           <div
-                            className={`group relative flex items-center justify-between gap-2 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
+                            className={`group relative flex items-center justify-between gap-3 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
                               isCurrent
                                 ? "bg-accent border border-primary/20"
                                 : "bg-card/40 border border-transparent"
@@ -979,7 +979,7 @@ export function MusicPlayer() {
                             </button>
 
                             {/* Reorder and Remove Actions */}
-                            <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100">
+                            <div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100">
                               <Button
                                 aria-label="Move up"
                                 className="size-6 p-0"

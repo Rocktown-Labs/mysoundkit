@@ -31,7 +31,7 @@ function ShopPage() {
   const activeGenre = search.genre ?? "all";
   const { data: featuredTracks = [] } = useTracksQuery(undefined, {
     genre: activeGenre,
-    limit: "25",
+    limit: 25,
     region: "us-arkansas",
     regionType: "north-america",
     scope: "public",
@@ -183,7 +183,7 @@ function ShopPage() {
 function GenreShopRail({ genre }: { genre: (typeof musicGenres)[number] }) {
   const { data: tracks = [] } = useTracksQuery(undefined, {
     genre: genre.value,
-    limit: "12",
+    limit: 12,
     region: "us-arkansas",
     regionType: "north-america",
     scope: "public",
@@ -217,6 +217,8 @@ function GenreShopRail({ genre }: { genre: (typeof musicGenres)[number] }) {
               cover={track.coverArtUrl ?? "/placeholder.svg"}
               plays={track.plays.toLocaleString()}
               duration={track.duration}
+              regionSlug={track.regionSlug}
+              slug={track.slug}
             />
           ))}
         </div>

@@ -195,6 +195,8 @@ function ArtistProfilePage() {
                   cover={t.coverArtUrl ?? "/placeholder.svg"}
                   plays={t.plays ? t.plays.toLocaleString() : "0"}
                   duration={t.duration ?? "3:20"}
+                  regionSlug={t.regionSlug}
+                  slug={t.slug}
                 />
               ))}
             </div>
@@ -215,6 +217,8 @@ function ArtistProfilePage() {
                   cover={t.coverArtUrl ?? "/placeholder.svg"}
                   plays={t.plays ? t.plays.toLocaleString() : "0"}
                   duration={t.duration ?? "3:20"}
+                  regionSlug={t.regionSlug}
+                  slug={t.slug}
                 />
               ))}
             </div>

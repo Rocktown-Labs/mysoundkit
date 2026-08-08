@@ -6,50 +6,59 @@ import { BattleCard } from "@/components/explore/battle-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
 
 const genreData: Record<
   string,
-  { name: string; emoji: string; description: string }
+  { name: string; emoji: string; description: string; queryGenre: string }
 > = {
   afrobeats: {
     description: "African rhythms and melodies",
     emoji: "🥁",
     name: "Afrobeats",
+    queryGenre: "afrobeats",
   },
   electronic: {
     description: "Digital sounds and beats",
     emoji: "🎹",
     name: "Electronic",
+    queryGenre: "electronic",
   },
   "hip-hop": {
     description: "Beats, rhymes, and culture",
     emoji: "🎤",
     name: "Hip-Hop",
+    queryGenre: "hip-hop-rap",
   },
   jazz: {
     description: "Improvisation and swing",
     emoji: "🎺",
     name: "Jazz",
+    queryGenre: "jazz",
   },
   latin: {
     description: "Latin rhythms and passion",
     emoji: "💃",
     name: "Latin",
+    queryGenre: "latin",
   },
   pop: {
     description: "Chart-topping hits",
     emoji: "⭐",
     name: "Pop",
+    queryGenre: "pop",
   },
   "rb-soul": {
     description: "Smooth vibes and soulful vocals",
     emoji: "🎵",
     name: "R&B/Soul",
+    queryGenre: "rb-soul",
   },
   rock: {
     description: "Guitar-driven anthems",
     emoji: "🎸",
     name: "Rock",
+    queryGenre: "rock",
   },
 };
 
@@ -64,7 +73,20 @@ function GenreDetailPage() {
     description: "",
     emoji: "🎵",
     name: "Genre",
+    queryGenre: id,
   };
+  const { data: topTracks = [] } = useTracksQuery(undefined, {
+    genre: genre.queryGenre,
+    limit: 12,
+    scope: "public",
+    sort: "plays-desc",
+  });
+  const { data: newTracks = [] } = useTracksQuery(undefined, {
+    genre: genre.queryGenre,
+    limit: 12,
+    scope: "public",
+    sort: "title-desc",
+  });
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 space-y-8 md:space-y-10">
@@ -102,60 +124,24 @@ function GenreDetailPage() {
         />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
-            <TrackCard
-              id="track-1"
-              title="Summer Nights"
-              artist="Luna Eclipse"
-              artistSlug="luna-eclipse"
-              cover="/summer-music-album-cover.png"
-              plays="2.4M"
-              duration="3:24"
-            />
-            <TrackCard
-              id="track-2"
-              title="Midnight Dreams"
-              artist="Neon Pulse"
-              artistSlug="neon-pulse"
-              cover="/night-music-album-cover.png"
-              plays="1.8M"
-              duration="4:12"
-            />
-            <TrackCard
-              id="track-3"
-              title="Urban Legends"
-              artist="Street Poet"
-              artistSlug="street-poet"
-              cover="/hip-hop-album-cover.png"
-              plays="3.1M"
-              duration="3:45"
-            />
-            <TrackCard
-              id="track-4"
-              title="Electric Soul"
-              artist="Voltage Dreams"
-              artistSlug="voltage-dreams"
-              cover="/summer-music-album-cover.png"
-              plays="1.2M"
-              duration="3:56"
-            />
-            <TrackCard
-              id="track-5"
-              title="Neon Lights"
-              artist="Luna Eclipse"
-              artistSlug="luna-eclipse"
-              cover="/night-music-album-cover.png"
-              plays="1.9M"
-              duration="3:30"
-            />
-            <TrackCard
-              id="track-6"
-              title="City Vibes"
-              artist="Street Poet"
-              artistSlug="street-poet"
-              cover="/hip-hop-album-cover.png"
-              plays="2.2M"
-              duration="4:05"
-            />
+            {topTracks.length > 0 ? (
+              topTracks.map((track) => (
+                <TrackCard
+                  key={track.id}
+                  id={track.id}
+                  title={track.title}
+                  artist={track.artistName}
+                  artistSlug={track.artistUsername ?? "artist"}
+                  cover={track.coverArtUrl ?? "/placeholder.svg"}
+                  plays={track.plays.toLocaleString()}
+                  duration={track.duration}
+                  regionSlug={track.regionSlug}
+                  slug={track.slug}
+                />
+              ))
+            ) : (
+              <GenreTrackEmptyState genreName={genre.name} />
+            )}
           </div>
         </div>
       </section>
@@ -168,51 +154,24 @@ function GenreDetailPage() {
         />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
-            <TrackCard
-              id="track-7"
-              title="Rising Star"
-              artist="Voltage Dreams"
-              artistSlug="voltage-dreams"
-              cover="/summer-music-album-cover.png"
-              plays="45K"
-              duration="3:18"
-            />
-            <TrackCard
-              id="track-8"
-              title="New Wave"
-              artist="Neon Pulse"
-              artistSlug="neon-pulse"
-              cover="/night-music-album-cover.png"
-              plays="67K"
-              duration="3:52"
-            />
-            <TrackCard
-              id="track-9"
-              title="Breaking Through"
-              artist="Luna Eclipse"
-              artistSlug="luna-eclipse"
-              cover="/hip-hop-album-cover.png"
-              plays="89K"
-              duration="4:20"
-            />
-            <TrackCard
-              id="track-10"
-              title="Fresh Start"
-              artist="Street Poet"
-              artistSlug="street-poet"
-              cover="/summer-music-album-cover.png"
-              plays="52K"
-              duration="3:45"
-            />
-            <TrackCard
-              id="track-11"
-              title="Morning Light"
-              artist="Voltage Dreams"
-              artistSlug="voltage-dreams"
-              cover="/night-music-album-cover.png"
-              plays="38K"
-              duration="3:15"
-            />
+            {newTracks.length > 0 ? (
+              newTracks.map((track) => (
+                <TrackCard
+                  key={track.id}
+                  id={track.id}
+                  title={track.title}
+                  artist={track.artistName}
+                  artistSlug={track.artistUsername ?? "artist"}
+                  cover={track.coverArtUrl ?? "/placeholder.svg"}
+                  plays={track.plays.toLocaleString()}
+                  duration={track.duration}
+                  regionSlug={track.regionSlug}
+                  slug={track.slug}
+                />
+              ))
+            ) : (
+              <GenreTrackEmptyState genreName={genre.name} />
+            )}
           </div>
         </div>
       </section>
@@ -453,6 +412,14 @@ function GenreDetailPage() {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function GenreTrackEmptyState({ genreName }: { genreName: string }) {
+  return (
+    <div className="w-80 rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+      No {genreName} tracks are live yet.
     </div>
   );
 }
