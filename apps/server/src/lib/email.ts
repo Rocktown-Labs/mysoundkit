@@ -6,17 +6,59 @@ type EmailSendResult =
   | { emailId: string | null; sent: true }
   | { reason: string; sent: false };
 
+export type TransactionalEmailTemplate =
+  | "battle_challenge"
+  | "battle_reminder"
+  | "battle_results"
+  | "billing_issue"
+  | "collaborator_invite"
+  | "follower"
+  | "friend_request"
+  | "open_verse_accepted"
+  | "open_verse_submitted"
+  | "org_invite"
+  | "purchase_receipt"
+  | "sale_notification"
+  | "track_ready"
+  | "track_processing_ready"
+  | "welcome"
+  | "welcome_premium";
+
+export interface SendTransactionalEmailOptions {
+  idempotencyKey: string;
+  payload: {
+    actionUrl: string;
+    body?: string;
+    ctaLabel?: string;
+    eyebrow?: string;
+    footerNote?: string;
+    heading?: string;
+    links?: {
+      description?: string;
+      href: string;
+      label: string;
+    }[];
+    previewText?: string;
+    recipientName: string;
+    subject?: string;
+    trackId?: string;
+    trackTitle?: string;
+  };
+  recipientEmail: string;
+  template: TransactionalEmailTemplate;
+}
+
 const getEnvValue = (key: string) =>
   (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
 
-const getPublicSiteUrl = () =>
+export const getPublicSiteUrl = () =>
   getEnvValue("SOUNDKIT_PUBLIC_URL") ||
   getEnvValue("CORS_ORIGIN") ||
   "https://mysoundkit.com";
 
 const getEmailFrom = () =>
   getEnvValue("SOUNDKIT_EMAIL_FROM") ||
-  "SoundKit <notifications@mysoundkit.com>";
+  "SoundKit <noreply@news.mysoundkit.com>";
 
 const getEmailReplyTo = () => getEnvValue("SOUNDKIT_EMAIL_REPLY_TO") || null;
 
@@ -52,21 +94,35 @@ export const verifyResendWebhook = async ({
   });
 };
 
-export const sendTrackLifecycleEmail = async ({
+const getEmailSubject = ({
+  payload,
+  template,
+}: Pick<SendTransactionalEmailOptions, "payload" | "template">) => {
+  if (payload.subject) {
+    return payload.subject;
+  }
+
+  if (template === "track_processing_ready") {
+    return `${payload.trackTitle} is ready to review`;
+  }
+
+  return `${payload.trackTitle} is ready`;
+};
+
+const getEmailTags = ({
+  payload,
+  template,
+}: Pick<SendTransactionalEmailOptions, "payload" | "template">) => [
+  { name: "email_type", value: template },
+  ...(payload.trackId ? [{ name: "track_id", value: payload.trackId }] : []),
+];
+
+export const sendTransactionalEmail = async ({
   idempotencyKey,
-  processingComplete = false,
+  payload,
   recipientEmail,
-  recipientName,
-  trackId,
-  trackTitle,
-}: {
-  idempotencyKey: string;
-  processingComplete?: boolean;
-  recipientEmail: string;
-  recipientName: string;
-  trackId: string;
-  trackTitle: string;
-}): Promise<EmailSendResult> => {
+  template,
+}: SendTransactionalEmailOptions): Promise<EmailSendResult> => {
   const apiKey = getResendApiKey();
 
   if (!apiKey) {
@@ -74,38 +130,46 @@ export const sendTrackLifecycleEmail = async ({
   }
 
   const publicSiteUrl = getPublicSiteUrl();
-  const actionUrl = `${publicSiteUrl.replace(/\/$/u, "")}/dashboard/tracks/${trackId}`;
-  const [{ renderTrackLifecycleEmail }, { Resend }] = await Promise.all([
-    import("@soundkit/transactional"),
-    import("resend"),
-  ]);
-  const { html, text } = await renderTrackLifecycleEmail({
-    actionUrl,
-    artistName: recipientName,
-    assetBaseUrl: publicSiteUrl,
-    processingComplete,
-    trackTitle,
-  });
+  const [
+    { renderTrackLifecycleEmail, renderTransactionalNotificationEmail },
+    { Resend },
+  ] = await Promise.all([import("@soundkit/transactional"), import("resend")]);
+  const emailContent =
+    template === "track_ready" || template === "track_processing_ready"
+      ? await renderTrackLifecycleEmail({
+          actionUrl: payload.actionUrl,
+          artistName: payload.recipientName,
+          assetBaseUrl: publicSiteUrl,
+          eventType: template,
+          trackTitle: payload.trackTitle ?? "Your track",
+        })
+      : await renderTransactionalNotificationEmail({
+          actionUrl: payload.actionUrl,
+          assetBaseUrl: publicSiteUrl,
+          body: payload.body ?? "Open SoundKit to review the latest update.",
+          ctaLabel: payload.ctaLabel ?? "Open SoundKit",
+          eyebrow: payload.eyebrow ?? "SoundKit",
+          footerNote:
+            payload.footerNote ??
+            "You are receiving this because this email is related to your SoundKit account.",
+          heading: payload.heading ?? "You have a SoundKit update",
+          links: payload.links,
+          previewText:
+            payload.previewText ?? "Open SoundKit to review the latest update.",
+          recipientName: payload.recipientName,
+          subject: getEmailSubject({ payload, template }),
+        });
+  const subject = getEmailSubject({ payload, template });
   const resend = new Resend(apiKey);
-  const subject = processingComplete
-    ? `${trackTitle} finished premium processing`
-    : `${trackTitle} is live on SoundKit`;
   const replyTo = getEmailReplyTo();
   const { data, error } = await resend.emails.send(
     {
       from: getEmailFrom(),
-      html,
+      html: emailContent.html,
       replyTo: replyTo ? [replyTo] : undefined,
       subject,
-      tags: [
-        { name: "email_type", value: "track_lifecycle" },
-        {
-          name: "lifecycle_event",
-          value: processingComplete ? "processing_complete" : "track_live",
-        },
-        { name: "track_id", value: trackId },
-      ],
-      text,
+      tags: getEmailTags({ payload, template }),
+      text: emailContent.text,
       to: [recipientEmail],
     },
     { idempotencyKey }
@@ -117,7 +181,8 @@ export const sendTrackLifecycleEmail = async ({
       event: "resend_email_failed",
       name: error.name,
       recipientEmail,
-      trackId,
+      template,
+      trackId: payload.trackId,
     });
 
     return { reason: error.message, sent: false };

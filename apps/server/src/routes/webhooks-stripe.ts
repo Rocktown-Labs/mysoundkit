@@ -1,6 +1,11 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { orderItems, orders, purchases } from "@soundkit/db/schema/app";
+import {
+  orderItems,
+  orders,
+  purchases,
+  userNotifications,
+} from "@soundkit/db/schema/app";
 import {
   communityMembers,
   communitySubscriptions,
@@ -15,6 +20,11 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { resolveCommunitySubscriptionStatus } from "@/lib/community-subscriptions";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import {
+  notifyBillingIssueEmail,
+  notifyPurchaseEmails,
+} from "@/lib/email-events";
 import { verifyStripeSignature } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
@@ -90,7 +100,13 @@ const processCommunitySubscription = async ({
   }
 };
 
-const processStripeEvent = async (event: StripeEvent) => {
+const processStripeEvent = async ({
+  emailQueue,
+  event,
+}: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  event: StripeEvent;
+}) => {
   const eventType = event.type ?? "unknown";
   const object = event.data?.object ?? {};
   const transactionId = object.metadata?.transactionId;
@@ -121,30 +137,74 @@ const processStripeEvent = async (event: StripeEvent) => {
         .where(eq(orders.transactionId, transactionId));
 
       if (order?.buyerUserId) {
+        const {buyerUserId} = order;
         const purchasedItems = await db
           .select()
           .from(orderItems)
           .where(eq(orderItems.orderId, order.id));
 
-        if (purchasedItems.length > 0) {
+        const purchaseRows = purchasedItems.map((item) => ({
+          buyerUserId,
+          id: crypto.randomUUID(),
+          orderItemId: item.id,
+          projectId: item.projectId,
+          trackId: item.trackId,
+          videoId: item.videoId,
+        }));
+
+        if (purchaseRows.length > 0) {
+          await db.insert(purchases).values(purchaseRows).onConflictDoNothing();
+        }
+
+        await notifyPurchaseEmails({
+          orderId: order.id,
+          queue: emailQueue,
+        });
+
+        await db
+          .insert(userNotifications)
+          .values({
+            id: `purchase_ready:${order.id}:${buyerUserId}`,
+            link: purchaseRows[0]?.id
+              ? `/library/purchased/${purchaseRows[0].id}`
+              : "/library/purchased",
+            message: "Your purchase is ready in your SoundKit library.",
+            title: "Purchase Ready",
+            type: "purchase_ready",
+            userId: buyerUserId,
+          })
+          .onConflictDoNothing();
+
+        if (order.sellerUserId) {
           await db
-            .insert(purchases)
-            .values(
-              purchasedItems.map((item) => ({
-                buyerUserId: order.buyerUserId,
-                id: crypto.randomUUID(),
-                orderItemId: item.id,
-                projectId: item.projectId,
-                trackId: item.trackId,
-                videoId: item.videoId,
-              }))
-            )
+            .insert(userNotifications)
+            .values({
+              id: `sale_notification:${order.id}:${order.sellerUserId}`,
+              link: "/dashboard/sales",
+              message: "You made a new sale on SoundKit.",
+              title: "New Sale",
+              type: "sale_notification",
+              userId: order.sellerUserId,
+            })
             .onConflictDoNothing();
         }
       }
     }
 
     return;
+  }
+
+  if (
+    eventType === "invoice.payment_failed" ||
+    (eventType === "customer.subscription.updated" &&
+      (object.status === "past_due" || object.status === "unpaid"))
+  ) {
+    await notifyBillingIssueEmail({
+      queue: emailQueue,
+      stripeCustomerId: object.customer,
+      stripeSubscriptionId: object.subscription ?? object.id,
+      userId: object.metadata?.userId,
+    });
   }
 
   if (
@@ -249,7 +309,10 @@ app.openapi(
       stripeEventId: event.id,
     });
 
-    await processStripeEvent(event);
+    await processStripeEvent({
+      emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+      event,
+    });
     await db
       .update(stripeWebhookEvents)
       .set({ processedAt: new Date(), status: "processed" })

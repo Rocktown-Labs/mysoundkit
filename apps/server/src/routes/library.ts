@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   librarySaves,
@@ -16,6 +16,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { unauthorizedMessage } from "@/lib/entitlements";
 import {
   fallbackArtistSlug,
   fallbackCover,
@@ -34,6 +35,7 @@ import {
   libraryOverviewSchema,
   librarySavedTrackSchema,
   libraryWatchedItemSchema,
+  purchasedCatalogDetailSchema,
   playlistSchema,
   purchasedCatalogItemSchema,
 } from "@/lib/schemas";
@@ -87,6 +89,75 @@ const toSavedTrack = async ({
     slug: summary.slug,
     title: summary.title,
   };
+};
+
+const downloadableAssetKinds = [
+  "master",
+  "tagged_mp3",
+  "untagged_wav",
+  "variant_audio",
+  "instrumental",
+] as const;
+
+const getPurchasedCatalogRow = ({
+  purchaseId,
+  userId,
+}: {
+  purchaseId?: string;
+  userId: string;
+}) => {
+  const db = createDb();
+  const query = db
+    .select({
+      id: purchases.id,
+      licenseOptionId: orderItems.licenseOptionId,
+      orderProjectId: orderItems.projectId,
+      priceCents: orderItems.priceSnapshot,
+      productType: orderItems.productType,
+      purchaseProjectId: purchases.projectId,
+      purchasedAt: purchases.purchasedAt,
+      title: orderItems.titleSnapshot,
+      trackId: purchases.trackId,
+    })
+    .from(purchases)
+    .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
+    .where(
+      purchaseId
+        ? and(eq(purchases.buyerUserId, userId), eq(purchases.id, purchaseId))
+        : eq(purchases.buyerUserId, userId)
+    );
+
+  return query;
+};
+
+const getPurchaseDownloads = async ({
+  trackId,
+}: {
+  trackId: string | null;
+}) => {
+  if (!trackId) {
+    return [];
+  }
+
+  const assetRows = await createDb()
+    .select({
+      assetKind: trackAssets.assetKind,
+      id: trackAssets.id,
+    })
+    .from(trackAssets)
+    .where(
+      and(
+        eq(trackAssets.trackId, trackId),
+        inArray(trackAssets.assetKind, downloadableAssetKinds)
+      )
+    )
+    .orderBy(desc(trackAssets.durationMs));
+
+  return assetRows.map((asset) => ({
+    downloadUrl: `/v1/tracks/${trackId}/assets/${asset.id}/download`,
+    id: asset.id,
+    label: asset.assetKind.replaceAll("_", " "),
+  }));
 };
 
 app.openapi(
@@ -438,57 +509,112 @@ app.openapi(
       return c.json(samplePurchasedCatalogItems, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
-      .select({
-        id: purchases.id,
-        licenseOptionId: orderItems.licenseOptionId,
-        orderProjectId: orderItems.projectId,
-        priceCents: orderItems.priceSnapshot,
-        productType: orderItems.productType,
-        purchaseProjectId: purchases.projectId,
-        purchasedAt: purchases.purchasedAt,
-        title: orderItems.titleSnapshot,
-        trackId: purchases.trackId,
-      })
-      .from(purchases)
-      .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
-      .where(eq(purchases.buyerUserId, user.id));
+    const rows = await getPurchasedCatalogRow({ userId: user.id });
 
     const items = await Promise.all(
       rows.map(async (row) => {
-        const [asset] = row.trackId
-          ? await db
-              .select({ id: trackAssets.id })
-              .from(trackAssets)
-              .where(
-                and(
-                  eq(trackAssets.trackId, row.trackId),
-                  inArray(trackAssets.assetKind, [
-                    "master",
-                    "tagged_mp3",
-                    "untagged_wav",
-                    "variant_audio",
-                    "instrumental",
-                  ])
-                )
-              )
-              .orderBy(desc(trackAssets.durationMs))
-              .limit(1)
-          : [];
+        const [download] = await getPurchaseDownloads({
+          trackId: row.trackId,
+        });
 
         return toPurchasedCatalogItem({
           ...row,
           projectId: row.purchaseProjectId ?? row.orderProjectId,
-          trackDownloadUrl:
-            row.trackId && asset
-              ? `/v1/tracks/${row.trackId}/assets/${asset.id}/download`
-              : null,
+          trackDownloadUrl: download?.downloadUrl ?? null,
         });
       })
     );
 
     return c.json(items, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/purchases/{purchaseId}",
+    request: {
+      params: z.object({ purchaseId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        purchasedCatalogDetailSchema,
+        "Purchased catalog item detail"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        z.object({ message: z.string() }),
+        "Purchase not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!user) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { purchaseId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      const purchase = samplePurchasedCatalogItems.find(
+        (item) =>
+          item.id === purchaseId ||
+          ("productId" in item && item.productId === purchaseId)
+      );
+
+      if (!purchase) {
+        return c.json(
+          { message: "Purchase not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+
+      return c.json(
+        {
+          downloads: purchase.downloadUrl
+            ? [
+                {
+                  downloadUrl: purchase.downloadUrl,
+                  id: purchase.id,
+                  label: "Download",
+                },
+              ]
+            : [],
+          purchase,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const [row] = await getPurchasedCatalogRow({
+      purchaseId,
+      userId: user.id,
+    });
+
+    if (!row) {
+      return c.json(
+        { message: "Purchase not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const downloads = await getPurchaseDownloads({
+      trackId: row.trackId,
+    });
+    const [download] = downloads;
+    const purchase = toPurchasedCatalogItem({
+      ...row,
+      projectId: row.purchaseProjectId ?? row.orderProjectId,
+      trackDownloadUrl: download?.downloadUrl ?? null,
+    });
+
+    return c.json({ downloads, purchase }, HttpStatusCodes.OK);
   }
 );
 

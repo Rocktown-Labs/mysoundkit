@@ -133,15 +133,13 @@ export const createRoundVoterSnapshot = ({
 
   return [...uniqueActiveIds]
     .filter((userId) => !lobbyIds.has(userId))
-    .map(
-      (userId): RoundVoterSnapshot => ({
-        roundId,
-        status: "eligible",
-        userId,
-        voteRequired: true,
-        votedAt: null,
-      })
-    );
+    .map((userId): RoundVoterSnapshot => ({
+      roundId,
+      status: "eligible",
+      userId,
+      voteRequired: true,
+      votedAt: null,
+    }));
 };
 
 export const resolveMandatoryVoteResults = ({

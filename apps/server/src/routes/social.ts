@@ -11,6 +11,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { notifyFollowerEmail } from "@/lib/email-events";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { sampleComments } from "@/lib/sample-data";
 import {
@@ -26,29 +27,31 @@ const followResponseSchema = z.object({
   followed: z.boolean(),
   followerCount: z.number().int().nonnegative(),
 });
+const usernameParamSchema = z.object({ username: z.string() });
+const postIdParamSchema = z.object({ postId: z.string() });
+const unauthorizedResponse = jsonContent(
+  messageResponseSchema,
+  "Authentication required"
+);
+const notFoundResponse = jsonContent(messageResponseSchema, "Artist not found");
+const commentListResponse = jsonContent(commentSchema.array(), "Post comments");
+const commentCreatedResponse = jsonContent(commentSchema, "Comment created");
+const likeAppliedResponse = jsonContent(messageResponseSchema, "Like applied");
 
 app.openapi(
   createRoute({
     method: "post",
     path: "/artists/{username}/follow",
     request: {
-      params: z.object({
-        username: z.string(),
-      }),
+      params: usernameParamSchema,
     },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         followResponseSchema,
         "Artist followed"
       ),
-      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-        messageResponseSchema,
-        "Authentication required"
-      ),
-      [HttpStatusCodes.NOT_FOUND]: jsonContent(
-        messageResponseSchema,
-        "Artist not found"
-      ),
+      [HttpStatusCodes.UNAUTHORIZED]: unauthorizedResponse,
+      [HttpStatusCodes.NOT_FOUND]: notFoundResponse,
     },
     tags: ["Social"],
   }),
@@ -107,16 +110,24 @@ app.openapi(
         .where(eq(artistProfiles.userId, artist.userId));
 
       const [followerArtistProfile] = await db
-        .select({ userId: artistProfiles.userId })
-        .from(artistProfiles)
-        .where(eq(artistProfiles.userId, user.id))
+        .select({
+          displayName: userProfiles.displayName,
+          userId: artistProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .leftJoin(
+          artistProfiles,
+          eq(artistProfiles.userId, userProfiles.userId)
+        )
+        .where(eq(userProfiles.userId, user.id))
         .limit(1);
 
-      const isFan = !followerArtistProfile;
-      const title = isFan ? "New Fan" : "New Artist Friend";
+      const isFan = !followerArtistProfile?.userId;
+      const title = isFan ? "New Fan" : "New Artist Follower";
       const message = isFan
         ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
-        : `${user.name ?? "An artist"} followed your profile. New artist friend connected!`;
+        : `${user.name ?? "An artist"} followed your profile.`;
 
       await db.insert(userNotifications).values({
         id: crypto.randomUUID(),
@@ -125,6 +136,15 @@ app.openapi(
         title,
         type: isFan ? "fan_follower" : "artist_follower",
         userId: artist.userId,
+      });
+
+      await notifyFollowerEmail({
+        artistUserId: artist.userId,
+        followerName:
+          followerArtistProfile?.displayName ?? user.name ?? "Someone",
+        followerType: isFan ? "fan" : "artist",
+        followerUsername: isFan ? null : followerArtistProfile?.username,
+        queue: c.env.EMAIL_DELIVERY_QUEUE,
       });
     }
 
@@ -149,12 +169,10 @@ app.openapi(
     method: "post",
     path: "/posts/{postId}/likes",
     request: {
-      params: z.object({
-        postId: z.string(),
-      }),
+      params: postIdParamSchema,
     },
     responses: {
-      [HttpStatusCodes.OK]: jsonContent(messageResponseSchema, "Like applied"),
+      [HttpStatusCodes.OK]: likeAppliedResponse,
     },
     tags: ["Social"],
   }),
@@ -166,12 +184,10 @@ app.openapi(
     method: "get",
     path: "/posts/{postId}/comments",
     request: {
-      params: z.object({
-        postId: z.string(),
-      }),
+      params: postIdParamSchema,
     },
     responses: {
-      [HttpStatusCodes.OK]: jsonContent(commentSchema.array(), "Post comments"),
+      [HttpStatusCodes.OK]: commentListResponse,
     },
     tags: ["Social"],
   }),
@@ -187,12 +203,10 @@ app.openapi(
         createCommentBodySchema,
         "Comment create payload"
       ),
-      params: z.object({
-        postId: z.string(),
-      }),
+      params: postIdParamSchema,
     },
     responses: {
-      [HttpStatusCodes.CREATED]: jsonContent(commentSchema, "Comment created"),
+      [HttpStatusCodes.CREATED]: commentCreatedResponse,
     },
     tags: ["Social"],
   }),

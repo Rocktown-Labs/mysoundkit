@@ -25,8 +25,6 @@ const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
 
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
-  loader: ({ params }) =>
-    loadPublicArtistSeo(params.username).catch(() => null),
   head: ({ loaderData, params }) => {
     const artist = loaderData;
     const artistName = artist?.name ?? `@${params.username}`;
@@ -65,6 +63,8 @@ export const Route = createFileRoute("/_explore/artist/$username")({
         : [],
     };
   },
+  loader: ({ params }) =>
+    loadPublicArtistSeo(params.username).catch(() => null),
 });
 
 const formatCount = (value?: number) => {

@@ -22,36 +22,49 @@ const surfaceBlack = "#050509";
 const panelBlack = "#0B0B12";
 const mutedText = "#B8B4C7";
 const white = "#FFFFFF";
+const noLinks: NonNullable<TransactionalNotificationEmailProps["links"]> = [];
 
 export interface TrackLifecycleEmailProps {
   actionUrl: string;
   assetBaseUrl: string;
   artistName: string;
+  eventType?: "track_ready" | "track_processing_ready";
   previewText: string;
-  processingComplete?: boolean;
   trackTitle: string;
+}
+
+export interface TransactionalNotificationEmailProps {
+  actionUrl: string;
+  assetBaseUrl: string;
+  body: string;
+  ctaLabel: string;
+  eyebrow: string;
+  footerNote: string;
+  heading: string;
+  links?: {
+    description?: string;
+    href: string;
+    label: string;
+  }[];
+  previewText: string;
+  recipientName: string;
 }
 
 const getSocialCardUrl = (assetBaseUrl: string) =>
   `${assetBaseUrl.replace(/\/$/u, "")}/soundkit-social-card.png`;
 
-export function TrackLifecycleEmail({
+export function TransactionalNotificationEmail({
   actionUrl,
   assetBaseUrl,
-  artistName,
+  body,
+  ctaLabel,
+  eyebrow,
+  footerNote,
+  heading,
+  links = noLinks,
   previewText,
-  processingComplete = false,
-  trackTitle,
-}: TrackLifecycleEmailProps) {
-  const heading = processingComplete
-    ? "Premium processing is complete"
-    : "Your track is live";
-  const eyebrow = processingComplete ? "Premium pipeline" : "Track ready";
-  const bodyCopy = processingComplete
-    ? "StemSplit assets, audio analysis, and lyric timing have finished processing. Everything is ready for review in your artist dashboard."
-    : "Your upload has settled with the audio file, cover art, duration, and release details SoundKit needs. It is ready for listeners.";
-  const cta = processingComplete ? "Review track" : "Open track";
-
+  recipientName,
+}: TransactionalNotificationEmailProps) {
   return (
     <Html lang="en">
       <Head />
@@ -122,7 +135,7 @@ export function TrackLifecycleEmail({
                 margin: "0 0 20px",
               }}
             >
-              Hey {artistName}, {trackTitle} is ready.
+              Hey {recipientName},
             </Text>
             <Text
               style={{
@@ -132,8 +145,49 @@ export function TrackLifecycleEmail({
                 margin: "0 0 28px",
               }}
             >
-              {bodyCopy}
+              {body}
             </Text>
+            {links.length > 0 ? (
+              <Section style={{ margin: "0 0 28px" }}>
+                {links.map((link) => (
+                  <Section
+                    key={link.href}
+                    style={{
+                      border: "1px solid #242032",
+                      borderRadius: "8px",
+                      margin: "0 0 10px",
+                      padding: "14px 16px",
+                    }}
+                  >
+                    <Link
+                      href={link.href}
+                      style={{
+                        color: white,
+                        display: "block",
+                        fontSize: "15px",
+                        fontWeight: 700,
+                        lineHeight: "22px",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {link.label}
+                    </Link>
+                    {link.description ? (
+                      <Text
+                        style={{
+                          color: mutedText,
+                          fontSize: "13px",
+                          lineHeight: "20px",
+                          margin: "4px 0 0",
+                        }}
+                      >
+                        {link.description}
+                      </Text>
+                    ) : null}
+                  </Section>
+                ))}
+              </Section>
+            ) : null}
             <Button
               href={actionUrl}
               style={{
@@ -149,7 +203,7 @@ export function TrackLifecycleEmail({
                 textDecoration: "none",
               }}
             >
-              {cta}
+              {ctaLabel}
             </Button>
           </Section>
           <Section style={{ padding: "10px 28px 28px" }}>
@@ -169,8 +223,7 @@ export function TrackLifecycleEmail({
                 margin: 0,
               }}
             >
-              You are receiving this because track processing emails are enabled
-              in SoundKit. Manage email preferences in your dashboard settings.
+              {footerNote}
             </Text>
             <Text
               style={{
@@ -194,20 +247,68 @@ export function TrackLifecycleEmail({
   );
 }
 
+const getTrackLifecycleCopy = ({
+  eventType = "track_ready",
+  trackTitle,
+}: {
+  eventType?: "track_ready" | "track_processing_ready";
+  trackTitle: string;
+}) => {
+  if (eventType === "track_processing_ready") {
+    return {
+      body: `${trackTitle} has new track details ready to review, including lyric timing where available. Take a look and make any edits before you use it in battles or releases.`,
+      ctaLabel: "Review details",
+      eyebrow: "Ready to review",
+      footerNote:
+        "You are receiving this because track update emails are turned on for your SoundKit account.",
+      heading: "Your track details are ready",
+    };
+  }
+
+  return {
+    body: `${trackTitle} is ready with the audio, cover art, duration, and release details SoundKit needs. You can open the track now and review everything in your dashboard.`,
+    ctaLabel: "Open track",
+    eyebrow: "Track ready",
+    footerNote:
+      "You are receiving this because track update emails are turned on for your SoundKit account.",
+    heading: "Your track is ready",
+  };
+};
+
+export function TrackLifecycleEmail({
+  actionUrl,
+  assetBaseUrl,
+  artistName,
+  eventType = "track_ready",
+  previewText,
+  trackTitle,
+}: TrackLifecycleEmailProps) {
+  return (
+    <TransactionalNotificationEmail
+      actionUrl={actionUrl}
+      assetBaseUrl={assetBaseUrl}
+      previewText={previewText}
+      recipientName={artistName}
+      {...getTrackLifecycleCopy({ eventType, trackTitle })}
+    />
+  );
+}
+
 export interface RenderTrackLifecycleEmailOptions {
   actionUrl: string;
   assetBaseUrl: string;
   artistName: string;
-  processingComplete?: boolean;
+  eventType?: "track_ready" | "track_processing_ready";
   trackTitle: string;
 }
 
 export async function renderTrackLifecycleEmail(
   options: RenderTrackLifecycleEmailOptions
 ) {
-  const previewText = options.processingComplete
-    ? `${options.trackTitle} finished premium processing on SoundKit.`
-    : `${options.trackTitle} is live on SoundKit.`;
+  const previewText =
+    options.eventType === "track_processing_ready"
+      ? `${options.trackTitle} has new details ready to review.`
+      : `${options.trackTitle} is ready in your SoundKit dashboard.`;
   const element = (
     <TrackLifecycleEmail {...options} previewText={previewText} />
   );
@@ -218,4 +319,21 @@ export async function renderTrackLifecycleEmail(
   ]);
 
   return { html, text };
+}
+
+export interface RenderTransactionalNotificationEmailOptions extends TransactionalNotificationEmailProps {
+  subject: string;
+}
+
+export async function renderTransactionalNotificationEmail(
+  options: RenderTransactionalNotificationEmailOptions
+) {
+  const element = <TransactionalNotificationEmail {...options} />;
+
+  const [html, text] = await Promise.all([
+    render(element),
+    render(element, { plainText: true }),
+  ]);
+
+  return { html, subject: options.subject, text };
 }

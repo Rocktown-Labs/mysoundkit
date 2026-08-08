@@ -4,6 +4,7 @@ import {
   AccountApiToken,
   DurableObjectNamespace,
   Hyperdrive,
+  Queue,
   R2Bucket,
   TanStackStart,
   Worker,
@@ -145,6 +146,23 @@ const trackProcessingWorkflow = Workflow("track-processing", {
   workflowName: resourceName("soundkit-track-processing"),
 });
 
+const emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
+  adopt: shouldAdoptRemoteResources,
+  name: resourceName("soundkit-email-delivery-dlq"),
+  settings: {
+    messageRetentionPeriod: 1_209_600,
+  },
+});
+
+const emailDeliveryQueue = await Queue("email-delivery", {
+  adopt: shouldAdoptRemoteResources,
+  dlq: emailDeliveryDeadLetterQueue,
+  name: resourceName("soundkit-email-delivery"),
+  settings: {
+    messageRetentionPeriod: 1_209_600,
+  },
+});
+
 const liveRooms = DurableObjectNamespace("live-rooms", {
   className: "LiveRoomDurableObject",
   sqlite: true,
@@ -225,6 +243,7 @@ export const server = await Worker("server", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
+    EMAIL_DELIVERY_QUEUE: emailDeliveryQueue,
     GOOGLE_EMBEDDING_MODEL: requiredEnv("GOOGLE_EMBEDDING_MODEL"),
     GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
       alchemy.secret.env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -284,6 +303,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
   },
   compatibility: "node",
+  crons: ["*/5 * * * *"],
   cwd: "../../apps/server",
   dev: {
     port: 3000,
@@ -292,6 +312,19 @@ export const server = await Worker("server", {
     ? undefined
     : [{ adopt: isProduction, domainName: API_HOST }],
   entrypoint: "src/index.ts",
+  eventSources: [
+    {
+      queue: emailDeliveryQueue,
+      settings: {
+        batchSize: 10,
+        deadLetterQueue: emailDeliveryDeadLetterQueue,
+        maxConcurrency: 5,
+        maxRetries: 6,
+        maxWaitTimeMs: 2500,
+        retryDelay: 60,
+      },
+    },
+  ],
   name: resourceName("soundkit-server"),
   placement: {
     region: "aws:us-east-1",

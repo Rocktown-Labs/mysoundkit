@@ -17,6 +17,7 @@ import {
   trackPreSaves,
   trackStemJobs,
   tracks,
+  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
@@ -33,6 +34,7 @@ import {
   buildTrackSummary,
   ownedTrackWhere,
 } from "@/lib/dashboard-mappers";
+import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -953,6 +955,9 @@ app.openapi(
           catalogItemType: body.catalogItemType,
           collaboratorCount: 0,
           coverArtUrl: null,
+          downloadsAllowed: body.downloadsAllowed,
+          downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: body.downloadsRequirePurchase,
           duration: "0:00",
           fileAvailability: {
             adlibs: false,
@@ -965,9 +970,6 @@ app.openapi(
           },
           genre: body.genre,
           id: "track_new",
-          downloadsAllowed: body.downloadsAllowed,
-          downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
-          downloadsRequirePurchase: body.downloadsRequirePurchase,
           isForSale: body.isForSale,
           isPublic: body.isPublic,
           isrc: body.isrc ?? null,
@@ -1093,15 +1095,15 @@ app.openapi(
       const rawPriceNum =
         typeof body.price === "number"
           ? body.price
-          : body.price
+          : (body.price
             ? Number(body.price)
-            : null;
+            : null);
       const salePriceUsd =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_USD
-          : rawPriceNum !== null && !isNaN(rawPriceNum)
+          : (rawPriceNum !== null && !isNaN(rawPriceNum)
             ? rawPriceNum
-            : null;
+            : null);
       const salePriceCents =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_CENTS
@@ -1155,25 +1157,53 @@ app.openapi(
       }
 
       if (body.collaborators.length > 0) {
+        const collaboratorRows = body.collaborators.map((collaborator) => ({
+          canDelete: false,
+          canEdit: true,
+          canUpload: true,
+          collaboratorRole: collaborator.role,
+          collaboratorUserId: collaborator.userId ?? null,
+          createdAt: now,
+          id: crypto.randomUUID(),
+          invitationStatus: collaborator.userId
+            ? ("accepted" as const)
+            : ("pending" as const),
+          inviteEmail: collaborator.inviteEmail ?? null,
+          invitedByUserId: user.id,
+          trackId,
+        }));
+
         await withRetry("insert track collaborators", () =>
-          db.insert(trackCollaborators).values(
-            body.collaborators.map((collaborator) => ({
-              canDelete: false,
-              canEdit: true,
-              canUpload: true,
-              collaboratorRole: collaborator.role,
-              collaboratorUserId: collaborator.userId ?? null,
-              createdAt: now,
-              id: crypto.randomUUID(),
-              invitationStatus: collaborator.userId
-                ? ("accepted" as const)
-                : ("pending" as const),
-              inviteEmail: collaborator.inviteEmail ?? null,
-              invitedByUserId: user.id,
-              trackId,
-            }))
-          )
+          db.insert(trackCollaborators).values(collaboratorRows)
         );
+
+        for (const collaborator of collaboratorRows) {
+          if (collaborator.collaboratorUserId) {
+            await db
+              .insert(userNotifications)
+              .values({
+                id: `track_collaborator:${collaborator.id}`,
+                link: `/dashboard/tracks/${trackId}`,
+                message: `${user.name ?? "Someone"} added you as a collaborator on ${body.title}.`,
+                title: "New Collaboration",
+                type: "collaborator_invite",
+                userId: collaborator.collaboratorUserId,
+              })
+              .onConflictDoNothing();
+          }
+
+          if (collaborator.inviteEmail) {
+            await notifyCollaboratorInviteEmail({
+              actionPath: `/dashboard/tracks/${trackId}`,
+              inviteEmail: collaborator.inviteEmail,
+              inviteId: collaborator.id,
+              inviterName: user.name ?? "Someone",
+              queue: c.env.EMAIL_DELIVERY_QUEUE,
+              workTitle: body.title,
+              workType: "track",
+            });
+          }
+        }
       }
 
       if (!track) {
@@ -1650,7 +1680,11 @@ app.openapi(
         releaseStrategy: body.releaseStrategy,
       })
     ) {
-      await notifyTrackLive({ trackId });
+      const bindings = c.env as AppEnv["Bindings"];
+      await notifyTrackLive({
+        emailQueue: bindings.EMAIL_DELIVERY_QUEUE,
+        trackId,
+      });
     }
 
     if (entitlements.isPremium) {
@@ -2369,12 +2403,12 @@ app.openapi(
             : "/placeholder.svg",
         currency: row.currency,
         description: row.description,
-        duration: formatDuration(firstAudioAsset?.durationMs ?? null),
-        genre: row.genreName ? canonicalGenreName(row.genreName) : null,
-        id: row.id,
         downloadsAllowed: row.downloadsAllowed,
         downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
         downloadsRequirePurchase: row.downloadsRequirePurchase,
+        duration: formatDuration(firstAudioAsset?.durationMs ?? null),
+        genre: row.genreName ? canonicalGenreName(row.genreName) : null,
+        id: row.id,
         isForSale: row.isForSale,
         isOwned,
         isPurchasable: row.isForSale,

@@ -367,9 +367,9 @@ function NewVideoPage() {
         .map((genre) =>
           typeof genre === "string"
             ? genre
-            : typeof genre === "object" && genre && "name" in genre
+            : (typeof genre === "object" && genre && "name" in genre
               ? String(genre.name)
-              : null
+              : null)
         )
         .filter((genre): genre is string => Boolean(genre))
     : [...SUPPORTED_GENRES];

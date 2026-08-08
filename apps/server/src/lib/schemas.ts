@@ -404,6 +404,10 @@ export const trackSummarySchema = z.object({
   catalogItemType: catalogItemTypeSchema.optional(),
   collaboratorCount: z.number().int().default(0),
   coverArtUrl: z.string().nullable().optional(),
+  downloadUrl: z.string().nullable().optional(),
+  downloadsAllowed: z.boolean().default(true).optional(),
+  downloadsRequireFirstPlay: z.boolean().default(false).optional(),
+  downloadsRequirePurchase: z.boolean().default(true).optional(),
   duration: z.string(),
   fileAvailability: z
     .object({
@@ -418,10 +422,6 @@ export const trackSummarySchema = z.object({
     .optional(),
   genre: z.string(),
   id: z.string(),
-  downloadsAllowed: z.boolean().default(true).optional(),
-  downloadUrl: z.string().nullable().optional(),
-  downloadsRequireFirstPlay: z.boolean().default(false).optional(),
-  downloadsRequirePurchase: z.boolean().default(true).optional(),
   isForSale: z.boolean(),
   isPublic: z.boolean().optional(),
   isrc: z.string().nullable().optional(),
@@ -438,9 +438,9 @@ export const trackSummarySchema = z.object({
     .enum(["demo", "mixed", "mastered", "complete"])
     .optional(),
   purchaseMode: purchaseModeSchema.optional(),
+  regionSlug: z.string().nullable().optional(),
   releaseAt: z.string().nullable().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
-  regionSlug: z.string().nullable().optional(),
   slug: z.string(),
   streamingLinks: z
     .object({
@@ -707,12 +707,12 @@ export const trackCatalogDetailSchema = z.object({
   coverArtUrl: z.string(),
   currency: z.string().default("USD"),
   description: z.string().nullable().optional(),
-  duration: z.string().nullable().optional(),
-  genre: z.string().nullable().optional(),
-  id: z.string(),
   downloadsAllowed: z.boolean().default(true).optional(),
   downloadsRequireFirstPlay: z.boolean().default(false).optional(),
   downloadsRequirePurchase: z.boolean().default(true).optional(),
+  duration: z.string().nullable().optional(),
+  genre: z.string().nullable().optional(),
+  id: z.string(),
   isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
@@ -805,8 +805,8 @@ export const videoSummarySchema = z.object({
   id: z.string(),
   muxPlaybackId: z.string().nullable(),
   playbackPolicy: z.enum(["public", "signed"]),
-  releaseAt: z.string().nullable().optional(),
   regionSlug: z.string().nullable().optional(),
+  releaseAt: z.string().nullable().optional(),
   slug: z.string().nullable().optional(),
   sourceProjectId: z.string().nullable().optional(),
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
@@ -890,9 +890,33 @@ export const friendSummarySchema = z.object({
   id: z.string(),
   lastInteractionAt: z.string().nullable(),
   name: z.string(),
-  relationship: z.enum(["friend", "collaborator", "following"]),
+  relationship: z.enum(["friend", "collaborator", "fan", "following"]),
   role: z.string().nullable(),
   username: z.string().nullable(),
+});
+export const friendRequestStatusSchema = z.enum([
+  "pending",
+  "accepted",
+  "declined",
+  "canceled",
+]);
+export const friendRequestSummarySchema = z.object({
+  avatarUrl: z.string().nullable(),
+  createdAt: z.string(),
+  direction: z.enum(["incoming", "outgoing"]),
+  displayName: z.string(),
+  id: z.string(),
+  message: z.string().nullable(),
+  status: friendRequestStatusSchema,
+  userId: z.string(),
+  username: z.string().nullable(),
+});
+export const createFriendRequestBodySchema = z.object({
+  message: z.string().trim().max(500).optional(),
+  username: z.string().trim().min(1).max(80),
+});
+export const respondFriendRequestBodySchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
 });
 
 export const battleSummarySchema = z.object({
@@ -971,6 +995,15 @@ export const purchasedCatalogItemSchema = z.object({
   regionSlug: z.string().nullable().optional(),
   slug: z.string().nullable().optional(),
   title: z.string(),
+});
+export const purchasedDownloadItemSchema = z.object({
+  downloadUrl: z.string().nullable(),
+  id: z.string(),
+  label: z.string(),
+});
+export const purchasedCatalogDetailSchema = z.object({
+  downloads: purchasedDownloadItemSchema.array(),
+  purchase: purchasedCatalogItemSchema,
 });
 
 export const analyticsOverviewSchema = z.object({
@@ -1331,7 +1364,7 @@ export const createVideoBodySchema = z.object({
     .string()
     .datetime()
     .optional()
-    .or(z.literal("").transform(() => undefined)),
+    .or(z.literal("").transform(() => {})),
   sourceProjectId: z.string().optional(),
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
   sourceTrackId: z.string().optional(),
@@ -1355,7 +1388,7 @@ export const directVideoUploadBodySchema = z.object({
     .string()
     .datetime()
     .optional()
-    .or(z.literal("").transform(() => undefined)),
+    .or(z.literal("").transform(() => {})),
   sourceProjectId: z.string().optional(),
   sourceTrackId: z.string().min(1).optional(),
   title: z.string().min(1),

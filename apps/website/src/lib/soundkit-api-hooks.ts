@@ -60,10 +60,15 @@ const liveExperienceSessionLockCheckPost =
 const libraryOverviewGet = apiClient.v1.library.overview.$get;
 const libraryPlaylistsGet = apiClient.v1.library.playlists.$get;
 const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
+const libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get;
 const libraryRecentGet = apiClient.v1.library.recent.$get;
 const librarySavedGet = apiClient.v1.library.saved.$get;
 const libraryWatchedGet = apiClient.v1.library.watched.$get;
 const friendsGet = apiClient.v1.messages.friends.$get;
+const friendRequestsGet = apiClient.v1.messages["friend-requests"].$get;
+const friendRequestsPost = apiClient.v1.messages["friend-requests"].$post;
+const friendRequestPatch =
+  apiClient.v1.messages["friend-requests"][":requestId"].$patch;
 const peopleSearchGet = apiClient.v1.messages.people.$get;
 const conversationsGet = apiClient.v1.messages.conversations.$get;
 const conversationsPost = apiClient.v1.messages.conversations.$post;
@@ -154,6 +159,10 @@ export type LibraryPurchase = InferResponseType<
   typeof libraryPurchasesGet,
   200
 >[number];
+export type LibraryPurchaseDetail = InferResponseType<
+  typeof libraryPurchaseGet,
+  200
+>;
 export type LibraryRecentTrack = InferResponseType<
   typeof libraryRecentGet,
   200
@@ -194,6 +203,10 @@ export type ListeningPartySummary = InferResponseType<
   200
 >[number];
 export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
+export type FriendRequestSummary = InferResponseType<
+  typeof friendRequestsGet,
+  200
+>[number];
 export type ConversationSummary = InferResponseType<
   typeof conversationsGet,
   200
@@ -274,10 +287,10 @@ export interface CreateAdCampaignBody {
 }
 
 export const soundkitQueryKeys = {
-  adminAccess: ["admin", "access"] as const,
   adAdminCampaigns: ["ads", "admin", "campaigns"] as const,
   adCampaigns: ["ads", "campaigns"] as const,
   adWallet: ["ads", "wallet"] as const,
+  adminAccess: ["admin", "access"] as const,
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   adminSettings: ["admin", "settings"] as const,
@@ -290,10 +303,13 @@ export const soundkitQueryKeys = {
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
   discoverHome: ["discover", "home"] as const,
+  friendRequests: ["messages", "friend-requests"] as const,
   friends: ["messages", "friends"] as const,
   genres: ["discover", "genres"] as const,
   libraryOverview: ["library", "overview"] as const,
   libraryPlaylists: ["library", "playlists"] as const,
+  libraryPurchase: (purchaseId: string) =>
+    ["library", "purchases", purchaseId] as const,
   libraryPurchases: ["library", "purchases"] as const,
   libraryRecent: ["library", "recent"] as const,
   librarySaved: ["library", "saved"] as const,
@@ -530,6 +546,56 @@ export const useFriendsQuery = () =>
     queryFn: async () => rpcJson(await friendsGet()),
     queryKey: soundkitQueryKeys.friends,
   });
+
+export const useFriendRequestsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await friendRequestsGet()),
+    queryKey: soundkitQueryKeys.friendRequests,
+  });
+
+export const useCreateFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { message?: string; username: string }) =>
+      rpcJson(await friendRequestsPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.friendRequests,
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
+    },
+  });
+};
+
+export const useRespondFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      action,
+      requestId,
+    }: {
+      action: "accept" | "cancel" | "decline";
+      requestId: string;
+    }) =>
+      rpcJson(
+        await friendRequestPatch({
+          json: { action },
+          param: { requestId },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.friendRequests,
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversations,
+      });
+    },
+  });
+};
 
 export const useGenresQuery = () =>
   useQuery({
@@ -946,6 +1012,15 @@ export const useLibraryPurchasesQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await libraryPurchasesGet()),
     queryKey: soundkitQueryKeys.libraryPurchases,
+  });
+
+export const useLibraryPurchaseQuery = (purchaseId: string) =>
+  useQuery({
+    enabled: purchaseId.length > 0,
+    queryFn: async (): Promise<LibraryPurchaseDetail> =>
+      rpcJson(await libraryPurchaseGet({ param: { purchaseId } })),
+    queryKey: soundkitQueryKeys.libraryPurchase(purchaseId),
+    retry: false,
   });
 
 export const useLibraryPlaylistsQuery = () =>

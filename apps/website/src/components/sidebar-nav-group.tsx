@@ -81,9 +81,7 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                     tooltip={item.title}
                   >
                     <Link
-                      activeOptions={
-                        item.url === "/dashboard" ? { exact: true } : undefined
-                      }
+                      activeOptions={{ exact: true }}
                       activeProps={{
                         className:
                           "bg-primary/10 text-primary font-bold dark:bg-primary/15 dark:text-primary",
@@ -122,11 +120,7 @@ export function SidebarNavGroup({ items, label }: SidebarNavGroupProps) {
                       tooltip={item.title}
                     >
                       <Link
-                        activeOptions={
-                          item.url === "/dashboard"
-                            ? { exact: true }
-                            : undefined
-                        }
+                        activeOptions={{ exact: true }}
                         activeProps={{
                           className:
                             "bg-primary/10 text-primary font-bold dark:bg-primary/15 dark:text-primary",

@@ -1,12 +1,9 @@
-/* eslint-disable react-perf/jsx-no-new-function-as-prop */
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Play, Download } from "lucide-react";
+import { ArrowUpDown, Play, ExternalLink } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
-import { downloadFileFromApi } from "@/lib/api";
 
 export interface PurchasedTrack {
   id: string;
@@ -158,50 +155,18 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     ),
   },
   {
-    cell: ({ row }) => {
-      const item = row.original;
-
-      const handleDownload = async () => {
-        if (!item.downloadUrl) {
-          toast({
-            description: "No guarded download is available for this purchase.",
-            title: "Download unavailable",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        try {
-          await downloadFileFromApi({
-            fallbackFileName: `${item.title}.download`,
-            url: item.downloadUrl,
-          });
-          toast({
-            description: `Downloading ${item.title}...`,
-            title: "Starting Download",
-          });
-        } catch (error) {
-          toast({
-            description:
-              error instanceof Error ? error.message : "Unable to download.",
-            title: "Download unavailable",
-            variant: "destructive",
-          });
-        }
-      };
-
-      return (
-        <Button
-          disabled={!item.downloadUrl}
-          onClick={() => void handleDownload()}
-          size="sm"
-          variant="outline"
+    cell: ({ row }) => (
+      <Button asChild={true} size="sm" variant="outline">
+        <Link
+          onClick={(event) => event.stopPropagation()}
+          params={{ purchaseId: row.original.id }}
+          to="/library/purchased/$purchaseId"
         >
-          <Download className="mr-2 h-4 w-4" />
-          Download
-        </Button>
-      );
-    },
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View
+        </Link>
+      </Button>
+    ),
     id: "actions",
   },
 ];

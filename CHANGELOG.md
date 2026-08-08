@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added transactional email templates suite (battle challenge, reminder, results, billing issue, collaborator invite, verification, friend requests, followers, open verse, org invite, password reset, receipts, sale notifications, welcome emails) and an asynchronous email delivery outbox service with retry/event tracking (`email_delivery_outbox` table).
+- Added artist friend requests system with collaborator management endpoints and dashboard workspace.
+- Expanded AI Studio with prompt assistant, stem generator, AI voice models, master track enhancement, and credit usage tracking.
+- Added purchase detail view (`/library/purchased/$purchaseId`) for audio license downloads and item details.
 - Added Resend-backed track lifecycle emails with React Email templates, a local transactional email preview package, notification preference controls, and a verified Resend webhook endpoint.
 - Added a dashboard lyrics workspace for artist-entered sectioned lyrics, draft sync points, manual timestamp editing, pending revision saves, and synced lyrics approval.
 - Added OpenAI timestamped vocal transcription after StemSplit processing, storing word-derived timed lyric lines for track playback and live overlays.

@@ -6,6 +6,7 @@ import {
   pollAndFinalizeStemSplitJob,
   processTrackAudio,
 } from "@/lib/audio-processing";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 
 const MAX_STEMSPLIT_POLLS = 30;
 
@@ -13,11 +14,13 @@ export class TrackProcessingWorkflow extends WorkflowEntrypoint<
   Env,
   TrackProcessingWorkflowPayload
 > {
-  async run(
+  public async run(
     event: WorkflowEvent<TrackProcessingWorkflowPayload>,
     step: WorkflowStep
   ) {
-    void this.env;
+    const emailQueue = (
+      this.env as { EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage> }
+    ).EMAIL_DELIVERY_QUEUE;
 
     const submittedJob = await step.do("submit stemsplit job", () =>
       processTrackAudio(event.payload)
@@ -34,6 +37,7 @@ export class TrackProcessingWorkflow extends WorkflowEntrypoint<
       currentJob = await step.do(`poll stemsplit ${pollCount + 1}`, () =>
         pollAndFinalizeStemSplitJob({
           assetId: event.payload.assetId,
+          emailQueue,
           stemsplitJobId: submittedJob.id,
           trackId: event.payload.trackId,
         })

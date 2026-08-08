@@ -10,8 +10,8 @@ TrackProcessingCompleteEmail.PreviewProps = {
   actionUrl: "https://mysoundkit.com/dashboard/tracks/demo-track",
   artistName: "MetroFlow",
   assetBaseUrl: "https://mysoundkit.com",
-  previewText: "Midnight Bounce finished premium processing on SoundKit.",
-  processingComplete: true,
+  eventType: "track_processing_ready",
+  previewText: "Midnight Bounce has new details ready to review.",
   trackTitle: "Midnight Bounce",
 } satisfies TrackLifecycleEmailProps;
 

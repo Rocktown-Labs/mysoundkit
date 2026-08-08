@@ -624,6 +624,9 @@ importers:
       '@soundkit/env':
         specifier: workspace:*
         version: link:../env
+      '@soundkit/transactional':
+        specifier: workspace:*
+        version: link:../transactional
       better-auth:
         specifier: 'catalog:'
         version: 1.5.5(@cloudflare/workers-types@4.20260630.1)(@tanstack/react-start@1.168.26(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@7.3.6(@types/node@26.0.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260630.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.22.0))(mongodb@7.4.0(@aws-sdk/credential-providers@3.1076.0))(next@16.2.3(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(pg@8.22.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.13)(vitest@4.1.9(@opentelemetry/api@1.9.1)(@types/node@26.0.1)(msw@2.14.6(@types/node@26.0.1)(typescript@5.9.3))(vite@7.3.6(@types/node@26.0.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))
@@ -633,6 +636,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.1
         version: 0.45.2(@cloudflare/workers-types@4.20260630.1)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.22.0)
+      resend:
+        specifier: ^6.6.0
+        version: 6.18.1(@react-email/render@2.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
       stripe:
         specifier: ^20.0.0
         version: 20.4.1(@types/node@26.0.1)

@@ -237,7 +237,9 @@ describe("SoundKit Worker API", () => {
   });
 
   it("exposes the full genre catalog even when the database is not configured", async () => {
-    const response = await SELF.fetch("http://soundkit.test/v1/discover/genres");
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/discover/genres"
+    );
     const body = await readJson<{ name: string; slug: string }[]>(response);
 
     expect(response.status).toBe(200);

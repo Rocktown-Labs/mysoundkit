@@ -11,7 +11,6 @@ import { loadPublicTrackSeo } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
   component: RegionSlugTrackPage,
-  loader: ({ params }) => loadPublicTrackSeo(params.slug).catch(() => null),
   head: ({ loaderData, params }) => {
     const track = loaderData;
     const canonicalPath =
@@ -56,6 +55,7 @@ export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
         : [],
     };
   },
+  loader: ({ params }) => loadPublicTrackSeo(params.slug).catch(() => null),
 });
 
 function RegionSlugTrackPage() {

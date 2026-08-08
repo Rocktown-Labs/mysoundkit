@@ -151,13 +151,13 @@ export const mapTrackSummary = ({
     catalogItemType: row.catalogItemType,
     collaboratorCount,
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
-    duration: formatDuration(primaryAudioAsset?.durationMs),
-    downloadsAllowed: row.downloadsAllowed,
     downloadUrl: primaryAudioAsset
       ? `/v1/tracks/${row.id}/assets/${primaryAudioAsset.id}/download`
       : null,
+    downloadsAllowed: row.downloadsAllowed,
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
     downloadsRequirePurchase: row.downloadsRequirePurchase,
+    duration: formatDuration(primaryAudioAsset?.durationMs),
     fileAvailability: fileAvailabilityFromAssets(assets),
     genre: genre ? canonicalGenreName(genre) : "Uncategorized",
     id: row.id,
@@ -173,6 +173,7 @@ export const mapTrackSummary = ({
     priceCents: row.priceCents,
     productionStatus: row.productionStatus,
     purchaseMode: row.purchaseMode,
+    regionSlug,
     releaseAt:
       row.releaseAt instanceof Date
         ? row.releaseAt.toISOString()
@@ -180,7 +181,6 @@ export const mapTrackSummary = ({
           ? row.releaseAt
           : null,
     releaseStrategy: row.releaseStrategy,
-    regionSlug,
     slug: row.slug,
     streamingLinks: row.streamingLinks,
     title: row.title,

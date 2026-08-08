@@ -9,6 +9,9 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
+import { runBattleServiceSweep } from "@/lib/battle-service";
+import { handleEmailDeliveryQueue } from "@/lib/email-delivery";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
@@ -155,6 +158,7 @@ app.get("/health", async (c) =>
   c.json({
     bindings: {
       databaseUrl: hasEnvValue("DATABASE_URL"),
+      emailDeliveryQueue: hasEnvValue("EMAIL_DELIVERY_QUEUE"),
       hyperdrive: hasEnvValue("HYPERDRIVE"),
       liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
@@ -211,4 +215,18 @@ app.onError((error, c) => jsonError(c, error));
 
 export type { AppType } from "./rpc-contract";
 
-export default app;
+export default {
+  fetch: (request, workerEnv, executionContext) =>
+    app.fetch(request, workerEnv, executionContext),
+  queue: (batch) =>
+    handleEmailDeliveryQueue(
+      batch as unknown as MessageBatch<EmailDeliveryQueueMessage>
+    ),
+  scheduled: (_controller, workerEnv, executionContext) => {
+    executionContext.waitUntil(
+      runBattleServiceSweep({
+        emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+      })
+    );
+  },
+} satisfies ExportedHandler<AppEnv["Bindings"]>;

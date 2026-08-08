@@ -16,6 +16,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { notifyBattleChallengeEmail } from "@/lib/email-events";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -360,12 +361,13 @@ app.openapi(
         ? parsedProposedDate
         : null;
 
+    const challengeId = crypto.randomUUID();
     await db.insert(battleChallenges).values({
       challengerOrganizationId: organizationId,
       challengerUserId: user.id,
       format: body.format,
       genreId,
-      id: crypto.randomUUID(),
+      id: challengeId,
       message: body.message ?? null,
       opponentArtistUserId: opponentProfile?.userId ?? null,
       opponentUsernameSnapshot: opponentUsername,
@@ -389,6 +391,15 @@ app.openapi(
       title: "New Battle Challenge",
       type: "battle_challenge",
       userId: opponentProfile.userId,
+    });
+
+    await notifyBattleChallengeEmail({
+      battleFormat: body.format,
+      challengeId,
+      challengerName: `@${challengerUsername}`,
+      genre: canonicalGenreName(body.genre),
+      opponentUserId: opponentProfile.userId,
+      queue: c.env.EMAIL_DELIVERY_QUEUE,
     });
 
     return c.json(

@@ -11,7 +11,6 @@ import { loadPublicTrackSeo } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/tracks/$id")({
   component: LegacyTrackPage,
-  loader: ({ params }) => loadPublicTrackSeo(params.id).catch(() => null),
   head: ({ loaderData, params }) => {
     const track = loaderData;
     const canonicalPath =
@@ -56,6 +55,7 @@ export const Route = createFileRoute("/_explore/tracks/$id")({
         : [],
     };
   },
+  loader: ({ params }) => loadPublicTrackSeo(params.id).catch(() => null),
 });
 
 function LegacyTrackPage() {

@@ -9,7 +9,7 @@ TrackLiveEmail.PreviewProps = {
   actionUrl: "https://mysoundkit.com/dashboard/tracks/demo-track",
   artistName: "MetroFlow",
   assetBaseUrl: "https://mysoundkit.com",
-  previewText: "Midnight Bounce is live on SoundKit.",
+  previewText: "Midnight Bounce is ready in your SoundKit dashboard.",
   trackTitle: "Midnight Bounce",
 } satisfies TrackLifecycleEmailProps;
 

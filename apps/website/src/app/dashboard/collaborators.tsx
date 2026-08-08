@@ -6,7 +6,6 @@ import {
   Mail,
   MessageSquare,
   Search,
-  UserCheck,
   UserPlus,
   UserRoundPlus,
   X,
@@ -35,8 +34,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import {
-  useFollowArtistMutation,
+  useCreateFriendRequestMutation,
+  useFriendRequestsQuery,
   useFriendsQuery,
+  useRespondFriendRequestMutation,
   useSearchQuery,
 } from "@/lib/soundkit-api-hooks";
 
@@ -44,20 +45,37 @@ export const Route = createFileRoute("/dashboard/collaborators")({
   component: FriendsPage,
 });
 
+const getRelationshipLabel = (relationship: string) => {
+  switch (relationship) {
+    case "collaborator": {
+      return "Collaborator";
+    }
+    case "fan": {
+      return "New Fan";
+    }
+    case "following": {
+      return "Following";
+    }
+    default: {
+      return "Artist Friend";
+    }
+  }
+};
+
 function ArtistSearchResultRow({
   artist,
 }: {
   artist: { genre?: string; id: string; name: string; username: string };
 }) {
-  const followMutation = useFollowArtistMutation(artist.username);
+  const friendRequestMutation = useCreateFriendRequestMutation();
   const [isPending, setIsPending] = useState(false);
 
   const handleAdd = async () => {
-    await followMutation.mutateAsync();
+    await friendRequestMutation.mutateAsync({ username: artist.username });
     setIsPending(true);
     toast({
       description: `Friend request sent to @${artist.username}. Pending acceptance.`,
-      title: "Friend Request Sent ⏳",
+      title: "Friend request sent",
     });
   };
 
@@ -84,8 +102,10 @@ function ArtistSearchResultRow({
           </Badge>
         ) : (
           <Button
-            disabled={followMutation.isPending}
-            onClick={() => void handleAdd()}
+            disabled={friendRequestMutation.isPending}
+            onClick={() => {
+              handleAdd().catch(() => {});
+            }}
             size="sm"
           >
             <UserPlus className="mr-1.5 size-4" /> Add Friend
@@ -101,9 +121,13 @@ function FriendsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newFriendHandle, setNewFriendHandle] = useState("");
   const friendsQuery = useFriendsQuery();
+  const friendRequestsQuery = useFriendRequestsQuery();
+  const createFriendRequestMutation = useCreateFriendRequestMutation();
+  const respondFriendRequestMutation = useRespondFriendRequestMutation();
   const friends = useMemo(() => friendsQuery.data ?? [], [friendsQuery.data]);
+  const friendRequests = friendRequestsQuery.data ?? [];
 
-  const normalizedSearch = search.trim().replace(/^@/, "");
+  const normalizedSearch = search.trim().replace(/^@/u, "");
 
   const peopleSearchQuery = useSearchQuery({
     limit: "8",
@@ -127,19 +151,37 @@ function FriendsPage() {
     );
   }, [friends, normalizedSearch]);
 
-  const handleManualAddFriend = (e: React.FormEvent) => {
+  const handleManualAddFriend = async (e: React.FormEvent) => {
     e.preventDefault();
-    const handle = newFriendHandle.trim().replace(/^@/, "");
+    const handle = newFriendHandle.trim().replace(/^@/u, "");
     if (!handle) {
       return;
     }
 
+    await createFriendRequestMutation.mutateAsync({ username: handle });
     toast({
-      description: `Sent friend request / follow connection to @${handle}.`,
-      title: "Friend Request Sent",
+      description: `Sent friend request to @${handle}.`,
+      title: "Friend request sent",
     });
     setNewFriendHandle("");
     setIsAddModalOpen(false);
+  };
+
+  const respondToRequest = async ({
+    action,
+    requestId,
+  }: {
+    action: "accept" | "cancel" | "decline";
+    requestId: string;
+  }) => {
+    await respondFriendRequestMutation.mutateAsync({ action, requestId });
+    toast({
+      description:
+        action === "accept"
+          ? "You can now message this artist."
+          : "Friend request updated.",
+      title: action === "accept" ? "Friend added" : "Request updated",
+    });
   };
 
   return (
@@ -193,6 +235,83 @@ function FriendsPage() {
         </CardContent>
       </Card>
 
+      {friendRequests.length > 0 && (
+        <Card className="border-border/40 bg-card/40">
+          <CardHeader>
+            <CardTitle className="font-[family-name:var(--font-playfair)]">
+              Friend Requests
+            </CardTitle>
+            <CardDescription>
+              Artist requests that can become messaging connections.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {friendRequests.map((request) => (
+              <div
+                className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 p-3"
+                key={request.id}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{request.displayName}</p>
+                  <p className="truncate text-muted-foreground text-sm">
+                    {request.username ? `@${request.username}` : "Artist"}
+                  </p>
+                  <Badge className="mt-2 capitalize" variant="outline">
+                    {request.direction} · {request.status}
+                  </Badge>
+                </div>
+                {request.status === "pending" &&
+                  request.direction === "incoming" && (
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        disabled={respondFriendRequestMutation.isPending}
+                        onClick={() => {
+                          respondToRequest({
+                            action: "decline",
+                            requestId: request.id,
+                          }).catch(() => {});
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Decline
+                      </Button>
+                      <Button
+                        disabled={respondFriendRequestMutation.isPending}
+                        onClick={() => {
+                          respondToRequest({
+                            action: "accept",
+                            requestId: request.id,
+                          }).catch(() => {});
+                        }}
+                        size="sm"
+                      >
+                        Accept
+                      </Button>
+                    </div>
+                  )}
+                {request.status === "pending" &&
+                  request.direction === "outgoing" && (
+                    <Button
+                      disabled={respondFriendRequestMutation.isPending}
+                      onClick={() => {
+                        respondToRequest({
+                          action: "cancel",
+                          requestId: request.id,
+                        }).catch(() => {});
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {friendsQuery.isLoading && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {Array.from({ length: 4 }, (_, index) => (
@@ -237,9 +356,7 @@ function FriendsPage() {
                     </div>
                   </div>
                   <Badge variant="secondary" className="capitalize">
-                    {friend.relationship === "fan"
-                      ? "New Fan"
-                      : "Artist Friend"}
+                    {getRelationshipLabel(friend.relationship)}
                   </Badge>
                 </div>
 
@@ -258,10 +375,15 @@ function FriendsPage() {
                         </Link>
                       </Button>
                     )}
-                    <Button size="sm">
-                      <MessageSquare className="mr-2 size-4" />
-                      Message
-                    </Button>
+                    {(friend.relationship === "friend" ||
+                      friend.relationship === "collaborator") && (
+                      <Button asChild={true} size="sm">
+                        <Link to="/dashboard/messages">
+                          <MessageSquare className="mr-2 size-4" />
+                          Message
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -295,7 +417,7 @@ function FriendsPage() {
               Public Artists Search Results
             </CardTitle>
             <CardDescription>
-              Connect with artists matching "{search}"
+              Connect with artists matching {search}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2">

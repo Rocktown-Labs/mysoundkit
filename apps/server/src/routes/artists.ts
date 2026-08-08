@@ -12,11 +12,11 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
+import { canonicalGenreName } from "@/lib/genre-catalog";
 import {
   genreSlugFromExploreFilter,
   stateFromExploreRegion,
 } from "@/lib/public-explore";
-import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleArtists } from "@/lib/sample-data";
 import { artistRankingQuerySchema, artistSummarySchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -261,9 +261,9 @@ app.openapi(
           links.map((link) => [
             link.platform === "apple_music"
               ? "apple"
-              : link.platform === "personal_site"
+              : (link.platform === "personal_site"
                 ? "personalSite"
-                : link.platform,
+                : link.platform),
             link.url,
           ])
         );
@@ -276,9 +276,9 @@ app.openapi(
           Number(artist.followerCount) > 0 ||
           Number(artist.battleCount) > 0;
         const rank = hasActivity
-          ? artist.battleCount
+          ? (artist.battleCount
             ? `#${artist.battleCount}`
-            : "#1"
+            : "#1")
           : null;
 
         return c.json(

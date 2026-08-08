@@ -3,6 +3,7 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { Mux } from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  emailDeliveries,
   muxAssets,
   muxUploads,
   trackStemJobs,
@@ -15,7 +16,9 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { processCompletedStemSplitJob } from "@/lib/audio-processing";
+import { processBattleServiceEvent } from "@/lib/battle-service";
 import { verifyResendWebhook } from "@/lib/email";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -100,6 +103,111 @@ const getResendEventType = (event: unknown) => {
   }
 
   return "unknown";
+};
+
+const getResendEmailId = (event: unknown) => {
+  const data = getEventData(event);
+
+  if (!data) {
+    return null;
+  }
+
+  const directEmailId =
+    getStringValue(data.email_id) ?? getStringValue(data.id);
+
+  if (directEmailId) {
+    return directEmailId;
+  }
+
+  const nestedEmail =
+    typeof data.email === "object" && data.email !== null
+      ? (data.email as Record<string, unknown>)
+      : null;
+
+  return nestedEmail ? getStringValue(nestedEmail.id) : null;
+};
+
+const getNestedStringValue = (
+  payload: Record<string, unknown>,
+  keys: string[]
+) => {
+  for (const key of keys) {
+    const value = getStringValue(payload[key]);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  const data = getEventData(payload);
+
+  if (!data) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = getStringValue(data[key]);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const getBattleServiceEventType = (payload: Record<string, unknown>) =>
+  getNestedStringValue(payload, ["type", "event", "eventType"]) ?? "unknown";
+
+const getBattleServiceBattleId = (payload: Record<string, unknown>) =>
+  getNestedStringValue(payload, [
+    "battleId",
+    "battle_id",
+    "externalBattleId",
+    "external_battle_id",
+  ]);
+
+const getBattleServiceEventId = (payload: Record<string, unknown>) => {
+  const eventId = getNestedStringValue(payload, ["id", "eventId", "event_id"]);
+
+  if (eventId) {
+    return eventId;
+  }
+
+  const eventType = getBattleServiceEventType(payload);
+  const battleId = getBattleServiceBattleId(payload);
+
+  return battleId ? `${eventType}:${battleId}` : null;
+};
+
+const applyResendDeliveryEvent = async ({
+  eventType,
+  providerMessageId,
+}: {
+  eventType: string;
+  providerMessageId: string | null;
+}) => {
+  if (!providerMessageId) {
+    return;
+  }
+
+  const isDelivered =
+    eventType === "email.sent" || eventType === "email.delivered";
+  const isFailed =
+    eventType === "email.bounced" || eventType === "email.complained";
+
+  if (!(isDelivered || isFailed)) {
+    return;
+  }
+
+  await createDb()
+    .update(emailDeliveries)
+    .set({
+      error: isFailed ? eventType : null,
+      status: isDelivered ? "sent" : "failed",
+      updatedAt: new Date(),
+    })
+    .where(eq(emailDeliveries.providerMessageId, providerMessageId));
 };
 
 const getEnvValue = (key: string) =>
@@ -547,9 +655,13 @@ const getStemSplitEventId = (payload: Record<string, unknown>) => {
   return jobId && event ? `${event}:${jobId}` : null;
 };
 
-const handleStemSplitWebhookPayload = async (
-  payload: Record<string, unknown>
-) => {
+const handleStemSplitWebhookPayload = async ({
+  emailQueue,
+  payload,
+}: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  payload: Record<string, unknown>;
+}) => {
   if (!isDatabaseConfigured()) {
     return "ignored" as const;
   }
@@ -592,6 +704,7 @@ const handleStemSplitWebhookPayload = async (
 
   await processCompletedStemSplitJob({
     assetId: stemJob.inputAssetId,
+    emailQueue,
     job: {
       audioMetadata:
         typeof data.audioMetadata === "object" && data.audioMetadata !== null
@@ -697,7 +810,10 @@ app.openapi(
       status: "received",
     });
 
-    const status = await handleStemSplitWebhookPayload(payload);
+    const status = await handleStemSplitWebhookPayload({
+      emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+      payload,
+    });
 
     await db
       .update(webhookEvents)
@@ -789,6 +905,11 @@ app.openapi(
         status: "processed",
       });
 
+      await applyResendDeliveryEvent({
+        eventType,
+        providerMessageId: getResendEmailId(event),
+      });
+
       return c.json(
         { message: "Resend webhook accepted." },
         HttpStatusCodes.OK
@@ -814,8 +935,37 @@ app.openapi(
     },
     tags: ["Webhooks"],
   }),
-  (c) =>
-    c.json({ message: "Battle service webhook accepted" }, HttpStatusCodes.OK)
+  async (c) => {
+    const rawBody = await c.req.raw.text();
+    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>;
+    const externalEventId = getBattleServiceEventId(payload);
+    const eventType = getBattleServiceEventType(payload);
+    const battleId = getBattleServiceBattleId(payload);
+
+    if (!(externalEventId && battleId)) {
+      return c.json(
+        { message: "Battle service webhook accepted" },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const outcome = await processBattleServiceEvent({
+      battleId,
+      emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+      eventId: externalEventId,
+      eventType,
+      payload,
+    });
+
+    return c.json(
+      {
+        message: outcome.skipped
+          ? "Battle service webhook already processed"
+          : "Battle service webhook accepted",
+      },
+      HttpStatusCodes.OK
+    );
+  }
 );
 
 export default app;

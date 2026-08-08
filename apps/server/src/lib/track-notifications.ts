@@ -7,7 +7,8 @@ import {
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { eq } from "drizzle-orm";
 
-import { sendTrackLifecycleEmail } from "@/lib/email";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import { enqueueTransactionalEmail } from "@/lib/email-delivery";
 
 const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`;
 
@@ -49,7 +50,13 @@ const shouldSendTrackProcessingEmail = async (userId: string) => {
   return settings?.emailTrackProcessing ?? true;
 };
 
-export const notifyTrackLive = async ({ trackId }: { trackId: string }) => {
+export const notifyTrackLive = async ({
+  emailQueue,
+  trackId,
+}: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  trackId: string;
+}) => {
   const track = await loadTrackForNotification(trackId);
 
   if (!track?.ownerUserId) {
@@ -61,9 +68,9 @@ export const notifyTrackLive = async ({ trackId }: { trackId: string }) => {
     .values({
       id: `track_live:${track.id}`,
       link: trackDashboardLink(track.id),
-      message: `"${track.title}" has settled with its audio and cover art and is now live on SoundKit.`,
-      title: "Your track is live",
-      type: "track_live",
+      message: `"${track.title}" is ready with its audio, cover art, duration, and release details.`,
+      title: "Your track is ready",
+      type: "track_ready",
       userId: track.ownerUserId,
     })
     .onConflictDoNothing()
@@ -73,12 +80,18 @@ export const notifyTrackLive = async ({ trackId }: { trackId: string }) => {
     notification &&
     (await shouldSendTrackProcessingEmail(track.ownerUserId))
   ) {
-    await sendTrackLifecycleEmail({
-      idempotencyKey: `track-live/${track.id}`,
+    await enqueueTransactionalEmail({
+      actionPath: trackDashboardLink(track.id),
+      idempotencyKey: `track-ready/${track.id}`,
+      payload: {
+        trackId: track.id,
+        trackTitle: track.title,
+      },
+      queue: emailQueue,
       recipientEmail: track.email,
-      recipientName: track.name,
-      trackId: track.id,
-      trackTitle: track.title,
+      recipientName: track.name ?? "there",
+      template: "track_ready",
+      userId: track.ownerUserId,
     });
   }
 
@@ -86,8 +99,10 @@ export const notifyTrackLive = async ({ trackId }: { trackId: string }) => {
 };
 
 export const notifyTrackProcessingComplete = async ({
+  emailQueue,
   trackId,
 }: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   trackId: string;
 }) => {
   const track = await loadTrackForNotification(trackId);
@@ -101,8 +116,8 @@ export const notifyTrackProcessingComplete = async ({
     .values({
       id: `track_processing_complete:${track.id}`,
       link: trackDashboardLink(track.id),
-      message: `"${track.title}" finished premium audio processing. Stems, BPM details, and lyric timing are ready to review.`,
-      title: "Premium processing complete",
+      message: `"${track.title}" has new track details ready to review, including lyric timing where available.`,
+      title: "Track details ready",
       type: "track_processing_complete",
       userId: track.ownerUserId,
     })
@@ -113,13 +128,18 @@ export const notifyTrackProcessingComplete = async ({
     notification &&
     (await shouldSendTrackProcessingEmail(track.ownerUserId))
   ) {
-    await sendTrackLifecycleEmail({
-      idempotencyKey: `track-processing-complete/${track.id}`,
-      processingComplete: true,
+    await enqueueTransactionalEmail({
+      actionPath: trackDashboardLink(track.id),
+      idempotencyKey: `track-processing-ready/${track.id}`,
+      payload: {
+        trackId: track.id,
+        trackTitle: track.title,
+      },
+      queue: emailQueue,
       recipientEmail: track.email,
-      recipientName: track.name,
-      trackId: track.id,
-      trackTitle: track.title,
+      recipientName: track.name ?? "there",
+      template: "track_processing_ready",
+      userId: track.ownerUserId,
     });
   }
 

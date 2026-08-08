@@ -12,6 +12,7 @@ import { env } from "@soundkit/env/server";
 import { embed } from "ai";
 import { and, eq, ne } from "drizzle-orm";
 
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
 
 const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1";
@@ -481,10 +482,12 @@ const saveEmbedding = async ({
 
 export const processCompletedStemSplitJob = async ({
   assetId,
+  emailQueue,
   job,
   trackId,
 }: {
   assetId: string;
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   job: StemSplitJobResponse;
   trackId: string;
 }) => {
@@ -604,7 +607,7 @@ export const processCompletedStemSplitJob = async ({
       )
     );
 
-  await notifyTrackProcessingComplete({ trackId });
+  await notifyTrackProcessingComplete({ emailQueue, trackId });
 };
 
 export const processTrackAudio = async ({
@@ -650,10 +653,12 @@ export const processTrackAudio = async ({
 
 export const pollAndFinalizeStemSplitJob = async ({
   assetId,
+  emailQueue,
   stemsplitJobId,
   trackId,
 }: {
   assetId: string;
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   stemsplitJobId: string;
   trackId: string;
 }) => {
@@ -683,6 +688,7 @@ export const pollAndFinalizeStemSplitJob = async ({
   if (job.status === "COMPLETED") {
     await processCompletedStemSplitJob({
       assetId,
+      emailQueue,
       job,
       trackId,
     });

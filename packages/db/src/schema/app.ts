@@ -220,6 +220,10 @@ export const messageStatusEnum = pgEnum("message_status", [
   "read",
   "deleted",
 ]);
+export const artistFriendRequestStatusEnum = pgEnum(
+  "artist_friend_request_status",
+  ["pending", "accepted", "declined", "canceled"]
+);
 export const battleFormatEnum = pgEnum("battle_format", [
   "best_of_3",
   "best_of_5",
@@ -295,6 +299,13 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "processed",
   "failed",
   "ignored",
+]);
+export const emailDeliveryStatusEnum = pgEnum("email_delivery_status", [
+  "queued",
+  "sending",
+  "sent",
+  "failed",
+  "canceled",
 ]);
 export const rewardConfigurationStatusEnum = pgEnum(
   "reward_configuration_status",
@@ -744,10 +755,6 @@ export const tracks = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
-    genreId: text("genre_id").references(() => genres.id, {
-      onDelete: "set null",
-    }),
-    id: text("id").primaryKey(),
     downloadsAllowed: boolean("downloads_allowed").default(true).notNull(),
     downloadsRequireFirstPlay: boolean("downloads_require_first_play")
       .default(false)
@@ -755,6 +762,10 @@ export const tracks = pgTable(
     downloadsRequirePurchase: boolean("downloads_require_purchase")
       .default(true)
       .notNull(),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
     isrc: text("isrc"),
@@ -1656,6 +1667,43 @@ export const conversationParticipants = pgTable(
   (table) => [primaryKey({ columns: [table.conversationId, table.userId] })]
 );
 
+export const artistFriendRequests = pgTable(
+  "artist_friend_requests",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    message: text("message"),
+    recipientUserId: text("recipient_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    respondedAt: timestamp("responded_at"),
+    status: artistFriendRequestStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("artist_friend_requests_recipient_status_idx").on(
+      table.recipientUserId,
+      table.status
+    ),
+    index("artist_friend_requests_requester_status_idx").on(
+      table.requesterUserId,
+      table.status
+    ),
+    uniqueIndex("artist_friend_requests_pair_idx").on(
+      table.requesterUserId,
+      table.recipientUserId
+    ),
+  ]
+);
+
 export const messages = pgTable(
   "messages",
   {
@@ -1935,6 +1983,42 @@ export const webhookEvents = pgTable(
   },
   (table) => [
     index("webhook_events_provider_idx").on(table.provider, table.eventType),
+  ]
+);
+
+export const emailDeliveries = pgTable(
+  "email_deliveries",
+  {
+    attempts: integer("attempts").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    error: text("error"),
+    id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    nextAttemptAt: timestamp("next_attempt_at"),
+    payload: jsonb("payload").notNull(),
+    provider: text("provider").default("resend").notNull(),
+    providerMessageId: text("provider_message_id"),
+    recipientEmail: text("recipient_email").notNull(),
+    recipientName: text("recipient_name"),
+    sentAt: timestamp("sent_at"),
+    status: emailDeliveryStatusEnum("status").default("queued").notNull(),
+    template: text("template").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    uniqueIndex("email_deliveries_idempotency_key_idx").on(
+      table.idempotencyKey
+    ),
+    index("email_deliveries_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt
+    ),
+    index("email_deliveries_user_id_idx").on(table.userId),
   ]
 );
 

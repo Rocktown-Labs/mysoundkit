@@ -112,9 +112,9 @@ export function VideoCard({
               )}
               {video.status === "live"
                 ? "Streaming now"
-                : video.verifiedOnPlatform
+                : (video.verifiedOnPlatform
                   ? "Hosted on SoundKit"
-                  : "Linked from source"}
+                  : "Linked from source")}
             </span>
           </div>
         </CardContent>

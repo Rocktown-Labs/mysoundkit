@@ -272,7 +272,7 @@ function CommentSection({
 
         {isPending ? (
           <p className="text-sm text-muted-foreground">Loading comments…</p>
-        ) : comments && comments.length > 0 ? (
+        ) : (comments && comments.length > 0 ? (
           <ul className="space-y-4">
             {comments.map((comment) => (
               <li
@@ -295,7 +295,7 @@ function CommentSection({
           <p className="text-sm text-muted-foreground">
             No comments yet. Start the conversation.
           </p>
-        )}
+        ))}
       </CardContent>
     </Card>
   );

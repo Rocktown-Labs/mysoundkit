@@ -254,23 +254,23 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
   const artistName =
     typeof artistObj.name === "string"
       ? artistObj.name
-      : typeof rawData.artistName === "string"
+      : (typeof rawData.artistName === "string"
         ? rawData.artistName
-        : "SoundKit Artist";
+        : "SoundKit Artist");
 
   const artistHandle =
     typeof artistObj.handle === "string"
       ? artistObj.handle
-      : typeof rawData.artistUsername === "string"
+      : (typeof rawData.artistUsername === "string"
         ? rawData.artistUsername
-        : "artist";
+        : "artist");
 
   const artistAvatarUrl =
     typeof artistObj.avatarUrl === "string"
       ? artistObj.avatarUrl
-      : typeof rawData.coverArtUrl === "string"
+      : (typeof rawData.coverArtUrl === "string"
         ? rawData.coverArtUrl
-        : "/placeholder.svg";
+        : "/placeholder.svg");
 
   const normalizedArtist: MockArtist = {
     avatarUrl: artistAvatarUrl,
@@ -279,16 +279,16 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     genre:
       typeof artistObj.genre === "string"
         ? artistObj.genre
-        : typeof rawData.genre === "string"
+        : (typeof rawData.genre === "string"
           ? rawData.genre
-          : "Uncategorized",
+          : "Uncategorized"),
     handle: artistHandle,
     id:
       typeof artistObj.id === "string"
         ? artistObj.id
-        : typeof rawData.ownerUserId === "string"
+        : (typeof rawData.ownerUserId === "string"
           ? rawData.ownerUserId
-          : "artist",
+          : "artist"),
     listeners:
       typeof artistObj.listeners === "string" ? artistObj.listeners : undefined,
     location:
@@ -325,9 +325,9 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     priceLabel:
       typeof rawData.priceLabel === "string"
         ? rawData.priceLabel
-        : typeof rawData.price === "number"
+        : (typeof rawData.price === "number"
           ? `$${rawData.price.toFixed(2)}`
-          : "$1.99",
+          : "$1.99"),
     regionSlug:
       typeof rawData.regionSlug === "string" ? rawData.regionSlug : null,
     slug: typeof rawData.slug === "string" ? rawData.slug : null,

@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "@tanstack/react-router";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useRouter,createFileRoute,Link } from "@tanstack/react-router";
 import {
   Play,
   Heart,
@@ -153,7 +152,7 @@ function ProjectPage() {
   };
 
   const playSingleTrack = (t: (typeof project.tracks)[number]) => {
-    if (!t.playbackUrl) return;
+    if (!t.playbackUrl) {return;}
     const playerTrack = {
       artist: project.artist,
       artistHref: `/artist/${project.artistSlug}`,
