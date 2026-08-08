@@ -66,7 +66,16 @@ interface PlaybackTelemetrySession {
   trackId: string;
 }
 
+interface ServedAudioAd {
+  campaignId: string;
+  clickthroughUrl: string;
+  imageUrl: string | null;
+  mediaUrl: string;
+  title: string;
+}
+
 const playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1";
+const guestDailyPlaybackLimitSeconds = 300;
 
 const demoPlaybackQueue = [
   {
@@ -218,8 +227,11 @@ export function MusicPlayer() {
     location.pathname.startsWith("/shop") ||
     location.pathname.startsWith("/videos");
   const audioRef = useRef<HTMLAudioElement>(null);
+  const activeAdRef = useRef<ServedAudioAd | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingContentSrcRef = useRef<string | null>(null);
   const playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null);
+  const prerollServedTrackRef = useRef<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([
     { active: true, id: "computer", name: "This Computer", type: "computer" },
     { active: false, id: "phone", name: "Phone", type: "phone" },
@@ -242,6 +254,7 @@ export function MusicPlayer() {
   const [queueOpen, setQueueOpen] = useState(false);
   const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
   const [volume, setVolume] = useState(75);
+  const [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null);
 
   useHotkey("Space", (event) => {
     const target = event.target as HTMLElement | null;
@@ -261,7 +274,6 @@ export function MusicPlayer() {
   const isSignedIn = Boolean(meQuery.data);
   const [guestLimitReached, setGuestLimitReached] = useState(false);
 
-  // 1-Hour Guest Daily Playback Limit (3600s)
   useEffect(() => {
     if (isSignedIn || !isPlaying || typeof window === "undefined") {
       return;
@@ -292,7 +304,7 @@ export function MusicPlayer() {
         JSON.stringify({ date: today, secondsPlayed })
       );
 
-      if (secondsPlayed >= 3600) {
+      if (secondsPlayed >= guestDailyPlaybackLimitSeconds) {
         if (audioRef.current) {
           audioRef.current.pause();
         }
@@ -400,6 +412,84 @@ export function MusicPlayer() {
     ).catch(() => {});
   };
 
+  const sendAdEvent = (
+    campaignId: string,
+    eventType: "click" | "complete" | "impression"
+  ) => {
+    void fetch(`${API_V1_URL}/ads/event`, {
+      body: JSON.stringify({ campaignId, eventType }),
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      keepalive: eventType !== "impression",
+      method: "POST",
+    }).catch(() => {});
+  };
+
+  const requestAudioPreroll = async () => {
+    const audio = audioRef.current;
+
+    if (
+      !(
+        audio &&
+        currentTrack &&
+        !isSignedIn &&
+        prerollServedTrackRef.current !== currentTrack.id
+      )
+    ) {
+      return false;
+    }
+
+    const response = await fetch(
+      `${API_V1_URL}/ads/serve?placement=audio_preroll&contentType=audio&trackId=${encodeURIComponent(
+        currentTrack.id
+      )}`,
+      { credentials: "include" }
+    );
+
+    if (response.status === 204 || !response.ok) {
+      prerollServedTrackRef.current = currentTrack.id;
+      return false;
+    }
+
+    const payload = (await response.json().catch(() => null)) as {
+      ad?: ServedAudioAd | null;
+      hasAd?: boolean;
+    } | null;
+
+    if (!(payload?.hasAd && payload.ad?.mediaUrl)) {
+      prerollServedTrackRef.current = currentTrack.id;
+      return false;
+    }
+
+    prerollServedTrackRef.current = currentTrack.id;
+    pendingContentSrcRef.current = currentTrack.src;
+    activeAdRef.current = payload.ad;
+    setActiveAd(payload.ad);
+    audio.src = payload.ad.mediaUrl;
+    audio.load();
+    await audio.play();
+    sendAdEvent(payload.ad.campaignId, "impression");
+    return true;
+  };
+
+  const startContentPlayback = async () => {
+    const audio = audioRef.current;
+
+    if (!(audio && currentTrack)) {
+      return;
+    }
+
+    if (await requestAudioPreroll()) {
+      setIsPlaying(true);
+      return;
+    }
+
+    await audio.play();
+    setIsPlaying(true);
+  };
+
   useEffect(() => {
     const audio = audioRef.current;
 
@@ -477,12 +567,9 @@ export function MusicPlayer() {
     setDuration(currentTrack.duration ?? 0);
 
     if (visible && currentTrack.src && currentTrack.autoplay !== false) {
-      void audio
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch(() => {
-          setIsPlaying(false);
-        });
+      void startContentPlayback().catch(() => {
+        setIsPlaying(false);
+      });
     }
   }, [currentTrack, visible]);
 
@@ -511,6 +598,10 @@ export function MusicPlayer() {
 
     const handleLoadedMetadata = () => setDuration(audio.duration || 0);
     const handleTimeUpdate = () => {
+      if (activeAdRef.current) {
+        return;
+      }
+
       if (audio.duration > 0) {
         setProgress((audio.currentTime / audio.duration) * 100);
         sendPlaybackProgress({
@@ -519,6 +610,20 @@ export function MusicPlayer() {
       }
     };
     const handleEnded = () => {
+      const completedAd = activeAdRef.current;
+      const pendingContentSrc = pendingContentSrcRef.current;
+
+      if (completedAd && pendingContentSrc) {
+        sendAdEvent(completedAd.campaignId, "complete");
+        activeAdRef.current = null;
+        pendingContentSrcRef.current = null;
+        setActiveAd(null);
+        audio.src = pendingContentSrc;
+        audio.load();
+        void audio.play().catch(() => setIsPlaying(false));
+        return;
+      }
+
       sendPlaybackProgress({ ended: true });
 
       if (repeatMode === "one") {
@@ -555,8 +660,7 @@ export function MusicPlayer() {
     }
 
     setVisible(true);
-    void audio
-      .play()
+    void startContentPlayback()
       .then(() => setIsPlaying(true))
       .catch(() => {
         // e.g. NotSupportedError when the source is missing or unsupported
@@ -794,26 +898,46 @@ export function MusicPlayer() {
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             <div className="flex items-center gap-3 lg:w-1/4">
               <AppImage
-                alt={currentTrack.title}
+                alt={activeAd?.title ?? currentTrack.title}
                 className="rounded"
                 height={48}
                 layout="fixed"
-                src={currentTrack.cover || "/placeholder.svg"}
+                src={
+                  activeAd?.imageUrl || currentTrack.cover || "/placeholder.svg"
+                }
                 width={48}
               />
               <div className="min-w-0 flex-1">
-                <PlayerRouteLink
-                  className="block truncate text-sm font-medium transition-colors hover:text-primary"
-                  href={currentTrack.trackHref}
-                >
-                  {currentTrack.title}
-                </PlayerRouteLink>
-                <PlayerRouteLink
-                  className="block truncate text-xs text-muted-foreground transition-colors hover:text-primary"
-                  href={currentTrack.artistHref}
-                >
-                  {currentTrack.artist}
-                </PlayerRouteLink>
+                {activeAd ? (
+                  <a
+                    className="block truncate text-sm font-medium transition-colors hover:text-primary"
+                    href={activeAd.clickthroughUrl}
+                    onClick={() => sendAdEvent(activeAd.campaignId, "click")}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    {activeAd.title}
+                  </a>
+                ) : (
+                  <PlayerRouteLink
+                    className="block truncate text-sm font-medium transition-colors hover:text-primary"
+                    href={currentTrack.trackHref}
+                  >
+                    {currentTrack.title}
+                  </PlayerRouteLink>
+                )}
+                <p className="block truncate text-xs text-muted-foreground">
+                  {activeAd ? (
+                    "Sponsored audio"
+                  ) : (
+                    <PlayerRouteLink
+                      className="transition-colors hover:text-primary"
+                      href={currentTrack.artistHref}
+                    >
+                      {currentTrack.artist}
+                    </PlayerRouteLink>
+                  )}
+                </p>
               </div>
             </div>
 
@@ -1083,12 +1207,12 @@ export function MusicPlayer() {
           <DialogContent className="max-w-md p-6 text-center space-y-4">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold font-[family-name:var(--font-playfair)]">
-                1-Hour Free Listening Limit Reached
+                Guest Preview Limit Reached
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground pt-2">
-                You&apos;ve enjoyed 1 hour of free guest listening today! Create
-                a free SoundKit account to unlock unlimited streaming, save your
-                favorite tracks, and follow top artists.
+                You&apos;ve enjoyed 5 minutes of free guest listening today.
+                Create a free SoundKit account to keep streaming, save your
+                favorite tracks, and follow artists.
               </DialogDescription>
             </DialogHeader>
 
@@ -1101,7 +1225,7 @@ export function MusicPlayer() {
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Or return tomorrow for another hour of guest listening.
+              Or return tomorrow for another guest preview.
             </p>
           </DialogContent>
         </Dialog>

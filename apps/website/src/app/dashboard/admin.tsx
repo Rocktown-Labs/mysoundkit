@@ -7,6 +7,7 @@ import {
   CircleDollarSign,
   Disc3,
   Globe2,
+  Megaphone,
   MoreHorizontal,
   Radio,
   RefreshCw,
@@ -63,6 +64,7 @@ import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
+  useAdminAdCampaignsQuery,
   useAdminOverviewQuery,
   useAdminPaymentsQuery,
   useAdminSettingsQuery,
@@ -156,6 +158,7 @@ function AdminDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="ads">Ads</TabsTrigger>
           <TabsTrigger value="coupons">Coupons</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
@@ -167,6 +170,9 @@ function AdminDashboard() {
         </TabsContent>
         <TabsContent value="payments" className="mt-6">
           <PaymentsPanel />
+        </TabsContent>
+        <TabsContent value="ads" className="mt-6">
+          <AdsPanel />
         </TabsContent>
         <TabsContent value="coupons" className="mt-6">
           <CouponsPanel />
@@ -250,6 +256,85 @@ function SettingsPanel() {
             value={settingsQuery.data.defaultExploreRegionType}
           />
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdsPanel() {
+  const campaignsQuery = useAdminAdCampaignsQuery();
+  const campaigns = campaignsQuery.data ?? [];
+
+  if (campaignsQuery.isLoading) {
+    return <p className="text-sm text-muted-foreground">Loading ads...</p>;
+  }
+
+  if (campaignsQuery.error) {
+    return <p className="text-sm text-destructive">Unable to load ads.</p>;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Megaphone className="size-4" />
+          Ad Manager
+        </CardTitle>
+        <CardDescription>
+          Monitor house ads and advertiser campaigns across every region.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Campaign</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Placement</TableHead>
+              <TableHead>Targets</TableHead>
+              <TableHead>Impressions</TableHead>
+              <TableHead>CTR</TableHead>
+              <TableHead>CPM</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {campaigns.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-muted-foreground">
+                  No ad campaigns have been created yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              campaigns.map((campaign) => (
+                <TableRow key={campaign.id}>
+                  <TableCell className="font-medium">{campaign.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{campaign.status}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {campaign.placement.replaceAll("_", " ")}
+                  </TableCell>
+                  <TableCell>
+                    {campaign.targets
+                      .map((target) => target.targetCode)
+                      .join(", ")}
+                  </TableCell>
+                  <TableCell>
+                    {campaign.metrics.impressions.toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    {campaign.metrics.ctrPercent.toFixed(2)}%
+                  </TableCell>
+                  <TableCell>
+                    {campaign.metrics.cpmCents === null
+                      ? "—"
+                      : formatCurrency(campaign.metrics.cpmCents)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );

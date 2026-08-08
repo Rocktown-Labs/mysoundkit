@@ -218,8 +218,66 @@ type UpdatePlatformSettingsBody = InferRequestType<
   typeof adminSettingsPatch
 >["json"];
 
+export type AdTargetType = "country" | "state";
+export type AdCreativeFormat = "audio" | "image" | "video";
+export type AdPlacement = "audio_preroll" | "video_overlay" | "video_preroll";
+export type AdBillingType = "prepaid_wallet" | "upfront_recurring";
+
+export interface AdTarget {
+  targetCode: string;
+  targetType: AdTargetType;
+}
+
+export interface AdCampaignSummary {
+  billingType: AdBillingType;
+  clickthroughUrl: string;
+  creativeFormat: AdCreativeFormat;
+  creativeImageUrl: string | null;
+  creativeUrl: string;
+  dailyBudgetCents: number;
+  dailyImpressionCap: number;
+  endDate: string | null;
+  id: string;
+  metrics: {
+    clicks: number;
+    cpcCents: number | null;
+    cpmCents: number | null;
+    ctrPercent: number;
+    impressions: number;
+    spendCents: number;
+  };
+  name: string;
+  placement: AdPlacement;
+  startDate: string;
+  status: "active" | "draft" | "exhausted_for_today" | "expired" | "paused";
+  targets: AdTarget[];
+}
+
+export interface AdWalletSummary {
+  balanceCents: number;
+  currency: string;
+}
+
+export interface CreateAdCampaignBody {
+  billingType: AdBillingType;
+  clickthroughUrl: string;
+  creativeFormat: AdCreativeFormat;
+  creativeImageUrl?: string;
+  creativeUrl: string;
+  dailyBudgetCents: number;
+  dailyImpressionCap: number;
+  endDate?: string;
+  name: string;
+  placement: AdPlacement;
+  startDate?: string;
+  targets: AdTarget[];
+}
+
 export const soundkitQueryKeys = {
   adminAccess: ["admin", "access"] as const,
+  adAdminCampaigns: ["ads", "admin", "campaigns"] as const,
+  adCampaigns: ["ads", "campaigns"] as const,
+  adWallet: ["ads", "wallet"] as const,
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   adminSettings: ["admin", "settings"] as const,
@@ -262,6 +320,72 @@ export const soundkitQueryKeys = {
   videos: (query?: PublicExploreQuery) =>
     [...soundkitQueryKeys.videosPrefix, query ?? {}] as const,
   videosPrefix: ["videos"] as const,
+};
+
+const fetchApiJson = async <T>(
+  path: string,
+  init?: RequestInit
+): Promise<T> => {
+  const response = await fetch(`${API_V1_URL}${path}`, {
+    credentials: "include",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new SoundKitApiError(
+      payload?.message ?? `Request failed with ${response.status}.`,
+      response.status
+    );
+  }
+
+  return (await response.json()) as T;
+};
+
+export const useAdWalletQuery = () =>
+  useQuery({
+    queryFn: async () => fetchApiJson<AdWalletSummary>("/ads/wallet"),
+    queryKey: soundkitQueryKeys.adWallet,
+  });
+
+export const useAdCampaignsQuery = () =>
+  useQuery({
+    queryFn: async () => fetchApiJson<AdCampaignSummary[]>("/ads/campaigns"),
+    queryKey: soundkitQueryKeys.adCampaigns,
+  });
+
+export const useAdminAdCampaignsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      fetchApiJson<AdCampaignSummary[]>("/ads/admin/campaigns"),
+    queryKey: soundkitQueryKeys.adAdminCampaigns,
+  });
+
+export const useCreateAdCampaignMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateAdCampaignBody) =>
+      fetchApiJson<AdCampaignSummary>("/ads/campaigns", {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adCampaigns,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adAdminCampaigns,
+      });
+    },
+  });
 };
 
 export const useAdminAccessQuery = (enabled = true) =>

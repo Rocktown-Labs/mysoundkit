@@ -20,6 +20,7 @@ import {
 } from "@/middleware/structured-logging";
 import adminRoutes from "@/routes/admin";
 import adminFinanceRoutes from "@/routes/admin-finance";
+import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
 import battlesRoutes from "@/routes/battles";
@@ -194,6 +195,7 @@ app
   .route("/v1/community-billing", communityBillingRoutes)
   .route("/v1/admin", adminRoutes)
   .route("/v1/admin/finance", adminFinanceRoutes)
+  .route("/v1/ads", adsRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/billing", billingRoutes)
   .route("/v1/seller", sellerRoutes)

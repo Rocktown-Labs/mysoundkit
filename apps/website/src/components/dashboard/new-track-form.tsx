@@ -119,6 +119,9 @@ const trackFormSchema = z
     coverObjectKey: z.string().optional(),
     credits: z.array(creditEntrySchema).default([]),
     description: z.string().optional(),
+    downloadsAllowed: z.boolean().default(true),
+    downloadsRequireFirstPlay: z.boolean().default(false),
+    downloadsRequirePurchase: z.boolean().default(true),
     genre: z.string().min(1, "Genre is required"),
     isForSale: z.boolean().default(false),
     isrc: z.string().optional(),
@@ -207,6 +210,9 @@ const defaultTrackFormValues: TrackFormValues = {
   coverObjectKey: "",
   credits: [],
   description: "",
+  downloadsAllowed: true,
+  downloadsRequireFirstPlay: false,
+  downloadsRequirePurchase: true,
   genre: "Hip-Hop/Rap",
   isForSale: false,
   isrc: "",
@@ -351,6 +357,11 @@ export function NewTrackForm({
         userId: (c.userId as string) || undefined,
       })),
       description: (initialTrack.description as string) ?? "",
+      downloadsAllowed: initialTrack.downloadsAllowed !== false,
+      downloadsRequireFirstPlay: Boolean(
+        initialTrack.downloadsRequireFirstPlay
+      ),
+      downloadsRequirePurchase: initialTrack.downloadsRequirePurchase !== false,
       genre: (initialTrack.genre as string) ?? "",
       isForSale,
       isrc: (initialTrack.isrc as string) ?? "",
@@ -867,6 +878,9 @@ export function NewTrackForm({
           userId: credit.userId,
         })),
         description: values.description || undefined,
+        downloadsAllowed: values.downloadsAllowed,
+        downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+        downloadsRequirePurchase: values.downloadsRequirePurchase,
         genre: values.genre,
         isForSale: false,
         isOpenVerse: false,
@@ -963,6 +977,9 @@ export function NewTrackForm({
 
         await updateTrackMutation.mutateAsync({
           description: values.description || undefined,
+          downloadsAllowed: values.downloadsAllowed,
+          downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: values.downloadsRequirePurchase,
           genre: values.genre,
           isForSale: values.isForSale,
           isPublic: release.isPublic,
@@ -1066,6 +1083,9 @@ export function NewTrackForm({
               userId: credit.userId,
             })),
             description: values.description || undefined,
+            downloadsAllowed: values.downloadsAllowed,
+            downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+            downloadsRequirePurchase: values.downloadsRequirePurchase,
             genre: values.genre,
             isForSale: values.isForSale,
             isOpenVerse: false,
@@ -2145,6 +2165,100 @@ export function NewTrackForm({
                     </p>
                   </div>
                 ) : null}
+
+                <div className="rounded-xl border border-border/40 bg-card/40 p-4">
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-sm">Download Access</h3>
+                    <p className="text-muted-foreground text-xs">
+                      Choose how fans can access the files included with this
+                      single.
+                    </p>
+                  </div>
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="downloadsAllowed"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/20 p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Allow downloads</FormLabel>
+                            <FormDescription className="text-xs">
+                              Include downloadable files when a fan has access.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                if (!checked) {
+                                  form.setValue(
+                                    "downloadsRequireFirstPlay",
+                                    false
+                                  );
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="downloadsRequirePurchase"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/20 p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Require purchase</FormLabel>
+                            <FormDescription className="text-xs">
+                              Only buyers can download included files.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={!form.watch("downloadsAllowed")}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                if (checked) {
+                                  form.setValue(
+                                    "downloadsRequireFirstPlay",
+                                    false
+                                  );
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="downloadsRequireFirstPlay"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/20 p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Require one play first</FormLabel>
+                            <FormDescription className="text-xs">
+                              Unlock free downloads only after the track has
+                              been played.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={
+                                !form.watch("downloadsAllowed") ||
+                                form.watch("downloadsRequirePurchase")
+                              }
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
 
                 <div className="rounded-xl border border-border/40 bg-card/40 p-4">
                   <div className="mb-4">
