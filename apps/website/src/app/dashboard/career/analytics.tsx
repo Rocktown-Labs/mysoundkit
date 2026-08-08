@@ -366,6 +366,51 @@ export function AnalyticsPage() {
             </AreaChart>
           </ChartContainer>
         </CardContent>
+      {/* Granular Song Metrics: Skip Rate & Completion Rate */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Activity className="size-5 text-emerald-400" />
+            Granular Song Retention: Skip Rate vs. Completion Rate
+          </CardTitle>
+          <CardDescription>
+            Measures listener retention milestones: 30-second qualified stream threshold vs. 100% completion rates.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-3">
+          <div className="space-y-2 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-emerald-400">30-Second Milestone Rate</span>
+              <span className="text-xl font-bold text-emerald-400">91.2%</span>
+            </div>
+            <Progress value={91.2} className="h-2 bg-emerald-950" />
+            <p className="text-[11px] text-muted-foreground">
+              Listeners passing the 30-second threshold required for qualified stream payouts.
+            </p>
+          </div>
+
+          <div className="space-y-2 p-4 rounded-lg bg-sky-500/10 border border-sky-500/20">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-sky-400">Full Completion Rate (&gt;90%)</span>
+              <span className="text-xl font-bold text-sky-400">78.4%</span>
+            </div>
+            <Progress value={78.4} className="h-2 bg-sky-950" />
+            <p className="text-[11px] text-muted-foreground">
+              Percentage of listeners who stream your song to completion without skipping.
+            </p>
+          </div>
+
+          <div className="space-y-2 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-rose-400">Early Skip Rate (&lt;30s)</span>
+              <span className="text-xl font-bold text-rose-400">8.8%</span>
+            </div>
+            <Progress value={8.8} className="h-2 bg-rose-950" />
+            <p className="text-[11px] text-muted-foreground">
+              Listens abandoned before 30 seconds. Low skip rates boost algorithmic playlisting.
+            </p>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Chart Row 2: Horizontal Bar Chart (Geographic Reach) & Donut Chart (Subscribers vs Free) */}
