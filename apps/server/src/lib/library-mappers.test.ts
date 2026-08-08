@@ -37,11 +37,12 @@ describe("library mappers", () => {
       projectId: null,
       purchasedAt: new Date("2026-07-15T00:00:00.000Z"),
       title: "Track Purchase",
+      trackDownloadUrl: "/v1/tracks/track_1/assets/asset_1/download",
       trackId: "track_1",
     });
 
     expect(item).toMatchObject({
-      downloadUrl: "/downloads/track_1",
+      downloadUrl: "/v1/tracks/track_1/assets/asset_1/download",
       id: "track_1",
       productId: "track_1",
       productType: "track",
