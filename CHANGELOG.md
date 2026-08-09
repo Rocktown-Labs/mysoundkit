@@ -85,6 +85,7 @@
 
 ### Fixed
 
+- Fixed the project creation release plan with explicit listed/unlisted visibility, calendar scheduling at midnight, and clearer submit validation feedback.
 - Fixed project creation track selection spacing, track-style collaborator invites, and project collaborator persistence.
 - Fixed the new project page crash when restoring a saved draft by stabilizing project form defaults, reusing artwork preview object URLs safely, and disabling placeholder PostHog initialization that spammed `/ingest` 404s without capturing useful diagnostics.
 - Fixed audio settlement follow-up behavior so free artists publish once audio and cover art settle, premium artists continue into StemSplit/transcription, artists receive in-app live/processing notifications, and admins can backfill missing track durations.
