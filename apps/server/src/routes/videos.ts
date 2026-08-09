@@ -135,6 +135,7 @@ const resolveVideoGenreId = async (
 interface VideoMapInput {
   creatorName?: string;
   creatorUsername?: string | null;
+  description?: string | null;
   duration?: string;
   durationMs?: number | null;
   externalPlaybackUrl?: string | null;
@@ -164,6 +165,7 @@ interface VideoMapInput {
 const mapVideo = (video: VideoMapInput) => ({
   creatorName: video.creatorName,
   creatorUsername: video.creatorUsername ?? null,
+  description: video.description ?? null,
   duration: video.duration ?? formatVideoDuration(video.durationMs ?? null),
   externalPlaybackUrl: video.externalPlaybackUrl ?? null,
   genre: video.genre ?? null,

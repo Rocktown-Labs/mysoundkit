@@ -1,3 +1,12 @@
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import {
+  battleRounds,
+  battles,
+  trackAssets,
+  tracks,
+  userProfiles,
+} from "@soundkit/db/schema/app";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
@@ -23,6 +32,12 @@ import type {
   RealtimeMeeting,
   RealtimeParticipantToken,
 } from "@/lib/live-experience";
+import type {
+  LiveBattleRound,
+  LiveRoomArtist,
+  LiveRoomState,
+  LiveRoomTrack,
+} from "@/lib/live-room-data";
 import {
   battleBotActionBodySchema,
   createLiveExperienceBodySchema,
@@ -457,6 +472,329 @@ const durableRequest = (
   });
 };
 
+const objectUrlFromMetadata = (metadata: unknown) => {
+  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+    return null;
+  }
+
+  const { url } = metadata as { url?: unknown };
+  return typeof url === "string" ? url : null;
+};
+
+const liveRoomTrackFromRow = ({
+  artistName,
+  coverArtUrl,
+  status,
+  title,
+  trackId,
+}: {
+  artistName: string;
+  coverArtUrl: null | string;
+  status: LiveRoomTrack["status"];
+  title: string;
+  trackId: string;
+}): LiveRoomTrack => ({
+  artistName,
+  coverArtUrl: coverArtUrl ?? "",
+  durationMs: 0,
+  id: trackId,
+  lyrics: [],
+  status,
+  title,
+});
+
+const liveRoundStatusFromDb = (
+  status: "active" | "completed" | "upcoming"
+): LiveBattleRound["status"] => {
+  if (status === "completed") {
+    return "complete";
+  }
+
+  if (status === "active") {
+    return "voting";
+  }
+
+  return "queued";
+};
+
+const trackStatusForRound = ({
+  isFirstTrack,
+  roundStatus,
+}: {
+  isFirstTrack: boolean;
+  roundStatus: "active" | "completed" | "upcoming";
+}): LiveRoomTrack["status"] => {
+  if (roundStatus === "completed") {
+    return "played";
+  }
+
+  if (roundStatus === "active") {
+    return isFirstTrack ? "playing" : "queued";
+  }
+
+  return "queued";
+};
+
+const selectCurrentRound = <
+  T extends {
+    roundNumber: number;
+    status: "active" | "completed" | "upcoming";
+  },
+>(
+  rounds: T[]
+) =>
+  rounds.find((round) => round.status === "active") ??
+  rounds.find((round) => round.status === "upcoming") ??
+  rounds.at(-1) ??
+  null;
+
+const buildBattleRoomSnapshot = async (
+  roomId: string
+): Promise<LiveRoomState | null> => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const db = createDb();
+  const [battle] = await db
+    .select({
+      challengerArtistUserId: battles.challengerArtistUserId,
+      createdAt: battles.createdAt,
+      id: battles.id,
+      opponentArtistUserId: battles.opponentArtistUserId,
+      status: battles.status,
+      title: battles.title,
+      viewerCount: battles.viewerCount,
+    })
+    .from(battles)
+    .where(or(eq(battles.id, roomId), eq(battles.externalBattleId, roomId)))
+    .limit(1);
+
+  if (!battle) {
+    return null;
+  }
+
+  const roundRows = await db
+    .select({
+      id: battleRounds.id,
+      isTiebreaker: battleRounds.isTiebreaker,
+      roundNumber: battleRounds.roundNumber,
+      status: battleRounds.status,
+      trackOneId: battleRounds.trackOneId,
+      trackOneVotes: battleRounds.trackOneVotes,
+      trackTwoId: battleRounds.trackTwoId,
+      trackTwoVotes: battleRounds.trackTwoVotes,
+      winningTrackId: battleRounds.winningTrackId,
+    })
+    .from(battleRounds)
+    .where(eq(battleRounds.battleId, battle.id))
+    .orderBy(asc(battleRounds.roundNumber));
+  const trackIds = [
+    ...new Set(
+      roundRows
+        .flatMap((round) => [round.trackOneId, round.trackTwoId])
+        .filter((trackId): trackId is string => Boolean(trackId))
+    ),
+  ];
+  const profileIds = [
+    ...new Set(
+      [battle.challengerArtistUserId, battle.opponentArtistUserId].filter(
+        (userId): userId is string => Boolean(userId)
+      )
+    ),
+  ];
+  const [trackRows, coverRows, profileRows] = await Promise.all([
+    trackIds.length > 0
+      ? db
+          .select({
+            artistName: userProfiles.displayName,
+            id: tracks.id,
+            ownerUserId: tracks.ownerUserId,
+            title: tracks.title,
+          })
+          .from(tracks)
+          .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+          .where(inArray(tracks.id, trackIds))
+      : [],
+    trackIds.length > 0
+      ? db
+          .select({
+            metadata: trackAssets.metadata,
+            trackId: trackAssets.trackId,
+          })
+          .from(trackAssets)
+          .where(
+            and(
+              inArray(trackAssets.trackId, trackIds),
+              eq(trackAssets.assetKind, "cover_art")
+            )
+          )
+      : [],
+    profileIds.length > 0
+      ? db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            userId: userProfiles.userId,
+          })
+          .from(userProfiles)
+          .where(inArray(userProfiles.userId, profileIds))
+      : [],
+  ]);
+  const coverByTrackId = new Map(
+    coverRows.map((asset) => [
+      asset.trackId,
+      objectUrlFromMetadata(asset.metadata),
+    ])
+  );
+  const trackById = new Map(
+    trackRows.map((track) => [
+      track.id,
+      {
+        artistName: track.artistName ?? "SoundKit Artist",
+        coverArtUrl: coverByTrackId.get(track.id) ?? null,
+        ownerUserId: track.ownerUserId,
+        title: track.title,
+      },
+    ])
+  );
+  const profileByUserId = new Map(
+    profileRows.map((profile) => [profile.userId, profile])
+  );
+  const currentRound = selectCurrentRound(roundRows);
+  const fallbackArtistIds = [
+    battle.challengerArtistUserId ?? "artist-one",
+    battle.opponentArtistUserId ?? "artist-two",
+  ] as const;
+  const liveArtists: [LiveRoomArtist, LiveRoomArtist] = [
+    {
+      avatarUrl: profileByUserId.get(fallbackArtistIds[0])?.avatarUrl ?? "",
+      id: fallbackArtistIds[0],
+      isMuted: false,
+      name:
+        profileByUserId.get(fallbackArtistIds[0])?.displayName ?? "Artist One",
+      roundsWon: roundRows.filter(
+        (round) =>
+          round.status === "completed" &&
+          round.winningTrackId &&
+          trackById.get(round.winningTrackId)?.ownerUserId ===
+            fallbackArtistIds[0]
+      ).length,
+      stagePosition: "left",
+      verified: false,
+    },
+    {
+      avatarUrl: profileByUserId.get(fallbackArtistIds[1])?.avatarUrl ?? "",
+      id: fallbackArtistIds[1],
+      isMuted: currentRound?.status === "active",
+      name:
+        profileByUserId.get(fallbackArtistIds[1])?.displayName ?? "Artist Two",
+      roundsWon: roundRows.filter(
+        (round) =>
+          round.status === "completed" &&
+          round.winningTrackId &&
+          trackById.get(round.winningTrackId)?.ownerUserId ===
+            fallbackArtistIds[1]
+      ).length,
+      stagePosition: "right",
+      verified: false,
+    },
+  ];
+  const liveRounds = roundRows.flatMap((round): LiveBattleRound[] => {
+    const trackOne = round.trackOneId ? trackById.get(round.trackOneId) : null;
+    const trackTwo = round.trackTwoId ? trackById.get(round.trackTwoId) : null;
+
+    if (!(round.trackOneId && trackOne && round.trackTwoId && trackTwo)) {
+      return [];
+    }
+
+    return [
+      {
+        artistATrack: liveRoomTrackFromRow({
+          artistName: trackOne.artistName,
+          coverArtUrl: trackOne.coverArtUrl,
+          status: trackStatusForRound({
+            isFirstTrack: true,
+            roundStatus: round.status,
+          }),
+          title: trackOne.title,
+          trackId: round.trackOneId,
+        }),
+        artistBTrack: liveRoomTrackFromRow({
+          artistName: trackTwo.artistName,
+          coverArtUrl: trackTwo.coverArtUrl,
+          status: trackStatusForRound({
+            isFirstTrack: false,
+            roundStatus: round.status,
+          }),
+          title: trackTwo.title,
+          trackId: round.trackTwoId,
+        }),
+        id: round.id,
+        isTiebreaker: round.isTiebreaker,
+        number: round.roundNumber,
+        status: liveRoundStatusFromDb(round.status),
+        voteTotals: {
+          [liveArtists[0].id]: round.trackOneVotes,
+          [liveArtists[1].id]: round.trackTwoVotes,
+        },
+        winnerArtistId: round.winningTrackId
+          ? (trackById.get(round.winningTrackId)?.ownerUserId ?? null)
+          : null,
+      },
+    ];
+  });
+  const currentLiveRound =
+    liveRounds.find((round) => round.id === currentRound?.id) ??
+    liveRounds[0] ??
+    null;
+  const tracklist = currentLiveRound
+    ? [currentLiveRound.artistATrack, currentLiveRound.artistBTrack]
+    : [];
+
+  return {
+    battle: {
+      artists: liveArtists,
+      currentRoundId: currentLiveRound?.id ?? "",
+      rounds: liveRounds,
+      tiePolicy:
+        "If the scheduled rounds end tied, SoundKit unlocks one tiebreaker song from each battle kit and runs sudden-death voting.",
+    },
+    chat: [],
+    createdAt: battle.createdAt.toISOString(),
+    currentTrackId: currentLiveRound?.artistATrack.id ?? "",
+    hostName: liveArtists[0].name,
+    id: battle.id,
+    kind: "battle",
+    status:
+      battle.status === "completed"
+        ? "ended"
+        : battle.status === "live"
+          ? "live"
+          : "upcoming",
+    summary:
+      "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
+    title: battle.title,
+    tracklist,
+    viewerCount: battle.viewerCount,
+  };
+};
+
+const seedDurableRoom = async ({
+  c,
+  room,
+  roomId,
+}: {
+  c: { env: AppEnv["Bindings"] };
+  room: LiveRoomState;
+  roomId: string;
+}) =>
+  durableRequest(c, roomId, "/seed", {
+    body: JSON.stringify(room),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+
 app.post("/experiences", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
@@ -656,6 +994,16 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
 
 app.get("/rooms/:roomId", async (c) => {
   const roomId = c.req.param("roomId");
+  const battleRoom = await buildBattleRoomSnapshot(roomId);
+
+  if (battleRoom) {
+    const seedResponse = await seedDurableRoom({ c, room: battleRoom, roomId });
+
+    if (!seedResponse) {
+      return c.json(battleRoom, HttpStatusCodes.OK);
+    }
+  }
+
   const response = await durableRequest(c, roomId, "/state");
 
   if (!response) {

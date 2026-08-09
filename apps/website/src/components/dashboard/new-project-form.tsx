@@ -25,11 +25,8 @@ import {
   Info,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import {
-  type FieldErrors,
-  useFieldArray,
-  useForm,
-} from "react-hook-form";
+import { useFieldArray, useForm } from 'react-hook-form';
+import type { FieldErrors } from 'react-hook-form';
 import * as z from "zod";
 
 const SUPPORTED_GENRES = [
@@ -242,7 +239,7 @@ const toDatePickerValue = (value: unknown) => {
 
 const releaseDateToMidnightIso = (dateValue?: string) => {
   if (!dateValue) {
-    return undefined;
+    return;
   }
 
   return new Date(`${dateValue}T00:00:00`).toISOString();
@@ -870,10 +867,28 @@ export function NewProjectForm({
 
   const toggleExistingTrack = (trackId: string) => {
     const current = form.getValues("selectedExistingTracks");
-    const updated = current.includes(trackId)
-      ? current.filter((id) => id !== trackId)
-      : [...current, trackId];
-    form.setValue("selectedExistingTracks", updated);
+    const trackTitle =
+      existingTracks.find((track) => track.id === trackId)?.title ?? "Track";
+
+    if (current.includes(trackId)) {
+      form.setValue(
+        "selectedExistingTracks",
+        current.filter((id) => id !== trackId),
+        { shouldDirty: true }
+      );
+      toast({
+        description: `Removed "${trackTitle}" from this project.`,
+        title: "Track removed",
+      });
+      return;
+    }
+
+    const updated = [...current, trackId];
+    form.setValue("selectedExistingTracks", updated, { shouldDirty: true });
+    toast({
+      description: `Added "${trackTitle}" to this project.`,
+      title: "Track added",
+    });
   };
 
   const handleNewUpload = (files: FileList | File[]) => {
@@ -1131,9 +1146,7 @@ export function NewProjectForm({
   };
 
   const releaseVisibility = form.watch("releaseVisibility");
-  const submitButtonLabel = projectId
-    ? "Save Changes"
-    : "Create Project";
+  const submitButtonLabel = projectId ? "Save Changes" : "Create Project";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -1914,7 +1927,10 @@ export function NewProjectForm({
                                 </Button>
                               </FormControl>
                             </PopoverTrigger>
-                            <PopoverContent align="start" className="w-auto p-0">
+                            <PopoverContent
+                              align="start"
+                              className="w-auto p-0"
+                            >
                               <DatePickerCalendar
                                 mode="single"
                                 selected={

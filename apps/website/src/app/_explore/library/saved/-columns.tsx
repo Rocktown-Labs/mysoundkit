@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Play } from "lucide-react";
+import { ArrowUpDown, Play, Trash2 } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,20 @@ export interface SavedTrack {
   slug?: string | null;
 }
 
-export const columns: ColumnDef<SavedTrack>[] = [
+const formatSavedDate = (value: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+
+export const createSavedTrackColumns = ({
+  onRemove,
+  removingTrackId,
+}: {
+  onRemove: (track: SavedTrack) => void;
+  removingTrackId?: string;
+}): ColumnDef<SavedTrack>[] => [
   {
     accessorKey: "cover",
     cell: ({ row }) => (
@@ -31,7 +44,10 @@ export const columns: ColumnDef<SavedTrack>[] = [
           layout="fixed"
           className="size-full rounded object-cover"
         />
-        <button className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        >
           <Play className="size-4 text-white fill-white" />
         </button>
       </div>
@@ -111,6 +127,11 @@ export const columns: ColumnDef<SavedTrack>[] = [
   },
   {
     accessorKey: "savedAt",
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap">
+        {formatSavedDate(row.original.savedAt)}
+      </span>
+    ),
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -120,5 +141,22 @@ export const columns: ColumnDef<SavedTrack>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
+  },
+  {
+    cell: ({ row }) => (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-destructive hover:text-destructive"
+        disabled={removingTrackId === row.original.id}
+        onClick={() => onRemove(row.original)}
+      >
+        <Trash2 className="size-4" />
+        <span className="sr-only">Remove {row.original.title}</span>
+      </Button>
+    ),
+    enableHiding: false,
+    enableSorting: false,
+    id: "actions",
   },
 ];

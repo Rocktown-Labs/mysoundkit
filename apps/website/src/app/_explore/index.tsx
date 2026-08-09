@@ -3,18 +3,20 @@ import {
   Compass,
   Disc,
   Flame,
-  Globe,
   LocateFixed,
   MapPin,
   Music,
+  Play,
   RotateCcw,
+  ShoppingBag,
   Users,
   Video,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
-import { BattleCard } from "@/components/explore/battle-card";
+import type { LeaderboardArtist } from "@/components/explore/artist-leaderboard-card";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
 import { VideoCard } from "@/components/explore/video-card";
@@ -26,15 +28,21 @@ import type { MapScope } from "@/components/explore/world-and-usa-map";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AppImage } from "@/components/ui/app-image";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { mockVideos } from "@/lib/mock-videos";
-import { useDiscoverHomeQuery } from "@/lib/soundkit-api-hooks";
+  useArtistsQuery,
+  useBattlesQuery,
+  useDiscoverHomeQuery,
+  usePublicProjectsQuery,
+  useTracksQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
+import type {
+  ArtistSummary,
+  BattleSummary,
+  PublicProjectSummary,
+  VideoSummary,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
@@ -71,12 +79,47 @@ function LocalExplorePage({
   const regionSlug = selectedRegion
     ? selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")
     : mapScope;
-  const regionSearch = `regionType=${mapScope}&region=${regionSlug}`;
+  const exploreRegionType = mapScope === "global" ? "global" : "north-america";
+  const regionSearch = `regionType=${exploreRegionType}&region=${regionSlug}`;
   const battlesHref = `/live?${regionSearch}`;
   const tracksHref = `/tracks?${regionSearch}`;
-  const releasesHref = `/new-releases?location=${encodeURIComponent(activeRegion)}`;
+  const releasesHref = `/tracks?${regionSearch}&sort=date-desc`;
   const artistsHref = `/artist?${regionSearch}`;
   const videosHref = `/videos?${regionSearch}`;
+  const projectsHref = `/projects?${regionSearch}`;
+  const publicExploreQuery = {
+    limit: 12,
+    region: regionSlug,
+    regionType: exploreRegionType,
+    scope: "public",
+  } as const;
+  const { data: topTracks = [], isLoading: isLoadingTopTracks } =
+    useTracksQuery(undefined, {
+      ...publicExploreQuery,
+      sort: "plays-desc",
+    });
+  const { data: newTracks = [], isLoading: isLoadingNewTracks } =
+    useTracksQuery(undefined, {
+      ...publicExploreQuery,
+      sort: "date-desc",
+    });
+  const { data: videos = [], isLoading: isLoadingVideos } =
+    useVideosQuery(publicExploreQuery);
+  const { data: projects = [], isLoading: isLoadingProjects } =
+    usePublicProjectsQuery({
+      limit: 12,
+      region: regionSlug,
+      regionType: exploreRegionType,
+      sort: "date-desc",
+    });
+  const { data: artists = [], isLoading: isLoadingArtists } = useArtistsQuery({
+    category: "top",
+    limit: 10,
+    region: regionSlug,
+    regionType: exploreRegionType,
+    sort: "rank-asc",
+  });
+  const { data: battles = [], isLoading: isLoadingBattles } = useBattlesQuery();
 
   const requestLocation = () => {
     setIsLoadingLocation(true);
@@ -258,103 +301,6 @@ function LocalExplorePage({
           </section>
 
           <div className="space-y-6 md:space-y-8 lg:space-y-10 pb-8 md:pb-10 lg:pb-12">
-            {/* Projects & Albums Section under Songs */}
-            <section>
-              <SectionHeader
-                title={
-                  isGlobalView
-                    ? "Featured Projects & Albums Across SoundKit"
-                    : `Featured Projects & Albums in ${activeRegion}`
-                }
-                description="Explore full-length Albums, EPs, and Mixtapes with chips for each release type."
-                icon={<Disc className="size-5 md:size-6 text-primary" />}
-                viewAllHref="/projects"
-              />
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
-                  <div className="size-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border/20">
-                    <Disc className="size-8 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] font-bold uppercase"
-                      >
-                        Album
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px]">
-                        Hip-Hop
-                      </Badge>
-                    </div>
-                    <Link
-                      to="/projects"
-                      className="font-bold text-sm truncate block group-hover:text-primary transition-colors"
-                    >
-                      Midnight Chronicles
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      12 Tracks • 2026
-                    </p>
-                  </div>
-                </Card>
-                <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
-                  <div className="size-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border/20">
-                    <Disc className="size-8 text-emerald-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] font-bold uppercase"
-                      >
-                        EP
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px]">
-                        R&amp;B
-                      </Badge>
-                    </div>
-                    <Link
-                      to="/projects"
-                      className="font-bold text-sm truncate block group-hover:text-primary transition-colors"
-                    >
-                      Summer Sunset Sessions
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      5 Tracks • 2026
-                    </p>
-                  </div>
-                </Card>
-                <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
-                  <div className="size-16 rounded-lg bg-muted flex items-center justify-center shrink-0 border border-border/20">
-                    <Disc className="size-8 text-sky-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] font-bold uppercase"
-                      >
-                        Mixtape
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px]">
-                        Afrobeats
-                      </Badge>
-                    </div>
-                    <Link
-                      to="/projects"
-                      className="font-bold text-sm truncate block group-hover:text-primary transition-colors"
-                    >
-                      Lagos Rhythm Vol. 1
-                    </Link>
-                    <p className="text-xs text-muted-foreground">
-                      8 Tracks • 2026
-                    </p>
-                  </div>
-                </Card>
-              </div>
-            </section>
-
             <section>
               <SectionHeader
                 title={
@@ -370,11 +316,16 @@ function LocalExplorePage({
                 icon={<Video className="size-5 md:size-6 text-primary" />}
                 viewAllHref={videosHref}
               />
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {mockVideos.slice(0, 3).map((video) => (
-                  <VideoCard key={video.id} video={video} />
-                ))}
-              </div>
+              <HomeRail
+                empty="No videos are live for this view yet."
+                isLoading={isLoadingVideos}
+                items={videos}
+                renderItem={(video) => (
+                  <div className="w-[300px] shrink-0 md:w-[360px]">
+                    <VideoCard key={video.id} video={toExploreVideo(video)} />
+                  </div>
+                )}
+              />
             </section>
 
             <section>
@@ -391,82 +342,14 @@ function LocalExplorePage({
                 }
                 viewAllHref={battlesHref}
               />
-              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-                <div className="flex gap-3 md:gap-4 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-w-max md:min-w-0">
-                  <BattleCard
-                    id="battle-1"
-                    title="West Coast Showdown"
-                    track1={{
-                      artist: "DJ Nova",
-                      cover: "/summer-music-album-cover.png",
-                      title: "Midnight Drive",
-                      votes: 1247,
-                    }}
-                    track2={{
-                      artist: "MC Rhythm",
-                      cover: "/night-music-album-cover.png",
-                      title: "City Lights",
-                      votes: 1089,
-                    }}
-                    endsIn="2h 34m"
-                    genre="Hip-Hop"
-                  />
-                  <BattleCard
-                    id="battle-2"
-                    title="Bay Area Beats"
-                    track1={{
-                      artist: "Sunset Collective",
-                      cover: "/hip-hop-album-cover.png",
-                      title: "Golden Hour",
-                      votes: 892,
-                    }}
-                    track2={{
-                      artist: "Urban Echo",
-                      cover: "/summer-music-album-cover.png",
-                      title: "Neon Nights",
-                      votes: 756,
-                    }}
-                    endsIn="5h 12m"
-                    genre="R&B"
-                  />
-                  <BattleCard
-                    id="battle-3"
-                    title="LA Underground"
-                    track1={{
-                      artist: "Sub Frequency",
-                      cover: "/night-music-album-cover.png",
-                      title: "Bassline Theory",
-                      votes: 2156,
-                    }}
-                    track2={{
-                      artist: "Beat Architect",
-                      cover: "/hip-hop-album-cover.png",
-                      title: "Rhythm Code",
-                      votes: 1998,
-                    }}
-                    endsIn="1h 05m"
-                    genre="Electronic"
-                  />
-                  <BattleCard
-                    id="battle-4"
-                    title="San Diego Sessions"
-                    track1={{
-                      artist: "Wave Rider",
-                      cover: "/summer-music-album-cover.png",
-                      title: "Coastal Vibes",
-                      votes: 634,
-                    }}
-                    track2={{
-                      artist: "Pacific Sound",
-                      cover: "/night-music-album-cover.png",
-                      title: "Sunset Strip",
-                      votes: 578,
-                    }}
-                    endsIn="3h 45m"
-                    genre="Pop"
-                  />
-                </div>
-              </div>
+              <HomeRail
+                empty="No battles are live for this view yet."
+                isLoading={isLoadingBattles}
+                items={battles}
+                renderItem={(battle) => (
+                  <BattleSummaryCard key={battle.id} battle={battle} />
+                )}
+              />
             </section>
 
             <section>
@@ -484,64 +367,25 @@ function LocalExplorePage({
                 icon={<Music className="size-5 md:size-6 text-primary" />}
                 viewAllHref={tracksHref}
               />
-              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-                <div className="flex gap-3 md:gap-4 md:grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 min-w-max md:min-w-0">
+              <HomeRail
+                empty="No songs are live for this view yet."
+                isLoading={isLoadingTopTracks}
+                items={topTracks}
+                renderItem={(track) => (
                   <TrackCard
-                    id="track-1"
-                    title="Summer Nights"
-                    artist="Luna Eclipse"
-                    artistSlug="luna-eclipse"
-                    cover="/summer-music-album-cover.png"
-                    plays="2.4M"
-                    duration="3:24"
+                    key={track.id}
+                    id={track.id}
+                    title={track.title}
+                    artist={track.artistName}
+                    artistSlug={track.artistUsername ?? "artist"}
+                    cover={track.coverArtUrl ?? "/placeholder.svg"}
+                    plays={track.plays.toLocaleString()}
+                    duration={track.duration}
+                    regionSlug={track.regionSlug}
+                    slug={track.slug}
                   />
-                  <TrackCard
-                    id="track-2"
-                    title="Midnight Dreams"
-                    artist="Neon Pulse"
-                    artistSlug="neon-pulse"
-                    cover="/night-music-album-cover.png"
-                    plays="1.8M"
-                    duration="4:12"
-                  />
-                  <TrackCard
-                    id="track-3"
-                    title="Urban Legends"
-                    artist="Street Poet"
-                    artistSlug="street-poet"
-                    cover="/hip-hop-album-cover.png"
-                    plays="3.1M"
-                    duration="3:45"
-                  />
-                  <TrackCard
-                    id="track-4"
-                    title="Electric Soul"
-                    artist="Voltage Dreams"
-                    artistSlug="voltage-dreams"
-                    cover="/summer-music-album-cover.png"
-                    plays="1.2M"
-                    duration="3:56"
-                  />
-                  <TrackCard
-                    id="track-5"
-                    title="City Lights"
-                    artist="Metro Flow"
-                    artistSlug="metro-flow"
-                    cover="/night-music-album-cover.png"
-                    plays="2.7M"
-                    duration="3:18"
-                  />
-                  <TrackCard
-                    id="track-6"
-                    title="Wave Rider"
-                    artist="Ocean Drive"
-                    artistSlug="ocean-drive"
-                    cover="/hip-hop-album-cover.png"
-                    plays="1.5M"
-                    duration="4:02"
-                  />
-                </div>
-              </div>
+                )}
+              />
             </section>
 
             <section>
@@ -559,64 +403,25 @@ function LocalExplorePage({
                 icon={<Flame className="size-5 md:size-6 text-primary" />}
                 viewAllHref={releasesHref}
               />
-              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-                <div className="flex gap-3 md:gap-4 md:grid md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 min-w-max md:min-w-0">
+              <HomeRail
+                empty="No new releases are live for this view yet."
+                isLoading={isLoadingNewTracks}
+                items={newTracks}
+                renderItem={(track) => (
                   <TrackCard
-                    id="new-1"
-                    title="Breakthrough"
-                    artist="Rising Phoenix"
-                    artistSlug="rising-phoenix"
-                    cover="/hip-hop-album-cover.png"
-                    plays="45K"
-                    duration="3:32"
+                    key={track.id}
+                    id={track.id}
+                    title={track.title}
+                    artist={track.artistName}
+                    artistSlug={track.artistUsername ?? "artist"}
+                    cover={track.coverArtUrl ?? "/placeholder.svg"}
+                    plays={track.plays.toLocaleString()}
+                    duration={track.duration}
+                    regionSlug={track.regionSlug}
+                    slug={track.slug}
                   />
-                  <TrackCard
-                    id="new-2"
-                    title="First Light"
-                    artist="Dawn Chorus"
-                    artistSlug="dawn-chorus"
-                    cover="/summer-music-album-cover.png"
-                    plays="67K"
-                    duration="3:15"
-                  />
-                  <TrackCard
-                    id="new-3"
-                    title="New Wave"
-                    artist="Fresh Sound"
-                    artistSlug="fresh-sound"
-                    cover="/night-music-album-cover.png"
-                    plays="89K"
-                    duration="4:05"
-                  />
-                  <TrackCard
-                    id="new-4"
-                    title="Debut Single"
-                    artist="Rookie Star"
-                    artistSlug="rookie-star"
-                    cover="/hip-hop-album-cover.png"
-                    plays="34K"
-                    duration="3:48"
-                  />
-                  <TrackCard
-                    id="new-5"
-                    title="Fresh Start"
-                    artist="New Day"
-                    artistSlug="new-day"
-                    cover="/summer-music-album-cover.png"
-                    plays="52K"
-                    duration="3:22"
-                  />
-                  <TrackCard
-                    id="new-6"
-                    title="Next Level"
-                    artist="Elevate"
-                    artistSlug="elevate"
-                    cover="/night-music-album-cover.png"
-                    plays="71K"
-                    duration="3:55"
-                  />
-                </div>
-              </div>
+                )}
+              />
             </section>
 
             <section>
@@ -634,106 +439,236 @@ function LocalExplorePage({
                 icon={<Users className="size-5 md:size-6 text-primary" />}
                 viewAllHref={artistsHref}
               />
-              <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-4">
-                <div className="flex gap-3 md:gap-4 min-w-max">
-                  {[
-                    [
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "R&B/Soul",
-                        location: activeRegion,
-                        name: "Luna Eclipse",
-                        rank: 1,
-                        slug: "luna-eclipse",
-                        stats: { followers: "124K", plays: "2.4M" },
-                        verified: true,
-                      },
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Electronic",
-                        location: activeRegion,
-                        name: "Neon Pulse",
-                        rank: 2,
-                        slug: "neon-pulse",
-                        stats: { followers: "89K", plays: "1.8M" },
-                      },
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Hip-Hop",
-                        location: activeRegion,
-                        name: "Street Poet",
-                        rank: 3,
-                        slug: "street-poet",
-                        stats: { followers: "256K", plays: "3.1M" },
-                        verified: true,
-                      },
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Synthwave",
-                        location: activeRegion,
-                        name: "Voltage Dreams",
-                        rank: 4,
-                        slug: "voltage-dreams",
-                        stats: { followers: "67K", plays: "1.2M" },
-                      },
-                    ],
-                    [
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Hip-Hop",
-                        location: activeRegion,
-                        name: "Metro Flow",
-                        rank: 5,
-                        slug: "metro-flow",
-                        stats: { followers: "198K", plays: "2.7M" },
-                        verified: true,
-                      },
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Pop",
-                        location: activeRegion,
-                        name: "Ocean Drive",
-                        rank: 6,
-                        slug: "ocean-drive",
-                        stats: { followers: "145K", plays: "1.5M" },
-                      },
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Indie",
-                        location: activeRegion,
-                        name: "Sunset Vibes",
-                        rank: 7,
-                        slug: "sunset-vibes",
-                        stats: { followers: "78K", plays: "980K" },
-                      },
-                      {
-                        avatar: "/diverse-user-avatars.png",
-                        genre: "Electronic",
-                        location: activeRegion,
-                        name: "Bass Drop",
-                        rank: 8,
-                        slug: "bass-drop",
-                        stats: { followers: "112K", plays: "1.6M" },
-                      },
-                    ],
-                  ].map((artists, index) => (
-                    <div
-                      key={index}
-                      className="w-[320px] md:w-[360px] flex-shrink-0"
-                    >
-                      <ArtistLeaderboardCard
-                        artists={artists}
-                        type="rising"
-                        showBorder={false}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <HomeRail
+                empty="No artists are live for this view yet."
+                isLoading={isLoadingArtists}
+                items={chunkArtists(artists, activeRegion)}
+                renderItem={(artistGroup) => (
+                  <div
+                    key={artistGroup.map((artist) => artist.slug).join("-")}
+                    className="w-[320px] shrink-0 md:w-[360px]"
+                  >
+                    <ArtistLeaderboardCard
+                      artists={artistGroup}
+                      type="rising"
+                      showBorder={false}
+                    />
+                  </div>
+                )}
+              />
+            </section>
+
+            <section>
+              <SectionHeader
+                title="Featured Projects"
+                description={
+                  isGlobalView
+                    ? "Albums, EPs, and mixtapes from across SoundKit"
+                    : `Albums, EPs, and mixtapes in ${activeRegion}`
+                }
+                icon={<Disc className="size-5 md:size-6 text-primary" />}
+                viewAllHref={projectsHref}
+              />
+              <HomeRail
+                empty="No featured projects are live for this view yet."
+                isLoading={isLoadingProjects}
+                items={projects}
+                renderItem={(project) => (
+                  <HomeProjectCard key={project.id} project={project} />
+                )}
+              />
             </section>
           </div>
         </main>
       </div>
     </div>
+  );
+}
+
+function HomeRail<T>({
+  empty,
+  isLoading,
+  items,
+  renderItem,
+}: {
+  empty: string;
+  isLoading: boolean;
+  items: T[];
+  renderItem: (item: T) => ReactNode;
+}) {
+  if (!(isLoading || items.length > 0)) {
+    return (
+      <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+        {empty}
+      </div>
+    );
+  }
+
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
+      <div className="flex min-w-max gap-3 md:gap-4">
+        {items.map((item) => renderItem(item))}
+      </div>
+    </div>
+  );
+}
+
+const formatCompactCount = (value?: number | null) => {
+  if (!value) {
+    return "0";
+  }
+
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}K`;
+  }
+
+  return value.toLocaleString();
+};
+
+const toLeaderboardArtist = (
+  artist: ArtistSummary,
+  index: number,
+  activeRegion: string
+): LeaderboardArtist => ({
+  avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
+  genre: artist.genre,
+  location: artist.location || artist.state || activeRegion,
+  name: artist.name,
+  rank:
+    typeof artist.rank === "number" && artist.rank > 0
+      ? artist.rank
+      : index + 1,
+  slug: artist.username,
+  stats: {
+    followers: formatCompactCount(artist.followers),
+    plays: formatCompactCount(artist.weeklyPlays),
+  },
+  verified: artist.verified,
+});
+
+const chunkArtists = (artists: ArtistSummary[], activeRegion: string) => {
+  const leaderboardArtists = artists.map((artist, index) =>
+    toLeaderboardArtist(artist, index, activeRegion)
+  );
+
+  return [
+    leaderboardArtists.slice(0, 5),
+    leaderboardArtists.slice(5, 10),
+  ].filter((group) => group.length > 0);
+};
+
+const toExploreVideo = (video: VideoSummary) => ({
+  creator: {
+    name: video.creatorName ?? "SoundKit creator",
+    slug: video.creatorUsername ?? "artist",
+  },
+  duration: video.duration ?? "0:00",
+  id: video.id,
+  playbackPolicy: video.playbackPolicy,
+  regionSlug: video.regionSlug,
+  slug: video.slug,
+  status: video.status,
+  thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
+  title: video.title,
+  verifiedOnPlatform: video.verifiedOnPlatform,
+  videoKind: video.videoKind,
+  viewCount: video.viewCount ?? "0",
+});
+
+function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
+  return (
+    <Link
+      className="block w-[260px] shrink-0 md:w-[300px]"
+      params={{ id: battle.id }}
+      to="/live/battles/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="secondary">{battle.genre}</Badge>
+            <Badge variant={battle.status === "live" ? "destructive" : "outline"}>
+              {battle.status}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="line-clamp-2 font-semibold text-base">
+              {battle.title}
+            </h3>
+            <p className="mt-1 text-muted-foreground text-xs">
+              {battle.format.replaceAll("_", " ")}
+            </p>
+          </div>
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>{battle.viewerCount.toLocaleString()} viewers</span>
+            {battle.visibility === "premium_only" ? (
+              <span className="font-medium text-primary">Premium</span>
+            ) : (
+              <span>Public</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function HomeProjectCard({ project }: { project: PublicProjectSummary }) {
+  return (
+    <Card className="group w-[220px] shrink-0 overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        {project.coverArtUrl ? (
+          <AppImage
+            alt={project.title}
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            src={project.coverArtUrl}
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center bg-accent/40 text-muted-foreground">
+            <Disc className="size-14 opacity-40" />
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button asChild className="rounded-full shadow-lg" size="icon">
+            <Link params={{ id: project.id }} to="/projects/$id">
+              <Play className="ml-0.5 size-5 fill-current" />
+            </Link>
+          </Button>
+        </div>
+        <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+          <Badge
+            className="text-[10px] uppercase tracking-wide"
+            variant="secondary"
+          >
+            {project.projectType}
+          </Badge>
+          {project.isForSale && (
+            <Badge className="bg-black/70 text-[10px] text-white">
+              <ShoppingBag className="mr-1 size-3" />
+              For Sale
+            </Badge>
+          )}
+        </div>
+      </div>
+      <CardContent className="p-4">
+        <Link
+          className="line-clamp-1 font-semibold transition-colors group-hover:text-primary"
+          params={{ id: project.id }}
+          to="/projects/$id"
+        >
+          {project.title}
+        </Link>
+        <p className="mt-1 line-clamp-1 text-muted-foreground text-sm">
+          {project.genre ?? "Mixed genre"}
+        </p>
+        <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
+          <span>{project.trackCount} tracks</span>
+          <span>{project.duration ?? "0:00"}</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

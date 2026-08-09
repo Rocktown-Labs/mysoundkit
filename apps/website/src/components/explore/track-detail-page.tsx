@@ -366,10 +366,18 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   });
   const [selectedLicense, setSelectedLicense] =
     useState<MockLicenseOption | null>(null);
+  const isLiked = Boolean(
+    item?.id && savedTracks.some((track) => track.id === item.id)
+  );
+  const [optimisticLiked, setOptimisticLiked] = useState(isLiked);
 
   useEffect(() => {
     setSelectedLicense(item?.licenseOptions?.[0] ?? null);
   }, [item?.id]);
+
+  useEffect(() => {
+    setOptimisticLiked(isLiked);
+  }, [isLiked]);
 
   if (isLoading) {
     return (
@@ -501,14 +509,17 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     });
   };
 
-  const isLiked = Boolean(
-    item?.id && savedTracks.some((t) => t.id === item.id)
-  );
-
   const handleToggleLike = async () => {
     if (!item?.id) return;
+    if (toggleSaveMutation.isPending) {
+      return;
+    }
+
+    setOptimisticLiked((current) => !current);
+
     try {
       const res = await toggleSaveMutation.mutateAsync(item.id);
+      setOptimisticLiked(res.saved);
       toast({
         description: res.saved
           ? `Saved "${item.title}" to your Saved Tracks.`
@@ -521,6 +532,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
         title: "Sign in required",
         variant: "destructive",
       });
+      setOptimisticLiked(isLiked);
     }
   };
 
@@ -588,10 +600,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
               size="icon"
               className="size-8"
               onClick={handleToggleLike}
-              title="Favorite"
+              disabled={toggleSaveMutation.isPending}
+              title={optimisticLiked ? "Remove from Saved" : "Save Track"}
             >
               <Heart
-                className={`size-4 ${isLiked ? "fill-rose-500 text-rose-500" : ""}`}
+                className={`size-4 ${optimisticLiked ? "fill-rose-500 text-rose-500" : ""}`}
               />
             </Button>
           </div>
@@ -687,10 +700,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                   variant="outline"
                   size="icon"
                   onClick={handleToggleLike}
-                  className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${isLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
+                  disabled={toggleSaveMutation.isPending}
+                  className={`size-12 rounded-lg border-border/40 hover:text-rose-500 hover:border-rose-500/40 ${optimisticLiked ? "text-rose-500 border-rose-500/50 bg-rose-500/10" : ""}`}
                 >
                   <Heart
-                    className={`size-6 ${isLiked ? "fill-current" : ""}`}
+                    className={`size-6 ${optimisticLiked ? "fill-current" : ""}`}
                   />
                 </Button>
               </div>

@@ -48,6 +48,32 @@ export class LiveRoomDurableObject extends DurableObject {
       return jsonResponse(await this.getState());
     }
 
+    if (request.method === "POST" && url.pathname === "/seed") {
+      const body = (await request
+        .json()
+        .catch(() => null)) as LiveRoomState | null;
+
+      if (!body?.id) {
+        return jsonResponse({ message: "Seed room state is invalid." }, 400);
+      }
+
+      const storedState =
+        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY);
+      const shouldReplaceStoredState =
+        !storedState ||
+        storedState.id !== body.id ||
+        storedState.kind !== body.kind ||
+        storedState.title !== body.title;
+
+      if (shouldReplaceStoredState) {
+        await this.persist(body);
+        this.broadcast({ room: body, type: "state" });
+        return jsonResponse(body, 201);
+      }
+
+      return jsonResponse(storedState);
+    }
+
     if (request.method === "POST" && url.pathname === "/chat") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody;
       const room = await this.addChatMessage(body);

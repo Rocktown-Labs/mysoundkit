@@ -8,18 +8,19 @@ import {
   seoImageUrl,
 } from "@/lib/seo";
 import { loadPublicTrackSeo } from "@/lib/seo-data";
+import type { TrackSeoData } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
   component: RegionSlugTrackPage,
   head: ({ loaderData, params }) => {
-    const track = loaderData;
+    const track = loaderData as TrackSeoData | null;
     const canonicalPath =
       track?.regionSlug && track.slug
         ? `/tracks/${track.regionSlug}/${track.slug}`
         : `/tracks/${params.regionSlug}/${params.slug}`;
     const trackTitle = track?.title ?? "Track";
     const artistName = track?.artist.name ?? "SoundKit artist";
-    const title = `Stream ${trackTitle} on SoundKit`;
+    const title = `Stream ${trackTitle} by ${artistName} on SoundKit`;
     const description = seoDescription(
       track?.description,
       `Play ${trackTitle} by ${artistName} on SoundKit.`

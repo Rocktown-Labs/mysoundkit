@@ -73,6 +73,7 @@
 
 ### Changed
 
+- Reworked the public home and live discovery surfaces to use real API-backed tracks, projects, videos, artists, battles, and listening parties with empty states instead of placeholder cards.
 - Replaced the artist floating chat mock with real API-backed conversations and messages, restricted the widget to artist accounts, and added fan-accessible sign-out from Account Settings.
 - Made battle challenge issuance persist challenge records and notify the challenged artist, with consistent Premium Artist gating across challenge entry points.
 - Reworked the dashboard video upload flow to use resumable UpChunk chunked uploads to Mux, client-side file validation, live progress bars, and real project/track linkage instead of mock history.
@@ -85,6 +86,8 @@
 
 ### Fixed
 
+- Improved public item share metadata for tracks, projects, and videos so social cards use the real title, creator, cover artwork, canonical URL, and structured data.
+- Fixed track save hearts with optimistic visual feedback, toast confirmation, and click-locking while saves are in flight, and simplified saved-library dates.
 - Fixed the project creation release plan with explicit listed/unlisted visibility, calendar scheduling at midnight, and clearer submit validation feedback.
 - Fixed project creation track selection spacing, track-style collaborator invites, and project collaborator persistence.
 - Fixed the new project page crash when restoring a saved draft by stabilizing project form defaults, reusing artwork preview object URLs safely, and disabling placeholder PostHog initialization that spammed `/ingest` 404s without capturing useful diagnostics.

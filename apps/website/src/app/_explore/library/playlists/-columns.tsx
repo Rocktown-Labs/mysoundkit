@@ -17,7 +17,11 @@ export interface Playlist {
   trackCount: number;
 }
 
-export const columns: ColumnDef<Playlist>[] = [
+export const createPlaylistColumns = ({
+  onDelete,
+}: {
+  onDelete: (playlist: Playlist) => void;
+}): ColumnDef<Playlist>[] => [
   {
     accessorKey: "icon",
     cell: () => (
@@ -88,8 +92,10 @@ export const columns: ColumnDef<Playlist>[] = [
               View Playlist
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem>Edit Details</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive">
+          <DropdownMenuItem
+            className="text-destructive"
+            onClick={() => onDelete(row.original)}
+          >
             Delete Playlist
           </DropdownMenuItem>
         </DropdownMenuContent>

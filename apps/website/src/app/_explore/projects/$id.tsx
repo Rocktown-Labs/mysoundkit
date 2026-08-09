@@ -1,17 +1,57 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { createShareMeta } from "@/lib/seo";
+import {
+  absoluteSiteUrl,
+  createShareMeta,
+  seoDescription,
+  seoImageUrl,
+} from "@/lib/seo";
+import { loadPublicProjectSeo } from "@/lib/seo-data";
+import type { ProjectSeoData } from "@/lib/seo-data";
 
 export const Route = createFileRoute("/_explore/projects/$id")({
   component: ProjectDetailLayout,
-  head: ({ params }) =>
-    createShareMeta({
-      canonicalPath: `/projects/${params.id}`,
-      description:
-        "Play albums, EPs, and mixtapes from SoundKit creators with full project tracklists.",
-      title: "Play this project on SoundKit",
+  head: ({ loaderData, params }) => {
+    const project = loaderData as ProjectSeoData | null;
+    const titleText = project?.title ?? "Project";
+    const artistName = project?.artistName ?? "SoundKit artist";
+    const title = `Play ${titleText} by ${artistName} on SoundKit`;
+    const description = seoDescription(
+      project?.description,
+      `Stream ${titleText}, a ${project?.projectType ?? "project"} by ${artistName}, on SoundKit.`
+    );
+    const head = createShareMeta({
+      canonicalPath: `/projects/${project?.id ?? params.id}`,
+      description,
+      imageUrl: project?.coverArtUrl,
+      title,
       type: "music.album",
-    }),
+    });
+
+    return {
+      ...head,
+      scripts: project
+        ? [
+            {
+              children: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "MusicAlbum",
+                byArtist: {
+                  "@type": "MusicGroup",
+                  name: artistName,
+                },
+                image: seoImageUrl(project.coverArtUrl),
+                name: titleText,
+                numTracks: project.trackCount,
+                url: absoluteSiteUrl(`/projects/${project.id}`),
+              }),
+              type: "application/ld+json",
+            },
+          ]
+        : [],
+    };
+  },
+  loader: ({ params }) => loadPublicProjectSeo(params.id).catch(() => null),
 });
 
 function ProjectDetailLayout() {

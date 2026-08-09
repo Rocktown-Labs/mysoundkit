@@ -742,6 +742,8 @@ export const trackCatalogDetailSchema = z.object({
 });
 
 export const projectSummarySchema = z.object({
+  artistName: z.string().optional(),
+  artistUsername: z.string().nullable().optional(),
   collaboratorCount: z.number().int().default(0),
   coverArtUrl: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
@@ -931,7 +933,31 @@ export const battleSummarySchema = z.object({
   genre: z.string(),
   id: z.string(),
   isFeatured: z.boolean().default(false),
+  joinMode: z.enum(["watch_now", "waiting_room"]).default("watch_now"),
+  phaseEndsAt: z.string().nullable().optional(),
+  queueSize: z.number().int().nonnegative().default(0),
+  round: z
+    .object({
+      current: z.number().int().positive(),
+      id: z.string(),
+      isVoting: z.boolean(),
+      status: z.enum(["upcoming", "active", "completed"]),
+      total: z.number().int().positive(),
+    })
+    .nullable()
+    .optional(),
   status: z.enum(["scheduled", "live", "completed", "archived"]),
+  tracks: z
+    .object({
+      artist: z.string(),
+      cover: z.string().nullable(),
+      id: z.string(),
+      title: z.string(),
+      votes: z.number().int().nonnegative(),
+    })
+    .array()
+    .max(2)
+    .default([]),
   title: z.string(),
   viewerCount: z.number(),
   visibility: z.enum(["public", "premium_only"]),

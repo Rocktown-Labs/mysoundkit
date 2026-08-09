@@ -323,9 +323,15 @@ export const buildProjectSummary = async (
         .from(projectCollaborators)
         .where(eq(projectCollaborators.projectId, row.id)),
       db
-        .select({ state: userProfiles.state })
-        .from(userProfiles)
-        .where(eq(userProfiles.userId, row.ownerUserId))
+        .select({
+          displayName: userProfiles.displayName,
+          state: userProfiles.state,
+          userName: authUser.name,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(eq(authUser.id, row.ownerUserId))
         .limit(1),
     ]);
   const trackIds = trackRows.map((track) => track.id);
@@ -379,6 +385,12 @@ export const buildProjectSummary = async (
     durationMs,
     genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
+    artistName:
+      ownerProfile?.displayName ??
+      ownerProfile?.userName ??
+      ownerProfile?.username ??
+      "SoundKit Artist",
+    artistUsername: ownerProfile?.username ?? null,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
     progress,

@@ -7,12 +7,13 @@ import {
   battleStats,
   battles,
   genres,
+  trackAssets,
   trackLyrics,
   tracks,
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -41,17 +42,188 @@ import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
 const featuredBattleLimit = 6;
+const battleTotalRoundsByFormat = {
+  best_of_3: 3,
+  best_of_5: 5,
+  best_of_7: 7,
+} as const;
+
+type BattleFeedRow = {
+  format: "best_of_3" | "best_of_5" | "best_of_7";
+  genre: string;
+  id: string;
+  status: "scheduled" | "live" | "completed" | "archived";
+  title: string;
+  viewerCount: number;
+  visibility: "public" | "premium_only";
+};
+
+type BattleFeedRound = {
+  battleId: string;
+  id: string;
+  isTiebreaker: boolean;
+  roundNumber: number;
+  status: "upcoming" | "active" | "completed";
+  trackOneId: null | string;
+  trackOneVotes: number;
+  trackTwoId: null | string;
+  trackTwoVotes: number;
+  votingEndsAt: Date | null;
+};
+
+type BattleFeedTrack = {
+  artist: string;
+  cover: null | string;
+  id: string;
+  title: string;
+};
+
+const objectUrlFromMetadata = (metadata: unknown) => {
+  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+    return null;
+  }
+
+  const { url } = metadata as { url?: unknown };
+  return typeof url === "string" ? url : null;
+};
+
+const selectCurrentRound = (rounds: BattleFeedRound[]) =>
+  rounds.find((round) => round.status === "active") ??
+  rounds.find((round) => round.status === "upcoming") ??
+  rounds.at(-1) ??
+  null;
+
+const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
+  if (battleRows.length === 0) {
+    return [];
+  }
+
+  const db = createDb();
+  const battleIds = battleRows.map((battle) => battle.id);
+  const roundRows = await db
+    .select({
+      battleId: battleRounds.battleId,
+      id: battleRounds.id,
+      isTiebreaker: battleRounds.isTiebreaker,
+      roundNumber: battleRounds.roundNumber,
+      status: battleRounds.status,
+      trackOneId: battleRounds.trackOneId,
+      trackOneVotes: battleRounds.trackOneVotes,
+      trackTwoId: battleRounds.trackTwoId,
+      trackTwoVotes: battleRounds.trackTwoVotes,
+      votingEndsAt: battleRounds.votingEndsAt,
+    })
+    .from(battleRounds)
+    .where(inArray(battleRounds.battleId, battleIds))
+    .orderBy(asc(battleRounds.roundNumber));
+  const roundsByBattleId = new Map<string, BattleFeedRound[]>();
+
+  for (const round of roundRows) {
+    const rounds = roundsByBattleId.get(round.battleId) ?? [];
+    rounds.push(round);
+    roundsByBattleId.set(round.battleId, rounds);
+  }
+
+  const trackIds = [
+    ...new Set(
+      roundRows
+        .flatMap((round) => [round.trackOneId, round.trackTwoId])
+        .filter((trackId): trackId is string => Boolean(trackId))
+    ),
+  ];
+  const trackById = new Map<string, BattleFeedTrack>();
+
+  if (trackIds.length > 0) {
+    const [trackRows, coverRows] = await Promise.all([
+      db
+        .select({
+          artistName: userProfiles.displayName,
+          id: tracks.id,
+          title: tracks.title,
+        })
+        .from(tracks)
+        .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+        .where(inArray(tracks.id, trackIds)),
+      db
+        .select({
+          metadata: trackAssets.metadata,
+          trackId: trackAssets.trackId,
+        })
+        .from(trackAssets)
+        .where(
+          and(
+            inArray(trackAssets.trackId, trackIds),
+            eq(trackAssets.assetKind, "cover_art")
+          )
+        ),
+    ]);
+    const coverByTrackId = new Map(
+      coverRows.map((asset) => [
+        asset.trackId,
+        objectUrlFromMetadata(asset.metadata),
+      ])
+    );
+
+    for (const track of trackRows) {
+      trackById.set(track.id, {
+        artist: track.artistName ?? "SoundKit Artist",
+        cover: coverByTrackId.get(track.id) ?? null,
+        id: track.id,
+        title: track.title,
+      });
+    }
+  }
+
+  return battleRows.map((battle) => {
+    const rounds = roundsByBattleId.get(battle.id) ?? [];
+    const currentRound = selectCurrentRound(rounds);
+    const roundTracks = currentRound
+      ? [
+          currentRound.trackOneId
+            ? {
+                ...trackById.get(currentRound.trackOneId),
+                votes: currentRound.trackOneVotes,
+              }
+            : null,
+          currentRound.trackTwoId
+            ? {
+                ...trackById.get(currentRound.trackTwoId),
+                votes: currentRound.trackTwoVotes,
+              }
+            : null,
+        ].filter(
+          (
+            track
+          ): track is BattleFeedTrack & {
+            votes: number;
+          } => Boolean(track?.id)
+        )
+      : [];
+
+    return {
+      ...battle,
+      joinMode:
+        battle.status === "live" && currentRound?.status === "active"
+          ? ("waiting_room" as const)
+          : ("watch_now" as const),
+      phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
+      queueSize: 0,
+      round: currentRound
+        ? {
+            current: currentRound.roundNumber,
+            id: currentRound.id,
+            isVoting: currentRound.status === "active",
+            status: currentRound.status,
+            total: battleTotalRoundsByFormat[battle.format],
+          }
+        : null,
+      tracks: roundTracks,
+    };
+  });
+};
 
 const rankFeaturedBattles = (
-  battleRows: {
-    format: "best_of_3" | "best_of_5" | "best_of_7";
-    genre: string;
-    id: string;
-    status: "scheduled" | "live" | "completed" | "archived";
-    title: string;
-    viewerCount: number;
-    visibility: "public" | "premium_only";
-  }[]
+  battleRows: Awaited<ReturnType<typeof enrichBattleFeedRows>>
 ) => {
   const featuredIds = new Map(
     battleRows
@@ -103,15 +275,14 @@ app.openapi(
       .leftJoin(genres, eq(genres.id, battles.genreId))
       .orderBy(desc(battles.viewerCount));
 
-    return c.json(
-      rankFeaturedBattles(
-        rows.map((row) => ({
-          ...row,
-          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
-        }))
-      ),
-      HttpStatusCodes.OK
+    const enrichedRows = await enrichBattleFeedRows(
+      rows.map((row) => ({
+        ...row,
+        genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+      }))
     );
+
+    return c.json(rankFeaturedBattles(enrichedRows), HttpStatusCodes.OK);
   }
 );
 

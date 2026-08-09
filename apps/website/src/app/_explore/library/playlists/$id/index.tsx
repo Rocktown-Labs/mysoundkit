@@ -1,6 +1,6 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Music2, Play, MoreVertical, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Music2, Play, Plus } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,7 +25,8 @@ import {
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 
-import { columns } from "./-columns";
+import { createPlaylistTrackColumns } from "./-columns";
+import type { PlaylistTrack } from "./-columns";
 import { DataTable } from "./-data-table";
 
 export const Route = createFileRoute("/_explore/library/playlists/$id/")({
@@ -43,6 +38,10 @@ function PlaylistDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [addSongOpen, setAddSongOpen] = useState(false);
+  const [locallyAddedTrackIds, setLocallyAddedTrackIds] = useState<string[]>(
+    []
+  );
+  const [removingTrackId, setRemovingTrackId] = useState<string>();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("search");
 
@@ -56,15 +55,37 @@ function PlaylistDetailPage() {
   const removeTrackMutation = useRemovePlaylistTrackMutation();
 
   const playlist = playlistData?.playlist;
-  const currentTracks = playlistData?.tracks ?? [];
+  const currentTracks = useMemo(
+    () => playlistData?.tracks ?? [],
+    [playlistData?.tracks]
+  );
+  const currentTrackIds = useMemo(
+    () => new Set(currentTracks.map((track) => track.id)),
+    [currentTracks]
+  );
 
   const handleAddSong = async (track: { id: string; title: string }) => {
+    if (
+      currentTrackIds.has(track.id) ||
+      locallyAddedTrackIds.includes(track.id)
+    ) {
+      toast({
+        description: `"${track.title}" is already in this playlist.`,
+        title: "Already added",
+      });
+      return;
+    }
+
     try {
       await addTrackMutation.mutateAsync({ playlistId: id, trackId: track.id });
+      setLocallyAddedTrackIds((trackIds) =>
+        trackIds.includes(track.id) ? trackIds : [...trackIds, track.id]
+      );
       toast({
         description: `Added "${track.title}" to playlist.`,
         title: "Track Added",
       });
+      await router.invalidate();
     } catch {
       toast({
         description: "Could not add track to playlist.",
@@ -73,6 +94,35 @@ function PlaylistDetailPage() {
       });
     }
   };
+
+  const handleRemoveSong = useCallback(
+    async (track: PlaylistTrack) => {
+      setRemovingTrackId(track.id);
+      try {
+        await removeTrackMutation.mutateAsync({
+          playlistId: id,
+          trackId: track.id,
+        });
+        setLocallyAddedTrackIds((trackIds) =>
+          trackIds.filter((trackId) => trackId !== track.id)
+        );
+        toast({
+          description: `Removed "${track.title}" from this playlist.`,
+          title: "Track removed",
+        });
+        await router.invalidate();
+      } catch {
+        toast({
+          description: "Could not remove this track. Please try again.",
+          title: "Remove failed",
+          variant: "destructive",
+        });
+      } finally {
+        setRemovingTrackId(undefined);
+      }
+    },
+    [id, removeTrackMutation, router, toast]
+  );
 
   const filteredSearchTracks = publicTracks.filter(
     (t) =>
@@ -95,11 +145,20 @@ function PlaylistDetailPage() {
   }));
 
   const formattedWatchedTracks = watchedHistory.map((w) => ({
-    artist: w.creatorName ?? "Creator",
-    cover: w.thumbnailUrl ?? "/placeholder.svg",
+    artist: w.creator,
+    cover: w.thumbnail ?? "/placeholder.svg",
     id: w.id,
     title: w.title,
   }));
+
+  const columns = useMemo(
+    () =>
+      createPlaylistTrackColumns({
+        onRemove: handleRemoveSong,
+        removingTrackId,
+      }),
+    [handleRemoveSong, removingTrackId]
+  );
 
   const renderTrackSelectorList = (
     list: { artist: string; cover: string; id: string; title: string }[]
@@ -107,7 +166,9 @@ function PlaylistDetailPage() {
     <ScrollArea className="h-[280px] rounded-md border p-4">
       <div className="space-y-2">
         {list.map((song) => {
-          const isAlreadyInPlaylist = currentTracks.some((t) => t.id === song.id);
+          const isAlreadyInPlaylist =
+            currentTrackIds.has(song.id) ||
+            locallyAddedTrackIds.includes(song.id);
           return (
             <div
               key={song.id}
@@ -203,6 +264,8 @@ function PlaylistDetailPage() {
           cover: t.cover,
           duration: t.duration,
           id: t.id,
+          regionSlug: t.regionSlug,
+          slug: t.slug,
           title: t.title,
         }))}
         onAddSong={() => setAddSongOpen(true)}
@@ -213,16 +276,27 @@ function PlaylistDetailPage() {
           <DialogHeader>
             <DialogTitle>Add Song to Playlist</DialogTitle>
             <DialogDescription>
-              Search songs in the catalog or pull directly from your saved & recently played tracks.
+              Search songs in the catalog or pull directly from your saved &
+              recently played tracks.
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full mt-2"
+          >
             <TabsList className="grid grid-cols-4 w-full mb-4">
               <TabsTrigger value="search">Search DB</TabsTrigger>
-              <TabsTrigger value="saved">Saved ({savedTracks.length})</TabsTrigger>
-              <TabsTrigger value="recent">Recent ({recentPlays.length})</TabsTrigger>
-              <TabsTrigger value="watched">Watched ({watchedHistory.length})</TabsTrigger>
+              <TabsTrigger value="saved">
+                Saved ({savedTracks.length})
+              </TabsTrigger>
+              <TabsTrigger value="recent">
+                Recent ({recentPlays.length})
+              </TabsTrigger>
+              <TabsTrigger value="watched">
+                Watched ({watchedHistory.length})
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="search" className="space-y-4">

@@ -92,7 +92,7 @@ function BattlePage() {
     (track) => track.id === room.currentTrackId
   );
 
-  if (query.isLoading || !room || !battle || !currentRound) {
+  if (query.isLoading || !room || !battle) {
     return (
       <div className="py-16 text-center text-muted-foreground">
         Loading live battle...
@@ -101,6 +101,39 @@ function BattlePage() {
   }
 
   const [artistA, artistB] = battle.artists;
+
+  if (!currentRound) {
+    return (
+      <LiveRoomAccessGuard roomTitle={room.title}>
+        <div className="space-y-6 pb-8">
+          <Button
+            className="px-0"
+            onClick={() => router.history.back()}
+            size="sm"
+            variant="ghost"
+          >
+            <ArrowLeft className="mr-2 size-4" />
+            Back
+          </Button>
+          <Card>
+            <CardHeader>
+              <CardTitle>{room.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-muted-foreground">
+              <p>
+                This battle room is live, but no battle rounds have been
+                published yet.
+              </p>
+              <Button asChild variant="outline">
+                <Link to="/live/battles">Back to Battles</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </LiveRoomAccessGuard>
+    );
+  }
+
   const isTieAfterCompletedRounds = artistA.roundsWon === artistB.roundsWon;
 
   return (

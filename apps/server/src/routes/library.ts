@@ -11,7 +11,7 @@ import {
   trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -90,6 +90,11 @@ const toSavedTrack = async ({
     title: summary.title,
   };
 };
+
+const saveTrackStateSchema = z.object({
+  saved: z.boolean(),
+  trackId: z.string(),
+});
 
 const downloadableAssetKinds = [
   "master",
@@ -204,7 +209,9 @@ app.openapi(
           .from(purchases)
           .where(eq(purchases.buyerUserId, user.id)),
         db
-          .select({ value: count() })
+          .select({
+            value: sql<number>`count(distinct ${recentPlays.trackId})::int`,
+          })
           .from(recentPlays)
           .where(eq(recentPlays.userId, user.id)),
         db
@@ -339,8 +346,30 @@ app.openapi(
       .orderBy(desc(recentPlays.lastPlayedAt))
       .limit(100);
 
+    const recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const existing = recentRowsByTrackId.get(row.track.id);
+      if (!existing) {
+        recentRowsByTrackId.set(row.track.id, row);
+        continue;
+      }
+
+      recentRowsByTrackId.set(row.track.id, {
+        ...existing,
+        lastPlayedAt:
+          row.lastPlayedAt > existing.lastPlayedAt
+            ? row.lastPlayedAt
+            : existing.lastPlayedAt,
+        playCount: existing.playCount + row.playCount,
+      });
+    }
+
+    const dedupedRows = [...recentRowsByTrackId.values()].toSorted(
+      (a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime()
+    );
+
     const items = await Promise.all(
-      rows.map((row) =>
+      dedupedRows.map((row) =>
         toRecentTrack({
           lastPlayedAt: row.lastPlayedAt,
           playCount: row.playCount,
@@ -464,8 +493,23 @@ app.openapi(
       .orderBy(desc(playbackSessions.startedAt))
       .limit(100);
 
+    const watchedRowsBySource = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const key = `${row.session.sourceType}:${
+        row.session.sourceId ?? row.track.id
+      }`;
+      const existing = watchedRowsBySource.get(key);
+      if (!existing || row.session.startedAt > existing.session.startedAt) {
+        watchedRowsBySource.set(key, row);
+      }
+    }
+
+    const dedupedRows = [...watchedRowsBySource.values()].toSorted(
+      (a, b) => b.session.startedAt.getTime() - a.session.startedAt.getTime()
+    );
+
     const items = await Promise.all(
-      rows.map(async (row) => {
+      dedupedRows.map(async (row) => {
         const summary = await buildTrackSummary(row.track);
         return {
           creator: summary.artistName,
@@ -630,10 +674,7 @@ app.openapi(
     },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        z.object({
-          saved: z.boolean(),
-          trackId: z.string(),
-        }),
+        saveTrackStateSchema,
         "Saved track state"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
@@ -662,10 +703,7 @@ app.openapi(
       .select()
       .from(librarySaves)
       .where(
-        and(
-          eq(librarySaves.userId, user.id),
-          eq(librarySaves.trackId, trackId)
-        )
+        and(eq(librarySaves.userId, user.id), eq(librarySaves.trackId, trackId))
       )
       .limit(1);
 
@@ -681,12 +719,62 @@ app.openapi(
       return c.json({ saved: false, trackId }, HttpStatusCodes.OK);
     }
 
-    await db.insert(librarySaves).values({
-      trackId,
-      userId: user.id,
-    });
+    await db
+      .insert(librarySaves)
+      .values({
+        trackId,
+        userId: user.id,
+      })
+      .onConflictDoNothing();
 
     return c.json({ saved: true, trackId }, HttpStatusCodes.OK);
+  }
+);
+
+// Remove saved track
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/saved/{trackId}",
+    request: {
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        saveTrackStateSchema,
+        "Saved track state"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Unauthorized"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const { trackId } = c.req.valid("param");
+
+    if (isDatabaseConfigured()) {
+      await createDb()
+        .delete(librarySaves)
+        .where(
+          and(
+            eq(librarySaves.userId, user.id),
+            eq(librarySaves.trackId, trackId)
+          )
+        );
+    }
+
+    return c.json({ saved: false, trackId }, HttpStatusCodes.OK);
   }
 );
 
@@ -706,7 +794,10 @@ app.openapi(
       ),
     },
     responses: {
-      [HttpStatusCodes.CREATED]: jsonContent(playlistSchema, "Created playlist"),
+      [HttpStatusCodes.CREATED]: jsonContent(
+        playlistSchema,
+        "Created playlist"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Unauthorized"

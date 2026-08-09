@@ -33,6 +33,8 @@ interface BattleCardProps {
   totalRounds?: number;
   isVoting?: boolean;
   queueSize?: number;
+  joinMode?: "waiting_room" | "watch_now";
+  phaseEndsAt?: string | null;
   isPremiumUser?: boolean;
 }
 
@@ -51,42 +53,60 @@ export function BattleCard({
   totalRounds = 3,
   isVoting = false,
   queueSize = 0,
+  joinMode = "watch_now",
+  phaseEndsAt = null,
   isPremiumUser = false,
 }: BattleCardProps) {
   const battleIsLive = isLive || live;
   const timeLabel = endsIn ?? startsIn ?? views ?? "";
   const totalVotes = track1.votes + track2.votes;
-  const track1Percentage = (track1.votes / totalVotes) * 100;
-  const track2Percentage = (track2.votes / totalVotes) * 100;
+  const track1Percentage =
+    totalVotes > 0 ? (track1.votes / totalVotes) * 100 : 0;
+  const track2Percentage =
+    totalVotes > 0 ? (track2.votes / totalVotes) * 100 : 0;
 
   const [roundProgress, setRoundProgress] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState(0);
 
   useEffect(() => {
     if (!battleIsLive) {
       return;
     }
 
-    const interval = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 0) {
-          return isVoting ? 60 : 180;
-        }
-        const newTime = prev - 1;
+    const updateTimer = () => {
+      if (!phaseEndsAt) {
+        setTimeRemaining(0);
+        setRoundProgress(0);
+        return;
+      }
 
-        // Calculate progress (0-100) for the current phase
-        const totalTime = isVoting ? 60 : 180;
-        const progress = ((totalTime - newTime) / totalTime) * 100;
-        setRoundProgress(progress);
+      const remainingSeconds = Math.max(
+        0,
+        Math.ceil((new Date(phaseEndsAt).getTime() - Date.now()) / 1000)
+      );
+      const phaseDuration = isVoting ? 60 : 180;
+      setTimeRemaining(remainingSeconds);
+      setRoundProgress(
+        Math.min(
+          100,
+          ((phaseDuration - remainingSeconds) / phaseDuration) * 100
+        )
+      );
+    };
 
-        return newTime;
-      });
-    }, 1000);
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [battleIsLive, isVoting]);
+  }, [battleIsLive, isVoting, phaseEndsAt]);
 
-  const canJoinNow = battleIsLive && timeRemaining > 60 && !isVoting;
+  const canJoinNow = battleIsLive && joinMode === "watch_now";
+  const liveTimeLabel =
+    timeRemaining > 0
+      ? `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60)
+          .toString()
+          .padStart(2, "0")}`
+      : "Live";
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow group min-w-[280px] md:min-w-0 w-[280px] md:w-auto">
@@ -109,6 +129,9 @@ export function BattleCard({
                   className={`h-1.5 ${isVoting ? "[&>div]:bg-green-600" : ""}`}
                 />
               </div>
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {liveTimeLabel}
+              </span>
             </div>
           ) : (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -200,10 +223,14 @@ export function BattleCard({
                   className="w-full bg-transparent"
                   size="sm"
                   variant="outline"
-                  disabled={queueSize > 100}
+                  asChild
                 >
-                  <Users className="size-3 mr-1" />
-                  Join Queue ({queueSize})
+                  <Link to="/live/battles/$id" params={{ id }}>
+                    <Users className="size-3 mr-1" />
+                    {joinMode === "waiting_room"
+                      ? `Join Waiting Room (${queueSize})`
+                      : `Join Queue (${queueSize})`}
+                  </Link>
                 </Button>
               )
             ) : (

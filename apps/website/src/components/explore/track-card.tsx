@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Play, Clock, Heart } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,12 +37,24 @@ export function TrackCard({
   const { data: savedTracks = [] } = useLibrarySavedQuery();
   const toggleSaveMutation = useToggleSaveTrackMutation();
   const isSaved = savedTracks.some((t) => t.id === id);
+  const [optimisticSaved, setOptimisticSaved] = useState(isSaved);
+
+  useEffect(() => {
+    setOptimisticSaved(isSaved);
+  }, [isSaved]);
 
   const handleToggleSave = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (toggleSaveMutation.isPending) {
+      return;
+    }
+
+    setOptimisticSaved((current) => !current);
+
     try {
       const res = await toggleSaveMutation.mutateAsync(id);
+      setOptimisticSaved(res.saved);
       toast({
         description: res.saved
           ? `Saved "${title}" to your Saved Tracks.`
@@ -54,6 +67,7 @@ export function TrackCard({
         title: "Sign in required",
         variant: "destructive",
       });
+      setOptimisticSaved(isSaved);
     }
   };
 
@@ -87,12 +101,13 @@ export function TrackCard({
           <button
             type="button"
             onClick={handleToggleSave}
-            className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/40 hover:bg-black/70 text-white transition-colors"
-            title={isSaved ? "Remove from Saved" : "Save Track"}
+            className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/40 text-white transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={toggleSaveMutation.isPending}
+            title={optimisticSaved ? "Remove from Saved" : "Save Track"}
           >
             <Heart
               className={`size-3.5 ${
-                isSaved ? "fill-rose-500 text-rose-500" : ""
+                optimisticSaved ? "fill-rose-500 text-rose-500" : ""
               }`}
             />
           </button>

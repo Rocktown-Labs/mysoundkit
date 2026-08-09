@@ -69,7 +69,9 @@ const libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get;
 const libraryRecentGet = apiClient.v1.library.recent.$get;
 const librarySavedGet = apiClient.v1.library.saved.$get;
 const librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post;
+const librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete;
 const libraryPlaylistsPost = apiClient.v1.library.playlists.$post;
+const libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete;
 const libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get;
 const libraryPlaylistTracksPost =
   apiClient.v1.library.playlists[":id"].tracks.$post;
@@ -1119,12 +1121,46 @@ export const useToggleSaveTrackMutation = () => {
   });
 };
 
+export const useRemoveSavedTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await librarySaveTrackDelete({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.librarySaved,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
 export const useCreatePlaylistMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (body: { description?: string; title: string }) =>
       rpcJson(await libraryPlaylistsPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const useDeletePlaylistMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (playlistId: string) =>
+      rpcJson(await libraryPlaylistDelete({ param: { id: playlistId } })),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.libraryPlaylists,
