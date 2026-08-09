@@ -185,11 +185,15 @@ export function ProfileShell({
   };
 
   const handleCopyLink = () => {
-    void navigator.clipboard.writeText(profileShareUrl);
-    toast({
-      description: `Profile URL copied to clipboard: ${profileShareUrl}`,
-      title: "Link Copied",
-    });
+    void navigator.clipboard
+      .writeText(profileShareUrl)
+      .then(() => {
+        toast({
+          description: `Profile URL copied to clipboard: ${profileShareUrl}`,
+          title: "Link Copied",
+        });
+      })
+      .catch(() => {});
   };
 
   const handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {

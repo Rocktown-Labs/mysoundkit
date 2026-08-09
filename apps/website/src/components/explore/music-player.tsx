@@ -612,6 +612,9 @@ export function MusicPlayer() {
       return;
     }
 
+    activeAdRef.current = null;
+    pendingContentSrcRef.current = null;
+    setActiveAd(null);
     audio.src = currentTrack.src;
     audio.load();
     setProgress(0);
@@ -899,7 +902,12 @@ export function MusicPlayer() {
   const queueSheet = (
     <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
       <SheetTrigger asChild={true}>
-        <Button className="relative size-8" size="icon" variant="ghost">
+        <Button
+          aria-label={`Open queue with ${queue.length} ${queue.length === 1 ? "track" : "tracks"}`}
+          className="relative size-8"
+          size="icon"
+          variant="ghost"
+        >
           <ListMusic className="size-4" />
           {queue.length > 0 && (
             <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
@@ -1026,7 +1034,12 @@ export function MusicPlayer() {
   const volumeMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild={true}>
-        <Button className="size-8" size="icon" variant="ghost">
+        <Button
+          aria-label="Open Volume Controls"
+          className="size-8"
+          size="icon"
+          variant="ghost"
+        >
           {isMuted || volume === 0 ? (
             <VolumeX className="size-4" />
           ) : (
@@ -1084,7 +1097,7 @@ export function MusicPlayer() {
 
   if (currentTrack && isMiniPlayer) {
     playerUi = (
-      <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-border/60 bg-background/95 px-4 py-2 shadow-2xl backdrop-blur transition-all duration-300 supports-[backdrop-filter]:bg-background/80">
+      <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 items-center gap-2 rounded-full border border-border/60 bg-background/95 px-3 py-2 shadow-2xl backdrop-blur transition-all duration-300 supports-[backdrop-filter]:bg-background/80 lg:bottom-4 lg:gap-3 lg:px-4">
         <AppImage
           alt={currentTrack.title}
           className="size-9 animate-spin-slow rounded-full object-cover"
@@ -1092,6 +1105,7 @@ export function MusicPlayer() {
           layout="fixed"
           src={currentTrack.cover || "/placeholder.svg"}
           width={36}
+          key={`mini-${currentTrack.id}-${currentTrack.cover ?? "cover"}`}
         />
         <div className="max-w-[160px] truncate text-xs leading-tight">
           <PlayerRouteLink
@@ -1157,7 +1171,7 @@ export function MusicPlayer() {
   } else if (visible && currentTrack) {
     playerUi = (
       <div
-        className={`fixed right-0 bottom-0 left-0 z-50 border-t bg-background/95 backdrop-blur transition-[left] duration-200 supports-[backdrop-filter]:bg-background/80 ${fullPlayerSidebarOffset}`}
+        className={`fixed right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 z-40 border-t bg-background/95 backdrop-blur transition-[left,bottom] duration-200 supports-[backdrop-filter]:bg-background/80 lg:bottom-0 ${fullPlayerSidebarOffset}`}
       >
         <div className="absolute top-2 right-2 flex items-center gap-1">
           <Button
@@ -1192,6 +1206,7 @@ export function MusicPlayer() {
                   activeAd?.imageUrl || currentTrack.cover || "/placeholder.svg"
                 }
                 width={48}
+                key={`full-${activeAd?.campaignId ?? currentTrack.id}-${activeAd?.imageUrl ?? currentTrack.cover ?? "cover"}`}
               />
               <div className="min-w-0 flex-1">
                 {activeAd ? (
@@ -1280,6 +1295,7 @@ export function MusicPlayer() {
                     <span className="absolute text-[10px] font-bold">1</span>
                   )}
                 </Button>
+                <div className="lg:hidden">{queueSheet}</div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1299,7 +1315,7 @@ export function MusicPlayer() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 lg:w-1/4">
+            <div className="hidden items-center justify-end gap-2 lg:flex lg:w-1/4">
               {queueSheet}
 
               <div className="hidden lg:block">{deviceButton}</div>

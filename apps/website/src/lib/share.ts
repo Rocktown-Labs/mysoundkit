@@ -31,8 +31,12 @@ export const shareLink = async ({
   }
 
   if (typeof navigator.clipboard?.writeText === "function") {
-    await navigator.clipboard.writeText(url);
-    return "copied";
+    try {
+      await navigator.clipboard.writeText(url);
+      return "copied";
+    } catch {
+      return "unsupported";
+    }
   }
 
   return "unsupported";

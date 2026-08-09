@@ -258,23 +258,23 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
   const artistName =
     typeof artistObj.name === "string"
       ? artistObj.name
-      : (typeof rawData.artistName === "string"
+      : typeof rawData.artistName === "string"
         ? rawData.artistName
-        : "SoundKit Artist");
+        : "SoundKit Artist";
 
   const artistHandle =
     typeof artistObj.handle === "string"
       ? artistObj.handle
-      : (typeof rawData.artistUsername === "string"
+      : typeof rawData.artistUsername === "string"
         ? rawData.artistUsername
-        : "artist");
+        : "artist";
 
   const artistAvatarUrl =
     typeof artistObj.avatarUrl === "string"
       ? artistObj.avatarUrl
-      : (typeof rawData.coverArtUrl === "string"
+      : typeof rawData.coverArtUrl === "string"
         ? rawData.coverArtUrl
-        : "/placeholder.svg");
+        : "/placeholder.svg";
 
   const normalizedArtist: MockArtist = {
     avatarUrl: artistAvatarUrl,
@@ -283,16 +283,16 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     genre:
       typeof artistObj.genre === "string"
         ? artistObj.genre
-        : (typeof rawData.genre === "string"
+        : typeof rawData.genre === "string"
           ? rawData.genre
-          : "Uncategorized"),
+          : "Uncategorized",
     handle: artistHandle,
     id:
       typeof artistObj.id === "string"
         ? artistObj.id
-        : (typeof rawData.ownerUserId === "string"
+        : typeof rawData.ownerUserId === "string"
           ? rawData.ownerUserId
-          : "artist"),
+          : "artist",
     listeners:
       typeof artistObj.listeners === "string" ? artistObj.listeners : undefined,
     location:
@@ -329,9 +329,9 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     priceLabel:
       typeof rawData.priceLabel === "string"
         ? rawData.priceLabel
-        : (typeof rawData.price === "number"
+        : typeof rawData.price === "number"
           ? `$${rawData.price.toFixed(2)}`
-          : "$1.99"),
+          : "$1.99",
     regionSlug:
       typeof rawData.regionSlug === "string" ? rawData.regionSlug : null,
     slug: typeof rawData.slug === "string" ? rawData.slug : null,
@@ -601,8 +601,8 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <div className="space-y-6">
           {/* High-Impact Industrial Hero */}
-          <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-start">
-            <div className="size-60 md:size-72 shrink-0 relative group">
+          <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:gap-8">
+            <div className="size-60 shrink-0 relative group md:size-72">
               <AppImage
                 src={item.coverArtUrl}
                 alt={item.title}

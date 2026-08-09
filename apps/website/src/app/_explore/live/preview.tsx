@@ -264,8 +264,15 @@ export function LivePreviewShowcase({
   };
 
   const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ description: `${label} copied to clipboard.`, title: "Copied!" });
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        toast({
+          description: `${label} copied to clipboard.`,
+          title: "Copied!",
+        });
+      })
+      .catch(() => {});
   };
 
   const currentTrackObj =
@@ -626,9 +633,9 @@ export function LivePreviewShowcase({
                             variant={
                               track.status === "played"
                                 ? "secondary"
-                                : (track.status === "queued"
+                                : track.status === "queued"
                                   ? "default"
-                                  : "outline")
+                                  : "outline"
                             }
                             className="text-[10px] uppercase font-bold"
                           >

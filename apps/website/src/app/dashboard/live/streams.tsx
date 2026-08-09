@@ -225,13 +225,17 @@ function DashboardLiveStreamsPage() {
   };
 
   const copyToClipboard = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    toast({
-      description: `${field} copied to clipboard.`,
-      title: "Copied",
-    });
-    setTimeout(() => setCopiedField(null), 2000);
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopiedField(field);
+        toast({
+          description: `${field} copied to clipboard.`,
+          title: "Copied",
+        });
+        setTimeout(() => setCopiedField(null), 2000);
+      })
+      .catch(() => {});
   };
 
   return (
