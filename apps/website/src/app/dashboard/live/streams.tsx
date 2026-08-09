@@ -14,7 +14,6 @@ import {
   Tv,
   Users,
   Video,
-  Zap,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -43,8 +42,10 @@ import { toast } from "@/hooks/use-toast";
 import { SoundKitApiError, apiClient } from "@/lib/api";
 import { liveExperienceConfigs } from "@/lib/live-experience";
 import type { LiveScheduleMode } from "@/lib/live-experience";
+import { musicGenres } from "@/lib/music-genres";
 import {
   useCreateLiveExperienceMutation,
+  useGenresQuery,
   useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
 
@@ -56,8 +57,8 @@ type SetupStep = "details" | "device" | "ready";
 type StreamSource = "browser" | "obs";
 
 interface ActiveStream {
-  category: string;
   description: string;
+  genre: string;
   id: string;
   playbackUrl: string;
   realtimeMeetingId: string;
@@ -73,7 +74,6 @@ interface ActiveStream {
   visibility: string;
 }
 
-const categories = ["Music", "Music Video", "Live Performance", "Studio"];
 const visibilityOptions = ["Public", "Unlisted", "Private"];
 
 function readSavedStream() {
@@ -86,6 +86,7 @@ function readSavedStream() {
 }
 
 function DashboardLiveStreamsPage() {
+  const genresQuery = useGenresQuery();
   const videosQuery = useVideosQuery();
   const createLiveExperience = useCreateLiveExperienceMutation();
   const videos = videosQuery.data ?? [];
@@ -100,7 +101,11 @@ function DashboardLiveStreamsPage() {
   const [setupStep, setSetupStep] = useState<SetupStep>("details");
   const [streamTitle, setStreamTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Music");
+  const genreOptions =
+    genresQuery.data && genresQuery.data.length > 0
+      ? genresQuery.data.map((genre) => genre.name)
+      : musicGenres.map((genre) => genre.label);
+  const [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap");
   const [visibility, setVisibility] = useState("Public");
   const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
   const [source, setSource] = useState<StreamSource>("obs");
@@ -118,6 +123,7 @@ function DashboardLiveStreamsPage() {
     try {
       const created = await createLiveExperience.mutateAsync({
         description,
+        genre,
         kind: "stream",
         scheduleMode,
         source,
@@ -153,8 +159,8 @@ function DashboardLiveStreamsPage() {
 
       const nextStream: ActiveStream = {
         ...stream,
-        category,
         description,
+        genre,
         realtimeMeetingId: created.realtime.id,
         roomHref: created.experience.roomHref,
         scheduleMode,
@@ -172,12 +178,12 @@ function DashboardLiveStreamsPage() {
         title: "Live stream created",
       });
     } catch (error) {
-      const description =
+      const errorDescription =
         error instanceof SoundKitApiError
           ? error.message
           : "Could not create the live stream room. Please try again.";
       toast({
-        description,
+        description: errorDescription,
         title: "Error starting stream",
         variant: "destructive",
       });
@@ -224,18 +230,22 @@ function DashboardLiveStreamsPage() {
     });
   };
 
-  const copyToClipboard = (text: string, field: string) => {
-    void navigator.clipboard
-      .writeText(text)
-      .then(() => {
-        setCopiedField(field);
-        toast({
-          description: `${field} copied to clipboard.`,
-          title: "Copied",
-        });
-        setTimeout(() => setCopiedField(null), 2000);
-      })
-      .catch(() => {});
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      toast({
+        description: `${field} copied to clipboard.`,
+        title: "Copied",
+      });
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      toast({
+        description: "Clipboard access is unavailable in this browser.",
+        title: "Copy unavailable",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -337,10 +347,10 @@ function DashboardLiveStreamsPage() {
                       </div>
                       <div className="flex flex-col gap-4">
                         <FieldSelect
-                          label="Category"
-                          onValueChange={setCategory}
-                          options={categories}
-                          value={category}
+                          label="Genre"
+                          onValueChange={setGenre}
+                          options={genreOptions}
+                          value={genre}
                         />
                         <FieldSelect
                           label="Visibility"
@@ -359,7 +369,9 @@ function DashboardLiveStreamsPage() {
                   {setupStep === "device" && (
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
                       <div className="flex flex-col gap-4">
-                        <Label>How are you going live?</Label>
+                        <p className="font-medium text-sm">
+                          How are you going live?
+                        </p>
                         <RadioGroup
                           className="grid gap-3 md:grid-cols-2"
                           onValueChange={(val) =>
@@ -367,8 +379,14 @@ function DashboardLiveStreamsPage() {
                           }
                           value={source}
                         >
-                          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
-                            <RadioGroupItem value="browser" />
+                          <label
+                            className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+                            htmlFor="stream-source-browser"
+                          >
+                            <RadioGroupItem
+                              id="stream-source-browser"
+                              value="browser"
+                            />
                             <span>
                               <span className="flex items-center gap-2 font-medium">
                                 <Video className="size-4 text-primary" />
@@ -380,8 +398,14 @@ function DashboardLiveStreamsPage() {
                               </span>
                             </span>
                           </label>
-                          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
-                            <RadioGroupItem value="obs" />
+                          <label
+                            className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+                            htmlFor="stream-source-obs"
+                          >
+                            <RadioGroupItem
+                              id="stream-source-obs"
+                              value="obs"
+                            />
                             <span>
                               <span className="flex items-center gap-2 font-medium">
                                 <MonitorUp className="size-4 text-primary" />
@@ -751,18 +775,24 @@ function SchedulePicker({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Label>Start Mode</Label>
+      <p className="font-medium text-sm">Start Mode</p>
       <RadioGroup
         className="grid grid-cols-2 gap-2"
         onValueChange={(val) => setScheduleMode(val as LiveScheduleMode)}
         value={scheduleMode}
       >
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs">
-          <RadioGroupItem value="asap" />
+        <label
+          className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs"
+          htmlFor="stream-start-asap"
+        >
+          <RadioGroupItem id="stream-start-asap" value="asap" />
           <span>ASAP</span>
         </label>
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs">
-          <RadioGroupItem value="scheduled" />
+        <label
+          className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs"
+          htmlFor="stream-start-scheduled"
+        >
+          <RadioGroupItem id="stream-start-scheduled" value="scheduled" />
           <span>Scheduled</span>
         </label>
       </RadioGroup>
@@ -817,6 +847,51 @@ function StreamLibrary({
   isLoading: boolean;
   liveRecordings: { id: string; title: string; updatedAt?: string }[];
 }) {
+  const content = (() => {
+    if (isLoading) {
+      return <p className="text-muted-foreground text-sm">Loading videos...</p>;
+    }
+
+    if (liveRecordings.length === 0) {
+      return (
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <Tv className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-3 font-semibold text-sm">
+            No live stream recordings yet
+          </p>
+          <p className="mt-1 text-muted-foreground text-xs">
+            Go live or save a stream broadcast to build your video library.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {liveRecordings.map((recording) => (
+          <div
+            key={recording.id}
+            className="flex items-center justify-between rounded-lg border p-3"
+          >
+            <div>
+              <p className="font-semibold text-sm">{recording.title}</p>
+              <p className="text-xs text-muted-foreground">
+                {recording.updatedAt
+                  ? new Date(recording.updatedAt).toLocaleDateString()
+                  : "Saved recording"}
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link params={{ id: recording.id }} to="/dashboard/videos">
+                Watch Recording
+              </Link>
+            </Button>
+          </div>
+        ))}
+      </div>
+    );
+  })();
+
   return (
     <Card>
       <CardHeader>
@@ -825,44 +900,7 @@ function StreamLibrary({
           Recorded broadcasts saved in your video catalog.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <p className="text-muted-foreground text-sm">Loading videos...</p>
-        ) : liveRecordings.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <Tv className="mx-auto size-8 text-muted-foreground" />
-            <p className="mt-3 font-semibold text-sm">
-              No live stream recordings yet
-            </p>
-            <p className="mt-1 text-muted-foreground text-xs">
-              Go live or save a stream broadcast to build your video library.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {liveRecordings.map((recording) => (
-              <div
-                key={recording.id}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div>
-                  <p className="font-semibold text-sm">{recording.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {recording.updatedAt
-                      ? new Date(recording.updatedAt).toLocaleDateString()
-                      : "Saved recording"}
-                  </p>
-                </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link params={{ id: recording.id }} to="/dashboard/videos">
-                    Watch Recording
-                  </Link>
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
+      <CardContent>{content}</CardContent>
     </Card>
   );
 }

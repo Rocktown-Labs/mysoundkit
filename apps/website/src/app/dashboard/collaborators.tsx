@@ -39,6 +39,7 @@ import {
   useFriendsQuery,
   useRespondFriendRequestMutation,
   useSearchQuery,
+  useMeQuery,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/collaborators")({
@@ -104,7 +105,7 @@ function ArtistSearchResultRow({
           <Button
             disabled={friendRequestMutation.isPending}
             onClick={() => {
-              handleAdd().catch(() => {});
+              void handleAdd();
             }}
             size="sm"
           >
@@ -272,10 +273,10 @@ function FriendsPage() {
                       <Button
                         disabled={respondFriendRequestMutation.isPending}
                         onClick={() => {
-                          respondToRequest({
+                          void respondToRequest({
                             action: "decline",
                             requestId: request.id,
-                          }).catch(() => {});
+                          });
                         }}
                         size="sm"
                         variant="outline"
@@ -285,10 +286,10 @@ function FriendsPage() {
                       <Button
                         disabled={respondFriendRequestMutation.isPending}
                         onClick={() => {
-                          respondToRequest({
+                          void respondToRequest({
                             action: "accept",
                             requestId: request.id,
-                          }).catch(() => {});
+                          });
                         }}
                         size="sm"
                       >
@@ -301,10 +302,10 @@ function FriendsPage() {
                     <Button
                       disabled={respondFriendRequestMutation.isPending}
                       onClick={() => {
-                        respondToRequest({
+                        void respondToRequest({
                           action: "cancel",
                           requestId: request.id,
-                        }).catch(() => {});
+                        });
                       }}
                       size="sm"
                       variant="outline"

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
+import type { z } from "zod";
 
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import {
@@ -32,12 +33,22 @@ import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
 
+type CreateLiveExperienceBody = z.infer<typeof createLiveExperienceBodySchema>;
+
 interface CloudflareMeetingResponse {
   data?: {
     id?: string;
     title?: string;
   };
+  errors?: unknown[];
+  id?: string;
+  messages?: unknown[];
+  result?: {
+    id?: string;
+    title?: string;
+  };
   success?: boolean;
+  title?: string;
 }
 
 interface CloudflareParticipantResponse {
@@ -45,7 +56,15 @@ interface CloudflareParticipantResponse {
     id?: string;
     token?: string;
   };
+  errors?: unknown[];
+  id?: string;
+  messages?: unknown[];
+  result?: {
+    id?: string;
+    token?: string;
+  };
   success?: boolean;
+  token?: string;
 }
 
 interface CloudflareStreamResponse {
@@ -98,6 +117,27 @@ const cloudflareStreamSetupRequired = {
     "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
 };
 
+const readResponseSnippet = async (response: Response) => {
+  const text = await response.text().catch(() => "");
+  return text.slice(0, 500);
+};
+
+const logCloudflareApiFailure = ({
+  body,
+  label,
+  response,
+}: {
+  body?: string;
+  label: string;
+  response: Response;
+}) => {
+  console.error(label, {
+    body,
+    status: response.status,
+    statusText: response.statusText,
+  });
+};
+
 const createCloudflareStreamInput = async ({
   env,
   title,
@@ -128,6 +168,11 @@ const createCloudflareStreamInput = async ({
   );
 
   if (!response.ok) {
+    logCloudflareApiFailure({
+      body: await readResponseSnippet(response),
+      label: "Cloudflare Stream live input creation failed",
+      response,
+    });
     return null;
   }
 
@@ -216,17 +261,27 @@ const createRealtimeMeeting = async ({
 
       if (response.ok) {
         const data = (await response.json()) as CloudflareMeetingResponse;
-        const meetingId = data.data?.id;
+        const meeting = data.result ?? data.data ?? data;
+        const meetingId = meeting?.id;
 
         if (meetingId) {
           return {
             id: meetingId,
             provider: "cloudflare_realtimekit",
             status: "configured",
-            title: data.data?.title ?? title,
+            title: meeting?.title ?? title,
           };
         }
       }
+      logCloudflareApiFailure({
+        body: response.ok
+          ? JSON.stringify({
+              errors: "Missing RealtimeKit meeting id in response.",
+            })
+          : await readResponseSnippet(response),
+        label: "Cloudflare RealtimeKit meeting creation failed",
+        response,
+      });
     } catch (error) {
       console.error("Cloudflare RealtimeKit meeting creation failed", error);
     }
@@ -286,8 +341,9 @@ const createRealtimeParticipant = async ({
 
       if (response.ok) {
         const data = (await response.json()) as CloudflareParticipantResponse;
-        const authToken = data.data?.token;
-        const participantId = data.data?.id;
+        const participant = data.result ?? data.data ?? data;
+        const authToken = participant?.token;
+        const participantId = participant?.id;
 
         if (authToken && participantId) {
           return {
@@ -300,6 +356,15 @@ const createRealtimeParticipant = async ({
           };
         }
       }
+      logCloudflareApiFailure({
+        body: response.ok
+          ? JSON.stringify({
+              errors: "Missing RealtimeKit participant token in response.",
+            })
+          : await readResponseSnippet(response),
+        label: "Cloudflare RealtimeKit participant creation failed",
+        response,
+      });
     } catch (error) {
       console.error(
         "Cloudflare RealtimeKit participant creation failed",
@@ -319,6 +384,56 @@ const createRealtimeParticipant = async ({
   }
 
   throw new Error(realtimeSetupRequired.message);
+};
+
+const createRequiredStreamInput = async ({
+  body,
+  env,
+}: {
+  body: CreateLiveExperienceBody;
+  env: AppEnv["Bindings"];
+}) => {
+  if (!(body.kind === "stream" && body.source === "obs")) {
+    return null;
+  }
+
+  try {
+    return await createCloudflareStreamInput({
+      env,
+      title: body.title.trim(),
+    });
+  } catch (error) {
+    console.error("Cloudflare Stream live input creation failed", error);
+    return null;
+  }
+};
+
+const createMeetingForExperience = async ({
+  body,
+  env,
+  streamInput,
+}: {
+  body: CreateLiveExperienceBody;
+  env: AppEnv["Bindings"];
+  streamInput: Awaited<ReturnType<typeof createCloudflareStreamInput>>;
+}) => {
+  try {
+    return await createRealtimeMeeting({
+      env,
+      kind: body.kind,
+      title: body.title.trim(),
+    });
+  } catch (error) {
+    if (streamInput) {
+      return createMockRealtimeMeeting({
+        kind: body.kind,
+        title: body.title.trim(),
+      });
+    }
+
+    console.error("Unable to create live experience meeting", error);
+    return null;
+  }
 };
 
 const durableRequest = (
@@ -361,44 +476,26 @@ app.post("/experiences", async (c) => {
 
   const body = parseResult.data;
   const startsAt = body.scheduledStartAt ?? new Date().toISOString();
-  let streamInput = null;
+  const streamInput = await createRequiredStreamInput({
+    body,
+    env: c.env,
+  });
 
-  if (body.kind === "stream" && body.source === "obs") {
-    try {
-      streamInput = await createCloudflareStreamInput({
-        env: c.env,
-        title: body.title.trim(),
-      });
-    } catch (error) {
-      console.error("Cloudflare Stream live input creation failed", error);
-    }
-
-    if (!streamInput) {
-      return c.json(
-        cloudflareStreamSetupRequired,
-        HttpStatusCodes.SERVICE_UNAVAILABLE
-      );
-    }
+  if (body.kind === "stream" && body.source === "obs" && !streamInput) {
+    return c.json(
+      cloudflareStreamSetupRequired,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
-  let meeting: RealtimeMeeting;
+  const meeting = await createMeetingForExperience({
+    body,
+    env: c.env,
+    streamInput,
+  });
 
-  try {
-    meeting = await createRealtimeMeeting({
-      env: c.env,
-      kind: body.kind,
-      title: body.title.trim(),
-    });
-  } catch (error) {
-    if (streamInput) {
-      meeting = createMockRealtimeMeeting({
-        kind: body.kind,
-        title: body.title.trim(),
-      });
-    } else {
-      console.error("Unable to create live experience meeting", error);
-      return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
-    }
+  if (!meeting) {
+    return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
   }
 
   const experienceId = `live_${body.kind}_${crypto.randomUUID()}`;
