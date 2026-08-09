@@ -7,14 +7,12 @@ import {
   ListMusic,
   MessageSquare,
   Plus,
-  Radio,
   Users,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +48,44 @@ export const Route = createFileRoute("/dashboard/live/parties")({
 
 type PartyCreationType = "release_auto" | "artist_manual";
 
+const buildPartyTitle = ({
+  creationType,
+  projectTitle,
+}: {
+  creationType: PartyCreationType;
+  projectTitle?: string;
+}) => {
+  if (!projectTitle) {
+    return "SoundKit Live Party";
+  }
+
+  return creationType === "release_auto"
+    ? `${projectTitle} Premiere`
+    : `${projectTitle} Live Party`;
+};
+
+const resolveScheduledStartAt = ({
+  creationType,
+  fallbackValue,
+  releaseDate,
+  scheduleMode,
+}: {
+  creationType: PartyCreationType;
+  fallbackValue: FormDataEntryValue | null;
+  releaseDate?: null | string;
+  scheduleMode: LiveScheduleMode;
+}) => {
+  if (creationType === "release_auto" && releaseDate) {
+    return new Date(releaseDate).toISOString();
+  }
+
+  if (scheduleMode === "asap") {
+    return new Date().toISOString();
+  }
+
+  return new Date(String(fallbackValue ?? Date.now())).toISOString();
+};
+
 function DashboardLivePartiesPage() {
   const [creationType, setCreationType] =
     useState<PartyCreationType>("artist_manual");
@@ -67,6 +103,10 @@ function DashboardLivePartiesPage() {
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId
   );
+  const suggestedTitle = buildPartyTitle({
+    creationType,
+    projectTitle: selectedProject?.title,
+  });
   const liveParties = parties.filter((party) => party.status === "live");
   const scheduledParties = parties.filter(
     (party) => party.status === "scheduled"
@@ -81,19 +121,17 @@ function DashboardLivePartiesPage() {
       selectedProjectId === "no-project" ? "" : selectedProjectId;
     const description = String(form.get("description") ?? "");
 
-    const scheduledStartAt =
-      creationType === "release_auto" && selectedProject?.releaseDate
-        ? new Date(selectedProject.releaseDate).toISOString()
-        : scheduleMode === "asap"
-          ? new Date().toISOString()
-          : new Date(
-              String(form.get("scheduledStartAt") ?? Date.now())
-            ).toISOString();
+    const scheduledStartAt = resolveScheduledStartAt({
+      creationType,
+      fallbackValue: form.get("scheduledStartAt"),
+      releaseDate: selectedProject?.releaseDate,
+      scheduleMode,
+    });
 
     const effectivePlaybackMode =
       creationType === "release_auto" ? "programmed_release" : "artist_hosted";
 
-    const partyTitle = title || selectedProject?.title || "Listening Party";
+    const partyTitle = title || suggestedTitle;
 
     if (!projectId) {
       createLiveExperience.mutate(
@@ -208,8 +246,14 @@ function DashboardLivePartiesPage() {
                   }
                   value={creationType}
                 >
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                    <RadioGroupItem value="artist_manual" />
+                  <label
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                    htmlFor="party-mode-artist-manual"
+                  >
+                    <RadioGroupItem
+                      id="party-mode-artist-manual"
+                      value="artist_manual"
+                    />
                     <span className="text-sm">
                       <span className="block font-medium">Host a party</span>
                       <span className="text-muted-foreground">
@@ -217,8 +261,14 @@ function DashboardLivePartiesPage() {
                       </span>
                     </span>
                   </label>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                    <RadioGroupItem value="release_auto" />
+                  <label
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                    htmlFor="party-mode-release-auto"
+                  >
+                    <RadioGroupItem
+                      id="party-mode-release-auto"
+                      value="release_auto"
+                    />
                     <span className="text-sm">
                       <span className="block font-medium">Release party</span>
                       <span className="text-muted-foreground">
@@ -230,17 +280,15 @@ function DashboardLivePartiesPage() {
 
                 <form className="space-y-4" onSubmit={submitParty}>
                   <div className="space-y-2">
-                    <Label htmlFor="title">Party Title</Label>
+                    <Label htmlFor="title">Custom title (optional)</Label>
                     <Input
                       id="title"
                       name="title"
-                      placeholder={
-                        creationType === "release_auto"
-                          ? "Midnight Dreams Release Premiere"
-                          : "Project Listening Room"
-                      }
-                      required
+                      placeholder={suggestedTitle}
                     />
+                    <p className="text-muted-foreground text-xs">
+                      Default: {suggestedTitle}
+                    </p>
                   </div>
 
                   {/* Project / Playlist Selection */}
@@ -277,7 +325,7 @@ function DashboardLivePartiesPage() {
 
                   {/* Host Presence Option (Disabled for Fan Party) */}
                   <div className="space-y-2">
-                    <Label>Host Presence</Label>
+                    <p className="font-medium text-sm">Host Presence</p>
                     <RadioGroup
                       className="grid grid-cols-2 gap-3"
                       onValueChange={(val) =>
@@ -285,8 +333,14 @@ function DashboardLivePartiesPage() {
                       }
                       value={hostPresence}
                     >
-                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                        <RadioGroupItem value="chat" />
+                      <label
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                        htmlFor="party-host-presence-chat"
+                      >
+                        <RadioGroupItem
+                          id="party-host-presence-chat"
+                          value="chat"
+                        />
                         <span className="text-xs">
                           <span className="block font-medium">Chat Host</span>
                           <span className="text-muted-foreground">
@@ -294,8 +348,14 @@ function DashboardLivePartiesPage() {
                           </span>
                         </span>
                       </label>
-                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                        <RadioGroupItem value="video" />
+                      <label
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                        htmlFor="party-host-presence-video"
+                      >
+                        <RadioGroupItem
+                          id="party-host-presence-video"
+                          value="video"
+                        />
                         <span className="text-xs">
                           <span className="block font-medium">Video Host</span>
                           <span className="text-muted-foreground">
@@ -309,7 +369,7 @@ function DashboardLivePartiesPage() {
                   {/* Start Timing */}
                   {creationType === "release_auto" ? null : (
                     <div className="space-y-2">
-                      <Label>Start Timing</Label>
+                      <p className="font-medium text-sm">Start Timing</p>
                       <RadioGroup
                         className="grid grid-cols-2 gap-3"
                         onValueChange={(val) =>
@@ -317,8 +377,11 @@ function DashboardLivePartiesPage() {
                         }
                         value={scheduleMode}
                       >
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                          <RadioGroupItem value="asap" />
+                        <label
+                          className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                          htmlFor="party-start-asap"
+                        >
+                          <RadioGroupItem id="party-start-asap" value="asap" />
                           <span className="text-xs">
                             <span className="block font-medium">Start Now</span>
                             <span className="text-muted-foreground">
@@ -326,8 +389,14 @@ function DashboardLivePartiesPage() {
                             </span>
                           </span>
                         </label>
-                        <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
-                          <RadioGroupItem value="scheduled" />
+                        <label
+                          className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                          htmlFor="party-start-scheduled"
+                        >
+                          <RadioGroupItem
+                            id="party-start-scheduled"
+                            value="scheduled"
+                          />
                           <span className="text-xs">
                             <span className="block font-medium">
                               Schedule Later

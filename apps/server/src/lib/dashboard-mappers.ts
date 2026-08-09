@@ -303,18 +303,34 @@ export const buildProjectSummary = async (
   row: InferSelectModel<typeof projects>
 ) => {
   const db = createDb();
-  const [trackRows, assetRows, collaboratorRows] = await Promise.all([
-    db
-      .select({ id: projectTracks.trackId })
-      .from(projectTracks)
-      .where(eq(projectTracks.projectId, row.id)),
-    db.select().from(projectAssets).where(eq(projectAssets.projectId, row.id)),
-    db
-      .select({ id: projectCollaborators.id })
-      .from(projectCollaborators)
-      .where(eq(projectCollaborators.projectId, row.id)),
-  ]);
+  const [trackRows, assetRows, collaboratorRows, profileRows] =
+    await Promise.all([
+      db
+        .select({
+          genreName: genres.name,
+          id: projectTracks.trackId,
+        })
+        .from(projectTracks)
+        .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
+        .leftJoin(genres, eq(genres.id, tracks.genreId))
+        .where(eq(projectTracks.projectId, row.id)),
+      db
+        .select()
+        .from(projectAssets)
+        .where(eq(projectAssets.projectId, row.id)),
+      db
+        .select({ id: projectCollaborators.id })
+        .from(projectCollaborators)
+        .where(eq(projectCollaborators.projectId, row.id)),
+      db
+        .select({ state: userProfiles.state })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, row.ownerUserId))
+        .limit(1),
+    ]);
   const trackIds = trackRows.map((track) => track.id);
+  const primaryGenre = trackRows.find((track) => track.genreName)?.genreName;
+  const [ownerProfile] = profileRows;
   const durationAssetRows =
     trackIds.length > 0
       ? await db
@@ -361,10 +377,13 @@ export const buildProjectSummary = async (
     description: row.description,
     duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
     durationMs,
+    genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
+    isForSale: row.isForSale,
     isPublic: row.isPublic,
     progress,
     projectType: row.projectType,
+    regionSlug: regionSlugFromUser(ownerProfile?.state) ?? null,
     releaseDate:
       row.releaseDate instanceof Date
         ? row.releaseDate.toISOString()

@@ -12,7 +12,7 @@ import {
   userNotifications,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -29,12 +29,17 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import {
+  genreSlugFromExploreFilter,
+  stateFromExploreRegion,
+} from "@/lib/public-explore";
 import { sampleProjects } from "@/lib/sample-data";
 import {
   createProjectBodySchema,
   messageResponseSchema,
   projectDashboardDetailSchema,
   projectSummarySchema,
+  publicExploreQuerySchema,
   updateProjectBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -42,6 +47,64 @@ import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const publicProjectExploreQuerySchema = publicExploreQuerySchema.extend({
+  q: z.string().trim().max(120).optional(),
+  type: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+});
+
+type ProjectSummary = z.infer<typeof projectSummarySchema>;
+type PublicProjectExploreQuery = z.infer<
+  typeof publicProjectExploreQuerySchema
+>;
+
+const projectOrderBy = (sort?: string) => {
+  if (sort === "title-asc") {
+    return asc(projects.title);
+  }
+
+  if (sort === "title-desc") {
+    return desc(projects.title);
+  }
+
+  if (sort === "date-asc") {
+    return asc(projects.updatedAt);
+  }
+
+  return desc(projects.updatedAt);
+};
+
+const projectMatchesExploreFilters = (
+  project: ProjectSummary,
+  query: PublicProjectExploreQuery
+) => {
+  const genreSlug = genreSlugFromExploreFilter(query.genre);
+  const state = stateFromExploreRegion(query);
+  const regionSlug = state ? `us-${state.abbreviation.toLowerCase()}` : null;
+  const q = query.q?.toLowerCase();
+
+  if (
+    genreSlug &&
+    genreSlugFromExploreFilter(project.genre ?? "") !== genreSlug
+  ) {
+    return false;
+  }
+
+  if (regionSlug && project.regionSlug !== regionSlug) {
+    return false;
+  }
+
+  if (q) {
+    return [
+      project.title,
+      project.description ?? "",
+      project.genre ?? "",
+      project.projectType,
+    ].some((value) => value.toLowerCase().includes(q));
+  }
+
+  return true;
+};
 
 const getUploadBucketName = () =>
   (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
@@ -105,16 +168,18 @@ app.openapi(
           user,
         })
       : null;
+    let projectVisibilityWhere = eq(projects.isPublic, true);
+
+    if (isAuthenticatedUser(user)) {
+      projectVisibilityWhere = organizationId
+        ? eq(projects.organizationId, organizationId)
+        : eq(projects.ownerUserId, user.id);
+    }
+
     const rows = await db
       .select()
       .from(projects)
-      .where(
-        isAuthenticatedUser(user)
-          ? organizationId
-            ? eq(projects.organizationId, organizationId)
-            : eq(projects.ownerUserId, user.id)
-          : eq(projects.isPublic, true)
-      )
+      .where(projectVisibilityWhere)
       .orderBy(desc(projects.updatedAt))
       .limit(100);
     const summaries = [];
@@ -131,6 +196,9 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/public",
+    request: {
+      query: publicProjectExploreQuerySchema,
+    },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         projectSummarySchema.array(),
@@ -140,26 +208,61 @@ app.openapi(
     tags: ["Projects"],
   }),
   async (c) => {
+    const query = c.req.valid("query");
+
     if (!isDatabaseConfigured()) {
       return c.json(
-        sampleProjects.filter((project) => project.isPublic),
+        sampleProjects
+          .filter((project) => project.isPublic)
+          .filter((project) => {
+            if (query.type && project.projectType !== query.type) {
+              return false;
+            }
+
+            if (query.forSale && !project.isForSale) {
+              return false;
+            }
+
+            return projectMatchesExploreFilters(project, query);
+          })
+          .slice(0, query.limit),
         HttpStatusCodes.OK
+      );
+    }
+
+    const publicProjectConditions = [eq(projects.isPublic, true)];
+
+    if (query.type) {
+      publicProjectConditions.push(eq(projects.projectType, query.type));
+    }
+
+    if (query.forSale) {
+      publicProjectConditions.push(eq(projects.isForSale, true));
+    }
+
+    if (query.q) {
+      publicProjectConditions.push(
+        sql`lower(${projects.title}) like ${`%${query.q.toLowerCase()}%`}`
       );
     }
 
     const rows = await createDb()
       .select()
       .from(projects)
-      .where(eq(projects.isPublic, true))
-      .orderBy(desc(projects.updatedAt))
+      .where(and(...publicProjectConditions))
+      .orderBy(projectOrderBy(query.sort))
       .limit(100);
     const summaries = [];
 
     for (const row of rows) {
-      summaries.push(await buildProjectSummary(row));
+      const summary = await buildProjectSummary(row);
+
+      if (projectMatchesExploreFilters(summary, query)) {
+        summaries.push(summary);
+      }
     }
 
-    return c.json(summaries, HttpStatusCodes.OK);
+    return c.json(summaries.slice(0, query.limit), HttpStatusCodes.OK);
   }
 );
 
@@ -270,6 +373,7 @@ app.openapi(
           coverArtUrl: null,
           description: body.description ?? null,
           id: "project_new",
+          isForSale: false,
           isPublic: body.isPublic,
           progress: 25,
           projectType: body.projectType,

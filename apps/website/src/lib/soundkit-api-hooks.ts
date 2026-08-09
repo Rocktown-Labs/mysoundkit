@@ -135,6 +135,9 @@ export type PublicProjectSummary = InferResponseType<
   typeof publicProjectsGet,
   200
 >[number];
+export type PublicProjectsQuery = NonNullable<
+  InferRequestType<typeof publicProjectsGet>["query"]
+>;
 export type PublicProjectDetail = InferResponseType<
   typeof publicProjectGet,
   200
@@ -323,8 +326,8 @@ export const soundkitQueryKeys = {
   adminSettings: ["admin", "settings"] as const,
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
-  battles: ["battles"] as const,
   battleChallenges: ["battles", "challenges"] as const,
+  battles: ["battles"] as const,
   battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
   conversationMessages: (conversationId: string) =>
@@ -355,7 +358,8 @@ export const soundkitQueryKeys = {
   project: (id: string) => ["projects", id] as const,
   projects: ["projects"] as const,
   publicProject: (id: string) => ["projects", "public", id] as const,
-  publicProjects: ["projects", "public"] as const,
+  publicProjects: (query?: PublicProjectsQuery) =>
+    ["projects", "public", query ?? {}] as const,
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
   track: (id: string) => ["tracks", id] as const,
@@ -942,10 +946,10 @@ export const useProjectsQuery = () =>
     queryKey: soundkitQueryKeys.projects,
   });
 
-export const usePublicProjectsQuery = () =>
+export const usePublicProjectsQuery = (query: PublicProjectsQuery = {}) =>
   useQuery<PublicProjectSummary[]>({
-    queryFn: async () => rpcJson(await publicProjectsGet()),
-    queryKey: soundkitQueryKeys.publicProjects,
+    queryFn: async () => rpcJson(await publicProjectsGet({ query })),
+    queryKey: soundkitQueryKeys.publicProjects(query),
   });
 
 export const useProjectQuery = (projectId: string) =>

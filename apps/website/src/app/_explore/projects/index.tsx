@@ -1,49 +1,55 @@
 "use client";
 
-import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Check,
-  Disc,
-  Filter,
-  Grid,
-  List,
-  Music,
-  Play,
-  Search,
-  ShoppingBag,
-  Sparkles,
-} from "lucide-react";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Disc, Play, Search, ShoppingBag } from "lucide-react";
+import type { ReactNode } from "react";
 
+import { BattleFilters } from "@/components/explore/battle-filters";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { musicGenres } from "@/lib/music-genres";
 import { usePublicProjectsQuery } from "@/lib/soundkit-api-hooks";
+import type { PublicProjectSummary } from "@/lib/soundkit-api-hooks";
+
+const sortOptions = [
+  { label: "Newest", value: "date-desc" },
+  { label: "Oldest", value: "date-asc" },
+  { label: "Title (A-Z)", value: "title-asc" },
+  { label: "Title (Z-A)", value: "title-desc" },
+];
+
+const projectTypeOptions = [
+  { label: "Albums", value: "album" },
+  { label: "EPs", value: "ep" },
+  { label: "Mixtapes", value: "mixtape" },
+] as const;
 
 interface ExploreProjectsSearch {
   forSale?: boolean;
   genre?: string;
-  page?: number;
   q?: string;
+  region?: string;
+  regionType?: "north-america" | "global";
+  sort?: string;
   type?: "album" | "ep" | "mixtape";
 }
+
+type ProjectFilterUpdate = Omit<Partial<ExploreProjectsSearch>, "type"> & {
+  type?: ExploreProjectsSearch["type"] | null;
+};
 
 export const Route = createFileRoute("/_explore/projects/")({
   component: ExploreProjectsPage,
   validateSearch: (search: Record<string, unknown>): ExploreProjectsSearch => ({
     forSale: search.forSale === true || search.forSale === "true",
     genre: typeof search.genre === "string" ? search.genre : undefined,
-    page: typeof search.page === "number" ? search.page : 1,
     q: typeof search.q === "string" ? search.q : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
     type:
       search.type === "album" ||
       search.type === "ep" ||
@@ -54,197 +60,377 @@ export const Route = createFileRoute("/_explore/projects/")({
 });
 
 function ExploreProjectsPage() {
+  const router = useRouter();
   const navigate = Route.useNavigate();
   const search = Route.useSearch();
-  const { data: projects = [], isLoading } = usePublicProjectsQuery();
 
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const savedRegionType =
+    typeof window === "undefined"
+      ? null
+      : (localStorage.getItem("exploreRegionType") as
+          | "global"
+          | "north-america"
+          | null);
+  const savedRegion =
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem("exploreRegion");
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      if (search.type && project.projectType !== search.type) return false;
-      if (search.q) {
-        const query = search.q.toLowerCase();
-        return (
-          project.title.toLowerCase().includes(query) ||
-          project.projectType.toLowerCase().includes(query)
-        );
-      }
-      return true;
-    });
-  }, [projects, search]);
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const genre = search.genre ?? "all";
+  const sort = search.sort ?? "date-desc";
+  const forSale = search.forSale ?? false;
+  const q = search.q ?? "";
+  const { type } = search;
+  const isFilteredView = Boolean(type || forSale || q || genre !== "all");
 
-  const handleTypeSelect = (type?: ExploreProjectsSearch["type"]) => {
+  const updateFilters = (next: ProjectFilterUpdate) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
+    }
+
     navigate({
+      replace: true,
       search: (prev) => ({
         ...prev,
-        type,
+        forSale: (next.forSale ?? forSale) || undefined,
+        genre: next.genre ?? genre,
+        q: (next.q ?? q) || undefined,
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+        type: next.type === null ? undefined : (next.type ?? type),
       }),
     });
   };
 
+  const { data: projects = [], isLoading } = usePublicProjectsQuery({
+    forSale: forSale || undefined,
+    genre,
+    limit: 48,
+    q: q || undefined,
+    region,
+    regionType,
+    sort,
+    type,
+  });
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto py-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold tracking-tight">
-            Projects &amp; Albums
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Explore full-length albums, EPs, and mixtapes from top SoundKit
-            creators.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={viewMode === "grid" ? "default" : "outline"}
-            onClick={() => setViewMode("grid")}
-          >
-            <Grid className="size-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant={viewMode === "list" ? "default" : "outline"}
-            onClick={() => setViewMode("list")}
-          >
-            <List className="size-4" />
-          </Button>
-        </div>
+    <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
+      <Button
+        className="mb-4"
+        onClick={() => router.history.back()}
+        size="sm"
+        variant="ghost"
+      >
+        <ArrowLeft className="mr-2 size-4" />
+        Back
+      </Button>
+
+      <div className="mb-8">
+        <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
+          <Disc className="size-6 text-primary md:size-8" />
+          Projects
+        </h1>
+        <p className="text-muted-foreground">
+          Explore albums, EPs, and mixtapes by region, genre, and release type.
+        </p>
       </div>
 
-      {/* Project Type Chips & Search */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
+      <BattleFilters
+        genre={genre}
+        onGenreChange={(nextGenre) => updateFilters({ genre: nextGenre })}
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
+        region={region}
+        regionType={regionType}
+        sort={sort}
+        sortOptions={sortOptions}
+      />
+
+      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Button
+            onClick={() => updateFilters({ type: null })}
             size="sm"
-            variant={!search.type ? "default" : "outline"}
-            onClick={() => handleTypeSelect(undefined)}
+            variant={type ? "outline" : "default"}
           >
             All Projects
           </Button>
+          {projectTypeOptions.map((option) => (
+            <Button
+              key={option.value}
+              onClick={() => updateFilters({ type: option.value })}
+              size="sm"
+              variant={type === option.value ? "default" : "outline"}
+            >
+              {option.label}
+            </Button>
+          ))}
           <Button
+            onClick={() => updateFilters({ forSale: !forSale })}
             size="sm"
-            variant={search.type === "album" ? "default" : "outline"}
-            onClick={() => handleTypeSelect("album")}
+            variant={forSale ? "default" : "outline"}
           >
-            Albums
-          </Button>
-          <Button
-            size="sm"
-            variant={search.type === "ep" ? "default" : "outline"}
-            onClick={() => handleTypeSelect("ep")}
-          >
-            EPs
-          </Button>
-          <Button
-            size="sm"
-            variant={search.type === "mixtape" ? "default" : "outline"}
-            onClick={() => handleTypeSelect("mixtape")}
-          >
-            Mixtapes
+            <ShoppingBag className="mr-2 size-4" />
+            For Sale
           </Button>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <div className="relative w-full lg:w-80">
+          <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
           <Input
-            placeholder="Search albums..."
-            value={search.q ?? ""}
-            onChange={(e) =>
-              navigate({
-                search: (prev) => ({
-                  ...prev,
-                  q: e.target.value || undefined,
-                }),
-              })
-            }
             className="pl-9"
+            onChange={(event) => updateFilters({ q: event.target.value })}
+            placeholder="Search projects..."
+            value={q}
           />
         </div>
       </div>
 
-      {/* Projects Grid / List */}
-      {isLoading ? (
-        <div className="py-20 text-center text-muted-foreground">
-          Loading albums...
-        </div>
-      ) : filteredProjects.length === 0 ? (
-        <div className="py-20 text-center rounded-xl border border-dashed text-muted-foreground">
-          <Disc className="mx-auto size-10 mb-2 opacity-50" />
-          <p className="font-semibold text-foreground">No projects found</p>
-          <p className="text-sm">
-            Try clearing your search or category filters.
+      {isFilteredView && (
+        <ProjectGridSection
+          empty="No projects found for the selected filters."
+          isLoading={isLoading}
+          projects={projects}
+          title="Matching Projects"
+        />
+      )}
+
+      <ProjectRail
+        empty="No featured projects found for the selected filters."
+        genre={genre}
+        isLoading={isLoading}
+        projects={projects}
+        region={region}
+        regionType={regionType}
+        sort={sort}
+        title="Featured Projects"
+        type={type}
+        forSale={forSale}
+      />
+
+      <div className="flex flex-col gap-10">
+        {musicGenres.map((sectionGenre) => (
+          <ProjectGenreRail
+            forSale={forSale}
+            key={sectionGenre.value}
+            q={q}
+            region={region}
+            regionType={regionType}
+            sectionGenre={sectionGenre}
+            sort={sort}
+            type={type}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProjectGenreRail({
+  forSale,
+  q,
+  region,
+  regionType,
+  sectionGenre,
+  sort,
+  type,
+}: {
+  forSale: boolean;
+  q: string;
+  region: string;
+  regionType: "global" | "north-america";
+  sectionGenre: (typeof musicGenres)[number];
+  sort: string;
+  type?: "album" | "ep" | "mixtape";
+}) {
+  const { data: projects = [], isLoading } = usePublicProjectsQuery({
+    forSale: forSale || undefined,
+    genre: sectionGenre.value,
+    limit: 12,
+    q: q || undefined,
+    region,
+    regionType,
+    sort,
+    type,
+  });
+
+  return (
+    <ProjectRail
+      empty={`No ${sectionGenre.label} projects are live yet.`}
+      forSale={forSale}
+      genre={sectionGenre.value}
+      isLoading={isLoading}
+      projects={projects}
+      region={region}
+      regionType={regionType}
+      sort={sort}
+      title={sectionGenre.label}
+      type={type}
+    />
+  );
+}
+
+function ProjectRail({
+  empty,
+  forSale,
+  genre,
+  isLoading,
+  projects,
+  region,
+  regionType,
+  sort,
+  title,
+  type,
+}: {
+  empty: string;
+  forSale: boolean;
+  genre: string;
+  isLoading: boolean;
+  projects: PublicProjectSummary[];
+  region: string;
+  regionType: "global" | "north-america";
+  sort: string;
+  title: string;
+  type?: "album" | "ep" | "mixtape";
+}) {
+  return (
+    <section className="mb-10">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-xl">{title}</h2>
+          <p className="text-muted-foreground text-sm">
+            Albums, EPs, and mixtapes from this lane.
           </p>
         </div>
-      ) : (
-        <div
-          className={
-            viewMode === "grid"
-              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-              : "space-y-4"
-          }
-        >
-          {filteredProjects.map((project) => (
-            <Card
-              key={project.id}
-              className="group overflow-hidden border-border/40 bg-card/60 hover:border-primary/50 transition-all hover:shadow-xl"
-            >
-              <div className="relative aspect-square w-full bg-muted overflow-hidden">
-                {project.coverArtUrl ? (
-                  <AppImage
-                    src={project.coverArtUrl}
-                    alt={project.title}
-                    className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="size-full flex items-center justify-center bg-accent/40 text-muted-foreground">
-                    <Disc className="size-16 opacity-40" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <Button
-                    asChild
-                    size="icon"
-                    className="rounded-full shadow-lg"
-                  >
-                    <Link to="/projects/$id" params={{ id: project.id }}>
-                      <Play className="size-5 fill-current ml-0.5" />
-                    </Link>
-                  </Button>
-                </div>
-                <div className="absolute top-2 left-2 flex gap-1">
-                  <Badge
-                    variant="secondary"
-                    className="uppercase text-[10px] font-bold tracking-wider backdrop-blur-md"
-                  >
-                    {project.projectType}
-                  </Badge>
-                </div>
-              </div>
+        <Button asChild size="sm" variant="ghost">
+          <Link
+            search={
+              {
+                forSale: forSale || undefined,
+                genre,
+                region,
+                regionType,
+                sort,
+                type,
+              } satisfies ExploreProjectsSearch
+            }
+            to="/projects"
+          >
+            View All
+          </Link>
+        </Button>
+      </div>
 
-              <CardContent className="p-4">
-                <Link
-                  to="/projects/$id"
-                  params={{ id: project.id }}
-                  className="font-bold text-base line-clamp-1 group-hover:text-primary transition-colors"
-                >
-                  {project.title}
-                </Link>
-                <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                  <span>{project.trackCount} tracks</span>
-                  <span>
-                    {project.releaseDate
-                      ? new Date(project.releaseDate).getFullYear()
-                      : "2026"}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+      {isLoading || projects.length > 0 ? (
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {projects.slice(0, 12).map((project) => (
+            <ProjectCard key={project.id} project={project} />
           ))}
         </div>
+      ) : (
+        <ProjectEmptyState>{empty}</ProjectEmptyState>
       )}
+    </section>
+  );
+}
+
+function ProjectGridSection({
+  empty,
+  isLoading,
+  projects,
+  title,
+}: {
+  empty: string;
+  isLoading: boolean;
+  projects: PublicProjectSummary[];
+  title: string;
+}) {
+  return (
+    <section className="mb-10">
+      <h2 className="mb-3 font-semibold text-xl">{title}</h2>
+      {isLoading || projects.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
+        </div>
+      ) : (
+        <ProjectEmptyState>{empty}</ProjectEmptyState>
+      )}
+    </section>
+  );
+}
+
+function ProjectCard({ project }: { project: PublicProjectSummary }) {
+  return (
+    <Card className="group w-[220px] shrink-0 overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+      <div className="relative aspect-square w-full overflow-hidden bg-muted">
+        {project.coverArtUrl ? (
+          <AppImage
+            alt={project.title}
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            src={project.coverArtUrl}
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center bg-accent/40 text-muted-foreground">
+            <Disc className="size-14 opacity-40" />
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button asChild className="rounded-full shadow-lg" size="icon">
+            <Link params={{ id: project.id }} to="/projects/$id">
+              <Play className="ml-0.5 size-5 fill-current" />
+            </Link>
+          </Button>
+        </div>
+        <div className="absolute top-2 left-2 flex gap-1">
+          <Badge
+            className="text-[10px] uppercase tracking-wide"
+            variant="secondary"
+          >
+            {project.projectType}
+          </Badge>
+          {project.isForSale && (
+            <Badge className="text-[10px]" variant="outline">
+              For Sale
+            </Badge>
+          )}
+        </div>
+      </div>
+      <CardContent className="p-4">
+        <Link
+          className="line-clamp-1 font-semibold transition-colors group-hover:text-primary"
+          params={{ id: project.id }}
+          to="/projects/$id"
+        >
+          {project.title}
+        </Link>
+        <p className="mt-1 line-clamp-1 text-muted-foreground text-sm">
+          {project.genre ?? "Mixed genre"}
+        </p>
+        <div className="mt-2 flex items-center justify-between text-muted-foreground text-xs">
+          <span>{project.trackCount} tracks</span>
+          <span>{project.duration ?? "0:00"}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProjectEmptyState({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+      {children}
     </div>
   );
 }
