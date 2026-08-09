@@ -299,7 +299,8 @@ function DashboardLiveStreamsPage() {
                     <div>
                       <CardTitle>Create Stream</CardTitle>
                       <CardDescription>
-                        Details, device setup, then a ready room with keys.
+                        RealtimeKit Layer handles chat and room presence while
+                        Cloudflare Stream handles the OBS input.
                       </CardDescription>
                     </div>
                     <StepTabs

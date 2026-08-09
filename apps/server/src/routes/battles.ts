@@ -26,6 +26,7 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
   battleEligibilitySchema,
@@ -84,7 +85,7 @@ app.openapi(
   }),
   async (c) => {
     if (!isDatabaseConfigured()) {
-      return c.json([], HttpStatusCodes.OK);
+      return c.json(sampleBattles, HttpStatusCodes.OK);
     }
 
     const db = createDb();
@@ -907,40 +908,52 @@ app.openapi(
   }),
   async (c) => {
     const { battleId } = c.req.valid("param");
-    if (isDatabaseConfigured()) {
-      const db = createDb();
-      const [row] = await db
-        .select({
-          format: battles.format,
-          genre: genres.name,
-          id: battles.id,
-          status: battles.status,
-          title: battles.title,
-          viewerCount: battles.viewerCount,
-          visibility: battles.visibility,
-        })
-        .from(battles)
-        .leftJoin(genres, eq(genres.id, battles.genreId))
-        .where(eq(battles.id, battleId))
-        .limit(1);
 
-      if (row) {
-        const battle = rankFeaturedBattles([
-          {
-            ...row,
-            genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
-          },
-        ])[0];
+    if (!isDatabaseConfigured()) {
+      const battle = sampleBattles.find((entry) => entry.id === battleId);
 
-        if (!battle) {
-          return c.json(
-            { message: "Battle not found" },
-            HttpStatusCodes.NOT_FOUND
-          );
-        }
-
-        return c.json(battle, HttpStatusCodes.OK);
+      if (!battle) {
+        return c.json(
+          { message: "Battle not found" },
+          HttpStatusCodes.NOT_FOUND
+        );
       }
+
+      return c.json(battle, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const [row] = await db
+      .select({
+        format: battles.format,
+        genre: genres.name,
+        id: battles.id,
+        status: battles.status,
+        title: battles.title,
+        viewerCount: battles.viewerCount,
+        visibility: battles.visibility,
+      })
+      .from(battles)
+      .leftJoin(genres, eq(genres.id, battles.genreId))
+      .where(eq(battles.id, battleId))
+      .limit(1);
+
+    if (row) {
+      const battle = rankFeaturedBattles([
+        {
+          ...row,
+          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+        },
+      ])[0];
+
+      if (!battle) {
+        return c.json(
+          { message: "Battle not found" },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+
+      return c.json(battle, HttpStatusCodes.OK);
     }
 
     return c.json({ message: "Battle not found" }, HttpStatusCodes.NOT_FOUND);
