@@ -239,6 +239,9 @@ export const server = await Worker("server", {
     CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId,
     CLOUDFLARE_SECRET_ACCESS_KEY: mediaUploadToken.secretAccessKey,
     CORS_ORIGIN: SITE_URL,
+    ...optionalEnvBinding("CLOUDFLARE_API_TOKEN"),
+    ...optionalEnvBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
+    SOUNDKIT_ALLOW_MOCK_REALTIME: isPullRequestPreview ? "true" : "false",
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"

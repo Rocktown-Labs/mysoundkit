@@ -127,6 +127,17 @@ const streamInputFromCloudflareResponse = (
   };
 };
 
+const createMockStreamInput = (title: string) => ({
+  id: `mock_live_input_${crypto.randomUUID()}`,
+  playbackUrl: "",
+  rtmpsKey: `mock_${crypto.randomUUID()}`,
+  rtmpsUrl: "rtmps://live.cloudflare.com:443/live/",
+  srtKey: `mock_${crypto.randomUUID()}`,
+  srtUrl: "srt://live.cloudflare.com:443/live",
+  status: "idle",
+  title,
+});
+
 const cloudflareStreamSetupRequired = {
   message:
     "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
@@ -413,14 +424,23 @@ const createRequiredStreamInput = async ({
   }
 
   try {
-    return await createCloudflareStreamInput({
+    const streamInput = await createCloudflareStreamInput({
       env,
       title: body.title.trim(),
     });
+
+    if (streamInput) {
+      return streamInput;
+    }
   } catch (error) {
     console.error("Cloudflare Stream live input creation failed", error);
-    return null;
   }
+
+  if (allowsMockRealtime(realtimeKitConfig(env))) {
+    return createMockStreamInput(body.title.trim());
+  }
+
+  return null;
 };
 
 const createMeetingForExperience = async ({
