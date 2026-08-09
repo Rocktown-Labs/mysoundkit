@@ -4,10 +4,12 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   genres,
   projectAssets,
+  projectCollaborators,
   projectTracks,
   projects,
   trackAssets,
   tracks,
+  userNotifications,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { and, desc, eq } from "drizzle-orm";
@@ -20,6 +22,7 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
+import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -262,7 +265,8 @@ app.openapi(
     if (!isDatabaseConfigured()) {
       return c.json(
         {
-          collaboratorCount: body.collaboratorNames.length,
+          collaboratorCount:
+            body.collaborators.length || body.collaboratorNames.length,
           coverArtUrl: null,
           description: body.description ?? null,
           id: "project_new",
@@ -403,6 +407,54 @@ app.openapi(
             uploaderUserId: user.id,
           }))
         );
+      }
+
+      if (body.collaborators.length > 0) {
+        const collaboratorRows = body.collaborators.map((collaborator) => ({
+          canDelete: false,
+          canEdit: true,
+          canUpload: true,
+          collaboratorRole: collaborator.role,
+          collaboratorUserId: collaborator.userId ?? null,
+          createdAt: now,
+          id: crypto.randomUUID(),
+          invitationStatus: collaborator.userId
+            ? ("accepted" as const)
+            : ("pending" as const),
+          inviteEmail: collaborator.inviteEmail ?? null,
+          invitedByUserId: user.id,
+          projectId,
+        }));
+
+        await db.insert(projectCollaborators).values(collaboratorRows);
+
+        for (const collaborator of collaboratorRows) {
+          if (collaborator.collaboratorUserId) {
+            await db
+              .insert(userNotifications)
+              .values({
+                id: `project_collaborator:${collaborator.id}`,
+                link: `/dashboard/projects/${projectId}`,
+                message: `${user.name ?? "Someone"} added you as a collaborator on ${body.title}.`,
+                title: "New Project Collaboration",
+                type: "collaborator_invite",
+                userId: collaborator.collaboratorUserId,
+              })
+              .onConflictDoNothing();
+          }
+
+          if (collaborator.inviteEmail) {
+            await notifyCollaboratorInviteEmail({
+              actionPath: `/dashboard/projects/${projectId}`,
+              inviteEmail: collaborator.inviteEmail,
+              inviteId: collaborator.id,
+              inviterName: user.name ?? "Someone",
+              queue: c.env.EMAIL_DELIVERY_QUEUE,
+              workTitle: body.title,
+              workType: "project",
+            });
+          }
+        }
       }
 
       if (!project) {

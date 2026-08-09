@@ -85,23 +85,20 @@ import {
   PROJECT_ASSETS_UPLOAD_URL,
   rpcJson,
 } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
   useCreateProjectMutation,
   useGenresQuery,
+  usePeopleSearchQuery,
   useSettleTrackMutation,
   useTracksQuery,
   useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
-const collaboratorRoles = [
-  "featured",
-  "producer",
-  "writer",
-  "engineer",
-] as const;
+const collaboratorRoles = ["songwriter", "producer"] as const;
 
 type CollaboratorRole = (typeof collaboratorRoles)[number];
 
@@ -109,10 +106,10 @@ const isCollaboratorRole = (value: string): value is CollaboratorRole =>
   collaboratorRoles.includes(value as CollaboratorRole);
 
 const collaboratorSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  role: z
-    .enum(["featured", "producer", "writer", "engineer"])
-    .default("featured"),
+  displayName: z.string().min(1, "Name is required"),
+  inviteEmail: z.string().optional(),
+  role: z.enum(["songwriter", "producer"]).default("songwriter"),
+  userId: z.string().optional(),
 });
 
 const projectFormSchema = z.object({
@@ -241,9 +238,9 @@ export function NewProjectForm({
       ? genreRows.map((genre) => genre.name)
       : SUPPORTED_GENRES;
   const [step, setStep] = useState("identity");
-  const [newCollabName, setNewCollabName] = useState("");
-  const [newCollabRole, setNewCollabRole] =
-    useState<CollaboratorRole>("featured");
+  const [collaboratorQuery, setCollaboratorQuery] = useState("");
+  const [collaboratorRole, setCollaboratorRole] =
+    useState<CollaboratorRole>("songwriter");
   const [projectCover, setProjectCover] = useState<{
     fileName: string;
     objectKey: string;
@@ -265,6 +262,8 @@ export function NewProjectForm({
   const createProjectMutation = useCreateProjectMutation();
   const settleTrackMutation = useSettleTrackMutation();
   const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
+  const { data: session } = authClient.useSession();
+  const peopleSearch = usePeopleSearchQuery(collaboratorQuery);
 
   const form = useForm<ProjectFormValues>({
     defaultValues: defaultProjectFormValues,
@@ -301,6 +300,9 @@ export function NewProjectForm({
     const projectTracks = Array.isArray(initialProject.tracks)
       ? (initialProject.tracks as Record<string, unknown>[])
       : [];
+    const rawCollaborators = Array.isArray(initialProject.collaborators)
+      ? (initialProject.collaborators as Record<string, unknown>[])
+      : [];
     const firstGenre =
       projectTracks.find((track) => typeof track.genre === "string")?.genre ||
       "Hip-Hop/Rap";
@@ -314,7 +316,18 @@ export function NewProjectForm({
         : "album";
 
     form.reset({
-      collaborators: [],
+      collaborators: rawCollaborators.map((collaborator) => ({
+        displayName:
+          (collaborator.name as string) ||
+          (collaborator.email as string) ||
+          "Collaborator",
+        inviteEmail:
+          (collaborator.email as string) ||
+          (collaborator.inviteEmail as string) ||
+          undefined,
+        role: collaborator.role === "producer" ? "producer" : "songwriter",
+        userId: (collaborator.userId as string) || undefined,
+      })),
       description: (initialProject.description as string) ?? "",
       genre: firstGenre as string,
       name: (initialProject.title as string) ?? "",
@@ -436,8 +449,14 @@ export function NewProjectForm({
       const project = await createProjectMutation.mutateAsync({
         assetIds: [],
         collaboratorNames: values.collaborators.map(
-          (collaborator) => collaborator.name
+          (collaborator) => collaborator.displayName
         ),
+        collaborators: values.collaborators.map((collaborator) => ({
+          inviteEmail: collaborator.inviteEmail,
+          name: collaborator.displayName,
+          role: collaborator.role,
+          userId: collaborator.userId,
+        })),
         description: values.description || undefined,
         isPublic: false,
         newTracks: values.newTracks.map((track) => ({
@@ -644,8 +663,14 @@ export function NewProjectForm({
       const projectPayload = {
         assetIds: coverKey ? [coverKey] : [],
         collaboratorNames: values.collaborators.map(
-          (collaborator) => collaborator.name
+          (collaborator) => collaborator.displayName
         ),
+        collaborators: values.collaborators.map((collaborator) => ({
+          inviteEmail: collaborator.inviteEmail,
+          name: collaborator.displayName,
+          role: collaborator.role,
+          userId: collaborator.userId,
+        })),
         isPublic: false,
         newTracks: projectTracks,
         projectType: values.type,
@@ -965,24 +990,70 @@ export function NewProjectForm({
     setSelectedCoverFile(file);
   };
 
-  const addCollaborator = () => {
-    if (!newCollabName.trim()) {
+  const addCollaborator = (entry: {
+    displayName: string;
+    inviteEmail?: string;
+    role: CollaboratorRole;
+    userId?: string;
+  }) => {
+    if (!entry.displayName.trim()) {
       return;
     }
 
     const current = form.getValues("collaborators");
-    form.setValue("collaborators", [
-      ...current,
-      { name: newCollabName.trim(), role: newCollabRole },
-    ]);
-    setNewCollabName("");
+    const alreadyAdded = current.some(
+      (collaborator) =>
+        collaborator.role === entry.role &&
+        ((entry.userId && collaborator.userId === entry.userId) ||
+          collaborator.displayName.toLowerCase() ===
+            entry.displayName.toLowerCase())
+    );
+
+    if (alreadyAdded) {
+      return;
+    }
+
+    form.setValue("collaborators", [...current, entry], {
+      shouldDirty: true,
+    });
+    setCollaboratorQuery("");
+  };
+
+  const addQueriedCollaborator = () => {
+    const query = collaboratorQuery.trim();
+
+    if (!query) {
+      return;
+    }
+
+    addCollaborator({
+      displayName: query,
+      inviteEmail: query.includes("@") ? query : undefined,
+      role: collaboratorRole,
+    });
+  };
+
+  const addSelfAsWriter = () => {
+    const user = session?.user;
+
+    if (!user) {
+      return;
+    }
+
+    addCollaborator({
+      displayName: user.name || user.email || "Me",
+      inviteEmail: user.email,
+      role: "songwriter",
+      userId: user.id,
+    });
   };
 
   const removeCollaborator = (index: number) => {
     const current = form.getValues("collaborators");
     form.setValue(
       "collaborators",
-      current.filter((_, i) => i !== index)
+      current.filter((_, i) => i !== index),
+      { shouldDirty: true }
     );
   };
 
@@ -1553,9 +1624,9 @@ export function NewProjectForm({
                             onCheckedChange={() =>
                               toggleExistingTrack(track.id)
                             }
-                            className="flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-accent"
+                            className="flex items-center justify-between rounded-lg py-2.5 pl-9 pr-2.5 cursor-pointer transition-colors hover:bg-accent"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
                               <span className="font-semibold text-sm truncate">
                                 {track.title}
                               </span>
@@ -1597,7 +1668,7 @@ export function NewProjectForm({
                                 </span>
                                 <Badge
                                   variant="secondary"
-                                  className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300"
+                                  className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300 shrink-0"
                                 >
                                   {track.genre}
                                 </Badge>
@@ -1789,53 +1860,102 @@ export function NewProjectForm({
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-6">
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="Search or type name..."
-                        value={newCollabName}
-                        onChange={(e) => setNewCollabName(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" &&
-                          (e.preventDefault(), addCollaborator())
-                        }
-                        className="bg-background/50"
-                      />
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addSelfAsWriter}
+                    >
+                      Add me as writer
+                    </Button>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Select
-                      value={newCollabRole}
+                      value={collaboratorRole}
                       onValueChange={(value) => {
                         if (isCollaboratorRole(value)) {
-                          setNewCollabRole(value);
+                          setCollaboratorRole(value);
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[150px] bg-background/50">
+                      <SelectTrigger className="w-full sm:w-[160px] bg-background/50">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="featured">
-                          Featured Artist
-                        </SelectItem>
+                        <SelectItem value="songwriter">Writer</SelectItem>
                         <SelectItem value="producer">Producer</SelectItem>
-                        <SelectItem value="writer">Writer</SelectItem>
-                        <SelectItem value="engineer">Engineer</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Input
+                      placeholder="Search by name, stage name, or username"
+                      value={collaboratorQuery}
+                      onChange={(event) =>
+                        setCollaboratorQuery(event.target.value)
+                      }
+                      onKeyDown={(event) =>
+                        event.key === "Enter" &&
+                        (event.preventDefault(), addQueriedCollaborator())
+                      }
+                      className="bg-background/50"
+                    />
                     <Button
                       type="button"
-                      onClick={addCollaborator}
+                      onClick={addQueriedCollaborator}
                       className="bg-emerald-500 hover:bg-emerald-600"
                     >
                       <Plus className="size-4 mr-1" />
-                      Add
+                      Add New
                     </Button>
                   </div>
+                  {collaboratorQuery.trim().length >= 2 ? (
+                    <div className="rounded-xl border border-border/40 bg-background/40 p-2 space-y-1">
+                      {peopleSearch.isLoading ? (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">
+                          Searching…
+                        </p>
+                      ) : null}
+                      {(peopleSearch.data ?? []).map((person) => (
+                        <button
+                          type="button"
+                          key={person.userId}
+                          className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          onClick={() =>
+                            addCollaborator({
+                              displayName:
+                                person.stageName ??
+                                person.displayName ??
+                                person.username,
+                              inviteEmail: person.email ?? undefined,
+                              role: collaboratorRole,
+                              userId: person.userId,
+                            })
+                          }
+                        >
+                          <span className="min-w-0 truncate">
+                            {person.stageName ?? person.displayName}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              @{person.username}
+                            </span>
+                          </span>
+                          <Badge variant="outline" className="capitalize">
+                            {collaboratorRole}
+                          </Badge>
+                        </button>
+                      ))}
+                      {!peopleSearch.isLoading &&
+                      (peopleSearch.data ?? []).length === 0 ? (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">
+                          No matching people. Add the typed name or email.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     {form.watch("collaborators").map((collab, index) => (
                       <div
-                        key={`${collab.role}-${collab.name}`}
+                        key={`${collab.role}-${collab.userId ?? collab.displayName}-${index}`}
                         className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-muted/20 group hover:border-emerald-500/30 transition-colors"
                       >
                         <div className="flex items-center gap-3">
@@ -1846,10 +1966,14 @@ export function NewProjectForm({
                               <Mic2 className="size-4" />
                             )}
                           </div>
-                          <div>
-                            <p className="text-sm font-bold">{collab.name}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold truncate">
+                              {collab.displayName}
+                            </p>
                             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                              {collab.role}
+                              {collab.role === "songwriter"
+                                ? "writer"
+                                : collab.role}
                             </p>
                           </div>
                         </div>

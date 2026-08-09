@@ -151,6 +151,18 @@ describe("artist dashboard release schemas", () => {
     const result = createProjectBodySchema.safeParse({
       assetIds: ["asset_cover"],
       collaboratorNames: ["Ava Rhodes", "Milo Park"],
+      collaborators: [
+        {
+          inviteEmail: "ava@example.com",
+          name: "Ava Rhodes",
+          role: "songwriter",
+        },
+        {
+          name: "Milo Park",
+          role: "producer",
+          userId: "user_milo",
+        },
+      ],
       isPublic: true,
       newTracks: [
         {

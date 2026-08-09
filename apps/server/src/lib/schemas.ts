@@ -1354,6 +1354,7 @@ export const claimCartBodySchema = z.object({
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
   collaboratorNames: z.array(z.string()).default([]),
+  collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
   isPublic: z.boolean().default(true),
   newTracks: z
