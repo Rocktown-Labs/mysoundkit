@@ -745,6 +745,8 @@ export const projectSummarySchema = z.object({
   collaboratorCount: z.number().int().default(0),
   coverArtUrl: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  duration: z.string().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
   id: z.string(),
   isPublic: z.boolean(),
   progress: z.number().int().min(0).max(100).default(0),

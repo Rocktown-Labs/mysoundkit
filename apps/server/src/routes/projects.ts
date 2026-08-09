@@ -334,6 +334,7 @@ app.openapi(
           await db.insert(trackAssets).values({
             assetKind: "master",
             bucketName: getUploadBucketName(),
+            durationMs: newTrack.durationMs ?? null,
             id: crypto.randomUUID(),
             metadata: {
               durationMs: newTrack.durationMs ?? null,
@@ -482,13 +483,21 @@ app.openapi(
       user,
     });
     const db = createDb();
+    const releaseDatePatch =
+      "releaseDate" in body
+        ? {
+            releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
+          }
+        : {};
+    const statusPatch = body.status ? { status: body.status } : {};
     const [project] = await db
       .update(projects)
       .set({
         description: body.description,
         isPublic: body.isPublic,
         projectType: body.projectType,
-        releaseDate: body.releaseDate ? new Date(body.releaseDate) : undefined,
+        ...releaseDatePatch,
+        ...statusPatch,
         title: body.title,
         updatedAt: new Date(),
       })

@@ -166,6 +166,48 @@ const defaultProjectFormValues: ProjectFormValues = {
   type: "album",
 };
 
+const epRuntimeLimitMs = 30 * 60 * 1000;
+
+const formatDurationLabel = (durationMs: number) => {
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const parseDurationLabelMs = (duration: unknown) => {
+  if (typeof duration !== "string") {
+    return null;
+  }
+
+  const parts = duration.split(":").map(Number);
+
+  if (
+    parts.length < 2 ||
+    parts.length > 3 ||
+    parts.some((part) => !Number.isFinite(part) || part < 0)
+  ) {
+    return null;
+  }
+
+  const [hoursOrMinutes, minutesOrSeconds, seconds = 0] = parts;
+  const totalSeconds =
+    parts.length === 3
+      ? hoursOrMinutes * 3600 + minutesOrSeconds * 60 + seconds
+      : hoursOrMinutes * 60 + minutesOrSeconds;
+
+  return Math.round(totalSeconds * 1000);
+};
+
+const getTrackDurationLabel = (track: unknown) => {
+  if (!(track && typeof track === "object" && "duration" in track)) {
+    return null;
+  }
+
+  const { duration } = track as { duration?: unknown };
+  return typeof duration === "string" ? duration : null;
+};
+
 interface GenreOption {
   name: string;
 }
@@ -323,6 +365,61 @@ export function NewProjectForm({
     name: "newTracks",
   });
 
+  const getSelectedExistingRuntimeMs = (trackIds: string[]) => {
+    const initialTracks = Array.isArray(initialProject?.tracks)
+      ? (initialProject.tracks as Record<string, unknown>[])
+      : [];
+
+    let totalRuntimeMs = 0;
+
+    for (const trackId of trackIds) {
+      const existingTrack = existingTracks.find(
+        (track) => track.id === trackId
+      );
+      const initialTrack = initialTracks.find((track) => track.id === trackId);
+      const durationMs = parseDurationLabelMs(
+        getTrackDurationLabel(existingTrack) ??
+          getTrackDurationLabel(initialTrack)
+      );
+
+      totalRuntimeMs += durationMs ?? 0;
+    }
+
+    return totalRuntimeMs;
+  };
+
+  const shouldBlockEpRuntime = ({
+    newTrackDurationsMs = [],
+    values,
+  }: {
+    newTrackDurationsMs?: (number | null)[];
+    values: ProjectFormValues;
+  }) => {
+    if (values.type !== "ep") {
+      return false;
+    }
+
+    let totalRuntimeMs = getSelectedExistingRuntimeMs(
+      values.selectedExistingTracks
+    );
+
+    for (const durationMs of newTrackDurationsMs) {
+      totalRuntimeMs += durationMs ?? 0;
+    }
+
+    if (totalRuntimeMs <= epRuntimeLimitMs) {
+      return false;
+    }
+
+    toast({
+      description: `This project is ${formatDurationLabel(totalRuntimeMs)}. EPs should stay at 30:00 or less, so change the project type to Mixtape or Album before submitting.`,
+      title: "Project runtime exceeds EP length",
+      variant: "destructive",
+    });
+    setStep("identity");
+    return true;
+  };
+
   const handleSaveProjectDraft = async () => {
     const values = form.getValues();
 
@@ -348,8 +445,8 @@ export function NewProjectForm({
           title: track.name,
         })),
         projectType: values.type,
-        streamingLinks: {},
         status: "draft",
+        streamingLinks: {},
         title: values.name,
         trackIds: values.selectedExistingTracks,
         ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
@@ -380,6 +477,10 @@ export function NewProjectForm({
     // Edit Mode submission
     if (projectId) {
       try {
+        if (shouldBlockEpRuntime({ values })) {
+          return;
+        }
+
         let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
 
         if (selectedCoverFile && !coverKey) {
@@ -412,9 +513,10 @@ export function NewProjectForm({
         await updateProjectMutation.mutateAsync({
           assetIds: coverKey ? [coverKey] : undefined,
           description: values.description || undefined,
-          isPublic: true,
+          isPublic: Boolean(values.releaseDate),
           projectType: values.type,
-          releaseDate: values.releaseDate || undefined,
+          releaseDate: values.releaseDate,
+          status: values.releaseDate ? "scheduled" : "draft",
           streamingLinks: {},
           title: values.name,
         });
@@ -505,8 +607,33 @@ export function NewProjectForm({
         return;
       }
 
-      const projectTracks = values.newTracks.map((track) => {
+      const pendingTrackFiles = await Promise.all(
+        values.newTracks.map(async (track, index) => ({
+          durationMs:
+            track.file instanceof File
+              ? await readAudioDurationMs(track.file)
+              : null,
+          file: track.file instanceof File ? track.file : null,
+          index,
+        }))
+      );
+
+      if (
+        shouldBlockEpRuntime({
+          newTrackDurationsMs: pendingTrackFiles.map(
+            (trackFile) => trackFile.durationMs
+          ),
+          values,
+        })
+      ) {
+        return;
+      }
+
+      const hasReleaseDate = Boolean(values.releaseDate);
+
+      const projectTracks = values.newTracks.map((track, index) => {
         const projectTrack = {
+          durationMs: pendingTrackFiles[index]?.durationMs ?? undefined,
           genre: track.genre || values.genre || "Hip-Hop/Rap",
           title: track.name,
         };
@@ -522,6 +649,7 @@ export function NewProjectForm({
         isPublic: false,
         newTracks: projectTracks,
         projectType: values.type,
+        status: hasReleaseDate ? "scheduled" : "draft",
         streamingLinks: {},
         title: values.name,
         trackIds: values.selectedExistingTracks,
@@ -531,16 +659,6 @@ export function NewProjectForm({
 
       const project = await rpcJson(
         await projectsPost({ json: projectPayload })
-      );
-      const pendingTrackFiles = await Promise.all(
-        values.newTracks.map(async (track, index) => ({
-          durationMs:
-            track.file instanceof File
-              ? await readAudioDurationMs(track.file)
-              : null,
-          file: track.file instanceof File ? track.file : null,
-          index,
-        }))
       );
       const pendingTrackUploads = pendingTrackFiles.filter(
         (
@@ -611,19 +729,19 @@ export function NewProjectForm({
         }
       }
 
-      for (const projectTrack of newProjectTracks) {
-        await settleTrackMutation.mutateAsync({
-          body: {
-            isPublic: true,
-            productionStatus: "complete",
-            releaseAt: values.releaseDate || undefined,
-            releaseStrategy: values.releaseDate
-              ? "scheduled"
-              : "publish_when_ready",
-            requireCoverArt: true,
-          },
-          trackId: projectTrack.id,
-        });
+      if (hasReleaseDate) {
+        for (const projectTrack of newProjectTracks) {
+          await settleTrackMutation.mutateAsync({
+            body: {
+              isPublic: true,
+              productionStatus: "complete",
+              releaseAt: values.releaseDate || undefined,
+              releaseStrategy: "scheduled",
+              requireCoverArt: true,
+            },
+            trackId: projectTrack.id,
+          });
+        }
       }
 
       const settledProject = await rpcJson(
@@ -631,9 +749,10 @@ export function NewProjectForm({
           json: {
             assetIds: coverKey ? [coverKey] : undefined,
             description: values.description || undefined,
-            isPublic: true,
+            isPublic: hasReleaseDate,
             projectType: values.type,
-            releaseDate: values.releaseDate || undefined,
+            releaseDate: values.releaseDate,
+            status: hasReleaseDate ? "scheduled" : "draft",
             streamingLinks: {},
             title: values.name,
           },
@@ -654,8 +773,10 @@ export function NewProjectForm({
         project_type: values.type,
       });
       toast({
-        description: `${settledProject.title} is now in your project dashboard.`,
-        title: "Project Created",
+        description: hasReleaseDate
+          ? `${settledProject.title} is now scheduled in your project dashboard.`
+          : `${settledProject.title} is saved with its cover and audio files attached.`,
+        title: hasReleaseDate ? "Project Created" : "Draft Project Created",
       });
       resetDraft();
       setSelectedCoverFile(null);
@@ -864,6 +985,13 @@ export function NewProjectForm({
       current.filter((_, i) => i !== index)
     );
   };
+
+  const currentReleaseDate = form.watch("releaseDate");
+  const submitButtonLabel = projectId
+    ? "Save Changes"
+    : currentReleaseDate
+      ? "Launch Project"
+      : "Create Draft Project";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -1542,7 +1670,7 @@ export function NewProjectForm({
                   name="releaseDate"
                   render={({ field }) => (
                     <FormItem className="max-w-[250px]">
-                      <FormLabel>Project Release Date</FormLabel>
+                      <FormLabel>Release Date (optional)</FormLabel>
                       <FormControl>
                         <Input
                           type="date"
@@ -1550,6 +1678,10 @@ export function NewProjectForm({
                           className="bg-background/50"
                         />
                       </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Leave blank to keep the project private while you
+                        sequence tracks and add files.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1786,7 +1918,7 @@ export function NewProjectForm({
                         </>
                       ) : (
                         <>
-                          {projectId ? "Save Changes" : "Launch Project"}
+                          {submitButtonLabel}
                           <Check className="ml-2 size-4" />
                         </>
                       )}

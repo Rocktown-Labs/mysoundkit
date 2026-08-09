@@ -15,7 +15,7 @@ import {
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
@@ -314,6 +314,38 @@ export const buildProjectSummary = async (
       .from(projectCollaborators)
       .where(eq(projectCollaborators.projectId, row.id)),
   ]);
+  const trackIds = trackRows.map((track) => track.id);
+  const durationAssetRows =
+    trackIds.length > 0
+      ? await db
+          .select({
+            assetKind: trackAssets.assetKind,
+            durationMs: trackAssets.durationMs,
+            trackId: trackAssets.trackId,
+          })
+          .from(trackAssets)
+          .where(inArray(trackAssets.trackId, trackIds))
+      : [];
+  const durationByTrackId = new Map<string, number>();
+
+  for (const asset of durationAssetRows) {
+    if (!(asset.trackId && asset.durationMs)) {
+      continue;
+    }
+
+    const shouldUseAsset =
+      !durationByTrackId.has(asset.trackId) || asset.assetKind === "master";
+
+    if (shouldUseAsset) {
+      durationByTrackId.set(asset.trackId, asset.durationMs);
+    }
+  }
+
+  let durationMs = 0;
+
+  for (const trackDurationMs of durationByTrackId.values()) {
+    durationMs += trackDurationMs;
+  }
   const coverAsset = assetRows.find((asset) => asset.assetKind === "cover_art");
   let progress = 25;
 
@@ -327,6 +359,8 @@ export const buildProjectSummary = async (
     collaboratorCount: collaboratorRows.length,
     coverArtUrl: publicProjectAssetUrl(coverAsset),
     description: row.description,
+    duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
+    durationMs,
     id: row.id,
     isPublic: row.isPublic,
     progress,
