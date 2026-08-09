@@ -349,6 +349,7 @@ export function NewProjectForm({
         })),
         projectType: values.type,
         streamingLinks: {},
+        status: "draft",
         title: values.name,
         trackIds: values.selectedExistingTracks,
         ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),

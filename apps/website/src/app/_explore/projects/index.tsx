@@ -1,6 +1,6 @@
 "use client";
 
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Check,
   Disc,
@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useProjectsQuery } from "@/lib/soundkit-api-hooks";
+import { usePublicProjectsQuery } from "@/lib/soundkit-api-hooks";
 
 interface ExploreProjectsSearch {
   forSale?: boolean;
@@ -45,25 +45,24 @@ export const Route = createFileRoute("/_explore/projects/")({
     page: typeof search.page === "number" ? search.page : 1,
     q: typeof search.q === "string" ? search.q : undefined,
     type:
-      search.type === "album" || search.type === "ep" || search.type === "mixtape"
+      search.type === "album" ||
+      search.type === "ep" ||
+      search.type === "mixtape"
         ? search.type
         : undefined,
   }),
 });
 
 function ExploreProjectsPage() {
-  const navigate = useNavigate();
+  const navigate = Route.useNavigate();
   const search = Route.useSearch();
-  const { data: projects = [], isLoading } = useProjectsQuery();
+  const { data: projects = [], isLoading } = usePublicProjectsQuery();
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
       if (search.type && project.projectType !== search.type) return false;
-      if (search.genre && project.tracks?.some((t) => t.genre === search.genre))
-        return false;
-      if (search.forSale && !project.isPublic) return false;
       if (search.q) {
         const query = search.q.toLowerCase();
         return (
@@ -77,10 +76,10 @@ function ExploreProjectsPage() {
 
   const handleTypeSelect = (type?: ExploreProjectsSearch["type"]) => {
     navigate({
-      search: {
-        ...search,
+      search: (prev) => ({
+        ...prev,
         type,
-      },
+      }),
     });
   };
 
@@ -93,7 +92,8 @@ function ExploreProjectsPage() {
             Projects &amp; Albums
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Explore full-length albums, EPs, and mixtapes from top SoundKit creators.
+            Explore full-length albums, EPs, and mixtapes from top SoundKit
+            creators.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,10 +154,10 @@ function ExploreProjectsPage() {
             value={search.q ?? ""}
             onChange={(e) =>
               navigate({
-                search: {
-                  ...search,
+                search: (prev) => ({
+                  ...prev,
                   q: e.target.value || undefined,
-                },
+                }),
               })
             }
             className="pl-9"
@@ -167,12 +167,16 @@ function ExploreProjectsPage() {
 
       {/* Projects Grid / List */}
       {isLoading ? (
-        <div className="py-20 text-center text-muted-foreground">Loading albums...</div>
+        <div className="py-20 text-center text-muted-foreground">
+          Loading albums...
+        </div>
       ) : filteredProjects.length === 0 ? (
         <div className="py-20 text-center rounded-xl border border-dashed text-muted-foreground">
           <Disc className="mx-auto size-10 mb-2 opacity-50" />
           <p className="font-semibold text-foreground">No projects found</p>
-          <p className="text-sm">Try clearing your search or category filters.</p>
+          <p className="text-sm">
+            Try clearing your search or category filters.
+          </p>
         </div>
       ) : (
         <div
@@ -200,14 +204,21 @@ function ExploreProjectsPage() {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <Button asChild size="icon" className="rounded-full shadow-lg">
+                  <Button
+                    asChild
+                    size="icon"
+                    className="rounded-full shadow-lg"
+                  >
                     <Link to="/projects/$id" params={{ id: project.id }}>
                       <Play className="size-5 fill-current ml-0.5" />
                     </Link>
                   </Button>
                 </div>
                 <div className="absolute top-2 left-2 flex gap-1">
-                  <Badge variant="secondary" className="uppercase text-[10px] font-bold tracking-wider backdrop-blur-md">
+                  <Badge
+                    variant="secondary"
+                    className="uppercase text-[10px] font-bold tracking-wider backdrop-blur-md"
+                  >
                     {project.projectType}
                   </Badge>
                 </div>
@@ -223,7 +234,11 @@ function ExploreProjectsPage() {
                 </Link>
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                   <span>{project.trackCount} tracks</span>
-                  <span>{project.releaseDate ? new Date(project.releaseDate).getFullYear() : "2026"}</span>
+                  <span>
+                    {project.releaseDate
+                      ? new Date(project.releaseDate).getFullYear()
+                      : "2026"}
+                  </span>
                 </div>
               </CardContent>
             </Card>

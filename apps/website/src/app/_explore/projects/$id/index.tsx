@@ -16,7 +16,7 @@ import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { useProjectQuery } from "@/lib/soundkit-api-hooks";
+import { usePublicProjectQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/projects/$id/")({
   component: PublicProjectDetailPage,
@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_explore/projects/$id/")({
 
 function PublicProjectDetailPage() {
   const { id } = Route.useParams();
-  const { data: project, isLoading } = useProjectQuery(id);
+  const { data: project, isLoading } = usePublicProjectQuery(id);
 
   if (isLoading) {
     return (
@@ -62,7 +62,10 @@ function PublicProjectDetailPage() {
 
         <div className="space-y-4 flex-1">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="uppercase font-bold tracking-wider text-xs">
+            <Badge
+              variant="secondary"
+              className="uppercase font-bold tracking-wider text-xs"
+            >
               {project.projectType}
             </Badge>
             {project.releaseDate && (
@@ -86,7 +89,10 @@ function PublicProjectDetailPage() {
           </p>
 
           <div className="flex items-center gap-3 pt-2">
-            <Button size="lg" className="gap-2 font-bold px-8 shadow-xl shadow-primary/20">
+            <Button
+              size="lg"
+              className="gap-2 font-bold px-8 shadow-xl shadow-primary/20"
+            >
               <Play className="size-5 fill-current" /> Play Album
             </Button>
             <Button variant="outline" size="icon" className="rounded-full">
@@ -103,7 +109,8 @@ function PublicProjectDetailPage() {
       <Card>
         <CardContent className="p-6 space-y-4">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Music className="size-5 text-primary" /> Tracklist ({project.tracks?.length ?? 0} Songs)
+            <Music className="size-5 text-primary" /> Tracklist (
+            {project.tracks?.length ?? 0} Songs)
           </h2>
 
           <div className="divide-y border border-border/40 rounded-xl overflow-hidden">
@@ -118,8 +125,12 @@ function PublicProjectDetailPage() {
                       {idx + 1}
                     </span>
                     <div>
-                      <p className="font-semibold text-sm truncate">{track.title}</p>
-                      <p className="text-xs text-muted-foreground">{track.genre}</p>
+                      <p className="font-semibold text-sm truncate">
+                        {track.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {track.genre}
+                      </p>
                     </div>
                   </div>
                   <Button size="sm" variant="ghost" className="gap-1">

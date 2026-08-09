@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Compass,
+  Disc,
   Flame,
   Globe,
   LocateFixed,
@@ -276,13 +277,25 @@ function LocalExplorePage({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">Album</Badge>
-                      <Badge variant="outline" className="text-[10px]">Hip-Hop</Badge>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] font-bold uppercase"
+                      >
+                        Album
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        Hip-Hop
+                      </Badge>
                     </div>
-                    <Link to="/projects" className="font-bold text-sm truncate block group-hover:text-primary transition-colors">
+                    <Link
+                      to="/projects"
+                      className="font-bold text-sm truncate block group-hover:text-primary transition-colors"
+                    >
                       Midnight Chronicles
                     </Link>
-                    <p className="text-xs text-muted-foreground">12 Tracks • 2026</p>
+                    <p className="text-xs text-muted-foreground">
+                      12 Tracks • 2026
+                    </p>
                   </div>
                 </Card>
                 <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
@@ -291,13 +304,25 @@ function LocalExplorePage({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">EP</Badge>
-                      <Badge variant="outline" className="text-[10px]">R&amp;B</Badge>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] font-bold uppercase"
+                      >
+                        EP
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        R&amp;B
+                      </Badge>
                     </div>
-                    <Link to="/projects" className="font-bold text-sm truncate block group-hover:text-primary transition-colors">
+                    <Link
+                      to="/projects"
+                      className="font-bold text-sm truncate block group-hover:text-primary transition-colors"
+                    >
                       Summer Sunset Sessions
                     </Link>
-                    <p className="text-xs text-muted-foreground">5 Tracks • 2026</p>
+                    <p className="text-xs text-muted-foreground">
+                      5 Tracks • 2026
+                    </p>
                   </div>
                 </Card>
                 <Card className="p-4 bg-card/60 border-border/40 hover:border-primary/50 transition-all group flex items-center gap-4">
@@ -306,13 +331,25 @@ function LocalExplorePage({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Badge variant="secondary" className="text-[10px] font-bold uppercase">Mixtape</Badge>
-                      <Badge variant="outline" className="text-[10px]">Afrobeats</Badge>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] font-bold uppercase"
+                      >
+                        Mixtape
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        Afrobeats
+                      </Badge>
                     </div>
-                    <Link to="/projects" className="font-bold text-sm truncate block group-hover:text-primary transition-colors">
+                    <Link
+                      to="/projects"
+                      className="font-bold text-sm truncate block group-hover:text-primary transition-colors"
+                    >
                       Lagos Rhythm Vol. 1
                     </Link>
-                    <p className="text-xs text-muted-foreground">8 Tracks • 2026</p>
+                    <p className="text-xs text-muted-foreground">
+                      8 Tracks • 2026
+                    </p>
                   </div>
                 </Card>
               </div>

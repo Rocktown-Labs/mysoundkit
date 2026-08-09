@@ -327,7 +327,9 @@ app.openapi(
 
     const challenges = rows.map((row) => {
       const direction =
-        row.opponentArtistUserId === user.id ? "incoming" : "outgoing";
+        row.opponentArtistUserId === user.id
+          ? ("incoming" as const)
+          : ("outgoing" as const);
 
       return {
         challengerUsername: usernameByUserId.get(row.challengerUserId) ?? null,
@@ -463,6 +465,10 @@ app.openapi(
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Opponent artist not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database is not configured"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
@@ -892,6 +898,10 @@ app.openapi(
         battleSummarySchema,
         "Battle detail summary"
       ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle not found"
+      ),
     },
     tags: ["Battles"],
   }),
@@ -915,17 +925,21 @@ app.openapi(
         .limit(1);
 
       if (row) {
-        return c.json(
-          rankFeaturedBattles([
-            {
-              ...row,
-              genre: row.genre
-                ? canonicalGenreName(row.genre)
-                : "Uncategorized",
-            },
-          ])[0],
-          HttpStatusCodes.OK
-        );
+        const battle = rankFeaturedBattles([
+          {
+            ...row,
+            genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+          },
+        ])[0];
+
+        if (!battle) {
+          return c.json(
+            { message: "Battle not found" },
+            HttpStatusCodes.NOT_FOUND
+          );
+        }
+
+        return c.json(battle, HttpStatusCodes.OK);
       }
     }
 

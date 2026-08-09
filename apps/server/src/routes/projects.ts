@@ -89,23 +89,28 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+    if (!isDatabaseConfigured()) {
       return c.json(sampleProjects, HttpStatusCodes.OK);
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
     const db = createDb();
+    const organizationId = isAuthenticatedUser(user)
+      ? await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(c.get("session"))
+            ? c.get("session")
+            : null,
+          user,
+        })
+      : null;
     const rows = await db
       .select()
       .from(projects)
       .where(
-        organizationId
-          ? eq(projects.organizationId, organizationId)
-          : eq(projects.ownerUserId, user.id)
+        isAuthenticatedUser(user)
+          ? organizationId
+            ? eq(projects.organizationId, organizationId)
+            : eq(projects.ownerUserId, user.id)
+          : eq(projects.isPublic, true)
       )
       .orderBy(desc(projects.updatedAt))
       .limit(100);
@@ -116,6 +121,106 @@ app.openapi(
     }
 
     return c.json(summaries, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        projectSummarySchema.array(),
+        "Public projects list"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        sampleProjects.filter((project) => project.isPublic),
+        HttpStatusCodes.OK
+      );
+    }
+
+    const rows = await createDb()
+      .select()
+      .from(projects)
+      .where(eq(projects.isPublic, true))
+      .orderBy(desc(projects.updatedAt))
+      .limit(100);
+    const summaries = [];
+
+    for (const row of rows) {
+      summaries.push(await buildProjectSummary(row));
+    }
+
+    return c.json(summaries, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public/{projectId}",
+    request: {
+      params: z.object({
+        projectId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        projectDashboardDetailSchema,
+        "Public project detail"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const { projectId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      const project = sampleProjects.find(
+        (entry) => entry.id === projectId && entry.isPublic
+      );
+
+      if (!project) {
+        return c.json(
+          { message: "Project not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+
+      return c.json(
+        {
+          ...project,
+          assets: [],
+          collaborators: [],
+          tracks: [],
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const [project] = await createDb()
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.isPublic, true)))
+      .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
   }
 );
 
@@ -185,6 +290,8 @@ app.openapi(
       const projectId = crypto.randomUUID();
       const now = new Date();
       const hasNewTracks = body.newTracks.length > 0;
+      const projectStatus =
+        body.status ?? (body.releaseDate ? "scheduled" : "draft");
       const [project] = await db
         .insert(projects)
         .values({
@@ -197,7 +304,7 @@ app.openapi(
           projectType: body.projectType,
           releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
           slug: uniqueSlug(body.title),
-          status: body.releaseDate ? "scheduled" : "draft",
+          status: projectStatus,
           title: body.title,
           updatedAt: now,
         })
@@ -497,7 +604,7 @@ app.openapi(
     const { projectId } = c.req.valid("param");
     const user = c.get("user");
 
-    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+    if (!isDatabaseConfigured()) {
       const project =
         sampleProjects.find((entry) => entry.id === projectId) ??
         sampleProjects[0];
@@ -517,11 +624,14 @@ app.openapi(
       );
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+    const organizationId = isAuthenticatedUser(user)
+      ? await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(c.get("session"))
+            ? c.get("session")
+            : null,
+          user,
+        })
+      : null;
     const db = createDb();
     const [project] = await db
       .select()
@@ -529,7 +639,13 @@ app.openapi(
       .where(eq(projects.id, projectId))
       .limit(1);
 
-    if (!project || (!project.isPublic && project.ownerUserId !== user?.id && project.organizationId !== organizationId)) {
+    if (
+      !project ||
+      (!project.isPublic &&
+        (!isAuthenticatedUser(user) ||
+          (project.ownerUserId !== user.id &&
+            project.organizationId !== organizationId)))
+    ) {
       return c.json(
         {
           message: "Project not found.",

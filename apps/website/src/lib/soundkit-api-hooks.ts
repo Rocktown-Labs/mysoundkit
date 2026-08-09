@@ -43,6 +43,8 @@ const trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post;
 const trackLyricsReviewPatch =
   apiClient.v1.tracks[":trackId"].lyrics[":lyricsId"].$patch;
 const projectsGet = apiClient.v1.projects.index.$get;
+const publicProjectsGet = apiClient.v1.projects.public.$get;
+const publicProjectGet = apiClient.v1.projects.public[":projectId"].$get;
 const projectsPost = apiClient.v1.projects.index.$post;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
 const projectPatch = apiClient.v1.projects[":projectId"].$patch;
@@ -129,6 +131,14 @@ type ReviewLyricsRevisionBody = InferRequestType<
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
+export type PublicProjectSummary = InferResponseType<
+  typeof publicProjectsGet,
+  200
+>[number];
+export type PublicProjectDetail = InferResponseType<
+  typeof publicProjectGet,
+  200
+>;
 type CreateListeningPartyBody = InferRequestType<
   typeof listeningPartyPost
 >["json"];
@@ -344,6 +354,8 @@ export const soundkitQueryKeys = {
   peopleSearch: (q: string) => ["messages", "people", q] as const,
   project: (id: string) => ["projects", id] as const,
   projects: ["projects"] as const,
+  publicProject: (id: string) => ["projects", "public", id] as const,
+  publicProjects: ["projects", "public"] as const,
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
   track: (id: string) => ["tracks", id] as const,
@@ -930,11 +942,25 @@ export const useProjectsQuery = () =>
     queryKey: soundkitQueryKeys.projects,
   });
 
+export const usePublicProjectsQuery = () =>
+  useQuery<PublicProjectSummary[]>({
+    queryFn: async () => rpcJson(await publicProjectsGet()),
+    queryKey: soundkitQueryKeys.publicProjects,
+  });
+
 export const useProjectQuery = (projectId: string) =>
   useQuery({
     enabled: Boolean(projectId),
     queryFn: async () => rpcJson(await projectGet({ param: { projectId } })),
     queryKey: soundkitQueryKeys.project(projectId),
+  });
+
+export const usePublicProjectQuery = (projectId: string) =>
+  useQuery<PublicProjectDetail>({
+    enabled: Boolean(projectId),
+    queryFn: async () =>
+      rpcJson(await publicProjectGet({ param: { projectId } })),
+    queryKey: soundkitQueryKeys.publicProject(projectId),
   });
 
 export const useCreateProjectMutation = () => {

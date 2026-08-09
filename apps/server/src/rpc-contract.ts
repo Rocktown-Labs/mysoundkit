@@ -359,6 +359,12 @@ export const rpcContract = new Hono()
   .get("/v1/projects/", (c) =>
     c.json([] as z.infer<typeof projectSummarySchema>[])
   )
+  .get("/v1/projects/public", (c) =>
+    c.json([] as z.infer<typeof projectSummarySchema>[])
+  )
+  .get("/v1/projects/public/:projectId", (c) =>
+    c.json({} as z.infer<typeof projectDashboardDetailSchema>)
+  )
   .post("/v1/projects/", jsonValidator(createProjectBodySchema), (c) =>
     c.json({} as z.infer<typeof projectSummarySchema>, 201)
   )

@@ -1369,6 +1369,7 @@ export const createProjectBodySchema = z.object({
     .default([]),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
+  status: z.enum(["draft", "scheduled", "released"]).optional(),
   streamingLinks: z
     .object({
       appleMusic: z.url().optional(),
