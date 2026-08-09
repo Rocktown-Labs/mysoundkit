@@ -236,8 +236,34 @@ const mockBattles = [
     genre: "Hip-Hop",
     id: "battle_west_coast_showdown",
     isFeatured: true,
+    joinMode: "waiting_room",
+    phaseEndsAt: new Date(Date.now() + 120_000).toISOString(),
+    queueSize: 128,
+    round: {
+      current: 1,
+      id: "round-1",
+      isVoting: true,
+      status: "active",
+      total: 5,
+    },
     status: "live",
     title: "West Coast Showdown",
+    tracks: [
+      {
+        artist: "DJ Nova",
+        cover: null,
+        id: "battle_west_coast_track_1",
+        title: "Coastline",
+        votes: 1840,
+      },
+      {
+        artist: "MC Rhythm",
+        cover: null,
+        id: "battle_west_coast_track_2",
+        title: "Urban Flow",
+        votes: 1296,
+      },
+    ],
     viewerCount: 4321,
     visibility: "premium_only",
   },
@@ -423,6 +449,14 @@ export const createMockApiServer = async ({
 
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
       json(response, 200, mockBattles, webOrigin);
+      return;
+    }
+
+    if (
+      url.pathname === "/v1/listening-parties" ||
+      url.pathname === "/v1/listening-parties/"
+    ) {
+      json(response, 200, [], webOrigin);
       return;
     }
 

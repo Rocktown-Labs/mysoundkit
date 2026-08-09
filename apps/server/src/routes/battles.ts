@@ -48,7 +48,7 @@ const battleTotalRoundsByFormat = {
   best_of_7: 7,
 } as const;
 
-type BattleFeedRow = {
+interface BattleFeedRow {
   format: "best_of_3" | "best_of_5" | "best_of_7";
   genre: string;
   id: string;
@@ -56,9 +56,9 @@ type BattleFeedRow = {
   title: string;
   viewerCount: number;
   visibility: "public" | "premium_only";
-};
+}
 
-type BattleFeedRound = {
+interface BattleFeedRound {
   battleId: string;
   id: string;
   isTiebreaker: boolean;
@@ -69,14 +69,14 @@ type BattleFeedRound = {
   trackTwoId: null | string;
   trackTwoVotes: number;
   votingEndsAt: Date | null;
-};
+}
 
-type BattleFeedTrack = {
+interface BattleFeedTrack {
   artist: string;
   cover: null | string;
   id: string;
   title: string;
-};
+}
 
 const objectUrlFromMetadata = (metadata: unknown) => {
   if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
@@ -1110,12 +1110,16 @@ app.openapi(
       .limit(1);
 
     if (row) {
-      const battle = rankFeaturedBattles([
+      const [enrichedRow] = await enrichBattleFeedRows([
         {
           ...row,
           genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
         },
-      ])[0];
+      ]);
+
+      const battle = enrichedRow
+        ? rankFeaturedBattles([enrichedRow])[0]
+        : undefined;
 
       if (!battle) {
         return c.json(

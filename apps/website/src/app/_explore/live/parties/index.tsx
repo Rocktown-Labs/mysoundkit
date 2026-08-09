@@ -1,14 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Headphones, Radio } from "lucide-react";
+import { CalendarClock, Headphones, Mic, Radio } from "lucide-react";
 
 import { CreateFanPartyDialog } from "@/components/explore/create-fan-party-dialog";
 import { SectionHeader } from "@/components/explore/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  useListeningPartiesQuery,
-  type ListeningPartySummary,
-} from "@/lib/soundkit-api-hooks";
+import { useListeningPartiesQuery } from "@/lib/soundkit-api-hooks";
+import type { ListeningPartySummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/parties/")({
   component: LivePartiesPage,
@@ -78,9 +76,14 @@ function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
               )}
             </Badge>
             <Badge variant="outline">
-              {party.playbackMode === "programmed_release"
-                ? "Release Party"
-                : "Listening Party"}
+              {party.playbackMode === "artist_hosted" ? (
+                <>
+                  <Mic className="mr-1 size-3" />
+                  Artist Hosted
+                </>
+              ) : (
+                "Release Party"
+              )}
             </Badge>
           </div>
           <div>

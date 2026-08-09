@@ -1,14 +1,22 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Eye } from "lucide-react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { BattleCard } from "@/components/explore/battle-card";
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { musicGenres } from "@/lib/music-genres";
-import { useArtistsQuery, useTracksQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useArtistsQuery,
+  useBattlesQuery,
+  useMeEntitlementsQuery,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
+import type { BattleSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
   { label: "Most Played", value: "plays-desc" },
@@ -93,6 +101,142 @@ const formatFollowers = (followers: number) => {
   return followers.toLocaleString();
 };
 
+const matchesGenre = (battle: BattleSummary, genreValue: string) => {
+  const normalized = battle.genre
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-|-$/gu, "");
+
+  return normalized === genreValue;
+};
+
+function GenreBattleCard({
+  battle,
+  isPremiumUser,
+}: {
+  battle: BattleSummary;
+  isPremiumUser: boolean;
+}) {
+  const tracks = battle.tracks ?? [];
+
+  if (tracks.length >= 2) {
+    return (
+      <div className="w-[280px] shrink-0 md:w-[300px]">
+        <BattleCard
+          currentRound={battle.round?.current ?? 1}
+          genre={battle.genre}
+          id={battle.id}
+          isLive={battle.status === "live"}
+          isPremiumUser={isPremiumUser}
+          isVoting={battle.round?.isVoting ?? false}
+          joinMode={battle.joinMode}
+          phaseEndsAt={battle.phaseEndsAt}
+          queueSize={battle.queueSize}
+          title={battle.title}
+          totalRounds={battle.round?.total ?? 1}
+          track1={{
+            artist: tracks[0].artist,
+            cover: tracks[0].cover ?? "",
+            title: tracks[0].title,
+            votes: tracks[0].votes,
+          }}
+          track2={{
+            artist: tracks[1].artist,
+            cover: tracks[1].cover ?? "",
+            title: tracks[1].title,
+            votes: tracks[1].votes,
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      className="block w-[280px] shrink-0 md:w-[300px]"
+      params={{ id: battle.id }}
+      to="/live/battles/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="secondary">{battle.genre}</Badge>
+            <Badge
+              variant={battle.status === "live" ? "destructive" : "outline"}
+            >
+              {battle.status}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="line-clamp-2 font-semibold text-base">
+              {battle.title}
+            </h3>
+            <p className="mt-1 text-muted-foreground text-xs">
+              {battle.format.replaceAll("_", " ")}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <Eye className="size-3" />
+            {battle.viewerCount.toLocaleString()} viewers
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function GenreBattleRail({
+  battles,
+  empty,
+  isPremiumUser,
+}: {
+  battles: BattleSummary[];
+  empty: string;
+  isPremiumUser: boolean;
+}) {
+  if (battles.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+        {empty}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
+      <div className="flex gap-3 md:gap-4 min-w-max">
+        {battles.map((battle) => (
+          <GenreBattleCard
+            battle={battle}
+            isPremiumUser={isPremiumUser}
+            key={battle.id}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function useGenreBattles(genreValue: string) {
+  const { data: battles = [] } = useBattlesQuery();
+  const entitlementsQuery = useMeEntitlementsQuery();
+  const isPremiumUser = Boolean(
+    entitlementsQuery.data?.isPremium ||
+    entitlementsQuery.data?.canViewLiveBattles ||
+    entitlementsQuery.data?.canVoteLiveBattles
+  );
+  const genreBattles = battles.filter((battle) =>
+    matchesGenre(battle, genreValue)
+  );
+  const sections = {
+    live: genreBattles.filter((battle) => battle.status === "live"),
+    mustSee: genreBattles.filter((battle) => battle.status === "completed"),
+    upcoming: genreBattles.filter((battle) => battle.status === "scheduled"),
+  };
+
+  return { isPremiumUser, sections };
+}
+
 function GenreDetailPage() {
   const { id } = Route.useParams();
   const search = Route.useSearch();
@@ -171,6 +315,7 @@ function GenreDetailPage() {
     regionType,
     sort: "rank-asc",
   });
+  const { isPremiumUser, sections } = useGenreBattles(genre.queryGenre);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 space-y-8 md:space-y-10">
@@ -321,67 +466,11 @@ function GenreDetailPage() {
       {/* Live Battles */}
       <section>
         <SectionHeader title="Live Battles" description="Watch and vote now" />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-          <div className="flex gap-3 md:gap-4 min-w-max">
-            <BattleCard
-              id="battle-1"
-              title={`${genre.name} Showdown`}
-              track1={{
-                artist: "Artist A",
-                cover: "/summer-music-album-cover.png",
-                title: "Track One",
-                votes: 1247,
-              }}
-              track2={{
-                artist: "Artist B",
-                cover: "/night-music-album-cover.png",
-                title: "Track Two",
-                votes: 1089,
-              }}
-              endsIn="2h 34m"
-              genre={genre.name}
-              live
-            />
-            <BattleCard
-              id="battle-2"
-              title={`${genre.name} Challenge`}
-              track1={{
-                artist: "Artist C",
-                cover: "/hip-hop-album-cover.png",
-                title: "Track Three",
-                votes: 892,
-              }}
-              track2={{
-                artist: "Artist D",
-                cover: "/summer-music-album-cover.png",
-                title: "Track Four",
-                votes: 756,
-              }}
-              endsIn="1h 18m"
-              genre={genre.name}
-              live
-            />
-            <BattleCard
-              id="battle-3"
-              title="Beat Battle"
-              track1={{
-                artist: "Luna Eclipse",
-                cover: "/night-music-album-cover.png",
-                title: "Rhythm Fire",
-                votes: 654,
-              }}
-              track2={{
-                artist: "Neon Pulse",
-                cover: "/hip-hop-album-cover.png",
-                title: "Bass Drop",
-                votes: 589,
-              }}
-              endsIn="45m"
-              genre={genre.name}
-              live
-            />
-          </div>
-        </div>
+        <GenreBattleRail
+          battles={sections.live}
+          empty={`No ${genre.name} battles are live right now.`}
+          isPremiumUser={isPremiumUser}
+        />
       </section>
 
       {/* Upcoming Battles */}
@@ -390,46 +479,11 @@ function GenreDetailPage() {
           title="Upcoming Battles"
           description="Get ready to vote"
         />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-          <div className="flex gap-3 md:gap-4 min-w-max">
-            <BattleCard
-              id="battle-4"
-              title={`${genre.name} Finals`}
-              track1={{
-                artist: "Street Poet",
-                cover: "/summer-music-album-cover.png",
-                title: "Champion Sound",
-                votes: 0,
-              }}
-              track2={{
-                artist: "Voltage Dreams",
-                cover: "/night-music-album-cover.png",
-                title: "Victory Lap",
-                votes: 0,
-              }}
-              startsIn="3h 20m"
-              genre={genre.name}
-            />
-            <BattleCard
-              id="battle-5"
-              title="Producer Clash"
-              track1={{
-                artist: "Cosmic Waves",
-                cover: "/hip-hop-album-cover.png",
-                title: "Beat Master",
-                votes: 0,
-              }}
-              track2={{
-                artist: "Rhythm Master",
-                cover: "/summer-music-album-cover.png",
-                title: "Rhythm King",
-                votes: 0,
-              }}
-              startsIn="6h 45m"
-              genre={genre.name}
-            />
-          </div>
-        </div>
+        <GenreBattleRail
+          battles={sections.upcoming}
+          empty={`No ${genre.name} battles are scheduled yet.`}
+          isPremiumUser={isPremiumUser}
+        />
       </section>
 
       {/* Must See Battles */}
@@ -438,64 +492,11 @@ function GenreDetailPage() {
           title="Must See Battles"
           description="Most watched battles"
         />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-          <div className="flex gap-3 md:gap-4 min-w-max">
-            <BattleCard
-              id="battle-6"
-              title="Epic Clash"
-              track1={{
-                artist: "Luna Eclipse",
-                cover: "/night-music-album-cover.png",
-                title: "Legendary",
-                votes: 15_234,
-              }}
-              track2={{
-                artist: "Street Poet",
-                cover: "/hip-hop-album-cover.png",
-                title: "Immortal",
-                votes: 14_876,
-              }}
-              views="245K"
-              genre={genre.name}
-            />
-            <BattleCard
-              id="battle-7"
-              title="Battle of the Year"
-              track1={{
-                artist: "Neon Pulse",
-                cover: "/summer-music-album-cover.png",
-                title: "Unstoppable",
-                votes: 12_456,
-              }}
-              track2={{
-                artist: "Voltage Dreams",
-                cover: "/night-music-album-cover.png",
-                title: "Invincible",
-                votes: 11_987,
-              }}
-              views="189K"
-              genre={genre.name}
-            />
-            <BattleCard
-              id="battle-8"
-              title="Greatest Hits"
-              track1={{
-                artist: "Cosmic Waves",
-                cover: "/hip-hop-album-cover.png",
-                title: "Classic",
-                votes: 9876,
-              }}
-              track2={{
-                artist: "Rhythm Master",
-                cover: "/summer-music-album-cover.png",
-                title: "Timeless",
-                votes: 9543,
-              }}
-              views="167K"
-              genre={genre.name}
-            />
-          </div>
-        </div>
+        <GenreBattleRail
+          battles={sections.mustSee}
+          empty={`No completed ${genre.name} battles yet.`}
+          isPremiumUser={isPremiumUser}
+        />
       </section>
     </div>
   );
