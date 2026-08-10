@@ -27,6 +27,7 @@ export interface PlayerTrack {
 }
 
 interface AudioPlayerContextValue {
+  addToQueue: (track: PlayerTrack) => boolean;
   currentTrack: PlayerTrack | null;
   isPlaying: boolean;
   queue: PlayerTrack[];
@@ -150,8 +151,20 @@ export function AudioPlayerProvider({
     setVisible(Boolean(track));
   }, []);
 
+  const addToQueue = useCallback(
+    (track: PlayerTrack) => {
+      if (queue.some((item) => item.id === track.id)) {
+        return false;
+      }
+      setQueue([...queue, track]);
+      return true;
+    },
+    [queue]
+  );
+
   const value = useMemo(
     () => ({
+      addToQueue,
       currentTrack,
       isPlaying,
       queue,
@@ -164,6 +177,7 @@ export function AudioPlayerProvider({
       visible,
     }),
     [
+      addToQueue,
       currentTrack,
       isPlaying,
       handleSetCurrentTrack,

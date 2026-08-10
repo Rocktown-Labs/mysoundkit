@@ -1,70 +1,321 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { ArrowLeft, Eye } from "lucide-react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { BattleCard } from "@/components/explore/battle-card";
+import { BattleFilters } from "@/components/explore/battle-filters";
 import { SectionHeader } from "@/components/explore/section-header";
 import { TrackCard } from "@/components/explore/track-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { musicGenres } from "@/lib/music-genres";
+import {
+  useArtistsQuery,
+  useBattlesQuery,
+  useMeEntitlementsQuery,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
+import type { BattleSummary } from "@/lib/soundkit-api-hooks";
+
+const sortOptions = [
+  { label: "Most Played", value: "plays-desc" },
+  { label: "Least Played", value: "plays-asc" },
+  { label: "Newest", value: "date-desc" },
+  { label: "Oldest", value: "date-asc" },
+  { label: "Title (A-Z)", value: "title-asc" },
+  { label: "Title (Z-A)", value: "title-desc" },
+];
 
 const genreData: Record<
   string,
-  { name: string; emoji: string; description: string }
+  { name: string; emoji: string; description: string; queryGenre: string }
 > = {
   afrobeats: {
     description: "African rhythms and melodies",
     emoji: "🥁",
     name: "Afrobeats",
+    queryGenre: "afrobeats",
   },
   electronic: {
     description: "Digital sounds and beats",
     emoji: "🎹",
     name: "Electronic",
+    queryGenre: "electronic",
   },
   "hip-hop": {
     description: "Beats, rhymes, and culture",
     emoji: "🎤",
     name: "Hip-Hop",
+    queryGenre: "hip-hop-rap",
   },
   jazz: {
     description: "Improvisation and swing",
     emoji: "🎺",
     name: "Jazz",
+    queryGenre: "jazz",
   },
   latin: {
     description: "Latin rhythms and passion",
     emoji: "💃",
     name: "Latin",
+    queryGenre: "latin",
   },
   pop: {
     description: "Chart-topping hits",
     emoji: "⭐",
     name: "Pop",
+    queryGenre: "pop",
   },
   "rb-soul": {
     description: "Smooth vibes and soulful vocals",
     emoji: "🎵",
     name: "R&B/Soul",
+    queryGenre: "rb-soul",
   },
   rock: {
     description: "Guitar-driven anthems",
     emoji: "🎸",
     name: "Rock",
+    queryGenre: "rock",
   },
 };
 
 export const Route = createFileRoute("/_explore/genres/$id")({
   component: GenreDetailPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType: search.regionType === "global" ? "global" : "north-america",
+    sort: typeof search.sort === "string" ? search.sort : undefined,
+  }),
 });
+
+const genreRouteIdFromValue = (value: string) =>
+  value === "hip-hop-rap" ? "hip-hop" : value;
+
+const formatFollowers = (followers: number) => {
+  if (followers >= 1000) {
+    return `${Math.round(followers / 1000)}K`;
+  }
+
+  return followers.toLocaleString();
+};
+
+const matchesGenre = (battle: BattleSummary, genreValue: string) => {
+  const normalized = battle.genre
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-|-$/gu, "");
+
+  return normalized === genreValue;
+};
+
+function GenreBattleCard({
+  battle,
+  isPremiumUser,
+}: {
+  battle: BattleSummary;
+  isPremiumUser: boolean;
+}) {
+  const tracks = battle.tracks ?? [];
+
+  if (tracks.length >= 2) {
+    return (
+      <div className="w-[280px] shrink-0 md:w-[300px]">
+        <BattleCard
+          currentRound={battle.round?.current ?? 1}
+          genre={battle.genre}
+          id={battle.id}
+          isLive={battle.status === "live"}
+          isPremiumUser={isPremiumUser}
+          isVoting={battle.round?.isVoting ?? false}
+          joinMode={battle.joinMode}
+          phaseEndsAt={battle.phaseEndsAt}
+          queueSize={battle.queueSize}
+          title={battle.title}
+          totalRounds={battle.round?.total ?? 1}
+          track1={{
+            artist: tracks[0].artist,
+            cover: tracks[0].cover ?? "",
+            title: tracks[0].title,
+            votes: tracks[0].votes,
+          }}
+          track2={{
+            artist: tracks[1].artist,
+            cover: tracks[1].cover ?? "",
+            title: tracks[1].title,
+            votes: tracks[1].votes,
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      className="block w-[280px] shrink-0 md:w-[300px]"
+      params={{ id: battle.id }}
+      to="/live/battles/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="secondary">{battle.genre}</Badge>
+            <Badge
+              variant={battle.status === "live" ? "destructive" : "outline"}
+            >
+              {battle.status}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="line-clamp-2 font-semibold text-base">
+              {battle.title}
+            </h3>
+            <p className="mt-1 text-muted-foreground text-xs">
+              {battle.format.replaceAll("_", " ")}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <Eye className="size-3" />
+            {battle.viewerCount.toLocaleString()} viewers
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function GenreBattleRail({
+  battles,
+  empty,
+  isPremiumUser,
+}: {
+  battles: BattleSummary[];
+  empty: string;
+  isPremiumUser: boolean;
+}) {
+  if (battles.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+        {empty}
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
+      <div className="flex gap-3 md:gap-4 min-w-max">
+        {battles.map((battle) => (
+          <GenreBattleCard
+            battle={battle}
+            isPremiumUser={isPremiumUser}
+            key={battle.id}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function useGenreBattles(genreValue: string) {
+  const { data: battles = [] } = useBattlesQuery();
+  const entitlementsQuery = useMeEntitlementsQuery();
+  const isPremiumUser = Boolean(
+    entitlementsQuery.data?.isPremium ||
+    entitlementsQuery.data?.canViewLiveBattles ||
+    entitlementsQuery.data?.canVoteLiveBattles
+  );
+  const genreBattles = battles.filter((battle) =>
+    matchesGenre(battle, genreValue)
+  );
+  const sections = {
+    live: genreBattles.filter((battle) => battle.status === "live"),
+    mustSee: genreBattles.filter((battle) => battle.status === "completed"),
+    upcoming: genreBattles.filter((battle) => battle.status === "scheduled"),
+  };
+
+  return { isPremiumUser, sections };
+}
 
 function GenreDetailPage() {
   const { id } = Route.useParams();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const router = useRouter();
+  const genreOption = musicGenres.find(
+    (option) => genreRouteIdFromValue(option.value) === id
+  );
   const genre = genreData[id] || {
     description: "",
     emoji: "🎵",
-    name: "Genre",
+    name: genreOption?.label ?? "Genre",
+    queryGenre: genreOption?.value ?? id,
   };
+
+  const savedRegionType =
+    typeof window === "undefined"
+      ? null
+      : (localStorage.getItem("exploreRegionType") as
+          | "north-america"
+          | "global"
+          | null);
+  const savedRegion =
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem("exploreRegion");
+
+  const regionType = search.regionType ?? savedRegionType ?? "north-america";
+  const region = search.region ?? savedRegion ?? "us-arkansas";
+  const sort = search.sort ?? "plays-desc";
+
+  const updateFilters = (next: {
+    region?: string;
+    regionType?: "north-america" | "global";
+    sort?: string;
+  }) => {
+    const nextRegionType = next.regionType ?? regionType;
+    const nextRegion = next.region ?? region;
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("exploreRegionType", nextRegionType);
+      localStorage.setItem("exploreRegion", nextRegion);
+    }
+
+    navigate({
+      replace: true,
+      search: {
+        region: nextRegion,
+        regionType: nextRegionType,
+        sort: next.sort ?? sort,
+      },
+    });
+  };
+
+  const { data: topTracks = [] } = useTracksQuery(undefined, {
+    genre: genre.queryGenre,
+    limit: 12,
+    region,
+    regionType,
+    scope: "public",
+    sort,
+  });
+  const { data: newTracks = [] } = useTracksQuery(undefined, {
+    genre: genre.queryGenre,
+    limit: 12,
+    region,
+    regionType,
+    scope: "public",
+    sort: "date-desc",
+  });
+  const { data: topArtists = [] } = useArtistsQuery({
+    category: "top",
+    genre: genre.queryGenre,
+    limit: 12,
+    region,
+    regionType,
+    sort: "rank-asc",
+  });
+  const { isPremiumUser, sections } = useGenreBattles(genre.queryGenre);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 space-y-8 md:space-y-10">
@@ -94,6 +345,35 @@ function GenreDetailPage() {
         </div>
       </div>
 
+      <BattleFilters
+        regionType={regionType}
+        region={region}
+        genre={genre.queryGenre}
+        sort={sort}
+        onRegionTypeChange={(nextRegionType) =>
+          updateFilters({ regionType: nextRegionType })
+        }
+        onRegionChange={(nextRegion) => updateFilters({ region: nextRegion })}
+        onGenreChange={(nextGenre) => {
+          if (nextGenre === "all") {
+            router.navigate({ to: "/genres" });
+            return;
+          }
+
+          router.navigate({
+            params: { id: genreRouteIdFromValue(nextGenre) },
+            search: {
+              region,
+              regionType,
+              sort,
+            },
+            to: "/genres/$id",
+          });
+        }}
+        onSortChange={(nextSort) => updateFilters({ sort: nextSort })}
+        sortOptions={sortOptions}
+      />
+
       {/* Top Tracks */}
       <section>
         <SectionHeader
@@ -102,60 +382,24 @@ function GenreDetailPage() {
         />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
-            <TrackCard
-              id="track-1"
-              title="Summer Nights"
-              artist="Luna Eclipse"
-              artistSlug="luna-eclipse"
-              cover="/summer-music-album-cover.png"
-              plays="2.4M"
-              duration="3:24"
-            />
-            <TrackCard
-              id="track-2"
-              title="Midnight Dreams"
-              artist="Neon Pulse"
-              artistSlug="neon-pulse"
-              cover="/night-music-album-cover.png"
-              plays="1.8M"
-              duration="4:12"
-            />
-            <TrackCard
-              id="track-3"
-              title="Urban Legends"
-              artist="Street Poet"
-              artistSlug="street-poet"
-              cover="/hip-hop-album-cover.png"
-              plays="3.1M"
-              duration="3:45"
-            />
-            <TrackCard
-              id="track-4"
-              title="Electric Soul"
-              artist="Voltage Dreams"
-              artistSlug="voltage-dreams"
-              cover="/summer-music-album-cover.png"
-              plays="1.2M"
-              duration="3:56"
-            />
-            <TrackCard
-              id="track-5"
-              title="Neon Lights"
-              artist="Luna Eclipse"
-              artistSlug="luna-eclipse"
-              cover="/night-music-album-cover.png"
-              plays="1.9M"
-              duration="3:30"
-            />
-            <TrackCard
-              id="track-6"
-              title="City Vibes"
-              artist="Street Poet"
-              artistSlug="street-poet"
-              cover="/hip-hop-album-cover.png"
-              plays="2.2M"
-              duration="4:05"
-            />
+            {topTracks.length > 0 ? (
+              topTracks.map((track) => (
+                <TrackCard
+                  key={track.id}
+                  id={track.id}
+                  title={track.title}
+                  artist={track.artistName}
+                  artistSlug={track.artistUsername ?? "artist"}
+                  cover={track.coverArtUrl ?? "/placeholder.svg"}
+                  plays={track.plays.toLocaleString()}
+                  duration={track.duration}
+                  regionSlug={track.regionSlug}
+                  slug={track.slug}
+                />
+              ))
+            ) : (
+              <GenreTrackEmptyState genreName={genre.name} />
+            )}
           </div>
         </div>
       </section>
@@ -168,51 +412,24 @@ function GenreDetailPage() {
         />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
-            <TrackCard
-              id="track-7"
-              title="Rising Star"
-              artist="Voltage Dreams"
-              artistSlug="voltage-dreams"
-              cover="/summer-music-album-cover.png"
-              plays="45K"
-              duration="3:18"
-            />
-            <TrackCard
-              id="track-8"
-              title="New Wave"
-              artist="Neon Pulse"
-              artistSlug="neon-pulse"
-              cover="/night-music-album-cover.png"
-              plays="67K"
-              duration="3:52"
-            />
-            <TrackCard
-              id="track-9"
-              title="Breaking Through"
-              artist="Luna Eclipse"
-              artistSlug="luna-eclipse"
-              cover="/hip-hop-album-cover.png"
-              plays="89K"
-              duration="4:20"
-            />
-            <TrackCard
-              id="track-10"
-              title="Fresh Start"
-              artist="Street Poet"
-              artistSlug="street-poet"
-              cover="/summer-music-album-cover.png"
-              plays="52K"
-              duration="3:45"
-            />
-            <TrackCard
-              id="track-11"
-              title="Morning Light"
-              artist="Voltage Dreams"
-              artistSlug="voltage-dreams"
-              cover="/night-music-album-cover.png"
-              plays="38K"
-              duration="3:15"
-            />
+            {newTracks.length > 0 ? (
+              newTracks.map((track) => (
+                <TrackCard
+                  key={track.id}
+                  id={track.id}
+                  title={track.title}
+                  artist={track.artistName}
+                  artistSlug={track.artistUsername ?? "artist"}
+                  cover={track.coverArtUrl ?? "/placeholder.svg"}
+                  plays={track.plays.toLocaleString()}
+                  duration={track.duration}
+                  regionSlug={track.regionSlug}
+                  slug={track.slug}
+                />
+              ))
+            ) : (
+              <GenreTrackEmptyState genreName={genre.name} />
+            )}
           </div>
         </div>
       </section>
@@ -225,51 +442,23 @@ function GenreDetailPage() {
         />
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
           <div className="flex gap-3 md:gap-4 min-w-max">
-            <ArtistCard
-              slug="luna-eclipse"
-              name="Luna Eclipse"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="124K"
-              verified
-            />
-            <ArtistCard
-              slug="neon-pulse"
-              name="Neon Pulse"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="89K"
-            />
-            <ArtistCard
-              slug="street-poet"
-              name="Street Poet"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="256K"
-              verified
-            />
-            <ArtistCard
-              slug="voltage-dreams"
-              name="Voltage Dreams"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="67K"
-            />
-            <ArtistCard
-              slug="cosmic-waves"
-              name="Cosmic Waves"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="145K"
-              verified
-            />
-            <ArtistCard
-              slug="rhythm-master"
-              name="Rhythm Master"
-              avatar="/diverse-user-avatars.png"
-              genre={genre.name}
-              followers="98K"
-            />
+            {topArtists.length > 0 ? (
+              topArtists.map((artist) => (
+                <ArtistCard
+                  key={artist.username}
+                  slug={artist.username}
+                  name={artist.name}
+                  avatar={artist.avatarUrl ?? "/diverse-user-avatars.png"}
+                  genre={artist.genre}
+                  followers={formatFollowers(artist.followers)}
+                  verified={artist.verified}
+                />
+              ))
+            ) : (
+              <div className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
+                No {genre.name} artists found yet.
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -277,67 +466,11 @@ function GenreDetailPage() {
       {/* Live Battles */}
       <section>
         <SectionHeader title="Live Battles" description="Watch and vote now" />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-          <div className="flex gap-3 md:gap-4 min-w-max">
-            <BattleCard
-              id="battle-1"
-              title={`${genre.name} Showdown`}
-              track1={{
-                artist: "Artist A",
-                cover: "/summer-music-album-cover.png",
-                title: "Track One",
-                votes: 1247,
-              }}
-              track2={{
-                artist: "Artist B",
-                cover: "/night-music-album-cover.png",
-                title: "Track Two",
-                votes: 1089,
-              }}
-              endsIn="2h 34m"
-              genre={genre.name}
-              live
-            />
-            <BattleCard
-              id="battle-2"
-              title={`${genre.name} Challenge`}
-              track1={{
-                artist: "Artist C",
-                cover: "/hip-hop-album-cover.png",
-                title: "Track Three",
-                votes: 892,
-              }}
-              track2={{
-                artist: "Artist D",
-                cover: "/summer-music-album-cover.png",
-                title: "Track Four",
-                votes: 756,
-              }}
-              endsIn="1h 18m"
-              genre={genre.name}
-              live
-            />
-            <BattleCard
-              id="battle-3"
-              title="Beat Battle"
-              track1={{
-                artist: "Luna Eclipse",
-                cover: "/night-music-album-cover.png",
-                title: "Rhythm Fire",
-                votes: 654,
-              }}
-              track2={{
-                artist: "Neon Pulse",
-                cover: "/hip-hop-album-cover.png",
-                title: "Bass Drop",
-                votes: 589,
-              }}
-              endsIn="45m"
-              genre={genre.name}
-              live
-            />
-          </div>
-        </div>
+        <GenreBattleRail
+          battles={sections.live}
+          empty={`No ${genre.name} battles are live right now.`}
+          isPremiumUser={isPremiumUser}
+        />
       </section>
 
       {/* Upcoming Battles */}
@@ -346,46 +479,11 @@ function GenreDetailPage() {
           title="Upcoming Battles"
           description="Get ready to vote"
         />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-          <div className="flex gap-3 md:gap-4 min-w-max">
-            <BattleCard
-              id="battle-4"
-              title={`${genre.name} Finals`}
-              track1={{
-                artist: "Street Poet",
-                cover: "/summer-music-album-cover.png",
-                title: "Champion Sound",
-                votes: 0,
-              }}
-              track2={{
-                artist: "Voltage Dreams",
-                cover: "/night-music-album-cover.png",
-                title: "Victory Lap",
-                votes: 0,
-              }}
-              startsIn="3h 20m"
-              genre={genre.name}
-            />
-            <BattleCard
-              id="battle-5"
-              title="Producer Clash"
-              track1={{
-                artist: "Cosmic Waves",
-                cover: "/hip-hop-album-cover.png",
-                title: "Beat Master",
-                votes: 0,
-              }}
-              track2={{
-                artist: "Rhythm Master",
-                cover: "/summer-music-album-cover.png",
-                title: "Rhythm King",
-                votes: 0,
-              }}
-              startsIn="6h 45m"
-              genre={genre.name}
-            />
-          </div>
-        </div>
+        <GenreBattleRail
+          battles={sections.upcoming}
+          empty={`No ${genre.name} battles are scheduled yet.`}
+          isPremiumUser={isPremiumUser}
+        />
       </section>
 
       {/* Must See Battles */}
@@ -394,65 +492,20 @@ function GenreDetailPage() {
           title="Must See Battles"
           description="Most watched battles"
         />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0">
-          <div className="flex gap-3 md:gap-4 min-w-max">
-            <BattleCard
-              id="battle-6"
-              title="Epic Clash"
-              track1={{
-                artist: "Luna Eclipse",
-                cover: "/night-music-album-cover.png",
-                title: "Legendary",
-                votes: 15_234,
-              }}
-              track2={{
-                artist: "Street Poet",
-                cover: "/hip-hop-album-cover.png",
-                title: "Immortal",
-                votes: 14_876,
-              }}
-              views="245K"
-              genre={genre.name}
-            />
-            <BattleCard
-              id="battle-7"
-              title="Battle of the Year"
-              track1={{
-                artist: "Neon Pulse",
-                cover: "/summer-music-album-cover.png",
-                title: "Unstoppable",
-                votes: 12_456,
-              }}
-              track2={{
-                artist: "Voltage Dreams",
-                cover: "/night-music-album-cover.png",
-                title: "Invincible",
-                votes: 11_987,
-              }}
-              views="189K"
-              genre={genre.name}
-            />
-            <BattleCard
-              id="battle-8"
-              title="Greatest Hits"
-              track1={{
-                artist: "Cosmic Waves",
-                cover: "/hip-hop-album-cover.png",
-                title: "Classic",
-                votes: 9876,
-              }}
-              track2={{
-                artist: "Rhythm Master",
-                cover: "/summer-music-album-cover.png",
-                title: "Timeless",
-                votes: 9543,
-              }}
-              views="167K"
-              genre={genre.name}
-            />
-          </div>
-        </div>
+        <GenreBattleRail
+          battles={sections.mustSee}
+          empty={`No completed ${genre.name} battles yet.`}
+          isPremiumUser={isPremiumUser}
+        />
       </section>
+    </div>
+  );
+}
+
+function GenreTrackEmptyState({ genreName }: { genreName: string }) {
+  return (
+    <div className="w-80 rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+      No {genreName} tracks are live yet.
     </div>
   );
 }

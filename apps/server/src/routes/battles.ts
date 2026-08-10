@@ -1,21 +1,24 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistProfiles,
   battleChallenges,
   battleRounds,
   battleStats,
   battles,
   genres,
+  trackAssets,
   trackLyrics,
   tracks,
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { notifyBattleChallengeEmail } from "@/lib/email-events";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -28,26 +31,199 @@ import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
   battleEligibilitySchema,
+  battleChallengesResponseSchema,
   battleSummarySchema,
   createChallengeBodySchema,
   messageResponseSchema,
+  updateBattleChallengeBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
 const featuredBattleLimit = 6;
+const battleTotalRoundsByFormat = {
+  best_of_3: 3,
+  best_of_5: 5,
+  best_of_7: 7,
+} as const;
+
+interface BattleFeedRow {
+  format: "best_of_3" | "best_of_5" | "best_of_7";
+  genre: string;
+  id: string;
+  status: "scheduled" | "live" | "completed" | "archived";
+  title: string;
+  viewerCount: number;
+  visibility: "public" | "premium_only";
+}
+
+interface BattleFeedRound {
+  battleId: string;
+  id: string;
+  isTiebreaker: boolean;
+  roundNumber: number;
+  status: "upcoming" | "active" | "completed";
+  trackOneId: null | string;
+  trackOneVotes: number;
+  trackTwoId: null | string;
+  trackTwoVotes: number;
+  votingEndsAt: Date | null;
+}
+
+interface BattleFeedTrack {
+  artist: string;
+  cover: null | string;
+  id: string;
+  title: string;
+}
+
+const objectUrlFromMetadata = (metadata: unknown) => {
+  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+    return null;
+  }
+
+  const { url } = metadata as { url?: unknown };
+  return typeof url === "string" ? url : null;
+};
+
+const selectCurrentRound = (rounds: BattleFeedRound[]) =>
+  rounds.find((round) => round.status === "active") ??
+  rounds.find((round) => round.status === "upcoming") ??
+  rounds.at(-1) ??
+  null;
+
+const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
+  if (battleRows.length === 0) {
+    return [];
+  }
+
+  const db = createDb();
+  const battleIds = battleRows.map((battle) => battle.id);
+  const roundRows = await db
+    .select({
+      battleId: battleRounds.battleId,
+      id: battleRounds.id,
+      isTiebreaker: battleRounds.isTiebreaker,
+      roundNumber: battleRounds.roundNumber,
+      status: battleRounds.status,
+      trackOneId: battleRounds.trackOneId,
+      trackOneVotes: battleRounds.trackOneVotes,
+      trackTwoId: battleRounds.trackTwoId,
+      trackTwoVotes: battleRounds.trackTwoVotes,
+      votingEndsAt: battleRounds.votingEndsAt,
+    })
+    .from(battleRounds)
+    .where(inArray(battleRounds.battleId, battleIds))
+    .orderBy(asc(battleRounds.roundNumber));
+  const roundsByBattleId = new Map<string, BattleFeedRound[]>();
+
+  for (const round of roundRows) {
+    const rounds = roundsByBattleId.get(round.battleId) ?? [];
+    rounds.push(round);
+    roundsByBattleId.set(round.battleId, rounds);
+  }
+
+  const trackIds = [
+    ...new Set(
+      roundRows
+        .flatMap((round) => [round.trackOneId, round.trackTwoId])
+        .filter((trackId): trackId is string => Boolean(trackId))
+    ),
+  ];
+  const trackById = new Map<string, BattleFeedTrack>();
+
+  if (trackIds.length > 0) {
+    const [trackRows, coverRows] = await Promise.all([
+      db
+        .select({
+          artistName: userProfiles.displayName,
+          id: tracks.id,
+          title: tracks.title,
+        })
+        .from(tracks)
+        .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+        .where(inArray(tracks.id, trackIds)),
+      db
+        .select({
+          metadata: trackAssets.metadata,
+          trackId: trackAssets.trackId,
+        })
+        .from(trackAssets)
+        .where(
+          and(
+            inArray(trackAssets.trackId, trackIds),
+            eq(trackAssets.assetKind, "cover_art")
+          )
+        ),
+    ]);
+    const coverByTrackId = new Map(
+      coverRows.map((asset) => [
+        asset.trackId,
+        objectUrlFromMetadata(asset.metadata),
+      ])
+    );
+
+    for (const track of trackRows) {
+      trackById.set(track.id, {
+        artist: track.artistName ?? "SoundKit Artist",
+        cover: coverByTrackId.get(track.id) ?? null,
+        id: track.id,
+        title: track.title,
+      });
+    }
+  }
+
+  return battleRows.map((battle) => {
+    const rounds = roundsByBattleId.get(battle.id) ?? [];
+    const currentRound = selectCurrentRound(rounds);
+    const roundTracks = currentRound
+      ? [
+          currentRound.trackOneId
+            ? {
+                ...trackById.get(currentRound.trackOneId),
+                votes: currentRound.trackOneVotes,
+              }
+            : null,
+          currentRound.trackTwoId
+            ? {
+                ...trackById.get(currentRound.trackTwoId),
+                votes: currentRound.trackTwoVotes,
+              }
+            : null,
+        ].filter(
+          (
+            track
+          ): track is BattleFeedTrack & {
+            votes: number;
+          } => Boolean(track?.id)
+        )
+      : [];
+
+    return {
+      ...battle,
+      joinMode:
+        battle.status === "live" && currentRound?.status === "active"
+          ? ("waiting_room" as const)
+          : ("watch_now" as const),
+      phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
+      queueSize: 0,
+      round: currentRound
+        ? {
+            current: currentRound.roundNumber,
+            id: currentRound.id,
+            isVoting: currentRound.status === "active",
+            status: currentRound.status,
+            total: battleTotalRoundsByFormat[battle.format],
+          }
+        : null,
+      tracks: roundTracks,
+    };
+  });
+};
 
 const rankFeaturedBattles = (
-  battleRows: {
-    format: "best_of_3" | "best_of_5" | "best_of_7";
-    genre: string;
-    id: string;
-    status: "scheduled" | "live" | "completed" | "archived";
-    title: string;
-    viewerCount: number;
-    visibility: "public" | "premium_only";
-  }[]
+  battleRows: Awaited<ReturnType<typeof enrichBattleFeedRows>>
 ) => {
   const featuredIds = new Map(
     battleRows
@@ -81,7 +257,7 @@ app.openapi(
   }),
   async (c) => {
     if (!isDatabaseConfigured()) {
-      return c.json(rankFeaturedBattles(sampleBattles), HttpStatusCodes.OK);
+      return c.json(sampleBattles, HttpStatusCodes.OK);
     }
 
     const db = createDb();
@@ -99,15 +275,14 @@ app.openapi(
       .leftJoin(genres, eq(genres.id, battles.genreId))
       .orderBy(desc(battles.viewerCount));
 
-    return c.json(
-      rankFeaturedBattles(
-        rows.map((row) => ({
-          ...row,
-          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
-        }))
-      ),
-      HttpStatusCodes.OK
+    const enrichedRows = await enrichBattleFeedRows(
+      rows.map((row) => ({
+        ...row,
+        genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+      }))
     );
+
+    return c.json(rankFeaturedBattles(enrichedRows), HttpStatusCodes.OK);
   }
 );
 
@@ -251,6 +426,197 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "get",
+    path: "/challenges",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        battleChallengesResponseSchema,
+        "Battle challenges"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ incoming: [], outgoing: [] }, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const rows = await db
+      .select({
+        challengerUserId: battleChallenges.challengerUserId,
+        createdAt: battleChallenges.createdAt,
+        format: battleChallenges.format,
+        genre: genres.name,
+        id: battleChallenges.id,
+        message: battleChallenges.message,
+        opponentArtistUserId: battleChallenges.opponentArtistUserId,
+        opponentUsernameSnapshot: battleChallenges.opponentUsernameSnapshot,
+        proposedDate: battleChallenges.proposedDate,
+        proposedTimeLabel: battleChallenges.proposedTimeLabel,
+        status: battleChallenges.status,
+      })
+      .from(battleChallenges)
+      .leftJoin(genres, eq(genres.id, battleChallenges.genreId))
+      .where(
+        or(
+          eq(battleChallenges.challengerUserId, user.id),
+          eq(battleChallenges.opponentArtistUserId, user.id)
+        )
+      )
+      .orderBy(desc(battleChallenges.createdAt));
+
+    const profileIds = [
+      ...new Set(
+        rows
+          .flatMap((row) => [row.challengerUserId, row.opponentArtistUserId])
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const profiles =
+      profileIds.length > 0
+        ? await db
+            .select({
+              userId: userProfiles.userId,
+              username: userProfiles.username,
+            })
+            .from(userProfiles)
+            .where(inArray(userProfiles.userId, profileIds))
+        : [];
+    const usernameByUserId = new Map(
+      profiles.map((profile) => [profile.userId, profile.username])
+    );
+
+    const challenges = rows.map((row) => {
+      const direction =
+        row.opponentArtistUserId === user.id
+          ? ("incoming" as const)
+          : ("outgoing" as const);
+
+      return {
+        challengerUsername: usernameByUserId.get(row.challengerUserId) ?? null,
+        createdAt: row.createdAt.toISOString(),
+        direction,
+        format: row.format,
+        genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+        id: row.id,
+        message: row.message,
+        opponentUsername:
+          row.opponentUsernameSnapshot ??
+          (row.opponentArtistUserId
+            ? (usernameByUserId.get(row.opponentArtistUserId) ?? null)
+            : null),
+        proposedDate: row.proposedDate?.toISOString() ?? null,
+        proposedTimeLabel: row.proposedTimeLabel,
+        status: row.status,
+      };
+    });
+
+    return c.json(
+      {
+        incoming: challenges.filter(
+          (challenge) => challenge.direction === "incoming"
+        ),
+        outgoing: challenges.filter(
+          (challenge) => challenge.direction === "outgoing"
+        ),
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/challenges/{challengeId}",
+    request: {
+      body: jsonContentRequired(
+        updateBattleChallengeBodySchema,
+        "Battle challenge status"
+      ),
+      params: z.object({
+        challengeId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Battle challenge updated"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle challenge not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Battle challenge not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { challengeId } = c.req.valid("param");
+    const { status } = c.req.valid("json");
+    const db = createDb();
+    const [challenge] = await db
+      .select({
+        challengerUserId: battleChallenges.challengerUserId,
+        opponentArtistUserId: battleChallenges.opponentArtistUserId,
+      })
+      .from(battleChallenges)
+      .where(eq(battleChallenges.id, challengeId))
+      .limit(1);
+
+    const canUpdate =
+      challenge &&
+      (challenge.opponentArtistUserId === user.id ||
+        (status === "canceled" && challenge.challengerUserId === user.id));
+
+    if (!canUpdate) {
+      return c.json(
+        { message: "Battle challenge not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    await db
+      .update(battleChallenges)
+      .set({ status })
+      .where(eq(battleChallenges.id, challengeId));
+
+    return c.json(
+      { message: `Battle challenge ${status}.` },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "post",
     path: "/challenge",
     request: {
@@ -271,6 +637,10 @@ app.openapi(
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Opponent artist not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database is not configured"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
@@ -306,8 +676,8 @@ app.openapi(
 
     if (!isDatabaseConfigured()) {
       return c.json(
-        { message: `Challenge created for ${opponentUsername}` },
-        HttpStatusCodes.CREATED
+        { message: "Database is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
       );
     }
 
@@ -335,8 +705,13 @@ app.openapi(
     }
 
     const [opponentProfile] = await db
-      .select({ userId: userProfiles.userId })
+      .select({
+        primaryGenreSlug: genres.slug,
+        userId: userProfiles.userId,
+      })
       .from(userProfiles)
+      .innerJoin(artistProfiles, eq(artistProfiles.userId, userProfiles.userId))
+      .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
       .where(
         and(
           eq(userProfiles.accountType, "artist"),
@@ -352,6 +727,16 @@ app.openapi(
       );
     }
 
+    if (opponentProfile.primaryGenreSlug !== genreSlug) {
+      return c.json(
+        {
+          message:
+            "Battle challenges must match the opponent artist's primary genre.",
+        },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
     const parsedProposedDate = body.proposedDate
       ? new Date(body.proposedDate)
       : null;
@@ -360,12 +745,13 @@ app.openapi(
         ? parsedProposedDate
         : null;
 
+    const challengeId = crypto.randomUUID();
     await db.insert(battleChallenges).values({
       challengerOrganizationId: organizationId,
       challengerUserId: user.id,
       format: body.format,
       genreId,
-      id: crypto.randomUUID(),
+      id: challengeId,
       message: body.message ?? null,
       opponentArtistUserId: opponentProfile?.userId ?? null,
       opponentUsernameSnapshot: opponentUsername,
@@ -389,6 +775,15 @@ app.openapi(
       title: "New Battle Challenge",
       type: "battle_challenge",
       userId: opponentProfile.userId,
+    });
+
+    await notifyBattleChallengeEmail({
+      battleFormat: body.format,
+      challengeId,
+      challengerName: `@${challengerUsername}`,
+      genre: canonicalGenreName(body.genre),
+      opponentUserId: opponentProfile.userId,
+      queue: c.env.EMAIL_DELIVERY_QUEUE,
     });
 
     return c.json(
@@ -432,29 +827,7 @@ app.openapi(
     }
 
     if (!isDatabaseConfigured()) {
-      return c.json(
-        [
-          {
-            downloads: 120,
-            losses: 4,
-            purchases: 8,
-            saves: 45,
-            trackId: "track-1",
-            trackName: "Midnight Vibes",
-            wins: 12,
-          },
-          {
-            downloads: 90,
-            losses: 6,
-            purchases: 5,
-            saves: 30,
-            trackId: "track-2",
-            trackName: "Neon Dreams",
-            wins: 8,
-          },
-        ],
-        HttpStatusCodes.OK
-      );
+      return c.json([], HttpStatusCodes.OK);
     }
 
     const db = createDb();
@@ -561,61 +934,16 @@ app.openapi(
     if (!isDatabaseConfigured()) {
       return c.json(
         {
-          history: [
-            {
-              battleId: "battle-1",
-              battleTitle: "Summer Beat Showdown",
-              createdAt: new Date(Date.now() - 86_400_000 * 2).toISOString(),
-              isTiebreaker: false,
-              opponentTrackId: "track-3",
-              opponentTrackName: "Golden Hours",
-              roundNumber: 1,
-              status: "completed",
-              viewerCount: 240,
-              votesAgainst: 43,
-              votesFor: 87,
-              winningTrackId: trackId,
-            },
-            {
-              battleId: "battle-1",
-              battleTitle: "Summer Beat Showdown",
-              createdAt: new Date(
-                Date.now() - 86_400_000 * 2 + 3_600_000
-              ).toISOString(),
-              isTiebreaker: false,
-              opponentTrackId: "track-3",
-              opponentTrackName: "Golden Hours",
-              roundNumber: 2,
-              status: "completed",
-              viewerCount: 310,
-              votesAgainst: 51,
-              votesFor: 92,
-              winningTrackId: trackId,
-            },
-            {
-              battleId: "battle-2",
-              battleTitle: "Late Night Melodies",
-              createdAt: new Date(Date.now() - 86_400_000 * 5).toISOString(),
-              isTiebreaker: false,
-              opponentTrackId: "track-4",
-              opponentTrackName: "City Lights",
-              roundNumber: 1,
-              status: "completed",
-              viewerCount: 180,
-              votesAgainst: 76,
-              votesFor: 54,
-              winningTrackId: "track-4",
-            },
-          ],
+          history: [],
           stats: {
-            downloads: 120,
-            losses: 4,
-            purchases: 8,
-            saves: 45,
-            wins: 12,
+            downloads: 0,
+            losses: 0,
+            purchases: 0,
+            saves: 0,
+            wins: 0,
           },
           trackId,
-          trackName: trackId === "track-1" ? "Midnight Vibes" : "Neon Dreams",
+          trackName: "Track",
         },
         HttpStatusCodes.OK
       );
@@ -742,48 +1070,68 @@ app.openapi(
         battleSummarySchema,
         "Battle detail summary"
       ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle not found"
+      ),
     },
     tags: ["Battles"],
   }),
   async (c) => {
     const { battleId } = c.req.valid("param");
-    if (isDatabaseConfigured()) {
-      const db = createDb();
-      const [row] = await db
-        .select({
-          format: battles.format,
-          genre: genres.name,
-          id: battles.id,
-          status: battles.status,
-          title: battles.title,
-          viewerCount: battles.viewerCount,
-          visibility: battles.visibility,
-        })
-        .from(battles)
-        .leftJoin(genres, eq(genres.id, battles.genreId))
-        .where(eq(battles.id, battleId))
-        .limit(1);
 
-      if (row) {
+    if (!isDatabaseConfigured()) {
+      const battle = sampleBattles.find((entry) => entry.id === battleId);
+
+      if (!battle) {
         return c.json(
-          rankFeaturedBattles([
-            {
-              ...row,
-              genre: row.genre
-                ? canonicalGenreName(row.genre)
-                : "Uncategorized",
-            },
-          ])[0],
-          HttpStatusCodes.OK
+          { message: "Battle not found" },
+          HttpStatusCodes.NOT_FOUND
         );
       }
+
+      return c.json(battle, HttpStatusCodes.OK);
     }
 
-    const rankedFallbackBattles = rankFeaturedBattles(sampleBattles);
-    const battle =
-      rankedFallbackBattles.find((entry) => entry.id === battleId) ??
-      rankedFallbackBattles[0];
-    return c.json(battle, HttpStatusCodes.OK);
+    const db = createDb();
+    const [row] = await db
+      .select({
+        format: battles.format,
+        genre: genres.name,
+        id: battles.id,
+        status: battles.status,
+        title: battles.title,
+        viewerCount: battles.viewerCount,
+        visibility: battles.visibility,
+      })
+      .from(battles)
+      .leftJoin(genres, eq(genres.id, battles.genreId))
+      .where(eq(battles.id, battleId))
+      .limit(1);
+
+    if (row) {
+      const [enrichedRow] = await enrichBattleFeedRows([
+        {
+          ...row,
+          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+        },
+      ]);
+
+      const battle = enrichedRow
+        ? rankFeaturedBattles([enrichedRow])[0]
+        : undefined;
+
+      if (!battle) {
+        return c.json(
+          { message: "Battle not found" },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+
+      return c.json(battle, HttpStatusCodes.OK);
+    }
+
+    return c.json({ message: "Battle not found" }, HttpStatusCodes.NOT_FOUND);
   }
 );
 

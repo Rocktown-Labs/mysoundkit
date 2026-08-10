@@ -111,13 +111,17 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
       return;
     }
     const url = `${window.location.origin}/live/parties/${createdRoomId}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast({
-      description: "Party link copied to clipboard.",
-      title: "Link Copied",
-    });
-    setTimeout(() => setCopied(false), 2000);
+    void navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopied(true);
+        toast({
+          description: "Party link copied to clipboard.",
+          title: "Link Copied",
+        });
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   };
 
   if (!isAuthenticated) {

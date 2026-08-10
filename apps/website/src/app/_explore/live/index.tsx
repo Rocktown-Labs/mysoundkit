@@ -1,39 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Play,
   Trophy,
   Zap,
-  Eye,
   Headphones,
   Radio,
-  Clock,
-  Bell,
   Users,
   Music,
+  CalendarClock,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 
 import { BattleCard } from "@/components/explore/battle-card";
-import { ListeningPartyCard } from "@/components/explore/listening-party-card";
-import {
-  partyDiscoveryItems,
-  streamDiscoveryItems,
-} from "@/components/explore/live-discovery-data";
 import { SectionHeader } from "@/components/explore/section-header";
-import { StreamCard } from "@/components/explore/stream-card";
-import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -49,17 +32,193 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { musicGenres } from "@/lib/music-genres";
+import {
+  useBattlesQuery,
+  useListeningPartiesQuery,
+  useMeEntitlementsQuery,
+  type BattleSummary,
+  type ListeningPartySummary,
+} from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/")({
   component: LiveHubPage,
 });
 
+function LiveSummaryRail<T>({
+  empty,
+  isLoading,
+  items,
+  renderItem,
+}: {
+  empty: string;
+  isLoading: boolean;
+  items: T[];
+  renderItem: (item: T) => ReactNode;
+}) {
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+        Loading live rooms...
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+        {empty}
+      </div>
+    );
+  }
+
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 pb-4 md:mx-0 md:px-0">
+      <div className="flex min-w-max gap-4 md:gap-6">
+        {items.map((item) => renderItem(item))}
+      </div>
+    </div>
+  );
+}
+
+function BattleSummaryCard({
+  battle,
+  isPremiumUser,
+}: {
+  battle: BattleSummary;
+  isPremiumUser: boolean;
+}) {
+  const tracks = battle.tracks ?? [];
+
+  if (tracks.length >= 2) {
+    return (
+      <div className="w-[280px] shrink-0 md:w-[300px]">
+        <BattleCard
+          currentRound={battle.round?.current ?? 1}
+          genre={battle.genre}
+          id={battle.id}
+          isLive={battle.status === "live"}
+          isPremiumUser={isPremiumUser}
+          isVoting={battle.round?.isVoting ?? false}
+          joinMode={battle.joinMode}
+          phaseEndsAt={battle.phaseEndsAt}
+          queueSize={battle.queueSize}
+          title={battle.title}
+          totalRounds={battle.round?.total ?? 1}
+          track1={{
+            artist: tracks[0].artist,
+            cover: tracks[0].cover ?? "",
+            title: tracks[0].title,
+            votes: tracks[0].votes,
+          }}
+          track2={{
+            artist: tracks[1].artist,
+            cover: tracks[1].cover ?? "",
+            title: tracks[1].title,
+            votes: tracks[1].votes,
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      className="block w-[260px] shrink-0 md:w-[300px]"
+      params={{ id: battle.id }}
+      to="/live/battles/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="secondary">{battle.genre}</Badge>
+            <Badge
+              variant={battle.status === "live" ? "destructive" : "outline"}
+            >
+              {battle.status}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="line-clamp-2 font-semibold text-base">
+              {battle.title}
+            </h3>
+            <p className="mt-1 text-muted-foreground text-xs">
+              {battle.format.replaceAll("_", " ")}
+            </p>
+          </div>
+          <div className="flex items-center justify-between text-muted-foreground text-xs">
+            <span>{battle.viewerCount.toLocaleString()} viewers</span>
+            <span>
+              {battle.visibility === "premium_only" ? "Premium" : "Public"}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+const formatPartyDate = (value: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+  }).format(new Date(value));
+
+function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
+  return (
+    <Link
+      className="block w-[300px] shrink-0 md:w-[350px]"
+      params={{ id: party.liveRoomId ?? party.id }}
+      to="/live/parties/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <Badge
+              variant={party.status === "live" ? "destructive" : "secondary"}
+            >
+              {party.status}
+            </Badge>
+            <Badge variant="outline">
+              {party.playbackMode === "programmed_release"
+                ? "Release Party"
+                : "Listening Party"}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="line-clamp-2 font-bold text-lg">{party.title}</h3>
+            {party.description && (
+              <p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
+                {party.description}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <CalendarClock className="size-4 text-primary" />
+            <span>{formatPartyDate(party.scheduledStartAt)}</span>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 function LiveHubPage() {
   const [selectedLocation, setSelectedLocation] = useState("California");
   const [viewMode, setViewMode] = useState<"usa" | "global">("usa");
   const [selectedState, setSelectedState] = useState("USA");
+  const { data: battles = [], isLoading: isLoadingBattles } = useBattlesQuery();
+  const entitlementsQuery = useMeEntitlementsQuery();
+  const { data: parties = [], isLoading: isLoadingParties } =
+    useListeningPartiesQuery();
+  const liveBattles = battles.filter((battle) => battle.status === "live");
+  const liveParties = parties.filter((party) => party.status === "live");
+  const isPremiumUser = Boolean(
+    entitlementsQuery.data?.isPremium ||
+    entitlementsQuery.data?.canViewLiveBattles ||
+    entitlementsQuery.data?.canVoteLiveBattles
+  );
 
   const usStates = [
     "USA",
@@ -74,7 +233,6 @@ function LiveHubPage() {
 
   return (
     <>
-      {/* Live Battles - Premium Gated (Mocked in button) */}
       <section id="live-battles" className="mb-8 md:mb-12">
         <SectionHeader
           title="Live Battles"
@@ -83,82 +241,20 @@ function LiveHubPage() {
           viewAllHref="/live/battles"
         />
 
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-4 scrollbar-hide">
-          <div className="flex gap-4 md:gap-6 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-w-max md:min-w-0">
-            <BattleCard
-              id="battle-1"
-              title="West Coast Showdown"
-              track1={{
-                artist: "DJ Nova",
-                cover: "/summer-music-album-cover.png",
-                title: "Midnight Drive",
-                votes: 1247,
-              }}
-              track2={{
-                artist: "MC Rhythm",
-                cover: "/night-music-album-cover.png",
-                title: "City Lights",
-                votes: 1089,
-              }}
-              endsIn="2h 34m"
-              genre="Hip-Hop"
-              isLive={true}
-              currentRound={2}
-              totalRounds={3}
-              isVoting={false}
-              queueSize={12}
+        <LiveSummaryRail
+          empty="No live battles are active right now."
+          isLoading={isLoadingBattles}
+          items={liveBattles}
+          renderItem={(battle) => (
+            <BattleSummaryCard
+              battle={battle}
+              isPremiumUser={isPremiumUser}
+              key={battle.id}
             />
-            <BattleCard
-              id="battle-2"
-              title="Bay Area Beats"
-              track1={{
-                artist: "Sunset Collective",
-                cover: "/hip-hop-album-cover.png",
-                title: "Golden Hour",
-                votes: 892,
-              }}
-              track2={{
-                artist: "Urban Echo",
-                cover: "/summer-music-album-cover.png",
-                title: "Neon Nights",
-                votes: 756,
-              }}
-              endsIn="5h 12m"
-              genre="R&B"
-              isLive={true}
-              currentRound={1}
-              totalRounds={5}
-              isVoting={true}
-              queueSize={45}
-            />
-            <BattleCard
-              id="battle-3"
-              title="LA Underground"
-              track1={{
-                artist: "Sub Frequency",
-                cover: "/night-music-album-cover.png",
-                title: "Bassline Theory",
-                votes: 2156,
-              }}
-              track2={{
-                artist: "Beat Architect",
-                cover: "/hip-hop-album-cover.png",
-                title: "Rhythm Code",
-                votes: 1998,
-              }}
-              endsIn="1h 05m"
-              genre="Electronic"
-              isLive={true}
-              currentRound={3}
-              totalRounds={3}
-              isVoting={false}
-              queueSize={8}
-            />
-          </div>
-        </div>
+          )}
+        />
       </section>
 
-      {/* Live Listening Parties - Available to All */}
       <section className="mb-8 md:mb-12">
         <SectionHeader
           title="Live Listening Parties"
@@ -166,51 +262,16 @@ function LiveHubPage() {
           icon={<Headphones className="size-6 text-primary" />}
           viewAllHref="/live/parties"
         />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-4 scrollbar-hide">
-          <div className="flex gap-4 md:gap-6 min-w-max md:min-w-0">
-            <ListeningPartyCard
-              id="party-1"
-              title="Midnight Synthwave Session"
-              hostName="DJ Retro"
-              currentTrack="Neon Dreams - Lazer Hawk"
-              listenerCount={1204}
-              albumCovers={[
-                "/summer-music-album-cover.png",
-                "/night-music-album-cover.png",
-                "/hip-hop-album-cover.png",
-              ]}
-              isLive={true}
-            />
-            <ListeningPartyCard
-              id="party-2"
-              title="Lofi Study Beats"
-              hostName="Chill Vibes Co."
-              currentTrack="Rainy Days - Nujabes"
-              listenerCount={3400}
-              albumCovers={[
-                "/hip-hop-album-cover.png",
-                "/summer-music-album-cover.png",
-              ]}
-              isLive={true}
-            />
-            <ListeningPartyCard
-              id="party-3"
-              title="New Music Friday Preview"
-              hostName="SoundKit Curators"
-              currentTrack="Unreleased Track - Top Artist"
-              listenerCount={8900}
-              albumCovers={[
-                "/night-music-album-cover.png",
-                "/summer-music-album-cover.png",
-                "/hip-hop-album-cover.png",
-              ]}
-              isLive={true}
-            />
-          </div>
-        </div>
+        <LiveSummaryRail
+          empty="No listening parties are live right now."
+          isLoading={isLoadingParties}
+          items={liveParties}
+          renderItem={(party) => (
+            <PartySummaryCard key={party.id} party={party} />
+          )}
+        />
       </section>
 
-      {/* Live Creator Streams - Premium Gated via Link/Action later, here just display */}
       <section className="mb-8 md:mb-12">
         <SectionHeader
           title="Creator Streams"
@@ -218,88 +279,21 @@ function LiveHubPage() {
           icon={<Radio className="size-6 text-primary" />}
           viewAllHref="/live/streams"
         />
-        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-4 scrollbar-hide">
-          <div className="flex gap-4 md:gap-6 min-w-max md:min-w-0">
-            <StreamCard
-              id="stream-1"
-              title="Making a beat from scratch"
-              creatorName="Metro Boomin"
-              creatorAvatar="/diverse-user-avatars.png"
-              thumbnailUrl="/music-battle-video-thumbnail.jpg"
-              viewerCount={15_400}
-              category="Production"
-            />
-            <StreamCard
-              id="stream-2"
-              title="Vocal Tracking Session"
-              creatorName="Ariana"
-              creatorAvatar="/diverse-user-avatars.png"
-              thumbnailUrl="/hip-hop-battle-stage.jpg"
-              viewerCount={32_100}
-              category="Recording"
-            />
-            <StreamCard
-              id="stream-3"
-              title="Mixing & Mastering Q&A"
-              creatorName="Mike Dean"
-              creatorAvatar="/diverse-user-avatars.png"
-              thumbnailUrl="/rap-battle-crowd.jpg"
-              viewerCount={8500}
-              category="Mixing"
-            />
-          </div>
+        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+          No public creator streams are live right now.
         </div>
       </section>
 
       <section className="mb-8 md:mb-12">
         <SectionHeader
           title="Browse Live By Genre"
-          description="Find parties and streams in the lanes you care about."
+          description="Genre-specific live rooms appear here as artists schedule public sessions."
           icon={<Music className="size-6 text-primary" />}
           viewAllHref="/live"
         />
-        <div className="space-y-8">
-          {musicGenres.map((genre) => {
-            const parties = partyDiscoveryItems.filter(
-              (party) => party.genre === genre.label
-            );
-            const streams = streamDiscoveryItems.filter(
-              (stream) => stream.genre === genre.label
-            );
-
-            return (
-              <div key={genre.value} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-lg">{genre.label}</h3>
-                  <Link
-                    search={{ genre: genre.value }}
-                    to="/live/parties"
-                    className="text-muted-foreground text-sm hover:text-primary"
-                  >
-                    View All
-                  </Link>
-                </div>
-                <div className="overflow-x-auto pb-2">
-                  <div className="flex min-w-max gap-4 md:gap-6">
-                    {parties.length > 0 || streams.length > 0 ? (
-                      <>
-                        {parties.map((party) => (
-                          <ListeningPartyCard key={party.id} {...party} />
-                        ))}
-                        {streams.map((stream) => (
-                          <StreamCard key={stream.id} {...stream} />
-                        ))}
-                      </>
-                    ) : (
-                      <div className="min-w-[280px] rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
-                        No {genre.label} live rooms are active yet.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+          Live genre rails will fill in once public live rooms expose genre
+          metadata.
         </div>
       </section>
 
@@ -435,125 +429,6 @@ function LiveHubPage() {
         </div>
       </section>
 
-      {/* Must See Battles - Available to All */}
-      <section className="mb-6 md:mb-8">
-        <SectionHeader
-          title="Must See Battles"
-          description="Top viewed battles from the past week. Free for all users."
-          icon={<Eye className="size-6 text-primary" />}
-          viewAllHref="/live/battles/must-see"
-        />
-
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="w-full justify-start overflow-x-auto flex-nowrap mb-4">
-            <TabsTrigger value="all">All Genres</TabsTrigger>
-            <TabsTrigger value="hip-hop">Hip-Hop</TabsTrigger>
-            <TabsTrigger value="rnb">R&B</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all" className="space-y-0">
-            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 pb-2">
-              <div className="flex gap-4">
-                {[
-                  {
-                    artist1: "Coast King",
-                    artist2: "Bay Legend",
-                    duration: "12:34",
-                    id: "must-see-1",
-                    thumbnail: "/music-battle-video-thumbnail.jpg",
-                    title: "Epic Showdown: East vs West",
-                    views: "2.4M",
-                    winner: "Coast King",
-                  },
-                  {
-                    artist1: "Beat Master",
-                    artist2: "Rhythm Chief",
-                    duration: "15:22",
-                    id: "must-see-2",
-                    thumbnail: "/hip-hop-battle-stage.jpg",
-                    title: "Producer Battle: Beats & Rhymes",
-                    views: "1.8M",
-                    winner: "Rhythm Chief",
-                  },
-                ].map((battle) => (
-                  <Link
-                    key={battle.id}
-                    to="/live/battles/$id"
-                    params={{ id: battle.id }}
-                    className="flex-shrink-0 w-[85vw] md:w-[600px] lg:w-[700px]"
-                  >
-                    <Card className="overflow-hidden hover:shadow-lg transition-shadow group h-full border-border">
-                      <CardContent className="p-0">
-                        <div className="flex flex-col sm:flex-row gap-0 sm:gap-4 h-full">
-                          {/* Video Thumbnail */}
-                          <div className="relative w-full sm:w-80 aspect-video sm:aspect-auto sm:h-auto shrink-0 overflow-hidden bg-muted">
-                            <AppImage
-                              src={battle.thumbnail || "/placeholder.svg"}
-                              alt={battle.title}
-                              width={700}
-                              height={394}
-                              layout="constrained"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <div className="size-12 md:size-16 rounded-full bg-primary flex items-center justify-center">
-                                <Play className="size-6 md:size-8 fill-primary-foreground text-primary-foreground ml-1" />
-                              </div>
-                            </div>
-                            <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-xs font-semibold text-white">
-                              {battle.duration}
-                            </div>
-                          </div>
-
-                          {/* Battle Info */}
-                          <div className="flex-1 p-4">
-                            <h3 className="font-semibold text-base md:text-lg mb-2 group-hover:text-primary transition-colors truncate">
-                              {battle.title}
-                            </h3>
-                            <div className="flex items-center gap-2 mb-3">
-                              <Badge variant="secondary" className="text-xs">
-                                {battle.artist1}
-                              </Badge>
-                              <span className="text-sm text-muted-foreground">
-                                vs
-                              </span>
-                              <Badge variant="secondary" className="text-xs">
-                                {battle.artist2}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                              <span className="flex items-center gap-1">
-                                <Eye className="size-4" />
-                                {battle.views} views
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Trophy className="size-4 text-primary" />
-                                Winner: {battle.winner}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="hip-hop">
-            <p className="text-center text-muted-foreground py-8">
-              Hip-Hop battles coming soon...
-            </p>
-          </TabsContent>
-
-          <TabsContent value="rnb">
-            <p className="text-center text-muted-foreground py-8">
-              R&B battles coming soon...
-            </p>
-          </TabsContent>
-        </Tabs>
-      </section>
     </>
   );
 }

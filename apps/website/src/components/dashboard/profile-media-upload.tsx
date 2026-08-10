@@ -8,23 +8,28 @@ import type { ChangeEvent } from "react";
 import { ImageCropperDialog } from "@/components/dashboard/image-cropper-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   API_V1_URL,
   MEDIA_BASE_URL,
   PROFILE_MEDIA_UPLOAD_URL,
 } from "@/lib/api";
+import { soundkitQueryKeys } from "@/lib/soundkit-api-hooks";
 
 export function ProfileMediaUpload({
+  currentUrl,
   description,
   kind,
   title,
 }: {
+  currentUrl?: string | null;
   description: string;
   kind: "avatar" | "header";
   title: string;
 }) {
   const inputId = useId();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl ?? null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedObjectUrl, setSelectedObjectUrl] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -59,6 +64,8 @@ export function ProfileMediaUpload({
       const payload = (await response.json().catch(() => null)) as {
         message?: string;
       } | null;
+
+      void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
 
       setStatusMessage(
         payload?.message ??

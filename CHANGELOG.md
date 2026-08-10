@@ -4,6 +4,30 @@
 
 ### Added
 
+- Persisted live experiences (`live_experiences`) with RealtimeKit meeting ids, viewer/peak viewer tracking, recording and chat download links, plus a verified RealtimeKit webhook endpoint (`/v1/webhooks/realtimekit`) that marks meetings live/ended, publishes uploaded recordings as free public videos (battle replays included), and fans out go-live notifications to artist followers and premium watchers.
+- Wired live experience creation and join flows to persisted meetings, gated listening party hosting behind a premium subscription (artists exempt), and upgraded BattleBot to a real round state machine with waiting-room admissions, non-voter boots, and winner resolution.
+- Updated artist battle records (wins/losses) after a battle ends when peak concurrent viewers reach 10.
+- Enhanced Project Creation with non-closing multi-select checkboxes for library tracks, aligned credits step with 1-click self-crediting, and fixed "Save Draft" button to store drafts with `status: "draft"` instead of publishing.
+- Created public `/projects` explore route and public album detail route (`/projects/$id`) with album/EP/mixtape type chips, search, genre filtering, and full tracklist stream controls.
+- Added Projects section under Songs on the home page (`/`) and added Projects link to public navigation sidebars.
+- Unified Calendar and Release & Promo Kanban into `/dashboard/career/calendar` with 1-click "Battle Challenge" action buttons on Kanban cards.
+- Filtered out current user (`me.user.id`) and unaccepted friend requests from `/dashboard/collaborators` and `/dashboard/team` lists, ensuring collaborators reflect credited track contributors.
+- Updated `/v1/analytics/overview` endpoint to calculate real dynamic stream counts, followers, downloads, and revenue from database rows.
+- Re-housed Ads manager to `/dashboard/ads` with Active Campaigns management & campaign detail inspector, 3-step Accordion Campaign Builder flow, direct file uploads with media player preview, macro region continent selection (All North America, All Europe, All Africa, Global), and Stripe-wired wallet top ups.
+- Added Admin House Ad creation (zero budget required) and campaign run status toggling in `/dashboard/admin`.
+- Added Recharts interactive stream area chart, discovery sources stacked area chart, geographic reach horizontal bar chart, and listener loyalty breakdown (Super Listeners vs Casual vs Lapsed) to `/dashboard/career/analytics`.
+- Added workspace rename endpoint (`PATCH /v1/me/workspace`) and upgraded `/dashboard/team` with workspace name editing, 5 subscription plan seats management, and separation of track collaborators.
+- Fixed Account settings email input password manager autofill with readOnly & autoComplete off attributes, added URL search param tab syncing (`?tab=profile|account|notifications|privacy`), and persisted profile photo/header image previews with instant query invalidation.
+- Added persistent track saving endpoint (`POST /v1/library/saved/:trackId`) and interactive heart save controls in `TrackCard` and track detail views.
+- Added full playlist management backend (`POST /v1/library/playlists`, `POST /v1/library/playlists/:id/tracks`) and updated `/library/playlists/$id` with tabs for DB search, Saved Tracks, Recently Played, and Recently Watched.
+- Redesigned `/shop` page with `forSale` purchasability filtering, clean genre pill filters, Grid/List view mode toggle, and 20-item pagination.
+- Fixed play count calculations on artist profiles to calculate the true sum of all track plays.
+- Removed outdated location filter text from public `/tracks` header.
+- Added transactional email templates suite (battle challenge, reminder, results, billing issue, collaborator invite, verification, friend requests, followers, open verse, org invite, password reset, receipts, sale notifications, welcome emails) and an asynchronous email delivery outbox service with retry/event tracking (`email_delivery_outbox` table).
+- Added artist friend requests system with collaborator management endpoints and dashboard workspace.
+- Expanded AI Studio with prompt assistant, stem generator, AI voice models, master track enhancement, and credit usage tracking.
+- Added purchase detail view (`/library/purchased/$purchaseId`) for audio license downloads and item details.
+- Added Resend-backed track lifecycle emails with React Email templates, a local transactional email preview package, notification preference controls, and a verified Resend webhook endpoint.
 - Added a dashboard lyrics workspace for artist-entered sectioned lyrics, draft sync points, manual timestamp editing, pending revision saves, and synced lyrics approval.
 - Added OpenAI timestamped vocal transcription after StemSplit processing, storing word-derived timed lyric lines for track playback and live overlays.
 - Added persistent AI credit grants and real admin finance actions for Stripe coupon syncing, premium grants, and credit grants.
@@ -45,9 +69,14 @@
 - Added dynamic Better Auth base URL and Cloudflare preview origin allowlists so PR previews and worker subdomains can authenticate against the API.
 - Added separate RealtimeKit-oriented live dashboards and room scaffolds for battles, listening parties, and streams, including BattleBot lobby/voting rules, party playlist/lyrics cues, stream analytics panels, and artist-only profile challenge actions.
 - Added authenticated live experience APIs for RealtimeKit meeting creation, participant preset tokens, BattleBot voter snapshots, notification fanout payloads, and single-session conflict checks.
+- Added region-slug canonical URLs for track and video detail pages (`/tracks/$regionSlug/$slug`, `/videos/$regionSlug/$slug`), with id-or-slug server resolution and legacy `/$id` routes retained as wrappers.
+- Added a video comments system with a `video_comments` database table, authenticated `GET/POST /v1/videos/:videoId/comments` endpoints, and a comments section on the video detail page.
+- Added genre and visibility controls to the video upload form and a unique `videos.slug` column for canonical video URLs.
+- Added a queue drawer with reorder, clear, and remove controls, a native share sheet with clipboard fallback on track pages, and ready-cover-first download actions in the track download manager.
 
 ### Changed
 
+- Reworked the public home and live discovery surfaces to use real API-backed tracks, projects, videos, artists, battles, and listening parties with empty states instead of placeholder cards.
 - Replaced the artist floating chat mock with real API-backed conversations and messages, restricted the widget to artist accounts, and added fan-accessible sign-out from Account Settings.
 - Made battle challenge issuance persist challenge records and notify the challenged artist, with consistent Premium Artist gating across challenge entry points.
 - Reworked the dashboard video upload flow to use resumable UpChunk chunked uploads to Mux, client-side file validation, live progress bars, and real project/track linkage instead of mock history.
@@ -55,9 +84,19 @@
 - Updated RealtimeKit REST client response handling to match Cloudflare's standard payload shape (`data`) and documented meeting fields.
 - Removed fake working rooms, demo catalog fallback audio, and placeholder Stripe prices/coupons across RealtimeKit, tracks, admin finance, and billing APIs.
 - Formatted repository codebase with oxfmt.
+- Updated all track and video list links across explore, shop, and dashboard surfaces to use canonical region-slug URLs when available, falling back to legacy id routes.
+- Converted track and video detail pages from route components into shared prop-driven `TrackDetailPage`/`VideoDetailPage` components reused by both canonical and legacy routes.
 
 ### Fixed
 
+- Fixed live experience creation (`POST /v1/live/experiences`) returning `503` on preview workers by binding `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_REALTIMEKIT_APP_ID` to the server Worker, enabling mock RealtimeKit fallback on preview stages, and falling back to a mock Stream live input for OBS streams when Cloudflare Stream is unavailable.
+- Improved public item share metadata for tracks, projects, and videos so social cards use the real title, creator, cover artwork, canonical URL, and structured data.
+- Fixed track save hearts with optimistic visual feedback, toast confirmation, and click-locking while saves are in flight, and simplified saved-library dates.
+- Fixed the project creation release plan with explicit listed/unlisted visibility, calendar scheduling at midnight, and clearer submit validation feedback.
+- Fixed project creation track selection spacing, track-style collaborator invites, and project collaborator persistence.
+- Fixed the new project page crash when restoring a saved draft by stabilizing project form defaults, reusing artwork preview object URLs safely, and disabling placeholder PostHog initialization that spammed `/ingest` 404s without capturing useful diagnostics.
+- Fixed audio settlement follow-up behavior so free artists publish once audio and cover art settle, premium artists continue into StemSplit/transcription, artists receive in-app live/processing notifications, and admins can backfill missing track durations.
+- Fixed audio upload publication so tracks and project tracks are first saved as private intake records, get master/cover assets attached with Media Bunny duration metadata, then settle into the processing workflow before becoming live.
 - Fixed new track pages crashing when restored drafts omitted `status`, and made track/project artwork selectors consistently square, centered, and image-first.
 - Fixed new track submissions retaining stale local draft/media metadata and failing to attach uploaded cover artwork to the persisted track asset record.
 - Fixed cover artwork upload cards rendering as wide clipped previews by using a square image-first layout with visible artwork controls.
@@ -89,3 +128,7 @@
 - Standardized genre options by converting input text boxes into Select dropdowns supporting all standard genres across dashboard wizards (projects, tracks, and videos).
 - Fixed battles router precedence bug where wildcard `/{battleId}` route captured requests intended for `/stats` route.
 - Fixed missing authentication checks on Cloudflare Stream live broadcast routes and verified authentication boundaries via integration tests.
+- Fixed the music player route matching for region-slug track URLs so playback highlights and queue sync still resolve under the new canonical URLs.
+- Fixed track drafts restored in edit mode overwriting save values by adding persist/restore-on-mount options to the form draft guard.
+- Fixed duplicate tracks entering the playback queue by deduping queue additions by track id.
+- Fixed track downloads attaching the wrong asset by exposing ready covers first in the track asset mapping and cleaning up prior `cover_art`/`master` assets on re-upload.

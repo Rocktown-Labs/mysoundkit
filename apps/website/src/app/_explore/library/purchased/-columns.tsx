@@ -1,7 +1,6 @@
-/* eslint-disable react-perf/jsx-no-new-function-as-prop */
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Play, Download } from "lucide-react";
+import { ArrowUpDown, Play, ExternalLink } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,8 @@ export interface PurchasedTrack {
   purchaseMode?: "digital_download" | "license";
   purchasedAt: string;
   downloadUrl?: string | null;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 export const columns: ColumnDef<PurchasedTrack>[] = [
@@ -67,8 +68,19 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
 
       return (
         <Link
-          to="/tracks/$id"
-          params={{ id: productId }}
+          params={
+            row.original.regionSlug && row.original.slug
+              ? {
+                  regionSlug: row.original.regionSlug,
+                  slug: row.original.slug,
+                }
+              : { id: productId }
+          }
+          to={
+            row.original.regionSlug && row.original.slug
+              ? "/tracks/$regionSlug/$slug"
+              : "/tracks/$id"
+          }
           className="font-medium hover:text-primary"
         >
           {row.getValue("title")}
@@ -143,10 +155,16 @@ export const columns: ColumnDef<PurchasedTrack>[] = [
     ),
   },
   {
-    cell: () => (
-      <Button size="sm" variant="outline">
-        <Download className="mr-2 h-4 w-4" />
-        Download
+    cell: ({ row }) => (
+      <Button asChild={true} size="sm" variant="outline">
+        <Link
+          onClick={(event) => event.stopPropagation()}
+          params={{ purchaseId: row.original.id }}
+          to="/library/purchased/$purchaseId"
+        >
+          <ExternalLink className="mr-2 h-4 w-4" />
+          View
+        </Link>
       </Button>
     ),
     id: "actions",

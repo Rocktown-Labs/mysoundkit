@@ -95,7 +95,13 @@ export function ProjectsOverview({
           )}
 
           {recentProjects.map((project) => {
-            const fileCount = Math.min(project.trackCount, 5);
+            const trackLabel = `${project.trackCount} ${
+              project.trackCount === 1 ? "track" : "tracks"
+            }`;
+            const durationLabel =
+              "duration" in project && typeof project.duration === "string"
+                ? project.duration
+                : null;
 
             return (
               <div
@@ -143,24 +149,14 @@ export function ProjectsOverview({
                 </div>
 
                 <div className="flex w-full items-center justify-between gap-4 sm:w-auto">
-                  <div className="flex items-center gap-3">
-                    <div className="-space-x-1.5 flex items-center">
-                      {Array.from({ length: 5 }, (_, index) => (
-                        <div
-                          className={cn(
-                            "size-2.5 rounded-full border border-card shadow-sm transition-transform hover:z-10 hover:scale-125",
-                            index < fileCount
-                              ? "bg-primary"
-                              : "bg-muted-foreground/20"
-                          )}
-                          key={`${project.id}-${index}`}
-                          title="Track slot"
-                        />
-                      ))}
-                    </div>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      {fileCount}/5
+                  <div className="flex items-center gap-2 rounded-full border border-border/40 bg-muted/20 px-3 py-1.5 text-[10px] text-muted-foreground">
+                    <Music className="size-3 text-primary" />
+                    <span className="font-semibold uppercase tracking-wider">
+                      {trackLabel}
                     </span>
+                    {durationLabel && durationLabel !== "0:00" && (
+                      <span className="font-mono">{durationLabel}</span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1">

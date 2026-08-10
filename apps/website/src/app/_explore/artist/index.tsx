@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Sparkles, TrendingUp, Trophy } from "lucide-react";
-import { useState } from "react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
@@ -67,12 +66,15 @@ const formatFollowers = (followers: number) => {
   return followers.toLocaleString();
 };
 
-const toLeaderboardArtist = (artist: ArtistSummary): LeaderboardArtist => ({
+const toLeaderboardArtist = (
+  artist: ArtistSummary,
+  displayRank: number
+): LeaderboardArtist => ({
   avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
   genre: artist.genre,
   location: artist.location || "Arkansas, US",
   name: artist.name,
-  rank: artist.rank ?? 1,
+  rank: displayRank,
   slug: artist.username,
   stats: {
     battleWins: 0,
@@ -83,7 +85,9 @@ const toLeaderboardArtist = (artist: ArtistSummary): LeaderboardArtist => ({
 });
 
 const compactTopTen = (artists: ArtistSummary[]) => {
-  const ranked = artists.slice(0, 10);
+  const ranked = artists
+    .slice(0, 10)
+    .map((artist, index) => toLeaderboardArtist(artist, index + 1));
   return [ranked.slice(0, 5), ranked.slice(5, 10)];
 };
 
@@ -103,6 +107,8 @@ function LeaderboardSection({
   type: "new" | "rising" | "top";
 }) {
   const columns = compactTopTen(artists);
+  const columnKey = (column: LeaderboardArtist[]) =>
+    `${title}-${column[0]?.slug ?? "empty"}-${column.at(-1)?.slug ?? "empty"}`;
 
   return (
     <section>
@@ -120,10 +126,10 @@ function LeaderboardSection({
       </div>
       {artists.length > 0 ? (
         <div className="grid gap-2 md:grid-cols-2">
-          {columns.map((column, index) => (
+          {columns.map((column) => (
             <ArtistLeaderboardCard
-              key={`${title}-${index}`}
-              artists={column.map(toLeaderboardArtist)}
+              key={columnKey(column)}
+              artists={column}
               type={type}
             />
           ))}

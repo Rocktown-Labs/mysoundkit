@@ -6,6 +6,7 @@ import {
   openVerseSubmissions,
   trackCollaborators,
   tracks,
+  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
@@ -14,6 +15,11 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import {
+  getDisplayNameForUser,
+  notifyOpenVerseAcceptedEmail,
+  notifyOpenVerseSubmittedEmail,
+} from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -411,6 +417,39 @@ app.openapi(
       throw new Error("Failed to submit open verse.");
     }
 
+    const submitterName = await getDisplayNameForUser(user.id);
+
+    await notifyOpenVerseSubmittedEmail({
+      listingId,
+      queue: c.env.EMAIL_DELIVERY_QUEUE,
+      submissionId: submission.id,
+      submitterName,
+    });
+
+    const [listing] = await db
+      .select({
+        ownerUserId: openVerseListings.ownerUserId,
+        trackTitle: tracks.title,
+      })
+      .from(openVerseListings)
+      .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+      .where(eq(openVerseListings.id, listingId))
+      .limit(1);
+
+    if (listing) {
+      await db
+        .insert(userNotifications)
+        .values({
+          id: `open_verse_submitted:${submission.id}`,
+          link: "/dashboard/open-verses",
+          message: `${submitterName} submitted a verse for ${listing.trackTitle}.`,
+          title: "New Open Verse Submission",
+          type: "open_verse_submitted",
+          userId: listing.ownerUserId,
+        })
+        .onConflictDoNothing();
+    }
+
     return c.json(
       {
         ...submission,
@@ -611,6 +650,25 @@ app.openapi(
         invitationStatus: "accepted",
         invitedByUserId: user.id,
         trackId: listing.trackId,
+      })
+      .onConflictDoNothing();
+
+    await notifyOpenVerseAcceptedEmail({
+      listingId,
+      queue: c.env.EMAIL_DELIVERY_QUEUE,
+      submissionId,
+      submitterUserId: submission.submitterUserId,
+    });
+
+    await db
+      .insert(userNotifications)
+      .values({
+        id: `open_verse_accepted:${submissionId}`,
+        link: "/dashboard/open-verses",
+        message: "Your open verse submission was accepted.",
+        title: "Open Verse Accepted",
+        type: "open_verse_accepted",
+        userId: submission.submitterUserId,
       })
       .onConflictDoNothing();
 

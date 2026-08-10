@@ -180,6 +180,8 @@ function ExploreVideoCard({ video }: { video: VideoSummary }) {
         duration: video.duration ?? "0:00",
         id: video.id,
         playbackPolicy: video.playbackPolicy,
+        regionSlug: video.regionSlug ?? null,
+        slug: video.slug ?? null,
         status: video.status,
         thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
         title: video.title,

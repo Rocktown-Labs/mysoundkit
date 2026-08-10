@@ -1,3 +1,5 @@
+import { canonicalGenreSlug } from "@/lib/genre-catalog";
+
 const northAmericaStates = {
   "us-alabama": { abbreviation: "AL", name: "Alabama" },
   "us-alaska": { abbreviation: "AK", name: "Alaska" },
@@ -52,7 +54,7 @@ const northAmericaStates = {
 } as const;
 
 export const genreSlugFromExploreFilter = (genre: string | undefined) =>
-  genre && genre !== "all" ? genre : null;
+  genre && genre !== "all" ? canonicalGenreSlug(genre) : null;
 
 export const stateFromExploreRegion = ({
   region,
@@ -66,4 +68,37 @@ export const stateFromExploreRegion = ({
   }
 
   return northAmericaStates[region as keyof typeof northAmericaStates] ?? null;
+};
+
+const regionEntryByStateValue = (state?: string | null) => {
+  if (!state) {
+    return null;
+  }
+
+  const normalized = state.trim().toLowerCase();
+  const entry = (
+    Object.entries(northAmericaStates) as [
+      string,
+      {
+        abbreviation: string;
+        name: string;
+      },
+    ][]
+  ).find(
+    ([, value]) =>
+      value.abbreviation.toLowerCase() === normalized ||
+      value.name.toLowerCase() === normalized
+  );
+
+  return entry?.[1] ?? null;
+};
+
+/**
+ * Maps a user profile state value ("AR", "Arkansas") to a compact region slug
+ * for public URLs, e.g. "us-ar".
+ */
+export const regionSlugFromUser = (state?: string | null) => {
+  const entry = regionEntryByStateValue(state);
+
+  return entry ? `us-${entry.abbreviation.toLowerCase()}` : null;
 };

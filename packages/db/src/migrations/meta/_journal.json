@@ -78,6 +78,55 @@
       "when": 1785542400000,
       "tag": "0010_ai_credit_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786081234875,
+      "tag": "0011_slow_slyde",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786081743020,
+      "tag": "0012_steady_puppet_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786148617546,
+      "tag": "0013_abandoned_scream",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786233600000,
+      "tag": "0014_resend_track_processing_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786237200000,
+      "tag": "0015_email_delivery_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786240800000,
+      "tag": "0016_artist_friend_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786417200000,
+      "tag": "0017_realtimekit_live_experiences",
+      "breakpoints": true
     }
   ]
 }

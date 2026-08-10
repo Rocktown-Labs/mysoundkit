@@ -1,8 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { Play, Clock } from "lucide-react";
+import { Play, Clock, Heart } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  useLibrarySavedQuery,
+  useToggleSaveTrackMutation,
+} from "@/lib/soundkit-api-hooks";
 
 interface TrackCardProps {
   id: string;
@@ -12,6 +18,8 @@ interface TrackCardProps {
   cover: string;
   plays: string;
   duration: string;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 export function TrackCard({
@@ -22,12 +30,60 @@ export function TrackCard({
   cover,
   plays,
   duration,
+  regionSlug,
+  slug,
 }: TrackCardProps) {
+  const { toast } = useToast();
+  const { data: savedTracks = [] } = useLibrarySavedQuery();
+  const toggleSaveMutation = useToggleSaveTrackMutation();
+  const isSaved = savedTracks.some((t) => t.id === id);
+  const [optimisticSaved, setOptimisticSaved] = useState(isSaved);
+
+  useEffect(() => {
+    setOptimisticSaved(isSaved);
+  }, [isSaved]);
+
+  const handleToggleSave = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (toggleSaveMutation.isPending) {
+      return;
+    }
+
+    setOptimisticSaved((current) => !current);
+
+    try {
+      const res = await toggleSaveMutation.mutateAsync(id);
+      setOptimisticSaved(res.saved);
+      toast({
+        description: res.saved
+          ? `Saved "${title}" to your Saved Tracks.`
+          : `Removed "${title}" from your Saved Tracks.`,
+        title: res.saved ? "Saved to Library" : "Removed from Library",
+      });
+    } catch {
+      toast({
+        description: "Please sign in to save tracks.",
+        title: "Sign in required",
+        variant: "destructive",
+      });
+      setOptimisticSaved(isSaved);
+    }
+  };
+
+  const trackLink =
+    regionSlug && slug
+      ? {
+          params: { regionSlug, slug },
+          to: "/tracks/$regionSlug/$slug" as const,
+        }
+      : { params: { id }, to: "/tracks/$id" as const };
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all group w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px] flex-shrink-0 p-0">
       <CardContent className="p-0 space-y-0">
-        <Link to="/tracks/$id" params={{ id }} className="block">
-          <div className="relative aspect-square overflow-hidden">
+        <div className="relative aspect-square overflow-hidden">
+          <Link {...trackLink} className="block w-full h-full">
             <AppImage
               src={cover || "/placeholder.svg"}
               alt={title}
@@ -41,10 +97,23 @@ export function TrackCard({
                 <Play className="size-5 md:size-6 fill-primary-foreground text-primary-foreground ml-0.5" />
               </div>
             </div>
-          </div>
-        </Link>
+          </Link>
+          <button
+            type="button"
+            onClick={handleToggleSave}
+            className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/40 text-white transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={toggleSaveMutation.isPending}
+            title={optimisticSaved ? "Remove from Saved" : "Save Track"}
+          >
+            <Heart
+              className={`size-3.5 ${
+                optimisticSaved ? "fill-rose-500 text-rose-500" : ""
+              }`}
+            />
+          </button>
+        </div>
         <div className="p-2 md:p-3">
-          <Link to="/tracks/$id" params={{ id }}>
+          <Link {...trackLink}>
             <h3 className="font-medium text-xs md:text-sm truncate group-hover:text-primary transition-colors">
               {title}
             </h3>

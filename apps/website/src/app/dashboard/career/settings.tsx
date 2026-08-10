@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -21,22 +21,150 @@ import { toast } from "@/components/ui/use-toast";
 import {
   useMeEntitlementsQuery,
   useMeQuery,
+  useNotificationSettingsQuery,
   useUpdateMeProfileMutation,
+  useUpdateNotificationSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
+
+interface SettingsSearch {
+  tab?: "account" | "notifications" | "privacy" | "profile";
+}
 
 export const Route = createFileRoute("/dashboard/career/settings")({
   component: SettingsPage,
+  validateSearch: (search: Record<string, unknown>): SettingsSearch => ({
+    tab:
+      search.tab === "account" ||
+      search.tab === "notifications" ||
+      search.tab === "privacy" ||
+      search.tab === "profile"
+        ? search.tab
+        : undefined,
+  }),
 });
 
+const defaultNotificationSettings = {
+  emailCollaborations: true,
+  emailComments: true,
+  emailFollowers: true,
+  emailSales: true,
+  emailTrackProcessing: true,
+  pushMentions: true,
+  pushMessages: true,
+  pushReleases: true,
+};
+
+type NotificationSettingKey = keyof typeof defaultNotificationSettings;
+
+const emailNotificationItems: {
+  description: string;
+  key: NotificationSettingKey;
+  title: string;
+}[] = [
+  {
+    description: "Get notified when someone follows you",
+    key: "emailFollowers",
+    title: "New Followers",
+  },
+  {
+    description: "Get notified when your uploaded tracks are live or processed",
+    key: "emailTrackProcessing",
+    title: "Track Processing",
+  },
+  {
+    description: "Get notified when someone comments on your tracks",
+    key: "emailComments",
+    title: "Comments",
+  },
+  {
+    description: "Get notified about collaboration requests",
+    key: "emailCollaborations",
+    title: "Collaborations",
+  },
+  {
+    description: "Get notified when someone purchases your music",
+    key: "emailSales",
+    title: "Sales",
+  },
+];
+
+const pushNotificationItems: {
+  description: string;
+  key: NotificationSettingKey;
+  title: string;
+}[] = [
+  {
+    description: "Get notified about new messages",
+    key: "pushMessages",
+    title: "Messages",
+  },
+  {
+    description: "Get notified when someone mentions you",
+    key: "pushMentions",
+    title: "Mentions",
+  },
+  {
+    description: "Get notified about new releases from artists you follow",
+    key: "pushReleases",
+    title: "Releases",
+  },
+];
+
+const privacyNotificationItems = [
+  {
+    description: "Make your profile visible at mysoundkit.com/johndoe",
+    key: "public-profile",
+    title: "Public Profile",
+  },
+  {
+    description: "Display number of tracks on your profile",
+    key: "track-count",
+    title: "Show Track Count",
+  },
+  {
+    description: "Display your follower count publicly",
+    key: "followers",
+    title: "Show Followers",
+  },
+  {
+    description: "Display who you've collaborated with",
+    key: "collaborators",
+    title: "Show Collaborators",
+  },
+];
+
+// Existing settings sections are intentionally consolidated into one screen.
+// eslint-disable-next-line complexity
 function SettingsPage() {
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const activeTab = search.tab ?? "profile";
   const meQuery = useMeQuery();
   const entitlementsQuery = useMeEntitlementsQuery();
+  const notificationSettingsQuery = useNotificationSettingsQuery();
   const updateProfile = useUpdateMeProfileMutation();
+  const updateNotificationSettings = useUpdateNotificationSettingsMutation();
   const user = meQuery.data?.user;
   const entitlements = entitlementsQuery.data;
+  const notificationSettings = {
+    ...defaultNotificationSettings,
+    ...notificationSettingsQuery.data,
+  };
   const location = [user?.city, user?.state].filter(Boolean).join(", ");
   const [isDirty, setIsDirty] = useState(false);
-  const [bioLength, setBioLength] = useState(user?.bio?.length ?? 0);
+
+  const handleTabChange = (val: string) => {
+    navigate({
+      search: { tab: val as SettingsSearch["tab"] },
+    });
+  };
+
+  const updateNotificationSetting = (
+    key: NotificationSettingKey,
+    checked: boolean
+  ) => {
+    updateNotificationSettings.mutate({ [key]: checked });
+  };
 
   const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,7 +213,7 @@ function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
@@ -99,6 +227,7 @@ function SettingsPage() {
             onSubmit={saveProfile}
             onChange={() => setIsDirty(true)}
             key={user?.id}
+            autoComplete="off"
           >
             <Card>
               <CardHeader>
@@ -110,11 +239,13 @@ function SettingsPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <ProfileMediaUpload
+                    currentUrl={user?.headerUrl}
                     description="Upload a cover image that frames your artist page. JPG or PNG up to 10MB."
                     kind="header"
                     title="Upload Header Image"
                   />
                   <ProfileMediaUpload
+                    currentUrl={user?.avatarUrl}
                     description="JPG or PNG up to 10MB. This image is stored in SoundKit media storage."
                     kind="avatar"
                     title="Upload Profile Photo"
@@ -361,17 +492,26 @@ function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="account-email">Email Address</Label>
                 <Input
-                  id="email"
+                  id="account-email"
                   type="email"
-                  placeholder="Managed by your sign-in provider"
-                  disabled
+                  value={user?.email ?? ""}
+                  readOnly
+                  autoComplete="off"
+                  className="bg-muted cursor-not-allowed"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" placeholder="••••••••" />
+                <Label htmlFor="account-password">Password</Label>
+                <Input
+                  id="account-password"
+                  type="password"
+                  value="••••••••••••"
+                  readOnly
+                  autoComplete="new-password"
+                  className="bg-muted cursor-not-allowed"
+                />
               </div>
               <Button variant="outline">Change Password</Button>
             </CardContent>
@@ -445,37 +585,27 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                {
-                  description: "Get notified when someone follows you",
-                  title: "New Followers",
-                },
-                {
-                  description: "Weekly summary of your track plays",
-                  title: "Track Plays",
-                },
-                {
-                  description:
-                    "Get notified when someone comments on your tracks",
-                  title: "Comments",
-                },
-                {
-                  description: "Get notified about collaboration requests",
-                  title: "Collaborations",
-                },
-                {
-                  description: "Get notified when someone purchases your music",
-                  title: "Sales",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
+              {emailNotificationItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-4"
+                >
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
                     <p className="text-sm text-muted-foreground">
                       {item.description}
                     </p>
                   </div>
-                  <Switch defaultChecked={i < 3} />
+                  <Switch
+                    checked={notificationSettings[item.key]}
+                    disabled={
+                      notificationSettingsQuery.isLoading ||
+                      updateNotificationSettings.isPending
+                    }
+                    onCheckedChange={(checked) =>
+                      updateNotificationSetting(item.key, checked)
+                    }
+                  />
                 </div>
               ))}
             </CardContent>
@@ -489,29 +619,27 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                {
-                  description: "Get notified about new messages",
-                  title: "Messages",
-                },
-                {
-                  description: "Get notified when someone mentions you",
-                  title: "Mentions",
-                },
-                {
-                  description:
-                    "Get notified about new releases from artists you follow",
-                  title: "Releases",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
+              {pushNotificationItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-4"
+                >
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
                     <p className="text-sm text-muted-foreground">
                       {item.description}
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch
+                    checked={notificationSettings[item.key]}
+                    disabled={
+                      notificationSettingsQuery.isLoading ||
+                      updateNotificationSettings.isPending
+                    }
+                    onCheckedChange={(checked) =>
+                      updateNotificationSetting(item.key, checked)
+                    }
+                  />
                 </div>
               ))}
             </CardContent>
@@ -527,26 +655,11 @@ function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                {
-                  description:
-                    "Make your profile visible at mysoundkit.com/johndoe",
-                  title: "Public Profile",
-                },
-                {
-                  description: "Display number of tracks on your profile",
-                  title: "Show Track Count",
-                },
-                {
-                  description: "Display your follower count publicly",
-                  title: "Show Followers",
-                },
-                {
-                  description: "Display who you've collaborated with",
-                  title: "Show Collaborators",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
+              {privacyNotificationItems.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between"
+                >
                   <div className="space-y-0.5">
                     <Label>{item.title}</Label>
                     <p className="text-sm text-muted-foreground">

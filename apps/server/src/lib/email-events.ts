@@ -1,0 +1,762 @@
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import {
+  notificationSettings,
+  openVerseListings,
+  orderItems,
+  orders,
+  battles,
+  purchases,
+  tracks,
+  userProfiles,
+} from "@soundkit/db/schema/app";
+import { user as authUser, subscription } from "@soundkit/db/schema/auth";
+import { communitySubscriptions } from "@soundkit/db/schema/communities";
+import { eq, or } from "drizzle-orm";
+
+import { enqueueTransactionalEmail } from "@/lib/email-delivery";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+
+type EmailPreference = "collaborations" | "followers" | "sales";
+
+interface Recipient {
+  email: string;
+  name: string;
+  userId: string;
+}
+
+const collaborationFooter =
+  "You are receiving this because collaboration emails are turned on for your SoundKit account.";
+const salesFooter =
+  "You are receiving this because sales emails are turned on for your SoundKit account.";
+const accountFooter =
+  "You are receiving this because this email is about billing or account access.";
+const followerFooter =
+  "You are receiving this because follower emails are turned on for your SoundKit account.";
+
+const formatBattleFormat = (format: string) => format.replaceAll("_", " ");
+
+const formatMoney = (amountCents: number | null | undefined) =>
+  typeof amountCents === "number"
+    ? new Intl.NumberFormat("en-US", {
+        currency: "USD",
+        style: "currency",
+      }).format(amountCents / 100)
+    : "the order total";
+
+const getUserRecipient = async (userId: string): Promise<Recipient | null> => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const [recipient] = await createDb()
+    .select({
+      email: authUser.email,
+      name: authUser.name,
+      userId: authUser.id,
+    })
+    .from(authUser)
+    .where(eq(authUser.id, userId))
+    .limit(1);
+
+  return recipient
+    ? {
+        email: recipient.email,
+        name: recipient.name ?? "there",
+        userId: recipient.userId,
+      }
+    : null;
+};
+
+const shouldSendEmail = async ({
+  preference,
+  userId,
+}: {
+  preference?: EmailPreference;
+  userId?: string | null;
+}) => {
+  if (!(preference && userId && isDatabaseConfigured())) {
+    return true;
+  }
+
+  const [settings] = await createDb()
+    .select({
+      emailCollaborations: notificationSettings.emailCollaborations,
+      emailFollowers: notificationSettings.emailFollowers,
+      emailSales: notificationSettings.emailSales,
+    })
+    .from(notificationSettings)
+    .where(eq(notificationSettings.userId, userId))
+    .limit(1);
+
+  if (preference === "sales") {
+    return settings?.emailSales ?? true;
+  }
+
+  if (preference === "followers") {
+    return settings?.emailFollowers ?? true;
+  }
+
+  return settings?.emailCollaborations ?? true;
+};
+
+const enqueueForRecipient = async ({
+  actionPath,
+  body,
+  ctaLabel,
+  eyebrow,
+  footerNote,
+  heading,
+  idempotencyKey,
+  preference,
+  previewText,
+  queue,
+  recipient,
+  subject,
+  template,
+}: {
+  actionPath: string;
+  body: string;
+  ctaLabel: string;
+  eyebrow: string;
+  footerNote: string;
+  heading: string;
+  idempotencyKey: string;
+  preference?: EmailPreference;
+  previewText: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  recipient: Recipient;
+  subject: string;
+  template:
+    | "battle_challenge"
+    | "battle_reminder"
+    | "battle_results"
+    | "billing_issue"
+    | "follower"
+    | "friend_request"
+    | "open_verse_accepted"
+    | "open_verse_submitted"
+    | "purchase_receipt"
+    | "sale_notification";
+}) => {
+  if (!(await shouldSendEmail({ preference, userId: recipient.userId }))) {
+    return { enqueued: false, reason: "preference_disabled" as const };
+  }
+
+  return enqueueTransactionalEmail({
+    actionPath,
+    idempotencyKey,
+    payload: {
+      body,
+      ctaLabel,
+      eyebrow,
+      footerNote,
+      heading,
+      previewText,
+      subject,
+    },
+    queue,
+    recipientEmail: recipient.email,
+    recipientName: recipient.name,
+    template,
+    userId: recipient.userId,
+  });
+};
+
+const notifyBattleRecipients = async ({
+  battleId,
+  idempotencyPrefix,
+  queue,
+  resultsSummary,
+  type,
+}: {
+  battleId: string;
+  idempotencyPrefix: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  resultsSummary?: string | null;
+  type: "reminder" | "results";
+}) => {
+  const [battle] = await createDb()
+    .select({
+      challengerArtistUserId: battles.challengerArtistUserId,
+      id: battles.id,
+      opponentArtistUserId: battles.opponentArtistUserId,
+      title: battles.title,
+    })
+    .from(battles)
+    .where(or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId)))
+    .limit(1);
+
+  if (!battle) {
+    return { enqueued: false, reason: "battle_not_found" as const };
+  }
+
+  const recipientUserIds = [
+    battle.challengerArtistUserId,
+    battle.opponentArtistUserId,
+  ].filter((userId): userId is string => Boolean(userId));
+  const deliveries = [];
+
+  for (const recipientUserId of recipientUserIds) {
+    deliveries.push(
+      type === "reminder"
+        ? await notifyBattleReminderEmail({
+            battleId: battle.id,
+            battleTitle: battle.title,
+            idempotencyScope: idempotencyPrefix,
+            queue,
+            recipientUserId,
+          })
+        : await notifyBattleResultsEmail({
+            battleId: battle.id,
+            battleTitle: battle.title,
+            idempotencyScope: idempotencyPrefix,
+            queue,
+            recipientUserId,
+            resultsSummary:
+              resultsSummary ??
+              "The final round data has been saved to your dashboard.",
+          })
+    );
+  }
+
+  return {
+    deliveries,
+    enqueued: deliveries.length > 0,
+    idempotencyPrefix,
+  };
+};
+
+export const notifyBattleChallengeEmail = async ({
+  battleFormat,
+  challengerName,
+  challengeId,
+  genre,
+  opponentUserId,
+  queue,
+}: {
+  battleFormat: string;
+  challengerName: string;
+  challengeId: string;
+  genre: string;
+  opponentUserId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) => {
+  const recipient = await getUserRecipient(opponentUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/live/challenge",
+    body: `${challengerName} challenged you to a ${formatBattleFormat(battleFormat)} ${genre} battle. Open the challenge to review the details and respond when you are ready.`,
+    ctaLabel: "Review challenge",
+    eyebrow: "Battle invite",
+    footerNote: collaborationFooter,
+    heading: "You have a new battle challenge",
+    idempotencyKey: `battle-challenge/${challengeId}/${opponentUserId}`,
+    preference: "collaborations",
+    previewText: `${challengerName} challenged you to a battle on SoundKit.`,
+    queue,
+    recipient,
+    subject: "You have a new battle challenge",
+    template: "battle_challenge",
+  });
+};
+
+export const notifyBattleReminderEmail = async ({
+  battleId,
+  battleTitle,
+  idempotencyScope,
+  recipientUserId,
+  queue,
+}: {
+  battleId: string;
+  battleTitle: string;
+  idempotencyScope?: string;
+  recipientUserId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) => {
+  const recipient = await getUserRecipient(recipientUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/live",
+    body: `${battleTitle} starts soon. Open the room to make sure your tracks, chat, and battle setup are ready before listeners arrive.`,
+    ctaLabel: "Open battle room",
+    eyebrow: "Starts soon",
+    footerNote: collaborationFooter,
+    heading: "Your battle is coming up",
+    idempotencyKey: `battle-reminder/${idempotencyScope ?? battleId}/${recipientUserId}`,
+    preference: "collaborations",
+    previewText: `${battleTitle} starts soon.`,
+    queue,
+    recipient,
+    subject: `${battleTitle} starts soon`,
+    template: "battle_reminder",
+  });
+};
+
+export const notifyBattleResultsEmail = async ({
+  battleId,
+  battleTitle,
+  idempotencyScope,
+  recipientUserId,
+  resultsSummary,
+  queue,
+}: {
+  battleId: string;
+  battleTitle: string;
+  idempotencyScope?: string;
+  recipientUserId: string;
+  resultsSummary: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) => {
+  const recipient = await getUserRecipient(recipientUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/live",
+    body: `${battleTitle} is complete. ${resultsSummary} Open the recap to review the rounds, results, and next steps.`,
+    ctaLabel: "View recap",
+    eyebrow: "Battle results",
+    footerNote: collaborationFooter,
+    heading: "Your battle results are ready",
+    idempotencyKey: `battle-results/${idempotencyScope ?? battleId}/${recipientUserId}`,
+    preference: "collaborations",
+    previewText: `${battleTitle} is complete.`,
+    queue,
+    recipient,
+    subject: `${battleTitle} results are ready`,
+    template: "battle_results",
+  });
+};
+
+export const notifyBattleReminderEmailsForBattle = ({
+  battleId,
+  eventId,
+  queue,
+}: {
+  battleId: string;
+  eventId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) =>
+  notifyBattleRecipients({
+    battleId,
+    idempotencyPrefix: `battle-reminder-event/${eventId}`,
+    queue,
+    type: "reminder",
+  });
+
+export const notifyBattleResultsEmailsForBattle = ({
+  battleId,
+  eventId,
+  queue,
+  resultsSummary,
+}: {
+  battleId: string;
+  eventId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  resultsSummary?: string | null;
+}) =>
+  notifyBattleRecipients({
+    battleId,
+    idempotencyPrefix: `battle-results-event/${eventId}`,
+    queue,
+    resultsSummary,
+    type: "results",
+  });
+
+export const notifyOpenVerseSubmittedEmail = async ({
+  listingId,
+  queue,
+  submissionId,
+  submitterName,
+}: {
+  listingId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  submissionId: string;
+  submitterName: string;
+}) => {
+  const [listing] = await createDb()
+    .select({
+      ownerUserId: openVerseListings.ownerUserId,
+      title: openVerseListings.title,
+      trackTitle: tracks.title,
+    })
+    .from(openVerseListings)
+    .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+    .where(eq(openVerseListings.id, listingId))
+    .limit(1);
+
+  if (!listing) {
+    return { enqueued: false, reason: "listing_not_found" as const };
+  }
+
+  const recipient = await getUserRecipient(listing.ownerUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/open-verses",
+    body: `${submitterName} submitted a verse for ${listing.trackTitle}. Open the submission to listen, review the message, and decide whether it fits the track.`,
+    ctaLabel: "Review submission",
+    eyebrow: "Open verse",
+    footerNote: collaborationFooter,
+    heading: "You have a new open verse submission",
+    idempotencyKey: `open-verse-submitted/${submissionId}`,
+    preference: "collaborations",
+    previewText: `${submitterName} submitted a verse for ${listing.trackTitle}.`,
+    queue,
+    recipient,
+    subject: `New open verse submission for ${listing.trackTitle}`,
+    template: "open_verse_submitted",
+  });
+};
+
+export const notifyOpenVerseAcceptedEmail = async ({
+  listingId,
+  queue,
+  submissionId,
+  submitterUserId,
+}: {
+  listingId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  submissionId: string;
+  submitterUserId: string;
+}) => {
+  const [listing] = await createDb()
+    .select({
+      trackTitle: tracks.title,
+    })
+    .from(openVerseListings)
+    .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+    .where(eq(openVerseListings.id, listingId))
+    .limit(1);
+  const recipient = await getUserRecipient(submitterUserId);
+
+  if (!(listing && recipient)) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/open-verses",
+    body: `Your verse for ${listing.trackTitle} was accepted. You have been added to the track credits so the artist can keep building from there.`,
+    ctaLabel: "Open collaboration",
+    eyebrow: "Verse accepted",
+    footerNote: collaborationFooter,
+    heading: "Your open verse was accepted",
+    idempotencyKey: `open-verse-accepted/${submissionId}`,
+    preference: "collaborations",
+    previewText: `Your verse for ${listing.trackTitle} was accepted.`,
+    queue,
+    recipient,
+    subject: `Your verse for ${listing.trackTitle} was accepted`,
+    template: "open_verse_accepted",
+  });
+};
+
+export const notifyPurchaseEmails = async ({
+  orderId,
+  queue,
+}: {
+  orderId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) => {
+  const db = createDb();
+  const [order] = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1);
+
+  if (!order) {
+    return { enqueued: false, reason: "order_not_found" as const };
+  }
+
+  const [buyer, seller, items] = await Promise.all([
+    getUserRecipient(order.buyerUserId),
+    order.sellerUserId ? getUserRecipient(order.sellerUserId) : null,
+    db.select().from(orderItems).where(eq(orderItems.orderId, order.id)),
+  ]);
+  const itemTitle = items[0]?.titleSnapshot ?? "your purchase";
+  const itemSummary =
+    items.length > 1 ? `${itemTitle} and ${items.length - 1} more` : itemTitle;
+  const amount = formatMoney(order.totalCents);
+  const firstPurchase = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
+    .where(eq(orderItems.orderId, order.id))
+    .limit(1);
+  const purchasePath = firstPurchase[0]?.id
+    ? `/library/purchased/${firstPurchase[0].id}`
+    : "/library/purchased";
+  const deliveries = [];
+
+  if (buyer) {
+    deliveries.push(
+      await enqueueForRecipient({
+        actionPath: purchasePath,
+        body: `Your purchase is complete. ${itemSummary} is now in your SoundKit library, and your files are ready when you are.`,
+        ctaLabel: "Open purchase",
+        eyebrow: "Receipt",
+        footerNote: salesFooter,
+        heading: "Your purchase is ready",
+        idempotencyKey: `purchase-receipt/${order.id}/${buyer.userId}`,
+        preference: "sales",
+        previewText: "Your SoundKit purchase is ready.",
+        queue,
+        recipient: buyer,
+        subject: "Your SoundKit purchase is ready",
+        template: "purchase_receipt",
+      })
+    );
+  }
+
+  if (seller) {
+    deliveries.push(
+      await enqueueForRecipient({
+        actionPath: "/dashboard/sales",
+        body: `${buyer?.name ?? "Someone"} bought ${itemSummary} for ${amount}. Open your dashboard to review the order and keep an eye on your sales activity.`,
+        ctaLabel: "View sale",
+        eyebrow: "New sale",
+        footerNote: salesFooter,
+        heading: "You made a sale",
+        idempotencyKey: `sale-notification/${order.id}/${seller.userId}`,
+        preference: "sales",
+        previewText: `${buyer?.name ?? "Someone"} bought ${itemSummary}.`,
+        queue,
+        recipient: seller,
+        subject: `New sale: ${itemSummary}`,
+        template: "sale_notification",
+      })
+    );
+  }
+
+  return { deliveries, enqueued: deliveries.length > 0 };
+};
+
+export const notifyBillingIssueEmail = async ({
+  queue,
+  stripeCustomerId,
+  stripeSubscriptionId,
+  userId,
+}: {
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  userId?: string | null;
+}) => {
+  let resolvedUserId = userId ?? null;
+
+  if (!(resolvedUserId || stripeCustomerId || stripeSubscriptionId)) {
+    return { enqueued: false, reason: "billing_identity_missing" as const };
+  }
+
+  if (!resolvedUserId) {
+    const [communitySubscription] = await createDb()
+      .select({ userId: communitySubscriptions.userId })
+      .from(communitySubscriptions)
+      .where(
+        or(
+          stripeCustomerId
+            ? eq(communitySubscriptions.stripeCustomerId, stripeCustomerId)
+            : undefined,
+          stripeSubscriptionId
+            ? eq(
+                communitySubscriptions.stripeSubscriptionId,
+                stripeSubscriptionId
+              )
+            : undefined
+        )
+      )
+      .limit(1);
+
+    resolvedUserId = communitySubscription?.userId ?? null;
+  }
+
+  if (!resolvedUserId) {
+    const [platformSubscription] = await createDb()
+      .select({ referenceId: subscription.referenceId })
+      .from(subscription)
+      .where(
+        or(
+          stripeCustomerId
+            ? eq(subscription.stripeCustomerId, stripeCustomerId)
+            : undefined,
+          stripeSubscriptionId
+            ? eq(subscription.stripeSubscriptionId, stripeSubscriptionId)
+            : undefined
+        )
+      )
+      .limit(1);
+
+    resolvedUserId = platformSubscription?.referenceId ?? null;
+  }
+
+  const recipient = resolvedUserId
+    ? await getUserRecipient(resolvedUserId)
+    : null;
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/settings/billing",
+    body: "We could not complete your latest SoundKit payment. Update your billing details to keep your plan and account access current.",
+    ctaLabel: "Update billing",
+    eyebrow: "Billing",
+    footerNote: accountFooter,
+    heading: "Your payment needs attention",
+    idempotencyKey: `billing-issue/${stripeCustomerId ?? stripeSubscriptionId ?? recipient.userId}`,
+    previewText: "Update your billing details to keep SoundKit current.",
+    queue,
+    recipient,
+    subject: "Your SoundKit payment needs attention",
+    template: "billing_issue",
+  });
+};
+
+export const notifyCollaboratorInviteEmail = ({
+  actionPath,
+  inviterName,
+  inviteEmail,
+  inviteId,
+  queue,
+  workTitle,
+  workType,
+}: {
+  actionPath: string;
+  inviterName: string;
+  inviteEmail: string;
+  inviteId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  workTitle: string;
+  workType: "project" | "track";
+}) =>
+  enqueueTransactionalEmail({
+    actionPath,
+    idempotencyKey: `collaborator-invite/${inviteId}`,
+    payload: {
+      body: `${inviterName} invited you to collaborate on ${workTitle}. Open the invite to review your role and join the ${workType} workspace.`,
+      ctaLabel: "Open invite",
+      eyebrow: "Collaboration",
+      footerNote:
+        "You are receiving this because someone invited this email address to collaborate on SoundKit.",
+      heading: "You have a collaboration invite",
+      previewText: `${inviterName} invited you to collaborate on ${workTitle}.`,
+      subject: `Collaboration invite: ${workTitle}`,
+    },
+    queue,
+    recipientEmail: inviteEmail,
+    recipientName: "there",
+    template: "collaborator_invite",
+  });
+
+export const notifyFollowerEmail = async ({
+  artistUserId,
+  followerName,
+  followerType = "artist",
+  followerUsername,
+  queue,
+}: {
+  artistUserId: string;
+  followerName: string;
+  followerType?: "artist" | "fan";
+  followerUsername?: string | null;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) => {
+  const recipient = await getUserRecipient(artistUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  const isFan = followerType === "fan";
+
+  return enqueueForRecipient({
+    actionPath:
+      followerUsername && !isFan
+        ? `/artist/${followerUsername}`
+        : "/dashboard/collaborators",
+    body: isFan
+      ? `${followerName} became a fan of your SoundKit profile. Open your collaborators dashboard to see the fan and keep building your audience.`
+      : `${followerName} started following your SoundKit profile. Open their artist page to see what they are building.`,
+    ctaLabel: isFan ? "View fan" : "View artist",
+    eyebrow: isFan ? "New fan" : "New follower",
+    footerNote: followerFooter,
+    heading: isFan ? "You have a new fan" : "You have a new follower",
+    idempotencyKey: `follower/${artistUserId}/${followerType}/${followerUsername ?? followerName}`,
+    preference: "followers",
+    previewText: isFan
+      ? `${followerName} became a fan of your SoundKit profile.`
+      : `${followerName} started following your SoundKit profile.`,
+    queue,
+    recipient,
+    subject: isFan
+      ? `${followerName} became a fan on SoundKit`
+      : `${followerName} followed you on SoundKit`,
+    template: "follower",
+  });
+};
+
+export const notifyFriendRequestEmail = async ({
+  recipientUserId,
+  requestId,
+  requesterName,
+  queue,
+}: {
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  recipientUserId: string;
+  requestId: string;
+  requesterName: string;
+}) => {
+  const recipient = await getUserRecipient(recipientUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/collaborators",
+    body: `${requesterName} sent you an artist friend request on SoundKit. Accept it to add them to your friends list and start messaging when you are ready.`,
+    ctaLabel: "Review request",
+    eyebrow: "Friend request",
+    footerNote: collaborationFooter,
+    heading: "You have a new artist friend request",
+    idempotencyKey: `friend-request/${requestId}`,
+    preference: "collaborations",
+    previewText: `${requesterName} wants to connect with you on SoundKit.`,
+    queue,
+    recipient,
+    subject: `${requesterName} sent you a friend request`,
+    template: "friend_request",
+  });
+};
+
+export const getDisplayNameForUser = async (userId: string) => {
+  if (!isDatabaseConfigured()) {
+    return "Someone";
+  }
+
+  const [profile] = await createDb()
+    .select({
+      displayName: userProfiles.displayName,
+      username: userProfiles.username,
+    })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1);
+
+  return profile?.displayName ?? profile?.username ?? "Someone";
+};

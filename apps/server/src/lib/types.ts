@@ -1,3 +1,5 @@
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+
 export interface AuthenticatedSession {
   activeOrganizationId?: string | null;
   id: string;
@@ -21,10 +23,13 @@ export interface AppVariables {
 export interface AppEnv {
   Bindings: {
     LIVE_ROOMS?: DurableObjectNamespace;
+    MEDIA_BUCKET?: R2Bucket;
     SENTRY_DSN?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;
     CLOUDFLARE_REALTIMEKIT_APP_ID?: string;
+    EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage>;
+    REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
   };
   Variables: AppVariables;

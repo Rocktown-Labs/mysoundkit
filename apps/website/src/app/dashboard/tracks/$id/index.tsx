@@ -34,6 +34,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/use-toast";
+import { downloadFileFromApi } from "@/lib/api";
+import { shareLink } from "@/lib/share";
 import {
   useCreateTrackLyricsMutation,
   useProcessTrackMutation,
@@ -555,6 +557,35 @@ function TrackFilesPanel({
   onPlay: () => void;
   playbackUrl: null | string | undefined;
 }) {
+  const handleDownloadMaster = async () => {
+    if (!masterAsset?.downloadUrl) {
+      toast({
+        description: "No guarded master download is available for this track.",
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await downloadFileFromApi({
+        fallbackFileName: masterAsset.objectKey?.split("/").pop() ?? "master",
+        url: masterAsset.downloadUrl,
+      });
+      toast({
+        description: "Downloading master file...",
+        title: "Starting Download",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Unable to download master.",
+        title: "Download unavailable",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <Card>
@@ -592,7 +623,13 @@ function TrackFilesPanel({
                     <Play className="size-4" />
                   </Button>
                 ) : null}
-                <Button disabled size="sm" type="button" variant="ghost">
+                <Button
+                  disabled={!masterAsset.downloadUrl}
+                  onClick={() => void handleDownloadMaster()}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
                   <Download className="size-4" />
                 </Button>
               </div>
@@ -714,18 +751,38 @@ function TrackDetailPage() {
   const isLive = Boolean(track.isPublic);
   const statusLabel = formatTrackStatusLabel(isLive, track.productionStatus);
 
-  const handleShare = () => {
+  const handleShare = async () => {
+    const publicTrackPath =
+      track.regionSlug && track.slug
+        ? `/tracks/${track.regionSlug}/${track.slug}`
+        : `/tracks/${track.id}`;
     const shareUrl =
       typeof window === "undefined"
-        ? `/tracks/${track.id}`
-        : `${window.location.origin}/tracks/${track.id}`;
-    if (navigator.clipboard) {
-      void navigator.clipboard.writeText(shareUrl);
-      toast({
-        description: `Track link copied to clipboard: ${shareUrl}`,
-        title: "Link copied!",
-      });
+        ? publicTrackPath
+        : `${window.location.origin}${publicTrackPath}`;
+    const outcome = await shareLink({
+      text: `${track.title} by ${track.artistName}`,
+      title: track.title,
+      url: shareUrl,
+    });
+
+    if (outcome === "shared") {
+      return;
     }
+
+    if (outcome === "unsupported") {
+      toast({
+        description: "Sharing is not supported on this device.",
+        title: "Unable to share",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      description: `Track link copied to clipboard: ${shareUrl}`,
+      title: "Link copied!",
+    });
   };
 
   const handleTranscribe = async () => {
@@ -860,7 +917,9 @@ function TrackDetailPage() {
             <div>
               <p className="text-sm text-muted-foreground">Updated</p>
               <p className="text-lg font-semibold">
-                {new Date(track.updatedAt).toLocaleDateString()}
+                {track.updatedAt
+                  ? new Date(track.updatedAt).toLocaleDateString()
+                  : "Processing…"}
               </p>
             </div>
           </div>

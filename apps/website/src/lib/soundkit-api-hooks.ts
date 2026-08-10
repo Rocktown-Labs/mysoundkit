@@ -10,6 +10,9 @@ import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 
 const meGet = apiClient.v1.me.index.$get;
 const meProfilePatch = apiClient.v1.me.profile.$patch;
+const meNotificationSettingsGet = apiClient.v1.me["notification-settings"].$get;
+const meNotificationSettingsPatch =
+  apiClient.v1.me["notification-settings"].$patch;
 const meEntitlementsGet = apiClient.v1.me.entitlements.$get;
 const billingCheckoutPost = apiClient.v1.billing.checkout.$post;
 const adminAccessGet = apiClient.v1.admin.access.$get;
@@ -34,18 +37,24 @@ const trackGet = apiClient.v1.tracks[":trackId"].$get;
 const trackPatch = apiClient.v1.tracks[":trackId"].$patch;
 const trackDelete = apiClient.v1.tracks[":trackId"].$delete;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
+const trackSettlePost = apiClient.v1.tracks[":trackId"].settle.$post;
 const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
 const trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post;
 const trackLyricsReviewPatch =
   apiClient.v1.tracks[":trackId"].lyrics[":lyricsId"].$patch;
 const projectsGet = apiClient.v1.projects.index.$get;
+const publicProjectsGet = apiClient.v1.projects.public.$get;
+const publicProjectGet = apiClient.v1.projects.public[":projectId"].$get;
 const projectsPost = apiClient.v1.projects.index.$post;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
 const projectPatch = apiClient.v1.projects[":projectId"].$patch;
 const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
 const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
 const battlesGet = apiClient.v1.battles.index.$get;
+const battleChallengesGet = apiClient.v1.battles.challenges.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
+const battleChallengePatch =
+  apiClient.v1.battles.challenges[":challengeId"].$patch;
 const liveExperiencePost = apiClient.v1.live.experiences.index.$post;
 const liveExperienceJoinPost =
   apiClient.v1.live.experiences[":experienceId"].join.$post;
@@ -56,10 +65,24 @@ const liveExperienceSessionLockCheckPost =
 const libraryOverviewGet = apiClient.v1.library.overview.$get;
 const libraryPlaylistsGet = apiClient.v1.library.playlists.$get;
 const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
+const libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get;
 const libraryRecentGet = apiClient.v1.library.recent.$get;
 const librarySavedGet = apiClient.v1.library.saved.$get;
+const librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post;
+const librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete;
+const libraryPlaylistsPost = apiClient.v1.library.playlists.$post;
+const libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete;
+const libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get;
+const libraryPlaylistTracksPost =
+  apiClient.v1.library.playlists[":id"].tracks.$post;
+const libraryPlaylistTrackDelete =
+  apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete;
 const libraryWatchedGet = apiClient.v1.library.watched.$get;
 const friendsGet = apiClient.v1.messages.friends.$get;
+const friendRequestsGet = apiClient.v1.messages["friend-requests"].$get;
+const friendRequestsPost = apiClient.v1.messages["friend-requests"].$post;
+const friendRequestPatch =
+  apiClient.v1.messages["friend-requests"][":requestId"].$patch;
 const peopleSearchGet = apiClient.v1.messages.people.$get;
 const conversationsGet = apiClient.v1.messages.conversations.$get;
 const conversationsPost = apiClient.v1.messages.conversations.$post;
@@ -74,6 +97,9 @@ const openVerseSubmissionPost =
   apiClient.v1["open-verses"][":listingId"].submissions.$post;
 const videosGet = apiClient.v1.videos.index.$get;
 const videosPost = apiClient.v1.videos.index.$post;
+const videoGet = apiClient.v1.videos[":videoId"].$get;
+const videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get;
+const videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post;
 const videoDelete = apiClient.v1.videos[":videoId"].$delete;
 const notificationsGet = apiClient.v1.notifications.index.$get;
 const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
@@ -96,6 +122,7 @@ export type TrackDetail = InferResponseType<typeof trackGet, 200>;
 type CreateTrackBody = InferRequestType<typeof tracksPost>["json"];
 type UpdateTrackBody = InferRequestType<typeof trackPatch>["json"];
 type CreateTrackAssetBody = InferRequestType<typeof trackAssetPost>["json"];
+type SettleTrackBody = InferRequestType<typeof trackSettlePost>["json"];
 type TrackProcessingStatus = InferResponseType<typeof trackProcessPost, 200>;
 type CreateLyricsRevisionBody = InferRequestType<
   typeof trackLyricsPost
@@ -106,6 +133,17 @@ type ReviewLyricsRevisionBody = InferRequestType<
 type CreateProjectBody = InferRequestType<typeof projectsPost>["json"];
 type UpdateProjectBody = InferRequestType<typeof projectPatch>["json"];
 export type ProjectSummary = InferResponseType<typeof projectsGet, 200>[number];
+export type PublicProjectSummary = InferResponseType<
+  typeof publicProjectsGet,
+  200
+>[number];
+export type PublicProjectsQuery = NonNullable<
+  InferRequestType<typeof publicProjectsGet>["query"]
+>;
+export type PublicProjectDetail = InferResponseType<
+  typeof publicProjectGet,
+  200
+>;
 type CreateListeningPartyBody = InferRequestType<
   typeof listeningPartyPost
 >["json"];
@@ -117,6 +155,11 @@ type CreateOpenVerseSubmissionBody = InferRequestType<
 >["json"];
 type CreateVideoBody = InferRequestType<typeof videosPost>["json"];
 export type VideoSummary = InferResponseType<typeof videosGet, 200>[number];
+export type VideoDetail = InferResponseType<typeof videoGet, 200>;
+export type VideoComment = InferResponseType<
+  typeof videoCommentsGet,
+  200
+>[number];
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
@@ -128,7 +171,14 @@ export type BillingCheckoutResponse = InferResponseType<
   200
 >;
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
+type UpdateNotificationSettingsBody = InferRequestType<
+  typeof meNotificationSettingsPatch
+>["json"];
 export type BattleSummary = InferResponseType<typeof battlesGet, 200>[number];
+export type BattleChallengesResponse = InferResponseType<
+  typeof battleChallengesGet,
+  200
+>;
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
 export type LibraryPlaylist = InferResponseType<
   typeof libraryPlaylistsGet,
@@ -138,6 +188,10 @@ export type LibraryPurchase = InferResponseType<
   typeof libraryPurchasesGet,
   200
 >[number];
+export type LibraryPurchaseDetail = InferResponseType<
+  typeof libraryPurchaseGet,
+  200
+>;
 export type LibraryRecentTrack = InferResponseType<
   typeof libraryRecentGet,
   200
@@ -152,6 +206,9 @@ export type LibraryWatchedItem = InferResponseType<
 >[number];
 type CreateBattleChallengeBody = InferRequestType<
   typeof battleChallengePost
+>["json"];
+type UpdateBattleChallengeBody = InferRequestType<
+  typeof battleChallengePatch
 >["json"];
 type CreateLiveExperienceBody = InferRequestType<
   typeof liveExperiencePost
@@ -178,6 +235,10 @@ export type ListeningPartySummary = InferResponseType<
   200
 >[number];
 export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
+export type FriendRequestSummary = InferResponseType<
+  typeof friendRequestsGet,
+  200
+>[number];
 export type ConversationSummary = InferResponseType<
   typeof conversationsGet,
   200
@@ -202,13 +263,72 @@ type UpdatePlatformSettingsBody = InferRequestType<
   typeof adminSettingsPatch
 >["json"];
 
+export type AdTargetType = "country" | "state";
+export type AdCreativeFormat = "audio" | "image" | "video";
+export type AdPlacement = "audio_preroll" | "video_overlay" | "video_preroll";
+export type AdBillingType = "prepaid_wallet" | "upfront_recurring";
+
+export interface AdTarget {
+  targetCode: string;
+  targetType: AdTargetType;
+}
+
+export interface AdCampaignSummary {
+  billingType: AdBillingType;
+  clickthroughUrl: string;
+  creativeFormat: AdCreativeFormat;
+  creativeImageUrl: string | null;
+  creativeUrl: string;
+  dailyBudgetCents: number;
+  dailyImpressionCap: number;
+  endDate: string | null;
+  id: string;
+  metrics: {
+    clicks: number;
+    cpcCents: number | null;
+    cpmCents: number | null;
+    ctrPercent: number;
+    impressions: number;
+    spendCents: number;
+  };
+  name: string;
+  placement: AdPlacement;
+  startDate: string;
+  status: "active" | "draft" | "exhausted_for_today" | "expired" | "paused";
+  targets: AdTarget[];
+}
+
+export interface AdWalletSummary {
+  balanceCents: number;
+  currency: string;
+}
+
+export interface CreateAdCampaignBody {
+  billingType: AdBillingType;
+  clickthroughUrl: string;
+  creativeFormat: AdCreativeFormat;
+  creativeImageUrl?: string;
+  creativeUrl: string;
+  dailyBudgetCents: number;
+  dailyImpressionCap: number;
+  endDate?: string;
+  name: string;
+  placement: AdPlacement;
+  startDate?: string;
+  targets: AdTarget[];
+}
+
 export const soundkitQueryKeys = {
+  adAdminCampaigns: ["ads", "admin", "campaigns"] as const,
+  adCampaigns: ["ads", "campaigns"] as const,
+  adWallet: ["ads", "wallet"] as const,
   adminAccess: ["admin", "access"] as const,
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   adminSettings: ["admin", "settings"] as const,
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
+  battleChallenges: ["battles", "challenges"] as const,
   battles: ["battles"] as const,
   battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
@@ -216,10 +336,14 @@ export const soundkitQueryKeys = {
     ["messages", "conversations", conversationId, "messages"] as const,
   conversations: ["messages", "conversations"] as const,
   discoverHome: ["discover", "home"] as const,
+  friendRequests: ["messages", "friend-requests"] as const,
   friends: ["messages", "friends"] as const,
   genres: ["discover", "genres"] as const,
   libraryOverview: ["library", "overview"] as const,
+  libraryPlaylist: (id: string) => ["library", "playlists", id] as const,
   libraryPlaylists: ["library", "playlists"] as const,
+  libraryPurchase: (purchaseId: string) =>
+    ["library", "purchases", purchaseId] as const,
   libraryPurchases: ["library", "purchases"] as const,
   libraryRecent: ["library", "recent"] as const,
   librarySaved: ["library", "saved"] as const,
@@ -228,12 +352,16 @@ export const soundkitQueryKeys = {
   liveExperience: (id: string) => ["live", "experiences", id] as const,
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
+  meNotificationSettings: ["me", "notification-settings"] as const,
   notifications: ["notifications"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
   peopleSearch: (q: string) => ["messages", "people", q] as const,
   project: (id: string) => ["projects", id] as const,
   projects: ["projects"] as const,
+  publicProject: (id: string) => ["projects", "public", id] as const,
+  publicProjects: (query?: PublicProjectsQuery) =>
+    ["projects", "public", query ?? {}] as const,
   search: (query: SearchQuery) => ["search", query] as const,
   sellerStatus: ["seller", "status"] as const,
   track: (id: string) => ["tracks", id] as const,
@@ -245,6 +373,72 @@ export const soundkitQueryKeys = {
   videos: (query?: PublicExploreQuery) =>
     [...soundkitQueryKeys.videosPrefix, query ?? {}] as const,
   videosPrefix: ["videos"] as const,
+};
+
+const fetchApiJson = async <T>(
+  path: string,
+  init?: RequestInit
+): Promise<T> => {
+  const response = await fetch(`${API_V1_URL}${path}`, {
+    credentials: "include",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      message?: string;
+    } | null;
+    throw new SoundKitApiError(
+      payload?.message ?? `Request failed with ${response.status}.`,
+      response.status
+    );
+  }
+
+  return (await response.json()) as T;
+};
+
+export const useAdWalletQuery = () =>
+  useQuery({
+    queryFn: async () => fetchApiJson<AdWalletSummary>("/ads/wallet"),
+    queryKey: soundkitQueryKeys.adWallet,
+  });
+
+export const useAdCampaignsQuery = () =>
+  useQuery({
+    queryFn: async () => fetchApiJson<AdCampaignSummary[]>("/ads/campaigns"),
+    queryKey: soundkitQueryKeys.adCampaigns,
+  });
+
+export const useAdminAdCampaignsQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      fetchApiJson<AdCampaignSummary[]>("/ads/admin/campaigns"),
+    queryKey: soundkitQueryKeys.adAdminCampaigns,
+  });
+
+export const useCreateAdCampaignMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: CreateAdCampaignBody) =>
+      fetchApiJson<AdCampaignSummary>("/ads/campaigns", {
+        body: JSON.stringify(body),
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adCampaigns,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adAdminCampaigns,
+      });
+    },
+  });
 };
 
 export const useAdminAccessQuery = (enabled = true) =>
@@ -343,6 +537,25 @@ export const useUpdateMeProfileMutation = () => {
   });
 };
 
+export const useNotificationSettingsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await meNotificationSettingsGet()),
+    queryKey: soundkitQueryKeys.meNotificationSettings,
+  });
+
+export const useUpdateNotificationSettingsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: UpdateNotificationSettingsBody) =>
+      rpcJson(await meNotificationSettingsPatch({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.meNotificationSettings,
+      }),
+  });
+};
+
 export const useMeEntitlementsQuery = () =>
   useQuery({
     queryFn: async (): Promise<EntitlementSummary> =>
@@ -370,6 +583,56 @@ export const useFriendsQuery = () =>
     queryFn: async () => rpcJson(await friendsGet()),
     queryKey: soundkitQueryKeys.friends,
   });
+
+export const useFriendRequestsQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await friendRequestsGet()),
+    queryKey: soundkitQueryKeys.friendRequests,
+  });
+
+export const useCreateFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { message?: string; username: string }) =>
+      rpcJson(await friendRequestsPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.friendRequests,
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
+    },
+  });
+};
+
+export const useRespondFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      action,
+      requestId,
+    }: {
+      action: "accept" | "cancel" | "decline";
+      requestId: string;
+    }) =>
+      rpcJson(
+        await friendRequestPatch({
+          json: { action },
+          param: { requestId },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.friendRequests,
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.friends });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversations,
+      });
+    },
+  });
+};
 
 export const useGenresQuery = () =>
   useQuery({
@@ -607,6 +870,28 @@ export const useCreateTrackAssetMutation = (trackId: string) => {
   });
 };
 
+export const useSettleTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      body,
+      trackId,
+    }: {
+      body: SettleTrackBody;
+      trackId: string;
+    }) => rpcJson(await trackSettlePost({ json: body, param: { trackId } })),
+    onSuccess: (_, { trackId }) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};
+
 export const useProcessTrackMutation = (trackId: string) => {
   const queryClient = useQueryClient();
 
@@ -663,11 +948,25 @@ export const useProjectsQuery = () =>
     queryKey: soundkitQueryKeys.projects,
   });
 
+export const usePublicProjectsQuery = (query: PublicProjectsQuery = {}) =>
+  useQuery<PublicProjectSummary[]>({
+    queryFn: async () => rpcJson(await publicProjectsGet({ query })),
+    queryKey: soundkitQueryKeys.publicProjects(query),
+  });
+
 export const useProjectQuery = (projectId: string) =>
   useQuery({
     enabled: Boolean(projectId),
     queryFn: async () => rpcJson(await projectGet({ param: { projectId } })),
     queryKey: soundkitQueryKeys.project(projectId),
+  });
+
+export const usePublicProjectQuery = (projectId: string) =>
+  useQuery<PublicProjectDetail>({
+    enabled: Boolean(projectId),
+    queryFn: async () =>
+      rpcJson(await publicProjectGet({ param: { projectId } })),
+    queryKey: soundkitQueryKeys.publicProject(projectId),
   });
 
 export const useCreateProjectMutation = () => {
@@ -754,6 +1053,12 @@ export const useBattlesQuery = () =>
     queryKey: soundkitQueryKeys.battles,
   });
 
+export const useBattleChallengesQuery = () =>
+  useQuery({
+    queryFn: async () => rpcJson(await battleChallengesGet()),
+    queryKey: soundkitQueryKeys.battleChallenges,
+  });
+
 export const useLibraryOverviewQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await libraryOverviewGet()),
@@ -764,6 +1069,15 @@ export const useLibraryPurchasesQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await libraryPurchasesGet()),
     queryKey: soundkitQueryKeys.libraryPurchases,
+  });
+
+export const useLibraryPurchaseQuery = (purchaseId: string) =>
+  useQuery({
+    enabled: purchaseId.length > 0,
+    queryFn: async (): Promise<LibraryPurchaseDetail> =>
+      rpcJson(await libraryPurchaseGet({ param: { purchaseId } })),
+    queryKey: soundkitQueryKeys.libraryPurchase(purchaseId),
+    retry: false,
   });
 
 export const useLibraryPlaylistsQuery = () =>
@@ -790,14 +1104,187 @@ export const useLibraryWatchedQuery = () =>
     queryKey: soundkitQueryKeys.libraryWatched,
   });
 
+export const useToggleSaveTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await librarySaveTrackPost({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.librarySaved,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const useRemoveSavedTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (trackId: string) =>
+      rpcJson(await librarySaveTrackDelete({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.librarySaved,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const useCreatePlaylistMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: { description?: string; title: string }) =>
+      rpcJson(await libraryPlaylistsPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const useDeletePlaylistMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (playlistId: string) =>
+      rpcJson(await libraryPlaylistDelete({ param: { id: playlistId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryOverview,
+      });
+    },
+  });
+};
+
+export const usePlaylistQuery = (id: string) =>
+  useQuery({
+    enabled: Boolean(id),
+    queryFn: async () => rpcJson(await libraryPlaylistGet({ param: { id } })),
+    queryKey: soundkitQueryKeys.libraryPlaylist(id),
+  });
+
+export const useAddPlaylistTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      trackId,
+    }: {
+      playlistId: string;
+      trackId: string;
+    }) =>
+      rpcJson(
+        await libraryPlaylistTracksPost({
+          json: { trackId },
+          param: { id: playlistId },
+        })
+      ),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylist(variables.playlistId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+    },
+  });
+};
+
+export const useRemovePlaylistTrackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      playlistId,
+      trackId,
+    }: {
+      playlistId: string;
+      trackId: string;
+    }) =>
+      rpcJson(
+        await libraryPlaylistTrackDelete({
+          param: { id: playlistId, trackId },
+        })
+      ),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylist(variables.playlistId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.libraryPlaylists,
+      });
+    },
+  });
+};
+
+export const useUpdateWorkspaceMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name }: { name: string }) =>
+      rpcJson(
+        await apiClient.v1.me.workspace.$patch({
+          json: { name },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
+    },
+  });
+};
+
 export const useCreateBattleChallengeMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (body: CreateBattleChallengeBody) =>
       rpcJson(await battleChallengePost({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleChallenges,
+      });
+    },
+  });
+};
+
+export const useUpdateBattleChallengeMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      challengeId,
+      status,
+    }: UpdateBattleChallengeBody & { challengeId: string }) =>
+      rpcJson(
+        await battleChallengePatch({
+          json: { status },
+          param: { challengeId },
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battles });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleChallenges,
+      });
+    },
   });
 };
 
@@ -944,6 +1431,40 @@ export const useDeleteVideoMutation = () => {
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.videosPrefix,
+      }),
+  });
+};
+
+export const useVideoQuery = (videoId: string) =>
+  useQuery({
+    enabled: videoId.length > 0,
+    queryFn: async (): Promise<VideoDetail> =>
+      rpcJson(await videoGet({ param: { videoId } })),
+    queryKey: [...soundkitQueryKeys.videosPrefix, "detail", videoId],
+  });
+
+export const useVideoCommentsQuery = (videoId: string) =>
+  useQuery({
+    enabled: videoId.length > 0,
+    queryFn: async (): Promise<VideoComment[]> =>
+      rpcJson(await videoCommentsGet({ param: { videoId } })),
+    queryKey: [...soundkitQueryKeys.videosPrefix, videoId, "comments"],
+  });
+
+export const useCreateVideoCommentMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ body, videoId }: { body: string; videoId: string }) =>
+      rpcJson(
+        await videoCommentsPost({
+          json: { body },
+          param: { videoId },
+        })
+      ),
+    onSuccess: (_comment, { videoId }) =>
+      queryClient.invalidateQueries({
+        queryKey: [...soundkitQueryKeys.videosPrefix, videoId, "comments"],
       }),
   });
 };

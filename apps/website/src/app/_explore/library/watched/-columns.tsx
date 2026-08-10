@@ -20,6 +20,8 @@ export interface WatchedItem {
   creatorSlug: string;
   duration: string;
   watchedAt: string;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
 const watchedItemLabel = (type: WatchedItem["type"]) => {
@@ -64,7 +66,7 @@ export const columns: ColumnDef<WatchedItem>[] = [
     accessorKey: "title",
     cell: ({ row }) => {
       const Icon = watchedItemIcon(row.original.type);
-      const title = row.getValue("title");
+      const title = row.getValue<string>("title");
       const item = row.original;
       const linkClassName =
         "font-medium hover:text-primary transition-colors line-clamp-1";
@@ -100,8 +102,16 @@ export const columns: ColumnDef<WatchedItem>[] = [
           </Link>
         ) : (
           <Link
-            to="/videos/$id"
-            params={{ id: item.id }}
+            params={
+              item.regionSlug && item.slug
+                ? { regionSlug: item.regionSlug, slug: item.slug }
+                : { id: item.id }
+            }
+            to={
+              item.regionSlug && item.slug
+                ? "/videos/$regionSlug/$slug"
+                : "/videos/$id"
+            }
             className={linkClassName}
           >
             {title}
@@ -194,7 +204,21 @@ export const columns: ColumnDef<WatchedItem>[] = [
             ) : row.original.type === "community" ? (
               <Link to="/communities">Open Community</Link>
             ) : (
-              <Link to="/videos/$id" params={{ id: row.original.id }}>
+              <Link
+                params={
+                  row.original.regionSlug && row.original.slug
+                    ? {
+                        regionSlug: row.original.regionSlug,
+                        slug: row.original.slug,
+                      }
+                    : { id: row.original.id }
+                }
+                to={
+                  row.original.regionSlug && row.original.slug
+                    ? "/videos/$regionSlug/$slug"
+                    : "/videos/$id"
+                }
+              >
                 Watch Again
               </Link>
             )}

@@ -7,7 +7,9 @@ import {
   genres,
   openVerseListings,
   playbackSessions,
+  projectTracks,
   purchases,
+  qualifiedStreams,
   trackAssets,
   trackCollaborators,
   trackLicenseOptions,
@@ -15,11 +17,12 @@ import {
   trackPreSaves,
   trackStemJobs,
   tracks,
+  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -31,6 +34,7 @@ import {
   buildTrackSummary,
   ownedTrackWhere,
 } from "@/lib/dashboard-mappers";
+import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -44,6 +48,7 @@ import {
 } from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
+  regionSlugFromUser,
   stateFromExploreRegion,
 } from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
@@ -62,6 +67,7 @@ import {
   playbackSessionResponseSchema,
   reviewLyricsRevisionBodySchema,
   setupRequiredResponseSchema,
+  settleTrackBodySchema,
   trackCatalogDetailSchema,
   trackDashboardDetailSchema,
   trackProcessingStatusSchema,
@@ -70,6 +76,7 @@ import {
   updateTrackBodySchema,
 } from "@/lib/schemas";
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
+import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
@@ -150,11 +157,114 @@ const publicTrackAssetUrl = (
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
 };
 
+const trackAssetFileName = (
+  asset: typeof trackAssets.$inferSelect | undefined
+) => {
+  if (!asset) {
+    return null;
+  }
+
+  const metadata = asset.metadata as Record<string, unknown> | null | undefined;
+  const metadataFileName = metadata?.originalFileName;
+  if (typeof metadataFileName === "string" && metadataFileName.trim()) {
+    return metadataFileName;
+  }
+
+  if (asset.objectKey) {
+    return asset.objectKey.split("/").pop() ?? null;
+  }
+
+  return null;
+};
+
+const quotedDownloadFileName = (fileName: string) =>
+  fileName.replaceAll(/[\\"]/gu, "_");
+
+const getMediaBucket = (bindings: AppEnv["Bindings"]) =>
+  bindings.MEDIA_BUCKET ??
+  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
+  null;
+
+const hasPurchasedTrack = async ({
+  db,
+  trackId,
+  userId,
+}: {
+  db: ReturnType<typeof createDb>;
+  trackId: string;
+  userId: string;
+}) => {
+  const [directPurchase] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .where(
+      and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
+    )
+    .limit(1);
+
+  if (directPurchase) {
+    return true;
+  }
+
+  const [projectPurchase] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .innerJoin(projectTracks, eq(projectTracks.projectId, purchases.projectId))
+    .where(
+      and(eq(purchases.buyerUserId, userId), eq(projectTracks.trackId, trackId))
+    )
+    .limit(1);
+
+  return Boolean(projectPurchase);
+};
+
+const hasPlayedTrackOnce = async ({
+  db,
+  trackId,
+  userId,
+}: {
+  db: ReturnType<typeof createDb>;
+  trackId: string;
+  userId: string;
+}) => {
+  const [qualified] = await db
+    .select({ id: qualifiedStreams.id })
+    .from(qualifiedStreams)
+    .where(
+      and(
+        eq(qualifiedStreams.userId, userId),
+        eq(qualifiedStreams.trackId, trackId),
+        eq(qualifiedStreams.status, "qualified")
+      )
+    )
+    .limit(1);
+
+  if (qualified) {
+    return true;
+  }
+
+  const [endedSession] = await db
+    .select({ id: playbackSessions.id })
+    .from(playbackSessions)
+    .where(
+      and(
+        eq(playbackSessions.userId, userId),
+        eq(playbackSessions.trackId, trackId),
+        eq(playbackSessions.status, "ended"),
+        gt(playbackSessions.playedSeconds, 0)
+      )
+    )
+    .limit(1);
+
+  return Boolean(endedSession);
+};
+
 const assetKindLabels = {
   alternate_mix: "Alternate Mix",
   artwork: "Artwork",
   booklet: "Digital Booklet",
   clean: "Clean Version",
+  cover_art: "Cover Artwork",
   instrumental: "Instrumental",
   license_pdf: "License Agreement",
   master: "High Quality Master",
@@ -181,6 +291,14 @@ const publicTrackOrderBy = (sort?: string) => {
     return desc(tracks.title);
   }
 
+  if (sort === "date-asc") {
+    return asc(tracks.updatedAt);
+  }
+
+  if (sort === "date-desc") {
+    return desc(tracks.updatedAt);
+  }
+
   if (sort === "plays-asc") {
     return asc(trackPlayCount);
   }
@@ -194,6 +312,113 @@ const getTrackProcessingWorkflow = () =>
       TRACK_PROCESSING_WORKFLOW?: Workflow<TrackProcessingWorkflowPayload>;
     }
   ).TRACK_PROCESSING_WORKFLOW ?? null;
+
+const isLiveRelease = ({
+  isPublic,
+  releaseAt,
+  releaseStrategy,
+}: {
+  isPublic: boolean;
+  releaseAt: Date | null;
+  releaseStrategy: "private" | "publish_when_ready" | "scheduled";
+}) =>
+  isPublic &&
+  releaseStrategy !== "private" &&
+  (!releaseAt || releaseAt.getTime() <= Date.now());
+
+const queueTrackAudioProcessing = async ({
+  masterAsset,
+  trackId,
+}: {
+  masterAsset: typeof trackAssets.$inferSelect;
+  trackId: string;
+}) => {
+  const db = createDb();
+  const [existingJob] = await withRetry("find existing stem job", () =>
+    db
+      .select()
+      .from(trackStemJobs)
+      .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
+      .limit(1)
+  );
+
+  const [job] =
+    existingJob?.status === "queued" || existingJob?.status === "processing"
+      ? [existingJob]
+      : await withRetry("create stem job", () =>
+          db
+            .insert(trackStemJobs)
+            .values({
+              id: crypto.randomUUID(),
+              inputAssetId: masterAsset.id,
+              outputFormat: "MP3",
+              outputType: "BOTH",
+              status: "queued" as const,
+              trackId,
+            })
+            .returning()
+        );
+
+  if (job && !job.workflowInstanceId) {
+    await withRetry("mark lyrics generating", () =>
+      db
+        .update(tracks)
+        .set({
+          lyricsStatus: "generating",
+          updatedAt: new Date(),
+        })
+        .where(eq(tracks.id, trackId))
+    );
+
+    await withRetry("create workflow job row", () =>
+      createWorkflowJobRow({
+        input: {
+          assetId: masterAsset.id,
+          objectKey: masterAsset.objectKey,
+          trackId,
+        },
+        jobType: "track_audio_processing",
+        targetId: trackId,
+        targetType: "track",
+      })
+    );
+
+    const workflow = getTrackProcessingWorkflow();
+
+    if (workflow && masterAsset.objectKey) {
+      const instance = await workflow.create({
+        id: job.id,
+        params: {
+          assetId: masterAsset.id,
+          objectKey: masterAsset.objectKey,
+          trackId,
+        },
+        retention: {
+          errorRetention: "7 days",
+          successRetention: "7 days",
+        },
+      });
+
+      await withRetry("save workflow instance id", () =>
+        db
+          .update(trackStemJobs)
+          .set({
+            workflowInstanceId: instance.id,
+          })
+          .where(eq(trackStemJobs.id, job.id))
+      );
+    }
+  }
+
+  return {
+    jobId: job?.id ?? null,
+    message:
+      masterAsset.objectKey && getTrackProcessingWorkflow()
+        ? "Track processing workflow started."
+        : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
+    status: "queued" as const,
+  };
+};
 
 app.openapi(
   createRoute({
@@ -226,6 +451,10 @@ app.openapi(
         eq(tracks.productionStatus, "complete"),
       ];
 
+      if (query.forSale) {
+        publicTrackConditions.push(eq(tracks.isForSale, true));
+      }
+
       if (genreSlug) {
         publicTrackConditions.push(eq(genres.slug, genreSlug));
       }
@@ -239,7 +468,11 @@ app.openapi(
       const order = publicTrackOrderBy(query.sort);
       const rows = await withRetry("list public tracks", () =>
         db
-          .select()
+          .select({
+            playCount: trackPlayCount,
+            state: userProfiles.state,
+            track: tracks,
+          })
           .from(tracks)
           .leftJoin(genres, eq(genres.id, tracks.genreId))
           .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
@@ -250,7 +483,11 @@ app.openapi(
       const summaries = [];
 
       for (const row of rows) {
-        summaries.push(await buildTrackSummary(row.tracks));
+        summaries.push({
+          ...(await buildTrackSummary(row.track)),
+          plays: row.playCount ?? 0,
+          regionSlug: regionSlugFromUser(row.state) ?? null,
+        });
       }
 
       return c.json(summaries, HttpStatusCodes.OK);
@@ -722,6 +959,9 @@ app.openapi(
           catalogItemType: body.catalogItemType,
           collaboratorCount: 0,
           coverArtUrl: null,
+          downloadsAllowed: body.downloadsAllowed,
+          downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: body.downloadsRequirePurchase,
           duration: "0:00",
           fileAvailability: {
             adlibs: false,
@@ -881,6 +1121,9 @@ app.openapi(
             catalogItemType: body.catalogItemType,
             createdAt: now,
             description: body.description ?? null,
+            downloadsAllowed: body.downloadsAllowed,
+            downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
+            downloadsRequirePurchase: body.downloadsRequirePurchase,
             genreId,
             id: trackId,
             isForSale: body.isForSale,
@@ -918,25 +1161,53 @@ app.openapi(
       }
 
       if (body.collaborators.length > 0) {
+        const collaboratorRows = body.collaborators.map((collaborator) => ({
+          canDelete: false,
+          canEdit: true,
+          canUpload: true,
+          collaboratorRole: collaborator.role,
+          collaboratorUserId: collaborator.userId ?? null,
+          createdAt: now,
+          id: crypto.randomUUID(),
+          invitationStatus: collaborator.userId
+            ? ("accepted" as const)
+            : ("pending" as const),
+          inviteEmail: collaborator.inviteEmail ?? null,
+          invitedByUserId: user.id,
+          trackId,
+        }));
+
         await withRetry("insert track collaborators", () =>
-          db.insert(trackCollaborators).values(
-            body.collaborators.map((collaborator) => ({
-              canDelete: false,
-              canEdit: true,
-              canUpload: true,
-              collaboratorRole: collaborator.role,
-              collaboratorUserId: collaborator.userId ?? null,
-              createdAt: now,
-              id: crypto.randomUUID(),
-              invitationStatus: collaborator.userId
-                ? ("accepted" as const)
-                : ("pending" as const),
-              inviteEmail: collaborator.inviteEmail ?? null,
-              invitedByUserId: user.id,
-              trackId,
-            }))
-          )
+          db.insert(trackCollaborators).values(collaboratorRows)
         );
+
+        for (const collaborator of collaboratorRows) {
+          if (collaborator.collaboratorUserId) {
+            await db
+              .insert(userNotifications)
+              .values({
+                id: `track_collaborator:${collaborator.id}`,
+                link: `/dashboard/tracks/${trackId}`,
+                message: `${user.name ?? "Someone"} added you as a collaborator on ${body.title}.`,
+                title: "New Collaboration",
+                type: "collaborator_invite",
+                userId: collaborator.collaboratorUserId,
+              })
+              .onConflictDoNothing();
+          }
+
+          if (collaborator.inviteEmail) {
+            await notifyCollaboratorInviteEmail({
+              actionPath: `/dashboard/tracks/${trackId}`,
+              inviteEmail: collaborator.inviteEmail,
+              inviteId: collaborator.id,
+              inviterName: user.name ?? "Someone",
+              queue: c.env.EMAIL_DELIVERY_QUEUE,
+              workTitle: body.title,
+              workType: "track",
+            });
+          }
+        }
       }
 
       if (!track) {
@@ -1037,6 +1308,9 @@ app.openapi(
       .set({
         bpm: body.bpm,
         description: body.description,
+        downloadsAllowed: body.downloadsAllowed,
+        downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
+        downloadsRequirePurchase: body.downloadsRequirePurchase,
         genreId: updatedGenreId,
         isForSale: body.isForSale,
         isPublic: body.isPublic,
@@ -1236,6 +1510,21 @@ app.openapi(
       return c.json(await buildTrackDetail(track), HttpStatusCodes.CREATED);
     }
 
+    // A track should have a single cover art and a single master; replace any
+    // prior rows of the same kind instead of accumulating duplicates.
+    if (body.assetKind === "cover_art" || body.assetKind === "master") {
+      await withRetry("replace track asset kind", () =>
+        db
+          .delete(trackAssets)
+          .where(
+            and(
+              eq(trackAssets.trackId, trackId),
+              eq(trackAssets.assetKind, body.assetKind)
+            )
+          )
+      );
+    }
+
     await withRetry("create track asset", () =>
       db.insert(trackAssets).values({
         assetKind: body.assetKind,
@@ -1260,6 +1549,162 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/{trackId}/settle",
+    request: {
+      body: jsonContentRequired(
+        settleTrackBodySchema,
+        "Track settlement payload"
+      ),
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        trackDashboardDetailSchema,
+        "Track settled"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Required assets missing"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is required before settling track media." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { trackId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const db = createDb();
+    const [track] = await db
+      .select()
+      .from(tracks)
+      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+      .limit(1);
+
+    if (!track) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const assetRows = await db
+      .select()
+      .from(trackAssets)
+      .where(eq(trackAssets.trackId, trackId));
+    const masterAsset = assetRows.find(
+      (asset) =>
+        asset.assetKind === "master" &&
+        Boolean(asset.objectKey) &&
+        (asset.status === "ready" || asset.status === "uploaded")
+    );
+    const coverAsset = assetRows.find(
+      (asset) => asset.assetKind === "cover_art" && Boolean(asset.objectKey)
+    );
+
+    if (!masterAsset) {
+      return c.json(
+        {
+          message:
+            "Master audio must finish uploading before this track can be settled.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (body.requireCoverArt && !coverAsset) {
+      return c.json(
+        {
+          message:
+            "Cover art must finish uploading before this track can go live.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    await withRetry("mark master asset ready", () =>
+      db
+        .update(trackAssets)
+        .set({ status: "ready", updatedAt: new Date() })
+        .where(eq(trackAssets.id, masterAsset.id))
+    );
+
+    const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null;
+    const shouldPublish = body.isPublic;
+    const [settledTrack] = await withRetry("settle track", () =>
+      db
+        .update(tracks)
+        .set({
+          isPublic: shouldPublish,
+          productionStatus: body.productionStatus,
+          publishedAt: shouldPublish ? (track.publishedAt ?? new Date()) : null,
+          releaseAt,
+          releaseStrategy: body.releaseStrategy,
+          updatedAt: new Date(),
+        })
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .returning()
+    );
+
+    if (!settledTrack) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    if (
+      isLiveRelease({
+        isPublic: shouldPublish,
+        releaseAt,
+        releaseStrategy: body.releaseStrategy,
+      })
+    ) {
+      const bindings = c.env as AppEnv["Bindings"];
+      await notifyTrackLive({
+        emailQueue: bindings.EMAIL_DELIVERY_QUEUE,
+        trackId,
+      });
+    }
+
+    if (entitlements.isPremium) {
+      await queueTrackAudioProcessing({
+        masterAsset: { ...masterAsset, status: "ready" },
+        trackId,
+      });
+    }
+
+    return c.json(await buildTrackDetail(settledTrack), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/{trackId}/process",
     request: {
       params: z.object({
@@ -1274,6 +1719,10 @@ app.openapi(
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Track not found"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Premium subscription required"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
@@ -1302,6 +1751,21 @@ app.openapi(
 
     const { trackId } = c.req.valid("param");
     const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+
+    if (!entitlements.isPremium) {
+      return c.json(
+        {
+          message:
+            "A premium artist subscription is required for automated StemSplit and transcription processing.",
+        },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
     const organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
@@ -1335,93 +1799,12 @@ app.openapi(
       );
     }
 
-    const [existingJob] = await withRetry("find existing stem job", () =>
-      db
-        .select()
-        .from(trackStemJobs)
-        .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
-        .limit(1)
-    );
+    const processing = await queueTrackAudioProcessing({
+      masterAsset,
+      trackId,
+    });
 
-    const [job] =
-      existingJob?.status === "queued" || existingJob?.status === "processing"
-        ? [existingJob]
-        : await withRetry("create stem job", () =>
-            db
-              .insert(trackStemJobs)
-              .values({
-                id: crypto.randomUUID(),
-                inputAssetId: masterAsset.id,
-                outputFormat: "MP3",
-                outputType: "BOTH",
-                status: "queued" as const,
-                trackId,
-              })
-              .returning()
-          );
-
-    if (job && !job.workflowInstanceId) {
-      await withRetry("mark lyrics generating", () =>
-        db
-          .update(tracks)
-          .set({
-            lyricsStatus: "generating",
-            updatedAt: new Date(),
-          })
-          .where(eq(tracks.id, trackId))
-      );
-
-      await withRetry("create workflow job row", () =>
-        createWorkflowJobRow({
-          input: {
-            assetId: masterAsset.id,
-            objectKey: masterAsset.objectKey,
-            trackId,
-          },
-          jobType: "track_audio_processing",
-          targetId: trackId,
-          targetType: "track",
-        })
-      );
-
-      const workflow = getTrackProcessingWorkflow();
-
-      if (workflow && masterAsset.objectKey) {
-        const instance = await workflow.create({
-          id: job.id,
-          params: {
-            assetId: masterAsset.id,
-            objectKey: masterAsset.objectKey,
-            trackId,
-          },
-          retention: {
-            errorRetention: "7 days",
-            successRetention: "7 days",
-          },
-        });
-
-        await withRetry("save workflow instance id", () =>
-          db
-            .update(trackStemJobs)
-            .set({
-              workflowInstanceId: instance.id,
-            })
-            .where(eq(trackStemJobs.id, job.id))
-        );
-      }
-    }
-
-    return c.json(
-      {
-        jobId: job?.id ?? null,
-        message:
-          masterAsset.objectKey && getTrackProcessingWorkflow()
-            ? "Track processing workflow started."
-            : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
-        status: "queued" as const,
-      },
-      HttpStatusCodes.ACCEPTED
-    );
+    return c.json(processing, HttpStatusCodes.ACCEPTED);
   }
 );
 
@@ -1686,6 +2069,171 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "get",
+    path: "/{trackId}/assets/{assetId}/download",
+    request: {
+      params: z.object({
+        assetId: z.string(),
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: {
+        content: {
+          "application/octet-stream": {
+            schema: z.string().openapi({ format: "binary" }),
+          },
+        },
+        description: "Authorized track asset download",
+      },
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Download not allowed"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track asset not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Download storage unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        databaseUnavailableMessage,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const bucket = getMediaBucket(c.env as AppEnv["Bindings"]);
+
+    if (!bucket) {
+      return c.json(
+        { message: "Download storage is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const { assetId, trackId } = c.req.valid("param");
+    const db = createDb();
+    const [row] = await db
+      .select({
+        asset: trackAssets,
+        track: {
+          downloadsAllowed: tracks.downloadsAllowed,
+          downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: tracks.downloadsRequirePurchase,
+          id: tracks.id,
+          ownerUserId: tracks.ownerUserId,
+          title: tracks.title,
+        },
+      })
+      .from(trackAssets)
+      .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+      .where(and(eq(trackAssets.id, assetId), eq(tracks.id, trackId)))
+      .limit(1);
+
+    if (!(row?.asset.objectKey && row.asset.status === "ready")) {
+      return c.json(
+        { message: "Downloadable asset not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const isOwner = row.track.ownerUserId === user.id;
+    const hasPurchase = await hasPurchasedTrack({
+      db,
+      trackId,
+      userId: user.id,
+    });
+
+    if (!isOwner) {
+      if (!row.track.downloadsAllowed) {
+        return c.json(
+          { message: "The artist has disabled downloads for this track." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+
+      if (row.track.downloadsRequirePurchase && !hasPurchase) {
+        return c.json(
+          { message: "Purchase this track before downloading its files." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+
+      if (
+        !row.track.downloadsRequirePurchase &&
+        row.track.downloadsRequireFirstPlay &&
+        !(await hasPlayedTrackOnce({ db, trackId, userId: user.id }))
+      ) {
+        return c.json(
+          { message: "Play this track once before downloading its files." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+    }
+
+    const object = await bucket.get(row.asset.objectKey);
+
+    if (!object) {
+      return c.json(
+        { message: "Download file is no longer available." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if (hasPurchase) {
+      await db
+        .update(purchases)
+        .set({
+          downloadCount: sql`${purchases.downloadCount} + 1`,
+          lastDownloadedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(purchases.buyerUserId, user.id),
+            eq(purchases.trackId, trackId)
+          )
+        );
+    }
+
+    const fileName =
+      trackAssetFileName(row.asset) ??
+      `${uniqueSlug(row.track.title)}.download`;
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${quotedDownloadFileName(fileName)}"`
+    );
+    headers.set(
+      "Content-Type",
+      row.asset.mimeType ?? "application/octet-stream"
+    );
+    headers.set("Cache-Control", "private, no-store");
+    headers.set("Content-Length", String(object.size));
+
+    return new Response(object.body, { headers, status: HttpStatusCodes.OK });
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
     path: "/{trackId}",
     request: {
       params: z.object({
@@ -1748,6 +2296,9 @@ app.openapi(
         catalogItemType: tracks.catalogItemType,
         currency: tracks.currency,
         description: tracks.description,
+        downloadsAllowed: tracks.downloadsAllowed,
+        downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
+        downloadsRequirePurchase: tracks.downloadsRequirePurchase,
         genreName: genres.name,
         id: tracks.id,
         isForSale: tracks.isForSale,
@@ -1759,6 +2310,7 @@ app.openapi(
         priceCents: tracks.priceCents,
         purchaseMode: tracks.purchaseMode,
         slug: tracks.slug,
+        state: userProfiles.state,
         title: tracks.title,
       })
       .from(tracks)
@@ -1766,7 +2318,8 @@ app.openapi(
       .leftJoin(artistProfiles, eq(artistProfiles.userId, tracks.ownerUserId))
       .leftJoin(authUser, eq(authUser.id, tracks.ownerUserId))
       .leftJoin(genres, eq(genres.id, tracks.genreId))
-      .where(eq(tracks.id, trackId));
+      .where(or(eq(tracks.id, trackId), eq(tracks.slug, trackId)))
+      .limit(1);
 
     if (!row) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -1801,9 +2354,10 @@ app.openapi(
       roleRows.length > 0
         ? roleRows.map((roleRow) => roleRow.role)
         : ["musician"];
-    const coverAsset = assetRows.find(
-      (asset) => asset.assetKind === "cover_art"
-    );
+    const coverAsset =
+      assetRows.find(
+        (asset) => asset.assetKind === "cover_art" && asset.status === "ready"
+      ) ?? assetRows.find((asset) => asset.assetKind === "cover_art");
     const firstAudioAsset =
       assetRows.find((asset) => asset.assetKind === "master") ??
       assetRows.find((asset) => asset.durationMs);
@@ -1815,7 +2369,9 @@ app.openapi(
     const assets = assetRows
       .filter((asset) => catalogAssetKinds.has(asset.assetKind))
       .map((asset) => ({
+        downloadUrl: `/v1/tracks/${row.id}/assets/${asset.id}/download`,
         duration: formatDuration(asset.durationMs),
+        fileName: trackAssetFileName(asset),
         format: asset.mimeType,
         id: asset.id,
         included: asset.status === "ready",
@@ -1851,9 +2407,13 @@ app.openapi(
             : "/placeholder.svg",
         currency: row.currency,
         description: row.description,
+        downloadsAllowed: row.downloadsAllowed,
+        downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
+        downloadsRequirePurchase: row.downloadsRequirePurchase,
         duration: formatDuration(firstAudioAsset?.durationMs ?? null),
         genre: row.genreName ? canonicalGenreName(row.genreName) : null,
         id: row.id,
+        isForSale: row.isForSale,
         isOwned,
         isPurchasable: row.isForSale,
         isStreamable: true,
@@ -1873,6 +2433,7 @@ app.openapi(
         priceCents,
         priceLabel: formatPrice(priceCents),
         purchaseMode: row.purchaseMode,
+        regionSlug: regionSlugFromUser(row.state) ?? null,
         slug: row.slug,
         streamCount: null,
         tags: row.genreName ? [canonicalGenreName(row.genreName)] : [],

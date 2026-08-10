@@ -90,7 +90,7 @@ test.describe("main application surfaces", () => {
     await expect(page.getByRole("main")).toBeVisible();
     await expect(page.getByText(/part/i).first()).toBeVisible();
     await expect(
-      page.getByText("No Metal listening parties are live yet.")
+      page.getByText("No listening parties are live right now.")
     ).toHaveCount(1);
   });
 

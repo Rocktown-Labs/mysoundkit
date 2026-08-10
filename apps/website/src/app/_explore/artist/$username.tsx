@@ -2,10 +2,13 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { Film, Grid3x3, LayoutGrid, LoaderCircle, Music } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { ProfileShell } from "@/components/dashboard/profile/profile-shell";
 import { TrackCard } from "@/components/explore/track-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { absoluteSiteUrl, createShareMeta, seoDescription } from "@/lib/seo";
+import { loadPublicArtistSeo } from "@/lib/seo-data";
 import {
   useArtistQuery,
   useMeQuery,
@@ -13,8 +16,55 @@ import {
 } from "@/lib/soundkit-api-hooks";
 import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
 
+const artistProfileTabs = ["all", "tracks", "projects", "videos"] as const;
+type ArtistProfileTab = (typeof artistProfileTabs)[number];
+
+const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
+  typeof value === "string" &&
+  artistProfileTabs.includes(value as ArtistProfileTab);
+
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
+  head: ({ loaderData, params }) => {
+    const artist = loaderData;
+    const artistName = artist?.name ?? `@${params.username}`;
+    const canonicalPath = `/artist/${artist?.username ?? params.username}`;
+    const title = `Check out ${artistName} on SoundKit`;
+    const description = seoDescription(
+      artist?.bio,
+      `Listen to tracks, watch videos, and follow ${artistName} on SoundKit.`
+    );
+    const head = createShareMeta({
+      canonicalPath,
+      description,
+      imageUrl: artist?.coverImageUrl ?? artist?.avatarUrl,
+      title,
+      type: "profile",
+    });
+
+    return {
+      ...head,
+      scripts: artist
+        ? [
+            {
+              children: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "MusicGroup",
+                genre: artist.genre,
+                image: absoluteSiteUrl(
+                  artist.coverImageUrl ?? artist.avatarUrl ?? "/placeholder.svg"
+                ),
+                name: artistName,
+                url: absoluteSiteUrl(canonicalPath),
+              }),
+              type: "application/ld+json",
+            },
+          ]
+        : [],
+    };
+  },
+  loader: ({ params }) =>
+    loadPublicArtistSeo(params.username).catch(() => null),
 });
 
 const formatCount = (value?: number) => {
@@ -46,7 +96,8 @@ const formatJoinedDate = (joinedAt?: string) => {
 
 const artistToProfileUser = (
   artist: ArtistSummary,
-  trackCountOverride?: number
+  trackCountOverride?: number,
+  totalPlaysOverride?: number
 ) => ({
   avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
   battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
@@ -70,7 +121,9 @@ const artistToProfileUser = (
     youtube: artist.links?.youtube,
   },
   location: artist.location || artist.state || "SoundKit",
-  monthlyListeners: formatCount(artist.weeklyPlays),
+  monthlyListeners: formatCount(
+    totalPlaysOverride ?? artist.weeklyPlays ?? 0
+  ),
   name: artist.name,
   tracks: trackCountOverride ?? artist.trackCount ?? 0,
   username: artist.username,
@@ -99,6 +152,15 @@ function ArtistProfilePage() {
   const { username } = Route.useParams();
   const artistQuery = useArtistQuery(username);
   const meQuery = useMeQuery();
+  const [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
+
+  useEffect(() => {
+    const hashTab = window.location.hash.replace("#", "");
+
+    if (isArtistProfileTab(hashTab)) {
+      setActiveTab(hashTab);
+    }
+  }, []);
 
   const currentUser = meQuery.data?.user;
   const artist = artistQuery.data;
@@ -141,14 +203,33 @@ function ArtistProfilePage() {
       isOwner
   );
 
+  const totalArtistPlays = artistTracks.reduce(
+    (sum, t) => sum + (t.plays || 0),
+    0
+  );
+
   return (
     <ProfileShell
       isOwner={isOwner}
       targetIsArtist={true}
-      user={artistToProfileUser(artist, artistTracks.length)}
+      user={artistToProfileUser(
+        artist,
+        artistTracks.length,
+        totalArtistPlays > 0 ? totalArtistPlays : (artist.weeklyPlays ?? 0)
+      )}
       viewerAccountType={meQuery.data?.user.accountType ?? null}
     >
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(tab) => {
+          if (!isArtistProfileTab(tab)) {
+            return;
+          }
+
+          setActiveTab(tab);
+        }}
+        className="w-full"
+      >
         <div className="flex items-center justify-center border-border/10 border-t">
           <TabsList className="h-14 gap-8 bg-transparent md:gap-16">
             <TabsTrigger
@@ -195,6 +276,8 @@ function ArtistProfilePage() {
                   cover={t.coverArtUrl ?? "/placeholder.svg"}
                   plays={t.plays ? t.plays.toLocaleString() : "0"}
                   duration={t.duration ?? "3:20"}
+                  regionSlug={t.regionSlug}
+                  slug={t.slug}
                 />
               ))}
             </div>
@@ -215,6 +298,8 @@ function ArtistProfilePage() {
                   cover={t.coverArtUrl ?? "/placeholder.svg"}
                   plays={t.plays ? t.plays.toLocaleString() : "0"}
                   duration={t.duration ?? "3:20"}
+                  regionSlug={t.regionSlug}
+                  slug={t.slug}
                 />
               ))}
             </div>

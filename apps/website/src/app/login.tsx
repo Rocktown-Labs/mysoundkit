@@ -21,10 +21,19 @@ import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
+  validateSearch: (search) => ({
+    redirect:
+      typeof search.redirect === "string" &&
+      search.redirect.startsWith("/") &&
+      !search.redirect.startsWith("//")
+        ? search.redirect
+        : "/dashboard",
+  }),
 });
 
 function LoginPage() {
   const router = useRouter();
+  const { redirect } = Route.useSearch();
   const posthog = usePostHog();
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -50,7 +59,7 @@ function LoginPage() {
       posthog.identify(email, { email });
       posthog.capture("user_signed_in", { method: "email" });
 
-      await router.navigate({ to: "/dashboard" });
+      await router.navigate({ to: redirect });
     } catch (error) {
       posthog.captureException(error);
       setErrorMessage("Unable to reach SoundKit. Check your API credentials.");

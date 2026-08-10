@@ -1,8 +1,23 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { Music, Plus, ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { LibraryEmptyState } from "@/components/explore/library-empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,9 +31,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useLibraryPlaylistsQuery, useMeQuery } from "@/lib/soundkit-api-hooks";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  useCreatePlaylistMutation,
+  useDeletePlaylistMutation,
+  useLibraryPlaylistsQuery,
+  useMeQuery,
+} from "@/lib/soundkit-api-hooks";
 
-import { columns } from "./-columns";
+import { createPlaylistColumns } from "./-columns";
+import type { Playlist } from "./-columns";
 import { DataTable } from "./-data-table";
 
 export const Route = createFileRoute("/_explore/library/playlists/")({
@@ -26,11 +48,18 @@ export const Route = createFileRoute("/_explore/library/playlists/")({
 });
 
 function PlaylistsPage() {
+  const navigate = useNavigate();
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<Playlist | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [playlistName, setPlaylistName] = useState("");
   const [playlistDescription, setPlaylistDescription] = useState("");
   const { data: me } = useMeQuery();
   const { data: playlists = [], isLoading } = useLibraryPlaylistsQuery();
+  const createPlaylistMutation = useCreatePlaylistMutation();
+  const deletePlaylistMutation = useDeletePlaylistMutation();
   const isSignedIn = Boolean(me?.user);
   const tableData = playlists.map((playlist) => ({
     description: playlist.description ?? "No description",
@@ -39,11 +68,66 @@ function PlaylistsPage() {
     trackCount: playlist.trackCount,
   }));
 
-  const handleCreatePlaylist = () => {
-    setOpen(false);
-    setPlaylistName("");
-    setPlaylistDescription("");
+  const handleCreatePlaylist = async () => {
+    if (!playlistName.trim()) {
+      return;
+    }
+    try {
+      const playlist = await createPlaylistMutation.mutateAsync({
+        description: playlistDescription,
+        title: playlistName,
+      });
+      setOpen(false);
+      setPlaylistName("");
+      setPlaylistDescription("");
+      toast({
+        description: `Created playlist "${playlist.title}".`,
+        title: "Playlist Created",
+      });
+      await router.invalidate();
+      navigate({
+        params: { id: playlist.id },
+        to: "/library/playlists/$id",
+      });
+    } catch {
+      toast({
+        description: "Could not create playlist. Please try again.",
+        title: "Error creating playlist",
+        variant: "destructive",
+      });
+    }
   };
+
+  const handleDeletePlaylist = useCallback(async () => {
+    if (!deleteCandidate) {
+      return;
+    }
+
+    try {
+      await deletePlaylistMutation.mutateAsync(deleteCandidate.id);
+      toast({
+        description: `"${deleteCandidate.name}" has been deleted.`,
+        title: "Playlist deleted",
+      });
+      setDeleteCandidate(null);
+      setDeleteConfirmation("");
+      await router.invalidate();
+    } catch {
+      toast({
+        description: "Could not delete this playlist. Please try again.",
+        title: "Delete failed",
+        variant: "destructive",
+      });
+    }
+  }, [deleteCandidate, deletePlaylistMutation, router, toast]);
+
+  const columns = useMemo(
+    () =>
+      createPlaylistColumns({
+        onDelete: (playlist) => setDeleteCandidate(playlist),
+      }),
+    []
+  );
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -143,6 +227,53 @@ function PlaylistsPage() {
           title={isSignedIn ? "No playlists yet" : "Log in to manage playlists"}
         />
       )}
+
+      <AlertDialog
+        onOpenChange={(isOpen) => {
+          if (!(isOpen || deletePlaylistMutation.isPending)) {
+            setDeleteCandidate(null);
+            setDeleteConfirmation("");
+          }
+        }}
+        open={Boolean(deleteCandidate)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete playlist?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the playlist from your library. Type the
+              playlist name to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{deleteCandidate?.name}</p>
+            <Input
+              disabled={deletePlaylistMutation.isPending}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder="Type the playlist name"
+              value={deleteConfirmation}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePlaylistMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                !deleteCandidate ||
+                deleteConfirmation !== deleteCandidate.name ||
+                deletePlaylistMutation.isPending
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDeletePlaylist();
+              }}
+            >
+              Delete Playlist
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

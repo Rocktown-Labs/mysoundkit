@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Music } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
 import { TrackCard } from "@/components/explore/track-card";
@@ -22,14 +21,6 @@ interface TracksSearch {
   regionType?: "north-america" | "global";
   sort?: string;
 }
-
-const replaceExploreSearch = (params: URLSearchParams) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.history.replaceState(null, "", `?${params.toString()}`);
-};
 
 export const Route = createFileRoute("/_explore/tracks/")({
   component: TracksPage,
@@ -84,7 +75,7 @@ function TracksPage() {
 
   const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
     genre,
-    limit: "48",
+    limit: 48,
     region,
     regionType,
     scope: "public",
@@ -128,10 +119,6 @@ function TracksPage() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold text-xl">Featured Songs</h2>
-            <p className="text-muted-foreground text-sm">
-              Ranked by the current filters, defaulting to Arkansas when no
-              local signal exists yet.
-            </p>
           </div>
           <Button asChild size="sm" variant="ghost">
             <Link
@@ -156,13 +143,14 @@ function TracksPage() {
                 cover={track.coverArtUrl ?? "/placeholder.svg"}
                 plays={track.plays.toLocaleString()}
                 duration={track.duration}
+                regionSlug={track.regionSlug}
+                slug={track.slug}
               />
             ))}
           </div>
         ) : (
           <TrackEmptyState>
-            No songs found for this filter yet. Showing Arkansas by default
-            keeps discovery grounded until more local artists register.
+            No songs found for the selected filters.
           </TrackEmptyState>
         )}
       </div>
@@ -195,7 +183,7 @@ function TrackGenreRail({
 }) {
   const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
     genre: genre.value,
-    limit: "12",
+    limit: 12,
     region,
     regionType,
     scope: "public",
@@ -239,6 +227,8 @@ function TrackGenreRail({
               cover={track.coverArtUrl ?? "/placeholder.svg"}
               plays={track.plays.toLocaleString()}
               duration={track.duration}
+              regionSlug={track.regionSlug}
+              slug={track.slug}
             />
           ))}
         </div>

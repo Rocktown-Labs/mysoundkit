@@ -15,7 +15,7 @@ import {
   Radio,
   Search,
   Settings,
-  Sparkles,
+  Megaphone,
   Trophy,
   Users,
 } from "lucide-react";
@@ -92,7 +92,7 @@ const SHORTCUT_LIST: ShortcutDef[] = [
   },
   {
     category: "Navigation",
-    description: "Go to AI Studio",
+    description: "Go to Ads",
     keys: ["G", "A"],
   },
   {
@@ -195,8 +195,8 @@ export function KeyboardShortcutsProvider({
             <CommandItem
               onSelect={() => handleSelectRoute("/dashboard/career/ai-studio")}
             >
-              <Sparkles className="mr-2 size-4 text-purple-400" />
-              <span>AI Music Studio & Master Generator</span>
+              <Megaphone className="mr-2 size-4 text-purple-400" />
+              <span>Ads Manager & Campaign Builder</span>
             </CommandItem>
             <CommandItem
               onSelect={() => handleSelectRoute("/dashboard/tracks")}

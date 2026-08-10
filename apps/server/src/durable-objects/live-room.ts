@@ -21,6 +21,7 @@ interface LiveRoomSocketMessage {
 
 const STATE_STORAGE_KEY = "live-room-state";
 const MAX_CHAT_MESSAGES = 80;
+const voteVotersKey = (roundId: string) => `vote-voters:${roundId}`;
 
 const jsonResponse = (body: unknown, status = 200) =>
   Response.json(body, {
@@ -46,6 +47,32 @@ export class LiveRoomDurableObject extends DurableObject {
 
     if (request.method === "GET" && url.pathname === "/state") {
       return jsonResponse(await this.getState());
+    }
+
+    if (request.method === "POST" && url.pathname === "/seed") {
+      const body = (await request
+        .json()
+        .catch(() => null)) as LiveRoomState | null;
+
+      if (!body?.id) {
+        return jsonResponse({ message: "Seed room state is invalid." }, 400);
+      }
+
+      const storedState =
+        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY);
+      const shouldReplaceStoredState =
+        !storedState ||
+        storedState.id !== body.id ||
+        storedState.kind !== body.kind ||
+        storedState.title !== body.title;
+
+      if (shouldReplaceStoredState) {
+        await this.persist(body);
+        this.broadcast({ room: body, type: "state" });
+        return jsonResponse(body, 201);
+      }
+
+      return jsonResponse(storedState);
     }
 
     if (request.method === "POST" && url.pathname === "/chat") {
@@ -166,6 +193,25 @@ export class LiveRoomDurableObject extends DurableObject {
     if (!artist) {
       return { body: { message: "Artist not found." }, status: 404 };
     }
+
+    if (!body.voterId) {
+      return {
+        body: { message: "A voter is required to record a vote." },
+        status: 400,
+      };
+    }
+
+    const votersKey = voteVotersKey(round.id);
+    const voters = await this.ctx.storage.get<string[]>(votersKey);
+
+    if (voters?.includes(body.voterId)) {
+      return {
+        body: { message: "This participant has already voted this round." },
+        status: 409,
+      };
+    }
+
+    await this.ctx.storage.put(votersKey, [...(voters ?? []), body.voterId]);
 
     const nextRounds = room.battle.rounds.map((entry) => {
       if (entry.id !== round.id) {

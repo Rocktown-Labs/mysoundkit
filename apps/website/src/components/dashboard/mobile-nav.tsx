@@ -1,15 +1,27 @@
-import { Link } from "@tanstack/react-router";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Home,
-  Music,
-  FolderOpen,
-  MessageSquare,
-  Plus,
   BarChart3,
+  CalendarDays,
+  Compass,
+  Film,
+  FolderOpen,
+  Home,
+  Megaphone,
+  MessageSquare,
+  Mic2,
+  Music,
+  PartyPopper,
+  Plus,
+  Radio,
+  Settings,
+  Trophy,
+  User,
+  UserRoundPlus,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -20,43 +32,278 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-const navigation = [
-  { icon: Home, name: "Home", to: "/dashboard" },
-  { icon: Music, name: "Music", to: "/dashboard/music" },
-  { icon: BarChart3, name: "Analytics", to: "/dashboard/career/analytics" },
-  { icon: MessageSquare, name: "Messages", to: "/dashboard/messages" },
-] as const;
+type DashboardMobileSection = "career" | "live" | "music";
+
+interface DashboardMobileRoute {
+  badge?: string;
+  description: string;
+  icon: typeof Music;
+  name: string;
+  to: string;
+}
+
+const sectionRoutes: Record<
+  DashboardMobileSection,
+  { icon: typeof Music; name: string; routes: DashboardMobileRoute[] }
+> = {
+  career: {
+    icon: BarChart3,
+    name: "Career",
+    routes: [
+      {
+        description: "Public profile, links, and artist presence",
+        icon: User,
+        name: "Profile",
+        to: "/dashboard/career/profile",
+      },
+      {
+        description: "Track, project, and audience performance",
+        icon: BarChart3,
+        name: "Analytics",
+        to: "/dashboard/career/analytics",
+      },
+      {
+        description: "Release dates, promo tasks, and planning",
+        icon: CalendarDays,
+        name: "Calendar",
+        to: "/dashboard/career/calendar",
+      },
+      {
+        description: "Team members and workspace access",
+        icon: Users,
+        name: "Team",
+        to: "/dashboard/team",
+      },
+      {
+        description: "Campaigns, wallet, and audience targeting",
+        icon: Megaphone,
+        name: "Ads",
+        to: "/dashboard/ads",
+      },
+      {
+        description: "Account, notifications, and artist settings",
+        icon: Settings,
+        name: "Settings",
+        to: "/dashboard/career/settings",
+      },
+    ],
+  },
+  live: {
+    icon: Trophy,
+    name: "Live",
+    routes: [
+      {
+        description: "Battle requests, kits, and live matchups",
+        icon: Trophy,
+        name: "Battles",
+        to: "/dashboard/live",
+      },
+      {
+        description: "Listening parties for releases and fans",
+        icon: PartyPopper,
+        name: "Parties",
+        to: "/dashboard/live/parties",
+      },
+      {
+        description: "Live stream setup and broadcast tools",
+        icon: Radio,
+        name: "Streams",
+        to: "/dashboard/live/streams",
+      },
+    ],
+  },
+  music: {
+    icon: Music,
+    name: "Music",
+    routes: [
+      {
+        description: "Songs, masters, metadata, and files",
+        icon: Music,
+        name: "Tracks",
+        to: "/dashboard/tracks",
+      },
+      {
+        description: "Albums, EPs, mixtapes, and bundles",
+        icon: FolderOpen,
+        name: "Projects",
+        to: "/dashboard/projects",
+      },
+      {
+        description: "Music videos and visual releases",
+        icon: Film,
+        name: "Videos",
+        to: "/dashboard/videos",
+      },
+      {
+        description: "Open verse listings and submissions",
+        icon: Mic2,
+        name: "Open Verses",
+        to: "/dashboard/open-verses",
+      },
+      {
+        description: "Messages from artists, fans, and collaborators",
+        icon: MessageSquare,
+        name: "Messages",
+        to: "/dashboard/messages",
+      },
+      {
+        description: "Friends and collaboration requests",
+        icon: UserRoundPlus,
+        name: "Friends",
+        to: "/dashboard/collaborators",
+      },
+    ],
+  },
+};
+
+const createRoutes: DashboardMobileRoute[] = [
+  {
+    description: "Upload a song and its cover artwork",
+    icon: Music,
+    name: "New Track",
+    to: "/dashboard/tracks/new",
+  },
+  {
+    description: "Create an album, EP, or mixtape",
+    icon: FolderOpen,
+    name: "New Project",
+    to: "/dashboard/projects/new",
+  },
+  {
+    description: "Publish a music video",
+    icon: Film,
+    name: "New Video",
+    to: "/dashboard/videos/new",
+  },
+  {
+    description: "Start an open verse listing",
+    icon: Mic2,
+    name: "New Open Verse",
+    to: "/dashboard/open-verses/new",
+  },
+  {
+    description: "Return to the public SoundKit app",
+    icon: Compass,
+    name: "Explore Home",
+    to: "/",
+  },
+];
+
+const isSectionActive = (pathname: string, section: DashboardMobileSection) => {
+  if (section === "music") {
+    return [
+      "/dashboard/tracks",
+      "/dashboard/projects",
+      "/dashboard/videos",
+      "/dashboard/open-verses",
+      "/dashboard/messages",
+      "/dashboard/collaborators",
+    ].some((path) => pathname.startsWith(path));
+  }
+
+  if (section === "career") {
+    return (
+      pathname.startsWith("/dashboard/career") ||
+      pathname.startsWith("/dashboard/team") ||
+      pathname.startsWith("/dashboard/ads")
+    );
+  }
+
+  return pathname.startsWith("/dashboard/live");
+};
+
+function RouteList({
+  onSelect,
+  routes,
+}: {
+  onSelect: () => void;
+  routes: DashboardMobileRoute[];
+}) {
+  return (
+    <div className="grid gap-2 py-3">
+      {routes.map((route) => {
+        const Icon = route.icon;
+        return (
+          <Link
+            key={route.to}
+            to={route.to}
+            className="flex min-w-0 items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
+            onClick={onSelect}
+          >
+            <Icon className="size-5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="truncate font-semibold text-sm">{route.name}</p>
+                {route.badge && (
+                  <Badge className="h-5 px-1.5 text-[10px]" variant="secondary">
+                    {route.badge}
+                  </Badge>
+                )}
+              </div>
+              <p className="truncate text-muted-foreground text-xs">
+                {route.description}
+              </p>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 export function MobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState<DashboardMobileSection | null>(
+    null
+  );
+  const activeSection = sectionOpen ? sectionRoutes[sectionOpen] : null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background md:hidden">
-      <div className="flex items-center justify-around h-16">
-        {navigation.slice(0, 2).map((item) => (
-          <Link
-            key={item.name}
-            to={item.to}
-            className={cn(
-              "flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs transition-colors",
-              pathname === item.to ||
-                (item.to === "/dashboard/music" &&
-                  (pathname.startsWith("/dashboard/tracks") ||
-                    pathname.startsWith("/dashboard/projects")))
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <item.icon className="size-5" />
-            <span>{item.name}</span>
-          </Link>
-        ))}
+    <nav className="fixed right-0 bottom-0 left-0 z-50 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
+      <div className="grid h-16 grid-cols-5 items-center">
+        <Link
+          to="/dashboard"
+          className={cn(
+            "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
+            pathname === "/dashboard"
+              ? "text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Home className="size-5" />
+          <span>Home</span>
+        </Link>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <button className="flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs">
-              <div className="flex items-center justify-center size-12 -mt-6 rounded-full bg-primary text-primary-foreground shadow-lg">
+        {(["music", "career"] as const).map((section) => {
+          const Icon = sectionRoutes[section].icon;
+          const active = isSectionActive(pathname, section);
+          return (
+            <button
+              key={section}
+              className={cn(
+                "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
+                active
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setSectionOpen(section)}
+              type="button"
+            >
+              <Icon className="size-5" />
+              <span>{sectionRoutes[section].name}</span>
+            </button>
+          );
+        })}
+
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogTrigger asChild={true}>
+            <button
+              aria-label="Create New"
+              className="flex h-full flex-col items-center justify-center gap-1 text-xs"
+              type="button"
+            >
+              <div className="-mt-6 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg">
                 <Plus className="size-6" />
               </div>
             </button>
@@ -65,58 +312,54 @@ export function MobileNav() {
             <DialogHeader>
               <DialogTitle>Create New</DialogTitle>
               <DialogDescription>
-                Choose what you'd like to create
+                Choose what you want to add to SoundKit.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Link
-                to="/dashboard/tracks/new"
-                className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors"
-                onClick={() => setOpen(false)}
-              >
-                <Music className="size-8 text-primary" />
-                <div>
-                  <p className="font-semibold">New Track</p>
-                  <p className="text-sm text-muted-foreground">
-                    Create a single song
-                  </p>
-                </div>
-              </Link>
-              <Link
-                to="/dashboard/projects/new"
-                className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors"
-                onClick={() => setOpen(false)}
-              >
-                <FolderOpen className="size-8 text-primary" />
-                <div>
-                  <p className="font-semibold">New Project</p>
-                  <p className="text-sm text-muted-foreground">
-                    Create an Album or EP
-                  </p>
-                </div>
-              </Link>
-            </div>
+            <RouteList
+              routes={createRoutes}
+              onSelect={() => setCreateOpen(false)}
+            />
           </DialogContent>
         </Dialog>
 
-        {navigation.slice(2).map((item) => (
-          <Link
-            key={item.name}
-            to={item.to}
-            className={cn(
-              "flex flex-col items-center justify-center flex-1 h-full gap-1 text-xs transition-colors",
-              pathname === item.to ||
-                (item.to === "/dashboard/career/analytics" &&
-                  pathname.startsWith("/dashboard/career"))
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <item.icon className="size-5" />
-            <span>{item.name}</span>
-          </Link>
-        ))}
+        <button
+          className={cn(
+            "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
+            isSectionActive(pathname, "live")
+              ? "text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setSectionOpen("live")}
+          type="button"
+        >
+          <Trophy className="size-5" />
+          <span>Live</span>
+        </button>
       </div>
+
+      <Dialog
+        open={sectionOpen !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSectionOpen(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{activeSection?.name ?? "Dashboard"}</DialogTitle>
+            <DialogDescription>
+              Jump to the dashboard tools in this section.
+            </DialogDescription>
+          </DialogHeader>
+          {activeSection && (
+            <RouteList
+              routes={activeSection.routes}
+              onSelect={() => setSectionOpen(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 }

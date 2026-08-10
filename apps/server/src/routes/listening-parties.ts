@@ -114,9 +114,9 @@ app.openapi(
       )
       .limit(1);
 
-    if (!project || project.projectType === "single") {
+    if (!project) {
       return c.json(
-        { message: "Album or EP project not found." },
+        { message: "Project not found." },
         HttpStatusCodes.NOT_FOUND
       );
     }

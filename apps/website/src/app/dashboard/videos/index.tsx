@@ -214,8 +214,16 @@ function DashboardVideosPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <Link
-                      params={{ id: video.id }}
-                      to="/videos/$id"
+                      params={
+                        video.regionSlug && video.slug
+                          ? { regionSlug: video.regionSlug, slug: video.slug }
+                          : { id: video.id }
+                      }
+                      to={
+                        video.regionSlug && video.slug
+                          ? "/videos/$regionSlug/$slug"
+                          : "/videos/$id"
+                      }
                       className="flex-1 sm:flex-none"
                     >
                       <Button

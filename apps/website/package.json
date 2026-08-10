@@ -66,6 +66,7 @@
     "hono": "^4.11.0",
     "input-otp": "1.4.1",
     "lucide-react": "catalog:",
+    "mediabunny": "^1.52.3",
     "next-themes": "catalog:",
     "posthog-node": "^5.35.1",
     "radar-sdk-js": "^5.1.0",

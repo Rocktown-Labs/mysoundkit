@@ -77,12 +77,14 @@ import {
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
   useCreateOpenVerseMutation,
   useCreateTrackMutation,
   useGenresQuery,
   usePeopleSearchQuery,
+  useSettleTrackMutation,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
@@ -117,6 +119,9 @@ const trackFormSchema = z
     coverObjectKey: z.string().optional(),
     credits: z.array(creditEntrySchema).default([]),
     description: z.string().optional(),
+    downloadsAllowed: z.boolean().default(true),
+    downloadsRequireFirstPlay: z.boolean().default(false),
+    downloadsRequirePurchase: z.boolean().default(true),
     genre: z.string().min(1, "Genre is required"),
     isForSale: z.boolean().default(false),
     isrc: z.string().optional(),
@@ -205,6 +210,9 @@ const defaultTrackFormValues: TrackFormValues = {
   coverObjectKey: "",
   credits: [],
   description: "",
+  downloadsAllowed: true,
+  downloadsRequireFirstPlay: false,
+  downloadsRequirePurchase: true,
   genre: "Hip-Hop/Rap",
   isForSale: false,
   isrc: "",
@@ -224,6 +232,7 @@ const defaultTrackFormValues: TrackFormValues = {
 
 interface UploadedTrackPreview {
   assetId: string;
+  durationMs?: number | null;
   objectKey: string;
   remoteUrl: string;
   statusMessage: string;
@@ -292,6 +301,9 @@ export function NewTrackForm({
   const [selectedMasterFile, setSelectedMasterFile] = useState<File | null>(
     null
   );
+  const [selectedMasterDurationMs, setSelectedMasterDurationMs] = useState<
+    number | null
+  >(null);
   const [leadVocalsFile, setLeadVocalsFile] = useState<File | null>(null);
   const [adlibsFile, setAdlibsFile] = useState<File | null>(null);
   const [instrumentalFile, setInstrumentalFile] = useState<File | null>(null);
@@ -307,6 +319,7 @@ export function NewTrackForm({
 
   const createOpenVerseMutation = useCreateOpenVerseMutation();
   const createTrackMutation = useCreateTrackMutation();
+  const settleTrackMutation = useSettleTrackMutation();
   const updateTrackMutation = useUpdateTrackMutation(trackId ?? "");
   const { data: session } = authClient.useSession();
   const peopleSearch = usePeopleSearchQuery(creditQuery);
@@ -344,6 +357,11 @@ export function NewTrackForm({
         userId: (c.userId as string) || undefined,
       })),
       description: (initialTrack.description as string) ?? "",
+      downloadsAllowed: initialTrack.downloadsAllowed !== false,
+      downloadsRequireFirstPlay: Boolean(
+        initialTrack.downloadsRequireFirstPlay
+      ),
+      downloadsRequirePurchase: initialTrack.downloadsRequirePurchase !== false,
       genre: (initialTrack.genre as string) ?? "",
       isForSale,
       isrc: (initialTrack.isrc as string) ?? "",
@@ -452,6 +470,7 @@ export function NewTrackForm({
         !masterFound
       ) {
         setSelectedMasterFile(file);
+        void readAudioDurationMs(file).then(setSelectedMasterDurationMs);
         masterFound = true;
         if (!form.getValues("name")) {
           const cleanName = file.name
@@ -503,12 +522,15 @@ export function NewTrackForm({
     ),
     defaultValues: defaultTrackFormValues,
     form,
+    persist: !initialTrack,
+    restoreOnMount: !initialTrack,
     storageKey: "soundkit:new-track-draft",
   });
 
   const clearTrackMediaState = () => {
     setSelectedCoverFile(null);
     setSelectedMasterFile(null);
+    setSelectedMasterDurationMs(null);
     setLeadVocalsFile(null);
     setAdlibsFile(null);
     setInstrumentalFile(null);
@@ -535,11 +557,13 @@ export function NewTrackForm({
   };
 
   const attachMasterUploadToTrack = async ({
+    durationMs,
     file,
     objectKey,
     remoteUrl,
     track,
   }: {
+    durationMs: number | null;
     file: File;
     objectKey: string;
     remoteUrl: string;
@@ -572,7 +596,9 @@ export function NewTrackForm({
       await trackAssetPost({
         json: {
           assetKind: "master",
+          durationMs: durationMs ?? undefined,
           metadata: {
+            durationMs,
             originalFileName: file.name,
             url: remoteUrl,
           },
@@ -598,6 +624,7 @@ export function NewTrackForm({
 
     const preview = {
       assetId: masterAsset?.id ?? "",
+      durationMs,
       objectKey,
       remoteUrl,
       statusMessage:
@@ -611,28 +638,6 @@ export function NewTrackForm({
       track_id: track.id,
     });
     setUploadedTrack(preview);
-    setQueue([
-      {
-        artist: "You",
-        artistHref: "/dashboard/profile",
-        autoplay: false,
-        cover: coverUpload?.remoteUrl || "/placeholder.svg",
-        id: track.id,
-        src: remoteUrl,
-        title: track.title,
-        trackHref: `/tracks/${track.id}`,
-      },
-    ]);
-    setCurrentTrack({
-      artist: "You",
-      artistHref: "/dashboard/profile",
-      autoplay: false,
-      cover: coverUpload?.remoteUrl || "/placeholder.svg",
-      id: track.id,
-      src: remoteUrl,
-      title: track.title,
-      trackHref: `/tracks/${track.id}`,
-    });
     setStep("assets");
 
     toast({
@@ -695,26 +700,31 @@ export function NewTrackForm({
         return;
       }
 
-      void attachMasterUploadToTrack({
-        file: sourceFile,
-        objectKey,
-        remoteUrl,
-        track: pendingTrack,
-      }).catch((draftError: unknown) => {
-        posthog.captureException(draftError);
-        toast({
-          description:
-            draftError instanceof Error
-              ? draftError.message
-              : "Upload finished but the track could not be created.",
-          title: "Track attach failed",
-          variant: "destructive",
+      void readAudioDurationMs(sourceFile)
+        .then((durationMs) =>
+          attachMasterUploadToTrack({
+            durationMs: selectedMasterDurationMs ?? durationMs,
+            file: sourceFile,
+            objectKey,
+            remoteUrl,
+            track: pendingTrack,
+          })
+        )
+        .catch((draftError: unknown) => {
+          posthog.captureException(draftError);
+          toast({
+            description:
+              draftError instanceof Error
+                ? draftError.message
+                : "Upload finished but the track could not be created.",
+            title: "Track attach failed",
+            variant: "destructive",
+          });
+          if (masterUploadResolverRef.current) {
+            masterUploadResolverRef.current(null);
+            masterUploadResolverRef.current = null;
+          }
         });
-        if (masterUploadResolverRef.current) {
-          masterUploadResolverRef.current(null);
-          masterUploadResolverRef.current = null;
-        }
-      });
     },
     onUploadFail: ({ failedFiles }) => {
       const [failed] = failedFiles;
@@ -829,6 +839,7 @@ export function NewTrackForm({
     }
 
     setSelectedMasterFile(file);
+    setSelectedMasterDurationMs(await readAudioDurationMs(file));
   };
 
   const handleSaveTrackDraft = async () => {
@@ -867,6 +878,9 @@ export function NewTrackForm({
           userId: credit.userId,
         })),
         description: values.description || undefined,
+        downloadsAllowed: values.downloadsAllowed,
+        downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+        downloadsRequirePurchase: values.downloadsRequirePurchase,
         genre: values.genre,
         isForSale: false,
         isOpenVerse: false,
@@ -963,6 +977,9 @@ export function NewTrackForm({
 
         await updateTrackMutation.mutateAsync({
           description: values.description || undefined,
+          downloadsAllowed: values.downloadsAllowed,
+          downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: values.downloadsRequirePurchase,
           genre: values.genre,
           isForSale: values.isForSale,
           isPublic: release.isPublic,
@@ -1056,7 +1073,6 @@ export function NewTrackForm({
 
       if (!trackPreview && selectedMasterFile) {
         try {
-          const release = mapStatusToRelease(values.status);
           createdTrackForUpload = await createTrackMutation.mutateAsync({
             assetIds: [],
             catalogItemType: "single",
@@ -1067,20 +1083,22 @@ export function NewTrackForm({
               userId: credit.userId,
             })),
             description: values.description || undefined,
+            downloadsAllowed: values.downloadsAllowed,
+            downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+            downloadsRequirePurchase: values.downloadsRequirePurchase,
             genre: values.genre,
             isForSale: values.isForSale,
-            isOpenVerse: release.isOpenVerse,
-            isPublic: release.isPublic,
+            isOpenVerse: false,
+            isPublic: false,
             isrc: values.isrc || undefined,
             musicalKey: values.key || undefined,
             price: values.isForSale ? SINGLE_PRICE_USD : undefined,
             priceCents: values.isForSale
               ? Math.round(SINGLE_PRICE_USD * 100)
               : undefined,
-            productionStatus: release.productionStatus,
+            productionStatus: "demo",
             purchaseMode: "digital_download",
-            releaseAt: values.releaseAt || undefined,
-            releaseStrategy: release.releaseStrategy,
+            releaseStrategy: "private",
             streamingLinks: {
               appleMusic: values.streamingAppleMusic || undefined,
               spotify: values.streamingSpotify || undefined,
@@ -1152,6 +1170,31 @@ export function NewTrackForm({
 
       setSubmitStage("processing");
       setSubmitProgress(80);
+      const release = mapStatusToRelease(values.status, values.releaseAt);
+      const requireCoverArt = values.status !== "draft";
+
+      if (requireCoverArt && !coverKey) {
+        toast({
+          description:
+            "Add cover art before making this track live. The uploaded master is saved as a private draft.",
+          title: "Cover art required",
+          variant: "destructive",
+        });
+        setSubmitStage("idle");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const settledTrack = await settleTrackMutation.mutateAsync({
+        body: {
+          isPublic: release.isPublic,
+          productionStatus: release.productionStatus,
+          releaseAt: values.releaseAt || undefined,
+          releaseStrategy: release.releaseStrategy,
+          requireCoverArt,
+        },
+        trackId: trackPreview.trackId,
+      });
 
       if (values.status === "open_verse") {
         await createOpenVerseMutation.mutateAsync({
@@ -1178,7 +1221,7 @@ export function NewTrackForm({
         coverUrl: coverUrl || "/placeholder.svg",
         genre: values.genre,
         id: trackPreview.trackId,
-        isPublic: values.status === "ready" || values.status === "open_verse",
+        isPublic: Boolean(settledTrack.isPublic),
         playbackUrl: trackPreview.remoteUrl,
         status: values.status,
         title: values.name,
@@ -1818,6 +1861,10 @@ export function NewTrackForm({
                               : []
                         }
                         onFileUpload={handleMasterUpload}
+                        onRemove={() => {
+                          setSelectedMasterFile(null);
+                          setUploadedTrack(null);
+                        }}
                         progress={isUploading ? averageProgress : undefined}
                         status={
                           isUploading
@@ -1836,6 +1883,7 @@ export function NewTrackForm({
                         description="Optional but recommended"
                         acceptedTypes=".wav,.mp3,.aiff"
                         onFileUpload={(files) => setInstrumentalFile(files[0])}
+                        onRemove={() => setInstrumentalFile(null)}
                         files={
                           instrumentalFile
                             ? [
@@ -1917,6 +1965,7 @@ export function NewTrackForm({
                       description="Clean vocal tracks"
                       acceptedTypes=".wav,.mp3,.aiff"
                       onFileUpload={(files) => setLeadVocalsFile(files[0])}
+                      onRemove={() => setLeadVocalsFile(null)}
                       files={
                         leadVocalsFile
                           ? [{ name: leadVocalsFile.name, status: "Selected" }]
@@ -1930,6 +1979,7 @@ export function NewTrackForm({
                       description="Background components"
                       acceptedTypes=".wav,.mp3,.aiff"
                       onFileUpload={(files) => setAdlibsFile(files[0])}
+                      onRemove={() => setAdlibsFile(null)}
                       files={
                         adlibsFile
                           ? [{ name: adlibsFile.name, status: "Selected" }]
@@ -2115,6 +2165,100 @@ export function NewTrackForm({
                     </p>
                   </div>
                 ) : null}
+
+                <div className="rounded-xl border border-border/40 bg-card/40 p-4">
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-sm">Download Access</h3>
+                    <p className="text-muted-foreground text-xs">
+                      Choose how fans can access the files included with this
+                      single.
+                    </p>
+                  </div>
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="downloadsAllowed"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/20 p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Allow downloads</FormLabel>
+                            <FormDescription className="text-xs">
+                              Include downloadable files when a fan has access.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                if (!checked) {
+                                  form.setValue(
+                                    "downloadsRequireFirstPlay",
+                                    false
+                                  );
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="downloadsRequirePurchase"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/20 p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Require purchase</FormLabel>
+                            <FormDescription className="text-xs">
+                              Only buyers can download included files.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={!form.watch("downloadsAllowed")}
+                              onCheckedChange={(checked) => {
+                                field.onChange(checked);
+                                if (checked) {
+                                  form.setValue(
+                                    "downloadsRequireFirstPlay",
+                                    false
+                                  );
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="downloadsRequireFirstPlay"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/20 p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Require one play first</FormLabel>
+                            <FormDescription className="text-xs">
+                              Unlock free downloads only after the track has
+                              been played.
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              disabled={
+                                !form.watch("downloadsAllowed") ||
+                                form.watch("downloadsRequirePurchase")
+                              }
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
 
                 <div className="rounded-xl border border-border/40 bg-card/40 p-4">
                   <div className="mb-4">

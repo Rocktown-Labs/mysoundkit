@@ -1,20 +1,13 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-
-const genreCatalogSchema = z.array(
-  z.object({
-    id: z.string(),
-    name: z.string(),
-    slug: z.string(),
-  })
-);
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
   genres,
   tracks,
   userProfiles,
+  videos,
 } from "@soundkit/db/schema/app";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -26,6 +19,17 @@ import { discoverHomeResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const genreCatalogSchema = z.array(
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    totalCount: z.number().int().nonnegative(),
+    trackCount: z.number().int().nonnegative(),
+    videoCount: z.number().int().nonnegative(),
+  })
+);
 
 app.openapi(
   createRoute({
@@ -118,7 +122,12 @@ app.openapi(
     tags: ["Discover"],
   }),
   async (c) => {
-    const fallbackGenres = genreCatalog;
+    const fallbackGenres = genreCatalog.map((genre) => ({
+      ...genre,
+      totalCount: 0,
+      trackCount: 0,
+      videoCount: 0,
+    }));
 
     if (!isDatabaseConfigured()) {
       return c.json(fallbackGenres, HttpStatusCodes.OK);
@@ -131,11 +140,69 @@ app.openapi(
     try {
       const db = createDb();
       const rows = await db.select().from(genres);
+      const trackCountRows = await db
+        .select({
+          count: sql<number>`count(${tracks.id})::int`,
+          genreId: tracks.genreId,
+        })
+        .from(tracks)
+        .where(
+          and(
+            eq(tracks.isPublic, true),
+            eq(tracks.productionStatus, "complete")
+          )
+        )
+        .groupBy(tracks.genreId);
+      const videoCountRows = await db
+        .select({
+          count: sql<number>`count(${videos.id})::int`,
+          genreId: videos.genreId,
+        })
+        .from(videos)
+        .where(eq(videos.isPublic, true))
+        .groupBy(videos.genreId);
+      const countsByGenreId = new Map<
+        string,
+        { trackCount: number; videoCount: number }
+      >();
+
+      for (const row of trackCountRows) {
+        if (!row.genreId) {
+          continue;
+        }
+
+        const current = countsByGenreId.get(row.genreId) ?? {
+          trackCount: 0,
+          videoCount: 0,
+        };
+        current.trackCount = row.count;
+        countsByGenreId.set(row.genreId, current);
+      }
+
+      for (const row of videoCountRows) {
+        if (!row.genreId) {
+          continue;
+        }
+
+        const current = countsByGenreId.get(row.genreId) ?? {
+          trackCount: 0,
+          videoCount: 0,
+        };
+        current.videoCount = row.count;
+        countsByGenreId.set(row.genreId, current);
+      }
+
       for (const row of rows) {
+        const counts = countsByGenreId.get(row.id) ?? {
+          trackCount: 0,
+          videoCount: 0,
+        };
         genresBySlug.set(row.slug, {
           id: row.id,
           name: canonicalGenreName(row.name),
           slug: row.slug,
+          totalCount: counts.trackCount + counts.videoCount,
+          ...counts,
         });
       }
     } catch {

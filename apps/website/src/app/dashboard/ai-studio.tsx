@@ -1,34 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight, Megaphone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/dashboard/ai-studio")({
-  component: DashboardAIStudioRoute,
+  component: DashboardAdsRoute,
 });
 
-function DashboardAIStudioRoute() {
+function DashboardAdsRoute() {
   return (
-    <div className="max-w-4xl mx-auto space-y-6 py-8">
-      <Card className="border-emerald-500/30 bg-emerald-500/5">
+    <div className="mx-auto max-w-4xl space-y-6 py-8">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-bold font-[family-name:var(--font-playfair)] flex items-center gap-2">
-            <Sparkles className="size-6 text-emerald-400" />
-            AI Creative Studio
+          <CardTitle className="flex items-center gap-2 text-2xl font-bold">
+            <Megaphone className="size-6 text-primary" />
+            SoundKit Ads
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            Generate cover art, video storyboards, and social media campaigns
-            powered by Google Gemini APIs and tied directly to your song lyrics.
+            Build audio and video pre-roll campaigns, target regions, and manage
+            your creative library.
           </p>
-          <Button
-            asChild
-            className="bg-emerald-600 hover:bg-emerald-700 font-bold gap-2"
-          >
+          <Button asChild className="gap-2 font-bold">
             <Link to="/dashboard/career/ai-studio">
-              Launch AI Creative Studio <ArrowRight className="size-4" />
+              Open Ads <ArrowRight className="size-4" />
             </Link>
           </Button>
         </CardContent>

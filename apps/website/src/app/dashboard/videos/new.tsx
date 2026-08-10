@@ -52,10 +52,11 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { SoundKitVideoPlayer } from "@/components/video/soundkit-video-player";
+import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import {
+  useGenresQuery,
   useMeEntitlementsQuery,
   useProjectsQuery,
   useTracksQuery,
@@ -63,10 +64,23 @@ import {
 import { cn } from "@/lib/utils";
 import { uploadVideoFile, validateVideoFile } from "@/lib/video-upload";
 
+const SUPPORTED_GENRES = [
+  "Afrobeats",
+  "Electronic",
+  "Hip-Hop/Rap",
+  "Jazz",
+  "Latin",
+  "Pop",
+  "R&B/Soul",
+  "Rock",
+  "Spoken Word",
+] as const;
+
 const videoFormSchema = z.object({
   description: z.string().optional(),
   genre: z.string().min(1, "Genre is required"),
   playbackPolicy: z.literal("public").default("public"),
+  releaseAt: z.string().optional(),
   sourceProjectId: z.string().optional(),
   sourceTrackId: z.string().optional(),
   sourceType: z.enum(["upload", "youtube"]).default("upload"),
@@ -81,6 +95,7 @@ const videoFormSchema = z.object({
       "live_recording",
     ])
     .default("music_video"),
+  visibility: z.enum(["public", "private"]).default("public"),
   youtubeUrl: z
     .string()
     .url("Invalid YouTube URL")
@@ -327,6 +342,7 @@ function NewVideoPage() {
     useMeEntitlementsQuery();
   const projectsQuery = useProjectsQuery();
   const tracksQuery = useTracksQuery(undefined, { scope: "dashboard" });
+  const genresQuery = useGenresQuery();
   const isPremium = entitlements?.isPremium ?? true;
 
   const form = useForm<VideoFormValues>({
@@ -334,14 +350,47 @@ function NewVideoPage() {
       description: "",
       genre: "",
       playbackPolicy: "public",
+      releaseAt: "",
       sourceProjectId: "",
       sourceTrackId: "",
       sourceType: "upload",
       title: "",
       videoKind: "music_video",
+      visibility: "public",
       youtubeUrl: "",
     },
     resolver: zodResolver(videoFormSchema),
+  });
+
+  const availableGenres = Array.isArray(genresQuery.data)
+    ? genresQuery.data
+        .map((genre) =>
+          typeof genre === "string"
+            ? genre
+            : (typeof genre === "object" && genre && "name" in genre
+              ? String(genre.name)
+              : null)
+        )
+        .filter((genre): genre is string => Boolean(genre))
+    : [...SUPPORTED_GENRES];
+
+  const { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
+    additionalDirtyState: Boolean(videoFile),
+    defaultValues: {
+      description: "",
+      genre: "",
+      playbackPolicy: "public",
+      releaseAt: "",
+      sourceProjectId: "",
+      sourceTrackId: "",
+      sourceType: "upload",
+      title: "",
+      videoKind: "music_video",
+      visibility: "public",
+      youtubeUrl: "",
+    },
+    form,
+    storageKey: "soundkit:new-video-draft",
   });
 
   const filteredHistory = useMemo(() => {
@@ -400,13 +449,17 @@ function NewVideoPage() {
 
     setIsSubmitting(true);
     try {
+      const isPublic = values.visibility === "public" && !values.releaseAt;
       if (values.sourceType === "upload" && videoFile) {
         const createResponse = await fetch(
           `${API_V1_URL}/videos/direct-upload`,
           {
             body: JSON.stringify({
               description: values.description || undefined,
+              genre: values.genre,
+              isPublic,
               playbackPolicy: "public",
+              releaseAt: values.releaseAt || undefined,
               sourceProjectId: values.sourceProjectId || undefined,
               sourceTrackId: values.sourceTrackId || undefined,
               title: values.title,
@@ -438,7 +491,10 @@ function NewVideoPage() {
           body: JSON.stringify({
             description: values.description || undefined,
             externalPlaybackUrl: values.youtubeUrl,
+            genre: values.genre,
+            isPublic,
             playbackPolicy: "public",
+            releaseAt: values.releaseAt || undefined,
             sourceProjectId: values.sourceProjectId || undefined,
             sourceProvider: "external",
             sourceTrackId: values.sourceTrackId || undefined,
@@ -456,6 +512,8 @@ function NewVideoPage() {
         }
       }
 
+      allowNavigation();
+      clearDraft();
       toast({
         description: `${values.title} is now ${values.sourceType === "upload" ? "processing" : "linked"}.`,
         title: "Video Added",
@@ -582,13 +640,23 @@ function NewVideoPage() {
                         <FormLabel>
                           Genre <span className="text-destructive">*</span>
                         </FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g. Hip-Hop, Pop"
-                            {...field}
-                            className="bg-background/50"
-                          />
-                        </FormControl>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="bg-background/50">
+                              <SelectValue placeholder="Select a genre" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableGenres.map((genre) => (
+                              <SelectItem key={genre} value={genre}>
+                                {genre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -676,43 +744,6 @@ function NewVideoPage() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="videoKind"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Video Type</FormLabel>
-                      <Select
-                        defaultValue={field.value}
-                        onValueChange={(value) => field.onChange(value)}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Select video type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="music_video">
-                            Music Video
-                          </SelectItem>
-                          <SelectItem value="promo">Promo</SelectItem>
-                          <SelectItem value="teaser">Teaser</SelectItem>
-                          <SelectItem value="battle_replay">
-                            Battle Replay
-                          </SelectItem>
-                          <SelectItem value="battle_clip">
-                            Battle Clip
-                          </SelectItem>
-                          <SelectItem value="live_recording">
-                            Live Recording
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <div className="flex justify-end pt-4">
                   <Button
                     type="button"
@@ -856,7 +887,7 @@ function NewVideoPage() {
               </AccordionContent>
             </AccordionItem>
 
-            {/* STEP 3: SETTINGS */}
+            {/* STEP 3: VISIBILITY & RELEASE */}
             <AccordionItem
               value="settings"
               className="border border-border/40 bg-card/40 backdrop-blur-md rounded-2xl px-6 py-2 overflow-hidden"
@@ -874,27 +905,14 @@ function NewVideoPage() {
                     <Settings className="size-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">Playback Settings</h3>
+                    <h3 className="font-bold text-lg">Visibility & Release</h3>
                     <p className="text-xs text-muted-foreground font-normal">
-                      Privacy, preview and final confirmation
+                      Privacy, release date and final confirmation
                     </p>
                   </div>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-8">
-                <div className="rounded-2xl overflow-hidden border border-border/20 bg-black aspect-video relative group">
-                  <SoundKitVideoPlayer
-                    title={form.watch("title") || "Preview"}
-                    externalPlaybackUrl={
-                      form.watch("sourceType") === "youtube"
-                        ? form.watch("youtubeUrl")
-                        : undefined
-                    }
-                    posterUrl="/music-battle-live-performance-video.jpg"
-                    verifiedOnPlatform={form.watch("sourceType") === "upload"}
-                  />
-                </div>
-
                 {isSubmitting &&
                 uploadProgress !== null &&
                 form.watch("sourceType") === "upload" ? (
@@ -915,14 +933,18 @@ function NewVideoPage() {
 
                 <FormField
                   control={form.control}
-                  name="playbackPolicy"
+                  name="visibility"
                   render={({ field }) => (
                     <FormItem className="space-y-4">
-                      <FormLabel>Playback Policy</FormLabel>
+                      <FormLabel>Visibility</FormLabel>
                       <FormControl>
                         <RadioGroup
-                          onValueChange={(value) => field.onChange(value)}
                           defaultValue={field.value}
+                          onValueChange={(value) =>
+                            field.onChange(
+                              value as VideoFormValues["visibility"]
+                            )
+                          }
                           className="grid grid-cols-1 md:grid-cols-2 gap-4"
                         >
                           <FormItem>
@@ -935,7 +957,7 @@ function NewVideoPage() {
                               </FormControl>
                               <div className="space-y-1">
                                 <span className="font-bold text-sm">
-                                  Public Playback
+                                  Public
                                 </span>
                                 <p className="text-[10px] text-muted-foreground">
                                   Available to everyone on SoundKit.
@@ -943,8 +965,49 @@ function NewVideoPage() {
                               </div>
                             </FormLabel>
                           </FormItem>
+                          <FormItem>
+                            <FormLabel className="flex items-start gap-3 rounded-xl border border-border/40 bg-background/50 p-4 hover:bg-accent cursor-pointer transition-all">
+                              <FormControl>
+                                <RadioGroupItem
+                                  value="private"
+                                  className="mt-1"
+                                />
+                              </FormControl>
+                              <div className="space-y-1">
+                                <span className="font-bold text-sm">
+                                  Private
+                                </span>
+                                <p className="text-[10px] text-muted-foreground">
+                                  Only you can see this video.
+                                </p>
+                              </div>
+                            </FormLabel>
+                          </FormItem>
                         </RadioGroup>
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="releaseAt"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Release Date</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="datetime-local"
+                          {...field}
+                          className="bg-background/50"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">
+                        Leave empty to go live immediately. Private videos
+                        ignore this date.
+                      </p>
                     </FormItem>
                   )}
                 />
@@ -977,6 +1040,7 @@ function NewVideoPage() {
           </Accordion>
         </form>
       </Form>
+      {blockerDialog}
     </div>
   );
 }

@@ -264,8 +264,15 @@ export function LivePreviewShowcase({
   };
 
   const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ description: `${label} copied to clipboard.`, title: "Copied!" });
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        toast({
+          description: `${label} copied to clipboard.`,
+          title: "Copied!",
+        });
+      })
+      .catch(() => {});
   };
 
   const currentTrackObj =

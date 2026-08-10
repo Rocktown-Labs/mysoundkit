@@ -220,6 +220,10 @@ export const messageStatusEnum = pgEnum("message_status", [
   "read",
   "deleted",
 ]);
+export const artistFriendRequestStatusEnum = pgEnum(
+  "artist_friend_request_status",
+  ["pending", "accepted", "declined", "canceled"]
+);
 export const battleFormatEnum = pgEnum("battle_format", [
   "best_of_3",
   "best_of_5",
@@ -288,12 +292,33 @@ export const webhookProviderEnum = pgEnum("webhook_provider", [
   "mux",
   "stemsplit",
   "battle_service",
+  "resend",
+  "realtimekit",
+]);
+
+export const liveExperienceStatusEnum = pgEnum("live_experience_status", [
+  "scheduled",
+  "live",
+  "ended",
+]);
+
+export const liveExperienceKindEnum = pgEnum("live_experience_kind", [
+  "battle",
+  "party",
+  "stream",
 ]);
 export const webhookStatusEnum = pgEnum("webhook_status", [
   "received",
   "processed",
   "failed",
   "ignored",
+]);
+export const emailDeliveryStatusEnum = pgEnum("email_delivery_status", [
+  "queued",
+  "sending",
+  "sent",
+  "failed",
+  "canceled",
 ]);
 export const rewardConfigurationStatusEnum = pgEnum(
   "reward_configuration_status",
@@ -472,6 +497,28 @@ export const adImpressionStatusEnum = pgEnum("ad_impression_status", [
   "completed",
   "invalid",
   "credited",
+]);
+export const adCampaignStatusEnum = pgEnum("ad_campaign_status", [
+  "draft",
+  "active",
+  "paused",
+  "exhausted_for_today",
+  "expired",
+]);
+export const adBillingTypeEnum = pgEnum("ad_billing_type", [
+  "upfront_recurring",
+  "prepaid_wallet",
+]);
+export const adTargetTypeEnum = pgEnum("ad_target_type", ["state", "country"]);
+export const adCreativeFormatEnum = pgEnum("ad_creative_format", [
+  "audio",
+  "video",
+  "image",
+]);
+export const adPlacementEnum = pgEnum("ad_placement", [
+  "audio_preroll",
+  "video_preroll",
+  "video_overlay",
 ]);
 export const payoutHoldStatusEnum = pgEnum("payout_hold_status", [
   "active",
@@ -669,6 +716,9 @@ export const notificationSettings = pgTable("notification_settings", {
   emailComments: boolean("email_comments").default(true).notNull(),
   emailFollowers: boolean("email_followers").default(true).notNull(),
   emailSales: boolean("email_sales").default(true).notNull(),
+  emailTrackProcessing: boolean("email_track_processing")
+    .default(true)
+    .notNull(),
   pushMentions: boolean("push_mentions").default(true).notNull(),
   pushMessages: boolean("push_messages").default(true).notNull(),
   pushReleases: boolean("push_releases").default(true).notNull(),
@@ -718,6 +768,13 @@ export const tracks = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
+    downloadsAllowed: boolean("downloads_allowed").default(true).notNull(),
+    downloadsRequireFirstPlay: boolean("downloads_require_first_play")
+      .default(false)
+      .notNull(),
+    downloadsRequirePurchase: boolean("downloads_require_purchase")
+      .default(true)
+      .notNull(),
     genreId: text("genre_id").references(() => genres.id, {
       onDelete: "set null",
     }),
@@ -1180,6 +1237,9 @@ export const videos = pgTable(
     description: text("description"),
     durationMs: integer("duration_ms"),
     externalPlaybackUrl: text("external_playback_url"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     id: text("id").primaryKey(),
     isPublic: boolean("is_public").default(true).notNull(),
     muxAssetId: text("mux_asset_id"),
@@ -1196,6 +1256,8 @@ export const videos = pgTable(
       .default("public")
       .notNull(),
     publishedAt: timestamp("published_at"),
+    releaseAt: timestamp("release_at"),
+    slug: text("slug").notNull(),
     sourceProjectId: text("source_project_id").references(() => projects.id, {
       onDelete: "set null",
     }),
@@ -1217,7 +1279,26 @@ export const videos = pgTable(
       .notNull(),
     videoKind: videoKindEnum("video_kind").notNull(),
   },
-  (table) => [index("videos_owner_user_id_idx").on(table.ownerUserId)]
+  (table) => [
+    index("videos_owner_user_id_idx").on(table.ownerUserId),
+    uniqueIndex("videos_slug_idx").on(table.slug),
+  ]
+);
+
+export const videoComments = pgTable(
+  "video_comments",
+  {
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("video_comments_video_id_idx").on(table.videoId)]
 );
 
 export const muxAssets = pgTable(
@@ -1599,6 +1680,43 @@ export const conversationParticipants = pgTable(
   (table) => [primaryKey({ columns: [table.conversationId, table.userId] })]
 );
 
+export const artistFriendRequests = pgTable(
+  "artist_friend_requests",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    message: text("message"),
+    recipientUserId: text("recipient_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    respondedAt: timestamp("responded_at"),
+    status: artistFriendRequestStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("artist_friend_requests_recipient_status_idx").on(
+      table.recipientUserId,
+      table.status
+    ),
+    index("artist_friend_requests_requester_status_idx").on(
+      table.requesterUserId,
+      table.status
+    ),
+    uniqueIndex("artist_friend_requests_pair_idx").on(
+      table.requesterUserId,
+      table.recipientUserId
+    ),
+  ]
+);
+
 export const messages = pgTable(
   "messages",
   {
@@ -1800,6 +1918,52 @@ export const battleStats = pgTable(
   (table) => [index("battle_stats_user_id_idx").on(table.userId)]
 );
 
+export const liveExperiences = pgTable(
+  "live_experiences",
+  {
+    battleId: text("battle_id").references(() => battles.id, {
+      onDelete: "set null",
+    }),
+    battleKitId: text("battle_kit_id"),
+    chatDownloadUrl: text("chat_download_url"),
+    chatDownloadUrlExpiry: timestamp("chat_download_url_expiry"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endsAt: timestamp("ends_at"),
+    id: text("id").primaryKey(),
+    kind: liveExperienceKindEnum("kind").notNull(),
+    meetingId: text("meeting_id").notNull(),
+    peakViewerCount: integer("peak_viewer_count").default(0).notNull(),
+    playlistId: text("playlist_id").references(() => playlists.id, {
+      onDelete: "set null",
+    }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    recordingAudioUrl: text("recording_audio_url"),
+    recordingExpiresAt: timestamp("recording_expires_at"),
+    recordingId: text("recording_id"),
+    recordingStatus: text("recording_status"),
+    recordingUrl: text("recording_url"),
+    source: text("source").default("browser").notNull(),
+    startsAt: timestamp("starts_at").notNull(),
+    status: liveExperienceStatusEnum("status").default("scheduled").notNull(),
+    title: text("title").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    viewerCount: integer("viewer_count").default(0).notNull(),
+    visibility: text("visibility").default("public").notNull(),
+  },
+  (table) => [
+    uniqueIndex("live_experiences_meeting_id_idx").on(table.meetingId),
+    index("live_experiences_creator_idx").on(table.createdByUserId),
+  ]
+);
+
 export const analyticsDailyRollups = pgTable(
   "analytics_daily_rollups",
   {
@@ -1878,6 +2042,42 @@ export const webhookEvents = pgTable(
   },
   (table) => [
     index("webhook_events_provider_idx").on(table.provider, table.eventType),
+  ]
+);
+
+export const emailDeliveries = pgTable(
+  "email_deliveries",
+  {
+    attempts: integer("attempts").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    error: text("error"),
+    id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    nextAttemptAt: timestamp("next_attempt_at"),
+    payload: jsonb("payload").notNull(),
+    provider: text("provider").default("resend").notNull(),
+    providerMessageId: text("provider_message_id"),
+    recipientEmail: text("recipient_email").notNull(),
+    recipientName: text("recipient_name"),
+    sentAt: timestamp("sent_at"),
+    status: emailDeliveryStatusEnum("status").default("queued").notNull(),
+    template: text("template").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  },
+  (table) => [
+    uniqueIndex("email_deliveries_idempotency_key_idx").on(
+      table.idempotencyKey
+    ),
+    index("email_deliveries_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt
+    ),
+    index("email_deliveries_user_id_idx").on(table.userId),
   ]
 );
 
@@ -2432,6 +2632,118 @@ export const adRevenuePeriods = pgTable(
       table.provider,
       table.accountingPeriodId
     ),
+  ]
+);
+
+export const userWallets = pgTable(
+  "user_wallets",
+  {
+    balanceCents: integer("balance_cents").default(0).notNull(),
+    currency: text("currency").default("USD").notNull(),
+    id: text("id").primaryKey(),
+    stripeCustomerId: text("stripe_customer_id"),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("user_wallets_user_id_idx").on(table.userId),
+    index("user_wallets_stripe_customer_idx").on(table.stripeCustomerId),
+  ]
+);
+
+export const adCampaigns = pgTable(
+  "ad_campaigns",
+  {
+    advertiserId: text("advertiser_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    billingType: adBillingTypeEnum("billing_type")
+      .default("prepaid_wallet")
+      .notNull(),
+    clickthroughUrl: text("clickthrough_url").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    creativeFormat: adCreativeFormatEnum("creative_format")
+      .default("audio")
+      .notNull(),
+    creativeImageUrl: text("creative_image_url"),
+    creativeUrl: text("creative_url").notNull(),
+    dailyBudgetCents: integer("daily_budget_cents").default(500).notNull(),
+    dailyImpressionCap: integer("daily_impression_cap").default(1000).notNull(),
+    endDate: timestamp("end_date"),
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    placement: adPlacementEnum("placement").default("audio_preroll").notNull(),
+    startDate: timestamp("start_date").defaultNow().notNull(),
+    status: adCampaignStatusEnum("status").default("draft").notNull(),
+    stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("ad_campaigns_advertiser_idx").on(table.advertiserId),
+    index("ad_campaigns_placement_idx").on(table.placement),
+    index("ad_campaigns_status_dates_idx").on(
+      table.status,
+      table.startDate,
+      table.endDate
+    ),
+  ]
+);
+
+export const adCampaignTargets = pgTable(
+  "ad_campaign_targets",
+  {
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => adCampaigns.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    targetCode: text("target_code").notNull(),
+    targetType: adTargetTypeEnum("target_type").notNull(),
+  },
+  (table) => [
+    index("ad_campaign_targets_lookup_idx").on(
+      table.targetType,
+      table.targetCode
+    ),
+    uniqueIndex("ad_campaign_targets_unique_idx").on(
+      table.campaignId,
+      table.targetType,
+      table.targetCode
+    ),
+  ]
+);
+
+export const adMetricDaily = pgTable(
+  "ad_metric_daily",
+  {
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => adCampaigns.id, { onDelete: "cascade" }),
+    clicksCount: integer("clicks_count").default(0).notNull(),
+    date: text("date").notNull(),
+    id: text("id").primaryKey(),
+    impressionsCount: integer("impressions_count").default(0).notNull(),
+    spendCents: integer("spend_cents").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("ad_metric_daily_campaign_date_idx").on(
+      table.campaignId,
+      table.date
+    ),
+    index("ad_metric_daily_date_idx").on(table.date),
   ]
 );
 

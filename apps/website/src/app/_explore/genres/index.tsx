@@ -1,28 +1,55 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { useGenresQuery } from "@/lib/soundkit-api-hooks";
 
-const genres = [
-  { count: "2.5K", emoji: "🎤", id: "hip-hop", name: "Hip-Hop" },
-  { count: "1.8K", emoji: "🎵", id: "rb-soul", name: "R&B/Soul" },
-  { count: "1.2K", emoji: "🎹", id: "electronic", name: "Electronic" },
-  { count: "3.1K", emoji: "⭐", id: "pop", name: "Pop" },
-  { count: "1.5K", emoji: "🎸", id: "rock", name: "Rock" },
-  { count: "892", emoji: "🎺", id: "jazz", name: "Jazz" },
-  { count: "1.4K", emoji: "🥁", id: "afrobeats", name: "Afrobeats" },
-  { count: "1.1K", emoji: "💃", id: "latin", name: "Latin" },
-  { count: "956", emoji: "🤠", id: "country", name: "Country" },
-  { count: "743", emoji: "🌴", id: "reggae", name: "Reggae" },
-  { count: "2.2K", emoji: "🎧", id: "indie", name: "Indie" },
-  { count: "876", emoji: "🤘", id: "metal", name: "Metal" },
-  { count: "320", emoji: "🎙️", id: "spoken-word", name: "Spoken Word" },
-];
+interface GenreSummary {
+  id: string;
+  name: string;
+  slug: string;
+  totalCount?: number;
+  trackCount?: number;
+}
+
+const genreEmoji: Record<string, string> = {
+  afrobeats: "🥁",
+  country: "🤠",
+  electronic: "🎹",
+  "hip-hop": "🎤",
+  indie: "🎧",
+  jazz: "🎺",
+  latin: "💃",
+  metal: "🤘",
+  pop: "⭐",
+  "rb-soul": "🎵",
+  reggae: "🌴",
+  rock: "🎸",
+  "spoken-word": "🎙️",
+};
+
+const formatCount = (count: number) => {
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}K`;
+  }
+
+  return count.toLocaleString();
+};
+
+const genreActivityLabel = (genre: GenreSummary) => {
+  const total = genre.totalCount ?? genre.trackCount ?? 0;
+  const noun = total === 1 ? "live item" : "live items";
+
+  return `${formatCount(total)} ${noun}`;
+};
 
 export const Route = createFileRoute("/_explore/genres/")({
   component: GenresPage,
 });
 
 function GenresPage() {
+  const genresQuery = useGenresQuery();
+  const genres = genresQuery.data ?? [];
+
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <div className="mb-8">
@@ -36,16 +63,18 @@ function GenresPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
         {genres.map((genre) => (
-          <Link key={genre.id} to="/genres/$id" params={{ id: genre.id }}>
+          <Link key={genre.id} to="/genres/$id" params={{ id: genre.slug }}>
             <Card className="group hover:bg-accent transition-colors cursor-pointer h-full">
               <CardContent className="p-4 md:p-6 flex flex-col items-center justify-center text-center gap-2 md:gap-3 h-full">
-                <div className="text-4xl md:text-5xl mb-1">{genre.emoji}</div>
+                <div className="text-4xl md:text-5xl mb-1">
+                  {genreEmoji[genre.slug] ?? "🎵"}
+                </div>
                 <div>
                   <h3 className="font-semibold text-sm md:text-base group-hover:text-primary transition-colors">
                     {genre.name}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    {genre.count} tracks
+                    {genreActivityLabel(genre)}
                   </p>
                 </div>
               </CardContent>

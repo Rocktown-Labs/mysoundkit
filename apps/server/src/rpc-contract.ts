@@ -8,6 +8,7 @@ import type {
   adminOverviewSchema,
   platformSettingsSchema,
   artistSummarySchema,
+  battleChallengesResponseSchema,
   battleSummarySchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
@@ -23,6 +24,7 @@ import type {
   lyricsRevisionSchema,
   meResponseSchema,
   messageSchema,
+  notificationSettingsSchema,
   openVerseListingSchema,
   openVersePageSchema,
   openVerseSubmissionSchema,
@@ -40,6 +42,7 @@ import type {
   trackProcessingStatusSchema,
   trackSummarySchema,
   usernameAvailabilityResponseSchema,
+  videoCommentSchema,
   videoSummarySchema,
   messageResponseSchema,
 } from "./lib/schemas";
@@ -60,6 +63,7 @@ import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
   createVideoBodySchema,
+  createVideoCommentBodySchema,
   directVideoUploadBodySchema,
   battleBotActionBodySchema,
   joinLiveExperienceBodySchema,
@@ -75,7 +79,10 @@ import {
   peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
+  settleTrackBodySchema,
   updatePlatformSettingsBodySchema,
+  updateBattleChallengeBodySchema,
+  updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
   usernameAvailabilityQuerySchema,
@@ -208,6 +215,14 @@ export const rpcContract = new Hono()
   .patch("/v1/me/profile", jsonValidator(profileUpdateBodySchema), (c) =>
     c.json({ message: "" })
   )
+  .get("/v1/me/notification-settings", (c) =>
+    c.json({} as z.infer<typeof notificationSettingsSchema>)
+  )
+  .patch(
+    "/v1/me/notification-settings",
+    jsonValidator(updateNotificationSettingsBodySchema),
+    (c) => c.json({} as z.infer<typeof notificationSettingsSchema>)
+  )
   .get("/v1/me/entitlements", (c) =>
     c.json({} as z.infer<typeof entitlementSummarySchema>)
   )
@@ -312,6 +327,11 @@ export const rpcContract = new Hono()
     jsonValidator(createTrackAssetBodySchema),
     (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
   )
+  .post(
+    "/v1/tracks/:trackId/settle",
+    jsonValidator(settleTrackBodySchema),
+    (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
+  )
   .post("/v1/tracks/:trackId/process", (c) =>
     c.json({} as z.infer<typeof trackProcessingStatusSchema>)
   )
@@ -339,6 +359,12 @@ export const rpcContract = new Hono()
   .get("/v1/projects/", (c) =>
     c.json([] as z.infer<typeof projectSummarySchema>[])
   )
+  .get("/v1/projects/public", (c) =>
+    c.json([] as z.infer<typeof projectSummarySchema>[])
+  )
+  .get("/v1/projects/public/:projectId", (c) =>
+    c.json({} as z.infer<typeof projectDashboardDetailSchema>)
+  )
   .post("/v1/projects/", jsonValidator(createProjectBodySchema), (c) =>
     c.json({} as z.infer<typeof projectSummarySchema>, 201)
   )
@@ -360,6 +386,9 @@ export const rpcContract = new Hono()
   )
   .get("/v1/battles/", (c) =>
     c.json([] as z.infer<typeof battleSummarySchema>[])
+  )
+  .get("/v1/battles/challenges", (c) =>
+    c.json({} as z.infer<typeof battleChallengesResponseSchema>)
   )
   .get("/v1/library/overview", (c) =>
     c.json({} as z.infer<typeof libraryOverviewSchema>)
@@ -383,6 +412,11 @@ export const rpcContract = new Hono()
     "/v1/battles/challenge",
     jsonValidator(createChallengeBodySchema),
     (c) => c.json({ message: "" }, 201)
+  )
+  .patch(
+    "/v1/battles/challenges/:challengeId",
+    jsonValidator(updateBattleChallengeBodySchema),
+    (c) => c.json({} as z.infer<typeof messageResponseSchema>)
   )
   .get("/v1/battles/stats", (c) =>
     c.json(
@@ -515,6 +549,17 @@ export const rpcContract = new Hono()
   )
   .delete("/v1/videos/:videoId", (c) =>
     c.json({} as z.infer<typeof messageResponseSchema>)
+  )
+  .get("/v1/videos/:videoId", (c) =>
+    c.json({} as z.infer<typeof videoSummarySchema>)
+  )
+  .get("/v1/videos/:videoId/comments", (c) =>
+    c.json([] as z.infer<typeof videoCommentSchema>[])
+  )
+  .post(
+    "/v1/videos/:videoId/comments",
+    jsonValidator(createVideoCommentBodySchema),
+    (c) => c.json({} as z.infer<typeof videoCommentSchema>, 201)
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)

@@ -1,7 +1,24 @@
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import {
+  battleRounds,
+  battles,
+  liveExperiences,
+  trackAssets,
+  tracks,
+  userProfiles,
+} from "@soundkit/db/schema/app";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
+import type { z } from "zod";
 
-import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import {
+  forbiddenMessage,
+  isAuthenticatedSession,
+  isAuthenticatedUser,
+  resolveEntitlements,
+  unauthorizedMessage,
+} from "@/lib/entitlements";
 import {
   allowsMockRealtime,
   buildNotificationFanout,
@@ -23,6 +40,17 @@ import type {
   RealtimeParticipantToken,
 } from "@/lib/live-experience";
 import {
+  applyBattleBotAction,
+  buildLiveExperienceInsert,
+  loadLiveExperienceById,
+} from "@/lib/live-experience-events";
+import type {
+  LiveBattleRound,
+  LiveRoomArtist,
+  LiveRoomState,
+  LiveRoomTrack,
+} from "@/lib/live-room-data";
+import {
   battleBotActionBodySchema,
   createLiveExperienceBodySchema,
   joinLiveExperienceBodySchema,
@@ -32,12 +60,22 @@ import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
 
+type CreateLiveExperienceBody = z.infer<typeof createLiveExperienceBodySchema>;
+
 interface CloudflareMeetingResponse {
   data?: {
     id?: string;
     title?: string;
   };
+  errors?: unknown[];
+  id?: string;
+  messages?: unknown[];
+  result?: {
+    id?: string;
+    title?: string;
+  };
   success?: boolean;
+  title?: string;
 }
 
 interface CloudflareParticipantResponse {
@@ -45,7 +83,15 @@ interface CloudflareParticipantResponse {
     id?: string;
     token?: string;
   };
+  errors?: unknown[];
+  id?: string;
+  messages?: unknown[];
+  result?: {
+    id?: string;
+    token?: string;
+  };
   success?: boolean;
+  token?: string;
 }
 
 interface CloudflareStreamResponse {
@@ -93,9 +139,41 @@ const streamInputFromCloudflareResponse = (
   };
 };
 
+const createMockStreamInput = (title: string) => ({
+  id: `mock_live_input_${crypto.randomUUID()}`,
+  playbackUrl: "",
+  rtmpsKey: `mock_${crypto.randomUUID()}`,
+  rtmpsUrl: "rtmps://live.cloudflare.com:443/live/",
+  srtKey: `mock_${crypto.randomUUID()}`,
+  srtUrl: "srt://live.cloudflare.com:443/live",
+  status: "idle",
+  title,
+});
+
 const cloudflareStreamSetupRequired = {
   message:
     "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
+};
+
+const readResponseSnippet = async (response: Response) => {
+  const text = await response.text().catch(() => "");
+  return text.slice(0, 500);
+};
+
+const logCloudflareApiFailure = ({
+  body,
+  label,
+  response,
+}: {
+  body?: string;
+  label: string;
+  response: Response;
+}) => {
+  console.error(label, {
+    body,
+    status: response.status,
+    statusText: response.statusText,
+  });
 };
 
 const createCloudflareStreamInput = async ({
@@ -128,6 +206,11 @@ const createCloudflareStreamInput = async ({
   );
 
   if (!response.ok) {
+    logCloudflareApiFailure({
+      body: await readResponseSnippet(response),
+      label: "Cloudflare Stream live input creation failed",
+      response,
+    });
     return null;
   }
 
@@ -216,17 +299,27 @@ const createRealtimeMeeting = async ({
 
       if (response.ok) {
         const data = (await response.json()) as CloudflareMeetingResponse;
-        const meetingId = data.data?.id;
+        const meeting = data.result ?? data.data ?? data;
+        const meetingId = meeting?.id;
 
         if (meetingId) {
           return {
             id: meetingId,
             provider: "cloudflare_realtimekit",
             status: "configured",
-            title: data.data?.title ?? title,
+            title: meeting?.title ?? title,
           };
         }
       }
+      logCloudflareApiFailure({
+        body: response.ok
+          ? JSON.stringify({
+              errors: "Missing RealtimeKit meeting id in response.",
+            })
+          : await readResponseSnippet(response),
+        label: "Cloudflare RealtimeKit meeting creation failed",
+        response,
+      });
     } catch (error) {
       console.error("Cloudflare RealtimeKit meeting creation failed", error);
     }
@@ -286,8 +379,9 @@ const createRealtimeParticipant = async ({
 
       if (response.ok) {
         const data = (await response.json()) as CloudflareParticipantResponse;
-        const authToken = data.data?.token;
-        const participantId = data.data?.id;
+        const participant = data.result ?? data.data ?? data;
+        const authToken = participant?.token;
+        const participantId = participant?.id;
 
         if (authToken && participantId) {
           return {
@@ -300,6 +394,15 @@ const createRealtimeParticipant = async ({
           };
         }
       }
+      logCloudflareApiFailure({
+        body: response.ok
+          ? JSON.stringify({
+              errors: "Missing RealtimeKit participant token in response.",
+            })
+          : await readResponseSnippet(response),
+        label: "Cloudflare RealtimeKit participant creation failed",
+        response,
+      });
     } catch (error) {
       console.error(
         "Cloudflare RealtimeKit participant creation failed",
@@ -319,6 +422,144 @@ const createRealtimeParticipant = async ({
   }
 
   throw new Error(realtimeSetupRequired.message);
+};
+
+const createRequiredStreamInput = async ({
+  body,
+  env,
+}: {
+  body: CreateLiveExperienceBody;
+  env: AppEnv["Bindings"];
+}) => {
+  if (!(body.kind === "stream" && body.source === "obs")) {
+    return null;
+  }
+
+  try {
+    const streamInput = await createCloudflareStreamInput({
+      env,
+      title: body.title.trim(),
+    });
+
+    if (streamInput) {
+      return streamInput;
+    }
+  } catch (error) {
+    console.error("Cloudflare Stream live input creation failed", error);
+  }
+
+  if (allowsMockRealtime(realtimeKitConfig(env))) {
+    return createMockStreamInput(body.title.trim());
+  }
+
+  return null;
+};
+
+const createMeetingForExperience = async ({
+  body,
+  env,
+  streamInput,
+}: {
+  body: CreateLiveExperienceBody;
+  env: AppEnv["Bindings"];
+  streamInput: Awaited<ReturnType<typeof createCloudflareStreamInput>>;
+}) => {
+  try {
+    return await createRealtimeMeeting({
+      env,
+      kind: body.kind,
+      title: body.title.trim(),
+    });
+  } catch (error) {
+    if (streamInput) {
+      return createMockRealtimeMeeting({
+        kind: body.kind,
+        title: body.title.trim(),
+      });
+    }
+
+    console.error("Unable to create live experience meeting", error);
+    return null;
+  }
+};
+
+const resolveMeetingIdForExperience = async (experienceId: string) => {
+  const experience = await loadLiveExperienceById(experienceId);
+
+  return experience?.meetingId ?? experienceId;
+};
+
+const isArtistUser = async (userId: string) => {
+  if (!isDatabaseConfigured()) {
+    return false;
+  }
+
+  const [profile] = await createDb()
+    .select({ accountType: userProfiles.accountType })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1);
+
+  return profile?.accountType === "artist";
+};
+
+const isPartyHostingAllowed = async ({
+  session,
+  user,
+}: {
+  session: AppEnv["Variables"]["session"];
+  user: AuthenticatedUser;
+}) => {
+  const entitlements = await resolveEntitlements({
+    session: isAuthenticatedSession(session) ? session : null,
+    user,
+  });
+
+  if (entitlements.isPremium) {
+    return true;
+  }
+
+  return isArtistUser(user.id);
+};
+
+const persistLiveExperience = async ({
+  body,
+  createdByUserId,
+  experienceId,
+  meetingId,
+  startsAt,
+}: {
+  body: CreateLiveExperienceBody;
+  createdByUserId: string;
+  experienceId: string;
+  meetingId: string;
+  startsAt: string;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const result = await createDb()
+    .insert(liveExperiences)
+    .values(
+      buildLiveExperienceInsert({
+        battleId: null,
+        battleKitId: body.battleKitId,
+        createdByUserId,
+        id: experienceId,
+        kind: body.kind,
+        meetingId,
+        playlistId: body.playlistId,
+        projectId: body.projectId,
+        source: body.source ?? defaultSourceForKind(body.kind),
+        startsAt,
+        title: body.title.trim(),
+        visibility: body.visibility,
+      })
+    )
+    .onConflictDoNothing();
+
+  return result;
 };
 
 const durableRequest = (
@@ -342,6 +583,329 @@ const durableRequest = (
   });
 };
 
+const objectUrlFromMetadata = (metadata: unknown) => {
+  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+    return null;
+  }
+
+  const { url } = metadata as { url?: unknown };
+  return typeof url === "string" ? url : null;
+};
+
+const liveRoomTrackFromRow = ({
+  artistName,
+  coverArtUrl,
+  status,
+  title,
+  trackId,
+}: {
+  artistName: string;
+  coverArtUrl: null | string;
+  status: LiveRoomTrack["status"];
+  title: string;
+  trackId: string;
+}): LiveRoomTrack => ({
+  artistName,
+  coverArtUrl: coverArtUrl ?? "",
+  durationMs: 0,
+  id: trackId,
+  lyrics: [],
+  status,
+  title,
+});
+
+const liveRoundStatusFromDb = (
+  status: "active" | "completed" | "upcoming"
+): LiveBattleRound["status"] => {
+  if (status === "completed") {
+    return "complete";
+  }
+
+  if (status === "active") {
+    return "voting";
+  }
+
+  return "queued";
+};
+
+const trackStatusForRound = ({
+  isFirstTrack,
+  roundStatus,
+}: {
+  isFirstTrack: boolean;
+  roundStatus: "active" | "completed" | "upcoming";
+}): LiveRoomTrack["status"] => {
+  if (roundStatus === "completed") {
+    return "played";
+  }
+
+  if (roundStatus === "active") {
+    return isFirstTrack ? "playing" : "queued";
+  }
+
+  return "queued";
+};
+
+const selectCurrentRound = <
+  T extends {
+    roundNumber: number;
+    status: "active" | "completed" | "upcoming";
+  },
+>(
+  rounds: T[]
+) =>
+  rounds.find((round) => round.status === "active") ??
+  rounds.find((round) => round.status === "upcoming") ??
+  rounds.at(-1) ??
+  null;
+
+const buildBattleRoomSnapshot = async (
+  roomId: string
+): Promise<LiveRoomState | null> => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const db = createDb();
+  const [battle] = await db
+    .select({
+      challengerArtistUserId: battles.challengerArtistUserId,
+      createdAt: battles.createdAt,
+      id: battles.id,
+      opponentArtistUserId: battles.opponentArtistUserId,
+      status: battles.status,
+      title: battles.title,
+      viewerCount: battles.viewerCount,
+    })
+    .from(battles)
+    .where(or(eq(battles.id, roomId), eq(battles.externalBattleId, roomId)))
+    .limit(1);
+
+  if (!battle) {
+    return null;
+  }
+
+  const roundRows = await db
+    .select({
+      id: battleRounds.id,
+      isTiebreaker: battleRounds.isTiebreaker,
+      roundNumber: battleRounds.roundNumber,
+      status: battleRounds.status,
+      trackOneId: battleRounds.trackOneId,
+      trackOneVotes: battleRounds.trackOneVotes,
+      trackTwoId: battleRounds.trackTwoId,
+      trackTwoVotes: battleRounds.trackTwoVotes,
+      winningTrackId: battleRounds.winningTrackId,
+    })
+    .from(battleRounds)
+    .where(eq(battleRounds.battleId, battle.id))
+    .orderBy(asc(battleRounds.roundNumber));
+  const trackIds = [
+    ...new Set(
+      roundRows
+        .flatMap((round) => [round.trackOneId, round.trackTwoId])
+        .filter((trackId): trackId is string => Boolean(trackId))
+    ),
+  ];
+  const profileIds = [
+    ...new Set(
+      [battle.challengerArtistUserId, battle.opponentArtistUserId].filter(
+        (userId): userId is string => Boolean(userId)
+      )
+    ),
+  ];
+  const [trackRows, coverRows, profileRows] = await Promise.all([
+    trackIds.length > 0
+      ? db
+          .select({
+            artistName: userProfiles.displayName,
+            id: tracks.id,
+            ownerUserId: tracks.ownerUserId,
+            title: tracks.title,
+          })
+          .from(tracks)
+          .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+          .where(inArray(tracks.id, trackIds))
+      : [],
+    trackIds.length > 0
+      ? db
+          .select({
+            metadata: trackAssets.metadata,
+            trackId: trackAssets.trackId,
+          })
+          .from(trackAssets)
+          .where(
+            and(
+              inArray(trackAssets.trackId, trackIds),
+              eq(trackAssets.assetKind, "cover_art")
+            )
+          )
+      : [],
+    profileIds.length > 0
+      ? db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            userId: userProfiles.userId,
+          })
+          .from(userProfiles)
+          .where(inArray(userProfiles.userId, profileIds))
+      : [],
+  ]);
+  const coverByTrackId = new Map(
+    coverRows.map((asset) => [
+      asset.trackId,
+      objectUrlFromMetadata(asset.metadata),
+    ])
+  );
+  const trackById = new Map(
+    trackRows.map((track) => [
+      track.id,
+      {
+        artistName: track.artistName ?? "SoundKit Artist",
+        coverArtUrl: coverByTrackId.get(track.id) ?? null,
+        ownerUserId: track.ownerUserId,
+        title: track.title,
+      },
+    ])
+  );
+  const profileByUserId = new Map(
+    profileRows.map((profile) => [profile.userId, profile])
+  );
+  const currentRound = selectCurrentRound(roundRows);
+  const fallbackArtistIds = [
+    battle.challengerArtistUserId ?? "artist-one",
+    battle.opponentArtistUserId ?? "artist-two",
+  ] as const;
+  const liveArtists: [LiveRoomArtist, LiveRoomArtist] = [
+    {
+      avatarUrl: profileByUserId.get(fallbackArtistIds[0])?.avatarUrl ?? "",
+      id: fallbackArtistIds[0],
+      isMuted: false,
+      name:
+        profileByUserId.get(fallbackArtistIds[0])?.displayName ?? "Artist One",
+      roundsWon: roundRows.filter(
+        (round) =>
+          round.status === "completed" &&
+          round.winningTrackId &&
+          trackById.get(round.winningTrackId)?.ownerUserId ===
+            fallbackArtistIds[0]
+      ).length,
+      stagePosition: "left",
+      verified: false,
+    },
+    {
+      avatarUrl: profileByUserId.get(fallbackArtistIds[1])?.avatarUrl ?? "",
+      id: fallbackArtistIds[1],
+      isMuted: currentRound?.status === "active",
+      name:
+        profileByUserId.get(fallbackArtistIds[1])?.displayName ?? "Artist Two",
+      roundsWon: roundRows.filter(
+        (round) =>
+          round.status === "completed" &&
+          round.winningTrackId &&
+          trackById.get(round.winningTrackId)?.ownerUserId ===
+            fallbackArtistIds[1]
+      ).length,
+      stagePosition: "right",
+      verified: false,
+    },
+  ];
+  const liveRounds = roundRows.flatMap((round): LiveBattleRound[] => {
+    const trackOne = round.trackOneId ? trackById.get(round.trackOneId) : null;
+    const trackTwo = round.trackTwoId ? trackById.get(round.trackTwoId) : null;
+
+    if (!(round.trackOneId && trackOne && round.trackTwoId && trackTwo)) {
+      return [];
+    }
+
+    return [
+      {
+        artistATrack: liveRoomTrackFromRow({
+          artistName: trackOne.artistName,
+          coverArtUrl: trackOne.coverArtUrl,
+          status: trackStatusForRound({
+            isFirstTrack: true,
+            roundStatus: round.status,
+          }),
+          title: trackOne.title,
+          trackId: round.trackOneId,
+        }),
+        artistBTrack: liveRoomTrackFromRow({
+          artistName: trackTwo.artistName,
+          coverArtUrl: trackTwo.coverArtUrl,
+          status: trackStatusForRound({
+            isFirstTrack: false,
+            roundStatus: round.status,
+          }),
+          title: trackTwo.title,
+          trackId: round.trackTwoId,
+        }),
+        id: round.id,
+        isTiebreaker: round.isTiebreaker,
+        number: round.roundNumber,
+        status: liveRoundStatusFromDb(round.status),
+        voteTotals: {
+          [liveArtists[0].id]: round.trackOneVotes,
+          [liveArtists[1].id]: round.trackTwoVotes,
+        },
+        winnerArtistId: round.winningTrackId
+          ? (trackById.get(round.winningTrackId)?.ownerUserId ?? null)
+          : null,
+      },
+    ];
+  });
+  const currentLiveRound =
+    liveRounds.find((round) => round.id === currentRound?.id) ??
+    liveRounds[0] ??
+    null;
+  const tracklist = currentLiveRound
+    ? [currentLiveRound.artistATrack, currentLiveRound.artistBTrack]
+    : [];
+
+  return {
+    battle: {
+      artists: liveArtists,
+      currentRoundId: currentLiveRound?.id ?? "",
+      rounds: liveRounds,
+      tiePolicy:
+        "If the scheduled rounds end tied, SoundKit unlocks one tiebreaker song from each battle kit and runs sudden-death voting.",
+    },
+    chat: [],
+    createdAt: battle.createdAt.toISOString(),
+    currentTrackId: currentLiveRound?.artistATrack.id ?? "",
+    hostName: liveArtists[0].name,
+    id: battle.id,
+    kind: "battle",
+    status:
+      battle.status === "completed"
+        ? "ended"
+        : battle.status === "live"
+          ? "live"
+          : "upcoming",
+    summary:
+      "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
+    title: battle.title,
+    tracklist,
+    viewerCount: battle.viewerCount,
+  };
+};
+
+const seedDurableRoom = async ({
+  c,
+  room,
+  roomId,
+}: {
+  c: { env: AppEnv["Bindings"] };
+  room: LiveRoomState;
+  roomId: string;
+}) =>
+  durableRequest(c, roomId, "/seed", {
+    body: JSON.stringify(room),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+
 app.post("/experiences", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
@@ -361,86 +925,124 @@ app.post("/experiences", async (c) => {
 
   const body = parseResult.data;
   const startsAt = body.scheduledStartAt ?? new Date().toISOString();
-  let meeting: RealtimeMeeting;
+  const canHostParty = await isPartyHostingAllowed({
+    session: c.get("session"),
+    user,
+  });
 
-  try {
-    meeting = await createRealtimeMeeting({
-      env: c.env,
-      kind: body.kind,
-      title: body.title.trim(),
-    });
-  } catch (error) {
-    console.error("Unable to create live experience meeting", error);
+  if (body.kind === "party" && !canHostParty) {
+    return c.json(
+      forbiddenMessage(
+        "A premium subscription is required to host listening parties."
+      ),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
+  const streamInput = await createRequiredStreamInput({
+    body,
+    env: c.env,
+  });
+
+  if (body.kind === "stream" && body.source === "obs" && !streamInput) {
+    return c.json(
+      cloudflareStreamSetupRequired,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const meeting = await createMeetingForExperience({
+    body,
+    env: c.env,
+    streamInput,
+  });
+
+  if (!meeting) {
     return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
   }
 
-  let streamInput = null;
-
-  if (body.kind === "stream" && body.source === "obs") {
-    try {
-      streamInput = await createCloudflareStreamInput({
-        env: c.env,
-        title: body.title.trim(),
-      });
-    } catch (error) {
-      console.error("Cloudflare Stream live input creation failed", error);
-    }
-
-    if (!streamInput) {
-      return c.json(
-        cloudflareStreamSetupRequired,
-        HttpStatusCodes.SERVICE_UNAVAILABLE
-      );
-    }
-  }
   const experienceId = `live_${body.kind}_${crypto.randomUUID()}`;
   const roomHref = `/live/${
     body.kind === "party" ? "parties" : `${body.kind}s`
   }/${experienceId}`;
 
+  await persistLiveExperience({
+    body,
+    createdByUserId: user.id,
+    experienceId,
+    meetingId: meeting.id,
+    startsAt,
+  });
+
   return c.json(
-    {
-      defaults: {
-        captions: true,
-        chat: true,
-        recording: true,
-        setupScreen: true,
-      },
-      experience: {
-        battleKitId: body.battleKitId ?? null,
-        createdByUserId: user.id,
-        description: body.description ?? "",
-        format: body.format ?? null,
-        genre: body.genre ?? null,
-        id: experienceId,
-        kind: body.kind,
-        opponentUsername: body.opponentUsername ?? null,
-        playlistId: body.playlistId ?? null,
-        projectId: body.projectId ?? null,
-        roomHref,
-        scheduleMode: body.scheduleMode,
-        source: body.source ?? defaultSourceForKind(body.kind),
-        startsAt,
-        status: body.scheduleMode === "asap" ? "ready" : "scheduled",
-        title: body.title.trim(),
-        visibility: body.visibility,
-      },
-      lock: {
-        experienceId,
-        kind: body.kind,
-        startsAt,
-        status: body.scheduleMode === "asap" ? "live" : "scheduled",
-      },
-      notifications: buildNotificationFanout({
-        experienceId,
-        kind: body.kind,
-        title: body.title.trim(),
-      }),
-      realtime: meeting,
+    buildCreateExperienceResponse({
+      body,
+      createdByUserId: user.id,
+      experienceId,
+      meeting,
+      roomHref,
+      startsAt,
       streamInput,
-    },
+    }),
     HttpStatusCodes.CREATED
   );
+});
+
+const buildCreateExperienceResponse = ({
+  body,
+  createdByUserId,
+  experienceId,
+  meeting,
+  roomHref,
+  startsAt,
+  streamInput,
+}: {
+  body: CreateLiveExperienceBody;
+  createdByUserId: string;
+  experienceId: string;
+  meeting: RealtimeMeeting;
+  roomHref: string;
+  startsAt: string;
+  streamInput: Awaited<ReturnType<typeof createCloudflareStreamInput>>;
+}) => ({
+  defaults: {
+    captions: true,
+    chat: true,
+    recording: true,
+    setupScreen: true,
+  },
+  experience: {
+    battleKitId: body.battleKitId ?? null,
+    createdByUserId,
+    description: body.description ?? "",
+    format: body.format ?? null,
+    genre: body.genre ?? null,
+    id: experienceId,
+    kind: body.kind,
+    opponentUsername: body.opponentUsername ?? null,
+    playlistId: body.playlistId ?? null,
+    projectId: body.projectId ?? null,
+    roomHref,
+    scheduleMode: body.scheduleMode,
+    source: body.source ?? defaultSourceForKind(body.kind),
+    startsAt,
+    status: body.scheduleMode === "asap" ? "ready" : "scheduled",
+    title: body.title.trim(),
+    visibility: body.visibility,
+  },
+  lock: {
+    experienceId,
+    kind: body.kind,
+    startsAt,
+    status: body.scheduleMode === "asap" ? "live" : "scheduled",
+  },
+  notifications: buildNotificationFanout({
+    experienceId,
+    kind: body.kind,
+    title: body.title.trim(),
+  }),
+  realtime: meeting,
+  streamInput,
 });
 
 app.post("/experiences/:experienceId/join", async (c) => {
@@ -462,13 +1064,14 @@ app.post("/experiences/:experienceId/join", async (c) => {
 
   const experienceId = c.req.param("experienceId");
   const kind = liveKindFromExperienceId(experienceId);
+  const meetingId = await resolveMeetingIdForExperience(experienceId);
   let participant: RealtimeParticipantToken;
 
   try {
     participant = await createRealtimeParticipant({
       env: c.env,
       kind,
-      meetingId: experienceId,
+      meetingId,
       phase: parseResult.data.phase,
       role: parseResult.data.role,
       user,
@@ -532,18 +1135,31 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     );
   }
 
-  const snapshot = createRoundVoterSnapshot(parseResult.data.participants);
+  const experienceId = c.req.param("experienceId");
+  const experience = await loadLiveExperienceById(experienceId);
+  const battleId = experience?.battleId ?? experienceId;
+  const result = await applyBattleBotAction({
+    action: parseResult.data.action,
+    battleId,
+    participants: parseResult.data.participants,
+  });
 
   return c.json(
     {
       action: parseResult.data.action,
+      admitted: result.admitted ?? [],
       battleBot: {
         message:
           "BattleBot recorded the room action and prepared the next transition.",
-        nextPhase: nextBattlePhaseForAction(parseResult.data),
+        nextPhase:
+          result.nextPhase ?? nextBattlePhaseForAction(parseResult.data),
       },
-      experienceId: c.req.param("experienceId"),
-      snapshot,
+      booted: result.booted ?? [],
+      experienceId,
+      snapshot:
+        result.snapshot ??
+        createRoundVoterSnapshot(parseResult.data.participants),
+      winnerTrackId: result.winnerTrackId ?? null,
     },
     HttpStatusCodes.CREATED
   );
@@ -551,6 +1167,16 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
 
 app.get("/rooms/:roomId", async (c) => {
   const roomId = c.req.param("roomId");
+  const battleRoom = await buildBattleRoomSnapshot(roomId);
+
+  if (battleRoom) {
+    const seedResponse = await seedDurableRoom({ c, room: battleRoom, roomId });
+
+    if (!seedResponse) {
+      return c.json(battleRoom, HttpStatusCodes.OK);
+    }
+  }
+
   const response = await durableRequest(c, roomId, "/state");
 
   if (!response) {

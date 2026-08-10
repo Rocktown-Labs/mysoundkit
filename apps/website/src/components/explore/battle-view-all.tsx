@@ -14,9 +14,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { musicGenres } from "@/lib/music-genres";
-import { useBattlesQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useBattlesQuery,
+  useMeEntitlementsQuery,
+} from "@/lib/soundkit-api-hooks";
 import type { BattleSummary } from "@/lib/soundkit-api-hooks";
 
+import { BattleCard } from "./battle-card";
 import { BattleFilters } from "./battle-filters";
 
 type BattleType = "live" | "leaderboard" | "must-see" | "upcoming";
@@ -193,7 +197,47 @@ const groupBattlesByGenre = (battles: BattleSummary[]) => {
   return [...orderedGenres, ...customGenres];
 };
 
-function LiveBattleSummaryCard({ battle }: { battle: BattleSummary }) {
+function LiveBattleSummaryCard({
+  battle,
+  isPremiumUser,
+}: {
+  battle: BattleSummary;
+  isPremiumUser: boolean;
+}) {
+  const tracks = battle.tracks ?? [];
+
+  if (tracks.length >= 2) {
+    return (
+      <div className="min-w-[280px] max-w-[320px]">
+        <BattleCard
+          currentRound={battle.round?.current ?? 1}
+          genre={battle.genre}
+          id={battle.id}
+          isLive={battle.status === "live"}
+          isPremiumUser={isPremiumUser}
+          isVoting={battle.round?.isVoting ?? false}
+          joinMode={battle.joinMode}
+          phaseEndsAt={battle.phaseEndsAt}
+          queueSize={battle.queueSize}
+          title={battle.title}
+          totalRounds={battle.round?.total ?? 1}
+          track1={{
+            artist: tracks[0].artist,
+            cover: tracks[0].cover ?? "",
+            title: tracks[0].title,
+            votes: tracks[0].votes,
+          }}
+          track2={{
+            artist: tracks[1].artist,
+            cover: tracks[1].cover ?? "",
+            title: tracks[1].title,
+            votes: tracks[1].votes,
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <Link
       to="/live/battles/$id"
@@ -235,10 +279,12 @@ function LiveBattleSummaryCard({ battle }: { battle: BattleSummary }) {
 
 function BattleRail({
   battles,
+  isPremiumUser,
   title,
   viewAllGenre,
 }: {
   battles: BattleSummary[];
+  isPremiumUser: boolean;
   title: string;
   viewAllGenre?: string;
 }) {
@@ -268,7 +314,11 @@ function BattleRail({
       {battles.length > 0 ? (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {battles.map((battle) => (
-            <LiveBattleSummaryCard key={battle.id} battle={battle} />
+            <LiveBattleSummaryCard
+              battle={battle}
+              isPremiumUser={isPremiumUser}
+              key={battle.id}
+            />
           ))}
         </div>
       ) : (
@@ -317,6 +367,12 @@ export function BattleViewAll({
   const [sort, setSort] = useState(() => sortFromSearch ?? defaultSort);
   const { data: battleSummaries = [], isLoading: isLoadingBattles } =
     useBattlesQuery();
+  const entitlementsQuery = useMeEntitlementsQuery();
+  const isPremiumUser = Boolean(
+    entitlementsQuery.data?.isPremium ||
+    entitlementsQuery.data?.canViewLiveBattles ||
+    entitlementsQuery.data?.canVoteLiveBattles
+  );
 
   useEffect(() => {
     if (hasSearchFilters) {
@@ -399,11 +455,16 @@ export function BattleViewAll({
 
     return (
       <>
-        <BattleRail battles={liveBattleSections.featured} title="Featured" />
+        <BattleRail
+          battles={liveBattleSections.featured}
+          isPremiumUser={isPremiumUser}
+          title="Featured"
+        />
         {liveBattleSections.byGenre.map((section) => (
           <BattleRail
             key={section.genre}
             battles={section.battles}
+            isPremiumUser={isPremiumUser}
             title={section.genre}
             viewAllGenre={section.value}
           />

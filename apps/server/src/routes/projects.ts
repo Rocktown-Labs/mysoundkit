@@ -4,13 +4,15 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   genres,
   projectAssets,
+  projectCollaborators,
   projectTracks,
   projects,
   trackAssets,
   tracks,
+  userNotifications,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -20,18 +22,24 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
+import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import {
+  genreSlugFromExploreFilter,
+  stateFromExploreRegion,
+} from "@/lib/public-explore";
 import { sampleProjects } from "@/lib/sample-data";
 import {
   createProjectBodySchema,
   messageResponseSchema,
   projectDashboardDetailSchema,
   projectSummarySchema,
+  publicExploreQuerySchema,
   updateProjectBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
@@ -39,6 +47,64 @@ import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const publicProjectExploreQuerySchema = publicExploreQuerySchema.extend({
+  q: z.string().trim().max(120).optional(),
+  type: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+});
+
+type ProjectSummary = z.infer<typeof projectSummarySchema>;
+type PublicProjectExploreQuery = z.infer<
+  typeof publicProjectExploreQuerySchema
+>;
+
+const projectOrderBy = (sort?: string) => {
+  if (sort === "title-asc") {
+    return asc(projects.title);
+  }
+
+  if (sort === "title-desc") {
+    return desc(projects.title);
+  }
+
+  if (sort === "date-asc") {
+    return asc(projects.updatedAt);
+  }
+
+  return desc(projects.updatedAt);
+};
+
+const projectMatchesExploreFilters = (
+  project: ProjectSummary,
+  query: PublicProjectExploreQuery
+) => {
+  const genreSlug = genreSlugFromExploreFilter(query.genre);
+  const state = stateFromExploreRegion(query);
+  const regionSlug = state ? `us-${state.abbreviation.toLowerCase()}` : null;
+  const q = query.q?.toLowerCase();
+
+  if (
+    genreSlug &&
+    genreSlugFromExploreFilter(project.genre ?? "") !== genreSlug
+  ) {
+    return false;
+  }
+
+  if (regionSlug && project.regionSlug !== regionSlug) {
+    return false;
+  }
+
+  if (q) {
+    return [
+      project.title,
+      project.description ?? "",
+      project.genre ?? "",
+      project.projectType,
+    ].some((value) => value.toLowerCase().includes(q));
+  }
+
+  return true;
+};
 
 const getUploadBucketName = () =>
   (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
@@ -89,24 +155,31 @@ app.openapi(
   async (c) => {
     const user = c.get("user");
 
-    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+    if (!isDatabaseConfigured()) {
       return c.json(sampleProjects, HttpStatusCodes.OK);
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
     const db = createDb();
+    const organizationId = isAuthenticatedUser(user)
+      ? await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(c.get("session"))
+            ? c.get("session")
+            : null,
+          user,
+        })
+      : null;
+    let projectVisibilityWhere = eq(projects.isPublic, true);
+
+    if (isAuthenticatedUser(user)) {
+      projectVisibilityWhere = organizationId
+        ? eq(projects.organizationId, organizationId)
+        : eq(projects.ownerUserId, user.id);
+    }
+
     const rows = await db
       .select()
       .from(projects)
-      .where(
-        organizationId
-          ? eq(projects.organizationId, organizationId)
-          : eq(projects.ownerUserId, user.id)
-      )
+      .where(projectVisibilityWhere)
       .orderBy(desc(projects.updatedAt))
       .limit(100);
     const summaries = [];
@@ -116,6 +189,144 @@ app.openapi(
     }
 
     return c.json(summaries, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public",
+    request: {
+      query: publicProjectExploreQuerySchema,
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        projectSummarySchema.array(),
+        "Public projects list"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const query = c.req.valid("query");
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        sampleProjects
+          .filter((project) => project.isPublic)
+          .filter((project) => {
+            if (query.type && project.projectType !== query.type) {
+              return false;
+            }
+
+            if (query.forSale && !project.isForSale) {
+              return false;
+            }
+
+            return projectMatchesExploreFilters(project, query);
+          })
+          .slice(0, query.limit),
+        HttpStatusCodes.OK
+      );
+    }
+
+    const publicProjectConditions = [eq(projects.isPublic, true)];
+
+    if (query.type) {
+      publicProjectConditions.push(eq(projects.projectType, query.type));
+    }
+
+    if (query.forSale) {
+      publicProjectConditions.push(eq(projects.isForSale, true));
+    }
+
+    if (query.q) {
+      publicProjectConditions.push(
+        sql`lower(${projects.title}) like ${`%${query.q.toLowerCase()}%`}`
+      );
+    }
+
+    const rows = await createDb()
+      .select()
+      .from(projects)
+      .where(and(...publicProjectConditions))
+      .orderBy(projectOrderBy(query.sort))
+      .limit(100);
+    const summaries = [];
+
+    for (const row of rows) {
+      const summary = await buildProjectSummary(row);
+
+      if (projectMatchesExploreFilters(summary, query)) {
+        summaries.push(summary);
+      }
+    }
+
+    return c.json(summaries.slice(0, query.limit), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/public/{projectId}",
+    request: {
+      params: z.object({
+        projectId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        projectDashboardDetailSchema,
+        "Public project detail"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const { projectId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      const project = sampleProjects.find(
+        (entry) => entry.id === projectId && entry.isPublic
+      );
+
+      if (!project) {
+        return c.json(
+          { message: "Project not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+
+      return c.json(
+        {
+          ...project,
+          assets: [],
+          collaborators: [],
+          tracks: [],
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const [project] = await createDb()
+      .select()
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.isPublic, true)))
+      .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
   }
 );
 
@@ -157,10 +368,12 @@ app.openapi(
     if (!isDatabaseConfigured()) {
       return c.json(
         {
-          collaboratorCount: body.collaboratorNames.length,
+          collaboratorCount:
+            body.collaborators.length || body.collaboratorNames.length,
           coverArtUrl: null,
           description: body.description ?? null,
           id: "project_new",
+          isForSale: false,
           isPublic: body.isPublic,
           progress: 25,
           projectType: body.projectType,
@@ -184,19 +397,22 @@ app.openapi(
       const db = createDb();
       const projectId = crypto.randomUUID();
       const now = new Date();
+      const hasNewTracks = body.newTracks.length > 0;
+      const projectStatus =
+        body.status ?? (body.releaseDate ? "scheduled" : "draft");
       const [project] = await db
         .insert(projects)
         .values({
           createdAt: now,
           description: body.description ?? null,
           id: projectId,
-          isPublic: body.isPublic,
+          isPublic: body.isPublic && !hasNewTracks,
           organizationId,
           ownerUserId: user.id,
           projectType: body.projectType,
           releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
           slug: uniqueSlug(body.title),
-          status: body.releaseDate ? "scheduled" : "draft",
+          status: projectStatus,
           title: body.title,
           updatedAt: now,
         })
@@ -213,7 +429,7 @@ app.openapi(
           genreId,
           id: trackId,
           isForSale: false,
-          isPublic: body.isPublic,
+          isPublic: false,
           organizationId,
           ownerUserId: user.id,
           productionStatus: "demo",
@@ -226,8 +442,10 @@ app.openapi(
           await db.insert(trackAssets).values({
             assetKind: "master",
             bucketName: getUploadBucketName(),
+            durationMs: newTrack.durationMs ?? null,
             id: crypto.randomUUID(),
             metadata: {
+              durationMs: newTrack.durationMs ?? null,
               originalFileName: newTrack.fileName ?? newTrack.title,
             },
             mimeType: newTrack.mimeType ?? null,
@@ -293,6 +511,54 @@ app.openapi(
             uploaderUserId: user.id,
           }))
         );
+      }
+
+      if (body.collaborators.length > 0) {
+        const collaboratorRows = body.collaborators.map((collaborator) => ({
+          canDelete: false,
+          canEdit: true,
+          canUpload: true,
+          collaboratorRole: collaborator.role,
+          collaboratorUserId: collaborator.userId ?? null,
+          createdAt: now,
+          id: crypto.randomUUID(),
+          invitationStatus: collaborator.userId
+            ? ("accepted" as const)
+            : ("pending" as const),
+          inviteEmail: collaborator.inviteEmail ?? null,
+          invitedByUserId: user.id,
+          projectId,
+        }));
+
+        await db.insert(projectCollaborators).values(collaboratorRows);
+
+        for (const collaborator of collaboratorRows) {
+          if (collaborator.collaboratorUserId) {
+            await db
+              .insert(userNotifications)
+              .values({
+                id: `project_collaborator:${collaborator.id}`,
+                link: `/dashboard/projects/${projectId}`,
+                message: `${user.name ?? "Someone"} added you as a collaborator on ${body.title}.`,
+                title: "New Project Collaboration",
+                type: "collaborator_invite",
+                userId: collaborator.collaboratorUserId,
+              })
+              .onConflictDoNothing();
+          }
+
+          if (collaborator.inviteEmail) {
+            await notifyCollaboratorInviteEmail({
+              actionPath: `/dashboard/projects/${projectId}`,
+              inviteEmail: collaborator.inviteEmail,
+              inviteId: collaborator.id,
+              inviterName: user.name ?? "Someone",
+              queue: c.env.EMAIL_DELIVERY_QUEUE,
+              workTitle: body.title,
+              workType: "project",
+            });
+          }
+        }
       }
 
       if (!project) {
@@ -373,13 +639,21 @@ app.openapi(
       user,
     });
     const db = createDb();
+    const releaseDatePatch =
+      "releaseDate" in body
+        ? {
+            releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
+          }
+        : {};
+    const statusPatch = body.status ? { status: body.status } : {};
     const [project] = await db
       .update(projects)
       .set({
         description: body.description,
         isPublic: body.isPublic,
         projectType: body.projectType,
-        releaseDate: body.releaseDate ? new Date(body.releaseDate) : undefined,
+        ...releaseDatePatch,
+        ...statusPatch,
         title: body.title,
         updatedAt: new Date(),
       })
@@ -495,7 +769,7 @@ app.openapi(
     const { projectId } = c.req.valid("param");
     const user = c.get("user");
 
-    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+    if (!isDatabaseConfigured()) {
       const project =
         sampleProjects.find((entry) => entry.id === projectId) ??
         sampleProjects[0];
@@ -515,19 +789,28 @@ app.openapi(
       );
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+    const organizationId = isAuthenticatedUser(user)
+      ? await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(c.get("session"))
+            ? c.get("session")
+            : null,
+          user,
+        })
+      : null;
     const db = createDb();
     const [project] = await db
       .select()
       .from(projects)
-      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+      .where(eq(projects.id, projectId))
       .limit(1);
 
-    if (!project) {
+    if (
+      !project ||
+      (!project.isPublic &&
+        (!isAuthenticatedUser(user) ||
+          (project.ownerUserId !== user.id &&
+            project.organizationId !== organizationId)))
+    ) {
       return c.json(
         {
           message: "Project not found.",

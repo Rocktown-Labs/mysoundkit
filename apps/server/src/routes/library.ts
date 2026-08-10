@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   librarySaves,
@@ -8,13 +8,15 @@ import {
   playlistTracks,
   purchases,
   recentPlays,
+  trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { unauthorizedMessage } from "@/lib/entitlements";
 import {
   fallbackArtistSlug,
   fallbackCover,
@@ -33,6 +35,7 @@ import {
   libraryOverviewSchema,
   librarySavedTrackSchema,
   libraryWatchedItemSchema,
+  purchasedCatalogDetailSchema,
   playlistSchema,
   purchasedCatalogItemSchema,
 } from "@/lib/schemas";
@@ -58,6 +61,8 @@ const toRecentTrack = async ({
     duration: summary.duration,
     id: summary.id,
     lastPlayed: lastPlayedAt.toISOString(),
+    regionSlug: summary.regionSlug ?? null,
+    slug: summary.slug,
     timesPlayed: playCount,
     title: summary.title,
   };
@@ -79,9 +84,85 @@ const toSavedTrack = async ({
     duration: summary.duration,
     genre: summary.genre,
     id: summary.id,
+    regionSlug: summary.regionSlug ?? null,
     savedAt: savedAt.toISOString(),
+    slug: summary.slug,
     title: summary.title,
   };
+};
+
+const saveTrackStateSchema = z.object({
+  saved: z.boolean(),
+  trackId: z.string(),
+});
+
+const downloadableAssetKinds = [
+  "master",
+  "tagged_mp3",
+  "untagged_wav",
+  "variant_audio",
+  "instrumental",
+] as const;
+
+const getPurchasedCatalogRow = ({
+  purchaseId,
+  userId,
+}: {
+  purchaseId?: string;
+  userId: string;
+}) => {
+  const db = createDb();
+  const query = db
+    .select({
+      id: purchases.id,
+      licenseOptionId: orderItems.licenseOptionId,
+      orderProjectId: orderItems.projectId,
+      priceCents: orderItems.priceSnapshot,
+      productType: orderItems.productType,
+      purchaseProjectId: purchases.projectId,
+      purchasedAt: purchases.purchasedAt,
+      title: orderItems.titleSnapshot,
+      trackId: purchases.trackId,
+    })
+    .from(purchases)
+    .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
+    .where(
+      purchaseId
+        ? and(eq(purchases.buyerUserId, userId), eq(purchases.id, purchaseId))
+        : eq(purchases.buyerUserId, userId)
+    );
+
+  return query;
+};
+
+const getPurchaseDownloads = async ({
+  trackId,
+}: {
+  trackId: string | null;
+}) => {
+  if (!trackId) {
+    return [];
+  }
+
+  const assetRows = await createDb()
+    .select({
+      assetKind: trackAssets.assetKind,
+      id: trackAssets.id,
+    })
+    .from(trackAssets)
+    .where(
+      and(
+        eq(trackAssets.trackId, trackId),
+        inArray(trackAssets.assetKind, downloadableAssetKinds)
+      )
+    )
+    .orderBy(desc(trackAssets.durationMs));
+
+  return assetRows.map((asset) => ({
+    downloadUrl: `/v1/tracks/${trackId}/assets/${asset.id}/download`,
+    id: asset.id,
+    label: asset.assetKind.replaceAll("_", " "),
+  }));
 };
 
 app.openapi(
@@ -128,7 +209,9 @@ app.openapi(
           .from(purchases)
           .where(eq(purchases.buyerUserId, user.id)),
         db
-          .select({ value: count() })
+          .select({
+            value: sql<number>`count(distinct ${recentPlays.trackId})::int`,
+          })
           .from(recentPlays)
           .where(eq(recentPlays.userId, user.id)),
         db
@@ -263,8 +346,30 @@ app.openapi(
       .orderBy(desc(recentPlays.lastPlayedAt))
       .limit(100);
 
+    const recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const existing = recentRowsByTrackId.get(row.track.id);
+      if (!existing) {
+        recentRowsByTrackId.set(row.track.id, row);
+        continue;
+      }
+
+      recentRowsByTrackId.set(row.track.id, {
+        ...existing,
+        lastPlayedAt:
+          row.lastPlayedAt > existing.lastPlayedAt
+            ? row.lastPlayedAt
+            : existing.lastPlayedAt,
+        playCount: existing.playCount + row.playCount,
+      });
+    }
+
+    const dedupedRows = [...recentRowsByTrackId.values()].toSorted(
+      (a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime()
+    );
+
     const items = await Promise.all(
-      rows.map((row) =>
+      dedupedRows.map((row) =>
         toRecentTrack({
           lastPlayedAt: row.lastPlayedAt,
           playCount: row.playCount,
@@ -388,14 +493,31 @@ app.openapi(
       .orderBy(desc(playbackSessions.startedAt))
       .limit(100);
 
+    const watchedRowsBySource = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const key = `${row.session.sourceType}:${
+        row.session.sourceId ?? row.track.id
+      }`;
+      const existing = watchedRowsBySource.get(key);
+      if (!existing || row.session.startedAt > existing.session.startedAt) {
+        watchedRowsBySource.set(key, row);
+      }
+    }
+
+    const dedupedRows = [...watchedRowsBySource.values()].toSorted(
+      (a, b) => b.session.startedAt.getTime() - a.session.startedAt.getTime()
+    );
+
     const items = await Promise.all(
-      rows.map(async (row) => {
+      dedupedRows.map(async (row) => {
         const summary = await buildTrackSummary(row.track);
         return {
           creator: summary.artistName,
           creatorSlug: summary.artistUsername ?? fallbackArtistSlug,
           duration: summary.duration,
           id: row.session.sourceId ?? summary.id,
+          regionSlug: summary.regionSlug ?? null,
+          slug: summary.slug,
           thumbnail: summary.coverArtUrl ?? fallbackCover,
           title: summary.title,
           type: toWatchedItemType(row.session.sourceType),
@@ -431,32 +553,554 @@ app.openapi(
       return c.json(samplePurchasedCatalogItems, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
-      .select({
-        id: purchases.id,
-        licenseOptionId: orderItems.licenseOptionId,
-        orderProjectId: orderItems.projectId,
-        priceCents: orderItems.priceSnapshot,
-        productType: orderItems.productType,
-        purchaseProjectId: purchases.projectId,
-        purchasedAt: purchases.purchasedAt,
-        title: orderItems.titleSnapshot,
-        trackId: purchases.trackId,
-      })
-      .from(purchases)
-      .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
-      .where(eq(purchases.buyerUserId, user.id));
+    const rows = await getPurchasedCatalogRow({ userId: user.id });
 
-    return c.json(
-      rows.map((row) =>
-        toPurchasedCatalogItem({
+    const items = await Promise.all(
+      rows.map(async (row) => {
+        const [download] = await getPurchaseDownloads({
+          trackId: row.trackId,
+        });
+
+        return toPurchasedCatalogItem({
           ...row,
           projectId: row.purchaseProjectId ?? row.orderProjectId,
-        })
+          trackDownloadUrl: download?.downloadUrl ?? null,
+        });
+      })
+    );
+
+    return c.json(items, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/purchases/{purchaseId}",
+    request: {
+      params: z.object({ purchaseId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        purchasedCatalogDetailSchema,
+        "Purchased catalog item detail"
       ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        z.object({ message: z.string() }),
+        "Purchase not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!user) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { purchaseId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      const purchase = samplePurchasedCatalogItems.find(
+        (item) =>
+          item.id === purchaseId ||
+          ("productId" in item && item.productId === purchaseId)
+      );
+
+      if (!purchase) {
+        return c.json(
+          { message: "Purchase not found." },
+          HttpStatusCodes.NOT_FOUND
+        );
+      }
+
+      return c.json(
+        {
+          downloads: purchase.downloadUrl
+            ? [
+                {
+                  downloadUrl: purchase.downloadUrl,
+                  id: purchase.id,
+                  label: "Download",
+                },
+              ]
+            : [],
+          purchase,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const [row] = await getPurchasedCatalogRow({
+      purchaseId,
+      userId: user.id,
+    });
+
+    if (!row) {
+      return c.json(
+        { message: "Purchase not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const downloads = await getPurchaseDownloads({
+      trackId: row.trackId,
+    });
+    const [download] = downloads;
+    const purchase = toPurchasedCatalogItem({
+      ...row,
+      projectId: row.purchaseProjectId ?? row.orderProjectId,
+      trackDownloadUrl: download?.downloadUrl ?? null,
+    });
+
+    return c.json({ downloads, purchase }, HttpStatusCodes.OK);
+  }
+);
+
+// Toggle save track
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/saved/{trackId}",
+    request: {
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        saveTrackStateSchema,
+        "Saved track state"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Unauthorized"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const { trackId } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      return c.json({ saved: true, trackId }, HttpStatusCodes.OK);
+    }
+
+    const db = createDb();
+    const existing = await db
+      .select()
+      .from(librarySaves)
+      .where(
+        and(eq(librarySaves.userId, user.id), eq(librarySaves.trackId, trackId))
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .delete(librarySaves)
+        .where(
+          and(
+            eq(librarySaves.userId, user.id),
+            eq(librarySaves.trackId, trackId)
+          )
+        );
+      return c.json({ saved: false, trackId }, HttpStatusCodes.OK);
+    }
+
+    await db
+      .insert(librarySaves)
+      .values({
+        trackId,
+        userId: user.id,
+      })
+      .onConflictDoNothing();
+
+    return c.json({ saved: true, trackId }, HttpStatusCodes.OK);
+  }
+);
+
+// Remove saved track
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/saved/{trackId}",
+    request: {
+      params: z.object({
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        saveTrackStateSchema,
+        "Saved track state"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Unauthorized"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const { trackId } = c.req.valid("param");
+
+    if (isDatabaseConfigured()) {
+      await createDb()
+        .delete(librarySaves)
+        .where(
+          and(
+            eq(librarySaves.userId, user.id),
+            eq(librarySaves.trackId, trackId)
+          )
+        );
+    }
+
+    return c.json({ saved: false, trackId }, HttpStatusCodes.OK);
+  }
+);
+
+// Create playlist
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/playlists",
+    request: {
+      body: jsonContent(
+        z.object({
+          description: z.string().optional(),
+          isPublic: z.boolean().optional(),
+          title: z.string().min(1),
+        }),
+        "New playlist details"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        playlistSchema,
+        "Created playlist"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Unauthorized"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!user) {
+      return c.json(
+        { message: "Authentication required" },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const body = c.req.valid("json");
+    const id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          coverArtUrl: null,
+          createdAt: new Date().toISOString(),
+          description: body.description ?? null,
+          id,
+          isPublic: body.isPublic ?? false,
+          ownerUserId: user.id,
+          title: body.title,
+          trackCount: 0,
+          updatedAt: new Date().toISOString(),
+        },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const db = createDb();
+    await db.insert(playlists).values({
+      description: body.description ?? null,
+      id,
+      isPublic: body.isPublic ?? false,
+      ownerUserId: user.id,
+      title: body.title,
+    });
+
+    return c.json(
+      {
+        coverArtUrl: null,
+        createdAt: new Date().toISOString(),
+        description: body.description ?? null,
+        id,
+        isPublic: body.isPublic ?? false,
+        ownerUserId: user.id,
+        title: body.title,
+        trackCount: 0,
+        updatedAt: new Date().toISOString(),
+      },
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+// Get playlist by ID with tracks
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/playlists/{id}",
+    request: {
+      params: z.object({
+        id: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          playlist: playlistSchema,
+          tracks: z.array(
+            z.object({
+              artist: z.string(),
+              artistSlug: z.string(),
+              cover: z.string(),
+              duration: z.string(),
+              genre: z.string().nullable(),
+              id: z.string(),
+              regionSlug: z.string().nullable(),
+              slug: z.string().nullable(),
+              title: z.string(),
+            })
+          ),
+        }),
+        "Playlist detail"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        z.object({ message: z.string() }),
+        "Playlist not found"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+
+    if (!isDatabaseConfigured()) {
+      const sample = samplePlaylists.find((p) => p.id === id) ?? {
+        coverArtUrl: null,
+        createdAt: new Date().toISOString(),
+        description: "My custom playlist",
+        id,
+        isPublic: false,
+        ownerUserId: "user_demo",
+        title: "My Playlist",
+        trackCount: sampleTracks.slice(0, 3).length,
+        updatedAt: new Date().toISOString(),
+      };
+      return c.json(
+        {
+          playlist: sample,
+          tracks: sampleTracks.slice(0, 3).map((t) => ({
+            artist: t.artistName,
+            artistSlug: fallbackArtistSlug,
+            cover: t.coverArtUrl ?? fallbackCover,
+            duration: t.duration,
+            genre: t.genre,
+            id: t.id,
+            regionSlug: "us-arkansas",
+            slug: t.slug,
+            title: t.title,
+          })),
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    const [playlistRow] = await db
+      .select()
+      .from(playlists)
+      .where(eq(playlists.id, id))
+      .limit(1);
+
+    if (!playlistRow) {
+      return c.json(
+        { message: "Playlist not found" },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const playlistTrackRows = await db
+      .select({
+        track: tracks,
+      })
+      .from(playlistTracks)
+      .innerJoin(tracks, eq(tracks.id, playlistTracks.trackId))
+      .where(eq(playlistTracks.playlistId, id))
+      .orderBy(desc(playlistTracks.createdAt));
+
+    const trackItems = await Promise.all(
+      playlistTrackRows.map(async (row) => {
+        const savedTrack = await toSavedTrack({
+          savedAt: row.track.createdAt,
+          track: row.track,
+        });
+        return {
+          artist: savedTrack.artist,
+          artistSlug: savedTrack.artistSlug,
+          cover: savedTrack.cover,
+          duration: savedTrack.duration,
+          genre: savedTrack.genre,
+          id: savedTrack.id,
+          regionSlug: null,
+          slug: row.track.slug,
+          title: savedTrack.title,
+        };
+      })
+    );
+
+    return c.json(
+      {
+        playlist: {
+          coverArtUrl: null,
+          createdAt: playlistRow.createdAt.toISOString(),
+          description: playlistRow.description,
+          id: playlistRow.id,
+          isPublic: playlistRow.isPublic,
+          ownerUserId: playlistRow.ownerUserId,
+          title: playlistRow.title,
+          trackCount: trackItems.length,
+          updatedAt: playlistRow.updatedAt.toISOString(),
+        },
+        tracks: trackItems,
+      },
       HttpStatusCodes.OK
     );
+  }
+);
+
+// Add track to playlist
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/playlists/{id}/tracks",
+    request: {
+      body: jsonContent(
+        z.object({
+          trackId: z.string(),
+        }),
+        "Track to add to playlist"
+      ),
+      params: z.object({
+        id: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({ added: z.boolean() }),
+        "Track added to playlist"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { trackId } = c.req.valid("json");
+
+    if (isDatabaseConfigured()) {
+      const db = createDb();
+      await db
+        .insert(playlistTracks)
+        .values({
+          playlistId: id,
+          trackId,
+        })
+        .onConflictDoNothing();
+    }
+
+    return c.json({ added: true }, HttpStatusCodes.OK);
+  }
+);
+
+// Remove track from playlist
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/playlists/{id}/tracks/{trackId}",
+    request: {
+      params: z.object({
+        id: z.string(),
+        trackId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({ removed: z.boolean() }),
+        "Track removed from playlist"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const { id, trackId } = c.req.valid("param");
+
+    if (isDatabaseConfigured()) {
+      const db = createDb();
+      await db
+        .delete(playlistTracks)
+        .where(
+          and(
+            eq(playlistTracks.playlistId, id),
+            eq(playlistTracks.trackId, trackId)
+          )
+        );
+    }
+
+    return c.json({ removed: true }, HttpStatusCodes.OK);
+  }
+);
+
+// Delete playlist
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/playlists/{id}",
+    request: {
+      params: z.object({
+        id: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({ deleted: z.boolean() }),
+        "Playlist deleted"
+      ),
+    },
+    tags: ["Library"],
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+
+    if (isDatabaseConfigured()) {
+      const db = createDb();
+      await db.delete(playlists).where(eq(playlists.id, id));
+    }
+
+    return c.json({ deleted: true }, HttpStatusCodes.OK);
   }
 );
 

@@ -15,9 +15,10 @@ import {
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { canonicalGenreName } from "@/lib/genre-catalog";
+import { regionSlugFromUser } from "@/lib/public-explore";
 
 const formatDuration = (durationMs: number | null | undefined) => {
   if (!durationMs) {
@@ -88,6 +89,10 @@ const mapAssetForDashboard = (
 ) => ({
   assetKind: asset.assetKind,
   bucketName: asset.bucketName,
+  downloadUrl:
+    "trackId" in asset && asset.trackId
+      ? `/v1/tracks/${asset.trackId}/assets/${asset.id}/download`
+      : null,
   durationMs: "durationMs" in asset ? asset.durationMs : null,
   id: asset.id,
   metadata: "metadata" in asset ? asset.metadata : null,
@@ -119,6 +124,7 @@ export const mapTrackSummary = ({
   assets,
   collaboratorCount,
   genre,
+  regionSlug = null,
   row,
 }: {
   artistName: string;
@@ -126,6 +132,7 @@ export const mapTrackSummary = ({
   assets: InferSelectModel<typeof trackAssets>[];
   collaboratorCount: number;
   genre: string | null;
+  regionSlug?: string | null;
   row: InferSelectModel<typeof tracks>;
 }) => {
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art");
@@ -144,6 +151,12 @@ export const mapTrackSummary = ({
     catalogItemType: row.catalogItemType,
     collaboratorCount,
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
+    downloadUrl: primaryAudioAsset
+      ? `/v1/tracks/${row.id}/assets/${primaryAudioAsset.id}/download`
+      : null,
+    downloadsAllowed: row.downloadsAllowed,
+    downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
+    downloadsRequirePurchase: row.downloadsRequirePurchase,
     duration: formatDuration(primaryAudioAsset?.durationMs),
     fileAvailability: fileAvailabilityFromAssets(assets),
     genre: genre ? canonicalGenreName(genre) : "Uncategorized",
@@ -160,6 +173,7 @@ export const mapTrackSummary = ({
     priceCents: row.priceCents,
     productionStatus: row.productionStatus,
     purchaseMode: row.purchaseMode,
+    regionSlug,
     releaseAt:
       row.releaseAt instanceof Date
         ? row.releaseAt.toISOString()
@@ -186,6 +200,7 @@ export const buildTrackSummary = async (
   const [profile] = await db
     .select({
       displayName: userProfiles.displayName,
+      state: userProfiles.state,
       userName: authUser.name,
       username: userProfiles.username,
     })
@@ -215,6 +230,7 @@ export const buildTrackSummary = async (
     assets: assetRows,
     collaboratorCount: collaboratorRows.length,
     genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
+    regionSlug: regionSlugFromUser(profile?.state) ?? null,
     row,
   });
 };
@@ -287,17 +303,71 @@ export const buildProjectSummary = async (
   row: InferSelectModel<typeof projects>
 ) => {
   const db = createDb();
-  const [trackRows, assetRows, collaboratorRows] = await Promise.all([
-    db
-      .select({ id: projectTracks.trackId })
-      .from(projectTracks)
-      .where(eq(projectTracks.projectId, row.id)),
-    db.select().from(projectAssets).where(eq(projectAssets.projectId, row.id)),
-    db
-      .select({ id: projectCollaborators.id })
-      .from(projectCollaborators)
-      .where(eq(projectCollaborators.projectId, row.id)),
-  ]);
+  const [trackRows, assetRows, collaboratorRows, profileRows] =
+    await Promise.all([
+      db
+        .select({
+          genreName: genres.name,
+          id: projectTracks.trackId,
+        })
+        .from(projectTracks)
+        .leftJoin(tracks, eq(tracks.id, projectTracks.trackId))
+        .leftJoin(genres, eq(genres.id, tracks.genreId))
+        .where(eq(projectTracks.projectId, row.id)),
+      db
+        .select()
+        .from(projectAssets)
+        .where(eq(projectAssets.projectId, row.id)),
+      db
+        .select({ id: projectCollaborators.id })
+        .from(projectCollaborators)
+        .where(eq(projectCollaborators.projectId, row.id)),
+      db
+        .select({
+          displayName: userProfiles.displayName,
+          state: userProfiles.state,
+          userName: authUser.name,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(eq(authUser.id, row.ownerUserId))
+        .limit(1),
+    ]);
+  const trackIds = trackRows.map((track) => track.id);
+  const primaryGenre = trackRows.find((track) => track.genreName)?.genreName;
+  const [ownerProfile] = profileRows;
+  const durationAssetRows =
+    trackIds.length > 0
+      ? await db
+          .select({
+            assetKind: trackAssets.assetKind,
+            durationMs: trackAssets.durationMs,
+            trackId: trackAssets.trackId,
+          })
+          .from(trackAssets)
+          .where(inArray(trackAssets.trackId, trackIds))
+      : [];
+  const durationByTrackId = new Map<string, number>();
+
+  for (const asset of durationAssetRows) {
+    if (!(asset.trackId && asset.durationMs)) {
+      continue;
+    }
+
+    const shouldUseAsset =
+      !durationByTrackId.has(asset.trackId) || asset.assetKind === "master";
+
+    if (shouldUseAsset) {
+      durationByTrackId.set(asset.trackId, asset.durationMs);
+    }
+  }
+
+  let durationMs = 0;
+
+  for (const trackDurationMs of durationByTrackId.values()) {
+    durationMs += trackDurationMs;
+  }
   const coverAsset = assetRows.find((asset) => asset.assetKind === "cover_art");
   let progress = 25;
 
@@ -311,10 +381,21 @@ export const buildProjectSummary = async (
     collaboratorCount: collaboratorRows.length,
     coverArtUrl: publicProjectAssetUrl(coverAsset),
     description: row.description,
+    duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
+    durationMs,
+    genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
+    artistName:
+      ownerProfile?.displayName ??
+      ownerProfile?.userName ??
+      ownerProfile?.username ??
+      "SoundKit Artist",
+    artistUsername: ownerProfile?.username ?? null,
+    isForSale: row.isForSale,
     isPublic: row.isPublic,
     progress,
     projectType: row.projectType,
+    regionSlug: regionSlugFromUser(ownerProfile?.state) ?? null,
     releaseDate:
       row.releaseDate instanceof Date
         ? row.releaseDate.toISOString()

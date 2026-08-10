@@ -44,7 +44,7 @@ const fetchPosts = async ({ pageParam = 0 }) => {
     ][(pageParam * 9 + i) % 4],
     likes: Math.floor(Math.random() * 5000) + 100,
     title: `Release ${pageParam * 9 + i + 1}`,
-    type: i % 3 === 0 ? "project" : i % 3 === 1 ? "video" : "track",
+    type: i % 3 === 0 ? "project" : (i % 3 === 1 ? "video" : "track"),
   }));
 };
 
@@ -146,13 +146,13 @@ function DashboardProfilePage() {
           <div ref={ref} className="py-10 flex justify-center">
             {isFetchingNextPage ? (
               <LoaderCircle className="size-6 text-primary animate-spin" />
-            ) : hasNextPage ? (
+            ) : (hasNextPage ? (
               <div className="h-10" />
             ) : (
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
                 End of Feed
               </p>
-            )}
+            ))}
           </div>
         </TabsContent>
 
@@ -194,9 +194,9 @@ function PostGridItem({ post }: { post: any }) {
   const linkProps =
     post.type === "video"
       ? ({ params: { id: post.id }, to: "/videos/$id" } as const)
-      : post.type === "project"
+      : (post.type === "project"
         ? ({ params: { id: post.id }, to: "/projects/$id" } as const)
-        : ({ params: { id: post.id }, to: "/tracks/$id" } as const);
+        : ({ params: { id: post.id }, to: "/tracks/$id" } as const));
 
   return (
     <Link

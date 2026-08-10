@@ -13,9 +13,17 @@ export interface PlaylistTrack {
   cover: string;
   duration: string;
   addedAt: string;
+  regionSlug?: string | null;
+  slug?: string | null;
 }
 
-export const columns: ColumnDef<PlaylistTrack>[] = [
+export const createPlaylistTrackColumns = ({
+  removingTrackId,
+  onRemove,
+}: {
+  removingTrackId?: string;
+  onRemove: (track: PlaylistTrack) => void;
+}): ColumnDef<PlaylistTrack>[] => [
   {
     accessorKey: "cover",
     cell: ({ row }) => (
@@ -28,7 +36,10 @@ export const columns: ColumnDef<PlaylistTrack>[] = [
           layout="fixed"
           className="size-full rounded object-cover"
         />
-        <button className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+        >
           <Play className="size-4 text-white fill-white" />
         </button>
       </div>
@@ -41,8 +52,19 @@ export const columns: ColumnDef<PlaylistTrack>[] = [
     accessorKey: "title",
     cell: ({ row }) => (
       <Link
-        to="/tracks/$id"
-        params={{ id: row.original.id }}
+        params={
+          row.original.regionSlug && row.original.slug
+            ? {
+                regionSlug: row.original.regionSlug,
+                slug: row.original.slug,
+              }
+            : { id: row.original.id }
+        }
+        to={
+          row.original.regionSlug && row.original.slug
+            ? "/tracks/$regionSlug/$slug"
+            : "/tracks/$id"
+        }
         className="font-medium hover:text-primary"
       >
         {row.getValue("title")}
@@ -101,8 +123,11 @@ export const columns: ColumnDef<PlaylistTrack>[] = [
         size="sm"
         variant="ghost"
         className="text-destructive hover:text-destructive"
+        disabled={removingTrackId === row.original.id}
+        onClick={() => onRemove(row.original)}
       >
         <Trash2 className="h-4 w-4" />
+        <span className="sr-only">Remove {row.original.title}</span>
       </Button>
     ),
     id: "actions",

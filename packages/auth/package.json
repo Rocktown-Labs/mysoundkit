@@ -15,9 +15,11 @@
     "@better-auth/stripe": "1.5.5",
     "@soundkit/db": "workspace:*",
     "@soundkit/env": "workspace:*",
+    "@soundkit/transactional": "workspace:*",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",
+    "resend": "^6.6.0",
     "stripe": "^20.0.0",
     "zod": "catalog:"
   },

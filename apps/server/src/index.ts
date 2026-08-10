@@ -9,6 +9,9 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
+import { runBattleServiceSweep } from "@/lib/battle-service";
+import { handleEmailDeliveryQueue } from "@/lib/email-delivery";
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
@@ -20,6 +23,7 @@ import {
 } from "@/middleware/structured-logging";
 import adminRoutes from "@/routes/admin";
 import adminFinanceRoutes from "@/routes/admin-finance";
+import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
 import battlesRoutes from "@/routes/battles";
@@ -154,6 +158,7 @@ app.get("/health", async (c) =>
   c.json({
     bindings: {
       databaseUrl: hasEnvValue("DATABASE_URL"),
+      emailDeliveryQueue: hasEnvValue("EMAIL_DELIVERY_QUEUE"),
       hyperdrive: hasEnvValue("HYPERDRIVE"),
       liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
@@ -194,6 +199,7 @@ app
   .route("/v1/community-billing", communityBillingRoutes)
   .route("/v1/admin", adminRoutes)
   .route("/v1/admin/finance", adminFinanceRoutes)
+  .route("/v1/ads", adsRoutes)
   .route("/v1/analytics", analyticsRoutes)
   .route("/v1/billing", billingRoutes)
   .route("/v1/seller", sellerRoutes)
@@ -209,4 +215,18 @@ app.onError((error, c) => jsonError(c, error));
 
 export type { AppType } from "./rpc-contract";
 
-export default app;
+export default {
+  fetch: (request, workerEnv, executionContext) =>
+    app.fetch(request, workerEnv, executionContext),
+  queue: (batch) =>
+    handleEmailDeliveryQueue(
+      batch as unknown as MessageBatch<EmailDeliveryQueueMessage>
+    ),
+  scheduled: (_controller, workerEnv, executionContext) => {
+    executionContext.waitUntil(
+      runBattleServiceSweep({
+        emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+      })
+    );
+  },
+} satisfies ExportedHandler<AppEnv["Bindings"]>;

@@ -118,7 +118,7 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         ? `/projects/${project.id}`
         : `${window.location.origin}/projects/${project.id}`;
     if (navigator.clipboard) {
-      void navigator.clipboard.writeText(shareUrl);
+      void navigator.clipboard.writeText(shareUrl).catch(() => {});
     }
   };
 

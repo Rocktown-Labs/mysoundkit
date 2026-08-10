@@ -168,8 +168,16 @@ export function ExploreHeader() {
                       className={resultLinkClassName}
                       key={`track-${track.id}`}
                       onClick={() => setSearchValue("")}
-                      params={{ id: track.id }}
-                      to="/tracks/$id"
+                      params={
+                        track.regionSlug && track.slug
+                          ? { regionSlug: track.regionSlug, slug: track.slug }
+                          : { id: track.id }
+                      }
+                      to={
+                        track.regionSlug && track.slug
+                          ? "/tracks/$regionSlug/$slug"
+                          : "/tracks/$id"
+                      }
                     >
                       <Music className="size-4 text-primary shrink-0" />
                       <span className="min-w-0 flex-1">

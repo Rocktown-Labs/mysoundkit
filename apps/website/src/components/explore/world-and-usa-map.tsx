@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Navigation } from "lucide-react";
+import { MapPin } from "lucide-react";
 import React, { useState } from "react";
 import { ComposableMap, Geographies, Geography } from "react-simple-maps";
 
@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "../ui/select";
 
-export { mapScopes, type MapScope };
+export { mapScopes, type MapScope } from "../../lib/map-scopes";
 
 const usGeoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
 const worldGeoUrl =
@@ -25,6 +25,7 @@ interface WorldAndUSAMapProps {
   onRegionSelect: (regionName: string) => void;
   onScopeChange: (scope: MapScope) => void;
   selectedRegion: string | null;
+  selectedRegions?: string[];
 }
 
 export function WorldAndUSAMap({
@@ -32,6 +33,7 @@ export function WorldAndUSAMap({
   onRegionSelect,
   onScopeChange,
   selectedRegion,
+  selectedRegions,
 }: WorldAndUSAMapProps) {
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
 
@@ -40,7 +42,13 @@ export function WorldAndUSAMap({
   const isUSScope = mapScope === "north-america";
   const geoUrl = isUSScope ? usGeoUrl : worldGeoUrl;
 
-  const displayRegion = hoveredRegion || selectedRegion;
+  const displayRegion =
+    hoveredRegion ||
+    selectedRegion ||
+    (selectedRegions?.length ? `${selectedRegions.length} selected` : null);
+  const selectedRegionSet = new Set(
+    (selectedRegions ?? []).map((region) => region.toLowerCase())
+  );
 
   return (
     <div className="relative w-full max-w-full bg-muted/30 rounded-lg overflow-hidden border border-border/50">
@@ -128,11 +136,10 @@ export function WorldAndUSAMap({
                   return null;
                 }
 
+                const normalizedName = name.toLowerCase();
                 const isSelected =
-                  selectedRegion?.toLowerCase() === name.toLowerCase();
-                const isHovered =
-                  hoveredRegion?.toLowerCase() === name.toLowerCase();
-
+                  selectedRegion?.toLowerCase() === normalizedName ||
+                  selectedRegionSet.has(normalizedName);
                 return (
                   <Geography
                     key={geo.rsmKey}

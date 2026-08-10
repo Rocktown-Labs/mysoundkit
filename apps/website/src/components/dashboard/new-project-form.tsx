@@ -13,7 +13,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Calendar,
+  Calendar as CalendarIcon,
   Users,
   ListMusic,
   LayoutGrid,
@@ -25,7 +25,8 @@ import {
   Info,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useFieldArray, useForm } from 'react-hook-form';
+import type { FieldErrors } from 'react-hook-form';
 import * as z from "zod";
 
 const SUPPORTED_GENRES = [
@@ -49,6 +50,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -69,6 +71,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -85,33 +93,47 @@ import {
   PROJECT_ASSETS_UPLOAD_URL,
   rpcJson,
 } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
+import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
-  useCreateProjectMutation,
   useGenresQuery,
+  usePeopleSearchQuery,
+  useSettleTrackMutation,
   useTracksQuery,
   useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
-const collaboratorRoles = [
-  "featured",
-  "producer",
-  "writer",
-  "engineer",
-] as const;
+const collaboratorRoles = ["songwriter", "producer"] as const;
 
 type CollaboratorRole = (typeof collaboratorRoles)[number];
 
 const isCollaboratorRole = (value: string): value is CollaboratorRole =>
   collaboratorRoles.includes(value as CollaboratorRole);
 
-const collaboratorSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  role: z
-    .enum(["featured", "producer", "writer", "engineer"])
-    .default("featured"),
-});
+const collaboratorSchema = z.preprocess(
+  (value) => {
+    if (!(value && typeof value === "object")) {
+      return value;
+    }
+
+    const collaborator = value as Record<string, unknown>;
+
+    return {
+      ...collaborator,
+      displayName:
+        collaborator.displayName ?? collaborator.name ?? collaborator.email,
+      role: collaborator.role === "producer" ? "producer" : "songwriter",
+    };
+  },
+  z.object({
+    displayName: z.string().min(1, "Name is required"),
+    inviteEmail: z.string().optional(),
+    role: z.enum(["songwriter", "producer"]).default("songwriter"),
+    userId: z.string().optional(),
+  })
+);
 
 const projectFormSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
@@ -138,6 +160,7 @@ const projectFormSchema = z.object({
     .default([]),
   projectCoverObjectKey: z.string().optional(),
   releaseDate: z.string().optional(),
+  releaseVisibility: z.enum(["listed", "unlisted"]).default("unlisted"),
   rightsAccepted: z
     .boolean()
     .refine((value) => value, "Confirm you have the rights to this project"),
@@ -147,7 +170,128 @@ const projectFormSchema = z.object({
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
 const projectGet = apiClient.v1.projects[":projectId"].$get;
+const projectPatch = apiClient.v1.projects[":projectId"].$patch;
+const projectsPost = apiClient.v1.projects.index.$post;
 const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
+
+const defaultProjectFormValues: ProjectFormValues = {
+  collaborators: [],
+  description: "",
+  genre: "Hip-Hop/Rap",
+  name: "",
+  newTracks: [],
+  projectCoverObjectKey: "",
+  releaseDate: "",
+  releaseVisibility: "unlisted",
+  rightsAccepted: false,
+  selectedExistingTracks: [],
+  type: "album",
+};
+
+const epRuntimeLimitMs = 30 * 60 * 1000;
+
+const formatDurationLabel = (durationMs: number) => {
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const formatDatePickerLabel = (dateValue?: string) => {
+  if (!dateValue) {
+    return "Pick a release date";
+  }
+
+  const releaseDate = new Date(`${dateValue}T00:00:00`);
+
+  return releaseDate.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const dateToPickerValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const toDatePickerValue = (value: unknown) => {
+  if (typeof value !== "string" || !value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
+};
+
+const releaseDateToMidnightIso = (dateValue?: string) => {
+  if (!dateValue) {
+    return;
+  }
+
+  return new Date(`${dateValue}T00:00:00`).toISOString();
+};
+
+const projectReleaseState = (values: ProjectFormValues) => {
+  const releaseDate = releaseDateToMidnightIso(values.releaseDate);
+  const isListed = values.releaseVisibility === "listed";
+
+  return {
+    isListed,
+    releaseDate,
+    status: isListed
+      ? releaseDate
+        ? ("scheduled" as const)
+        : ("released" as const)
+      : ("draft" as const),
+  };
+};
+
+const parseDurationLabelMs = (duration: unknown) => {
+  if (typeof duration !== "string") {
+    return null;
+  }
+
+  const parts = duration.split(":").map(Number);
+
+  if (
+    parts.length < 2 ||
+    parts.length > 3 ||
+    parts.some((part) => !Number.isFinite(part) || part < 0)
+  ) {
+    return null;
+  }
+
+  const [hoursOrMinutes, minutesOrSeconds, seconds = 0] = parts;
+  const totalSeconds =
+    parts.length === 3
+      ? hoursOrMinutes * 3600 + minutesOrSeconds * 60 + seconds
+      : hoursOrMinutes * 60 + minutesOrSeconds;
+
+  return Math.round(totalSeconds * 1000);
+};
+
+const getTrackDurationLabel = (track: unknown) => {
+  if (!(track && typeof track === "object" && "duration" in track)) {
+    return null;
+  }
+
+  const { duration } = track as { duration?: unknown };
+  return typeof duration === "string" ? duration : null;
+};
 
 interface GenreOption {
   name: string;
@@ -182,15 +326,19 @@ export function NewProjectForm({
       ? genreRows.map((genre) => genre.name)
       : SUPPORTED_GENRES;
   const [step, setStep] = useState("identity");
-  const [newCollabName, setNewCollabName] = useState("");
-  const [newCollabRole, setNewCollabRole] =
-    useState<CollaboratorRole>("featured");
+  const [isSubmittingProject, setIsSubmittingProject] = useState(false);
+  const [collaboratorQuery, setCollaboratorQuery] = useState("");
+  const [collaboratorRole, setCollaboratorRole] =
+    useState<CollaboratorRole>("songwriter");
   const [projectCover, setProjectCover] = useState<{
     fileName: string;
     objectKey: string;
     remoteUrl: string;
   } | null>(null);
   const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
+    string | null
+  >(null);
   const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
   const projectAssetsUploadResolverRef = useRef<
     ((assets: ProjectTrackUploadResult[] | null) => void) | null
@@ -200,26 +348,27 @@ export function NewProjectForm({
     error: tracksError,
     isLoading: tracksLoading,
   } = useTracksQuery();
-  const createProjectMutation = useCreateProjectMutation();
+  const settleTrackMutation = useSettleTrackMutation();
   const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
-
-  const defaultProjectFormValues: ProjectFormValues = {
-    collaborators: [],
-    description: "",
-    genre: "Hip-Hop/Rap",
-    name: "",
-    newTracks: [],
-    projectCoverObjectKey: "",
-    releaseDate: "",
-    rightsAccepted: false,
-    selectedExistingTracks: [],
-    type: "album",
-  };
+  const { data: session } = authClient.useSession();
+  const peopleSearch = usePeopleSearchQuery(collaboratorQuery);
 
   const form = useForm<ProjectFormValues>({
     defaultValues: defaultProjectFormValues,
     resolver: zodResolver(projectFormSchema),
   });
+
+  useEffect(() => {
+    if (!selectedCoverFile) {
+      setSelectedCoverPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(selectedCoverFile);
+    setSelectedCoverPreviewUrl(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedCoverFile]);
 
   // Prefill when editing an existing project
   useEffect(() => {
@@ -239,6 +388,9 @@ export function NewProjectForm({
     const projectTracks = Array.isArray(initialProject.tracks)
       ? (initialProject.tracks as Record<string, unknown>[])
       : [];
+    const rawCollaborators = Array.isArray(initialProject.collaborators)
+      ? (initialProject.collaborators as Record<string, unknown>[])
+      : [];
     const firstGenre =
       projectTracks.find((track) => typeof track.genre === "string")?.genre ||
       "Hip-Hop/Rap";
@@ -252,13 +404,25 @@ export function NewProjectForm({
         : "album";
 
     form.reset({
-      collaborators: [],
+      collaborators: rawCollaborators.map((collaborator) => ({
+        displayName:
+          (collaborator.name as string) ||
+          (collaborator.email as string) ||
+          "Collaborator",
+        inviteEmail:
+          (collaborator.email as string) ||
+          (collaborator.inviteEmail as string) ||
+          undefined,
+        role: collaborator.role === "producer" ? "producer" : "songwriter",
+        userId: (collaborator.userId as string) || undefined,
+      })),
       description: (initialProject.description as string) ?? "",
       genre: firstGenre as string,
       name: (initialProject.title as string) ?? "",
       newTracks: [],
       projectCoverObjectKey: coverObjectKey ?? "",
-      releaseDate: (initialProject.releaseDate as string) ?? "",
+      releaseDate: toDatePickerValue(initialProject.releaseDate),
+      releaseVisibility: initialProject.isPublic ? "listed" : "unlisted",
       rightsAccepted: true,
       selectedExistingTracks: projectTracks.map((track) => track.id as string),
       type: projectType,
@@ -303,62 +467,70 @@ export function NewProjectForm({
     name: "newTracks",
   });
 
-  const handleSaveProjectDraft = async () => {
-    const values = form.getValues();
+  const getSelectedExistingRuntimeMs = (trackIds: string[]) => {
+    const initialTracks = Array.isArray(initialProject?.tracks)
+      ? (initialProject.tracks as Record<string, unknown>[])
+      : [];
 
-    if (values.name.trim().length < 2) {
-      toast({
-        description: "Add a project title before saving a draft.",
-        title: "Project title required",
-        variant: "destructive",
-      });
-      return;
+    let totalRuntimeMs = 0;
+
+    for (const trackId of trackIds) {
+      const existingTrack = existingTracks.find(
+        (track) => track.id === trackId
+      );
+      const initialTrack = initialTracks.find((track) => track.id === trackId);
+      const durationMs = parseDurationLabelMs(
+        getTrackDurationLabel(existingTrack) ??
+          getTrackDurationLabel(initialTrack)
+      );
+
+      totalRuntimeMs += durationMs ?? 0;
     }
 
-    try {
-      const project = await createProjectMutation.mutateAsync({
-        assetIds: [],
-        collaboratorNames: values.collaborators.map(
-          (collaborator) => collaborator.name
-        ),
-        description: values.description || undefined,
-        isPublic: false,
-        newTracks: values.newTracks.map((track) => ({
-          genre: track.genre || values.genre || "Hip-Hop/Rap",
-          title: track.name,
-        })),
-        projectType: values.type,
-        streamingLinks: {},
-        title: values.name,
-        trackIds: values.selectedExistingTracks,
-        ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
-      });
-      clearDraft();
-      allowNavigation();
-      toast({
-        description:
-          selectedCoverFile ||
-          values.newTracks.some((track) => track.file instanceof File)
-            ? "Project metadata saved. Staged files will upload when you complete the project."
-            : `${project.title} was saved as a draft.`,
-        title: "Draft saved",
-      });
-      router.navigate({ to: "/dashboard/projects" });
-    } catch (error) {
-      posthog.captureException(error);
-      toast({
-        description:
-          error instanceof Error ? error.message : "Failed to save draft.",
-        title: "Draft save failed",
-        variant: "destructive",
-      });
+    return totalRuntimeMs;
+  };
+
+  const shouldBlockEpRuntime = ({
+    newTrackDurationsMs = [],
+    values,
+  }: {
+    newTrackDurationsMs?: (number | null)[];
+    values: ProjectFormValues;
+  }) => {
+    if (values.type !== "ep") {
+      return false;
     }
+
+    let totalRuntimeMs = getSelectedExistingRuntimeMs(
+      values.selectedExistingTracks
+    );
+
+    for (const durationMs of newTrackDurationsMs) {
+      totalRuntimeMs += durationMs ?? 0;
+    }
+
+    if (totalRuntimeMs <= epRuntimeLimitMs) {
+      return false;
+    }
+
+    toast({
+      description: `This project is ${formatDurationLabel(totalRuntimeMs)}. EPs should stay at 30:00 or less, so change the project type to Mixtape or Album before submitting.`,
+      title: "Project runtime exceeds EP length",
+      variant: "destructive",
+    });
+    setStep("identity");
+    return true;
   };
 
   const onSubmit = async (values: ProjectFormValues) => {
     // Edit Mode submission
     if (projectId) {
       try {
+        if (shouldBlockEpRuntime({ values })) {
+          return;
+        }
+
+        const releaseState = projectReleaseState(values);
         let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
 
         if (selectedCoverFile && !coverKey) {
@@ -391,9 +563,10 @@ export function NewProjectForm({
         await updateProjectMutation.mutateAsync({
           assetIds: coverKey ? [coverKey] : undefined,
           description: values.description || undefined,
-          isPublic: true,
+          isPublic: releaseState.isListed,
           projectType: values.type,
-          releaseDate: values.releaseDate || undefined,
+          releaseDate: releaseState.releaseDate,
+          status: releaseState.status,
           streamingLinks: {},
           title: values.name,
         });
@@ -424,6 +597,7 @@ export function NewProjectForm({
     }
 
     if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
+      setStep("tracks");
       toast({
         description:
           "Projects need at least two songs. Add more tracks before submitting.",
@@ -433,6 +607,7 @@ export function NewProjectForm({
       return;
     }
 
+    const releaseState = projectReleaseState(values);
     let coverKey = values.projectCoverObjectKey;
 
     if (selectedCoverFile && !coverKey) {
@@ -460,9 +635,11 @@ export function NewProjectForm({
       }
     }
 
-    if (!coverKey) {
+    if (!coverKey && releaseState.isListed) {
+      setStep("identity");
       toast({
-        description: "Please select a project cover artwork first.",
+        description:
+          "Listed projects need cover artwork. Switch to Unlisted to keep building without artwork.",
         title: "Artwork required",
         variant: "destructive",
       });
@@ -470,8 +647,49 @@ export function NewProjectForm({
     }
 
     try {
-      const projectTracks = values.newTracks.map((track) => {
+      setIsSubmittingProject(true);
+      const filelessNewTrack = values.newTracks.find(
+        (track) => !(track.file instanceof File) && !track.assetId
+      );
+
+      if (filelessNewTrack) {
+        setStep("tracks");
+        toast({
+          description:
+            "Every new project track needs an uploaded audio file before the project can be created.",
+          title: "Track audio required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const pendingTrackFiles = await Promise.all(
+        values.newTracks.map(async (track, index) => ({
+          durationMs:
+            track.file instanceof File
+              ? await readAudioDurationMs(track.file)
+              : null,
+          file: track.file instanceof File ? track.file : null,
+          index,
+        }))
+      );
+
+      if (
+        shouldBlockEpRuntime({
+          newTrackDurationsMs: pendingTrackFiles.map(
+            (trackFile) => trackFile.durationMs
+          ),
+          values,
+        })
+      ) {
+        return;
+      }
+
+      const hasReleaseDate = Boolean(releaseState.releaseDate);
+
+      const projectTracks = values.newTracks.map((track, index) => {
         const projectTrack = {
+          durationMs: pendingTrackFiles[index]?.durationMs ?? undefined,
           genre: track.genre || values.genre || "Hip-Hop/Rap",
           title: track.name,
         };
@@ -482,32 +700,50 @@ export function NewProjectForm({
       const projectPayload = {
         assetIds: coverKey ? [coverKey] : [],
         collaboratorNames: values.collaborators.map(
-          (collaborator) => collaborator.name
+          (collaborator) => collaborator.displayName
         ),
-        isPublic: true,
+        collaborators: values.collaborators.map((collaborator) => ({
+          inviteEmail: collaborator.inviteEmail,
+          name: collaborator.displayName,
+          role: collaborator.role,
+          userId: collaborator.userId,
+        })),
+        isPublic: false,
         newTracks: projectTracks,
         projectType: values.type,
+        status: releaseState.status,
         streamingLinks: {},
         title: values.name,
         trackIds: values.selectedExistingTracks,
         ...(values.description ? { description: values.description } : {}),
-        ...(values.releaseDate ? { releaseDate: values.releaseDate } : {}),
+        ...(releaseState.releaseDate
+          ? { releaseDate: releaseState.releaseDate }
+          : {}),
       };
 
-      const project = await createProjectMutation.mutateAsync(projectPayload);
-      const pendingTrackFiles = values.newTracks
-        .map((track, index) => ({
-          file: track.file instanceof File ? track.file : null,
-          index,
-        }))
-        .filter(
-          (entry): entry is { file: File; index: number } =>
-            Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
-        );
+      const project = await rpcJson(
+        await projectsPost({ json: projectPayload })
+      );
+      const pendingTrackUploads = pendingTrackFiles.filter(
+        (
+          entry
+        ): entry is {
+          durationMs: number | null;
+          file: File;
+          index: number;
+        } => Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
+      );
 
-      if (pendingTrackFiles.length > 0) {
+      const projectDetail = await rpcJson(
+        await projectGet({ param: { projectId: project.id } })
+      );
+      const newProjectTracks = projectDetail.tracks.filter(
+        (track) => !values.selectedExistingTracks.includes(track.id)
+      );
+
+      if (pendingTrackUploads.length > 0) {
         const uploadedAssets = await uploadProjectTrackFiles(
-          pendingTrackFiles.map(({ file }) => file)
+          pendingTrackUploads.map(({ file }) => file)
         );
 
         if (!uploadedAssets) {
@@ -524,14 +760,10 @@ export function NewProjectForm({
           return;
         }
 
-        const projectDetail = await rpcJson(
-          await projectGet({ param: { projectId: project.id } })
-        );
-        const newProjectTracks = projectDetail.tracks.filter(
-          (track) => !values.selectedExistingTracks.includes(track.id)
-        );
-
-        for (const [uploadIndex, pendingTrack] of pendingTrackFiles.entries()) {
+        for (const [
+          uploadIndex,
+          pendingTrack,
+        ] of pendingTrackUploads.entries()) {
           const uploadedAsset = uploadedAssets[uploadIndex];
           const projectTrack = newProjectTracks[pendingTrack.index];
 
@@ -543,7 +775,9 @@ export function NewProjectForm({
             await trackAssetPost({
               json: {
                 assetKind: "master",
+                durationMs: pendingTrack.durationMs ?? undefined,
                 metadata: {
+                  durationMs: pendingTrack.durationMs,
                   originalFileName: uploadedAsset.fileName,
                   url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
                 },
@@ -559,17 +793,60 @@ export function NewProjectForm({
         }
       }
 
+      if (releaseState.isListed) {
+        for (const projectTrack of newProjectTracks) {
+          await settleTrackMutation.mutateAsync({
+            body: {
+              isPublic: true,
+              productionStatus: "complete",
+              releaseAt: releaseState.releaseDate,
+              releaseStrategy: hasReleaseDate
+                ? "scheduled"
+                : "publish_when_ready",
+              requireCoverArt: releaseState.isListed,
+            },
+            trackId: projectTrack.id,
+          });
+        }
+      }
+
+      const settledProject = await rpcJson(
+        await projectPatch({
+          json: {
+            assetIds: coverKey ? [coverKey] : undefined,
+            description: values.description || undefined,
+            isPublic: releaseState.isListed,
+            projectType: values.type,
+            releaseDate: releaseState.releaseDate,
+            status: releaseState.status,
+            streamingLinks: {},
+            title: values.name,
+          },
+          param: { projectId: project.id },
+        })
+      );
+
+      await queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.projects,
+      });
+
       posthog.capture("project_created", {
         collaborator_count: values.collaborators.length,
         existing_track_count: values.selectedExistingTracks.length,
-        has_release_date: Boolean(values.releaseDate),
+        has_release_date: Boolean(releaseState.releaseDate),
+        is_listed: releaseState.isListed,
         new_track_count: values.newTracks.length,
         project_id: project.id,
         project_type: values.type,
       });
       toast({
-        description: `${project.title} is now in your project dashboard.`,
-        title: "Project Created",
+        description:
+          releaseState.status === "scheduled"
+            ? `${settledProject.title} is scheduled for ${formatDatePickerLabel(values.releaseDate)}.`
+            : releaseState.isListed
+              ? `${settledProject.title} is listed on SoundKit.`
+              : `${settledProject.title} is saved as an unlisted project.`,
+        title: releaseState.isListed ? "Project Created" : "Project Saved",
       });
       resetDraft();
       setSelectedCoverFile(null);
@@ -583,15 +860,35 @@ export function NewProjectForm({
         title: "Error",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmittingProject(false);
     }
   };
 
   const toggleExistingTrack = (trackId: string) => {
     const current = form.getValues("selectedExistingTracks");
-    const updated = current.includes(trackId)
-      ? current.filter((id) => id !== trackId)
-      : [...current, trackId];
-    form.setValue("selectedExistingTracks", updated);
+    const trackTitle =
+      existingTracks.find((track) => track.id === trackId)?.title ?? "Track";
+
+    if (current.includes(trackId)) {
+      form.setValue(
+        "selectedExistingTracks",
+        current.filter((id) => id !== trackId),
+        { shouldDirty: true }
+      );
+      toast({
+        description: `Removed "${trackTitle}" from this project.`,
+        title: "Track removed",
+      });
+      return;
+    }
+
+    const updated = [...current, trackId];
+    form.setValue("selectedExistingTracks", updated, { shouldDirty: true });
+    toast({
+      description: `Added "${trackTitle}" to this project.`,
+      title: "Track added",
+    });
   };
 
   const handleNewUpload = (files: FileList | File[]) => {
@@ -758,26 +1055,98 @@ export function NewProjectForm({
     setSelectedCoverFile(file);
   };
 
-  const addCollaborator = () => {
-    if (!newCollabName.trim()) {
+  const addCollaborator = (entry: {
+    displayName: string;
+    inviteEmail?: string;
+    role: CollaboratorRole;
+    userId?: string;
+  }) => {
+    if (!entry.displayName.trim()) {
       return;
     }
 
     const current = form.getValues("collaborators");
-    form.setValue("collaborators", [
-      ...current,
-      { name: newCollabName.trim(), role: newCollabRole },
-    ]);
-    setNewCollabName("");
+    const alreadyAdded = current.some(
+      (collaborator) =>
+        collaborator.role === entry.role &&
+        ((entry.userId && collaborator.userId === entry.userId) ||
+          collaborator.displayName.toLowerCase() ===
+            entry.displayName.toLowerCase())
+    );
+
+    if (alreadyAdded) {
+      return;
+    }
+
+    form.setValue("collaborators", [...current, entry], {
+      shouldDirty: true,
+    });
+    setCollaboratorQuery("");
+  };
+
+  const addQueriedCollaborator = () => {
+    const query = collaboratorQuery.trim();
+
+    if (!query) {
+      return;
+    }
+
+    addCollaborator({
+      displayName: query,
+      inviteEmail: query.includes("@") ? query : undefined,
+      role: collaboratorRole,
+    });
+  };
+
+  const addSelfAsWriter = () => {
+    const user = session?.user;
+
+    if (!user) {
+      return;
+    }
+
+    addCollaborator({
+      displayName: user.name || user.email || "Me",
+      inviteEmail: user.email,
+      role: "songwriter",
+      userId: user.id,
+    });
   };
 
   const removeCollaborator = (index: number) => {
     const current = form.getValues("collaborators");
     form.setValue(
       "collaborators",
-      current.filter((_, i) => i !== index)
+      current.filter((_, i) => i !== index),
+      { shouldDirty: true }
     );
   };
+
+  const handleInvalidSubmit = (errors: FieldErrors<ProjectFormValues>) => {
+    if (errors.name || errors.type || errors.genre) {
+      setStep("identity");
+    } else if (errors.newTracks || errors.selectedExistingTracks) {
+      setStep("tracks");
+    } else if (
+      errors.releaseDate ||
+      errors.releaseVisibility ||
+      errors.rightsAccepted
+    ) {
+      setStep("distribution");
+    } else if (errors.collaborators) {
+      setStep("collaboration");
+    }
+
+    toast({
+      description:
+        "One required field still needs attention. I opened the section that needs it.",
+      title: "Project setup incomplete",
+      variant: "destructive",
+    });
+  };
+
+  const releaseVisibility = form.watch("releaseVisibility");
+  const submitButtonLabel = projectId ? "Save Changes" : "Create Project";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -828,7 +1197,10 @@ export function NewProjectForm({
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, handleInvalidSubmit)}
+          className="space-y-6"
+        >
           <Accordion
             type="single"
             collapsible
@@ -871,9 +1243,7 @@ export function NewProjectForm({
                     description="Used for the entire collection"
                     acceptedTypes=".png,.jpg,.jpeg"
                     previewUrl={
-                      selectedCoverFile
-                        ? URL.createObjectURL(selectedCoverFile)
-                        : (projectCover?.remoteUrl ?? null)
+                      selectedCoverPreviewUrl ?? projectCover?.remoteUrl ?? null
                     }
                     files={
                       selectedCoverFile
@@ -1337,13 +1707,13 @@ export function NewProjectForm({
                           <DropdownMenuCheckboxItem
                             key={track.id}
                             checked={isSelected}
+                            onSelect={(e) => e.preventDefault()}
                             onCheckedChange={() =>
                               toggleExistingTrack(track.id)
                             }
-                            className="flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-colors hover:bg-accent"
+                            className="flex items-center justify-between rounded-lg py-2.5 pl-9 pr-2.5 cursor-pointer transition-colors hover:bg-accent"
                           >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <Music className="size-4 text-emerald-500 shrink-0" />
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
                               <span className="font-semibold text-sm truncate">
                                 {track.title}
                               </span>
@@ -1385,7 +1755,7 @@ export function NewProjectForm({
                                 </span>
                                 <Badge
                                   variant="secondary"
-                                  className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300"
+                                  className="text-[9px] uppercase bg-emerald-500/20 text-emerald-300 shrink-0"
                                 >
                                   {track.genre}
                                 </Badge>
@@ -1442,7 +1812,7 @@ export function NewProjectForm({
                         : "bg-muted text-muted-foreground border-border/40"
                     )}
                   >
-                    <Calendar className="size-5" />
+                    <CalendarIcon className="size-5" />
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">Release Plan</h3>
@@ -1453,23 +1823,139 @@ export function NewProjectForm({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-8">
-                <FormField
-                  control={form.control}
-                  name="releaseDate"
-                  render={({ field }) => (
-                    <FormItem className="max-w-[250px]">
-                      <FormLabel>Project Release Date</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          {...field}
-                          className="bg-background/50"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <div className="space-y-4 rounded-xl border border-border/40 bg-muted/20 p-4">
+                  <FormField
+                    control={form.control}
+                    name="releaseVisibility"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <div className="space-y-1">
+                          <FormLabel>Project Visibility</FormLabel>
+                          <p className="text-xs text-muted-foreground">
+                            Listed projects can appear on public project pages.
+                            Unlisted projects stay in your dashboard while you
+                            build.
+                          </p>
+                        </div>
+                        <FormControl>
+                          <RadioGroup
+                            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                            onValueChange={(value) => {
+                              field.onChange(value);
+
+                              if (value === "unlisted") {
+                                form.setValue("releaseDate", "", {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                              }
+                            }}
+                            value={field.value}
+                          >
+                            <label
+                              className={cn(
+                                "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors",
+                                field.value === "listed"
+                                  ? "border-emerald-500/60 bg-emerald-500/10"
+                                  : "border-border/40 bg-background/40"
+                              )}
+                              htmlFor="project-visibility-listed"
+                            >
+                              <RadioGroupItem
+                                id="project-visibility-listed"
+                                value="listed"
+                              />
+                              <span>
+                                <span className="block text-sm font-semibold">
+                                  Listed
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                  Show the project publicly now or schedule it
+                                  for release.
+                                </span>
+                              </span>
+                            </label>
+                            <label
+                              className={cn(
+                                "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors",
+                                field.value === "unlisted"
+                                  ? "border-emerald-500/60 bg-emerald-500/10"
+                                  : "border-border/40 bg-background/40"
+                              )}
+                              htmlFor="project-visibility-unlisted"
+                            >
+                              <RadioGroupItem
+                                id="project-visibility-unlisted"
+                                value="unlisted"
+                              />
+                              <span>
+                                <span className="block text-sm font-semibold">
+                                  Unlisted
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                  Keep it private. No release date required.
+                                </span>
+                              </span>
+                            </label>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {releaseVisibility === "listed" && (
+                    <FormField
+                      control={form.control}
+                      name="releaseDate"
+                      render={({ field }) => (
+                        <FormItem className="max-w-sm">
+                          <FormLabel>Release Date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full justify-start bg-background/50 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 size-4" />
+                                  {formatDatePickerLabel(field.value)}
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              align="start"
+                              className="w-auto p-0"
+                            >
+                              <DatePickerCalendar
+                                mode="single"
+                                selected={
+                                  field.value
+                                    ? new Date(`${field.value}T00:00:00`)
+                                    : undefined
+                                }
+                                onSelect={(date) =>
+                                  field.onChange(
+                                    date ? dateToPickerValue(date) : ""
+                                  )
+                                }
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <p className="text-xs text-muted-foreground">
+                            Releases go live at 12:00 AM on the selected date.
+                            Leave blank to list it immediately.
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
@@ -1573,53 +2059,102 @@ export function NewProjectForm({
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-6">
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="Search or type name..."
-                        value={newCollabName}
-                        onChange={(e) => setNewCollabName(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" &&
-                          (e.preventDefault(), addCollaborator())
-                        }
-                        className="bg-background/50"
-                      />
-                    </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addSelfAsWriter}
+                    >
+                      Add me as writer
+                    </Button>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Select
-                      value={newCollabRole}
+                      value={collaboratorRole}
                       onValueChange={(value) => {
                         if (isCollaboratorRole(value)) {
-                          setNewCollabRole(value);
+                          setCollaboratorRole(value);
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[150px] bg-background/50">
+                      <SelectTrigger className="w-full sm:w-[160px] bg-background/50">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="featured">
-                          Featured Artist
-                        </SelectItem>
+                        <SelectItem value="songwriter">Writer</SelectItem>
                         <SelectItem value="producer">Producer</SelectItem>
-                        <SelectItem value="writer">Writer</SelectItem>
-                        <SelectItem value="engineer">Engineer</SelectItem>
                       </SelectContent>
                     </Select>
+                    <Input
+                      placeholder="Search by name, stage name, or username"
+                      value={collaboratorQuery}
+                      onChange={(event) =>
+                        setCollaboratorQuery(event.target.value)
+                      }
+                      onKeyDown={(event) =>
+                        event.key === "Enter" &&
+                        (event.preventDefault(), addQueriedCollaborator())
+                      }
+                      className="bg-background/50"
+                    />
                     <Button
                       type="button"
-                      onClick={addCollaborator}
+                      onClick={addQueriedCollaborator}
                       className="bg-emerald-500 hover:bg-emerald-600"
                     >
                       <Plus className="size-4 mr-1" />
-                      Add
+                      Add New
                     </Button>
                   </div>
+                  {collaboratorQuery.trim().length >= 2 ? (
+                    <div className="rounded-xl border border-border/40 bg-background/40 p-2 space-y-1">
+                      {peopleSearch.isLoading ? (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">
+                          Searching…
+                        </p>
+                      ) : null}
+                      {(peopleSearch.data ?? []).map((person) => (
+                        <button
+                          type="button"
+                          key={person.userId}
+                          className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          onClick={() =>
+                            addCollaborator({
+                              displayName:
+                                person.stageName ??
+                                person.displayName ??
+                                person.username,
+                              inviteEmail: person.email ?? undefined,
+                              role: collaboratorRole,
+                              userId: person.userId,
+                            })
+                          }
+                        >
+                          <span className="min-w-0 truncate">
+                            {person.stageName ?? person.displayName}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              @{person.username}
+                            </span>
+                          </span>
+                          <Badge variant="outline" className="capitalize">
+                            {collaboratorRole}
+                          </Badge>
+                        </button>
+                      ))}
+                      {!peopleSearch.isLoading &&
+                      (peopleSearch.data ?? []).length === 0 ? (
+                        <p className="px-2 py-1 text-xs text-muted-foreground">
+                          No matching people. Add the typed name or email.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     {form.watch("collaborators").map((collab, index) => (
                       <div
-                        key={`${collab.role}-${collab.name}`}
+                        key={`${collab.role}-${collab.userId ?? collab.displayName}-${index}`}
                         className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-muted/20 group hover:border-emerald-500/30 transition-colors"
                       >
                         <div className="flex items-center gap-3">
@@ -1630,10 +2165,14 @@ export function NewProjectForm({
                               <Mic2 className="size-4" />
                             )}
                           </div>
-                          <div>
-                            <p className="text-sm font-bold">{collab.name}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold truncate">
+                              {collab.displayName}
+                            </p>
                             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
-                              {collab.role}
+                              {collab.role === "songwriter"
+                                ? "writer"
+                                : collab.role}
                             </p>
                           </div>
                         </div>
@@ -1665,23 +2204,10 @@ export function NewProjectForm({
                     Back
                   </Button>
                   <div className="flex gap-2">
-                    {!projectId && (
-                      <Button
-                        disabled={
-                          createProjectMutation.isPending ||
-                          isProjectAssetUploading
-                        }
-                        onClick={handleSaveProjectDraft}
-                        type="button"
-                        variant="outline"
-                      >
-                        Save Draft
-                      </Button>
-                    )}
                     <Button
                       type="submit"
                       disabled={
-                        createProjectMutation.isPending ||
+                        isSubmittingProject ||
                         updateProjectMutation.isPending ||
                         isProjectAssetUploading
                       }
@@ -1692,7 +2218,7 @@ export function NewProjectForm({
                           <LoaderCircle className="mr-2 size-4 animate-spin" />
                           Uploading {Math.round(projectAssetProgress)}%
                         </>
-                      ) : createProjectMutation.isPending ||
+                      ) : isSubmittingProject ||
                         updateProjectMutation.isPending ? (
                         <>
                           <LoaderCircle className="mr-2 size-4 animate-spin" />
@@ -1702,7 +2228,7 @@ export function NewProjectForm({
                         </>
                       ) : (
                         <>
-                          {projectId ? "Save Changes" : "Launch Project"}
+                          {submitButtonLabel}
                           <Check className="ml-2 size-4" />
                         </>
                       )}

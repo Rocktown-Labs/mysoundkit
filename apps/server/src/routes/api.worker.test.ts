@@ -139,26 +139,60 @@ describe("SoundKit Worker API", () => {
   });
 
   it("returns discovery and catalog read models when storage is not configured", async () => {
-    const [discoverResponse, tracksResponse, videosResponse, battlesResponse] =
-      await Promise.all([
-        SELF.fetch("http://soundkit.test/v1/discover/home"),
-        SELF.fetch("http://soundkit.test/v1/tracks"),
-        SELF.fetch("http://soundkit.test/v1/videos"),
-        SELF.fetch("http://soundkit.test/v1/battles"),
-      ]);
+    const [
+      discoverResponse,
+      tracksResponse,
+      videosResponse,
+      battlesResponse,
+      projectsResponse,
+    ] = await Promise.all([
+      SELF.fetch("http://soundkit.test/v1/discover/home"),
+      SELF.fetch("http://soundkit.test/v1/tracks"),
+      SELF.fetch("http://soundkit.test/v1/videos"),
+      SELF.fetch("http://soundkit.test/v1/battles"),
+      SELF.fetch(
+        "http://soundkit.test/v1/projects/public?regionType=north-america&region=us-arkansas&type=ep"
+      ),
+    ]);
 
     expect(discoverResponse.status).toBe(200);
     expect(tracksResponse.status).toBe(200);
     expect(videosResponse.status).toBe(200);
     expect(battlesResponse.status).toBe(200);
+    expect(projectsResponse.status).toBe(200);
 
     const tracks = await readJson<unknown[]>(tracksResponse);
     const videos = await readJson<unknown[]>(videosResponse);
     const battles = await readJson<unknown[]>(battlesResponse);
+    const projects =
+      await readJson<
+        {
+          genre: string | null;
+          projectType: string;
+          regionSlug: string | null;
+        }[]
+      >(projectsResponse);
 
     expect(tracks).toEqual([]);
     expect(videos.length).toBeGreaterThan(0);
     expect(battles.length).toBeGreaterThan(0);
+    expect(projects).toEqual([
+      expect.objectContaining({
+        genre: "R&B/Soul",
+        projectType: "ep",
+        regionSlug: "us-ar",
+      }),
+    ]);
+  });
+
+  it("filters public projects by sale state in no-storage mode", async () => {
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/projects/public?forSale=true"
+    );
+    const projects = await readJson<unknown[]>(response);
+
+    expect(response.status).toBe(200);
+    expect(projects).toEqual([]);
   });
 
   it("reports live room state as unavailable without a Durable Object binding", async () => {
@@ -237,7 +271,9 @@ describe("SoundKit Worker API", () => {
   });
 
   it("exposes the full genre catalog even when the database is not configured", async () => {
-    const response = await SELF.fetch("http://soundkit.test/v1/discover/genres");
+    const response = await SELF.fetch(
+      "http://soundkit.test/v1/discover/genres"
+    );
     const body = await readJson<{ name: string; slug: string }[]>(response);
 
     expect(response.status).toBe(200);

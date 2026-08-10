@@ -287,6 +287,20 @@ export const entitlementSummarySchema = z.object({
   status: z.string().nullable(),
 });
 
+export const notificationSettingsSchema = z.object({
+  emailCollaborations: z.boolean(),
+  emailComments: z.boolean(),
+  emailFollowers: z.boolean(),
+  emailSales: z.boolean(),
+  emailTrackProcessing: z.boolean(),
+  pushMentions: z.boolean(),
+  pushMessages: z.boolean(),
+  pushReleases: z.boolean(),
+});
+
+export const updateNotificationSettingsBodySchema =
+  notificationSettingsSchema.partial();
+
 export const meResponseSchema = z.object({
   activeWorkspace: workspaceSummarySchema.nullable(),
   user: userSummarySchema,
@@ -369,6 +383,7 @@ export const artistSummarySchema = z.object({
 });
 
 export const publicExploreQuerySchema = z.object({
+  forSale: z.coerce.boolean().optional(),
   genre: z.string().trim().max(80).default("all"),
   limit: z.coerce.number().int().positive().max(100).default(24),
   page: z.coerce.number().int().positive().default(1),
@@ -390,6 +405,10 @@ export const trackSummarySchema = z.object({
   catalogItemType: catalogItemTypeSchema.optional(),
   collaboratorCount: z.number().int().default(0),
   coverArtUrl: z.string().nullable().optional(),
+  downloadUrl: z.string().nullable().optional(),
+  downloadsAllowed: z.boolean().default(true).optional(),
+  downloadsRequireFirstPlay: z.boolean().default(false).optional(),
+  downloadsRequirePurchase: z.boolean().default(true).optional(),
   duration: z.string(),
   fileAvailability: z
     .object({
@@ -420,6 +439,7 @@ export const trackSummarySchema = z.object({
     .enum(["demo", "mixed", "mastered", "complete"])
     .optional(),
   purchaseMode: purchaseModeSchema.optional(),
+  regionSlug: z.string().nullable().optional(),
   releaseAt: z.string().nullable().optional(),
   releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
   slug: z.string(),
@@ -527,6 +547,7 @@ export const publicSearchResultSchema = z.object({
 export const dashboardAssetSchema = z.object({
   assetKind: z.string(),
   bucketName: z.string().nullable(),
+  downloadUrl: z.string().nullable().optional(),
   durationMs: z.number().int().nullable(),
   id: z.string(),
   metadata: z.unknown().nullable().optional(),
@@ -635,7 +656,9 @@ export const catalogArtistSchema = z.object({
 });
 
 export const catalogAssetSchema = z.object({
+  downloadUrl: z.string().nullable().optional(),
   duration: z.string().nullable().optional(),
+  fileName: z.string().nullable().optional(),
   format: z.string().nullable().optional(),
   id: z.string(),
   included: z.boolean(),
@@ -651,9 +674,11 @@ export const catalogAssetSchema = z.object({
     "stems",
     "midi",
     "license_pdf",
+    "cover_art",
   ]),
   label: z.string(),
   subtitle: z.string().nullable().optional(),
+  url: z.string().nullable().optional(),
 });
 
 export const catalogLicenseOptionSchema = z.object({
@@ -683,9 +708,13 @@ export const trackCatalogDetailSchema = z.object({
   coverArtUrl: z.string(),
   currency: z.string().default("USD"),
   description: z.string().nullable().optional(),
+  downloadsAllowed: z.boolean().default(true).optional(),
+  downloadsRequireFirstPlay: z.boolean().default(false).optional(),
+  downloadsRequirePurchase: z.boolean().default(true).optional(),
   duration: z.string().nullable().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
+  isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
   isStreamable: z.boolean(),
@@ -696,6 +725,7 @@ export const trackCatalogDetailSchema = z.object({
   priceCents: z.number().int().nullable(),
   priceLabel: z.string(),
   purchaseMode: purchaseModeSchema,
+  regionSlug: z.string().nullable().optional(),
   slug: z.string(),
   streamCount: z.string().nullable().optional(),
   streamingLinks: z
@@ -712,13 +742,20 @@ export const trackCatalogDetailSchema = z.object({
 });
 
 export const projectSummarySchema = z.object({
+  artistName: z.string().optional(),
+  artistUsername: z.string().nullable().optional(),
   collaboratorCount: z.number().int().default(0),
   coverArtUrl: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  duration: z.string().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  genre: z.string().nullable().optional(),
   id: z.string(),
+  isForSale: z.boolean().default(false),
   isPublic: z.boolean(),
   progress: z.number().int().min(0).max(100).default(0),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
+  regionSlug: z.string().nullable().optional(),
   releaseDate: z.string().nullable().optional(),
   slug: z.string(),
   status: z.enum(["draft", "scheduled", "released", "archived"]),
@@ -772,9 +809,13 @@ export const videoSummarySchema = z.object({
   description: z.string().nullable().optional(),
   duration: z.string().optional(),
   externalPlaybackUrl: z.string().url().nullable().optional(),
+  genre: z.string().nullable().optional(),
   id: z.string(),
   muxPlaybackId: z.string().nullable(),
   playbackPolicy: z.enum(["public", "signed"]),
+  regionSlug: z.string().nullable().optional(),
+  releaseAt: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   sourceProjectId: z.string().nullable().optional(),
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
   sourceTrackId: z.string().nullable().optional(),
@@ -857,9 +898,33 @@ export const friendSummarySchema = z.object({
   id: z.string(),
   lastInteractionAt: z.string().nullable(),
   name: z.string(),
-  relationship: z.enum(["friend", "collaborator", "following"]),
+  relationship: z.enum(["friend", "collaborator", "fan", "following"]),
   role: z.string().nullable(),
   username: z.string().nullable(),
+});
+export const friendRequestStatusSchema = z.enum([
+  "pending",
+  "accepted",
+  "declined",
+  "canceled",
+]);
+export const friendRequestSummarySchema = z.object({
+  avatarUrl: z.string().nullable(),
+  createdAt: z.string(),
+  direction: z.enum(["incoming", "outgoing"]),
+  displayName: z.string(),
+  id: z.string(),
+  message: z.string().nullable(),
+  status: friendRequestStatusSchema,
+  userId: z.string(),
+  username: z.string().nullable(),
+});
+export const createFriendRequestBodySchema = z.object({
+  message: z.string().trim().max(500).optional(),
+  username: z.string().trim().min(1).max(80),
+});
+export const respondFriendRequestBodySchema = z.object({
+  action: z.enum(["accept", "decline", "cancel"]),
 });
 
 export const battleSummarySchema = z.object({
@@ -868,10 +933,61 @@ export const battleSummarySchema = z.object({
   genre: z.string(),
   id: z.string(),
   isFeatured: z.boolean().default(false),
+  joinMode: z.enum(["watch_now", "waiting_room"]).default("watch_now"),
+  phaseEndsAt: z.string().nullable().optional(),
+  queueSize: z.number().int().nonnegative().default(0),
+  round: z
+    .object({
+      current: z.number().int().positive(),
+      id: z.string(),
+      isVoting: z.boolean(),
+      status: z.enum(["upcoming", "active", "completed"]),
+      total: z.number().int().positive(),
+    })
+    .nullable()
+    .optional(),
   status: z.enum(["scheduled", "live", "completed", "archived"]),
+  tracks: z
+    .object({
+      artist: z.string(),
+      cover: z.string().nullable(),
+      id: z.string(),
+      title: z.string(),
+      votes: z.number().int().nonnegative(),
+    })
+    .array()
+    .max(2)
+    .default([]),
   title: z.string(),
   viewerCount: z.number(),
   visibility: z.enum(["public", "premium_only"]),
+});
+
+export const battleChallengeStatusSchema = z.enum([
+  "pending",
+  "accepted",
+  "declined",
+  "canceled",
+  "expired",
+]);
+
+export const battleChallengeSummarySchema = z.object({
+  challengerUsername: z.string().nullable(),
+  createdAt: z.string(),
+  direction: z.enum(["incoming", "outgoing"]),
+  format: z.enum(["best_of_3", "best_of_5", "best_of_7"]),
+  genre: z.string(),
+  id: z.string(),
+  message: z.string().nullable(),
+  opponentUsername: z.string().nullable(),
+  proposedDate: z.string().nullable(),
+  proposedTimeLabel: z.string().nullable(),
+  status: battleChallengeStatusSchema,
+});
+
+export const battleChallengesResponseSchema = z.object({
+  incoming: battleChallengeSummarySchema.array(),
+  outgoing: battleChallengeSummarySchema.array(),
 });
 
 export const libraryOverviewSchema = z.object({
@@ -889,6 +1005,8 @@ export const libraryRecentTrackSchema = z.object({
   duration: z.string(),
   id: z.string(),
   lastPlayed: z.string(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   timesPlayed: z.number().int().nonnegative(),
   title: z.string(),
 });
@@ -900,7 +1018,9 @@ export const librarySavedTrackSchema = z.object({
   duration: z.string(),
   genre: z.string(),
   id: z.string(),
+  regionSlug: z.string().nullable().optional(),
   savedAt: z.string(),
+  slug: z.string().nullable().optional(),
   title: z.string(),
 });
 
@@ -909,6 +1029,8 @@ export const libraryWatchedItemSchema = z.object({
   creatorSlug: z.string(),
   duration: z.string(),
   id: z.string(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   thumbnail: z.string(),
   title: z.string(),
   type: z.enum(["battle", "community", "party", "stream", "video"]),
@@ -929,7 +1051,18 @@ export const purchasedCatalogItemSchema = z.object({
   productType: commerceProductTypeSchema,
   purchaseMode: purchaseModeSchema,
   purchasedAt: z.string(),
+  regionSlug: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
   title: z.string(),
+});
+export const purchasedDownloadItemSchema = z.object({
+  downloadUrl: z.string().nullable(),
+  id: z.string(),
+  label: z.string(),
+});
+export const purchasedCatalogDetailSchema = z.object({
+  downloads: purchasedDownloadItemSchema.array(),
+  purchase: purchasedCatalogItemSchema,
 });
 
 export const analyticsOverviewSchema = z.object({
@@ -1035,6 +1168,9 @@ export const createTrackBodySchema = z.object({
   catalogItemType: z.enum(["single", "beat", "instrumental"]).default("single"),
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
+  downloadsAllowed: z.boolean().default(true),
+  downloadsRequireFirstPlay: z.boolean().default(false),
+  downloadsRequirePurchase: z.boolean().default(true),
   genre: z.string().min(1),
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
@@ -1056,6 +1192,14 @@ export const createTrackBodySchema = z.object({
     })
     .default({}),
   title: z.string().min(1),
+});
+
+export const settleTrackBodySchema = z.object({
+  isPublic: z.boolean(),
+  productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
+  releaseAt: z.string().optional(),
+  releaseStrategy: z.enum(["private", "publish_when_ready", "scheduled"]),
+  requireCoverArt: z.boolean().default(false),
 });
 
 export const peopleSearchQuerySchema = z.object({
@@ -1239,12 +1383,14 @@ export const claimCartBodySchema = z.object({
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
   collaboratorNames: z.array(z.string()).default([]),
+  collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
   isPublic: z.boolean().default(true),
   newTracks: z
     .array(
       z.object({
         assetId: z.string().optional(),
+        durationMs: z.number().int().nonnegative().optional(),
         fileName: z.string().optional(),
         genre: z.string().min(1),
         mimeType: z.string().optional(),
@@ -1255,6 +1401,7 @@ export const createProjectBodySchema = z.object({
     .default([]),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
+  status: z.enum(["draft", "scheduled", "released"]).optional(),
   streamingLinks: z
     .object({
       appleMusic: z.url().optional(),
@@ -1271,7 +1418,14 @@ export const updateProjectBodySchema = createProjectBodySchema.partial();
 export const createVideoBodySchema = z.object({
   description: z.string().optional(),
   externalPlaybackUrl: z.url().optional(),
+  genre: z.string().min(1).optional(),
+  isPublic: z.boolean().default(true),
   playbackPolicy: z.enum(["public", "signed"]).default("public"),
+  releaseAt: z
+    .string()
+    .datetime()
+    .optional()
+    .or(z.literal("").transform(() => {})),
   sourceProjectId: z.string().optional(),
   sourceProvider: z.enum(["mux", "external"]).default("mux"),
   sourceTrackId: z.string().optional(),
@@ -1288,7 +1442,14 @@ export const createVideoBodySchema = z.object({
 
 export const directVideoUploadBodySchema = z.object({
   description: z.string().optional(),
+  genre: z.string().min(1).optional(),
+  isPublic: z.boolean().default(true),
   playbackPolicy: z.literal("public").default("public"),
+  releaseAt: z
+    .string()
+    .datetime()
+    .optional()
+    .or(z.literal("").transform(() => {})),
   sourceProjectId: z.string().optional(),
   sourceTrackId: z.string().min(1).optional(),
   title: z.string().min(1),
@@ -1311,6 +1472,19 @@ export const directVideoUploadResponseSchema = z.object({
   videoId: z.string(),
 });
 
+export const videoCommentSchema = z.object({
+  authorAvatarUrl: z.string().nullable().optional(),
+  authorName: z.string().nullable().optional(),
+  body: z.string(),
+  createdAt: z.string(),
+  id: z.string(),
+  userId: z.string(),
+});
+
+export const createVideoCommentBodySchema = z.object({
+  body: z.string().min(1).max(2000),
+});
+
 export const createPlaylistBodySchema = z.object({
   description: z.string().optional(),
   isPublic: z.boolean().default(false),
@@ -1324,6 +1498,10 @@ export const createChallengeBodySchema = z.object({
   opponentUsername: z.string().min(1),
   proposedDate: z.string().optional(),
   proposedTimeLabel: z.string().optional(),
+});
+
+export const updateBattleChallengeBodySchema = z.object({
+  status: z.enum(["accepted", "declined", "canceled"]),
 });
 
 export const battleEligibilityBodySchema = z.object({

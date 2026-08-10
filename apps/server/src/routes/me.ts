@@ -1,7 +1,8 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
+  notificationSettings,
   profileLinks,
   userProfiles,
   workspaceProfiles,
@@ -23,7 +24,9 @@ import {
   entitlementSummarySchema,
   meResponseSchema,
   messageResponseSchema,
+  notificationSettingsSchema,
   profileUpdateBodySchema,
+  updateNotificationSettingsBodySchema,
   workspaceSummarySchema,
 } from "@/lib/schemas";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
@@ -158,6 +161,41 @@ const getActiveWorkspace = async ({
   return activeWorkspace ?? null;
 };
 
+const defaultNotificationSettings = {
+  emailCollaborations: true,
+  emailComments: true,
+  emailFollowers: true,
+  emailSales: true,
+  emailTrackProcessing: true,
+  pushMentions: true,
+  pushMessages: true,
+  pushReleases: true,
+};
+
+const getNotificationSettings = async (userId: string) => {
+  if (!isDatabaseConfigured()) {
+    return defaultNotificationSettings;
+  }
+
+  const db = createDb();
+  const [settings] = await db
+    .select({
+      emailCollaborations: notificationSettings.emailCollaborations,
+      emailComments: notificationSettings.emailComments,
+      emailFollowers: notificationSettings.emailFollowers,
+      emailSales: notificationSettings.emailSales,
+      emailTrackProcessing: notificationSettings.emailTrackProcessing,
+      pushMentions: notificationSettings.pushMentions,
+      pushMessages: notificationSettings.pushMessages,
+      pushReleases: notificationSettings.pushReleases,
+    })
+    .from(notificationSettings)
+    .where(eq(notificationSettings.userId, userId))
+    .limit(1);
+
+  return settings ?? defaultNotificationSettings;
+};
+
 app.openapi(
   createRoute({
     method: "get",
@@ -246,6 +284,149 @@ app.openapi(
       .where(eq(member.userId, user.id));
 
     return c.json(workspaces, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/workspace",
+    request: {
+      body: jsonContent(
+        z.object({ name: z.string().trim().min(1).max(100) }),
+        "Workspace name update"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(workspaceSummarySchema, "Updated workspace"),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    const { name } = c.req.valid("json");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          id: "ws_default",
+          name,
+          role: "owner",
+          slug: "my-workspace",
+          workspaceType: "artist_team" as const,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    const activeOrgId = user.id;
+
+    await db
+      .update(organization)
+      .set({ name })
+      .where(eq(organization.id, activeOrgId));
+
+    return c.json(
+      {
+        id: activeOrgId,
+        name,
+        role: "owner",
+        slug: "my-workspace",
+        workspaceType: "artist_team" as const,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/notification-settings",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        notificationSettingsSchema,
+        "Notification settings"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    return c.json(await getNotificationSettings(user.id), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/notification-settings",
+    request: {
+      body: jsonContentRequired(
+        updateNotificationSettingsBodySchema,
+        "Notification settings update payload"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        notificationSettingsSchema,
+        "Updated notification settings"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(defaultNotificationSettings, HttpStatusCodes.OK);
+    }
+
+    const body = c.req.valid("json");
+    const db = createDb();
+
+    await db
+      .insert(notificationSettings)
+      .values({
+        ...defaultNotificationSettings,
+        ...body,
+        userId: user.id,
+      })
+      .onConflictDoUpdate({
+        set: {
+          ...body,
+          updatedAt: new Date(),
+        },
+        target: notificationSettings.userId,
+      });
+
+    return c.json(await getNotificationSettings(user.id), HttpStatusCodes.OK);
   }
 );
 
