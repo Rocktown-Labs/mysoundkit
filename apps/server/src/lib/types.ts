@@ -29,6 +29,7 @@ export interface AppEnv {
     CLOUDFLARE_API_TOKEN?: string;
     CLOUDFLARE_REALTIMEKIT_APP_ID?: string;
     EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage>;
+    REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
   };
   Variables: AppVariables;

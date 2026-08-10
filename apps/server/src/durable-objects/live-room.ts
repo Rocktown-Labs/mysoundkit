@@ -21,6 +21,7 @@ interface LiveRoomSocketMessage {
 
 const STATE_STORAGE_KEY = "live-room-state";
 const MAX_CHAT_MESSAGES = 80;
+const voteVotersKey = (roundId: string) => `vote-voters:${roundId}`;
 
 const jsonResponse = (body: unknown, status = 200) =>
   Response.json(body, {
@@ -192,6 +193,25 @@ export class LiveRoomDurableObject extends DurableObject {
     if (!artist) {
       return { body: { message: "Artist not found." }, status: 404 };
     }
+
+    if (!body.voterId) {
+      return {
+        body: { message: "A voter is required to record a vote." },
+        status: 400,
+      };
+    }
+
+    const votersKey = voteVotersKey(round.id);
+    const voters = await this.ctx.storage.get<string[]>(votersKey);
+
+    if (voters?.includes(body.voterId)) {
+      return {
+        body: { message: "This participant has already voted this round." },
+        status: 409,
+      };
+    }
+
+    await this.ctx.storage.put(votersKey, [...(voters ?? []), body.voterId]);
 
     const nextRounds = room.battle.rounds.map((entry) => {
       if (entry.id !== round.id) {

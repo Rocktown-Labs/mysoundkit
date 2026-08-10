@@ -19,6 +19,12 @@ import { processCompletedStemSplitJob } from "@/lib/audio-processing";
 import { processBattleServiceEvent } from "@/lib/battle-service";
 import { verifyResendWebhook } from "@/lib/email";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import {
+  fetchRealtimeKitWebhookPublicKey,
+  isRealtimeKitWebhookEvent,
+  processRealtimeKitWebhookEnvelope,
+  verifyRealtimeKitSignature,
+} from "@/lib/live-experience-events";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -963,6 +969,143 @@ app.openapi(
           ? "Battle service webhook already processed"
           : "Battle service webhook accepted",
       },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/realtimekit",
+    responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Missing RealtimeKit webhook signature"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "RealtimeKit webhook accepted"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "RealtimeKit public key unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Invalid RealtimeKit webhook signature"
+      ),
+    },
+    tags: ["Webhooks"],
+  }),
+  async (c) => {
+    const rawBody = await c.req.raw.text();
+    const signature = c.req.header("rtk-signature");
+
+    if (!signature) {
+      return c.json(
+        { message: "Missing RealtimeKit webhook signature." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const publicKey = await fetchRealtimeKitWebhookPublicKey(
+      c.env.REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL
+    );
+
+    if (!publicKey) {
+      return c.json(
+        { message: "RealtimeKit webhook verification is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const verified = await verifyRealtimeKitSignature({
+      body: new TextEncoder().encode(rawBody),
+      publicKeyPem: publicKey,
+      signature,
+    });
+
+    if (!verified) {
+      return c.json(
+        { message: "Invalid RealtimeKit webhook signature." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    const externalEventId = c.req.header("rtk-uuid");
+    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>;
+    const eventType = isRealtimeKitWebhookEvent(payload)
+      ? payload.event
+      : "unknown";
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "RealtimeKit webhook accepted." },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+
+    if (externalEventId) {
+      const [existingEvent] = await db
+        .select({ id: webhookEvents.id })
+        .from(webhookEvents)
+        .where(
+          and(
+            eq(webhookEvents.provider, "realtimekit"),
+            eq(webhookEvents.externalEventId, externalEventId)
+          )
+        )
+        .limit(1);
+
+      if (existingEvent) {
+        return c.json(
+          { message: "RealtimeKit webhook already processed." },
+          HttpStatusCodes.OK
+        );
+      }
+    }
+
+    const eventRowId = crypto.randomUUID();
+
+    await db.insert(webhookEvents).values({
+      eventType,
+      externalEventId: externalEventId ?? null,
+      id: eventRowId,
+      payload,
+      provider: "realtimekit",
+      status: "received",
+    });
+
+    let status: "processed" | "ignored" = "ignored";
+
+    try {
+      if (isRealtimeKitWebhookEvent(payload)) {
+        status = await processRealtimeKitWebhookEnvelope(payload);
+      }
+    } catch (error) {
+      await db
+        .update(webhookEvents)
+        .set({
+          processedAt: new Date(),
+          status: "failed",
+        })
+        .where(eq(webhookEvents.id, eventRowId));
+      throw error;
+    }
+
+    await db
+      .update(webhookEvents)
+      .set({
+        processedAt: new Date(),
+        status,
+      })
+      .where(eq(webhookEvents.id, eventRowId));
+
+    return c.json(
+      { message: "RealtimeKit webhook accepted." },
       HttpStatusCodes.OK
     );
   }

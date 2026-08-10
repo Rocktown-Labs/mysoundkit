@@ -4,6 +4,9 @@
 
 ### Added
 
+- Persisted live experiences (`live_experiences`) with RealtimeKit meeting ids, viewer/peak viewer tracking, recording and chat download links, plus a verified RealtimeKit webhook endpoint (`/v1/webhooks/realtimekit`) that marks meetings live/ended, publishes uploaded recordings as free public videos (battle replays included), and fans out go-live notifications to artist followers and premium watchers.
+- Wired live experience creation and join flows to persisted meetings, gated listening party hosting behind a premium subscription (artists exempt), and upgraded BattleBot to a real round state machine with waiting-room admissions, non-voter boots, and winner resolution.
+- Updated artist battle records (wins/losses) after a battle ends when peak concurrent viewers reach 10.
 - Enhanced Project Creation with non-closing multi-select checkboxes for library tracks, aligned credits step with 1-click self-crediting, and fixed "Save Draft" button to store drafts with `status: "draft"` instead of publishing.
 - Created public `/projects` explore route and public album detail route (`/projects/$id`) with album/EP/mixtape type chips, search, genre filtering, and full tracklist stream controls.
 - Added Projects section under Songs on the home page (`/`) and added Projects link to public navigation sidebars.

@@ -293,6 +293,19 @@ export const webhookProviderEnum = pgEnum("webhook_provider", [
   "stemsplit",
   "battle_service",
   "resend",
+  "realtimekit",
+]);
+
+export const liveExperienceStatusEnum = pgEnum("live_experience_status", [
+  "scheduled",
+  "live",
+  "ended",
+]);
+
+export const liveExperienceKindEnum = pgEnum("live_experience_kind", [
+  "battle",
+  "party",
+  "stream",
 ]);
 export const webhookStatusEnum = pgEnum("webhook_status", [
   "received",
@@ -1903,6 +1916,52 @@ export const battleStats = pgTable(
     wins: integer("wins").default(0).notNull(),
   },
   (table) => [index("battle_stats_user_id_idx").on(table.userId)]
+);
+
+export const liveExperiences = pgTable(
+  "live_experiences",
+  {
+    battleId: text("battle_id").references(() => battles.id, {
+      onDelete: "set null",
+    }),
+    battleKitId: text("battle_kit_id"),
+    chatDownloadUrl: text("chat_download_url"),
+    chatDownloadUrlExpiry: timestamp("chat_download_url_expiry"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endsAt: timestamp("ends_at"),
+    id: text("id").primaryKey(),
+    kind: liveExperienceKindEnum("kind").notNull(),
+    meetingId: text("meeting_id").notNull(),
+    peakViewerCount: integer("peak_viewer_count").default(0).notNull(),
+    playlistId: text("playlist_id").references(() => playlists.id, {
+      onDelete: "set null",
+    }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    recordingAudioUrl: text("recording_audio_url"),
+    recordingExpiresAt: timestamp("recording_expires_at"),
+    recordingId: text("recording_id"),
+    recordingStatus: text("recording_status"),
+    recordingUrl: text("recording_url"),
+    source: text("source").default("browser").notNull(),
+    startsAt: timestamp("starts_at").notNull(),
+    status: liveExperienceStatusEnum("status").default("scheduled").notNull(),
+    title: text("title").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    viewerCount: integer("viewer_count").default(0).notNull(),
+    visibility: text("visibility").default("public").notNull(),
+  },
+  (table) => [
+    uniqueIndex("live_experiences_meeting_id_idx").on(table.meetingId),
+    index("live_experiences_creator_idx").on(table.createdByUserId),
+  ]
 );
 
 export const analyticsDailyRollups = pgTable(

@@ -2,6 +2,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battleRounds,
   battles,
+  liveExperiences,
   trackAssets,
   tracks,
   userProfiles,
@@ -11,7 +12,13 @@ import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
 
-import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import {
+  forbiddenMessage,
+  isAuthenticatedSession,
+  isAuthenticatedUser,
+  resolveEntitlements,
+  unauthorizedMessage,
+} from "@/lib/entitlements";
 import {
   allowsMockRealtime,
   buildNotificationFanout,
@@ -32,6 +39,11 @@ import type {
   RealtimeMeeting,
   RealtimeParticipantToken,
 } from "@/lib/live-experience";
+import {
+  applyBattleBotAction,
+  buildLiveExperienceInsert,
+  loadLiveExperienceById,
+} from "@/lib/live-experience-events";
 import type {
   LiveBattleRound,
   LiveRoomArtist,
@@ -471,6 +483,85 @@ const createMeetingForExperience = async ({
   }
 };
 
+const resolveMeetingIdForExperience = async (experienceId: string) => {
+  const experience = await loadLiveExperienceById(experienceId);
+
+  return experience?.meetingId ?? experienceId;
+};
+
+const isArtistUser = async (userId: string) => {
+  if (!isDatabaseConfigured()) {
+    return false;
+  }
+
+  const [profile] = await createDb()
+    .select({ accountType: userProfiles.accountType })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, userId))
+    .limit(1);
+
+  return profile?.accountType === "artist";
+};
+
+const isPartyHostingAllowed = async ({
+  session,
+  user,
+}: {
+  session: AppEnv["Variables"]["session"];
+  user: AuthenticatedUser;
+}) => {
+  const entitlements = await resolveEntitlements({
+    session: isAuthenticatedSession(session) ? session : null,
+    user,
+  });
+
+  if (entitlements.isPremium) {
+    return true;
+  }
+
+  return isArtistUser(user.id);
+};
+
+const persistLiveExperience = async ({
+  body,
+  createdByUserId,
+  experienceId,
+  meetingId,
+  startsAt,
+}: {
+  body: CreateLiveExperienceBody;
+  createdByUserId: string;
+  experienceId: string;
+  meetingId: string;
+  startsAt: string;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const result = await createDb()
+    .insert(liveExperiences)
+    .values(
+      buildLiveExperienceInsert({
+        battleId: null,
+        battleKitId: body.battleKitId,
+        createdByUserId,
+        id: experienceId,
+        kind: body.kind,
+        meetingId,
+        playlistId: body.playlistId,
+        projectId: body.projectId,
+        source: body.source ?? defaultSourceForKind(body.kind),
+        startsAt,
+        title: body.title.trim(),
+        visibility: body.visibility,
+      })
+    )
+    .onConflictDoNothing();
+
+  return result;
+};
+
 const durableRequest = (
   c: { env: AppEnv["Bindings"] },
   roomId: string,
@@ -834,6 +925,20 @@ app.post("/experiences", async (c) => {
 
   const body = parseResult.data;
   const startsAt = body.scheduledStartAt ?? new Date().toISOString();
+  const canHostParty = await isPartyHostingAllowed({
+    session: c.get("session"),
+    user,
+  });
+
+  if (body.kind === "party" && !canHostParty) {
+    return c.json(
+      forbiddenMessage(
+        "A premium subscription is required to host listening parties."
+      ),
+      HttpStatusCodes.FORBIDDEN
+    );
+  }
+
   const streamInput = await createRequiredStreamInput({
     body,
     env: c.env,
@@ -861,49 +966,83 @@ app.post("/experiences", async (c) => {
     body.kind === "party" ? "parties" : `${body.kind}s`
   }/${experienceId}`;
 
+  await persistLiveExperience({
+    body,
+    createdByUserId: user.id,
+    experienceId,
+    meetingId: meeting.id,
+    startsAt,
+  });
+
   return c.json(
-    {
-      defaults: {
-        captions: true,
-        chat: true,
-        recording: true,
-        setupScreen: true,
-      },
-      experience: {
-        battleKitId: body.battleKitId ?? null,
-        createdByUserId: user.id,
-        description: body.description ?? "",
-        format: body.format ?? null,
-        genre: body.genre ?? null,
-        id: experienceId,
-        kind: body.kind,
-        opponentUsername: body.opponentUsername ?? null,
-        playlistId: body.playlistId ?? null,
-        projectId: body.projectId ?? null,
-        roomHref,
-        scheduleMode: body.scheduleMode,
-        source: body.source ?? defaultSourceForKind(body.kind),
-        startsAt,
-        status: body.scheduleMode === "asap" ? "ready" : "scheduled",
-        title: body.title.trim(),
-        visibility: body.visibility,
-      },
-      lock: {
-        experienceId,
-        kind: body.kind,
-        startsAt,
-        status: body.scheduleMode === "asap" ? "live" : "scheduled",
-      },
-      notifications: buildNotificationFanout({
-        experienceId,
-        kind: body.kind,
-        title: body.title.trim(),
-      }),
-      realtime: meeting,
+    buildCreateExperienceResponse({
+      body,
+      createdByUserId: user.id,
+      experienceId,
+      meeting,
+      roomHref,
+      startsAt,
       streamInput,
-    },
+    }),
     HttpStatusCodes.CREATED
   );
+});
+
+const buildCreateExperienceResponse = ({
+  body,
+  createdByUserId,
+  experienceId,
+  meeting,
+  roomHref,
+  startsAt,
+  streamInput,
+}: {
+  body: CreateLiveExperienceBody;
+  createdByUserId: string;
+  experienceId: string;
+  meeting: RealtimeMeeting;
+  roomHref: string;
+  startsAt: string;
+  streamInput: Awaited<ReturnType<typeof createCloudflareStreamInput>>;
+}) => ({
+  defaults: {
+    captions: true,
+    chat: true,
+    recording: true,
+    setupScreen: true,
+  },
+  experience: {
+    battleKitId: body.battleKitId ?? null,
+    createdByUserId,
+    description: body.description ?? "",
+    format: body.format ?? null,
+    genre: body.genre ?? null,
+    id: experienceId,
+    kind: body.kind,
+    opponentUsername: body.opponentUsername ?? null,
+    playlistId: body.playlistId ?? null,
+    projectId: body.projectId ?? null,
+    roomHref,
+    scheduleMode: body.scheduleMode,
+    source: body.source ?? defaultSourceForKind(body.kind),
+    startsAt,
+    status: body.scheduleMode === "asap" ? "ready" : "scheduled",
+    title: body.title.trim(),
+    visibility: body.visibility,
+  },
+  lock: {
+    experienceId,
+    kind: body.kind,
+    startsAt,
+    status: body.scheduleMode === "asap" ? "live" : "scheduled",
+  },
+  notifications: buildNotificationFanout({
+    experienceId,
+    kind: body.kind,
+    title: body.title.trim(),
+  }),
+  realtime: meeting,
+  streamInput,
 });
 
 app.post("/experiences/:experienceId/join", async (c) => {
@@ -925,13 +1064,14 @@ app.post("/experiences/:experienceId/join", async (c) => {
 
   const experienceId = c.req.param("experienceId");
   const kind = liveKindFromExperienceId(experienceId);
+  const meetingId = await resolveMeetingIdForExperience(experienceId);
   let participant: RealtimeParticipantToken;
 
   try {
     participant = await createRealtimeParticipant({
       env: c.env,
       kind,
-      meetingId: experienceId,
+      meetingId,
       phase: parseResult.data.phase,
       role: parseResult.data.role,
       user,
@@ -995,18 +1135,31 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     );
   }
 
-  const snapshot = createRoundVoterSnapshot(parseResult.data.participants);
+  const experienceId = c.req.param("experienceId");
+  const experience = await loadLiveExperienceById(experienceId);
+  const battleId = experience?.battleId ?? experienceId;
+  const result = await applyBattleBotAction({
+    action: parseResult.data.action,
+    battleId,
+    participants: parseResult.data.participants,
+  });
 
   return c.json(
     {
       action: parseResult.data.action,
+      admitted: result.admitted ?? [],
       battleBot: {
         message:
           "BattleBot recorded the room action and prepared the next transition.",
-        nextPhase: nextBattlePhaseForAction(parseResult.data),
+        nextPhase:
+          result.nextPhase ?? nextBattlePhaseForAction(parseResult.data),
       },
-      experienceId: c.req.param("experienceId"),
-      snapshot,
+      booted: result.booted ?? [],
+      experienceId,
+      snapshot:
+        result.snapshot ??
+        createRoundVoterSnapshot(parseResult.data.participants),
+      winnerTrackId: result.winnerTrackId ?? null,
     },
     HttpStatusCodes.CREATED
   );
