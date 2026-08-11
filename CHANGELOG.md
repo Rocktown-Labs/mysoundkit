@@ -5,6 +5,10 @@
 ### Added
 
 - Added a RealtimeKit presets setup script (`packages/infra/realtimekit-presets.ts`) that creates or updates the eight SoundKit presets (battle lobby/artist/voter, party host/listener, stream host/viewer) via the Cloudflare API using Alchemy credentials, with `--dry-run` and `--delete` modes, strict app selection, and checked mutation responses.
+
+### Fixed
+
+- Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.
 - Added production and suffixed-preview queue routing for duration backfills, plus focused coverage for queue-name classification.
 - Persisted live experiences (`live_experiences`) with RealtimeKit meeting ids, viewer/peak viewer tracking, recording and chat download links, plus a verified RealtimeKit webhook endpoint (`/v1/webhooks/realtimekit`) that marks meetings live/ended, publishes uploaded recordings as free public videos (battle replays included), and fans out go-live notifications to artist followers and premium watchers.
