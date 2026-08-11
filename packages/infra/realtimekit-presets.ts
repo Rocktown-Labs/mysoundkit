@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 // Creates or updates the RealtimeKit presets SoundKit expects for live
 // experiences (battles, parties, streams).
 //
@@ -8,9 +8,9 @@
 // does not, set CLOUDFLARE_API_TOKEN (e.g. the GitHub Actions secret) instead.
 //
 // Usage:
-//   bun realtimekit-presets.ts            # configure presets
-//   bun realtimekit-presets.ts --dry-run  # preview without changing anything
-//   bun realtimekit-presets.ts --delete   # remove the SoundKit presets
+//   node realtimekit-presets.ts            # configure presets
+//   node realtimekit-presets.ts --dry-run  # preview without changing anything
+//   node realtimekit-presets.ts --delete   # remove the SoundKit presets
 //
 // Env (optional):
 //   CLOUDFLARE_REALTIMEKIT_APP_ID  Restrict to a specific RealtimeKit app.
