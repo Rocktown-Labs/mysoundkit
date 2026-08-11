@@ -87,6 +87,11 @@
 - Formatted repository codebase with oxfmt.
 - Updated all track and video list links across explore, shop, and dashboard surfaces to use canonical region-slug URLs when available, falling back to legacy id routes.
 - Converted track and video detail pages from route components into shared prop-driven `TrackDetailPage`/`VideoDetailPage` components reused by both canonical and legacy routes.
+- Reworked the missing track duration backfill into an asynchronous queue job (`track-duration-backfill` + DLQ) with per-asset `workflow_jobs` rows, retries, and a live admin status endpoint (`GET /v1/admin/tracks/backfill-durations/status`) that the dashboard polls until the background run completes.
+- Added a `soundkit-recordings` R2 bucket with a scoped upload token and wired `RECORDINGS_*` bindings onto the server for live recording storage.
+- Delayed live-experience recording publication so uploaded RealtimeKit recordings become public videos one hour after upload: the webhook schedules a `live_recording_publish` `workflow_jobs` row, a cron sweep copies the file into the persistent public media bucket, and only then creates the video (battle replays included), retrying failed copies.
+- Added client-side cover image recompression (`optimizeCoverImageFile`) that downscales and re-encodes track cover art to JPEG/WebP below ~1MB before upload, so stored covers and social previews are fast and lightweight.
+- Enriched track social share metadata with music-specific Open Graph/Twitter tags: `og:image:secure_url`, `music:duration`, `music:musician`, `og:audio`, `og:locale`, `twitter:site`, and `twitter:image:alt`, plus a track duration in JSON-LD `MusicRecording` and a richer social description.
 
 ### Fixed
 
@@ -97,6 +102,8 @@
 - Fixed the project creation release plan with explicit listed/unlisted visibility, calendar scheduling at midnight, and clearer submit validation feedback.
 - Fixed project creation track selection spacing, track-style collaborator invites, and project collaborator persistence.
 - Fixed the new project page crash when restoring a saved draft by stabilizing project form defaults, reusing artwork preview object URLs safely, and disabling placeholder PostHog initialization that spammed `/ingest` 404s without capturing useful diagnostics.
+- Fixed the `/dashboard/videos/new` infinite-loop crash (React error #185) caused by the new-video draft guard restoring an inline `defaultValues` object identity into `form.reset()` on every render; the guard now restores from a stable ref.
+- Fixed social share card quality for tracks by generating Facebook/Google-friendly descriptions (80–150 chars), emitting image dimension hints only for the known 1200×630 fallback card, and compressing uploaded cover art so `og:image` is no longer a multi-megabyte square file.
 - Fixed audio settlement follow-up behavior so free artists publish once audio and cover art settle, premium artists continue into StemSplit/transcription, artists receive in-app live/processing notifications, and admins can backfill missing track durations.
 - Fixed audio upload publication so tracks and project tracks are first saved as private intake records, get master/cover assets attached with Media Bunny duration metadata, then settle into the processing workflow before becoming live.
 - Fixed new track pages crashing when restored drafts omitted `status`, and made track/project artwork selectors consistently square, centered, and image-first.

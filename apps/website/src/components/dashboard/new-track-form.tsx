@@ -77,6 +77,7 @@ import {
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { optimizeCoverImageFile } from "@/lib/image-processing";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
@@ -828,7 +829,7 @@ export function NewTrackForm({
       return;
     }
 
-    setSelectedCoverFile(file);
+    setSelectedCoverFile(await optimizeCoverImageFile(file));
   };
 
   const handleMasterUpload = async (files: FileList) => {

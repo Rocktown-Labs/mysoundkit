@@ -6,6 +6,8 @@ import type {
   adminAccessSchema,
   adminPaymentsOverviewSchema,
   adminOverviewSchema,
+  backfillTrackDurationsResponseSchema,
+  trackDurationBackfillStatusSchema,
   platformSettingsSchema,
   artistSummarySchema,
   battleChallengesResponseSchema,
@@ -49,6 +51,7 @@ import type {
 import {
   adminImportStripePlanBodySchema,
   adminSyncStripePlansBodySchema,
+  backfillTrackDurationsBodySchema,
   createChallengeBodySchema,
   createConversationBodySchema,
   createLiveExperienceBodySchema,
@@ -189,6 +192,14 @@ export const rpcContract = new Hono()
   )
   .get("/v1/admin/overview", (c) =>
     c.json({} as z.infer<typeof adminOverviewSchema>)
+  )
+  .post(
+    "/v1/admin/tracks/backfill-durations",
+    jsonValidator(backfillTrackDurationsBodySchema),
+    (c) => c.json({} as z.infer<typeof backfillTrackDurationsResponseSchema>)
+  )
+  .get("/v1/admin/tracks/backfill-durations/status", (c) =>
+    c.json({} as z.infer<typeof trackDurationBackfillStatusSchema>)
   )
   .get("/v1/admin/settings", (c) =>
     c.json({} as z.infer<typeof platformSettingsSchema>)

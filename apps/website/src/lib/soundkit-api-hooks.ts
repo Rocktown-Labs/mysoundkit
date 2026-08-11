@@ -22,6 +22,10 @@ const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get;
 const adminImportStripePlanPost =
   apiClient.v1.admin.finance.payments["import-plan"].$post;
 const adminOverviewGet = apiClient.v1.admin.overview.$get;
+const adminBackfillTrackDurationsPost =
+  apiClient.v1.admin.tracks["backfill-durations"].$post;
+const adminBackfillTrackDurationsStatusGet =
+  apiClient.v1.admin.tracks["backfill-durations"].status.$get;
 const adminSyncStripePlansPost =
   apiClient.v1.admin.finance.payments["sync-plans"].$post;
 const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
@@ -258,6 +262,9 @@ type ImportStripePlanBody = InferRequestType<
 >["json"];
 type SyncStripePlansBody = InferRequestType<
   typeof adminSyncStripePlansPost
+>["json"];
+type BackfillTrackDurationsBody = InferRequestType<
+  typeof adminBackfillTrackDurationsPost
 >["json"];
 type UpdatePlatformSettingsBody = InferRequestType<
   typeof adminSettingsPatch
@@ -519,6 +526,39 @@ export const useSyncStripePlansMutation = () => {
     },
   });
 };
+
+export const useBackfillTrackDurationsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: BackfillTrackDurationsBody) =>
+      rpcJson(await adminBackfillTrackDurationsPost({ json: body })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.adminOverview,
+      });
+    },
+  });
+};
+
+export const useTrackDurationBackfillStatusQuery = (enabled = true) =>
+  useQuery({
+    enabled,
+    queryFn: async () =>
+      rpcJson(await adminBackfillTrackDurationsStatusGet()),
+    queryKey: ["admin", "tracks", "backfill-durations", "status"],
+    refetchInterval: (query) => {
+      const status = query.state.data;
+
+      if (!status) {
+        return false;
+      }
+
+      const inFlight = status.queued + status.processing;
+
+      return inFlight > 0 ? 3000 : false;
+    },
+  });
 
 export const useMeQuery = () =>
   useQuery({

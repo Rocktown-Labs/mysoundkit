@@ -52,6 +52,8 @@ const expectedOpenApiOperations = [
   ["post", "/v1/battles/eligibility"],
   ["get", "/v1/battles/{battleId}"],
   ["get", "/v1/admin/finance/summary"],
+  ["post", "/v1/admin/tracks/backfill-durations"],
+  ["get", "/v1/admin/tracks/backfill-durations/status"],
   ["get", "/v1/admin/settings"],
   ["patch", "/v1/admin/settings"],
   ["post", "/v1/billing/checkout"],

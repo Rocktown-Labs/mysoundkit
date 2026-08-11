@@ -1,4 +1,4 @@
-import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
@@ -7,19 +7,23 @@ import {
   openVerseListings,
   platformSettings,
   projects,
+  trackAssets,
   tracks,
   videos,
 } from "@soundkit/db/schema/app";
 import { user } from "@soundkit/db/schema/auth";
 import { communities } from "@soundkit/db/schema/communities";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
-import { backfillMissingTrackDurations } from "@/lib/media-metadata";
+import {
+  enqueueTrackDurationBackfills,
+  loadTrackDurationBackfillStatus,
+} from "@/lib/media-metadata";
 import {
   loadPlatformSettings,
   platformDiscoverySettingsKey,
@@ -27,25 +31,16 @@ import {
 import {
   adminAccessSchema,
   adminOverviewSchema,
+  backfillTrackDurationsBodySchema,
+  backfillTrackDurationsResponseSchema,
   messageResponseSchema,
   platformSettingsSchema,
+  trackDurationBackfillStatusSchema,
   updatePlatformSettingsBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
-
-const backfillTrackDurationsBodySchema = z.object({
-  limit: z.number().int().positive().max(100).default(25),
-  trackIds: z.array(z.string().min(1)).default([]),
-});
-
-const backfillTrackDurationsResponseSchema = z.object({
-  failed: z.number().int().nonnegative(),
-  renamedCoverArt: z.number().int().nonnegative(),
-  scanned: z.number().int().nonnegative(),
-  updated: z.number().int().nonnegative(),
-});
 
 const emptyOverview = () => ({
   commerce: {
@@ -67,6 +62,7 @@ const emptyOverview = () => ({
     readyVideos: 0,
     releasedProjects: 0,
     scheduledListeningParties: 0,
+    tracksMissingDuration: 0,
   },
   people: {
     admins: 0,
@@ -133,6 +129,7 @@ const loadOperations = async () => {
     [readyVideos],
     [scheduledListeningParties],
     [activeOpenVerses],
+    [tracksMissingDuration],
   ] = await Promise.all([
     db.select({ value: count() }).from(tracks).where(eq(tracks.isPublic, true)),
     db
@@ -151,6 +148,17 @@ const loadOperations = async () => {
       .select({ value: count() })
       .from(openVerseListings)
       .where(eq(openVerseListings.status, "open")),
+    db
+      .select({ value: count() })
+      .from(trackAssets)
+      .where(
+        and(
+          eq(trackAssets.assetKind, "master"),
+          eq(trackAssets.storageProvider, "r2"),
+          isNotNull(trackAssets.objectKey),
+          isNull(trackAssets.durationMs)
+        )
+      ),
   ]);
 
   return {
@@ -159,6 +167,7 @@ const loadOperations = async () => {
     readyVideos: readyVideos?.value ?? 0,
     releasedProjects: releasedProjects?.value ?? 0,
     scheduledListeningParties: scheduledListeningParties?.value ?? 0,
+    tracksMissingDuration: tracksMissingDuration?.value ?? 0,
   };
 };
 
@@ -275,12 +284,41 @@ app.openapi(
     }
 
     const body = c.req.valid("json");
-    const result = await backfillMissingTrackDurations({
+    const result = await enqueueTrackDurationBackfills({
       limit: body.limit,
+      queue: c.env.TRACK_DURATION_BACKFILL_QUEUE,
       trackIds: body.trackIds,
     });
 
     return c.json(result, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/tracks/backfill-durations/status",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        trackDurationBackfillStatusSchema,
+        "Track duration backfill job status"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Admin"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    return c.json(await loadTrackDurationBackfillStatus(), HttpStatusCodes.OK);
   }
 );
 

@@ -7,7 +7,10 @@ export interface TrackSeoData {
   };
   coverArtUrl: string | null;
   description: string | null;
+  durationMs: number | null;
+  genre: string | null;
   id: string;
+  playbackUrl: string | null;
   regionSlug: string | null;
   slug: string | null;
   title: string;
@@ -81,7 +84,13 @@ export const loadPublicTrackSeo = async (
     },
     coverArtUrl: readString(rawTrack.coverArtUrl),
     description: readString(rawTrack.description),
+    durationMs:
+      typeof rawTrack.duration === "number"
+        ? Math.round(rawTrack.duration)
+        : null,
+    genre: readString(rawTrack.genre),
     id,
+    playbackUrl: readString(rawTrack.playbackUrl),
     regionSlug: readString(rawTrack.regionSlug),
     slug: readString(rawTrack.slug),
     title,

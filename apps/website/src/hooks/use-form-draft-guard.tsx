@@ -55,6 +55,7 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   const formIsDirty = form.formState.isDirty;
   const hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState);
   const skipNextPersistenceRef = useRef(false);
+  const defaultValuesRef = useRef(defaultValues);
 
   // Keep latest dirty state readable from blocker callbacks.
   const dirtyRef = useRef(hasUnsavedChanges);
@@ -71,8 +72,8 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
       if (stored) {
         const parsedDraft = JSON.parse(stored) as Partial<TFieldValues>;
         form.reset(
-          defaultValues
-            ? ({ ...defaultValues, ...parsedDraft } as TFieldValues)
+          defaultValuesRef.current
+            ? ({ ...defaultValuesRef.current, ...parsedDraft } as TFieldValues)
             : (parsedDraft as TFieldValues)
         );
         setHasSavedDraft(true);
@@ -80,7 +81,7 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     } catch {
       window.localStorage.removeItem(storageKey);
     }
-  }, [defaultValues, form, restoreOnMount, storageKey]);
+  }, [form, restoreOnMount, storageKey]);
 
   // Persist values whenever they change.
   useEffect(() => {
