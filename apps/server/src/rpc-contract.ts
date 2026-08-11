@@ -487,6 +487,19 @@ export const rpcContract = new Hono()
     jsonValidator(createLiveExperienceBodySchema),
     (c) => c.json({} as z.infer<typeof liveExperienceResponseSchema>, 201)
   )
+  .get("/v1/live/experiences/:experienceId", (c) =>
+    c.json({
+      id: "",
+      kind: "stream" as const,
+      playbackUrl: null,
+      source: "obs",
+      status: "scheduled",
+      streamInputId: null,
+      title: "",
+      viewerCount: 0,
+      visibility: "public",
+    })
+  )
   .post(
     "/v1/live/experiences/:experienceId/join",
     jsonValidator(joinLiveExperienceBodySchema),

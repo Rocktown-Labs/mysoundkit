@@ -1960,6 +1960,7 @@ export const liveExperiences = pgTable(
     recordingStatus: text("recording_status"),
     recordingUrl: text("recording_url"),
     source: text("source").default("browser").notNull(),
+    streamInputId: text("stream_input_id"),
     startsAt: timestamp("starts_at").notNull(),
     status: liveExperienceStatusEnum("status").default("scheduled").notNull(),
     title: text("title").notNull(),
