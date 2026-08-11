@@ -6,6 +6,7 @@ import {
   Film,
   FolderOpen,
   Home,
+  Landmark,
   Megaphone,
   MessageSquare,
   Mic2,
@@ -18,6 +19,7 @@ import {
   User,
   UserRoundPlus,
   Users,
+  WalletCards,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -57,6 +59,12 @@ const sectionRoutes: Record<
         to: "/dashboard/career/profile",
       },
       {
+        description: "Private account profile and identity",
+        icon: User,
+        name: "Account Profile",
+        to: "/dashboard/profile",
+      },
+      {
         description: "Track, project, and audience performance",
         icon: BarChart3,
         name: "Analytics",
@@ -81,6 +89,24 @@ const sectionRoutes: Record<
         to: "/dashboard/ads",
       },
       {
+        description: "Community posts, fan movement, and updates",
+        icon: Users,
+        name: "Community",
+        to: "/dashboard/community",
+      },
+      {
+        description: "Revenue, payouts, and financial snapshot",
+        icon: Landmark,
+        name: "Finance",
+        to: "/dashboard/finance",
+      },
+      {
+        description: "Plan, subscription, and payment settings",
+        icon: WalletCards,
+        name: "Billing",
+        to: "/dashboard/billing",
+      },
+      {
         description: "Account, notifications, and artist settings",
         icon: Settings,
         name: "Settings",
@@ -99,6 +125,18 @@ const sectionRoutes: Record<
         to: "/dashboard/live",
       },
       {
+        description: "Find artists and rooms to battle",
+        icon: Users,
+        name: "Find",
+        to: "/dashboard/live/find",
+      },
+      {
+        description: "Respond to incoming battle challenges",
+        icon: UserRoundPlus,
+        name: "Challenges",
+        to: "/dashboard/live/challenge",
+      },
+      {
         description: "Listening parties for releases and fans",
         icon: PartyPopper,
         name: "Parties",
@@ -109,6 +147,24 @@ const sectionRoutes: Record<
         icon: Radio,
         name: "Streams",
         to: "/dashboard/live/streams",
+      },
+      {
+        description: "Scheduled live moments and reminders",
+        icon: CalendarDays,
+        name: "Upcoming",
+        to: "/dashboard/live/upcoming",
+      },
+      {
+        description: "Battle kits, format slots, and track picks",
+        icon: Music,
+        name: "My Kits",
+        to: "/dashboard/live/my-kit",
+      },
+      {
+        description: "Battle performance by track",
+        icon: BarChart3,
+        name: "My Stats",
+        to: "/dashboard/live/my-stats",
       },
     ],
   },
@@ -204,8 +260,12 @@ const isSectionActive = (pathname: string, section: DashboardMobileSection) => {
   if (section === "career") {
     return (
       pathname.startsWith("/dashboard/career") ||
+      pathname.startsWith("/dashboard/profile") ||
       pathname.startsWith("/dashboard/team") ||
-      pathname.startsWith("/dashboard/ads")
+      pathname.startsWith("/dashboard/ads") ||
+      pathname.startsWith("/dashboard/community") ||
+      pathname.startsWith("/dashboard/finance") ||
+      pathname.startsWith("/dashboard/billing")
     );
   }
 

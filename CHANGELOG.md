@@ -90,6 +90,7 @@
 
 ### Fixed
 
+- Fixed the mobile music player spacing so expanded and minimized playback controls give the current track title and artist more room, and expanded mobile public/dashboard navigation coverage.
 - Fixed live experience creation (`POST /v1/live/experiences`) returning `503` on preview workers by binding `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_REALTIMEKIT_APP_ID` to the server Worker, enabling mock RealtimeKit fallback on preview stages, and falling back to a mock Stream live input for OBS streams when Cloudflare Stream is unavailable.
 - Improved public item share metadata for tracks, projects, and videos so social cards use the real title, creator, cover artwork, canonical URL, and structured data.
 - Fixed track save hearts with optimistic visual feedback, toast confirmation, and click-locking while saves are in flight, and simplified saved-library dates.
