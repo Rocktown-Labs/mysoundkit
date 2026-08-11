@@ -295,19 +295,32 @@ export const enqueueTrackDurationBackfills = async ({
       continue;
     }
 
+    const jobId = crypto.randomUUID();
+
     await db.insert(workflowJobs).values({
-      id: crypto.randomUUID(),
+      id: jobId,
       input: row,
       jobType: DURATION_BACKFILL_JOB_TYPE,
       targetId: row.assetId,
       targetType: "track_asset",
     });
 
-    await queue.send(
-      { assetId: row.assetId, objectKey: row.objectKey, trackId: row.trackId },
-      { contentType: "json" }
-    );
-    enqueued += 1;
+    try {
+      await queue.send(
+        { assetId: row.assetId, objectKey: row.objectKey, trackId: row.trackId },
+        { contentType: "json" }
+      );
+      enqueued += 1;
+    } catch (error) {
+      await db.delete(workflowJobs).where(eq(workflowJobs.id, jobId));
+      logWarn({
+        assetId: row.assetId,
+        error: getErrorMessage(error),
+        event: "track_duration_backfill_enqueue_failed",
+        trackId: row.trackId,
+      });
+      continue;
+    }
   }
 
   return { enqueued, scanned: rows.length };
