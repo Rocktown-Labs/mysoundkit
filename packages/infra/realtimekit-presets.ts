@@ -23,45 +23,119 @@ const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const deleteMode = args.includes("--delete");
 
-const viewerPermissions = {
-  can_edit_display_name: true,
+const mediaConfig = {
+  audio: { enable_high_bitrate: true, enable_stereo: true },
+  screenshare: { frame_rate: 15, quality: "hd" },
+  video: { frame_rate: 30, quality: "hd", simulcast: true },
+};
+
+const uiConfig = {
+  design_tokens: {
+    border_radius: "rounded",
+    border_width: "thin",
+    colors: {
+      background: {
+        "600": "#171717",
+        "700": "#101010",
+        "800": "#0a0a0a",
+        "900": "#050505",
+        "1000": "#000000",
+      },
+      brand: {
+        "300": "#fda4af",
+        "400": "#fb7185",
+        "500": "#f43f5e",
+        "600": "#e11d48",
+        "700": "#be123c",
+      },
+      danger: "#ef4444",
+      success: "#22c55e",
+      text: "#ffffff",
+      text_on_brand: "#ffffff",
+      video_bg: "#000000",
+      warning: "#f59e0b",
+    },
+    spacing_base: 4,
+    theme: "dark",
+  },
+};
+
+const basePermissions = {
+  accept_waiting_requests: false,
+  can_accept_production_requests: false,
+  can_change_participant_permissions: false,
+  can_livestream: false,
+  can_record: false,
+  can_spotlight: false,
   chat: {
+    private: {
+      can_receive: false,
+      can_send: false,
+      files: false,
+      text: false,
+    },
     public: {
       can_send: true,
       files: false,
       text: true,
     },
   },
+  connected_meetings: {
+    can_alter_connected_meetings: false,
+    can_switch_connected_meetings: false,
+    can_switch_to_parent_meeting: false,
+  },
+  disable_participant_audio: false,
+  disable_participant_screensharing: false,
+  disable_participant_video: false,
+  hidden_participant: false,
+  kick_participant: false,
   media: {
     audio: { can_produce: "NOT_ALLOWED" },
     screenshare: { can_produce: "NOT_ALLOWED" },
     video: { can_produce: "NOT_ALLOWED" },
   },
+  pin_participant: false,
+  plugins: {
+    can_close: false,
+    can_edit_config: false,
+    can_start: false,
+    config: {},
+  },
+  polls: { can_create: false, can_view: false, can_vote: false },
+  recorder_type: "NONE",
   show_participant_list: true,
+};
+
+const viewerPermissions = {
+  ...basePermissions,
+  can_edit_display_name: true,
 };
 
 const textOnlyConfig = {
   max_screenshare_count: 0,
   max_video_streams: { desktop: 0, mobile: 0 },
+  media: mediaConfig,
   view_type: "GROUP_CALL",
 };
 
 const hostConfig = {
   max_screenshare_count: 1,
   max_video_streams: { desktop: 1, mobile: 1 },
-  media: { video: { frame_rate: 30, quality: "hd" } },
+  media: mediaConfig,
   view_type: "GROUP_CALL",
 };
 
 const hostPermissions = {
+  ...basePermissions,
   accept_waiting_requests: true,
   can_edit_display_name: true,
+  can_livestream: true,
+  can_record: true,
+  can_spotlight: true,
   chat: {
-    public: {
-      can_send: true,
-      files: true,
-      text: true,
-    },
+    ...basePermissions.chat,
+    public: { can_send: true, files: true, text: true },
   },
   kick_participant: true,
   media: {
@@ -69,7 +143,8 @@ const hostPermissions = {
     screenshare: { can_produce: "ALLOWED" },
     video: { can_produce: "ALLOWED" },
   },
-  show_participant_list: true,
+  pin_participant: true,
+  recorder_type: "RECORDER",
 };
 
 const presets = [
@@ -227,6 +302,7 @@ const main = async () => {
         await api.patch(`${baseUrl}/${existingId}`, {
           config: preset.config,
           permissions: preset.permissions,
+          ui: uiConfig,
         }),
         `Updating preset ${preset.name}`
       );
@@ -244,6 +320,7 @@ const main = async () => {
         config: preset.config,
         name: preset.name,
         permissions: preset.permissions,
+        ui: uiConfig,
       }),
       `Creating preset ${preset.name}`
     );
