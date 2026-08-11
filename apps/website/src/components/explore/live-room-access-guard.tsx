@@ -96,8 +96,9 @@ export function LiveRoomAccessGuard({
               <p className="text-xs text-muted-foreground pt-2">
                 Already a member?{" "}
                 <Link
-                  to="/login"
                   className="font-semibold text-primary underline underline-offset-4"
+                  search={{}}
+                  to="/login"
                 >
                   Sign In to Watch
                 </Link>
