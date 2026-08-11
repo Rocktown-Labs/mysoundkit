@@ -30,6 +30,7 @@
 - Fixed preview-deployment downloads for media stored in the canonical production bucket while preserving authenticated first-play and purchase access rules.
 - Standardized newly created track download defaults across standalone and project-created tracks: authenticated users must play once before downloading, while free tracks are not purchase-gated.
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
+- Fixed webhook registration to auto-discover the SoundKit RealtimeKit app when the optional app ID variable is not configured.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.
 - Added production and suffixed-preview queue routing for duration backfills, plus focused coverage for queue-name classification.
 - Added track and project listening-access fields for the monetization model: free/public listening or Premium/purchased-only listening with optional exclusivity expiration.
