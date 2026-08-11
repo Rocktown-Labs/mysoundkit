@@ -167,16 +167,17 @@ const main = async () => {
     "Listing RealtimeKit apps"
   );
 
-  const appList = Array.isArray(apps) ? apps : apps.apps ?? [];
+  const appList = Array.isArray(apps) ? apps : (apps.apps ?? []);
   const targetAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID;
-  const match =
-    (targetAppId && appList.find((app) => app.id === targetAppId)) ||
-    appList.find((app) => app.name?.toLowerCase().includes("soundkit")) ||
-    appList[0];
+  const match = targetAppId
+    ? appList.find((app) => app.id === targetAppId)
+    : appList.find((app) => app.name?.toLowerCase().includes("soundkit"));
 
   if (!match?.id) {
     throw new Error(
-      "No RealtimeKit app found. Set CLOUDFLARE_REALTIMEKIT_APP_ID to the app id."
+      targetAppId
+        ? `RealtimeKit app ${targetAppId} was not found.`
+        : "No RealtimeKit app with a SoundKit name was found. Set CLOUDFLARE_REALTIMEKIT_APP_ID to the app id."
     );
   }
 
@@ -208,7 +209,10 @@ const main = async () => {
         continue;
       }
 
-      await api.delete(`${baseUrl}/${existingId}`);
+      await readResponse(
+        await api.delete(`${baseUrl}/${existingId}`),
+        `Deleting preset ${preset.name}`
+      );
       console.log(`Deleted: ${preset.name} (${existingId})`);
       continue;
     }
@@ -219,10 +223,13 @@ const main = async () => {
         continue;
       }
 
-      await api.patch(`${baseUrl}/${existingId}`, {
-        config: preset.config,
-        permissions: preset.permissions,
-      });
+      await readResponse(
+        await api.patch(`${baseUrl}/${existingId}`, {
+          config: preset.config,
+          permissions: preset.permissions,
+        }),
+        `Updating preset ${preset.name}`
+      );
       console.log(`Updated: ${preset.name} (${existingId})`);
       continue;
     }
