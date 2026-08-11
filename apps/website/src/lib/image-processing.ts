@@ -1,9 +1,8 @@
 /**
  * Re-encodes a cover image on the client so the stored file is small enough
  * for fast app loads and social previews (og:image < ~1MB). Downscales to a
- * sane maximum and re-encodes as JPEG when the source is already smaller or
- * has transparency. Returns the original file untouched when re-encoding
- * would not shrink it.
+ * sane maximum and re-encodes as JPEG (or WebP for PNG/WebP sources). Returns
+ * the original file untouched when re-encoding would not shrink it.
  */
 export const optimizeCoverImageFile = async (
   file: File,
