@@ -96,8 +96,13 @@ export const createShareMeta = ({
       { content: socialImage, property: "og:image:secure_url" },
       ...imageDimensionMeta,
       { content: "en_US", property: "og:locale" },
-      ...(song?.durationMs
-        ? [{ content: String(song.durationMs), property: "music:duration" }]
+      ...(song?.durationMs != null
+        ? [
+            {
+              content: String(Math.round(song.durationMs / 1000)),
+              property: "music:duration",
+            },
+          ]
         : []),
       ...(song?.musicianUrl
         ? [{ content: song.musicianUrl, property: "music:musician" }]
