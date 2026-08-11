@@ -309,6 +309,11 @@ const protectedRequests: {
     label: "cloudflare stream live input retrieval",
     path: "/v1/live/cloudflare-stream/stream_123",
   },
+  {
+    label: "track asset download",
+    path: "/v1/tracks/track_123/assets/asset_123/download",
+    init: { method: "GET" },
+  },
 ];
 
 describe("SoundKit API authentication boundaries", () => {
