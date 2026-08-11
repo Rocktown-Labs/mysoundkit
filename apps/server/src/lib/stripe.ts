@@ -46,11 +46,25 @@ export const stripeRequest = async <T>({
     method,
   });
 
+  const responseBody = await response.text();
+
   if (!response.ok) {
-    throw new Error(`Stripe request failed with ${response.status}.`);
+    let detail = responseBody.slice(0, 300);
+    try {
+      const parsed = JSON.parse(responseBody) as {
+        error?: { code?: string; message?: string; type?: string };
+      };
+      detail = JSON.stringify(parsed.error ?? parsed).slice(0, 300);
+    } catch {
+      // Keep the bounded raw response when Stripe does not return JSON.
+    }
+
+    throw new Error(
+      `Stripe request failed with ${response.status}: ${detail}`
+    );
   }
 
-  return (await response.json()) as T;
+  return (JSON.parse(responseBody) as T);
 };
 
 export interface StripeListResponse<T> {

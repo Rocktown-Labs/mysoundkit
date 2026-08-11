@@ -372,9 +372,11 @@ app.openapi(
             body.collaborators.length || body.collaboratorNames.length,
           coverArtUrl: null,
           description: body.description ?? null,
+          exclusiveUntil: body.exclusiveUntil ?? null,
           id: "project_new",
-          isForSale: false,
+          isForSale: body.isForSale,
           isPublic: body.isPublic,
+          listeningAccess: body.listeningAccess,
           progress: 25,
           projectType: body.projectType,
           releaseDate: body.releaseDate ?? null,
@@ -405,10 +407,16 @@ app.openapi(
         .values({
           createdAt: now,
           description: body.description ?? null,
+          exclusiveUntil: body.exclusiveUntil
+            ? new Date(body.exclusiveUntil)
+            : null,
           id: projectId,
+          isForSale: body.isForSale,
           isPublic: body.isPublic && !hasNewTracks,
+          listeningAccess: body.listeningAccess,
           organizationId,
           ownerUserId: user.id,
+          priceCents: body.isForSale ? (body.priceCents ?? null) : null,
           projectType: body.projectType,
           releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
           slug: uniqueSlug(body.title),
@@ -426,10 +434,14 @@ app.openapi(
         const genreId = await ensureGenreId(newTrack.genre);
         await db.insert(tracks).values({
           catalogItemType: "single",
+          exclusiveUntil: body.exclusiveUntil
+            ? new Date(body.exclusiveUntil)
+            : null,
           genreId,
           id: trackId,
-          isForSale: false,
+          isForSale: body.isForSale,
           isPublic: false,
+          listeningAccess: body.listeningAccess,
           organizationId,
           ownerUserId: user.id,
           productionStatus: "demo",
@@ -646,12 +658,33 @@ app.openapi(
           }
         : {};
     const statusPatch = body.status ? { status: body.status } : {};
+    let exclusiveUntil: Date | null | undefined;
+    if (body.exclusiveUntil === "") {
+      exclusiveUntil = null;
+    } else if (body.exclusiveUntil) {
+      exclusiveUntil = new Date(body.exclusiveUntil);
+    }
+    const monetizationPatch = {
+      ...(body.exclusiveUntil !== undefined ? { exclusiveUntil } : {}),
+      ...(body.isForSale !== undefined
+        ? { isForSale: body.isForSale }
+        : {}),
+      ...(body.listeningAccess !== undefined
+        ? { listeningAccess: body.listeningAccess }
+        : {}),
+      ...(body.isForSale === false
+        ? { priceCents: null }
+        : body.priceCents !== undefined
+          ? { priceCents: body.priceCents }
+          : {}),
+    };
     const [project] = await db
       .update(projects)
       .set({
         description: body.description,
         isPublic: body.isPublic,
         projectType: body.projectType,
+        ...monetizationPatch,
         ...releaseDatePatch,
         ...statusPatch,
         title: body.title,

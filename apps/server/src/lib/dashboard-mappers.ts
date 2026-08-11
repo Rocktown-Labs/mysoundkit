@@ -139,6 +139,14 @@ export const mapTrackSummary = ({
   const primaryAudioAsset =
     assets.find((asset) => asset.assetKind === "master") ??
     assets.find((asset) => asset.durationMs);
+  const previewAsset = assets.find(
+    (asset) =>
+      asset.assetKind === "variant_audio" &&
+      typeof asset.metadata === "object" &&
+      asset.metadata !== null &&
+      "variant" in asset.metadata &&
+      asset.metadata.variant === "preview_30s"
+  );
   const assetStatus = assets.some((asset) => asset.status === "processing")
     ? "processing"
     : (primaryAudioAsset?.status ?? null);
@@ -161,14 +169,22 @@ export const mapTrackSummary = ({
     fileAvailability: fileAvailabilityFromAssets(assets),
     genre: genre ? canonicalGenreName(genre) : "Uncategorized",
     id: row.id,
+    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
     isrc: row.isrc,
+    listeningAccess: row.listeningAccess,
     lyricsStatus: row.lyricsStatus,
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
-    playbackUrl: publicAssetUrl(primaryAudioAsset),
+    playbackUrl:
+      row.isForSale &&
+      row.listeningAccess === "premium_or_purchased" &&
+      (!row.exclusiveUntil || row.exclusiveUntil > new Date())
+        ? null
+        : publicAssetUrl(primaryAudioAsset),
     plays: 0,
+    previewUrl: publicAssetUrl(previewAsset),
     price: row.price ? Number(row.price) : null,
     priceCents: row.priceCents,
     productionStatus: row.productionStatus,
@@ -391,8 +407,11 @@ export const buildProjectSummary = async (
       ownerProfile?.username ??
       "SoundKit Artist",
     artistUsername: ownerProfile?.username ?? null,
+    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
+    listeningAccess: row.listeningAccess,
+    priceCents: row.priceCents,
     progress,
     projectType: row.projectType,
     regionSlug: regionSlugFromUser(ownerProfile?.state) ?? null,

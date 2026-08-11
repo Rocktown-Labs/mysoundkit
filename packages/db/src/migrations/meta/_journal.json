@@ -127,6 +127,13 @@
       "when": 1786417200000,
       "tag": "0017_realtimekit_live_experiences",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787000000000,
+      "tag": "0018_monetized_content_access",
+      "breakpoints": true
     }
   ]
 }

@@ -152,7 +152,7 @@ const createMockStreamInput = (title: string) => ({
 
 const cloudflareStreamSetupRequired = {
   message:
-    "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.",
+    "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN.",
 };
 
 const readResponseSnippet = async (response: Response) => {
@@ -184,7 +184,8 @@ const createCloudflareStreamInput = async ({
   title: string;
 }) => {
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = env.CLOUDFLARE_API_TOKEN;
+  const apiToken =
+    env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
 
   if (!(accountId && apiToken)) {
     return null;

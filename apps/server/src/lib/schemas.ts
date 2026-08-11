@@ -450,6 +450,7 @@ export const trackSummarySchema = z.object({
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
+  previewUrl: z.string().nullable().optional(),
   plays: z.number(),
   price: z.number().nullable(),
   priceCents: z.number().int().nullable().optional(),
@@ -736,11 +737,13 @@ export const trackCatalogDetailSchema = z.object({
   isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
+  isPreviewAvailable: z.boolean().default(false),
   isStreamable: z.boolean(),
   isrc: z.string().nullable().optional(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
   musicalKey: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
+  previewUrl: z.string().nullable().optional(),
   priceCents: z.number().int().nullable(),
   priceLabel: z.string(),
   purchaseMode: purchaseModeSchema,
@@ -770,8 +773,11 @@ export const projectSummarySchema = z.object({
   durationMs: z.number().int().nonnegative().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
+  exclusiveUntil: z.string().nullable().optional(),
   isForSale: z.boolean().default(false),
   isPublic: z.boolean(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
+  priceCents: z.number().int().nullable().optional(),
   progress: z.number().int().min(0).max(100).default(0),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   regionSlug: z.string().nullable().optional(),
@@ -1191,9 +1197,11 @@ export const createTrackBodySchema = z.object({
   downloadsRequireFirstPlay: z.boolean().default(false),
   downloadsRequirePurchase: z.boolean().default(true),
   genre: z.string().min(1),
+  exclusiveUntil: z.string().optional(),
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   isrc: z.string().optional(),
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
@@ -1401,10 +1409,13 @@ export const claimCartBodySchema = z.object({
 
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
+  exclusiveUntil: z.string().optional(),
   collaboratorNames: z.array(z.string()).default([]),
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
+  isForSale: z.boolean().default(false),
   isPublic: z.boolean().default(true),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   newTracks: z
     .array(
       z.object({
@@ -1418,6 +1429,7 @@ export const createProjectBodySchema = z.object({
       })
     )
     .default([]),
+  priceCents: z.number().int().positive().optional(),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
   status: z.enum(["draft", "scheduled", "released"]).optional(),

@@ -220,6 +220,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       { content: SITE_TITLE, name: "twitter:title" },
       { content: SITE_DESCRIPTION, name: "twitter:description" },
       { content: SOCIAL_IMAGE_URL, name: "twitter:image" },
+      { content: `${SITE_NAME} social preview artwork`, name: "twitter:image:alt" },
     ],
     scripts: [
       {

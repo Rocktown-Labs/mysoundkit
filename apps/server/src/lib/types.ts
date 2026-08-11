@@ -33,6 +33,7 @@ export interface AppEnv {
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;
     CLOUDFLARE_REALTIMEKIT_APP_ID?: string;
+    CLOUDFLARE_STREAM_API_TOKEN?: string;
     EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage>;
     TRACK_DURATION_BACKFILL_QUEUE?: Queue<DurationBackfillQueueMessage>;
     REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;

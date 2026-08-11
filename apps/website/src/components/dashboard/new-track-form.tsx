@@ -29,6 +29,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import {
   Accordion,
@@ -106,6 +107,31 @@ const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 
 const SINGLE_PRICE_USD = 1.29;
 
+const exclusiveUntilForApi = (
+  value: string | undefined,
+  preserveEmpty = false
+) => {
+  if (!value) {
+    return preserveEmpty ? "" : undefined;
+  }
+
+  return new Date(value).toISOString();
+};
+
+const exclusiveUntilForInput = (value: unknown) => {
+  if (typeof value !== "string" || !value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (part: number) => part.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const creditRoleSchema = z.enum(["songwriter", "producer"]);
 
 const creditEntrySchema = z.object({
@@ -123,10 +149,14 @@ const trackFormSchema = z
     downloadsAllowed: z.boolean().default(true),
     downloadsRequireFirstPlay: z.boolean().default(false),
     downloadsRequirePurchase: z.boolean().default(true),
+    exclusiveUntil: z.string().optional(),
     genre: z.string().min(1, "Genre is required"),
     isForSale: z.boolean().default(false),
     isrc: z.string().optional(),
     key: z.string().optional(),
+    listeningAccess: z
+      .enum(["public", "premium_or_purchased"])
+      .default("public"),
     name: z.string().min(2, "Track name is required"),
     openVerseDescription: z.string().optional(),
     openVerseSlotEndsAt: z.string().optional(),
@@ -214,10 +244,12 @@ const defaultTrackFormValues: TrackFormValues = {
   downloadsAllowed: true,
   downloadsRequireFirstPlay: false,
   downloadsRequirePurchase: true,
+  exclusiveUntil: "",
   genre: "Hip-Hop/Rap",
   isForSale: false,
   isrc: "",
   key: "",
+  listeningAccess: "public",
   name: "",
   openVerseDescription: "",
   openVerseSlotEndsAt: "",
@@ -363,10 +395,15 @@ export function NewTrackForm({
         initialTrack.downloadsRequireFirstPlay
       ),
       downloadsRequirePurchase: initialTrack.downloadsRequirePurchase !== false,
+      exclusiveUntil: exclusiveUntilForInput(initialTrack.exclusiveUntil),
       genre: (initialTrack.genre as string) ?? "",
       isForSale,
       isrc: (initialTrack.isrc as string) ?? "",
       key: (initialTrack.musicalKey as string) ?? "",
+      listeningAccess:
+        initialTrack.listeningAccess === "premium_or_purchased"
+          ? "premium_or_purchased"
+          : "public",
       name: (initialTrack.title as string) ?? "",
       openVerseDescription: "",
       openVerseSlotEndsAt: "",
@@ -562,8 +599,14 @@ export function NewTrackForm({
     file,
     objectKey,
     remoteUrl,
+    previewUpload,
     track,
   }: {
+    previewUpload?: {
+      file: File;
+      objectKey: string;
+      remoteUrl: string;
+    };
     durationMs: number | null;
     file: File;
     objectKey: string;
@@ -615,6 +658,30 @@ export function NewTrackForm({
     const masterAsset = detail.assets.find(
       (asset) => asset.assetKind === "master" && asset.objectKey === objectKey
     );
+
+    if (previewUpload) {
+      await rpcJson(
+        await trackAssetPost({
+          json: {
+            assetKind: "variant_audio",
+            durationMs: Math.min(durationMs ?? 30_000, 30_000),
+            metadata: {
+              durationMs: Math.min(durationMs ?? 30_000, 30_000),
+              originalFileName: previewUpload.file.name,
+              previewDurationSeconds: 30,
+              variant: "preview_30s",
+              url: previewUpload.remoteUrl,
+            },
+            mimeType: previewUpload.file.type,
+            objectKey: previewUpload.objectKey,
+            sizeBytes: previewUpload.file.size,
+            status: "ready",
+            storageProvider: "r2",
+          },
+          param: { trackId: track.id },
+        })
+      );
+    }
 
     await queryClient.invalidateQueries({
       queryKey: soundkitQueryKeys.tracksPrefix,
@@ -683,8 +750,14 @@ export function NewTrackForm({
         return;
       }
 
-      const sourceFile = uploadedFile.raw;
-      const objectKey = uploadedFile.objectInfo.key;
+      const masterUpload =
+        files.find((entry) => !entry.raw.name.endsWith(".preview.wav")) ??
+        uploadedFile;
+      const previewUpload = files.find((entry) =>
+        entry.raw.name.endsWith(".preview.wav")
+      );
+      const sourceFile = masterUpload.raw;
+      const objectKey = masterUpload.objectInfo.key;
       const remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
 
       const pendingTrack = pendingMasterTrackRef.current;
@@ -707,6 +780,13 @@ export function NewTrackForm({
             durationMs: selectedMasterDurationMs ?? durationMs,
             file: sourceFile,
             objectKey,
+            previewUpload: previewUpload
+              ? {
+                  file: previewUpload.raw,
+                  objectKey: previewUpload.objectInfo.key,
+                  remoteUrl: `${MEDIA_BASE_URL}/${previewUpload.objectInfo.key}`,
+                }
+              : undefined,
             remoteUrl,
             track: pendingTrack,
           })
@@ -882,11 +962,13 @@ export function NewTrackForm({
         downloadsAllowed: values.downloadsAllowed,
         downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
         downloadsRequirePurchase: values.downloadsRequirePurchase,
+        exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
         genre: values.genre,
         isForSale: false,
         isOpenVerse: false,
         isPublic: false,
         isrc: values.isrc || undefined,
+        listeningAccess: values.listeningAccess,
         musicalKey: values.key || undefined,
         productionStatus: "demo",
         purchaseMode: "digital_download",
@@ -981,10 +1063,12 @@ export function NewTrackForm({
           downloadsAllowed: values.downloadsAllowed,
           downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
           downloadsRequirePurchase: values.downloadsRequirePurchase,
+          exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
           genre: values.genre,
           isForSale: values.isForSale,
           isPublic: release.isPublic,
           isrc: values.isrc || undefined,
+          listeningAccess: values.listeningAccess,
           musicalKey: values.key || undefined,
           price: values.isForSale ? SINGLE_PRICE_USD : undefined,
           priceCents: values.isForSale
@@ -1087,11 +1171,13 @@ export function NewTrackForm({
             downloadsAllowed: values.downloadsAllowed,
             downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
             downloadsRequirePurchase: values.downloadsRequirePurchase,
+            exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
             genre: values.genre,
             isForSale: values.isForSale,
             isOpenVerse: false,
             isPublic: false,
             isrc: values.isrc || undefined,
+            listeningAccess: values.listeningAccess,
             musicalKey: values.key || undefined,
             price: values.isForSale ? SINGLE_PRICE_USD : undefined,
             priceCents: values.isForSale
@@ -1118,7 +1204,12 @@ export function NewTrackForm({
               masterUploadResolverRef.current = resolve;
             }
           );
-          upload([selectedMasterFile]).catch((uploadError: unknown) => {
+          const previewFile = await createAudioPreviewFile(selectedMasterFile).catch(
+            () => null
+          );
+          upload(
+            previewFile ? [selectedMasterFile, previewFile] : [selectedMasterFile]
+          ).catch((uploadError: unknown) => {
             posthog.captureException(uploadError);
             masterUploadResolverRef.current?.(null);
             masterUploadResolverRef.current = null;
@@ -2158,12 +2249,74 @@ export function NewTrackForm({
                 </div>
 
                 {form.watch("isForSale") ? (
-                  <div className="rounded-xl border border-border/40 bg-muted/20 p-4 text-sm">
-                    <p className="font-semibold">Single price: $1.29</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      All singles sell at a fixed $1.29 download price. Premium
-                      members can stream ready singles on SoundKit.
-                    </p>
+                  <div className="rounded-xl border border-border/40 bg-muted/20 p-4 text-sm space-y-4">
+                    <div>
+                      <p className="font-semibold">Single price: $1.29</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Purchases unlock downloads. Choose whether streaming is
+                        public or limited to Premium members and purchasers.
+                      </p>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="listeningAccess"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Streaming access</FormLabel>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="public">
+                                Public listening
+                              </SelectItem>
+                              <SelectItem value="premium_or_purchased">
+                                Premium members or purchasers
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription className="text-xs">
+                            Protected streaming stays restricted until the
+                            optional exclusivity date.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch("listeningAccess") ===
+                    "premium_or_purchased" ? (
+                      <FormField
+                        control={form.control}
+                        name="exclusiveUntil"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Exclusive until (optional)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="datetime-local"
+                                value={
+                                  field.value ? field.value.slice(0, 16) : ""
+                                }
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription className="text-xs">
+                              After this date, the track becomes publicly
+                              streamable while remaining for sale.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
 

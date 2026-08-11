@@ -156,6 +156,7 @@ interface MockCatalogItem {
   downloadsRequireFirstPlay?: boolean;
   downloadsRequirePurchase?: boolean;
   playbackUrl?: string | null;
+  previewUrl?: string | null;
   assets: MockCatalogAsset[];
   licenseOptions?: MockLicenseOption[];
   visualContent?: MockVisualContent[];
@@ -314,6 +315,11 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
       ? rawData.playbackUrl
       : null;
 
+  const rawPreviewUrl =
+    typeof rawData.previewUrl === "string" && rawData.previewUrl.length > 0
+      ? rawData.previewUrl
+      : null;
+
   const rawCoverArtUrl =
     typeof rawData.coverArtUrl === "string" &&
     rawData.coverArtUrl.length > 0 &&
@@ -326,6 +332,7 @@ const fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
     artist: normalizedArtist,
     coverArtUrl: rawCoverArtUrl,
     playbackUrl: rawPlaybackUrl,
+    previewUrl: rawPreviewUrl,
     priceLabel:
       typeof rawData.priceLabel === "string"
         ? rawData.priceLabel
@@ -408,7 +415,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     );
   }
 
-  const canPlayTrack = Boolean(item.playbackUrl);
+  const canPlayTrack = Boolean(item.playbackUrl ?? item.previewUrl);
   const canonicalTrackHref =
     item.regionSlug && item.slug
       ? `/tracks/${item.regionSlug}/${item.slug}`
@@ -420,7 +427,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
     id: item.id,
     regionSlug: item.regionSlug,
     slug: item.slug,
-    src: item.playbackUrl ?? "",
+    src: item.playbackUrl ?? item.previewUrl ?? "",
     title: item.title,
     trackHref: canonicalTrackHref,
   };

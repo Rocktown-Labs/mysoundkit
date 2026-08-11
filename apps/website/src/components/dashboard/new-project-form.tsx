@@ -25,8 +25,8 @@ import {
   Info,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useFieldArray, useForm } from 'react-hook-form';
-import type { FieldErrors } from 'react-hook-form';
+import { useFieldArray, useForm } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
 
 const SUPPORTED_GENRES = [
@@ -94,6 +94,7 @@ import {
   rpcJson,
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
@@ -138,11 +139,15 @@ const collaboratorSchema = z.preprocess(
 const projectFormSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
   description: z.string().optional(),
+  exclusiveUntil: z.string().optional(),
   genre: z
     .string()
     .min(1, "Project primary genre is required")
     .default("R&B/Soul"),
+  isForSale: z.boolean().default(false),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   name: z.string().min(2, "Project name is required"),
+  priceCents: z.number().int().positive().default(999),
   newTracks: z
     .array(
       z.object({
@@ -177,8 +182,12 @@ const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 const defaultProjectFormValues: ProjectFormValues = {
   collaborators: [],
   description: "",
+  exclusiveUntil: "",
   genre: "Hip-Hop/Rap",
+  isForSale: false,
+  listeningAccess: "public",
   name: "",
+  priceCents: 999,
   newTracks: [],
   projectCoverObjectKey: "",
   releaseDate: "",
@@ -189,6 +198,31 @@ const defaultProjectFormValues: ProjectFormValues = {
 };
 
 const epRuntimeLimitMs = 30 * 60 * 1000;
+
+const exclusiveUntilForApi = (
+  value: string | undefined,
+  preserveEmpty = false
+) => {
+  if (!value) {
+    return preserveEmpty ? "" : undefined;
+  }
+
+  return new Date(value).toISOString();
+};
+
+const exclusiveUntilForInput = (value: unknown) => {
+  if (typeof value !== "string" || !value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (part: number) => part.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const formatDurationLabel = (durationMs: number) => {
   const totalSeconds = Math.round(durationMs / 1000);
@@ -417,7 +451,17 @@ export function NewProjectForm({
         userId: (collaborator.userId as string) || undefined,
       })),
       description: (initialProject.description as string) ?? "",
+      exclusiveUntil: exclusiveUntilForInput(initialProject.exclusiveUntil),
       genre: firstGenre as string,
+      isForSale: Boolean(initialProject.isForSale),
+      listeningAccess:
+        initialProject.listeningAccess === "premium_or_purchased"
+          ? "premium_or_purchased"
+          : "public",
+      priceCents:
+        typeof initialProject.priceCents === "number"
+          ? initialProject.priceCents
+          : 999,
       name: (initialProject.title as string) ?? "",
       newTracks: [],
       projectCoverObjectKey: coverObjectKey ?? "",
@@ -563,7 +607,11 @@ export function NewProjectForm({
         await updateProjectMutation.mutateAsync({
           assetIds: coverKey ? [coverKey] : undefined,
           description: values.description || undefined,
+          exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
+          isForSale: values.isForSale,
           isPublic: releaseState.isListed,
+          listeningAccess: values.listeningAccess,
+          priceCents: values.isForSale ? values.priceCents : undefined,
           projectType: values.type,
           releaseDate: releaseState.releaseDate,
           status: releaseState.status,
@@ -708,7 +756,11 @@ export function NewProjectForm({
           role: collaborator.role,
           userId: collaborator.userId,
         })),
+        exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
+        isForSale: values.isForSale,
         isPublic: false,
+        listeningAccess: values.listeningAccess,
+        priceCents: values.isForSale ? values.priceCents : undefined,
         newTracks: projectTracks,
         projectType: values.type,
         status: releaseState.status,
@@ -742,32 +794,39 @@ export function NewProjectForm({
       );
 
       if (pendingTrackUploads.length > 0) {
-        const uploadedAssets = await uploadProjectTrackFiles(
-          pendingTrackUploads.map(({ file }) => file)
-        );
-
-        if (!uploadedAssets) {
-          toast({
-            description:
-              "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
-            title: "Project draft saved",
-            variant: "destructive",
-          });
-          await queryClient.invalidateQueries({
-            queryKey: soundkitQueryKeys.projects,
-          });
-          router.navigate({ to: "/dashboard/projects" });
-          return;
-        }
-
-        for (const [
-          uploadIndex,
-          pendingTrack,
-        ] of pendingTrackUploads.entries()) {
-          const uploadedAsset = uploadedAssets[uploadIndex];
+        for (const pendingTrack of pendingTrackUploads) {
           const projectTrack = newProjectTracks[pendingTrack.index];
+          if (!projectTrack) {
+            continue;
+          }
 
-          if (!(uploadedAsset && projectTrack)) {
+          const previewFile = await createAudioPreviewFile(pendingTrack.file).catch(
+            () => null
+          );
+          const uploadedAssets = await uploadProjectTrackFiles(
+            previewFile ? [pendingTrack.file, previewFile] : [pendingTrack.file]
+          );
+          if (!uploadedAssets) {
+            toast({
+              description:
+                "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
+              title: "Project draft saved",
+              variant: "destructive",
+            });
+            await queryClient.invalidateQueries({
+              queryKey: soundkitQueryKeys.projects,
+            });
+            router.navigate({ to: "/dashboard/projects" });
+            return;
+          }
+
+          const uploadedAsset = uploadedAssets.find(
+            (asset) => !asset.fileName.endsWith(".preview.wav")
+          );
+          const uploadedPreview = uploadedAssets.find((asset) =>
+            asset.fileName.endsWith(".preview.wav")
+          );
+          if (!uploadedAsset) {
             continue;
           }
 
@@ -790,6 +849,33 @@ export function NewProjectForm({
               param: { trackId: projectTrack.id },
             })
           );
+
+          if (uploadedPreview) {
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: "variant_audio",
+                  durationMs: Math.min(pendingTrack.durationMs ?? 30_000, 30_000),
+                  metadata: {
+                    durationMs: Math.min(
+                      pendingTrack.durationMs ?? 30_000,
+                      30_000
+                    ),
+                    originalFileName: uploadedPreview.fileName,
+                    previewDurationSeconds: 30,
+                    variant: "preview_30s",
+                    url: `${MEDIA_BASE_URL}/${uploadedPreview.objectKey}`,
+                  },
+                  mimeType: uploadedPreview.mimeType,
+                  objectKey: uploadedPreview.objectKey,
+                  sizeBytes: uploadedPreview.sizeBytes,
+                  status: "ready",
+                  storageProvider: "r2",
+                },
+                param: { trackId: projectTrack.id },
+              })
+            );
+          }
         }
       }
 
@@ -1903,6 +1989,113 @@ export function NewProjectForm({
                       </FormItem>
                     )}
                   />
+
+                  <div className="space-y-4 rounded-xl border border-border/40 bg-muted/20 p-4">
+                    <FormField
+                      control={form.control}
+                      name="isForSale"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-3">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div>
+                            <FormLabel>Monetize this project</FormLabel>
+                            <p className="text-xs text-muted-foreground">
+                              Purchases unlock downloads for the project tracks.
+                            </p>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch("isForSale") ? (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="priceCents"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Project price (USD)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  min="0.99"
+                                  step="0.01"
+                                  type="number"
+                                  value={(field.value / 100).toFixed(2)}
+                                  onChange={(event) =>
+                                    field.onChange(
+                                      Math.round(Number(event.target.value) * 100)
+                                    )
+                                  }
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="listeningAccess"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Streaming access</FormLabel>
+                              <Select
+                                value={field.value}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="public">
+                                    Public listening
+                                  </SelectItem>
+                                  <SelectItem value="premium_or_purchased">
+                                    Premium members or purchasers
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                        {form.watch("listeningAccess") ===
+                        "premium_or_purchased" ? (
+                          <FormField
+                            control={form.control}
+                            name="exclusiveUntil"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  Exclusive until (optional)
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="datetime-local"
+                                    value={
+                                      field.value
+                                        ? field.value.slice(0, 16)
+                                        : ""
+                                    }
+                                    onChange={(event) =>
+                                      field.onChange(event.target.value)
+                                    }
+                                  />
+                                </FormControl>
+                                <p className="text-xs text-muted-foreground">
+                                  After this date, the project becomes publicly
+                                  streamable while remaining for sale.
+                                </p>
+                              </FormItem>
+                            )}
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
 
                   {releaseVisibility === "listed" && (
                     <FormField

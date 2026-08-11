@@ -11,6 +11,11 @@
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.
 - Added production and suffixed-preview queue routing for duration backfills, plus focused coverage for queue-name classification.
+- Added track and project listening-access fields for the monetization model: free/public listening or Premium/purchased-only listening with optional exclusivity expiration.
+- Added deterministic first-30-second WAV preview generation for track and project uploads, protected master URL gating, and VOD playback qualification sessions tied to source tracks.
+- Added preview URLs to public track summaries so protected tracks remain previewable without exposing masters.
+- Added a public SoundKit recording watermark asset and corrected RealtimeKit watermark configuration for bottom-right placement.
+- Added a dedicated Cloudflare Stream API token binding and improved admin/Stripe/backfill diagnostics.
 - Persisted live experiences (`live_experiences`) with RealtimeKit meeting ids, viewer/peak viewer tracking, recording and chat download links, plus a verified RealtimeKit webhook endpoint (`/v1/webhooks/realtimekit`) that marks meetings live/ended, publishes uploaded recordings as free public videos (battle replays included), and fans out go-live notifications to artist followers and premium watchers.
 - Wired live experience creation and join flows to persisted meetings, gated listening party hosting behind a premium subscription (artists exempt), and upgraded BattleBot to a real round state machine with waiting-room admissions, non-voter boots, and winner resolution.
 - Updated artist battle records (wins/losses) after a battle ends when peak concurrent viewers reach 10.
