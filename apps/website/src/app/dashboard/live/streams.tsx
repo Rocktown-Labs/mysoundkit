@@ -653,7 +653,12 @@ function ControlRoom({
             </CardDescription>
           </div>
           <Badge
-            variant={activeStream.status === "live" ? "destructive" : "outline"}
+            variant={
+              activeStream.status === "connected" ||
+              activeStream.status === "reconnected"
+                ? "destructive"
+                : "outline"
+            }
           >
             {activeStream.status}
           </Badge>
@@ -661,16 +666,29 @@ function ControlRoom({
       </CardHeader>
       <CardContent className="flex flex-col gap-5 p-4 md:p-6">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="rounded-lg border bg-black p-8 text-center text-white flex flex-col items-center justify-center">
-            <Radio className="size-10 text-primary animate-pulse" />
-            <h2 className="mt-4 font-semibold text-xl">Control Room Online</h2>
-            <p className="mt-2 max-w-md text-sm text-white/70">
-              Realtime chat &amp; playback channels are open. Connect your OBS
-              source or camera stream to broadcast live.
-            </p>
+          <div className="rounded-lg border bg-black text-center text-white flex min-h-72 flex-col items-center justify-center overflow-hidden">
+            {activeStream.playbackUrl ? (
+              <video
+                autoPlay
+                className="aspect-video w-full object-contain"
+                controls
+                muted
+                playsInline
+                src={activeStream.playbackUrl}
+              />
+            ) : (
+              <>
+                <Radio className="size-10 text-primary animate-pulse" />
+                <h2 className="mt-4 font-semibold text-xl">Control Room Online</h2>
+                <p className="mt-2 max-w-md px-6 text-sm text-white/70">
+                  Connect OBS to begin the broadcast. Stream playback will
+                  appear here when Cloudflare provides a playback URL.
+                </p>
+              </>
+            )}
             <Button asChild className="mt-4" size="sm">
               <Link params={{ id: activeStream.id }} to="/live/streams/$id">
-                Open Viewroom Page
+                Open public room
               </Link>
             </Button>
           </div>
