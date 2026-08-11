@@ -529,12 +529,14 @@ const persistLiveExperience = async ({
   experienceId,
   meetingId,
   startsAt,
+  streamInputId,
 }: {
   body: CreateLiveExperienceBody;
   createdByUserId: string;
   experienceId: string;
   meetingId: string;
   startsAt: string;
+  streamInputId?: string | null;
 }) => {
   if (!isDatabaseConfigured()) {
     return null;
@@ -554,6 +556,7 @@ const persistLiveExperience = async ({
         projectId: body.projectId,
         source: body.source ?? defaultSourceForKind(body.kind),
         startsAt,
+        streamInputId,
         title: body.title.trim(),
         visibility: body.visibility,
       })
@@ -973,6 +976,7 @@ app.post("/experiences", async (c) => {
     experienceId,
     meetingId: meeting.id,
     startsAt,
+    streamInputId: streamInput?.id ?? null,
   });
 
   return c.json(
@@ -1044,6 +1048,44 @@ const buildCreateExperienceResponse = ({
   }),
   realtime: meeting,
   streamInput,
+});
+
+app.get("/experiences/:experienceId", async (c) => {
+  const experience = await loadLiveExperienceById(
+    c.req.param("experienceId")
+  );
+
+  if (!experience) {
+    return c.json({ message: "Live experience not found." }, HttpStatusCodes.NOT_FOUND);
+  }
+
+  if (experience.visibility === "private") {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user) || user.id !== experience.createdByUserId) {
+      return c.json({ message: "This live experience is private." }, HttpStatusCodes.FORBIDDEN);
+    }
+  }
+
+  const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
+  const playbackUrl =
+    experience.streamInputId && customerCode
+      ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}/manifest/video.m3u8`
+      : null;
+
+  return c.json(
+    {
+      id: experience.id,
+      kind: experience.kind,
+      playbackUrl,
+      source: experience.source,
+      status: experience.status,
+      streamInputId: experience.streamInputId,
+      title: experience.title,
+      viewerCount: experience.viewerCount,
+      visibility: experience.visibility,
+    },
+    HttpStatusCodes.OK
+  );
 });
 
 app.post("/experiences/:experienceId/join", async (c) => {
