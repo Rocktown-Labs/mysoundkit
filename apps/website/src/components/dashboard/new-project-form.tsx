@@ -94,6 +94,7 @@ import {
   rpcJson,
 } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
@@ -760,32 +761,39 @@ export function NewProjectForm({
       );
 
       if (pendingTrackUploads.length > 0) {
-        const uploadedAssets = await uploadProjectTrackFiles(
-          pendingTrackUploads.map(({ file }) => file)
-        );
-
-        if (!uploadedAssets) {
-          toast({
-            description:
-              "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
-            title: "Project draft saved",
-            variant: "destructive",
-          });
-          await queryClient.invalidateQueries({
-            queryKey: soundkitQueryKeys.projects,
-          });
-          router.navigate({ to: "/dashboard/projects" });
-          return;
-        }
-
-        for (const [
-          uploadIndex,
-          pendingTrack,
-        ] of pendingTrackUploads.entries()) {
-          const uploadedAsset = uploadedAssets[uploadIndex];
+        for (const pendingTrack of pendingTrackUploads) {
           const projectTrack = newProjectTracks[pendingTrack.index];
+          if (!projectTrack) {
+            continue;
+          }
 
-          if (!(uploadedAsset && projectTrack)) {
+          const previewFile = await createAudioPreviewFile(pendingTrack.file).catch(
+            () => null
+          );
+          const uploadedAssets = await uploadProjectTrackFiles(
+            previewFile ? [pendingTrack.file, previewFile] : [pendingTrack.file]
+          );
+          if (!uploadedAssets) {
+            toast({
+              description:
+                "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
+              title: "Project draft saved",
+              variant: "destructive",
+            });
+            await queryClient.invalidateQueries({
+              queryKey: soundkitQueryKeys.projects,
+            });
+            router.navigate({ to: "/dashboard/projects" });
+            return;
+          }
+
+          const uploadedAsset = uploadedAssets.find(
+            (asset) => !asset.fileName.endsWith(".preview.wav")
+          );
+          const uploadedPreview = uploadedAssets.find((asset) =>
+            asset.fileName.endsWith(".preview.wav")
+          );
+          if (!uploadedAsset) {
             continue;
           }
 
@@ -808,6 +816,33 @@ export function NewProjectForm({
               param: { trackId: projectTrack.id },
             })
           );
+
+          if (uploadedPreview) {
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: "variant_audio",
+                  durationMs: Math.min(pendingTrack.durationMs ?? 30_000, 30_000),
+                  metadata: {
+                    durationMs: Math.min(
+                      pendingTrack.durationMs ?? 30_000,
+                      30_000
+                    ),
+                    originalFileName: uploadedPreview.fileName,
+                    previewDurationSeconds: 30,
+                    variant: "preview_30s",
+                    url: `${MEDIA_BASE_URL}/${uploadedPreview.objectKey}`,
+                  },
+                  mimeType: uploadedPreview.mimeType,
+                  objectKey: uploadedPreview.objectKey,
+                  sizeBytes: uploadedPreview.sizeBytes,
+                  status: "ready",
+                  storageProvider: "r2",
+                },
+                param: { trackId: projectTrack.id },
+              })
+            );
+          }
         }
       }
 
