@@ -492,6 +492,7 @@ export const rpcContract = new Hono()
       id: "",
       kind: "stream" as const,
       playbackUrl: null,
+      playerUrl: null,
       source: "obs",
       status: "scheduled",
       streamInputId: null,

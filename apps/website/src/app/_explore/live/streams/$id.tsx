@@ -43,6 +43,7 @@ function StreamDetailPage() {
       }
       return (await response.json()) as {
         playbackUrl: string | null;
+        playerUrl: string | null;
         source: string;
         status: string;
       };
@@ -69,13 +70,13 @@ function StreamDetailPage() {
         <div className="space-y-6">
           <section className="overflow-hidden rounded-lg border bg-card">
             <div className="relative aspect-video bg-black">
-              {experience?.playbackUrl ? (
-                <video
-                  autoPlay
-                  className="h-full w-full object-contain"
-                  controls
-                  playsInline
-                  src={experience.playbackUrl}
+              {experience?.playerUrl ? (
+                <iframe
+                  allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  className="h-full w-full"
+                  src={experience.playerUrl}
+                  title={`${room.title} live stream`}
                 />
               ) : (
                 <>
