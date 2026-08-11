@@ -5,6 +5,9 @@ import {
   genres,
   muxUploads,
   playbackSessions,
+  projectTracks,
+  purchases,
+  tracks,
   userProfiles,
   videoComments,
   videos,
@@ -16,6 +19,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { resolveListeningAccess } from "@/lib/content-access";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -31,20 +35,58 @@ import {
 } from "@/lib/public-explore";
 import { sampleVideos } from "@/lib/sample-data";
 import {
+  createPlaybackSessionBodySchema,
   createVideoBodySchema,
   createVideoCommentBodySchema,
   directVideoUploadBodySchema,
   directVideoUploadResponseSchema,
   messageResponseSchema,
+  playbackSessionResponseSchema,
   publicExploreQuerySchema,
   videoCommentSchema,
   videoSummarySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import {
+  createTrackPlaybackSession,
+} from "@/lib/playback-qualification";
 import { videoPlaybackSourceType } from "@/lib/video-playback";
 import { uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+
+const hasPurchasedTrack = async ({
+  db,
+  trackId,
+  userId,
+}: {
+  db: ReturnType<typeof createDb>;
+  trackId: string;
+  userId: string;
+}) => {
+  const [directPurchase] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .where(
+      and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
+    )
+    .limit(1);
+
+  if (directPurchase) {
+    return true;
+  }
+
+  const [projectPurchase] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .innerJoin(projectTracks, eq(projectTracks.projectId, purchases.projectId))
+    .where(
+      and(eq(purchases.buyerUserId, userId), eq(projectTracks.trackId, trackId))
+    )
+    .limit(1);
+
+  return Boolean(projectPurchase);
+};
 
 const getMuxClient = () => {
   if (!env.MUX_TOKEN_ID || !env.MUX_TOKEN_SECRET) {
@@ -796,6 +838,147 @@ app.openapi(
     await db.delete(videos).where(eq(videos.id, videoId));
 
     return c.json({ message: "Video deleted." }, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{videoId}/playback-sessions",
+    request: {
+      body: jsonContentRequired(
+        createPlaybackSessionBodySchema,
+        "Video playback session payload"
+      ),
+      params: z.object({ videoId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        playbackSessionResponseSchema,
+        "Video playback session"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Premium access or a purchase is required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Video not found"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Videos"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const { videoId } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const db = createDb();
+    const [video] = await db
+      .select({
+        isPublic: videos.isPublic,
+        releaseAt: videos.releaseAt,
+        sourceTrackId: videos.sourceTrackId,
+      })
+      .from(videos)
+      .where(eq(videos.id, videoId))
+      .limit(1);
+
+    if (
+      !video ||
+      !video.isPublic ||
+      (video.releaseAt && video.releaseAt > new Date())
+    ) {
+      return c.json({ message: "Video not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    if (!video.sourceTrackId) {
+      return c.json(
+        { canQualify: false, durationSeconds: null, id: crypto.randomUUID() },
+        HttpStatusCodes.CREATED
+      );
+    }
+
+    const [trackPolicy] = await db
+      .select({
+        exclusiveUntil: tracks.exclusiveUntil,
+        isForSale: tracks.isForSale,
+        listeningAccess: tracks.listeningAccess,
+      })
+      .from(tracks)
+      .where(eq(tracks.id, video.sourceTrackId))
+      .limit(1);
+    const session = c.get("session");
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const hasPurchase = await hasPurchasedTrack({
+      db,
+      trackId: video.sourceTrackId,
+      userId: user.id,
+    });
+    const access = trackPolicy
+      ? resolveListeningAccess({
+          hasPurchase,
+          isPremium: entitlements.isPremium,
+          policy: trackPolicy,
+        })
+      : { canListen: false };
+
+    if (!access.canListen) {
+      return c.json(
+        { message: "Premium access or a purchase is required to watch." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const playbackSession = await createTrackPlaybackSession({
+      db,
+      input: {
+        city: body.city,
+        clientType: body.clientType,
+        clientVersion: body.clientVersion,
+        countryCode: body.countryCode,
+        entitlementSnapshot: {
+          activePlanCode: entitlements.activePlanCode,
+          isPremium: entitlements.isPremium,
+          status: entitlements.status,
+        },
+        listenerUserId: user.id,
+        regionCode: body.regionCode,
+        sourceId: videoId,
+        sourceType: videoPlaybackSourceType,
+        trackId: video.sourceTrackId,
+      },
+    });
+
+    return c.json(
+      playbackSession ?? {
+        canQualify: false,
+        durationSeconds: null,
+        id: crypto.randomUUID(),
+      },
+      HttpStatusCodes.CREATED
+    );
   }
 );
 

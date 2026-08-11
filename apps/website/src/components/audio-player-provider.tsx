@@ -21,6 +21,7 @@ export interface PlayerTrack {
   duration?: number | null;
   id: string;
   src: string;
+  sourceType?: "battle" | "library" | "listening_party" | "vod";
   artistHref?: string | null;
   title: string;
   trackHref?: string | null;

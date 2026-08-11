@@ -568,7 +568,8 @@ export function MusicPlayer() {
         {
           body: JSON.stringify({
             clientType: "web",
-            sourceType: "library",
+            sourceId: currentTrack.id,
+            sourceType: currentTrack.sourceType ?? "library",
           }),
           credentials: "include",
           headers: {

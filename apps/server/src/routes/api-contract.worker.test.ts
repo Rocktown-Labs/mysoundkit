@@ -129,6 +129,7 @@ const expectedOpenApiOperations = [
   ["post", "/v1/videos"],
   ["post", "/v1/videos/direct-upload"],
   ["get", "/v1/videos/{videoId}"],
+  ["post", "/v1/videos/{videoId}/playback-sessions"],
   ["post", "/v1/webhooks/battle-service"],
   ["post", "/v1/webhooks/mux"],
   ["post", "/v1/webhooks/stemsplit"],

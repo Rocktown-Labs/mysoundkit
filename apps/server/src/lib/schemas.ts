@@ -742,6 +742,7 @@ export const trackCatalogDetailSchema = z.object({
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
   musicalKey: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
+  previewUrl: z.string().nullable().optional(),
   priceCents: z.number().int().nullable(),
   priceLabel: z.string(),
   purchaseMode: purchaseModeSchema,

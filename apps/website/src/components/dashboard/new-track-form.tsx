@@ -29,6 +29,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import {
   Accordion,
@@ -573,8 +574,14 @@ export function NewTrackForm({
     file,
     objectKey,
     remoteUrl,
+    previewUpload,
     track,
   }: {
+    previewUpload?: {
+      file: File;
+      objectKey: string;
+      remoteUrl: string;
+    };
     durationMs: number | null;
     file: File;
     objectKey: string;
@@ -626,6 +633,30 @@ export function NewTrackForm({
     const masterAsset = detail.assets.find(
       (asset) => asset.assetKind === "master" && asset.objectKey === objectKey
     );
+
+    if (previewUpload) {
+      await rpcJson(
+        await trackAssetPost({
+          json: {
+            assetKind: "variant_audio",
+            durationMs: Math.min(durationMs ?? 30_000, 30_000),
+            metadata: {
+              durationMs: Math.min(durationMs ?? 30_000, 30_000),
+              originalFileName: previewUpload.file.name,
+              previewDurationSeconds: 30,
+              variant: "preview_30s",
+              url: previewUpload.remoteUrl,
+            },
+            mimeType: previewUpload.file.type,
+            objectKey: previewUpload.objectKey,
+            sizeBytes: previewUpload.file.size,
+            status: "ready",
+            storageProvider: "r2",
+          },
+          param: { trackId: track.id },
+        })
+      );
+    }
 
     await queryClient.invalidateQueries({
       queryKey: soundkitQueryKeys.tracksPrefix,
@@ -694,8 +725,14 @@ export function NewTrackForm({
         return;
       }
 
-      const sourceFile = uploadedFile.raw;
-      const objectKey = uploadedFile.objectInfo.key;
+      const masterUpload =
+        files.find((entry) => !entry.raw.name.endsWith(".preview.wav")) ??
+        uploadedFile;
+      const previewUpload = files.find((entry) =>
+        entry.raw.name.endsWith(".preview.wav")
+      );
+      const sourceFile = masterUpload.raw;
+      const objectKey = masterUpload.objectInfo.key;
       const remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
 
       const pendingTrack = pendingMasterTrackRef.current;
@@ -718,6 +755,13 @@ export function NewTrackForm({
             durationMs: selectedMasterDurationMs ?? durationMs,
             file: sourceFile,
             objectKey,
+            previewUpload: previewUpload
+              ? {
+                  file: previewUpload.raw,
+                  objectKey: previewUpload.objectInfo.key,
+                  remoteUrl: `${MEDIA_BASE_URL}/${previewUpload.objectInfo.key}`,
+                }
+              : undefined,
             remoteUrl,
             track: pendingTrack,
           })
@@ -1135,7 +1179,12 @@ export function NewTrackForm({
               masterUploadResolverRef.current = resolve;
             }
           );
-          upload([selectedMasterFile]).catch((uploadError: unknown) => {
+          const previewFile = await createAudioPreviewFile(selectedMasterFile).catch(
+            () => null
+          );
+          upload(
+            previewFile ? [selectedMasterFile, previewFile] : [selectedMasterFile]
+          ).catch((uploadError: unknown) => {
             posthog.captureException(uploadError);
             masterUploadResolverRef.current?.(null);
             masterUploadResolverRef.current = null;

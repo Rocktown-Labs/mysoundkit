@@ -2428,6 +2428,18 @@ app.openapi(
     const firstAudioAsset =
       assetRows.find((asset) => asset.assetKind === "master") ??
       assetRows.find((asset) => asset.durationMs);
+    const previewAsset = assetRows.find((asset) => {
+      if (asset.assetKind !== "variant_audio") {
+        return false;
+      }
+
+      return (
+        typeof asset.metadata === "object" &&
+        asset.metadata !== null &&
+        "variant" in asset.metadata &&
+        asset.metadata.variant === "preview_30s"
+      );
+    });
     const priceCents = priceCentsFromTrack({
       price: row.price,
       priceCents: row.priceCents,
@@ -2483,7 +2495,7 @@ app.openapi(
         id: row.id,
         isForSale: row.isForSale,
         isOwned,
-        isPreviewAvailable: access.isPreview,
+        isPreviewAvailable: Boolean(previewAsset),
         isPurchasable: row.isForSale,
         isStreamable: access.canListen,
         isrc: row.isrc,
@@ -2501,6 +2513,7 @@ app.openapi(
         playbackUrl: access.canListen
           ? publicTrackAssetUrl(firstAudioAsset)
           : null,
+        previewUrl: publicTrackAssetUrl(previewAsset),
         priceCents,
         priceLabel: formatPrice(priceCents),
         purchaseMode: row.purchaseMode,
