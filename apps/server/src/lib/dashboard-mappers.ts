@@ -169,7 +169,12 @@ export const mapTrackSummary = ({
     lyricsStatus: row.lyricsStatus,
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
-    playbackUrl: publicAssetUrl(primaryAudioAsset),
+    playbackUrl:
+      row.isForSale &&
+      row.listeningAccess === "premium_or_purchased" &&
+      (!row.exclusiveUntil || row.exclusiveUntil > new Date())
+        ? null
+        : publicAssetUrl(primaryAudioAsset),
     plays: 0,
     price: row.price ? Number(row.price) : null,
     priceCents: row.priceCents,
@@ -397,6 +402,7 @@ export const buildProjectSummary = async (
     isForSale: row.isForSale,
     isPublic: row.isPublic,
     listeningAccess: row.listeningAccess,
+    priceCents: row.priceCents,
     progress,
     projectType: row.projectType,
     regionSlug: regionSlugFromUser(ownerProfile?.state) ?? null,

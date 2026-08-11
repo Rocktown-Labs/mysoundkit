@@ -147,6 +147,7 @@ const projectFormSchema = z.object({
   isForSale: z.boolean().default(false),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   name: z.string().min(2, "Project name is required"),
+  priceCents: z.number().int().positive().default(999),
   newTracks: z
     .array(
       z.object({
@@ -186,6 +187,7 @@ const defaultProjectFormValues: ProjectFormValues = {
   isForSale: false,
   listeningAccess: "public",
   name: "",
+  priceCents: 999,
   newTracks: [],
   projectCoverObjectKey: "",
   releaseDate: "",
@@ -196,6 +198,31 @@ const defaultProjectFormValues: ProjectFormValues = {
 };
 
 const epRuntimeLimitMs = 30 * 60 * 1000;
+
+const exclusiveUntilForApi = (
+  value: string | undefined,
+  preserveEmpty = false
+) => {
+  if (!value) {
+    return preserveEmpty ? "" : undefined;
+  }
+
+  return new Date(value).toISOString();
+};
+
+const exclusiveUntilForInput = (value: unknown) => {
+  if (typeof value !== "string" || !value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (part: number) => part.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const formatDurationLabel = (durationMs: number) => {
   const totalSeconds = Math.round(durationMs / 1000);
@@ -424,13 +451,17 @@ export function NewProjectForm({
         userId: (collaborator.userId as string) || undefined,
       })),
       description: (initialProject.description as string) ?? "",
-      exclusiveUntil: (initialProject.exclusiveUntil as string) ?? "",
+      exclusiveUntil: exclusiveUntilForInput(initialProject.exclusiveUntil),
       genre: firstGenre as string,
       isForSale: Boolean(initialProject.isForSale),
       listeningAccess:
         initialProject.listeningAccess === "premium_or_purchased"
           ? "premium_or_purchased"
           : "public",
+      priceCents:
+        typeof initialProject.priceCents === "number"
+          ? initialProject.priceCents
+          : 999,
       name: (initialProject.title as string) ?? "",
       newTracks: [],
       projectCoverObjectKey: coverObjectKey ?? "",
@@ -576,10 +607,11 @@ export function NewProjectForm({
         await updateProjectMutation.mutateAsync({
           assetIds: coverKey ? [coverKey] : undefined,
           description: values.description || undefined,
-          exclusiveUntil: values.exclusiveUntil || undefined,
+          exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
           isForSale: values.isForSale,
           isPublic: releaseState.isListed,
           listeningAccess: values.listeningAccess,
+          priceCents: values.isForSale ? values.priceCents : undefined,
           projectType: values.type,
           releaseDate: releaseState.releaseDate,
           status: releaseState.status,
@@ -724,10 +756,11 @@ export function NewProjectForm({
           role: collaborator.role,
           userId: collaborator.userId,
         })),
-        exclusiveUntil: values.exclusiveUntil || undefined,
+        exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
         isForSale: values.isForSale,
         isPublic: false,
         listeningAccess: values.listeningAccess,
+        priceCents: values.isForSale ? values.priceCents : undefined,
         newTracks: projectTracks,
         projectType: values.type,
         status: releaseState.status,
@@ -1980,6 +2013,28 @@ export function NewProjectForm({
                     />
                     {form.watch("isForSale") ? (
                       <>
+                        <FormField
+                          control={form.control}
+                          name="priceCents"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Project price (USD)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  min="0.99"
+                                  step="0.01"
+                                  type="number"
+                                  value={(field.value / 100).toFixed(2)}
+                                  onChange={(event) =>
+                                    field.onChange(
+                                      Math.round(Number(event.target.value) * 100)
+                                    )
+                                  }
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
                         <FormField
                           control={form.control}
                           name="listeningAccess"

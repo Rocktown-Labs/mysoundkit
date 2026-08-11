@@ -665,10 +665,18 @@ app.openapi(
       exclusiveUntil = new Date(body.exclusiveUntil);
     }
     const monetizationPatch = {
-      exclusiveUntil,
-      isForSale: body.isForSale,
-      listeningAccess: body.listeningAccess,
-      priceCents: body.isForSale ? body.priceCents : null,
+      ...(body.exclusiveUntil !== undefined ? { exclusiveUntil } : {}),
+      ...(body.isForSale !== undefined
+        ? { isForSale: body.isForSale }
+        : {}),
+      ...(body.listeningAccess !== undefined
+        ? { listeningAccess: body.listeningAccess }
+        : {}),
+      ...(body.isForSale === false
+        ? { priceCents: null }
+        : body.priceCents !== undefined
+          ? { priceCents: body.priceCents }
+          : {}),
     };
     const [project] = await db
       .update(projects)

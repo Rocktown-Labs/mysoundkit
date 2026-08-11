@@ -107,6 +107,31 @@ const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 
 const SINGLE_PRICE_USD = 1.29;
 
+const exclusiveUntilForApi = (
+  value: string | undefined,
+  preserveEmpty = false
+) => {
+  if (!value) {
+    return preserveEmpty ? "" : undefined;
+  }
+
+  return new Date(value).toISOString();
+};
+
+const exclusiveUntilForInput = (value: unknown) => {
+  if (typeof value !== "string" || !value) {
+    return "";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (part: number) => part.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const creditRoleSchema = z.enum(["songwriter", "producer"]);
 
 const creditEntrySchema = z.object({
@@ -370,7 +395,7 @@ export function NewTrackForm({
         initialTrack.downloadsRequireFirstPlay
       ),
       downloadsRequirePurchase: initialTrack.downloadsRequirePurchase !== false,
-      exclusiveUntil: (initialTrack.exclusiveUntil as string) ?? "",
+      exclusiveUntil: exclusiveUntilForInput(initialTrack.exclusiveUntil),
       genre: (initialTrack.genre as string) ?? "",
       isForSale,
       isrc: (initialTrack.isrc as string) ?? "",
@@ -937,7 +962,7 @@ export function NewTrackForm({
         downloadsAllowed: values.downloadsAllowed,
         downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
         downloadsRequirePurchase: values.downloadsRequirePurchase,
-        exclusiveUntil: values.exclusiveUntil || undefined,
+        exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
         genre: values.genre,
         isForSale: false,
         isOpenVerse: false,
@@ -1038,7 +1063,7 @@ export function NewTrackForm({
           downloadsAllowed: values.downloadsAllowed,
           downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
           downloadsRequirePurchase: values.downloadsRequirePurchase,
-          exclusiveUntil: values.exclusiveUntil || undefined,
+          exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
           genre: values.genre,
           isForSale: values.isForSale,
           isPublic: release.isPublic,
@@ -1146,7 +1171,7 @@ export function NewTrackForm({
             downloadsAllowed: values.downloadsAllowed,
             downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
             downloadsRequirePurchase: values.downloadsRequirePurchase,
-            exclusiveUntil: values.exclusiveUntil || undefined,
+            exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
             genre: values.genre,
             isForSale: values.isForSale,
             isOpenVerse: false,
