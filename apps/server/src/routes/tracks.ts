@@ -29,6 +29,7 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { createWorkflowJobRow } from "@/lib/audio-processing";
 import type { TrackProcessingWorkflowPayload } from "@/lib/audio-processing";
+import { resolveListeningAccess } from "@/lib/content-access";
 import {
   buildTrackDetail,
   buildTrackSummary,
@@ -543,6 +544,10 @@ app.openapi(
         messageResponseSchema,
         "Track not found"
       ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Premium access or a purchase is required"
+      ),
       [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
         messageResponseSchema,
         "Database unavailable"
@@ -575,9 +580,42 @@ app.openapi(
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
+    const db = createDb();
+    const [trackPolicy] = await db
+      .select({
+        exclusiveUntil: tracks.exclusiveUntil,
+        isForSale: tracks.isForSale,
+        listeningAccess: tracks.listeningAccess,
+      })
+      .from(tracks)
+      .where(eq(tracks.id, trackId))
+      .limit(1);
+
+    if (!trackPolicy) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const hasPurchase = await hasPurchasedTrack({
+      db,
+      trackId,
+      userId: user.id,
+    });
+    const access = resolveListeningAccess({
+      hasPurchase,
+      isPremium: entitlements.isPremium,
+      policy: trackPolicy,
+    });
+
+    if (!access.canListen) {
+      return c.json(
+        { message: "Premium access or a purchase is required to listen." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
     try {
       const playbackSession = await createTrackPlaybackSession({
-        db: createDb(),
+        db,
         input: {
           city: body.city,
           clientType: body.clientType,
@@ -1121,12 +1159,12 @@ app.openapi(
             catalogItemType: body.catalogItemType,
             createdAt: now,
             description: body.description ?? null,
-            exclusiveUntil: body.exclusiveUntil
-              ? new Date(body.exclusiveUntil)
-              : null,
             downloadsAllowed: body.downloadsAllowed,
             downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
             downloadsRequirePurchase: body.downloadsRequirePurchase,
+            exclusiveUntil: body.exclusiveUntil
+              ? new Date(body.exclusiveUntil)
+              : null,
             genreId,
             id: trackId,
             isForSale: body.isForSale,
@@ -1312,14 +1350,14 @@ app.openapi(
       .set({
         bpm: body.bpm,
         description: body.description,
+        downloadsAllowed: body.downloadsAllowed,
+        downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
+        downloadsRequirePurchase: body.downloadsRequirePurchase,
         exclusiveUntil: body.exclusiveUntil
           ? new Date(body.exclusiveUntil)
           : body.exclusiveUntil === ""
             ? null
             : undefined,
-        downloadsAllowed: body.downloadsAllowed,
-        downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
-        downloadsRequirePurchase: body.downloadsRequirePurchase,
         genreId: updatedGenreId,
         isForSale: body.isForSale,
         isPublic: body.isPublic,
@@ -2147,6 +2185,7 @@ app.openapi(
           downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
           downloadsRequirePurchase: tracks.downloadsRequirePurchase,
           id: tracks.id,
+          isForSale: tracks.isForSale,
           ownerUserId: tracks.ownerUserId,
           title: tracks.title,
         },
@@ -2178,7 +2217,10 @@ app.openapi(
         );
       }
 
-      if (row.track.downloadsRequirePurchase && !hasPurchase) {
+      if (
+        (row.track.isForSale || row.track.downloadsRequirePurchase) &&
+        !hasPurchase
+      ) {
         return c.json(
           { message: "Purchase this track before downloading its files." },
           HttpStatusCodes.FORBIDDEN
@@ -2309,11 +2351,13 @@ app.openapi(
         downloadsAllowed: tracks.downloadsAllowed,
         downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
         downloadsRequirePurchase: tracks.downloadsRequirePurchase,
+        exclusiveUntil: tracks.exclusiveUntil,
         genreName: genres.name,
         id: tracks.id,
         isForSale: tracks.isForSale,
         isVerified: artistProfiles.isVerified,
         isrc: tracks.isrc,
+        listeningAccess: tracks.listeningAccess,
         musicalKey: tracks.musicalKey,
         ownerUserId: tracks.ownerUserId,
         price: tracks.price,
@@ -2347,18 +2391,28 @@ app.openapi(
         .where(eq(trackLicenseOptions.trackId, row.id)),
     ]);
 
-    const purchaseRows = currentUser
-      ? await db
-          .select({ id: purchases.id })
-          .from(purchases)
-          .where(
-            and(
-              eq(purchases.buyerUserId, currentUser.id),
-              eq(purchases.trackId, row.id)
-            )
-          )
-      : [];
-    const isOwned = purchaseRows.length > 0;
+    const isAuthenticated = isAuthenticatedUser(currentUser);
+    const entitlements = isAuthenticated
+      ? await resolveEntitlements({
+          session: isAuthenticatedSession(c.get("session"))
+            ? c.get("session")
+            : null,
+          user: currentUser,
+        })
+      : null;
+    const hasPurchase = isAuthenticated
+      ? await hasPurchasedTrack({
+          db,
+          trackId: row.id,
+          userId: currentUser.id,
+        })
+      : false;
+    const access = resolveListeningAccess({
+      hasPurchase,
+      isPremium: entitlements?.isPremium ?? false,
+      policy: row,
+    });
+    const isOwned = hasPurchase;
 
     const roles: ("musician" | "producer")[] =
       roleRows.length > 0
@@ -2426,8 +2480,9 @@ app.openapi(
         id: row.id,
         isForSale: row.isForSale,
         isOwned,
+        isPreviewAvailable: access.isPreview,
         isPurchasable: row.isForSale,
-        isStreamable: true,
+        isStreamable: access.canListen,
         isrc: row.isrc,
         licenseOptions: licenseRows.map((license) => ({
           currency: license.currency,
@@ -2440,7 +2495,9 @@ app.openapi(
           rightsSummary: license.rightsSummary,
         })),
         musicalKey: row.musicalKey,
-        playbackUrl: publicTrackAssetUrl(firstAudioAsset),
+        playbackUrl: access.canListen
+          ? publicTrackAssetUrl(firstAudioAsset)
+          : null,
         priceCents,
         priceLabel: formatPrice(priceCents),
         purchaseMode: row.purchaseMode,

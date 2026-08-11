@@ -736,6 +736,7 @@ export const trackCatalogDetailSchema = z.object({
   isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
   isPurchasable: z.boolean(),
+  isPreviewAvailable: z.boolean().default(false),
   isStreamable: z.boolean(),
   isrc: z.string().nullable().optional(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
