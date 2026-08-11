@@ -46,6 +46,7 @@ function StreamDetailPage() {
         playerUrl: string | null;
         source: string;
         status: string;
+        visibility: string;
       };
     },
     queryKey: ["live-experience", id],
@@ -65,7 +66,10 @@ function StreamDetailPage() {
   }
 
   return (
-    <LiveRoomAccessGuard roomTitle={room.title}>
+    <LiveRoomAccessGuard
+      allowPublic={experience?.visibility === "public"}
+      roomTitle={room.title}
+    >
       <div className="grid gap-6 pb-8 xl:grid-cols-[minmax(0,1.8fr)_420px]">
         <div className="space-y-6">
           <section className="overflow-hidden rounded-lg border bg-card">
