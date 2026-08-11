@@ -44,7 +44,9 @@ if (!(accountId && apiToken && appId)) {
 }
 
 if (!webhookUrl) {
-  console.error("Missing webhook URL. Pass it as the first positional argument.");
+  console.error(
+    "Missing webhook URL. Pass it as the first positional argument."
+  );
   process.exit(1);
 }
 
@@ -101,7 +103,7 @@ const main = async () => {
         url: webhookUrl,
       }),
       headers,
-      method: "PUT",
+      method: "PATCH",
     });
 
     if (!response.ok) {

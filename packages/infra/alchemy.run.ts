@@ -141,6 +141,30 @@ const mediaUploadToken = await AccountApiToken("media-upload-token", {
   ],
 });
 
+// Storage bucket for RealtimeKit live recordings. Recordings stay private
+// until a live experience is published; the server streams them via R2.
+const recordings = await R2Bucket("recordings", {
+  adopt: shouldAdoptRemoteResources,
+  name: resourceName("soundkit-recordings"),
+});
+
+const recordingsUploadToken = await AccountApiToken("recordings-upload-token", {
+  name: resourceName("soundkit-recordings-upload-token"),
+  policies: [
+    {
+      effect: "allow",
+      permissionGroups: [
+        "Workers R2 Storage Bucket Item Read",
+        "Workers R2 Storage Bucket Item Write",
+      ],
+      resources: {
+        [`com.cloudflare.edge.r2.bucket.${cloudflareAccountId}_${r2Jurisdiction ?? "default"}_${recordings.name}`]:
+          "*",
+      },
+    },
+  ],
+});
+
 const trackProcessingWorkflow = Workflow("track-processing", {
   className: "TrackProcessingWorkflow",
   workflowName: resourceName("soundkit-track-processing"),
@@ -166,6 +190,26 @@ const emailDeliveryQueue = await Queue("email-delivery", {
 const liveRooms = DurableObjectNamespace("live-rooms", {
   className: "LiveRoomDurableObject",
   sqlite: true,
+});
+
+const trackDurationBackfillDeadLetterQueue = await Queue(
+  "track-duration-backfill-dlq",
+  {
+    adopt: shouldAdoptRemoteResources,
+    name: resourceName("soundkit-track-duration-backfill-dlq"),
+    settings: {
+      messageRetentionPeriod: 1_209_600,
+    },
+  }
+);
+
+const trackDurationBackfillQueue = await Queue("track-duration-backfill", {
+  adopt: shouldAdoptRemoteResources,
+  dlq: trackDurationBackfillDeadLetterQueue,
+  name: resourceName("soundkit-track-duration-backfill"),
+  settings: {
+    messageRetentionPeriod: 1_209_600,
+  },
 });
 
 const hyperdrive = await Hyperdrive("hyperdrive", {
@@ -256,6 +300,10 @@ export const server = await Worker("server", {
     LIVE_ROOMS: liveRooms,
     MEDIA_BUCKET: media,
     MEDIA_PUBLIC_URL: MEDIA_URL,
+    RECORDINGS_ACCESS_KEY_ID: recordingsUploadToken.accessKeyId,
+    RECORDINGS_BUCKET: recordings,
+    RECORDINGS_BUCKET_NAME: recordings.name,
+    RECORDINGS_SECRET_ACCESS_KEY: recordingsUploadToken.secretAccessKey,
     MUX_TOKEN_ID: requiredSecret(
       alchemy.secret.env.MUX_TOKEN_ID,
       "MUX_TOKEN_ID"
@@ -295,6 +343,7 @@ export const server = await Worker("server", {
       "STRIPE_WEBHOOK_SECRET"
     ),
     TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
+    TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
     UPLOAD_BUCKET_NAME: media.name,
     ...optionalEnvBinding("ADMIN_EMAILS"),
     ...(r2Jurisdiction ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction } : {}),
@@ -325,6 +374,17 @@ export const server = await Worker("server", {
         maxRetries: 6,
         maxWaitTimeMs: 2500,
         retryDelay: 60,
+      },
+    },
+    {
+      queue: trackDurationBackfillQueue,
+      settings: {
+        batchSize: 10,
+        deadLetterQueue: trackDurationBackfillDeadLetterQueue,
+        maxConcurrency: 5,
+        maxRetries: 5,
+        maxWaitTimeMs: 2500,
+        retryDelay: 30,
       },
     },
   ],

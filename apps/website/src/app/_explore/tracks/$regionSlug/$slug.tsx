@@ -6,6 +6,7 @@ import {
   createShareMeta,
   seoDescription,
   seoImageUrl,
+  seoOgDescription,
 } from "@/lib/seo";
 import { loadPublicTrackSeo } from "@/lib/seo-data";
 import type { TrackSeoData } from "@/lib/seo-data";
@@ -21,14 +22,24 @@ export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
     const trackTitle = track?.title ?? "Track";
     const artistName = track?.artist.name ?? "SoundKit artist";
     const title = `Stream ${trackTitle} by ${artistName} on SoundKit`;
-    const description = seoDescription(
+    const artistUrl = absoluteSiteUrl(`/artist/${track?.artist.handle ?? "artist"}`);
+    const genre = track?.genre ? `${track.genre} track` : "track";
+    const descriptionFallback = `Play ${trackTitle} by ${artistName} on SoundKit.`;
+    const description = seoDescription(track?.description, descriptionFallback);
+    const ogDescription = seoOgDescription(
       track?.description,
-      `Play ${trackTitle} by ${artistName} on SoundKit.`
+      `Play ${trackTitle} by ${artistName} on SoundKit — a ${genre} you can stream right now.`
     );
     const head = createShareMeta({
       canonicalPath,
       description,
       imageUrl: track?.coverArtUrl,
+      ogDescription,
+      song: {
+        audioUrl: track?.playbackUrl,
+        durationMs: track?.durationMs,
+        musicianUrl: artistUrl,
+      },
       title,
       type: "music.song",
     });
@@ -44,8 +55,12 @@ export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
                 byArtist: {
                   "@type": "MusicGroup",
                   name: artistName,
-                  url: absoluteSiteUrl(`/artist/${track.artist.handle}`),
+                  url: artistUrl,
                 },
+                duration:
+                  track.durationMs != null
+                    ? `PT${Math.round(track.durationMs / 1000)}S`
+                    : undefined,
                 image: seoImageUrl(track.coverArtUrl),
                 name: trackTitle,
                 url: absoluteSiteUrl(canonicalPath),

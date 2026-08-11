@@ -1,11 +1,27 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { trackAssets, tracks } from "@soundkit/db/schema/app";
+import { trackAssets, tracks, workflowJobs } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+
+import { logWarn } from "@/middleware/structured-logging";
+
+export interface DurationBackfillQueueMessage {
+  assetId: string;
+  objectKey: string;
+  trackId: string;
+}
+
+const DURATION_BACKFILL_JOB_TYPE = "track_duration_backfill";
 
 const getMediaBucket = () =>
   (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null;
+
+const getRetryDelaySeconds = (attempts: number) =>
+  Math.min(15 * 2 ** Math.max(0, attempts - 1), 60 * 60);
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
 
 export const readAudioDurationMs = async (blob: Blob) => {
   const {
@@ -200,5 +216,263 @@ export const backfillMissingTrackDurations = async ({
     renamedCoverArt: coverArtResult.renamed,
     scanned: rows.length + coverArtResult.scanned,
     updated,
+  };
+};
+
+const findUnbackfilledMasterRows = async ({
+  db,
+  limit,
+  trackIds,
+}: {
+  db: ReturnType<typeof createDb>;
+  limit: number;
+  trackIds?: string[];
+}) => {
+  const whereClauses: SQL[] = [
+    eq(trackAssets.assetKind, "master"),
+    eq(trackAssets.storageProvider, "r2"),
+    isNotNull(trackAssets.objectKey),
+    isNull(trackAssets.durationMs),
+    isNull(workflowJobs.id),
+    trackIds && trackIds.length > 0
+      ? inArray(trackAssets.trackId, trackIds)
+      : undefined,
+  ].filter((clause): clause is SQL => clause !== undefined);
+
+  return db
+    .select({
+      assetId: trackAssets.id,
+      objectKey: trackAssets.objectKey!,
+      trackId: trackAssets.trackId,
+    })
+    .from(trackAssets)
+    .leftJoin(
+      workflowJobs,
+      and(
+        eq(workflowJobs.targetId, trackAssets.id),
+        eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
+      )
+    )
+    .where(and(...whereClauses))
+    .limit(Math.max(1, Math.min(limit, 500)));
+};
+
+export const enqueueTrackDurationBackfills = async ({
+  limit = 100,
+  queue,
+  trackIds,
+}: {
+  limit?: number;
+  queue?: Queue<DurationBackfillQueueMessage> | null;
+  trackIds?: string[];
+} = {}) => {
+  if (!(isDatabaseConfigured() && queue)) {
+    return { enqueued: 0, scanned: 0 };
+  }
+
+  const db = createDb();
+  const rows = await findUnbackfilledMasterRows({ db, limit, trackIds });
+
+  let enqueued = 0;
+
+  for (const row of rows) {
+    if (!row.objectKey) {
+      continue;
+    }
+
+    const [existingJob] = await db
+      .select()
+      .from(workflowJobs)
+      .where(
+        and(
+          eq(workflowJobs.targetId, row.assetId),
+          eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
+        )
+      )
+      .limit(1);
+
+    if (existingJob) {
+      continue;
+    }
+
+    const jobId = crypto.randomUUID();
+
+    await db.insert(workflowJobs).values({
+      id: jobId,
+      input: row,
+      jobType: DURATION_BACKFILL_JOB_TYPE,
+      targetId: row.assetId,
+      targetType: "track_asset",
+    });
+
+    try {
+      await queue.send(
+        { assetId: row.assetId, objectKey: row.objectKey, trackId: row.trackId },
+        { contentType: "json" }
+      );
+      enqueued += 1;
+    } catch (error) {
+      await db.delete(workflowJobs).where(eq(workflowJobs.id, jobId));
+      logWarn({
+        assetId: row.assetId,
+        error: getErrorMessage(error),
+        event: "track_duration_backfill_enqueue_failed",
+        trackId: row.trackId,
+      });
+      continue;
+    }
+  }
+
+  return { enqueued, scanned: rows.length };
+};
+
+const processDurationBackfill = async ({
+  assetId,
+  objectKey,
+  trackId,
+}: DurationBackfillQueueMessage) => {
+  if (!isDatabaseConfigured()) {
+    return { processed: false, retryable: true };
+  }
+
+  const db = createDb();
+  const [job] = await db
+    .select()
+    .from(workflowJobs)
+    .where(
+      and(
+        eq(workflowJobs.targetId, assetId),
+        eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
+      )
+    )
+    .limit(1);
+
+  if (!job || job.status === "completed" || job.status === "canceled") {
+    return { processed: true, retryable: false };
+  }
+
+  await db
+    .update(workflowJobs)
+    .set({
+      error: null,
+      scheduledAt: null,
+      startedAt: new Date(),
+      status: "running",
+    })
+    .where(eq(workflowJobs.id, job.id));
+
+  try {
+    const durationMs = await readR2AudioDurationMs(objectKey);
+
+    if (durationMs === null) {
+      await db
+        .update(workflowJobs)
+        .set({
+          error: {
+            message: "duration_unreadable",
+            retryable: true,
+          },
+          scheduledAt: new Date(
+            Date.now() +
+              getRetryDelaySeconds(
+                (job.input as { attempts?: number } | null)?.attempts ?? 0
+              ) *
+                1000
+          ),
+          status: "failed",
+        })
+        .where(eq(workflowJobs.id, job.id));
+
+      return { processed: false, retryable: true };
+    }
+
+    await db
+      .update(trackAssets)
+      .set({ durationMs, updatedAt: new Date() })
+      .where(eq(trackAssets.id, assetId));
+    await db
+      .update(workflowJobs)
+      .set({
+        finishedAt: new Date(),
+        output: { durationMs },
+        status: "completed",
+      })
+      .where(eq(workflowJobs.id, job.id));
+
+    return { processed: true, retryable: false };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    await db
+      .update(workflowJobs)
+      .set({
+        error: {
+          message,
+          retryable: true,
+        },
+        scheduledAt: new Date(
+          Date.now() +
+            getRetryDelaySeconds(
+              (job.input as { attempts?: number } | null)?.attempts ?? 0
+            ) *
+              1000
+        ),
+        status: "failed",
+      })
+      .where(eq(workflowJobs.id, job.id));
+
+    logWarn({
+      assetId,
+      error: message,
+      event: "track_duration_backfill_failed",
+      trackId,
+    });
+
+    return { processed: false, retryable: true };
+  }
+};
+
+export const handleTrackDurationBackfillQueue = async (
+  batch: MessageBatch<DurationBackfillQueueMessage>
+) => {
+  for (const message of batch.messages) {
+    const result = await processDurationBackfill(message.body);
+
+    if (result.processed || !result.retryable) {
+      message.ack();
+      continue;
+    }
+
+    message.retry({
+      delaySeconds: getRetryDelaySeconds(message.attempts + 1),
+    });
+  }
+};
+
+export const loadTrackDurationBackfillStatus = async () => {
+  if (!isDatabaseConfigured()) {
+    return { done: 0, failed: 0, processing: 0, queued: 0 };
+  }
+
+  const db = createDb();
+  const rows = await db
+    .select({
+      status: workflowJobs.status,
+      value: count(),
+    })
+    .from(workflowJobs)
+    .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE))
+    .groupBy(workflowJobs.status);
+
+  const summary: Record<string, number> = {};
+
+  for (const row of rows) {
+    summary[row.status] = row.value;
+  }
+
+  return {
+    done: summary.completed ?? 0,
+    failed: summary.failed ?? 0,
+    processing: (summary.running ?? 0) + (summary.waiting ?? 0),
+    queued: summary.queued ?? 0,
   };
 };

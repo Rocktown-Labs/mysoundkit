@@ -19,7 +19,7 @@ import {
   UserRoundCog,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -69,8 +69,10 @@ import {
   useAdminOverviewQuery,
   useAdminPaymentsQuery,
   useAdminSettingsQuery,
+  useBackfillTrackDurationsMutation,
   useImportStripePlanMutation,
   useSyncStripePlansMutation,
+  useTrackDurationBackfillStatusQuery,
   useUpdateAdminSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
 
@@ -379,6 +381,69 @@ function AdsPanel() {
 
 function OverviewPanel() {
   const { data, error, isLoading } = useAdminOverviewQuery();
+  const backfillDurations = useBackfillTrackDurationsMutation();
+  const [backfillStarted, setBackfillStarted] = useState(false);
+  const completionHandledRef = useRef(false);
+  const backfillStatus = useTrackDurationBackfillStatusQuery(
+    backfillStarted || data?.operations.tracksMissingDuration > 0
+  );
+
+  useEffect(() => {
+    if (
+      !backfillStarted ||
+      completionHandledRef.current ||
+      !backfillStatus.data
+    ) {
+      return;
+    }
+
+    const { done, failed, processing, queued } = backfillStatus.data;
+    const inFlight = processing + queued;
+
+    if (inFlight > 0) {
+      return;
+    }
+
+    completionHandledRef.current = true;
+    setBackfillStarted(false);
+    toast({
+      description:
+        `Backfill finished · ${done} done${failed > 0 ? ` · ${failed} failed` : ""}.`,
+      title: "Track durations backfilled",
+    });
+  }, [backfillStarted, backfillStatus.data]);
+
+  const handleBackfillDurations = () => {
+    backfillDurations.mutate(
+      { limit: 500 },
+      {
+        onError: (backfillError) => {
+          toast({
+            description: backfillError.message,
+            title: "Duration backfill failed",
+            variant: "destructive",
+          });
+        },
+        onSuccess: (result) => {
+          if (result.enqueued === 0) {
+            completionHandledRef.current = true;
+            toast({
+              description: "All tracked durations are already known.",
+              title: "Nothing to backfill",
+            });
+            return;
+          }
+
+          completionHandledRef.current = false;
+          setBackfillStarted(true);
+          toast({
+            description: `Queued ${result.enqueued} track${result.enqueued === 1 ? "" : "s"} for duration detection in the background.`,
+            title: "Backfill queued",
+          });
+        },
+      }
+    );
+  };
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading overview...</p>;
@@ -457,6 +522,10 @@ function OverviewPanel() {
               label="Listening parties"
               value={data.content.listeningParties}
             />
+            <MetricRow
+              label="Missing durations"
+              value={data.operations.tracksMissingDuration}
+            />
           </CardContent>
         </Card>
         <Card>
@@ -477,6 +546,51 @@ function OverviewPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {data.operations.tracksMissingDuration > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TriangleAlert className="size-4 text-amber-500" />
+                Missing track durations
+              </CardTitle>
+              <CardDescription>
+                {data.operations.tracksMissingDuration.toLocaleString()}{" "}
+                uploaded track{data.operations.tracksMissingDuration === 1 ? "" : "s"} have no duration
+                yet. Backfill reads each file in R2 to detect playback length in
+                the background.
+                {backfillStarted && backfillStatus.data ? (
+                  <span className="mt-1 block">
+                    {backfillStatus.data.queued + backfillStatus.data.processing}{" "}
+                    queued · {backfillStatus.data.processing} processing ·{" "}
+                    {backfillStatus.data.done} done · {backfillStatus.data.failed} failed
+                  </span>
+                ) : null}
+              </CardDescription>
+            </div>
+            <Button
+              disabled={
+                backfillDurations.isPending ||
+                (backfillStarted && (backfillStatus.data?.queued ?? 0) > 0)
+              }
+              onClick={handleBackfillDurations}
+              size="sm"
+            >
+              {backfillDurations.isPending || backfillStarted ? (
+                <RefreshCw className="mr-2 size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 size-4" />
+              )}
+              {backfillDurations.isPending
+                ? "Backfilling..."
+                : backfillStarted
+                  ? "Backfill running..."
+                  : "Backfill durations"}
+            </Button>
+          </CardHeader>
+        </Card>
+      )}
     </div>
   );
 }

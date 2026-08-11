@@ -7,7 +7,9 @@
     "deploy": "alchemy deploy --stage prod",
     "deploy:stage": "alchemy deploy",
     "destroy": "alchemy destroy --stage prod",
-    "destroy:stage": "alchemy destroy"
+    "destroy:stage": "alchemy destroy",
+    "realtimekit:presets": "bun realtimekit-presets.ts",
+    "realtimekit:presets:dry-run": "bun realtimekit-presets.ts --dry-run"
   },
   "dependencies": {
     "dotenv": "catalog:",

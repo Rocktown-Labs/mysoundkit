@@ -36,6 +36,7 @@ export const adminOverviewSchema = z.object({
     readyVideos: z.number().int(),
     releasedProjects: z.number().int(),
     scheduledListeningParties: z.number().int(),
+    tracksMissingDuration: z.number().int(),
   }),
   people: z.object({
     admins: z.number().int(),
@@ -44,6 +45,23 @@ export const adminOverviewSchema = z.object({
     fans: z.number().int(),
     users: z.number().int(),
   }),
+});
+
+export const backfillTrackDurationsBodySchema = z.object({
+  limit: z.number().int().positive().max(500).default(100),
+  trackIds: z.array(z.string().min(1)).default([]),
+});
+
+export const backfillTrackDurationsResponseSchema = z.object({
+  enqueued: z.number().int().nonnegative(),
+  scanned: z.number().int().nonnegative(),
+});
+
+export const trackDurationBackfillStatusSchema = z.object({
+  done: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  processing: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
 });
 
 export const adminFinanceSummarySchema = z.object({
@@ -712,6 +730,7 @@ export const trackCatalogDetailSchema = z.object({
   downloadsRequireFirstPlay: z.boolean().default(false).optional(),
   downloadsRequirePurchase: z.boolean().default(true).optional(),
   duration: z.string().nullable().optional(),
+  durationMs: z.number().int().nonnegative().nullable().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
   isForSale: z.boolean().default(false),

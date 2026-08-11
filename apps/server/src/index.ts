@@ -13,6 +13,10 @@ import { runBattleServiceSweep } from "@/lib/battle-service";
 import { handleEmailDeliveryQueue } from "@/lib/email-delivery";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
+import { publishDueLiveRecordings } from "@/lib/live-experience-events";
+import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
+import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
+import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
@@ -162,6 +166,7 @@ app.get("/health", async (c) =>
       hyperdrive: hasEnvValue("HYPERDRIVE"),
       liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
+      trackDurationBackfillQueue: hasEnvValue("TRACK_DURATION_BACKFILL_QUEUE"),
       trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
       uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),
     },
@@ -218,15 +223,25 @@ export type { AppType } from "./rpc-contract";
 export default {
   fetch: (request, workerEnv, executionContext) =>
     app.fetch(request, workerEnv, executionContext),
-  queue: (batch) =>
-    handleEmailDeliveryQueue(
+  queue: (batch) => {
+    if (isTrackDurationBackfillQueueName(batch.queue)) {
+      return handleTrackDurationBackfillQueue(
+        batch as unknown as MessageBatch<DurationBackfillQueueMessage>
+      );
+    }
+
+    return handleEmailDeliveryQueue(
       batch as unknown as MessageBatch<EmailDeliveryQueueMessage>
-    ),
+    );
+  },
   scheduled: (_controller, workerEnv, executionContext) => {
     executionContext.waitUntil(
-      runBattleServiceSweep({
-        emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
-      })
+      Promise.allSettled([
+        runBattleServiceSweep({
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        publishDueLiveRecordings(),
+      ])
     );
   },
 } satisfies ExportedHandler<AppEnv["Bindings"]>;

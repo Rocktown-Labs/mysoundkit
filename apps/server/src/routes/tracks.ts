@@ -2411,6 +2411,7 @@ app.openapi(
         downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
         downloadsRequirePurchase: row.downloadsRequirePurchase,
         duration: formatDuration(firstAudioAsset?.durationMs ?? null),
+        durationMs: firstAudioAsset?.durationMs ?? null,
         genre: row.genreName ? canonicalGenreName(row.genreName) : null,
         id: row.id,
         isForSale: row.isForSale,

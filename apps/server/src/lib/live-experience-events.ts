@@ -8,11 +8,14 @@ import {
   tracks,
   userNotifications,
   videos,
+  workflowJobs,
 } from "@soundkit/db/schema/app";
 import { member, subscription } from "@soundkit/db/schema/auth";
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { env } from "@soundkit/env/server";
+import { and, asc, eq, inArray, lte, or } from "drizzle-orm";
 
 import type { LiveExperienceKind } from "@/lib/live-experience";
+import { logWarn } from "@/middleware/structured-logging";
 
 export const BATTLE_RECORD_THRESHOLD_VIEWERS = 10;
 
@@ -418,13 +421,62 @@ export const applyRecordingStatusUpdate = async (
     .returning();
 
   if (updated && downloadUrl) {
-    await publishExperienceRecordingAsVideo({
+    await scheduleLiveRecordingPublish({
       experience: updated,
       recordingUrl: downloadUrl,
     });
   }
 
   return "processed" as const;
+};
+
+const LIVE_RECORDING_PUBLISH_JOB_TYPE = "live_recording_publish";
+const LIVE_RECORDING_PUBLISH_DELAY_MS = 60 * 60 * 1000;
+const LIVE_RECORDING_RETRY_DELAY_MS = 5 * 60 * 1000;
+
+export const scheduleLiveRecordingPublish = async ({
+  experience,
+  recordingUrl,
+}: {
+  experience: {
+    id: string;
+  };
+  recordingUrl: string;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const db = createDb();
+  const [existing] = await db
+    .select({ id: workflowJobs.id })
+    .from(workflowJobs)
+    .where(
+      and(
+        eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
+        eq(workflowJobs.targetId, experience.id),
+        inArray(workflowJobs.status, ["queued", "running"])
+      )
+    )
+    .limit(1);
+
+  if (existing) {
+    return null;
+  }
+
+  const [job] = await db
+    .insert(workflowJobs)
+    .values({
+      id: crypto.randomUUID(),
+      input: { recordingUrl },
+      jobType: LIVE_RECORDING_PUBLISH_JOB_TYPE,
+      scheduledAt: new Date(Date.now() + LIVE_RECORDING_PUBLISH_DELAY_MS),
+      targetId: experience.id,
+      targetType: "live_experience",
+    })
+    .returning();
+
+  return job?.id ?? null;
 };
 
 export const applyChatSyncedEvent = async (
@@ -737,10 +789,15 @@ export const publishExperienceRecordingAsVideo = async ({
   const videoId = `video_live_${experience.id}`;
   const slug = `live-${experience.kind}-${experience.id.replaceAll("_", "-")}`;
 
+  const playbackUrl = await copyRecordingToPublicMedia({
+    experienceId: experience.id,
+    sourceUrl: recordingUrl,
+  });
+
   await db
     .insert(videos)
     .values({
-      externalPlaybackUrl: recordingUrl,
+      externalPlaybackUrl: playbackUrl ?? recordingUrl,
       id: videoId,
       isPublic: true,
       ownerUserId: experience.createdByUserId,
@@ -763,6 +820,146 @@ export const publishExperienceRecordingAsVideo = async ({
   }
 
   return videoId;
+};
+
+const getRecordingMediaHelpers = () => ({
+  bucket:
+    (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+  publicUrl:
+    (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined }).MEDIA_PUBLIC_URL ??
+    (env as unknown as { VITE_MEDIA_URL?: string | undefined }).VITE_MEDIA_URL ??
+    "",
+});
+
+const copyRecordingToPublicMedia = async ({
+  experienceId,
+  sourceUrl,
+}: {
+  experienceId: string;
+  sourceUrl: string;
+}) => {
+  const { bucket, publicUrl } = getRecordingMediaHelpers();
+
+  if (!bucket) {
+    return null;
+  }
+
+  const extension = /\.(mp4|mov|webm|mkv|m4v)(?:$|[?#])/iu.test(sourceUrl)
+    ? "mp4"
+    : "mp3";
+  const objectKey = `live-recordings/${experienceId}/recording.${extension}`;
+
+  try {
+    const response = await fetch(sourceUrl);
+
+    if (!response.ok || !response.body) {
+      return null;
+    }
+
+    await bucket.put(objectKey, response.body, {
+      httpMetadata: {
+        contentType:
+          extension === "mp4" ? "video/mp4" : "audio/mpeg",
+      },
+    });
+
+    return `${publicUrl.replace(/\/+$/u, "")}/${objectKey}`;
+  } catch {
+    return null;
+  }
+};
+
+export const publishDueLiveRecordings = async ({
+  limit = 10,
+  now = new Date(),
+}: {
+  limit?: number;
+  now?: Date;
+} = {}) => {
+  if (!isDatabaseConfigured()) {
+    return { done: 0, failed: 0, skipped: true };
+  }
+
+  const db = createDb();
+  const jobs = await db
+    .select()
+    .from(workflowJobs)
+    .where(
+      and(
+        eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
+        inArray(workflowJobs.status, ["queued", "running"]),
+        lte(workflowJobs.scheduledAt, now)
+      )
+    )
+    .limit(Math.max(1, Math.min(limit, 50)));
+
+  let done = 0;
+  let failed = 0;
+
+  for (const job of jobs) {
+    const input = (job.input ?? {}) as { recordingUrl?: string };
+    const experience = await loadLiveExperienceById(job.targetId);
+
+    if (!experience || !input.recordingUrl) {
+      await db
+        .update(workflowJobs)
+        .set({
+          error: { message: "experience_or_url_missing" },
+          finishedAt: new Date(),
+          status: "failed",
+        })
+        .where(eq(workflowJobs.id, job.id));
+      failed += 1;
+      continue;
+    }
+
+    await db
+      .update(workflowJobs)
+      .set({ error: null, status: "running" })
+      .where(eq(workflowJobs.id, job.id));
+
+    try {
+      const videoId = await publishExperienceRecordingAsVideo({
+        experience,
+        recordingUrl: input.recordingUrl,
+      });
+
+      if (!videoId) {
+        throw new Error("Recording copy or publish failed.");
+      }
+
+      await db
+        .update(workflowJobs)
+        .set({
+          finishedAt: new Date(),
+          output: { videoId },
+          status: "completed",
+        })
+        .where(eq(workflowJobs.id, job.id));
+      done += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await db
+        .update(workflowJobs)
+        .set({
+          error: { message },
+          scheduledAt: new Date(Date.now() + LIVE_RECORDING_RETRY_DELAY_MS),
+          startedAt: null,
+          status: "queued",
+        })
+        .where(eq(workflowJobs.id, job.id));
+
+      logWarn({
+        error: message,
+        event: "live_recording_publish_failed",
+        jobId: job.id,
+        targetId: job.targetId,
+      });
+      failed += 1;
+    }
+  }
+
+  return { done, failed, skipped: false };
 };
 
 export const isRealtimeKitWebhookEvent = (

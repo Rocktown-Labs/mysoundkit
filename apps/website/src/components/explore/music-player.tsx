@@ -1097,17 +1097,17 @@ export function MusicPlayer() {
 
   if (currentTrack && isMiniPlayer) {
     playerUi = (
-      <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 items-center gap-2 rounded-full border border-border/60 bg-background/95 px-3 py-2 shadow-2xl backdrop-blur transition-all duration-300 supports-[backdrop-filter]:bg-background/80 lg:bottom-4 lg:gap-3 lg:px-4">
+      <div className="fixed right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] left-3 z-40 flex min-h-[4.75rem] items-center gap-3 rounded-[2rem] border border-border/60 bg-background/95 px-3 py-2 shadow-2xl backdrop-blur transition-[right,left,bottom,transform] duration-300 supports-[backdrop-filter]:bg-background/80 sm:right-auto sm:left-1/2 sm:min-h-0 sm:max-w-[calc(100vw-1rem)] sm:-translate-x-1/2 sm:rounded-full lg:bottom-4 lg:gap-3 lg:px-4">
         <AppImage
           alt={currentTrack.title}
-          className="size-9 animate-spin-slow rounded-full object-cover"
-          height={36}
+          className="size-12 animate-spin-slow rounded-full object-cover sm:size-9"
+          height={48}
           layout="fixed"
           src={currentTrack.cover || "/placeholder.svg"}
-          width={36}
+          width={48}
           key={`mini-${currentTrack.id}-${currentTrack.cover ?? "cover"}`}
         />
-        <div className="max-w-[160px] truncate text-xs leading-tight">
+        <div className="min-w-0 flex-1 text-sm leading-tight sm:max-w-[160px] sm:text-xs">
           <PlayerRouteLink
             className="block truncate font-semibold transition-colors hover:text-primary"
             href={currentTrack.trackHref}
@@ -1121,10 +1121,10 @@ export function MusicPlayer() {
             {currentTrack.artist}
           </PlayerRouteLink>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
           <Button
             aria-label="Play or Pause"
-            className="size-7"
+            className="size-8 sm:size-7"
             onClick={handlePlayPause}
             size="icon"
             variant="ghost"
@@ -1137,19 +1137,19 @@ export function MusicPlayer() {
           </Button>
           <Button
             aria-label="Next track"
-            className="size-7"
+            className="hidden size-7 sm:inline-flex"
             onClick={handleNext}
             size="icon"
             variant="ghost"
           >
             <SkipForward className="size-3.5" />
           </Button>
-          {queueSheet}
+          <div className="hidden min-[380px]:block">{queueSheet}</div>
           <div className="hidden sm:block">{deviceButton}</div>
-          {volumeMenu}
+          <div className="hidden sm:block">{volumeMenu}</div>
           <Button
             aria-label="Expand player"
-            className="size-7"
+            className="size-8 sm:size-7"
             onClick={() => setIsMiniPlayer(false)}
             size="icon"
             variant="ghost"
@@ -1158,7 +1158,7 @@ export function MusicPlayer() {
           </Button>
           <Button
             aria-label="Close player"
-            className="size-7 text-muted-foreground hover:text-destructive"
+            className="size-8 text-muted-foreground hover:text-destructive sm:size-7"
             onClick={handleClose}
             size="icon"
             variant="ghost"
@@ -1194,24 +1194,24 @@ export function MusicPlayer() {
           </Button>
         </div>
 
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
-            <div className="flex items-center gap-3 lg:w-1/4">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+            <div className="flex min-w-0 items-center gap-3 pr-16 lg:w-1/4 lg:pr-0">
               <AppImage
                 alt={activeAd?.title ?? currentTrack.title}
-                className="rounded"
-                height={48}
+                className="rounded-md"
+                height={56}
                 layout="fixed"
                 src={
                   activeAd?.imageUrl || currentTrack.cover || "/placeholder.svg"
                 }
-                width={48}
+                width={56}
                 key={`full-${activeAd?.campaignId ?? currentTrack.id}-${activeAd?.imageUrl ?? currentTrack.cover ?? "cover"}`}
               />
               <div className="min-w-0 flex-1">
                 {activeAd ? (
                   <a
-                    className="block truncate text-sm font-medium transition-colors hover:text-primary"
+                    className="block truncate font-medium text-base transition-colors hover:text-primary lg:text-sm"
                     href={activeAd.clickthroughUrl}
                     onClick={() => sendAdEvent(activeAd.campaignId, "click")}
                     rel="noopener noreferrer"
@@ -1221,13 +1221,13 @@ export function MusicPlayer() {
                   </a>
                 ) : (
                   <PlayerRouteLink
-                    className="block truncate text-sm font-medium transition-colors hover:text-primary"
+                    className="block truncate font-medium text-base transition-colors hover:text-primary lg:text-sm"
                     href={currentTrack.trackHref}
                   >
                     {currentTrack.title}
                   </PlayerRouteLink>
                 )}
-                <p className="block truncate text-xs text-muted-foreground">
+                <p className="mt-0.5 block truncate text-muted-foreground text-sm lg:text-xs">
                   {activeAd ? (
                     "Sponsored audio"
                   ) : (
@@ -1242,7 +1242,7 @@ export function MusicPlayer() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 lg:w-1/2">
+            <div className="flex flex-col gap-3 lg:w-1/2">
               <div className="flex items-center justify-center gap-2">
                 <Button
                   className="size-8"
