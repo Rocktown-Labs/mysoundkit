@@ -15,7 +15,7 @@ import {
   Users,
   Video,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
 import { Badge } from "@/components/ui/badge";
@@ -221,7 +221,60 @@ function DashboardLiveStreamsPage() {
     }
   };
 
-  const handleEndStream = () => {
+  const activeStreamId = activeStream?.id;
+
+  useEffect(() => {
+    if (!(activeStreamId && source === "obs")) {
+      return;
+    }
+
+    const refreshTimer = window.setInterval(() => {
+      void (async () => {
+        const response = await apiClient.v1.live["cloudflare-stream"][
+          ":streamId"
+        ].$get({
+          param: { streamId: activeStreamId },
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const stream = await response.json();
+        setActiveStream((current) => {
+          if (!current) {
+            return current;
+          }
+          const updated = { ...current, status: stream.status };
+          localStorage.setItem(
+            "soundkit_active_creator_stream",
+            JSON.stringify(updated)
+          );
+          return updated;
+        });
+      })().catch(() => {
+        // Status polling is best effort; the manual refresh remains available.
+      });
+    }, 5_000);
+
+    return () => window.clearInterval(refreshTimer);
+  }, [activeStreamId, source]);
+
+  const handleEndStream = async () => {
+    if (activeStream?.source === "obs") {
+      try {
+        await apiClient.v1.live["cloudflare-stream"][":streamId"].$delete({
+          param: { streamId: activeStream.id },
+        });
+      } catch {
+        toast({
+          description:
+            "The local stream was cleared, but Cloudflare could not be stopped. Refresh the status and try again.",
+          title: "Stream stop incomplete",
+          variant: "destructive",
+        });
+      }
+    }
+
     setActiveStream(null);
     localStorage.removeItem("soundkit_active_creator_stream");
     toast({
@@ -384,17 +437,18 @@ function DashboardLiveStreamsPage() {
                             htmlFor="stream-source-browser"
                           >
                             <RadioGroupItem
+                              disabled
                               id="stream-source-browser"
                               value="browser"
                             />
                             <span>
-                              <span className="flex items-center gap-2 font-medium">
-                                <Video className="size-4 text-primary" />
-                                Browser camera
+                              <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                                <Video className="size-4" />
+                                Browser camera (coming soon)
                               </span>
                               <span className="mt-1 block text-muted-foreground text-sm">
-                                Join directly from browser with camera &amp; mic
-                                setup.
+                                Browser broadcasting will use the RealtimeKit
+                                host studio once the web SDK is connected.
                               </span>
                             </span>
                           </label>
