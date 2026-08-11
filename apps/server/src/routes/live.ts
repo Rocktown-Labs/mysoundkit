@@ -1067,16 +1067,19 @@ app.get("/experiences/:experienceId", async (c) => {
   }
 
   const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
-  const playbackUrl =
+  const streamBaseUrl =
     experience.streamInputId && customerCode
-      ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}/manifest/video.m3u8`
+      ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}`
       : null;
+  const playbackUrl = streamBaseUrl ? `${streamBaseUrl}/manifest/video.m3u8` : null;
+  const playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
 
   return c.json(
     {
       id: experience.id,
       kind: experience.kind,
       playbackUrl,
+      playerUrl,
       source: experience.source,
       status: experience.status,
       streamInputId: experience.streamInputId,
