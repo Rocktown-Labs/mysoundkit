@@ -155,8 +155,19 @@ const liveExperienceResponseSchema = z
     experience: liveExperienceSummarySchema,
     lock: z.object({}).passthrough(),
     notifications: z.array(z.object({}).passthrough()),
-    realtime: z.object({}).passthrough(),
-    streamInput: z.unknown().nullable(),
+    realtime: z.object({ id: z.string() }).passthrough(),
+    streamInput: z
+      .object({
+        id: z.string(),
+        playbackUrl: z.string(),
+        rtmpsKey: z.string(),
+        rtmpsUrl: z.string(),
+        srtKey: z.string(),
+        srtUrl: z.string(),
+        status: z.string(),
+        title: z.string(),
+      })
+      .nullable(),
   })
   .passthrough();
 
@@ -507,6 +518,9 @@ export const rpcContract = new Hono()
           title: string;
         }
       )
+  )
+  .delete("/v1/live/cloudflare-stream/:streamId", (c) =>
+    c.json({ message: "Cloudflare Stream input stopped." })
   )
   .get("/v1/live/cloudflare-stream/:streamId", (c) =>
     c.json(

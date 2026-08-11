@@ -1262,7 +1262,8 @@ app.post("/cloudflare-stream", async (c) => {
   const title = body.title || "Live Stream";
 
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = c.env.CLOUDFLARE_API_TOKEN;
+  const apiToken =
+    c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (accountId && apiToken) {
     try {
@@ -1285,6 +1286,51 @@ app.post("/cloudflare-stream", async (c) => {
   );
 });
 
+app.delete("/cloudflare-stream/:streamId", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  const streamId = c.req.param("streamId");
+  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken =
+    c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
+
+  if (!(accountId && apiToken)) {
+    return c.json(
+      cloudflareStreamSetupRequired,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${streamId}`,
+    {
+      body: JSON.stringify({ enabled: false }),
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "PUT",
+    }
+  );
+
+  if (!response.ok) {
+    logCloudflareApiFailure({
+      body: await readResponseSnippet(response),
+      label: "Cloudflare Stream live input shutdown failed",
+      response,
+    });
+    return c.json(
+      { message: "Unable to stop the Cloudflare Stream input." },
+      HttpStatusCodes.BAD_GATEWAY
+    );
+  }
+
+  return c.json({ message: "Cloudflare Stream input stopped." }, HttpStatusCodes.OK);
+});
+
 app.get("/cloudflare-stream/:streamId", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
@@ -1293,7 +1339,8 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
 
   const streamId = c.req.param("streamId");
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = c.env.CLOUDFLARE_API_TOKEN;
+  const apiToken =
+    c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (accountId && apiToken) {
     try {
