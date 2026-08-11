@@ -1345,6 +1345,13 @@ app.openapi(
       }
     }
 
+    let exclusiveUntil: Date | null | undefined;
+    if (body.exclusiveUntil === "") {
+      exclusiveUntil = null;
+    } else if (body.exclusiveUntil) {
+      exclusiveUntil = new Date(body.exclusiveUntil);
+    }
+
     const [track] = await db
       .update(tracks)
       .set({
@@ -1353,11 +1360,7 @@ app.openapi(
         downloadsAllowed: body.downloadsAllowed,
         downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
         downloadsRequirePurchase: body.downloadsRequirePurchase,
-        exclusiveUntil: body.exclusiveUntil
-          ? new Date(body.exclusiveUntil)
-          : body.exclusiveUntil === ""
-            ? null
-            : undefined,
+        exclusiveUntil,
         genreId: updatedGenreId,
         isForSale: body.isForSale,
         isPublic: body.isPublic,

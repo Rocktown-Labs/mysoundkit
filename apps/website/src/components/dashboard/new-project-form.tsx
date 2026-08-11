@@ -25,8 +25,8 @@ import {
   Info,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { useFieldArray, useForm } from 'react-hook-form';
-import type { FieldErrors } from 'react-hook-form';
+import { useFieldArray, useForm } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
 
 const SUPPORTED_GENRES = [
@@ -138,10 +138,13 @@ const collaboratorSchema = z.preprocess(
 const projectFormSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
   description: z.string().optional(),
+  exclusiveUntil: z.string().optional(),
   genre: z
     .string()
     .min(1, "Project primary genre is required")
     .default("R&B/Soul"),
+  isForSale: z.boolean().default(false),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   name: z.string().min(2, "Project name is required"),
   newTracks: z
     .array(
@@ -177,7 +180,10 @@ const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
 const defaultProjectFormValues: ProjectFormValues = {
   collaborators: [],
   description: "",
+  exclusiveUntil: "",
   genre: "Hip-Hop/Rap",
+  isForSale: false,
+  listeningAccess: "public",
   name: "",
   newTracks: [],
   projectCoverObjectKey: "",
@@ -417,7 +423,13 @@ export function NewProjectForm({
         userId: (collaborator.userId as string) || undefined,
       })),
       description: (initialProject.description as string) ?? "",
+      exclusiveUntil: (initialProject.exclusiveUntil as string) ?? "",
       genre: firstGenre as string,
+      isForSale: Boolean(initialProject.isForSale),
+      listeningAccess:
+        initialProject.listeningAccess === "premium_or_purchased"
+          ? "premium_or_purchased"
+          : "public",
       name: (initialProject.title as string) ?? "",
       newTracks: [],
       projectCoverObjectKey: coverObjectKey ?? "",
@@ -563,7 +575,10 @@ export function NewProjectForm({
         await updateProjectMutation.mutateAsync({
           assetIds: coverKey ? [coverKey] : undefined,
           description: values.description || undefined,
+          exclusiveUntil: values.exclusiveUntil || undefined,
+          isForSale: values.isForSale,
           isPublic: releaseState.isListed,
+          listeningAccess: values.listeningAccess,
           projectType: values.type,
           releaseDate: releaseState.releaseDate,
           status: releaseState.status,
@@ -708,7 +723,10 @@ export function NewProjectForm({
           role: collaborator.role,
           userId: collaborator.userId,
         })),
+        exclusiveUntil: values.exclusiveUntil || undefined,
+        isForSale: values.isForSale,
         isPublic: false,
+        listeningAccess: values.listeningAccess,
         newTracks: projectTracks,
         projectType: values.type,
         status: releaseState.status,
@@ -1903,6 +1921,91 @@ export function NewProjectForm({
                       </FormItem>
                     )}
                   />
+
+                  <div className="space-y-4 rounded-xl border border-border/40 bg-muted/20 p-4">
+                    <FormField
+                      control={form.control}
+                      name="isForSale"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center gap-3">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div>
+                            <FormLabel>Monetize this project</FormLabel>
+                            <p className="text-xs text-muted-foreground">
+                              Purchases unlock downloads for the project tracks.
+                            </p>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                    {form.watch("isForSale") ? (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="listeningAccess"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Streaming access</FormLabel>
+                              <Select
+                                value={field.value}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="public">
+                                    Public listening
+                                  </SelectItem>
+                                  <SelectItem value="premium_or_purchased">
+                                    Premium members or purchasers
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </FormItem>
+                          )}
+                        />
+                        {form.watch("listeningAccess") ===
+                        "premium_or_purchased" ? (
+                          <FormField
+                            control={form.control}
+                            name="exclusiveUntil"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  Exclusive until (optional)
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="datetime-local"
+                                    value={
+                                      field.value
+                                        ? field.value.slice(0, 16)
+                                        : ""
+                                    }
+                                    onChange={(event) =>
+                                      field.onChange(event.target.value)
+                                    }
+                                  />
+                                </FormControl>
+                                <p className="text-xs text-muted-foreground">
+                                  After this date, the project becomes publicly
+                                  streamable while remaining for sale.
+                                </p>
+                              </FormItem>
+                            )}
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
 
                   {releaseVisibility === "listed" && (
                     <FormField

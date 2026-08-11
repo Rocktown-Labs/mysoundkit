@@ -1194,7 +1194,7 @@ export const createTrackBodySchema = z.object({
   downloadsRequireFirstPlay: z.boolean().default(false),
   downloadsRequirePurchase: z.boolean().default(true),
   genre: z.string().min(1),
-  exclusiveUntil: z.string().datetime().optional(),
+  exclusiveUntil: z.string().min(1).optional(),
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
@@ -1406,7 +1406,7 @@ export const claimCartBodySchema = z.object({
 
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
-  exclusiveUntil: z.string().datetime().optional(),
+  exclusiveUntil: z.string().min(1).optional(),
   collaboratorNames: z.array(z.string()).default([]),
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),

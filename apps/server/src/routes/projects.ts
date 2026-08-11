@@ -416,7 +416,7 @@ app.openapi(
           listeningAccess: body.listeningAccess,
           organizationId,
           ownerUserId: user.id,
-          priceCents: body.isForSale ? body.priceCents ?? null : null,
+          priceCents: body.isForSale ? (body.priceCents ?? null) : null,
           projectType: body.projectType,
           releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
           slug: uniqueSlug(body.title),
@@ -434,10 +434,10 @@ app.openapi(
         const genreId = await ensureGenreId(newTrack.genre);
         await db.insert(tracks).values({
           catalogItemType: "single",
-          genreId,
           exclusiveUntil: body.exclusiveUntil
             ? new Date(body.exclusiveUntil)
             : null,
+          genreId,
           id: trackId,
           isForSale: body.isForSale,
           isPublic: false,
@@ -658,12 +658,14 @@ app.openapi(
           }
         : {};
     const statusPatch = body.status ? { status: body.status } : {};
+    let exclusiveUntil: Date | null | undefined;
+    if (body.exclusiveUntil === "") {
+      exclusiveUntil = null;
+    } else if (body.exclusiveUntil) {
+      exclusiveUntil = new Date(body.exclusiveUntil);
+    }
     const monetizationPatch = {
-      exclusiveUntil: body.exclusiveUntil
-        ? new Date(body.exclusiveUntil)
-        : body.exclusiveUntil === ""
-          ? null
-          : undefined,
+      exclusiveUntil,
       isForSale: body.isForSale,
       listeningAccess: body.listeningAccess,
       priceCents: body.isForSale ? body.priceCents : null,
