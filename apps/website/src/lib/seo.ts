@@ -115,7 +115,7 @@ export const createShareMeta = ({
       { content: title, name: "twitter:title" },
       { content: sharedDescription, name: "twitter:description" },
       { content: socialImage, name: "twitter:image" },
-      { content: socialImage, name: "twitter:image:alt" },
+      { content: `${title} artwork`, name: "twitter:image:alt" },
     ],
   };
 };
