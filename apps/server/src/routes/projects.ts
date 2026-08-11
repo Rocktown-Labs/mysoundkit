@@ -372,9 +372,11 @@ app.openapi(
             body.collaborators.length || body.collaboratorNames.length,
           coverArtUrl: null,
           description: body.description ?? null,
+          exclusiveUntil: body.exclusiveUntil ?? null,
           id: "project_new",
-          isForSale: false,
+          isForSale: body.isForSale,
           isPublic: body.isPublic,
+          listeningAccess: body.listeningAccess,
           progress: 25,
           projectType: body.projectType,
           releaseDate: body.releaseDate ?? null,
@@ -405,10 +407,16 @@ app.openapi(
         .values({
           createdAt: now,
           description: body.description ?? null,
+          exclusiveUntil: body.exclusiveUntil
+            ? new Date(body.exclusiveUntil)
+            : null,
           id: projectId,
+          isForSale: body.isForSale,
           isPublic: body.isPublic && !hasNewTracks,
+          listeningAccess: body.listeningAccess,
           organizationId,
           ownerUserId: user.id,
+          priceCents: body.isForSale ? body.priceCents ?? null : null,
           projectType: body.projectType,
           releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
           slug: uniqueSlug(body.title),
@@ -646,12 +654,23 @@ app.openapi(
           }
         : {};
     const statusPatch = body.status ? { status: body.status } : {};
+    const monetizationPatch = {
+      exclusiveUntil: body.exclusiveUntil
+        ? new Date(body.exclusiveUntil)
+        : body.exclusiveUntil === ""
+          ? null
+          : undefined,
+      isForSale: body.isForSale,
+      listeningAccess: body.listeningAccess,
+      priceCents: body.isForSale ? body.priceCents : null,
+    };
     const [project] = await db
       .update(projects)
       .set({
         description: body.description,
         isPublic: body.isPublic,
         projectType: body.projectType,
+        ...monetizationPatch,
         ...releaseDatePatch,
         ...statusPatch,
         title: body.title,

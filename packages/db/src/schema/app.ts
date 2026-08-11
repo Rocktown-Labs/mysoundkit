@@ -49,6 +49,10 @@ export const releaseStrategyEnum = pgEnum("release_strategy", [
   "publish_when_ready",
   "scheduled",
 ]);
+export const listeningAccessEnum = pgEnum("listening_access", [
+  "public",
+  "premium_or_purchased",
+]);
 export const assetStorageProviderEnum = pgEnum("asset_storage_provider", [
   "r2",
   "mux",
@@ -781,6 +785,9 @@ export const tracks = pgTable(
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
+    listeningAccess: listeningAccessEnum("listening_access")
+      .default("public")
+      .notNull(),
     isrc: text("isrc"),
     lyricsStatus: lyricsStatusEnum("lyrics_status")
       .default("missing")
@@ -794,6 +801,7 @@ export const tracks = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     price: numeric("price", { precision: 10, scale: 2 }),
     priceCents: integer("price_cents"),
+    exclusiveUntil: timestamp("exclusive_until"),
     productionStatus: trackProductionStatusEnum("production_status")
       .default("demo")
       .notNull(),
@@ -1013,6 +1021,9 @@ export const projects = pgTable(
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
+    listeningAccess: listeningAccessEnum("listening_access")
+      .default("public")
+      .notNull(),
     organizationId: text("organization_id").references(() => organization.id, {
       onDelete: "set null",
     }),
@@ -1020,6 +1031,7 @@ export const projects = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     priceCents: integer("price_cents"),
+    exclusiveUntil: timestamp("exclusive_until"),
     projectType: projectTypeEnum("project_type").notNull(),
     purchaseMode: purchaseModeEnum("purchase_mode")
       .default("digital_download")

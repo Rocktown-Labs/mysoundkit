@@ -1121,6 +1121,9 @@ app.openapi(
             catalogItemType: body.catalogItemType,
             createdAt: now,
             description: body.description ?? null,
+            exclusiveUntil: body.exclusiveUntil
+              ? new Date(body.exclusiveUntil)
+              : null,
             downloadsAllowed: body.downloadsAllowed,
             downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
             downloadsRequirePurchase: body.downloadsRequirePurchase,
@@ -1129,6 +1132,7 @@ app.openapi(
             isForSale: body.isForSale,
             isPublic: body.isPublic,
             isrc: body.isrc ?? null,
+            listeningAccess: body.listeningAccess,
             musicalKey: body.musicalKey ?? null,
             organizationId,
             ownerUserId: user.id,
@@ -1308,6 +1312,11 @@ app.openapi(
       .set({
         bpm: body.bpm,
         description: body.description,
+        exclusiveUntil: body.exclusiveUntil
+          ? new Date(body.exclusiveUntil)
+          : body.exclusiveUntil === ""
+            ? null
+            : undefined,
         downloadsAllowed: body.downloadsAllowed,
         downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
         downloadsRequirePurchase: body.downloadsRequirePurchase,
@@ -1315,6 +1324,7 @@ app.openapi(
         isForSale: body.isForSale,
         isPublic: body.isPublic,
         isrc: body.isrc,
+        listeningAccess: body.listeningAccess,
         musicalKey: body.musicalKey,
         price: body.price?.toFixed(2),
         priceCents: body.priceCents,

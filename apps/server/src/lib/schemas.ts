@@ -770,8 +770,10 @@ export const projectSummarySchema = z.object({
   durationMs: z.number().int().nonnegative().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
+  exclusiveUntil: z.string().nullable().optional(),
   isForSale: z.boolean().default(false),
   isPublic: z.boolean(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   progress: z.number().int().min(0).max(100).default(0),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   regionSlug: z.string().nullable().optional(),
@@ -1191,9 +1193,11 @@ export const createTrackBodySchema = z.object({
   downloadsRequireFirstPlay: z.boolean().default(false),
   downloadsRequirePurchase: z.boolean().default(true),
   genre: z.string().min(1),
+  exclusiveUntil: z.string().datetime().optional(),
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   isrc: z.string().optional(),
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
@@ -1401,10 +1405,13 @@ export const claimCartBodySchema = z.object({
 
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
+  exclusiveUntil: z.string().datetime().optional(),
   collaboratorNames: z.array(z.string()).default([]),
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
+  isForSale: z.boolean().default(false),
   isPublic: z.boolean().default(true),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   newTracks: z
     .array(
       z.object({
@@ -1418,6 +1425,7 @@ export const createProjectBodySchema = z.object({
       })
     )
     .default([]),
+  priceCents: z.number().int().positive().optional(),
   projectType: z.enum(["album", "ep", "mixtape", "single"]),
   releaseDate: z.string().optional(),
   status: z.enum(["draft", "scheduled", "released"]).optional(),
