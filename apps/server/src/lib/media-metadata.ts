@@ -1,8 +1,9 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { trackAssets, workflowJobs } from "@soundkit/db/schema/app";
+import { trackAssets, tracks, workflowJobs } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { and, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+
 import { logWarn } from "@/middleware/structured-logging";
 
 export interface DurationBackfillQueueMessage {
@@ -275,6 +276,10 @@ export const enqueueTrackDurationBackfills = async ({
   let enqueued = 0;
 
   for (const row of rows) {
+    if (!row.objectKey) {
+      continue;
+    }
+
     const [existingJob] = await db
       .select()
       .from(workflowJobs)
@@ -355,7 +360,11 @@ const processDurationBackfill = async ({
             retryable: true,
           },
           scheduledAt: new Date(
-            Date.now() + getRetryDelaySeconds((job.input as { attempts?: number } | null)?.attempts ?? 0) * 1000
+            Date.now() +
+              getRetryDelaySeconds(
+                (job.input as { attempts?: number } | null)?.attempts ?? 0
+              ) *
+                1000
           ),
           status: "failed",
         })
@@ -388,7 +397,11 @@ const processDurationBackfill = async ({
           retryable: true,
         },
         scheduledAt: new Date(
-          Date.now() + getRetryDelaySeconds((job.input as { attempts?: number } | null)?.attempts ?? 0) * 1000
+          Date.now() +
+            getRetryDelaySeconds(
+              (job.input as { attempts?: number } | null)?.attempts ?? 0
+            ) *
+              1000
         ),
         status: "failed",
       })

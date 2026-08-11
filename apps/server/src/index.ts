@@ -12,12 +12,11 @@ import defaultHook from "stoker/openapi/default-hook";
 import { runBattleServiceSweep } from "@/lib/battle-service";
 import { handleEmailDeliveryQueue } from "@/lib/email-delivery";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
-import {
-  handleTrackDurationBackfillQueue,
-} from "@/lib/media-metadata";
-import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
-import { publishDueLiveRecordings } from "@/lib/live-experience-events";
 import { jsonError } from "@/lib/errors";
+import { publishDueLiveRecordings } from "@/lib/live-experience-events";
+import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
+import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
+import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
@@ -225,7 +224,7 @@ export default {
   fetch: (request, workerEnv, executionContext) =>
     app.fetch(request, workerEnv, executionContext),
   queue: (batch) => {
-    if (batch.queue === "track-duration-backfill") {
+    if (isTrackDurationBackfillQueueName(batch.queue)) {
       return handleTrackDurationBackfillQueue(
         batch as unknown as MessageBatch<DurationBackfillQueueMessage>
       );

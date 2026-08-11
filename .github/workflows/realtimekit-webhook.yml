@@ -1,0 +1,50 @@
+name: RealtimeKit Webhook
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Operation to run"
+        required: true
+        default: apply
+        type: choice
+        options:
+          - apply
+          - delete
+      webhook_url:
+        description: "Public webhook endpoint URL"
+        required: true
+        type: string
+
+concurrency:
+  group: realtimekit-webhook
+  cancel-in-progress: false
+
+jobs:
+  webhook:
+    name: Configure RealtimeKit webhook (${{ github.event.inputs.mode }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure webhook
+        run: |
+          args=("$WEBHOOK_URL")
+          if [ "$WEBHOOK_MODE" = "delete" ]; then
+            args+=("--delete")
+          fi
+          node scripts/register-realtimekit-webhook.mjs "${args[@]}"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_REALTIMEKIT_APP_ID: ${{ vars.CLOUDFLARE_REALTIMEKIT_APP_ID }}
+          WEBHOOK_MODE: ${{ github.event.inputs.mode }}
+          WEBHOOK_URL: ${{ github.event.inputs.webhook_url }}
