@@ -435,9 +435,13 @@ app.openapi(
         await db.insert(tracks).values({
           catalogItemType: "single",
           genreId,
+          exclusiveUntil: body.exclusiveUntil
+            ? new Date(body.exclusiveUntil)
+            : null,
           id: trackId,
-          isForSale: false,
+          isForSale: body.isForSale,
           isPublic: false,
+          listeningAccess: body.listeningAccess,
           organizationId,
           ownerUserId: user.id,
           productionStatus: "demo",
