@@ -85,8 +85,8 @@ export const loadPublicTrackSeo = async (
     coverArtUrl: readString(rawTrack.coverArtUrl),
     description: readString(rawTrack.description),
     durationMs:
-      typeof rawTrack.duration === "number"
-        ? Math.round(rawTrack.duration)
+      typeof rawTrack.durationMs === "number"
+        ? Math.round(rawTrack.durationMs)
         : null,
     genre: readString(rawTrack.genre),
     id,
