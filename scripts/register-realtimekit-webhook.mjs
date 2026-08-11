@@ -25,7 +25,7 @@ const name =
 
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-const appId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID;
+const configuredAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID;
 
 const events = [
   "meeting.started",
@@ -36,9 +36,9 @@ const events = [
   "meeting.chatSynced",
 ];
 
-if (!(accountId && apiToken && appId)) {
+if (!(accountId && apiToken)) {
   console.error(
-    "Missing Cloudflare credentials. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, and CLOUDFLARE_REALTIMEKIT_APP_ID."
+    "Missing Cloudflare credentials. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN."
   );
   process.exit(1);
 }
@@ -50,14 +50,41 @@ if (!webhookUrl) {
   process.exit(1);
 }
 
-const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/realtime/kit/${appId}/webhooks`;
-
 const headers = {
   Authorization: `Bearer ${apiToken}`,
   "Content-Type": "application/json",
 };
 
-const listExisting = async () => {
+const resolveAppId = async () => {
+  if (configuredAppId) {
+    return configuredAppId;
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/realtime/kit/apps`,
+    { headers }
+  );
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `Unable to discover RealtimeKit apps: ${response.status} ${JSON.stringify(body)}`
+    );
+  }
+
+  const apps = Array.isArray(body.result) ? body.result : body.result?.apps ?? [];
+  const app = apps.find((entry) =>
+    entry.name?.toLowerCase().includes("soundkit")
+  );
+  if (!app?.id) {
+    throw new Error(
+      "No RealtimeKit app with a SoundKit name was found. Set CLOUDFLARE_REALTIMEKIT_APP_ID explicitly."
+    );
+  }
+
+  return app.id;
+};
+
+const listExisting = async (apiUrl) => {
   const response = await fetch(apiUrl, { headers, method: "GET" });
 
   if (!response.ok) {
@@ -71,7 +98,9 @@ const listExisting = async () => {
 };
 
 const main = async () => {
-  const existing = await listExisting();
+  const appId = await resolveAppId();
+  const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/realtime/kit/${appId}/webhooks`;
+  const existing = await listExisting(apiUrl);
   const [match] = existing;
 
   if (deleteMode) {
