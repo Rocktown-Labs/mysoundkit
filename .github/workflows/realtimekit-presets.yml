@@ -36,6 +36,11 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -43,11 +48,11 @@ jobs:
         working-directory: packages/infra
         run: |
           if [ "${{ github.event.inputs.mode }}" = "apply" ]; then
-            node realtimekit-presets.ts
+            bun realtimekit-presets.ts
           elif [ "${{ github.event.inputs.mode }}" = "delete" ]; then
-            node realtimekit-presets.ts --delete
+            bun realtimekit-presets.ts --delete
           else
-            node realtimekit-presets.ts --dry-run
+            bun realtimekit-presets.ts --dry-run
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
