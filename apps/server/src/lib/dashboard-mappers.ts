@@ -139,6 +139,14 @@ export const mapTrackSummary = ({
   const primaryAudioAsset =
     assets.find((asset) => asset.assetKind === "master") ??
     assets.find((asset) => asset.durationMs);
+  const previewAsset = assets.find(
+    (asset) =>
+      asset.assetKind === "variant_audio" &&
+      typeof asset.metadata === "object" &&
+      asset.metadata !== null &&
+      "variant" in asset.metadata &&
+      asset.metadata.variant === "preview_30s"
+  );
   const assetStatus = assets.some((asset) => asset.status === "processing")
     ? "processing"
     : (primaryAudioAsset?.status ?? null);
@@ -176,6 +184,7 @@ export const mapTrackSummary = ({
         ? null
         : publicAssetUrl(primaryAudioAsset),
     plays: 0,
+    previewUrl: publicAssetUrl(previewAsset),
     price: row.price ? Number(row.price) : null,
     priceCents: row.priceCents,
     productionStatus: row.productionStatus,

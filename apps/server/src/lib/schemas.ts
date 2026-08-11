@@ -450,6 +450,7 @@ export const trackSummarySchema = z.object({
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
+  previewUrl: z.string().nullable().optional(),
   plays: z.number(),
   price: z.number().nullable(),
   priceCents: z.number().int().nullable().optional(),

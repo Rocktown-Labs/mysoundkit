@@ -195,12 +195,40 @@ const loadCommerce = async () => {
   };
 };
 
+const overviewSectionTimeoutMs = 8_000;
+
+const loadOverviewSection = async <T>(
+  task: Promise<T>,
+  fallback: T,
+  section: string
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.error("Admin overview section timed out", { section });
+      resolve(fallback);
+    }, overviewSectionTimeoutMs);
+  });
+
+  try {
+    return await Promise.race([task, timeout]);
+  } catch (error) {
+    console.error("Admin overview section failed", { error, section });
+    return fallback;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 const loadOverview = async () => {
+  const empty = emptyOverview();
   const [people, content, operations, commerce] = await Promise.all([
-    loadPeople(),
-    loadContent(),
-    loadOperations(),
-    loadCommerce(),
+    loadOverviewSection(loadPeople(), empty.people, "people"),
+    loadOverviewSection(loadContent(), empty.content, "content"),
+    loadOverviewSection(loadOperations(), empty.operations, "operations"),
+    loadOverviewSection(loadCommerce(), empty.commerce, "commerce"),
   ]);
 
   return { commerce, content, operations, people };

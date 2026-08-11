@@ -333,15 +333,15 @@ export const buildRealtimeMeetingPayload = ({ title }: { title: string }) => ({
       codec: "H264",
       export_file: true,
       height: 720,
-      width: 1280,
-    },
-    watermark: {
-      position: "right top",
-      size: {
-        height: 48,
-        width: 160,
+      watermark: {
+        position: "right bottom",
+        size: {
+          height: 20,
+          width: 100,
+        },
+        url: "https://mysoundkit.com/brand/logo.png",
       },
-      url: "https://mysoundkit.com/logo.png",
+      width: 1280,
     },
   },
   session_keep_alive_time_in_secs: 300,

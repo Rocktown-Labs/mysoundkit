@@ -385,7 +385,7 @@ function OverviewPanel() {
   const [backfillStarted, setBackfillStarted] = useState(false);
   const completionHandledRef = useRef(false);
   const backfillStatus = useTrackDurationBackfillStatusQuery(
-    backfillStarted || data?.operations.tracksMissingDuration > 0
+    backfillStarted || (data?.operations.tracksMissingDuration ?? 0) > 0
   );
 
   useEffect(() => {
@@ -415,7 +415,7 @@ function OverviewPanel() {
 
   const handleBackfillDurations = () => {
     backfillDurations.mutate(
-      { limit: 500 },
+      { limit: 500, trackIds: [] },
       {
         onError: (backfillError) => {
           toast({
@@ -428,7 +428,10 @@ function OverviewPanel() {
           if (result.enqueued === 0) {
             completionHandledRef.current = true;
             toast({
-              description: "All tracked durations are already known.",
+              description:
+                result.scanned > 0
+                  ? `Scanned ${result.scanned} asset${result.scanned === 1 ? "" : "s"}; no new jobs were queued.`
+                  : "No track assets need duration backfill.",
               title: "Nothing to backfill",
             });
             return;
