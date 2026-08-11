@@ -17,11 +17,13 @@ import { authClient } from "@/lib/auth-client";
 import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
 
 interface LiveRoomAccessGuardProps {
+  allowPublic?: boolean;
   children: React.ReactNode;
   roomTitle?: string;
 }
 
 export function LiveRoomAccessGuard({
+  allowPublic = false,
   children,
   roomTitle = "Live Room",
 }: LiveRoomAccessGuardProps) {
@@ -49,7 +51,7 @@ export function LiveRoomAccessGuard({
   }
 
   // Grant access if user is authenticated and holds a Premium plan
-  if (isSignedIn && isPremium) {
+  if (allowPublic || (isSignedIn && isPremium)) {
     return children;
   }
 
