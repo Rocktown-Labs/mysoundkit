@@ -5,6 +5,7 @@ import {
   genres,
   projectAssets,
   projectCollaborators,
+  projectPreSaves,
   projectTracks,
   projects,
   trackAssets,
@@ -48,6 +49,21 @@ import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.post("/:projectId/pre-save", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json({ message: "Authentication is required." }, 401);
+  }
+  const projectId = c.req.param("projectId");
+  if (isDatabaseConfigured()) {
+    await createDb().insert(projectPreSaves).values({
+      projectId,
+      userId: user.id,
+    }).onConflictDoNothing();
+  }
+  return c.json({ isPreSaved: true, projectId }, 200);
+});
 
 const publicProjectExploreQuerySchema = publicExploreQuerySchema.extend({
   q: z.string().trim().max(120).optional(),

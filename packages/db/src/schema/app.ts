@@ -2978,6 +2978,34 @@ export const settlementRuns = pgTable(
   ]
 );
 
+export const projectPreSaves = pgTable(
+  "project_pre_saves",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.projectId] })]
+);
+
+export const videoPreSaves = pgTable(
+  "video_pre_saves",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.videoId] })]
+);
+
 export const trackPreSaves = pgTable(
   "track_pre_saves",
   {

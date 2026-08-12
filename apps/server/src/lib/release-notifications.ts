@@ -1,8 +1,12 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  projectPreSaves,
+  projects,
   trackPreSaves,
   tracks,
   userNotifications,
+  videoPreSaves,
+  videos,
 } from "@soundkit/db/schema/app";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
 
@@ -55,5 +59,51 @@ export const publishDueTrackReleases = async () => {
     }
   }
 
-  return { notified, published: dueTracks.length };
+  const dueProjects = await db
+    .select({ id: projects.id, title: projects.title })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.status, "scheduled"),
+        isNotNull(projects.releaseDate),
+        lte(projects.releaseDate, new Date())
+      )
+    );
+  for (const project of dueProjects) {
+    await db.update(projects).set({ status: "released", isPublic: true }).where(eq(projects.id, project.id));
+    const subscribers = await db.select({ userId: projectPreSaves.userId }).from(projectPreSaves).where(eq(projectPreSaves.projectId, project.id));
+    for (const subscriber of subscribers) {
+      await db.insert(userNotifications).values({
+        id: `project_release:${project.id}:${subscriber.userId}`,
+        link: `/projects/${project.id}`,
+        message: `"${project.title}" is now available.`,
+        title: "New project available",
+        type: "project_release",
+        userId: subscriber.userId,
+      }).onConflictDoNothing();
+      notified += 1;
+    }
+  }
+
+  const dueVideos = await db
+    .select({ id: videos.id, title: videos.title })
+    .from(videos)
+    .where(and(isNotNull(videos.releaseAt), lte(videos.releaseAt, new Date()), eq(videos.isPublic, false)));
+  for (const video of dueVideos) {
+    await db.update(videos).set({ isPublic: true }).where(eq(videos.id, video.id));
+    const subscribers = await db.select({ userId: videoPreSaves.userId }).from(videoPreSaves).where(eq(videoPreSaves.videoId, video.id));
+    for (const subscriber of subscribers) {
+      await db.insert(userNotifications).values({
+        id: `video_release:${video.id}:${subscriber.userId}`,
+        link: `/videos/${video.id}`,
+        message: `"${video.title}" is now available.`,
+        title: "New video available",
+        type: "video_release",
+        userId: subscriber.userId,
+      }).onConflictDoNothing();
+      notified += 1;
+    }
+  }
+
+  return { notified, published: dueTracks.length + dueProjects.length + dueVideos.length };
 };

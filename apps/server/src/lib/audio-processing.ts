@@ -10,7 +10,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { embed } from "ai";
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
@@ -416,6 +416,44 @@ const embeddingModelName = () =>
   getEnvValue("GOOGLE_EMBEDDING_MODEL")
     .replace(/^google\//u, "")
     .trim() || DEFAULT_EMBEDDING_MODEL;
+
+export const loadEmbeddingStatus = async () => {
+  if (!isDatabaseConfigured()) {
+    return { byEntityType: {}, total: 0 };
+  }
+
+  const rows = await createDb()
+    .select({ entityType: searchEmbeddings.entityType, count: count() })
+    .from(searchEmbeddings)
+    .groupBy(searchEmbeddings.entityType);
+  return {
+    byEntityType: Object.fromEntries(rows.map((row) => [row.entityType, row.count])),
+    total: rows.reduce((sum, row) => sum + row.count, 0),
+  };
+};
+
+export const searchSemanticEntities = async ({
+  limit = 12,
+  text,
+}: {
+  limit?: number;
+  text: string;
+}) => {
+  if (!isDatabaseConfigured() || !text.trim() || !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")) {
+    return [];
+  }
+
+  const result = await embed({ model: google.embedding(embeddingModelName()), value: text });
+  const embedding = result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
+    ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
+    : [...result.embedding, ...Array.from({ length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length }, () => 0)];
+  const vector = `[${embedding.join(",")}]`;
+  return createDb()
+    .select({ entityId: searchEmbeddings.entityId, entityType: searchEmbeddings.entityType })
+    .from(searchEmbeddings)
+    .orderBy(asc(sql`${searchEmbeddings.embedding} <=> ${vector}::vector`))
+    .limit(Math.min(limit, 50));
+};
 
 export const indexSearchEntity = async ({
   entityId,

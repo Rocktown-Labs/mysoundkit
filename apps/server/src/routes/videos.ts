@@ -6,6 +6,7 @@ import {
   muxUploads,
   playbackSessions,
   projectTracks,
+  videoPreSaves,
   purchases,
   tracks,
   userProfiles,
@@ -55,6 +56,21 @@ import { videoPlaybackSourceType } from "@/lib/video-playback";
 import { uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.post("/:videoId/pre-save", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json({ message: "Authentication is required." }, 401);
+  }
+  const videoId = c.req.param("videoId");
+  if (isDatabaseConfigured()) {
+    await createDb().insert(videoPreSaves).values({
+      userId: user.id,
+      videoId,
+    }).onConflictDoNothing();
+  }
+  return c.json({ isPreSaved: true, videoId }, 200);
+});
 
 const hasPurchasedTrack = async ({
   db,

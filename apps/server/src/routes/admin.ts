@@ -24,6 +24,7 @@ import {
   enqueueTrackDurationBackfills,
   loadTrackDurationBackfillStatus,
 } from "@/lib/media-metadata";
+import { loadEmbeddingStatus } from "@/lib/audio-processing";
 import {
   loadPlatformSettings,
   platformDiscoverySettingsKey,
@@ -41,6 +42,13 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.get("/embeddings/status", async (c) => {
+  if (!isAdminUser(c.get("user"))) {
+    return c.json({ message: "Admin access is required." }, HttpStatusCodes.FORBIDDEN);
+  }
+  return c.json(await loadEmbeddingStatus(), HttpStatusCodes.OK);
+});
 
 const emptyOverview = () => ({
   commerce: {
