@@ -5,6 +5,7 @@ import { ArrowLeft, Disc, Play, Search, ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
+import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ interface ExploreProjectsSearch {
   regionType?: "north-america" | "global";
   sort?: string;
   type?: "album" | "ep" | "mixtape";
+  view?: "all" | "sections";
 }
 
 type ProjectFilterUpdate = Omit<Partial<ExploreProjectsSearch>, "type"> & {
@@ -56,6 +58,7 @@ export const Route = createFileRoute("/_explore/projects/")({
       search.type === "mixtape"
         ? search.type
         : undefined,
+    view: search.view === "all" ? "all" : "sections",
   }),
 });
 
@@ -83,6 +86,7 @@ function ExploreProjectsPage() {
   const forSale = search.forSale ?? false;
   const q = search.q ?? "";
   const { type } = search;
+  const view = search.view ?? "sections";
   const isFilteredView = Boolean(type || forSale || q || genre !== "all");
 
   const updateFilters = (next: ProjectFilterUpdate) => {
@@ -105,6 +109,7 @@ function ExploreProjectsPage() {
         regionType: nextRegionType,
         sort: next.sort ?? sort,
         type: next.type === null ? undefined : (next.type ?? type),
+        view: next.view ?? view,
       }),
     });
   };
@@ -196,15 +201,18 @@ function ExploreProjectsPage() {
         </div>
       </div>
 
-      {isFilteredView && (
-        <ProjectGridSection
+      {view === "all" || isFilteredView ? (
+        <ExploreCollectionGrid
           empty="No projects found for the selected filters."
           isLoading={isLoading}
-          projects={projects}
-          title="Matching Projects"
-        />
-      )}
+          items={projects}
+          title={view === "all" ? "All Projects" : "Matching Projects"}
+        >
+          {(project) => <ProjectCard project={project} />}
+        </ExploreCollectionGrid>
+      ) : null}
 
+      {view !== "all" && !isFilteredView ? (
       <ProjectRail
         empty="No featured projects found for the selected filters."
         genre={genre}
@@ -217,7 +225,9 @@ function ExploreProjectsPage() {
         type={type}
         forSale={forSale}
       />
+      ) : null}
 
+      {view !== "all" && !isFilteredView ? (
       <div className="flex flex-col gap-10">
         {musicGenres.map((sectionGenre) => (
           <ProjectGenreRail
@@ -232,6 +242,7 @@ function ExploreProjectsPage() {
           />
         ))}
       </div>
+      ) : null}
     </div>
   );
 }
@@ -322,6 +333,7 @@ function ProjectRail({
                 regionType,
                 sort,
                 type,
+                view: "all",
               } satisfies ExploreProjectsSearch
             }
             to="/projects"

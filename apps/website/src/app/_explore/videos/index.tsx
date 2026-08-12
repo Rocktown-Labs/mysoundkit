@@ -3,6 +3,7 @@ import { ArrowLeft, Video } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
+import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
 import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
 import { musicGenres } from "@/lib/music-genres";
@@ -20,6 +21,7 @@ interface VideosSearch {
   region?: string;
   regionType?: "north-america" | "global";
   sort?: string;
+  view?: "all" | "sections";
 }
 
 export const Route = createFileRoute("/_explore/videos/")({
@@ -29,6 +31,7 @@ export const Route = createFileRoute("/_explore/videos/")({
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
+    view: search.view === "all" ? "all" : "sections",
   }),
 });
 
@@ -53,6 +56,7 @@ function VideosPage() {
   const region = search.region ?? savedRegion ?? "us-arkansas";
   const genre = search.genre ?? "all";
   const sort = search.sort ?? "views-desc";
+  const view = search.view ?? "sections";
 
   const updateFilters = (next: Partial<VideosSearch>) => {
     const nextRegionType = next.regionType ?? regionType;
@@ -69,6 +73,7 @@ function VideosPage() {
         region: nextRegion,
         regionType: nextRegionType,
         sort: next.sort ?? sort,
+        view: next.view ?? view,
       }),
     });
   };
@@ -119,6 +124,16 @@ function VideosPage() {
         sortOptions={sortOptions}
       />
 
+      {view === "all" || genre !== "all" ? (
+        <ExploreCollectionGrid
+          empty="No videos found for the selected filters."
+          isLoading={isLoading}
+          items={videos}
+          title={genre === "all" ? "All Videos" : "Matching Videos"}
+        >
+          {(video) => <ExploreVideoCard video={video} />}
+        </ExploreCollectionGrid>
+      ) : (
       <div className="mb-10">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -131,7 +146,7 @@ function VideosPage() {
             <Link
               to="/videos"
               search={
-                { genre, region, regionType, sort } satisfies VideosSearch
+                { genre, region, regionType, sort, view: "all" } satisfies VideosSearch
               }
             >
               View All
@@ -153,7 +168,9 @@ function VideosPage() {
           </VideoEmptyState>
         )}
       </div>
+      )}
 
+      {view !== "all" && genre === "all" ? (
       <div className="flex flex-col gap-10">
         {musicGenres.map((sectionGenre) => (
           <VideoGenreRail
@@ -165,6 +182,7 @@ function VideosPage() {
           />
         ))}
       </div>
+      ) : null}
     </div>
   );
 }
@@ -231,6 +249,7 @@ function VideoGenreRail({
                 region,
                 regionType,
                 sort,
+                view: "all",
               } satisfies VideosSearch
             }
           >
