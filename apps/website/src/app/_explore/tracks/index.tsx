@@ -18,6 +18,7 @@ const sortOptions = [
 
 interface TracksSearch {
   genre?: string;
+  q?: string;
   region?: string;
   regionType?: "north-america" | "global";
   sort?: string;
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/_explore/tracks/")({
   component: TracksPage,
   validateSearch: (search: Record<string, unknown>): TracksSearch => ({
     genre: typeof search.genre === "string" ? search.genre : undefined,
+    q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
@@ -55,6 +57,7 @@ function TracksPage() {
   const regionType = search.regionType ?? savedRegionType ?? "north-america";
   const region = search.region ?? savedRegion ?? "us-arkansas";
   const genre = search.genre ?? "all";
+  const q = search.q ?? "";
   const sort = search.sort ?? "plays-desc";
   const view = search.view ?? "sections";
 
@@ -70,6 +73,7 @@ function TracksPage() {
       search: (prev) => ({
         ...prev,
         genre: next.genre ?? genre,
+        q: next.q ?? q,
         region: nextRegion,
         regionType: nextRegionType,
         sort: next.sort ?? sort,
@@ -81,6 +85,7 @@ function TracksPage() {
   const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
     genre,
     limit: 48,
+    q: q || undefined,
     region,
     regionType,
     scope: "public",
@@ -172,7 +177,9 @@ function TracksPage() {
                 ))}
               </div>
             ) : (
-              <TrackEmptyState>No songs found for these filters.</TrackEmptyState>
+              <TrackEmptyState>
+                No songs found for these filters.
+              </TrackEmptyState>
             )}
           </div>
           <div className="flex flex-col gap-10">

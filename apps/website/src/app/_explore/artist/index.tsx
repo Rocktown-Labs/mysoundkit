@@ -43,6 +43,7 @@ const leaderboardSections = [
 
 interface ArtistSearch {
   genre?: string;
+  q?: string;
   region?: string;
   regionType?: "north-america" | "global";
   sort?: string;
@@ -52,6 +53,7 @@ export const Route = createFileRoute("/_explore/artist/")({
   component: ArtistPage,
   validateSearch: (search: Record<string, unknown>): ArtistSearch => ({
     genre: typeof search.genre === "string" ? search.genre : undefined,
+    q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
@@ -156,7 +158,7 @@ function ArtistGenreRail({
   const query = useArtistsQuery({
     category: "top",
     genre: genre.value,
-    limit: "6",
+    limit: 6,
     region,
     regionType,
     sort: "rank-asc",
@@ -223,6 +225,7 @@ function ArtistPage() {
   const regionType = search.regionType ?? savedRegionType ?? "north-america";
   const region = search.region ?? savedRegion ?? "us-arkansas";
   const genre = search.genre ?? "all";
+  const q = search.q ?? "";
   const sort = search.sort ?? "rank-asc";
 
   const updateFilters = (next: Partial<ArtistSearch>) => {
@@ -237,6 +240,7 @@ function ArtistPage() {
       search: (prev) => ({
         ...prev,
         genre: next.genre ?? genre,
+        q: next.q ?? q,
         region: nextRegion,
         regionType: nextRegionType,
         sort: next.sort ?? sort,
@@ -245,7 +249,8 @@ function ArtistPage() {
   };
   const commonQuery = {
     genre,
-    limit: "10",
+    limit: 10,
+    q: q || undefined,
     region,
     regionType,
     sort,

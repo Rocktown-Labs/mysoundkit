@@ -421,6 +421,7 @@ export const publicExploreQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(24),
   page: z.coerce.number().int().positive().default(1),
   region: z.string().trim().max(80).default("us-arkansas"),
+  q: z.string().trim().max(120).optional(),
   regionType: z.enum(["north-america", "global"]).default("north-america"),
   scope: z.enum(["dashboard", "public"]).default("dashboard"),
   sort: z.string().trim().max(80).default("rank-asc"),

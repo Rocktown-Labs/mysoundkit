@@ -36,6 +36,7 @@ const canOpenDashboardForUser = (user?: {
 // eslint-disable-next-line complexity
 export function ExploreHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const locationHref = useRouterState({ select: (s) => s.location.href });
   const { cart, setIsCartOpen } = useCart();
   const meQuery = useMeQuery();
   const me = meQuery.data;
@@ -78,6 +79,18 @@ export function ExploreHeader() {
 
     return () => window.clearTimeout(timeoutId);
   }, [searchValue]);
+
+  const getScopedSearch = () => {
+    if (searchScope === "projects") {
+      return { q: trimmedSearchValue };
+    }
+
+    if (searchScope === "tracks") {
+      return { genre: "all", q: trimmedSearchValue, view: "all" as const };
+    }
+
+    return { q: trimmedSearchValue };
+  };
 
   const getSearchPlaceholder = () => {
     if (pathname.startsWith("/artist")) {
@@ -222,11 +235,11 @@ export function ExploreHeader() {
                       </span>
                     </Link>
                   ))}
-                  {searchScope !== "all" ? (
+                  {searchScope === "all" ? null : (
                     <Link
                       className="mt-2 block rounded-md border px-3 py-2 text-center text-xs font-medium hover:bg-accent"
                       onClick={() => setSearchValue("")}
-                      search={{ q: trimmedSearchValue }}
+                      search={getScopedSearch()}
                       to={
                         searchScope === "projects"
                           ? "/projects"
@@ -237,7 +250,7 @@ export function ExploreHeader() {
                     >
                       View all {searchScope}
                     </Link>
-                  ) : null}
+                  )}
                 </div>
               )}
             </div>
@@ -280,7 +293,7 @@ export function ExploreHeader() {
           </>
         ) : (
           <>
-            <Link search={{ redirect: pathname }} to="/login">
+            <Link search={{ redirect: locationHref }} to="/login">
               <Button variant="ghost" size="sm">
                 Log In
               </Button>

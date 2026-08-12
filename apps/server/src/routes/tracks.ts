@@ -22,7 +22,7 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, gt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -454,6 +454,10 @@ app.openapi(
 
       if (query.forSale) {
         publicTrackConditions.push(eq(tracks.isForSale, true));
+      }
+
+      if (query.q) {
+        publicTrackConditions.push(ilike(tracks.title, `%${query.q}%`));
       }
 
       if (genreSlug) {
