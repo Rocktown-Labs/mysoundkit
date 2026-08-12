@@ -417,6 +417,20 @@ const embeddingModelName = () =>
     .replace(/^google\//u, "")
     .trim() || DEFAULT_EMBEDDING_MODEL;
 
+export const indexSearchEntity = async ({
+  entityId,
+  entityType,
+  organizationId,
+  text,
+}: {
+  entityId: string;
+  entityType: "artist" | "lyrics" | "project" | "track" | "video";
+  organizationId: null | string;
+  text: string;
+}) => {
+  await saveEmbedding({ entityId, entityType, organizationId, text });
+};
+
 const saveEmbedding = async ({
   entityId,
   entityType,
@@ -424,7 +438,7 @@ const saveEmbedding = async ({
   text,
 }: {
   entityId: string;
-  entityType: "lyrics" | "track";
+  entityType: "artist" | "lyrics" | "project" | "track" | "video";
   organizationId: null | string;
   text: string;
 }) => {

@@ -57,6 +57,7 @@ import { absoluteSiteUrl } from "@/lib/seo";
 import { shareLink } from "@/lib/share";
 import {
   useLibrarySavedQuery,
+  usePreSaveTrackMutation,
   useToggleSaveTrackMutation,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -157,6 +158,7 @@ interface MockCatalogItem {
   downloadsRequirePurchase?: boolean;
   playbackUrl?: string | null;
   previewUrl?: string | null;
+  releaseAt?: string | null;
   assets: MockCatalogAsset[];
   licenseOptions?: MockLicenseOption[];
   visualContent?: MockVisualContent[];
@@ -355,6 +357,7 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   const { addItem } = useCart();
   const { data: savedTracks = [] } = useLibrarySavedQuery();
   const toggleSaveMutation = useToggleSaveTrackMutation();
+  const preSaveMutation = usePreSaveTrackMutation(id);
 
   const {
     data: item,
@@ -540,6 +543,22 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
         variant: "destructive",
       });
       setOptimisticLiked(isLiked);
+    }
+  };
+
+  const handlePreSave = async () => {
+    try {
+      await preSaveMutation.mutateAsync();
+      toast({
+        description: `We'll notify you when ${item.title} is released.`,
+        title: "Pre-save added",
+      });
+    } catch {
+      toast({
+        description: "Sign in to pre-save this release.",
+        title: "Sign in required",
+        variant: "destructive",
+      });
     }
   };
 
@@ -780,6 +799,11 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
               <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
                 Included Files
               </h3>
+              {item.releaseAt && new Date(item.releaseAt).getTime() > Date.now() ? (
+                <Button onClick={() => void handlePreSave()} variant="secondary">
+                  Pre-save release
+                </Button>
+              ) : null}
               {item.isForSale && (
                 <Badge
                   variant="outline"

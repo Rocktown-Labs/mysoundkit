@@ -2549,6 +2549,10 @@ app.openapi(
         }),
         "Pre-save status"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
     },
     tags: ["Tracks"],
   }),
@@ -2558,11 +2562,8 @@ app.openapi(
 
     if (!isAuthenticatedUser(user)) {
       return c.json(
-        {
-          isPreSaved: true,
-          message: "Track pre-saved! We'll notify you on release date.",
-        },
-        HttpStatusCodes.OK
+        { message: "Authentication is required." },
+        HttpStatusCodes.UNAUTHORIZED
       );
     }
 

@@ -15,6 +15,7 @@ import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
+import { publishDueTrackReleases } from "@/lib/release-notifications";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
 import { withRetry } from "@/lib/retry";
@@ -241,6 +242,7 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         publishDueLiveRecordings(),
+        publishDueTrackReleases(),
       ])
     );
   },
