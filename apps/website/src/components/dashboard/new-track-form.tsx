@@ -242,8 +242,8 @@ const defaultTrackFormValues: TrackFormValues = {
   credits: [],
   description: "",
   downloadsAllowed: true,
-  downloadsRequireFirstPlay: false,
-  downloadsRequirePurchase: true,
+  downloadsRequireFirstPlay: true,
+  downloadsRequirePurchase: false,
   exclusiveUntil: "",
   genre: "Hip-Hop/Rap",
   isForSale: false,
@@ -391,10 +391,8 @@ export function NewTrackForm({
       })),
       description: (initialTrack.description as string) ?? "",
       downloadsAllowed: initialTrack.downloadsAllowed !== false,
-      downloadsRequireFirstPlay: Boolean(
-        initialTrack.downloadsRequireFirstPlay
-      ),
-      downloadsRequirePurchase: initialTrack.downloadsRequirePurchase !== false,
+      downloadsRequireFirstPlay: initialTrack.downloadsRequireFirstPlay !== false,
+      downloadsRequirePurchase: Boolean(initialTrack.downloadsRequirePurchase),
       exclusiveUntil: exclusiveUntilForInput(initialTrack.exclusiveUntil),
       genre: (initialTrack.genre as string) ?? "",
       isForSale,
