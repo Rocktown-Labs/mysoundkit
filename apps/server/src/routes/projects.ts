@@ -23,6 +23,7 @@ import {
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
 import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
+import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -431,6 +432,13 @@ app.openapi(
           updatedAt: now,
         })
         .returning();
+
+      await indexSearchEntity({
+        entityId: projectId,
+        entityType: "project",
+        organizationId,
+        text: [body.title, body.description, body.genre].filter(Boolean).join("\n"),
+      });
 
       const existingTrackIds = body.trackIds;
       const newTrackIds = [];

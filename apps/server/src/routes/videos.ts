@@ -20,6 +20,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { resolveListeningAccess } from "@/lib/content-access";
+import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -402,6 +403,15 @@ app.openapi(
         videoKind: body.videoKind,
       })
       .returning();
+
+    if (video) {
+      await indexSearchEntity({
+        entityId: video.id,
+        entityType: "video",
+        organizationId: video.organizationId,
+        text: [video.title, video.description].filter(Boolean).join("\n"),
+      });
+    }
 
     return c.json(
       mapVideo(video ?? getSampleVideoFallback()),
