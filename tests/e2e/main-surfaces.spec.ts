@@ -110,6 +110,21 @@ test.describe("main application surfaces", () => {
     await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
   });
 
+  test("explore collection routes support shared all-results views", async ({
+    page,
+  }) => {
+    await gotoWithViteRetry(page, "/tracks?view=all");
+    await expect(page.getByRole("heading", { name: "All Songs" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/videos?view=all");
+    await expect(page.getByRole("heading", { name: "All Videos" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/projects?view=all");
+    await expect(
+      page.getByRole("heading", { name: "All Projects" })
+    ).toBeVisible();
+  });
+
   test("creator live dashboards expose separate battle party and stream setup", async ({
     context,
     page,
