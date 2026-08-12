@@ -58,6 +58,7 @@ type StreamSource = "browser" | "obs";
 
 interface ActiveStream {
   description: string;
+  experienceId: string;
   genre: string;
   id: string;
   playbackUrl: string;
@@ -109,9 +110,10 @@ function DashboardLiveStreamsPage() {
   const [visibility, setVisibility] = useState("Public");
   const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
   const [source, setSource] = useState<StreamSource>("obs");
-  const [activeStream, setActiveStream] = useState<ActiveStream | null>(
-    readSavedStream
-  );
+  const [activeStream, setActiveStream] = useState<ActiveStream | null>(() => {
+    const saved = readSavedStream();
+    return saved?.experienceId ? saved : null;
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showStreamKey, setShowStreamKey] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -137,6 +139,7 @@ function DashboardLiveStreamsPage() {
       const stream =
         created.streamInput ??
         ({
+          experienceId: created.experience.id,
           id: created.realtime.id,
           playbackUrl: "",
           rtmpsKey: "",
@@ -147,6 +150,7 @@ function DashboardLiveStreamsPage() {
           title: created.experience.title,
         } satisfies Pick<
           ActiveStream,
+          | "experienceId"
           | "id"
           | "playbackUrl"
           | "rtmpsKey"
@@ -160,6 +164,7 @@ function DashboardLiveStreamsPage() {
       const nextStream: ActiveStream = {
         ...stream,
         description,
+        experienceId: created.experience.id,
         genre,
         realtimeMeetingId: created.realtime.id,
         roomHref: created.experience.roomHref,
@@ -262,9 +267,14 @@ function DashboardLiveStreamsPage() {
   const handleEndStream = async () => {
     if (activeStream?.source === "obs") {
       try {
-        await apiClient.v1.live["cloudflare-stream"][":streamId"].$delete({
+        const response = await apiClient.v1.live["cloudflare-stream"][
+          ":streamId"
+        ].$delete({
           param: { streamId: activeStream.id },
         });
+        if (!response.ok) {
+          throw new Error(`Unable to stop stream: ${response.status}`);
+        }
       } catch {
         toast({
           description:
@@ -687,7 +697,10 @@ function ControlRoom({
               </>
             )}
             <Button asChild className="mt-4" size="sm">
-              <Link params={{ id: activeStream.id }} to="/live/streams/$id">
+              <Link
+                params={{ id: activeStream.experienceId }}
+                to="/live/streams/$id"
+              >
                 Open public room
               </Link>
             </Button>

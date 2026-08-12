@@ -59,6 +59,9 @@ import {
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
+const databaseUnavailableMessage = {
+  message: "Database is not configured.",
+};
 
 type CreateLiveExperienceBody = z.infer<typeof createLiveExperienceBodySchema>;
 
@@ -1331,13 +1334,36 @@ app.post("/cloudflare-stream", async (c) => {
   );
 });
 
+const loadOwnedStreamExperience = async (streamId: string, userId: string) => {
+  const experience = await createDb()
+    .select()
+    .from(liveExperiences)
+    .where(
+      and(
+        eq(liveExperiences.streamInputId, streamId),
+        eq(liveExperiences.createdByUserId, userId)
+      )
+    )
+    .limit(1);
+
+  return experience[0] ?? null;
+};
+
 app.delete("/cloudflare-stream/:streamId", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
     return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
   }
 
+  if (!isDatabaseConfigured()) {
+    return c.json(databaseUnavailableMessage, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
+
   const streamId = c.req.param("streamId");
+  const experience = await loadOwnedStreamExperience(streamId, user.id);
+  if (!experience) {
+    return c.json({ message: "Stream input not found." }, HttpStatusCodes.NOT_FOUND);
+  }
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken =
     c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
@@ -1382,7 +1408,15 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
     return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
   }
 
+  if (!isDatabaseConfigured()) {
+    return c.json(databaseUnavailableMessage, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
+
   const streamId = c.req.param("streamId");
+  const experience = await loadOwnedStreamExperience(streamId, user.id);
+  if (!experience) {
+    return c.json({ message: "Stream input not found." }, HttpStatusCodes.NOT_FOUND);
+  }
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken =
     c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
