@@ -59,6 +59,9 @@ import {
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
+const databaseUnavailableMessage = {
+  message: "Database is not configured.",
+};
 
 type CreateLiveExperienceBody = z.infer<typeof createLiveExperienceBodySchema>;
 
@@ -529,12 +532,14 @@ const persistLiveExperience = async ({
   experienceId,
   meetingId,
   startsAt,
+  streamInputId,
 }: {
   body: CreateLiveExperienceBody;
   createdByUserId: string;
   experienceId: string;
   meetingId: string;
   startsAt: string;
+  streamInputId?: string | null;
 }) => {
   if (!isDatabaseConfigured()) {
     return null;
@@ -554,6 +559,7 @@ const persistLiveExperience = async ({
         projectId: body.projectId,
         source: body.source ?? defaultSourceForKind(body.kind),
         startsAt,
+        streamInputId,
         title: body.title.trim(),
         visibility: body.visibility,
       })
@@ -973,6 +979,7 @@ app.post("/experiences", async (c) => {
     experienceId,
     meetingId: meeting.id,
     startsAt,
+    streamInputId: streamInput?.id ?? null,
   });
 
   return c.json(
@@ -1044,6 +1051,47 @@ const buildCreateExperienceResponse = ({
   }),
   realtime: meeting,
   streamInput,
+});
+
+app.get("/experiences/:experienceId", async (c) => {
+  const experience = await loadLiveExperienceById(
+    c.req.param("experienceId")
+  );
+
+  if (!experience) {
+    return c.json({ message: "Live experience not found." }, HttpStatusCodes.NOT_FOUND);
+  }
+
+  if (experience.visibility === "private") {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user) || user.id !== experience.createdByUserId) {
+      return c.json({ message: "This live experience is private." }, HttpStatusCodes.FORBIDDEN);
+    }
+  }
+
+  const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
+  const streamBaseUrl =
+    experience.streamInputId && customerCode
+      ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}`
+      : null;
+  const playbackUrl = streamBaseUrl ? `${streamBaseUrl}/manifest/video.m3u8` : null;
+  const playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
+
+  return c.json(
+    {
+      id: experience.id,
+      kind: experience.kind,
+      playbackUrl,
+      playerUrl,
+      source: experience.source,
+      status: experience.status,
+      streamInputId: experience.streamInputId,
+      title: experience.title,
+      viewerCount: experience.viewerCount,
+      visibility: experience.visibility,
+    },
+    HttpStatusCodes.OK
+  );
 });
 
 app.post("/experiences/:experienceId/join", async (c) => {
@@ -1262,7 +1310,8 @@ app.post("/cloudflare-stream", async (c) => {
   const title = body.title || "Live Stream";
 
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = c.env.CLOUDFLARE_API_TOKEN;
+  const apiToken =
+    c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (accountId && apiToken) {
     try {
@@ -1285,15 +1334,92 @@ app.post("/cloudflare-stream", async (c) => {
   );
 });
 
+const loadOwnedStreamExperience = async (streamId: string, userId: string) => {
+  const experience = await createDb()
+    .select()
+    .from(liveExperiences)
+    .where(
+      and(
+        eq(liveExperiences.streamInputId, streamId),
+        eq(liveExperiences.createdByUserId, userId)
+      )
+    )
+    .limit(1);
+
+  return experience[0] ?? null;
+};
+
+app.delete("/cloudflare-stream/:streamId", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+
+  if (!isDatabaseConfigured()) {
+    return c.json(databaseUnavailableMessage, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
+
+  const streamId = c.req.param("streamId");
+  const experience = await loadOwnedStreamExperience(streamId, user.id);
+  if (!experience) {
+    return c.json({ message: "Stream input not found." }, HttpStatusCodes.NOT_FOUND);
+  }
+  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken =
+    c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
+
+  if (!(accountId && apiToken)) {
+    return c.json(
+      cloudflareStreamSetupRequired,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${streamId}`,
+    {
+      body: JSON.stringify({ enabled: false }),
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+      },
+      method: "PUT",
+    }
+  );
+
+  if (!response.ok) {
+    logCloudflareApiFailure({
+      body: await readResponseSnippet(response),
+      label: "Cloudflare Stream live input shutdown failed",
+      response,
+    });
+    return c.json(
+      { message: "Unable to stop the Cloudflare Stream input." },
+      HttpStatusCodes.BAD_GATEWAY
+    );
+  }
+
+  return c.json({ message: "Cloudflare Stream input stopped." }, HttpStatusCodes.OK);
+});
+
 app.get("/cloudflare-stream/:streamId", async (c) => {
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
     return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
   }
 
+  if (!isDatabaseConfigured()) {
+    return c.json(databaseUnavailableMessage, HttpStatusCodes.SERVICE_UNAVAILABLE);
+  }
+
   const streamId = c.req.param("streamId");
+  const experience = await loadOwnedStreamExperience(streamId, user.id);
+  if (!experience) {
+    return c.json({ message: "Stream input not found." }, HttpStatusCodes.NOT_FOUND);
+  }
   const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = c.env.CLOUDFLARE_API_TOKEN;
+  const apiToken =
+    c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (accountId && apiToken) {
     try {

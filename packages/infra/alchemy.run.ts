@@ -286,6 +286,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("CLOUDFLARE_API_TOKEN"),
     ...optionalEnvBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_API_TOKEN"),
+    ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
     SOUNDKIT_ALLOW_MOCK_REALTIME: isPullRequestPreview ? "true" : "false",
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,

@@ -155,8 +155,19 @@ const liveExperienceResponseSchema = z
     experience: liveExperienceSummarySchema,
     lock: z.object({}).passthrough(),
     notifications: z.array(z.object({}).passthrough()),
-    realtime: z.object({}).passthrough(),
-    streamInput: z.unknown().nullable(),
+    realtime: z.object({ id: z.string() }).passthrough(),
+    streamInput: z
+      .object({
+        id: z.string(),
+        playbackUrl: z.string(),
+        rtmpsKey: z.string(),
+        rtmpsUrl: z.string(),
+        srtKey: z.string(),
+        srtUrl: z.string(),
+        status: z.string(),
+        title: z.string(),
+      })
+      .nullable(),
   })
   .passthrough();
 
@@ -476,6 +487,20 @@ export const rpcContract = new Hono()
     jsonValidator(createLiveExperienceBodySchema),
     (c) => c.json({} as z.infer<typeof liveExperienceResponseSchema>, 201)
   )
+  .get("/v1/live/experiences/:experienceId", (c) =>
+    c.json({
+      id: "",
+      kind: "stream" as const,
+      playbackUrl: null,
+      playerUrl: null,
+      source: "obs",
+      status: "scheduled",
+      streamInputId: null,
+      title: "",
+      viewerCount: 0,
+      visibility: "public",
+    })
+  )
   .post(
     "/v1/live/experiences/:experienceId/join",
     jsonValidator(joinLiveExperienceBodySchema),
@@ -507,6 +532,9 @@ export const rpcContract = new Hono()
           title: string;
         }
       )
+  )
+  .delete("/v1/live/cloudflare-stream/:streamId", (c) =>
+    c.json({ message: "Cloudflare Stream input stopped." })
   )
   .get("/v1/live/cloudflare-stream/:streamId", (c) =>
     c.json(

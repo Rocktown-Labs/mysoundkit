@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -20,6 +21,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { API_V1_URL } from "@/lib/api";
 import { useLiveRoom } from "@/lib/live-room";
 
 export const Route = createFileRoute("/_explore/live/streams/$id")({
@@ -30,6 +32,27 @@ function StreamDetailPage() {
   const { id } = Route.useParams();
   const { chat, query } = useLiveRoom(id);
   const room = query.data;
+  const experienceQuery = useQuery({
+    queryFn: async () => {
+      const response = await fetch(
+        `${API_V1_URL}/live/experiences/${encodeURIComponent(id)}`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        throw new Error(`Unable to load live media: ${response.status}`);
+      }
+      return (await response.json()) as {
+        playbackUrl: string | null;
+        playerUrl: string | null;
+        source: string;
+        status: string;
+        visibility: string;
+      };
+    },
+    queryKey: ["live-experience", id],
+    refetchInterval: 5_000,
+  });
+  const experience = experienceQuery.data;
   const currentTrack = room?.tracklist.find(
     (track) => track.id === room.currentTrackId
   );
@@ -43,27 +66,42 @@ function StreamDetailPage() {
   }
 
   return (
-    <LiveRoomAccessGuard roomTitle={room.title}>
+    <LiveRoomAccessGuard
+      allowPublic={experience?.visibility === "public"}
+      roomTitle={room.title}
+    >
       <div className="grid gap-6 pb-8 xl:grid-cols-[minmax(0,1.8fr)_420px]">
         <div className="space-y-6">
           <section className="overflow-hidden rounded-lg border bg-card">
-            <div className="relative aspect-video">
-              <AppImage
-                alt={room.title}
-                className="h-full w-full object-cover"
-                height={720}
-                src={
-                  currentTrack?.coverArtUrl ??
-                  "/music-battle-video-thumbnail.jpg"
-                }
-                width={1280}
-              />
-              <div className="absolute inset-0 bg-black/40" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg">
-                  <Play className="ml-1 size-8 fill-current" />
-                </div>
-              </div>
+            <div className="relative aspect-video bg-black">
+              {experience?.playerUrl ? (
+                <iframe
+                  allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                  className="h-full w-full"
+                  src={experience.playerUrl}
+                  title={`${room.title} live stream`}
+                />
+              ) : (
+                <>
+                  <AppImage
+                    alt={room.title}
+                    className="h-full w-full object-cover"
+                    height={720}
+                    src={
+                      currentTrack?.coverArtUrl ??
+                      "/music-battle-video-thumbnail.jpg"
+                    }
+                    width={1280}
+                  />
+                  <div className="absolute inset-0 bg-black/40" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg">
+                      <Play className="ml-1 size-8 fill-current" />
+                    </div>
+                  </div>
+                </>
+              )}
               <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                 <Badge variant="destructive">Live</Badge>
                 <Badge variant="secondary">Cloudflare Realtime ready</Badge>

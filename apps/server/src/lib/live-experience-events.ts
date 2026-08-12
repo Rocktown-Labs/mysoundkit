@@ -1213,6 +1213,7 @@ export const buildLiveExperienceInsert = ({
   projectId,
   source,
   startsAt,
+  streamInputId,
   title,
   visibility,
 }: {
@@ -1226,6 +1227,7 @@ export const buildLiveExperienceInsert = ({
   projectId: string | null | undefined;
   source: string;
   startsAt: string;
+  streamInputId?: string | null;
   title: string;
   visibility: string;
 }) => ({
@@ -1239,6 +1241,7 @@ export const buildLiveExperienceInsert = ({
   projectId: projectId ?? null,
   source,
   startsAt: new Date(startsAt),
+  streamInputId: streamInputId ?? null,
   title,
   visibility,
 });

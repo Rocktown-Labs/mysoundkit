@@ -15,7 +15,7 @@ import {
   Users,
   Video,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,7 @@ type StreamSource = "browser" | "obs";
 
 interface ActiveStream {
   description: string;
+  experienceId: string;
   genre: string;
   id: string;
   playbackUrl: string;
@@ -109,9 +110,10 @@ function DashboardLiveStreamsPage() {
   const [visibility, setVisibility] = useState("Public");
   const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
   const [source, setSource] = useState<StreamSource>("obs");
-  const [activeStream, setActiveStream] = useState<ActiveStream | null>(
-    readSavedStream
-  );
+  const [activeStream, setActiveStream] = useState<ActiveStream | null>(() => {
+    const saved = readSavedStream();
+    return saved?.experienceId ? saved : null;
+  });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showStreamKey, setShowStreamKey] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -137,6 +139,7 @@ function DashboardLiveStreamsPage() {
       const stream =
         created.streamInput ??
         ({
+          experienceId: created.experience.id,
           id: created.realtime.id,
           playbackUrl: "",
           rtmpsKey: "",
@@ -147,6 +150,7 @@ function DashboardLiveStreamsPage() {
           title: created.experience.title,
         } satisfies Pick<
           ActiveStream,
+          | "experienceId"
           | "id"
           | "playbackUrl"
           | "rtmpsKey"
@@ -160,6 +164,7 @@ function DashboardLiveStreamsPage() {
       const nextStream: ActiveStream = {
         ...stream,
         description,
+        experienceId: created.experience.id,
         genre,
         realtimeMeetingId: created.realtime.id,
         roomHref: created.experience.roomHref,
@@ -221,7 +226,65 @@ function DashboardLiveStreamsPage() {
     }
   };
 
-  const handleEndStream = () => {
+  const activeStreamId = activeStream?.id;
+
+  useEffect(() => {
+    if (!(activeStreamId && source === "obs")) {
+      return;
+    }
+
+    const refreshTimer = window.setInterval(() => {
+      void (async () => {
+        const response = await apiClient.v1.live["cloudflare-stream"][
+          ":streamId"
+        ].$get({
+          param: { streamId: activeStreamId },
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const stream = await response.json();
+        setActiveStream((current) => {
+          if (!current) {
+            return current;
+          }
+          const updated = { ...current, status: stream.status };
+          localStorage.setItem(
+            "soundkit_active_creator_stream",
+            JSON.stringify(updated)
+          );
+          return updated;
+        });
+      })().catch(() => {
+        // Status polling is best effort; the manual refresh remains available.
+      });
+    }, 5_000);
+
+    return () => window.clearInterval(refreshTimer);
+  }, [activeStreamId, source]);
+
+  const handleEndStream = async () => {
+    if (activeStream?.source === "obs") {
+      try {
+        const response = await apiClient.v1.live["cloudflare-stream"][
+          ":streamId"
+        ].$delete({
+          param: { streamId: activeStream.id },
+        });
+        if (!response.ok) {
+          throw new Error(`Unable to stop stream: ${response.status}`);
+        }
+      } catch {
+        toast({
+          description:
+            "The local stream was cleared, but Cloudflare could not be stopped. Refresh the status and try again.",
+          title: "Stream stop incomplete",
+          variant: "destructive",
+        });
+      }
+    }
+
     setActiveStream(null);
     localStorage.removeItem("soundkit_active_creator_stream");
     toast({
@@ -384,17 +447,18 @@ function DashboardLiveStreamsPage() {
                             htmlFor="stream-source-browser"
                           >
                             <RadioGroupItem
+                              disabled
                               id="stream-source-browser"
                               value="browser"
                             />
                             <span>
-                              <span className="flex items-center gap-2 font-medium">
-                                <Video className="size-4 text-primary" />
-                                Browser camera
+                              <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                                <Video className="size-4" />
+                                Browser camera (coming soon)
                               </span>
                               <span className="mt-1 block text-muted-foreground text-sm">
-                                Join directly from browser with camera &amp; mic
-                                setup.
+                                Browser broadcasting will use the RealtimeKit
+                                host studio once the web SDK is connected.
                               </span>
                             </span>
                           </label>
@@ -599,7 +663,12 @@ function ControlRoom({
             </CardDescription>
           </div>
           <Badge
-            variant={activeStream.status === "live" ? "destructive" : "outline"}
+            variant={
+              activeStream.status === "connected" ||
+              activeStream.status === "reconnected"
+                ? "destructive"
+                : "outline"
+            }
           >
             {activeStream.status}
           </Badge>
@@ -607,16 +676,32 @@ function ControlRoom({
       </CardHeader>
       <CardContent className="flex flex-col gap-5 p-4 md:p-6">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="rounded-lg border bg-black p-8 text-center text-white flex flex-col items-center justify-center">
-            <Radio className="size-10 text-primary animate-pulse" />
-            <h2 className="mt-4 font-semibold text-xl">Control Room Online</h2>
-            <p className="mt-2 max-w-md text-sm text-white/70">
-              Realtime chat &amp; playback channels are open. Connect your OBS
-              source or camera stream to broadcast live.
-            </p>
+          <div className="rounded-lg border bg-black text-center text-white flex min-h-72 flex-col items-center justify-center overflow-hidden">
+            {activeStream.playbackUrl ? (
+              <video
+                autoPlay
+                className="aspect-video w-full object-contain"
+                controls
+                muted
+                playsInline
+                src={activeStream.playbackUrl}
+              />
+            ) : (
+              <>
+                <Radio className="size-10 text-primary animate-pulse" />
+                <h2 className="mt-4 font-semibold text-xl">Control Room Online</h2>
+                <p className="mt-2 max-w-md px-6 text-sm text-white/70">
+                  Connect OBS to begin the broadcast. Stream playback will
+                  appear here when Cloudflare provides a playback URL.
+                </p>
+              </>
+            )}
             <Button asChild className="mt-4" size="sm">
-              <Link params={{ id: activeStream.id }} to="/live/streams/$id">
-                Open Viewroom Page
+              <Link
+                params={{ id: activeStream.experienceId }}
+                to="/live/streams/$id"
+              >
+                Open public room
               </Link>
             </Button>
           </div>
