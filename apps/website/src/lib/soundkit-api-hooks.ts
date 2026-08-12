@@ -59,6 +59,7 @@ const battleChallengesGet = apiClient.v1.battles.challenges.index.$get;
 const battleChallengePost = apiClient.v1.battles.challenge.$post;
 const battleChallengePatch =
   apiClient.v1.battles.challenges[":challengeId"].$patch;
+const liveExperiencesGet = apiClient.v1.live.experiences.public.$get;
 const liveExperiencePost = apiClient.v1.live.experiences.index.$post;
 const liveExperienceJoinPost =
   apiClient.v1.live.experiences[":experienceId"].join.$post;
@@ -1098,6 +1099,12 @@ export const useBattlesQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await battlesGet()),
     queryKey: soundkitQueryKeys.battles,
+  });
+
+export const usePublicLiveExperiencesQuery = (kind: "party" | "stream") =>
+  useQuery({
+    queryFn: async () => rpcJson(await liveExperiencesGet({ query: { kind } })),
+    queryKey: ["live", "experiences", kind],
   });
 
 export const useBattleChallengesQuery = () =>

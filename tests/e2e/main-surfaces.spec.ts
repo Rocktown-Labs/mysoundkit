@@ -92,6 +92,18 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText("No listening parties are live right now.")
     ).toHaveCount(1);
+
+    await gotoWithViteRetry(page, "/live/parties");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Listening Parties" })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/live/streams");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Creator Streams" }).nth(1)
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
   });
 
   test("videos route renders URL-backed filters without crashing", async ({

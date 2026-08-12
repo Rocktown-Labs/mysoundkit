@@ -60,6 +60,43 @@ import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
 
+app.get("/experiences/public", async (c) => {
+  if (!isDatabaseConfigured()) {
+    return c.json([], HttpStatusCodes.OK);
+  }
+
+  const kind = c.req.query("kind");
+  const db = createDb();
+  const conditions = [
+    eq(liveExperiences.visibility, "public"),
+    or(
+      eq(liveExperiences.status, "live"),
+      eq(liveExperiences.status, "scheduled")
+    ),
+    kind
+      ? eq(liveExperiences.kind, kind as "battle" | "party" | "stream")
+      : undefined,
+  ].filter((condition): condition is NonNullable<typeof condition> =>
+    Boolean(condition)
+  );
+  const experiences = await db
+    .select({
+      endsAt: liveExperiences.endsAt,
+      id: liveExperiences.id,
+      kind: liveExperiences.kind,
+      source: liveExperiences.source,
+      startsAt: liveExperiences.startsAt,
+      status: liveExperiences.status,
+      title: liveExperiences.title,
+      viewerCount: liveExperiences.viewerCount,
+    })
+    .from(liveExperiences)
+    .where(and(...conditions))
+    .orderBy(asc(liveExperiences.startsAt));
+
+  return c.json(experiences, HttpStatusCodes.OK);
+});
+
 type CreateLiveExperienceBody = z.infer<typeof createLiveExperienceBodySchema>;
 
 interface CloudflareMeetingResponse {

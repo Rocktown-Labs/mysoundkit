@@ -32,12 +32,12 @@ function PartyRail({
   return (
     <section className="space-y-3">
       <SectionHeader
-        title={title}
         description="Synced listening rooms with shared chat and saves."
+        title={title}
         viewAllHref="/live/parties"
       />
       {items.length > 0 ? (
-        <div className="overflow-x-auto pb-2">
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
           <div className="flex min-w-max gap-4 md:gap-6">
             {items.map((party) => (
               <PartySummaryCard key={party.id} party={party} />
@@ -88,11 +88,11 @@ function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
           </div>
           <div>
             <h3 className="line-clamp-2 font-bold text-lg">{party.title}</h3>
-            {party.description && (
+            {party.description ? (
               <p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
                 {party.description}
               </p>
-            )}
+            ) : null}
           </div>
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <CalendarClock className="size-4 text-primary" />
@@ -106,19 +106,35 @@ function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
 
 function LivePartiesPage() {
   const { data: parties = [], isLoading } = useListeningPartiesQuery();
+  const featured = parties.slice(0, 6);
   const liveParties = parties.filter((party) => party.status === "live");
+  const upcomingParties = parties.filter(
+    (party) => party.status === "scheduled"
+  );
+  const modeSections = [
+    {
+      items: parties.filter((party) => party.playbackMode === "artist_hosted"),
+      title: "Artist Hosted",
+    },
+    {
+      items: parties.filter(
+        (party) => party.playbackMode === "programmed_release"
+      ),
+      title: "Release Parties",
+    },
+  ].filter((section) => section.items.length > 0);
 
   return (
     <div className="space-y-8 pb-8">
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 font-bold text-2xl">
+          <h1 className="flex items-center gap-2 font-bold text-2xl md:text-3xl">
             <Headphones className="size-6 text-primary" />
             Listening Parties
-          </h2>
+          </h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
-            Join release rooms and artist-hosted listening sessions. Signed-out
-            visitors can browse what is scheduled before jumping in.
+            Join release rooms and artist-hosted listening sessions. Browse
+            featured rooms, live chats, upcoming parties, and room types.
           </p>
         </div>
         <CreateFanPartyDialog />
@@ -129,18 +145,31 @@ function LivePartiesPage() {
           Loading listening parties...
         </div>
       ) : (
-        <>
+        <div className="space-y-8">
+          <PartyRail
+            empty="No featured parties yet."
+            items={featured}
+            title="Featured"
+          />
           <PartyRail
             empty="No listening parties are live right now."
             items={liveParties}
-            title="Live Parties"
+            title="Live Now"
           />
           <PartyRail
             empty="No upcoming listening parties are scheduled yet."
-            items={parties}
-            title="Upcoming Parties"
+            items={upcomingParties}
+            title="Upcoming"
           />
-        </>
+          {modeSections.map((section) => (
+            <PartyRail
+              empty={`No ${section.title} parties yet.`}
+              items={section.items}
+              key={section.title}
+              title={section.title}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
