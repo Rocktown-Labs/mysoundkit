@@ -53,10 +53,17 @@ export function ExploreHeader() {
     searchInputRef.current?.select();
   });
 
+  const searchScope = pathname.startsWith("/projects")
+    ? "projects"
+    : pathname.startsWith("/tracks")
+      ? "tracks"
+      : pathname.startsWith("/artist")
+        ? "artists"
+        : "all";
   const searchQuery = useSearchQuery({
     limit: "8",
     q: trimmedSearchValue,
-    type: "all",
+    type: searchScope,
   });
   const results = searchQuery.data;
   const resultCount =
@@ -215,6 +222,22 @@ export function ExploreHeader() {
                       </span>
                     </Link>
                   ))}
+                  {searchScope !== "all" ? (
+                    <Link
+                      className="mt-2 block rounded-md border px-3 py-2 text-center text-xs font-medium hover:bg-accent"
+                      onClick={() => setSearchValue("")}
+                      search={{ q: trimmedSearchValue }}
+                      to={
+                        searchScope === "projects"
+                          ? "/projects"
+                          : searchScope === "tracks"
+                            ? "/tracks"
+                            : "/artist"
+                      }
+                    >
+                      View all {searchScope}
+                    </Link>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -257,12 +280,12 @@ export function ExploreHeader() {
           </>
         ) : (
           <>
-            <Link to="/login">
+            <Link search={{ redirect: pathname }} to="/login">
               <Button variant="ghost" size="sm">
                 Log In
               </Button>
             </Link>
-            <Link to="/signup">
+            <Link search={{}} to="/signup">
               <Button size="sm">Sign Up</Button>
             </Link>
           </>
