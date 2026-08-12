@@ -198,6 +198,20 @@ const liveExperienceActionResponseSchema = z
   .passthrough();
 
 export const rpcContract = new Hono()
+  .get("/v1/live/experiences/public", (c) =>
+    c.json(
+      [] as {
+        endsAt: string | null;
+        id: string;
+        kind: "battle" | "party" | "stream";
+        source: string;
+        startsAt: string;
+        status: string;
+        title: string;
+        viewerCount: number;
+      }[]
+    )
+  )
   .get("/v1/admin/access", (c) =>
     c.json({} as z.infer<typeof adminAccessSchema>)
   )

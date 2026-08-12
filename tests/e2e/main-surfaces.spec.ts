@@ -92,6 +92,18 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText("No listening parties are live right now.")
     ).toHaveCount(1);
+
+    await gotoWithViteRetry(page, "/live/parties");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Listening Parties" })
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/live/streams");
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Creator Streams" }).nth(1)
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Featured" })).toBeVisible();
   });
 
   test("videos route renders URL-backed filters without crashing", async ({
@@ -108,6 +120,21 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("Featured Videos")).toBeVisible();
     await expect(page.getByText("Hip-Hop/Rap").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Country" })).toBeVisible();
+  });
+
+  test("explore collection routes support shared all-results views", async ({
+    page,
+  }) => {
+    await gotoWithViteRetry(page, "/tracks?view=all");
+    await expect(page.getByRole("heading", { name: "All Songs" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/videos?view=all");
+    await expect(page.getByRole("heading", { name: "All Videos" })).toBeVisible();
+
+    await gotoWithViteRetry(page, "/projects?view=all");
+    await expect(
+      page.getByRole("heading", { name: "All Projects" })
+    ).toBeVisible();
   });
 
   test("creator live dashboards expose separate battle party and stream setup", async ({

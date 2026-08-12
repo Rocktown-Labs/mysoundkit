@@ -54,14 +54,29 @@ export const backfillTrackDurationsBodySchema = z.object({
 
 export const backfillTrackDurationsResponseSchema = z.object({
   enqueued: z.number().int().nonnegative(),
+  runId: z.string(),
   scanned: z.number().int().nonnegative(),
+});
+
+export const trackDurationBackfillStatusQuerySchema = z.object({
+  runId: z.string().min(1),
 });
 
 export const trackDurationBackfillStatusSchema = z.object({
   done: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
+  items: z
+    .object({
+      durationMs: z.number().int().nonnegative().nullable(),
+      error: z.string().nullable(),
+      status: z.string(),
+      title: z.string(),
+      trackId: z.string(),
+    })
+    .array(),
   processing: z.number().int().nonnegative(),
   queued: z.number().int().nonnegative(),
+  runId: z.string(),
 });
 
 export const adminFinanceSummarySchema = z.object({
@@ -406,6 +421,7 @@ export const publicExploreQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(24),
   page: z.coerce.number().int().positive().default(1),
   region: z.string().trim().max(80).default("us-arkansas"),
+  q: z.string().trim().max(120).optional(),
   regionType: z.enum(["north-america", "global"]).default("north-america"),
   scope: z.enum(["dashboard", "public"]).default("dashboard"),
   sort: z.string().trim().max(80).default("rank-asc"),
