@@ -541,12 +541,19 @@ export const useBackfillTrackDurationsMutation = () => {
   });
 };
 
-export const useTrackDurationBackfillStatusQuery = (enabled = true) =>
+export const useTrackDurationBackfillStatusQuery = (
+  runId: string | null,
+  enabled = true
+) =>
   useQuery({
-    enabled,
+    enabled: enabled && Boolean(runId),
     queryFn: async () =>
-      rpcJson(await adminBackfillTrackDurationsStatusGet()),
-    queryKey: ["admin", "tracks", "backfill-durations", "status"],
+      rpcJson(
+        await adminBackfillTrackDurationsStatusGet({
+          query: { runId: runId ?? "" },
+        })
+      ),
+    queryKey: ["admin", "tracks", "backfill-durations", "status", runId],
     refetchInterval: (query) => {
       const status = query.state.data;
 

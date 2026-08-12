@@ -54,14 +54,29 @@ export const backfillTrackDurationsBodySchema = z.object({
 
 export const backfillTrackDurationsResponseSchema = z.object({
   enqueued: z.number().int().nonnegative(),
+  runId: z.string(),
   scanned: z.number().int().nonnegative(),
+});
+
+export const trackDurationBackfillStatusQuerySchema = z.object({
+  runId: z.string().min(1),
 });
 
 export const trackDurationBackfillStatusSchema = z.object({
   done: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
+  items: z
+    .object({
+      durationMs: z.number().int().nonnegative().nullable(),
+      error: z.string().nullable(),
+      status: z.string(),
+      title: z.string(),
+      trackId: z.string(),
+    })
+    .array(),
   processing: z.number().int().nonnegative(),
   queued: z.number().int().nonnegative(),
+  runId: z.string(),
 });
 
 export const adminFinanceSummarySchema = z.object({

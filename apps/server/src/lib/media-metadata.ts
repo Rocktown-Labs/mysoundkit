@@ -1,14 +1,16 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { trackAssets, tracks, workflowJobs } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { and, count, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 import { logWarn } from "@/middleware/structured-logging";
 
 export interface DurationBackfillQueueMessage {
   assetId: string;
+  jobId: string;
   objectKey: string;
+  runId: string;
   trackId: string;
 }
 
@@ -266,8 +268,10 @@ export const enqueueTrackDurationBackfills = async ({
   queue?: Queue<DurationBackfillQueueMessage> | null;
   trackIds?: string[];
 } = {}) => {
+  const runId = crypto.randomUUID();
+
   if (!(isDatabaseConfigured() && queue)) {
-    return { enqueued: 0, scanned: 0 };
+    return { enqueued: 0, runId, scanned: 0 };
   }
 
   const db = createDb();
@@ -299,7 +303,7 @@ export const enqueueTrackDurationBackfills = async ({
 
     await db.insert(workflowJobs).values({
       id: jobId,
-      input: row,
+      input: { ...row, runId },
       jobType: DURATION_BACKFILL_JOB_TYPE,
       targetId: row.assetId,
       targetType: "track_asset",
@@ -307,7 +311,13 @@ export const enqueueTrackDurationBackfills = async ({
 
     try {
       await queue.send(
-        { assetId: row.assetId, objectKey: row.objectKey, trackId: row.trackId },
+        {
+          assetId: row.assetId,
+          jobId,
+          objectKey: row.objectKey,
+          runId,
+          trackId: row.trackId,
+        },
         { contentType: "json" }
       );
       enqueued += 1;
@@ -323,11 +333,12 @@ export const enqueueTrackDurationBackfills = async ({
     }
   }
 
-  return { enqueued, scanned: rows.length };
+  return { enqueued, runId, scanned: rows.length };
 };
 
 const processDurationBackfill = async ({
   assetId,
+  jobId,
   objectKey,
   trackId,
 }: DurationBackfillQueueMessage) => {
@@ -341,6 +352,7 @@ const processDurationBackfill = async ({
     .from(workflowJobs)
     .where(
       and(
+        eq(workflowJobs.id, jobId),
         eq(workflowJobs.targetId, assetId),
         eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
       )
@@ -448,31 +460,57 @@ export const handleTrackDurationBackfillQueue = async (
   }
 };
 
-export const loadTrackDurationBackfillStatus = async () => {
+export const loadTrackDurationBackfillStatus = async (runId: string) => {
   if (!isDatabaseConfigured()) {
-    return { done: 0, failed: 0, processing: 0, queued: 0 };
+    return { done: 0, failed: 0, items: [], processing: 0, queued: 0, runId };
   }
 
   const db = createDb();
   const rows = await db
     .select({
+      durationMs: trackAssets.durationMs,
+      error: workflowJobs.error,
+      input: workflowJobs.input,
       status: workflowJobs.status,
-      value: count(),
+      title: tracks.title,
+      trackId: tracks.id,
     })
     .from(workflowJobs)
-    .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE))
-    .groupBy(workflowJobs.status);
+    .innerJoin(trackAssets, eq(trackAssets.id, workflowJobs.targetId))
+    .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+    .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE));
 
-  const summary: Record<string, number> = {};
+  const runRows = rows.filter((row) => {
+    const {input} = row;
+    return (
+      input !== null &&
+      typeof input === "object" &&
+      "runId" in input &&
+      input.runId === runId
+    );
+  });
+  const summary = { done: 0, failed: 0, processing: 0, queued: 0 };
 
-  for (const row of rows) {
-    summary[row.status] = row.value;
+  for (const row of runRows) {
+    if (row.status === "completed") {summary.done += 1;}
+    else if (row.status === "failed") {summary.failed += 1;}
+    else if (row.status === "running" || row.status === "waiting")
+      {summary.processing += 1;}
+    else {summary.queued += 1;}
   }
 
   return {
-    done: summary.completed ?? 0,
-    failed: summary.failed ?? 0,
-    processing: (summary.running ?? 0) + (summary.waiting ?? 0),
-    queued: summary.queued ?? 0,
+    ...summary,
+    items: runRows.map((row) => ({
+      durationMs: row.durationMs,
+      error:
+        row.error && typeof row.error === "object" && "message" in row.error
+          ? String(row.error.message)
+          : null,
+      status: row.status,
+      title: row.title,
+      trackId: row.trackId,
+    })),
+    runId,
   };
 };
