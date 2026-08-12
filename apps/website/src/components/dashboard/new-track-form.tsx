@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -301,6 +302,11 @@ export function NewTrackForm({
       : SUPPORTED_GENRES;
   const { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
     useAudioPlayer();
+  const isReleasedTrack = Boolean(
+    initialTrack &&
+      (initialTrack.isPublic === true ||
+        Number(initialTrack.playCount ?? initialTrack.plays ?? 0) > 0)
+  );
   const [step, setStep] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<
@@ -1001,6 +1007,18 @@ export function NewTrackForm({
     }
   };
 
+  const handleInvalidSubmit = (errors: FieldErrors<TrackFormValues>) => {
+    const firstError = Object.keys(errors)[0];
+    if (firstError === "genre" || firstError === "name" || firstError === "status") {
+      setStep("details");
+    }
+    toast({
+      description: "Review the highlighted fields before continuing.",
+      title: "Track setup incomplete",
+      variant: "destructive",
+    });
+  };
+
   const onSubmit = async (values: TrackFormValues) => {
     setIsSubmitting(true);
     setSubmitStage("uploading");
@@ -1592,7 +1610,10 @@ export function NewTrackForm({
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, handleInvalidSubmit)}
+          className="space-y-6"
+        >
           <Accordion
             type="single"
             collapsible
@@ -1655,6 +1676,7 @@ export function NewTrackForm({
                           Genre <span className="text-destructive">*</span>
                         </FormLabel>
                         <Select
+                          disabled={isReleasedTrack}
                           onValueChange={field.onChange}
                           value={field.value}
                         >
@@ -1685,6 +1707,7 @@ export function NewTrackForm({
                       <FormItem>
                         <FormLabel>Status</FormLabel>
                         <Select
+                          disabled={isReleasedTrack}
                           onValueChange={field.onChange}
                           value={field.value}
                         >

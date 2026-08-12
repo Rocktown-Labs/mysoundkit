@@ -359,6 +359,11 @@ export function NewProjectForm({
     genreRows.length > 0
       ? genreRows.map((genre) => genre.name)
       : SUPPORTED_GENRES;
+  const isReleasedProject = Boolean(
+    initialProject &&
+      (initialProject.status === "released" ||
+        Number(initialProject.playCount ?? initialProject.plays ?? 0) > 0)
+  );
   const [step, setStep] = useState("identity");
   const [isSubmittingProject, setIsSubmittingProject] = useState(false);
   const [collaboratorQuery, setCollaboratorQuery] = useState("");
@@ -1409,6 +1414,7 @@ export function NewProjectForm({
                         <FormItem>
                           <FormLabel>Project Type</FormLabel>
                           <Select
+                            disabled={isReleasedProject}
                             onValueChange={handleProjectTypeChange}
                             value={field.value}
                           >
@@ -1438,6 +1444,7 @@ export function NewProjectForm({
                           <span className="text-destructive">*</span>
                         </FormLabel>
                         <Select
+                          disabled={isReleasedProject}
                           onValueChange={(val) => {
                             field.onChange(val);
                             const currentTracks = form.getValues("newTracks");
