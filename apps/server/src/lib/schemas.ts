@@ -1423,6 +1423,9 @@ export const createProjectBodySchema = z.object({
     .array(
       z.object({
         assetId: z.string().optional(),
+        downloadsAllowed: z.boolean().default(true),
+        downloadsRequireFirstPlay: z.boolean().default(true),
+        downloadsRequirePurchase: z.boolean().default(false),
         durationMs: z.number().int().nonnegative().optional(),
         fileName: z.string().optional(),
         genre: z.string().min(1),

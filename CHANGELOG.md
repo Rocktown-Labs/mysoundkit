@@ -10,6 +10,7 @@
 
 ### Fixed
 
+- Standardized newly created track download defaults across standalone and project-created tracks: authenticated users must play once before downloading, while free tracks are not purchase-gated.
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.
 - Added production and suffixed-preview queue routing for duration backfills, plus focused coverage for queue-name classification.

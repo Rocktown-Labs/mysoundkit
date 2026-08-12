@@ -464,6 +464,9 @@ app.openapi(
         const genreId = await ensureGenreId(newTrack.genre);
         await db.insert(tracks).values({
           catalogItemType: "single",
+          downloadsAllowed: newTrack.downloadsAllowed,
+          downloadsRequireFirstPlay: newTrack.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: newTrack.downloadsRequirePurchase,
           exclusiveUntil: body.exclusiveUntil
             ? new Date(body.exclusiveUntil)
             : null,

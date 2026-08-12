@@ -774,10 +774,10 @@ export const tracks = pgTable(
     description: text("description"),
     downloadsAllowed: boolean("downloads_allowed").default(true).notNull(),
     downloadsRequireFirstPlay: boolean("downloads_require_first_play")
-      .default(false)
+      .default(true)
       .notNull(),
     downloadsRequirePurchase: boolean("downloads_require_purchase")
-      .default(true)
+      .default(false)
       .notNull(),
     exclusiveUntil: timestamp("exclusive_until"),
     genreId: text("genre_id").references(() => genres.id, {
