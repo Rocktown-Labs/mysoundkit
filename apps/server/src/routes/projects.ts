@@ -400,6 +400,11 @@ app.openapi(
       const projectId = crypto.randomUUID();
       const now = new Date();
       const hasNewTracks = body.newTracks.length > 0;
+      const projectGenreId = body.genre
+        ? await ensureGenreId(body.genre)
+        : (body.newTracks[0]?.genre
+          ? await ensureGenreId(body.newTracks[0].genre)
+          : null);
       const projectStatus =
         body.status ?? (body.releaseDate ? "scheduled" : "draft");
       const [project] = await db
@@ -410,6 +415,7 @@ app.openapi(
           exclusiveUntil: body.exclusiveUntil
             ? new Date(body.exclusiveUntil)
             : null,
+          genreId: projectGenreId,
           id: projectId,
           isForSale: body.isForSale,
           isPublic: body.isPublic && !hasNewTracks,
@@ -665,18 +671,16 @@ app.openapi(
       exclusiveUntil = new Date(body.exclusiveUntil);
     }
     const monetizationPatch = {
-      ...(body.exclusiveUntil !== undefined ? { exclusiveUntil } : {}),
-      ...(body.isForSale !== undefined
-        ? { isForSale: body.isForSale }
-        : {}),
-      ...(body.listeningAccess !== undefined
-        ? { listeningAccess: body.listeningAccess }
-        : {}),
+      ...(body.exclusiveUntil === undefined ? {} : { exclusiveUntil }),
+      ...(body.isForSale === undefined ? {} : { isForSale: body.isForSale }),
+      ...(body.listeningAccess === undefined
+        ? {}
+        : { listeningAccess: body.listeningAccess }),
       ...(body.isForSale === false
         ? { priceCents: null }
-        : body.priceCents !== undefined
+        : (body.priceCents !== undefined
           ? { priceCents: body.priceCents }
-          : {}),
+          : {})),
     };
     const [project] = await db
       .update(projects)

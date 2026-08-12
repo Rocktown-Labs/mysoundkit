@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { listeningParties, projects } from "@soundkit/db/schema/app";
+import { genres, listeningParties, projects } from "@soundkit/db/schema/app";
 import { and, desc, eq, gte } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -21,9 +21,25 @@ import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
 
-const mapParty = (party: typeof listeningParties.$inferSelect) => ({
+const resolveGenreId = async (genreName?: string) => {
+  if (!genreName) {
+    return null;
+  }
+
+  const [genre] = await createDb()
+    .select({ id: genres.id })
+    .from(genres)
+    .where(eq(genres.name, genreName))
+    .limit(1);
+  return genre?.id ?? null;
+};
+
+const mapParty = (
+  party: typeof listeningParties.$inferSelect & { genre?: string | null }
+) => ({
   description: party.description,
   endedAt: party.endedAt?.toISOString() ?? null,
+  genre: party.genre ?? null,
   hostUserId: party.hostUserId,
   id: party.id,
   liveRoomId: party.liveRoomId,
@@ -54,13 +70,18 @@ app.openapi(
     }
 
     const rows = await createDb()
-      .select()
+      .select({ genre: genres.name, party: listeningParties })
       .from(listeningParties)
+      .leftJoin(projects, eq(projects.id, listeningParties.projectId))
+      .leftJoin(genres, eq(genres.id, listeningParties.genreId))
       .where(gte(listeningParties.scheduledStartAt, new Date()))
       .orderBy(desc(listeningParties.scheduledStartAt))
       .limit(50);
 
-    return c.json(rows.map(mapParty), HttpStatusCodes.OK);
+    return c.json(
+      rows.map(({ genre, party }) => mapParty({ ...party, genre })),
+      HttpStatusCodes.OK
+    );
   }
 );
 
@@ -130,6 +151,7 @@ app.openapi(
       .insert(listeningParties)
       .values({
         description: body.description ?? null,
+        genreId: await resolveGenreId(body.genre),
         hostUserId: user.id,
         id: crypto.randomUUID(),
         liveRoomId: crypto.randomUUID(),

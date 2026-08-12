@@ -29,7 +29,10 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { createWorkflowJobRow } from "@/lib/audio-processing";
 import type { TrackProcessingWorkflowPayload } from "@/lib/audio-processing";
-import { resolveListeningAccess } from "@/lib/content-access";
+import {
+  resolveDownloadAccess,
+  resolveListeningAccess,
+} from "@/lib/content-access";
 import {
   buildTrackDetail,
   buildTrackSummary,
@@ -2220,23 +2223,23 @@ app.openapi(
         );
       }
 
-      if (
-        (row.track.isForSale || row.track.downloadsRequirePurchase) &&
-        !hasPurchase
-      ) {
+      const downloadAccess = resolveDownloadAccess({
+        hasPlayed: await hasPlayedTrackOnce({ db, trackId, userId: user.id }),
+        hasPurchase,
+        isPremium: false,
+        policy: row.track,
+      });
+      if (!downloadAccess.allowed) {
+        const messageByReason = {
+          downloads_disabled:
+            "The artist has disabled downloads for this track.",
+          first_play_required:
+            "Play this track once before downloading its files.",
+          purchase_required:
+            "Purchase this track before downloading its files.",
+        } as const;
         return c.json(
-          { message: "Purchase this track before downloading its files." },
-          HttpStatusCodes.FORBIDDEN
-        );
-      }
-
-      if (
-        !row.track.downloadsRequirePurchase &&
-        row.track.downloadsRequireFirstPlay &&
-        !(await hasPlayedTrackOnce({ db, trackId, userId: user.id }))
-      ) {
-        return c.json(
-          { message: "Play this track once before downloading its files." },
+          { message: messageByReason[downloadAccess.reason] },
           HttpStatusCodes.FORBIDDEN
         );
       }

@@ -779,16 +779,17 @@ export const tracks = pgTable(
     downloadsRequirePurchase: boolean("downloads_require_purchase")
       .default(true)
       .notNull(),
+    exclusiveUntil: timestamp("exclusive_until"),
     genreId: text("genre_id").references(() => genres.id, {
       onDelete: "set null",
     }),
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
+    isrc: text("isrc"),
     listeningAccess: listeningAccessEnum("listening_access")
       .default("public")
       .notNull(),
-    isrc: text("isrc"),
     lyricsStatus: lyricsStatusEnum("lyrics_status")
       .default("missing")
       .notNull(),
@@ -801,7 +802,6 @@ export const tracks = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     price: numeric("price", { precision: 10, scale: 2 }),
     priceCents: integer("price_cents"),
-    exclusiveUntil: timestamp("exclusive_until"),
     productionStatus: trackProductionStatusEnum("production_status")
       .default("demo")
       .notNull(),
@@ -1018,6 +1018,10 @@ export const projects = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
+    exclusiveUntil: timestamp("exclusive_until"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
@@ -1031,7 +1035,6 @@ export const projects = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     priceCents: integer("price_cents"),
-    exclusiveUntil: timestamp("exclusive_until"),
     projectType: projectTypeEnum("project_type").notNull(),
     purchaseMode: purchaseModeEnum("purchase_mode")
       .default("digital_download")
@@ -1131,6 +1134,9 @@ export const listeningParties = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
     endedAt: timestamp("ended_at"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     hostUserId: text("host_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -1960,9 +1966,9 @@ export const liveExperiences = pgTable(
     recordingStatus: text("recording_status"),
     recordingUrl: text("recording_url"),
     source: text("source").default("browser").notNull(),
-    streamInputId: text("stream_input_id"),
     startsAt: timestamp("starts_at").notNull(),
     status: liveExperienceStatusEnum("status").default("scheduled").notNull(),
+    streamInputId: text("stream_input_id"),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

@@ -450,8 +450,8 @@ export const trackSummarySchema = z.object({
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
-  previewUrl: z.string().nullable().optional(),
   plays: z.number(),
+  previewUrl: z.string().nullable().optional(),
   price: z.number().nullable(),
   priceCents: z.number().int().nullable().optional(),
   productionStatus: z
@@ -736,8 +736,8 @@ export const trackCatalogDetailSchema = z.object({
   id: z.string(),
   isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
-  isPurchasable: z.boolean(),
   isPreviewAvailable: z.boolean().default(false),
+  isPurchasable: z.boolean(),
   isStreamable: z.boolean(),
   isrc: z.string().nullable().optional(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
@@ -771,9 +771,9 @@ export const projectSummarySchema = z.object({
   description: z.string().nullable().optional(),
   duration: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),
+  exclusiveUntil: z.string().nullable().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
-  exclusiveUntil: z.string().nullable().optional(),
   isForSale: z.boolean().default(false),
   isPublic: z.boolean(),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
@@ -806,6 +806,7 @@ export const projectDashboardDetailSchema = projectSummarySchema.extend({
 export const listeningPartySummarySchema = z.object({
   description: z.string().nullable(),
   endedAt: z.string().nullable(),
+  genre: z.string().nullable(),
   hostUserId: z.string(),
   id: z.string(),
   liveRoomId: z.string().nullable(),
@@ -820,6 +821,7 @@ export const listeningPartySummarySchema = z.object({
 
 export const createListeningPartyBodySchema = z.object({
   description: z.string().max(2000).optional(),
+  genre: z.string().optional(),
   playbackMode: z
     .enum(["artist_hosted", "programmed_release"])
     .default("artist_hosted"),
@@ -972,6 +974,7 @@ export const battleSummarySchema = z.object({
     .nullable()
     .optional(),
   status: z.enum(["scheduled", "live", "completed", "archived"]),
+  title: z.string(),
   tracks: z
     .object({
       artist: z.string(),
@@ -983,7 +986,6 @@ export const battleSummarySchema = z.object({
     .array()
     .max(2)
     .default([]),
-  title: z.string(),
   viewerCount: z.number(),
   visibility: z.enum(["public", "premium_only"]),
 });
@@ -1196,13 +1198,13 @@ export const createTrackBodySchema = z.object({
   downloadsAllowed: z.boolean().default(true),
   downloadsRequireFirstPlay: z.boolean().default(true),
   downloadsRequirePurchase: z.boolean().default(false),
-  genre: z.string().min(1),
   exclusiveUntil: z.string().optional(),
+  genre: z.string().min(1),
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
-  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   isrc: z.string().optional(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
   priceCents: z.number().int().nonnegative().optional(),
@@ -1409,10 +1411,11 @@ export const claimCartBodySchema = z.object({
 
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
-  exclusiveUntil: z.string().optional(),
   collaboratorNames: z.array(z.string()).default([]),
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
+  exclusiveUntil: z.string().optional(),
+  genre: z.string().min(1).optional(),
   isForSale: z.boolean().default(false),
   isPublic: z.boolean().default(true),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),

@@ -1,15 +1,66 @@
 export type ListeningAccess = "public" | "premium_or_purchased";
 
-export type ContentListeningPolicy = {
+export interface ContentListeningPolicy {
   exclusiveUntil: Date | string | null | undefined;
   isForSale: boolean;
   listeningAccess: ListeningAccess;
-};
+}
 
-export type ContentAccessDecision = {
+export interface ContentDownloadPolicy {
+  downloadsAllowed: boolean;
+  downloadsRequireFirstPlay: boolean;
+  downloadsRequirePurchase: boolean;
+  isForSale: boolean;
+}
+
+export type ContentDownloadDecision =
+  | { allowed: true; reason: "free" | "premium_or_purchased" }
+  | {
+      allowed: false;
+      reason:
+        | "first_play_required"
+        | "purchase_required"
+        | "downloads_disabled";
+    };
+
+export interface ContentAccessDecision {
   canListen: boolean;
   isPreview: boolean;
   reason: "free" | "premium" | "purchased" | "public" | "preview";
+}
+
+export const resolveDownloadAccess = ({
+  hasPlayed,
+  hasPurchase,
+  isPremium,
+  policy,
+}: {
+  hasPlayed: boolean;
+  hasPurchase: boolean;
+  isPremium: boolean;
+  policy: ContentDownloadPolicy;
+}): ContentDownloadDecision => {
+  if (!policy.downloadsAllowed) {
+    return { allowed: false, reason: "downloads_disabled" };
+  }
+
+  if (
+    policy.isForSale &&
+    policy.downloadsRequirePurchase &&
+    !hasPurchase &&
+    !isPremium
+  ) {
+    return { allowed: false, reason: "purchase_required" };
+  }
+
+  if (policy.downloadsRequireFirstPlay && !hasPlayed) {
+    return { allowed: false, reason: "first_play_required" };
+  }
+
+  return {
+    allowed: true,
+    reason: policy.isForSale ? "premium_or_purchased" : "free",
+  };
 };
 
 export const isExclusivityActive = (
