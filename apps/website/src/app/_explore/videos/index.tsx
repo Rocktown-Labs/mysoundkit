@@ -27,7 +27,12 @@ interface VideosSearch {
 export const Route = createFileRoute("/_explore/videos/")({
   component: VideosPage,
   validateSearch: (search: Record<string, unknown>): VideosSearch => ({
-    genre: typeof search.genre === "string" ? search.genre : undefined,
+    genre:
+      search.genre === "hip-hop"
+        ? "hip-hop-rap"
+        : typeof search.genre === "string"
+          ? search.genre
+          : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
@@ -124,7 +129,7 @@ function VideosPage() {
         sortOptions={sortOptions}
       />
 
-      {view === "all" || genre !== "all" ? (
+      {view === "all" ? (
         <ExploreCollectionGrid
           empty="No videos found for the selected filters."
           isLoading={isLoading}
@@ -170,7 +175,7 @@ function VideosPage() {
       </div>
       )}
 
-      {view !== "all" && genre === "all" ? (
+      {view !== "all" ? (
       <div className="flex flex-col gap-10">
         {musicGenres.map((sectionGenre) => (
           <VideoGenreRail
