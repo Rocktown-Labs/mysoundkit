@@ -24,7 +24,10 @@ import {
   enqueueTrackDurationBackfills,
   loadTrackDurationBackfillStatus,
 } from "@/lib/media-metadata";
-import { loadEmbeddingStatus } from "@/lib/audio-processing";
+import {
+  backfillSearchEmbeddings,
+  loadEmbeddingStatus,
+} from "@/lib/audio-processing";
 import {
   loadPlatformSettings,
   platformDiscoverySettingsKey,
@@ -42,6 +45,17 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.post("/embeddings/backfill", async (c) => {
+  if (!isAdminUser(c.get("user"))) {
+    return c.json({ message: "Admin access is required." }, HttpStatusCodes.FORBIDDEN);
+  }
+  const limit = Number(c.req.query("limit") ?? 100);
+  return c.json(
+    await backfillSearchEmbeddings(Number.isFinite(limit) ? limit : 100),
+    HttpStatusCodes.OK
+  );
+});
 
 app.get("/embeddings/status", async (c) => {
   if (!isAdminUser(c.get("user"))) {

@@ -1,11 +1,15 @@
 import { google } from "@ai-sdk/google";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistProfiles,
+  projects,
   searchEmbeddings,
   trackAssets,
   trackLyrics,
   trackStemJobs,
   tracks,
+  userProfiles,
+  videos,
   workflowJobs,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
@@ -416,6 +420,64 @@ const embeddingModelName = () =>
   getEnvValue("GOOGLE_EMBEDDING_MODEL")
     .replace(/^google\//u, "")
     .trim() || DEFAULT_EMBEDDING_MODEL;
+
+export const backfillSearchEmbeddings = async (limit = 100) => {
+  if (!isDatabaseConfigured()) {
+    return { indexed: 0 };
+  }
+
+  const db = createDb();
+  const cappedLimit = Math.min(Math.max(limit, 1), 500);
+  let indexed = 0;
+  const trackRows = await db.select().from(tracks).limit(cappedLimit);
+  for (const row of trackRows) {
+    await indexSearchEntity({
+      entityId: row.id,
+      entityType: "track",
+      organizationId: row.organizationId,
+      text: [row.title, row.description, row.musicalKey].filter(Boolean).join("\n"),
+    });
+    indexed += 1;
+  }
+  const projectRows = await db.select().from(projects).limit(cappedLimit);
+  for (const row of projectRows) {
+    await indexSearchEntity({
+      entityId: row.id,
+      entityType: "project",
+      organizationId: row.organizationId,
+      text: [row.title, row.description].filter(Boolean).join("\n"),
+    });
+    indexed += 1;
+  }
+  const videoRows = await db.select().from(videos).limit(cappedLimit);
+  for (const row of videoRows) {
+    await indexSearchEntity({
+      entityId: row.id,
+      entityType: "video",
+      organizationId: null,
+      text: [row.title, row.description].filter(Boolean).join("\n"),
+    });
+    indexed += 1;
+  }
+  const artistRows = await db
+    .select({ profile: artistProfiles, profileDetails: userProfiles })
+    .from(artistProfiles)
+    .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
+    .limit(cappedLimit);
+  for (const row of artistRows) {
+    await indexSearchEntity({
+      entityId: row.profile.userId,
+      entityType: "artist",
+      organizationId: row.profile.primaryOrganizationId,
+      text: [row.profile.stageName, row.profileDetails.username, row.profileDetails.city, row.profileDetails.state]
+        .filter(Boolean)
+        .join("\n"),
+    });
+    indexed += 1;
+  }
+
+  return { indexed };
+};
 
 export const loadEmbeddingStatus = async () => {
   if (!isDatabaseConfigured()) {
