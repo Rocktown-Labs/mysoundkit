@@ -100,6 +100,19 @@ interface AdminPaymentPlan {
   stripeMonthlyPriceId: string | null;
 }
 
+interface AdminUserSummary {
+  accountType: "artist" | "fan" | null;
+  banned: boolean | null;
+  createdAt: string;
+  email: string;
+  id: string;
+  name: string;
+  premiumPlan: string | null;
+  premiumStatus: string | null;
+  role: string | null;
+  username: string | null;
+}
+
 interface StripePriceOption {
   currency: string;
   id: string;
@@ -407,8 +420,7 @@ function OverviewPanel() {
     completionHandledRef.current = true;
     setBackfillStarted(false);
     toast({
-      description:
-        `Backfill finished · ${done} done${failed > 0 ? ` · ${failed} failed` : ""}.`,
+      description: `Backfill finished · ${done} done${failed > 0 ? ` · ${failed} failed` : ""}.`,
       title: "Track durations backfilled",
     });
   }, [backfillStarted, backfillStatus.data]);
@@ -560,14 +572,17 @@ function OverviewPanel() {
               </CardTitle>
               <CardDescription>
                 {data.operations.tracksMissingDuration.toLocaleString()}{" "}
-                uploaded track{data.operations.tracksMissingDuration === 1 ? "" : "s"} have no duration
-                yet. Backfill reads each file in R2 to detect playback length in
-                the background.
+                uploaded track
+                {data.operations.tracksMissingDuration === 1 ? "" : "s"} have no
+                duration yet. Backfill reads each file in R2 to detect playback
+                length in the background.
                 {backfillStarted && backfillStatus.data ? (
                   <span className="mt-1 block">
-                    {backfillStatus.data.queued + backfillStatus.data.processing}{" "}
+                    {backfillStatus.data.queued +
+                      backfillStatus.data.processing}{" "}
                     queued · {backfillStatus.data.processing} processing ·{" "}
-                    {backfillStatus.data.done} done · {backfillStatus.data.failed} failed
+                    {backfillStatus.data.done} done ·{" "}
+                    {backfillStatus.data.failed} failed
                   </span>
                 ) : null}
               </CardDescription>
@@ -619,22 +634,18 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const usersQuery = useQuery({
     queryFn: async () => {
-      const { data, error } = await authClient.admin.listUsers({
-        query: {
-          limit: 100,
-          searchField: "email",
-          searchOperator: "contains",
-          searchValue: search || undefined,
-          sortBy: "createdAt",
-          sortDirection: "desc",
-        },
-      });
-
-      if (error) {
-        throw new Error(error.message);
+      const params = new URLSearchParams();
+      if (search) {
+        params.set("q", search);
       }
-
-      return data;
+      const response = await fetch(
+        `${API_V1_URL}/admin/finance/payments/users?${params.toString()}`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        throw new Error("Unable to load users.");
+      }
+      return (await response.json()) as { users: AdminUserSummary[] };
     },
     queryKey: ["admin", "users", search],
   });
@@ -723,9 +734,9 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
         }}
       >
         <Input
-          aria-label="Search users by email"
+          aria-label="Search users by name, email, or handle"
           onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Search users by email"
+          placeholder="Search name, email, or @handle"
           value={searchInput}
         />
         <Button type="submit" variant="outline">
@@ -740,6 +751,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Premium</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead className="w-12">
@@ -759,10 +772,29 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
                     <p className="text-xs text-muted-foreground">
                       {user.email}
                     </p>
+                    {user.username ? (
+                      <p className="text-xs text-muted-foreground">
+                        @{user.username}
+                      </p>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">
                       {isUserAdmin ? "Admin" : "User"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {user.accountType ?? "Unspecified"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.premiumPlan ? "secondary" : "outline"}>
+                      {user.premiumPlan
+                        ? user.premiumPlan === "soundkit_premium_artist"
+                          ? "Artist Premium"
+                          : "Fan Premium"
+                        : "Free"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -976,7 +1008,7 @@ function PaymentsPanel() {
                   Payments Health
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Stripe setup, checkout readiness, coupons, and admin grants.
+                  Stripe setup, checkout readiness, and Premium grants.
                 </CardDescription>
               </div>
               <Badge
@@ -1011,8 +1043,8 @@ function PaymentsPanel() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Next Action</CardTitle>
             <CardDescription>
-              Use Stripe as the source for missing products, prices, and
-              coupons.
+              Use Stripe as the source for the two SoundKit Premium products and
+              prices.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1054,10 +1086,7 @@ function PaymentsPanel() {
 
       <PaymentPlanCatalog plans={data.plans} stripePrices={data.stripePrices} />
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
-        <CouponsManagerCard />
-        <IssueAICreditsCard />
-      </section>
+      <PremiumGrantCard />
 
       <section className="grid gap-5 xl:grid-cols-2">
         <RecentTransactions transactions={data.recentTransactions} />
@@ -1079,6 +1108,7 @@ function CouponsManagerCard() {
 
   const {
     data: couponsData,
+    error: couponsError,
     isLoading,
     refetch,
   } = useQuery({
@@ -1094,15 +1124,19 @@ function CouponsManagerCard() {
       }
       return (await res.json()) as {
         coupons: {
-          amount_off?: number | null;
-          currency?: string | null;
-          duration: string;
+          active: boolean;
+          code: string;
+          coupon: {
+            amount_off?: number | null;
+            currency?: string | null;
+            duration: string;
+            id: string;
+            name?: string | null;
+            percent_off?: number | null;
+          };
           id: string;
           max_redemptions?: number | null;
-          name?: string | null;
-          percent_off?: number | null;
-          times_redeemed?: number;
-          valid: boolean;
+          times_redeemed: number;
         }[];
         message?: string;
         stripeConfigured?: boolean;
@@ -1115,13 +1149,18 @@ function CouponsManagerCard() {
 
   const handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
+    if (!(name.trim() && code.trim())) {
+      toast({
+        description: "Add both a coupon name and customer-facing promo code.",
+        title: "Coupon details required",
+        variant: "destructive",
+      });
       return;
     }
 
     const payload = {
+      code: code.trim().toUpperCase(),
       duration,
-      id: code.trim().toUpperCase() || undefined,
       maxRedemptions: maxRedemptions ? Number(maxRedemptions) : undefined,
       name: name.trim(),
       percentOff: Number(percentOff) || 17,
@@ -1252,7 +1291,7 @@ function CouponsManagerCard() {
                 <TableHead>Code ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Discount</TableHead>
-                <TableHead>Duration</TableHead>
+                <TableHead>Redemptions</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -1264,6 +1303,15 @@ function CouponsManagerCard() {
                     className="py-8 text-center text-sm text-muted-foreground"
                   >
                     Loading coupons…
+                  </TableCell>
+                </TableRow>
+              ) : couponsError ? (
+                <TableRow>
+                  <TableCell
+                    className="py-8 text-center text-sm text-destructive"
+                    colSpan={5}
+                  >
+                    {couponsError.message}
                   </TableCell>
                 </TableRow>
               ) : coupons.length === 0 ? (
@@ -1280,20 +1328,19 @@ function CouponsManagerCard() {
                 coupons.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-mono text-xs font-bold">
-                      {c.id}
+                      {c.code}
                     </TableCell>
                     <TableCell className="text-xs font-medium">
-                      {c.name}
+                      {c.coupon.name}
                     </TableCell>
                     <TableCell className="text-xs font-bold text-emerald-500">
-                      {c.percent_off
-                        ? `${c.percent_off}% OFF`
-                        : `$${(c.amount_off ?? 0) / 100} OFF`}
+                      {c.coupon.percent_off
+                        ? `${c.coupon.percent_off}% OFF`
+                        : `$${(c.coupon.amount_off ?? 0) / 100} OFF`}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-[10px]">
-                        {c.duration.toUpperCase()}
-                      </Badge>
+                    <TableCell className="text-xs tabular-nums">
+                      {c.times_redeemed.toLocaleString()} /{" "}
+                      {c.max_redemptions?.toLocaleString() ?? "Unlimited"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -1336,12 +1383,13 @@ function CouponsManagerCard() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="couponCode">Promo Code ID (Optional)</Label>
+                <Label htmlFor="couponCode">Customer Promo Code</Label>
                 <Input
                   autoComplete="off"
                   id="couponCode"
                   name="coupon-code"
                   placeholder="SUMMER17…"
+                  required
                   spellCheck={false}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -1353,6 +1401,8 @@ function CouponsManagerCard() {
                   autoComplete="off"
                   id="percentOff"
                   inputMode="numeric"
+                  max={100}
+                  min={1}
                   name="coupon-percent-off"
                   type="number"
                   placeholder="17"
@@ -1369,6 +1419,7 @@ function CouponsManagerCard() {
                   autoComplete="off"
                   id="maxRedemptions"
                   inputMode="numeric"
+                  min={1}
                   name="coupon-max-redemptions"
                   type="number"
                   placeholder="100…"
@@ -1395,191 +1446,186 @@ function CouponsManagerCard() {
   );
 }
 
-function IssueAICreditsCard() {
-  const [targetUser, setTargetUser] = useState("");
-  const [credits, setCredits] = useState("500");
-  const [reason, setReason] = useState("Pro Membership Perk");
+function PremiumGrantCard() {
+  const queryClient = useQueryClient();
   const [planCode, setPlanCode] = useState("soundkit_premium_artist");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGrantingPremium, setIsGrantingPremium] = useState(false);
-
-  const handleIssueCredits = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetUser.trim() || !credits) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const res = await fetch(
-        `${API_V1_URL}/admin/finance/payments/issue-credits`,
-        {
-          body: JSON.stringify({
-            credits: Number(credits),
-            reason,
-            target: targetUser.trim(),
-          }),
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }
+  const [search, setSearch] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const usersQuery = useQuery({
+    enabled: search.trim().length >= 2,
+    queryFn: async () => {
+      const response = await fetch(
+        `${API_V1_URL}/admin/finance/payments/users?q=${encodeURIComponent(search.trim())}`,
+        { credentials: "include" }
       );
-
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? "Failed to grant AI credits");
+      if (!response.ok) {
+        throw new Error("Unable to search users.");
       }
-
-      setIsSubmitting(false);
-      toast({
-        description: `Successfully credited ${credits} AI credits to ${targetUser.trim()}.`,
-        title: "AI Credits Granted",
-      });
-      setTargetUser("");
-    } catch (error) {
-      setIsSubmitting(false);
-      toast({
-        description:
-          error instanceof Error ? error.message : "Could not grant credits.",
-        title: "Grant failed",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleGrantPremium = async () => {
-    if (!targetUser.trim()) {
-      return;
-    }
-
-    setIsGrantingPremium(true);
-    try {
-      const isEmail = targetUser.includes("@") && !targetUser.startsWith("@");
-      const res = await fetch(
+      return (await response.json()) as { users: AdminUserSummary[] };
+    },
+    queryKey: ["admin", "premium-user-search", search.trim()],
+  });
+  const grantMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
         `${API_V1_URL}/admin/finance/payments/grant-premium`,
         {
-          body: JSON.stringify({
-            ...(isEmail
-              ? { email: targetUser.trim() }
-              : { target: targetUser.trim() }),
-            planCode,
-          }),
+          body: JSON.stringify({ planCode, userIds: selectedUserIds }),
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }
       );
-
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? "Failed to grant premium access");
+      const body = (await response.json().catch(() => ({}))) as {
+        grantedCount?: number;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(body.message ?? "Unable to grant Premium.");
       }
-
+      return body;
+    },
+    onError: (error) => {
       toast({
-        description: `${targetUser.trim()} now has ${planCode}.`,
-        title: "Premium Granted",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Could not grant premium access.",
+        description: error.message,
         title: "Premium grant failed",
         variant: "destructive",
       });
-    } finally {
-      setIsGrantingPremium(false);
-    }
-  };
+    },
+    onSuccess: async (result) => {
+      setSearch("");
+      setSelectedUserIds([]);
+      await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      toast({
+        description: `${result.grantedCount ?? 0} user account${result.grantedCount === 1 ? "" : "s"} updated. Email and in-app notifications were sent.`,
+        title: "Premium granted",
+      });
+    },
+  });
+  const searchResults = usersQuery.data?.users ?? [];
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <UserRoundCog className="size-4 text-primary" />
-          Grant Access & Credits
+          Grant SoundKit Premium
         </CardTitle>
         <CardDescription>
-          Issue credits for AI Studio stem separation, mastering, and live
-          BattleBot features.
+          Search by name, email, or handle, select one or more users, then grant
+          one year of complimentary Premium. Recipients receive an email and
+          in-app welcome notification.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleIssueCredits} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2 md:col-span-2">
-              <Label htmlFor="targetUser">User Email or Handle</Label>
-              <Input
-                autoComplete="off"
-                id="targetUser"
-                name="target-user"
-                onChange={(e) => setTargetUser(e.target.value)}
-                placeholder="artist@mysoundkit.com or @luna-eclipse…"
-                spellCheck={false}
-                value={targetUser}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="grantPlanCode">Premium Plan</Label>
-              <Input
-                autoComplete="off"
-                id="grantPlanCode"
-                name="grant-plan-code"
-                onChange={(e) => setPlanCode(e.target.value)}
-                placeholder="soundkit_premium_artist…"
-                spellCheck={false}
-                value={planCode}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="creditsAmount">AI Credits</Label>
-              <Input
-                autoComplete="off"
-                id="creditsAmount"
-                inputMode="numeric"
-                name="credits-amount"
-                onChange={(e) => setCredits(e.target.value)}
-                placeholder="500"
-                type="number"
-                value={credits}
-                required
-              />
-            </div>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="grid gap-2">
+            <Label htmlFor="premium-plan">Premium plan</Label>
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              id="premium-plan"
+              onChange={(event) => setPlanCode(event.target.value)}
+              value={planCode}
+            >
+              <option value="soundkit_premium_artist">Artist Premium</option>
+              <option value="soundkit_premium_fan">Fan Premium</option>
+            </select>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="issueReason">Reason / Campaign</Label>
+            <Label htmlFor="premium-user-search">Find users</Label>
             <Input
               autoComplete="off"
-              id="issueReason"
-              name="issue-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="VIP upgrade bonus…"
+              id="premium-user-search"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name, email, or @handle"
+              value={search}
             />
           </div>
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full font-bold"
-          >
-            {isSubmitting ? "Granting Credits…" : "Grant AI Credits"}
-          </Button>
-          <Button
-            type="button"
-            disabled={isGrantingPremium}
-            onClick={handleGrantPremium}
-            variant="outline"
-            className="w-full font-bold"
-          >
-            {isGrantingPremium ? "Granting Premium…" : "Grant Premium Access"}
-          </Button>
-        </form>
+        </div>
+
+        {selectedUserIds.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3">
+            <span className="text-sm font-medium">
+              {selectedUserIds.length} selected
+            </span>
+            <Button
+              onClick={() => setSelectedUserIds([])}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Clear
+            </Button>
+          </div>
+        ) : null}
+
+        {search.trim().length >= 2 ? (
+          <div className="max-h-72 overflow-y-auto rounded-md border">
+            {usersQuery.isLoading ? (
+              <p className="p-4 text-sm text-muted-foreground">Searching…</p>
+            ) : usersQuery.error ? (
+              <p className="p-4 text-sm text-destructive">
+                {usersQuery.error.message}
+              </p>
+            ) : searchResults.length === 0 ? (
+              <p className="p-4 text-sm text-muted-foreground">
+                No matching users.
+              </p>
+            ) : (
+              searchResults.map((user) => {
+                const isSelected = selectedUserIds.includes(user.id);
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className="flex w-full items-center justify-between gap-3 border-b p-3 text-left last:border-b-0 hover:bg-muted/40"
+                    key={user.id}
+                    onClick={() =>
+                      setSelectedUserIds((current) =>
+                        isSelected
+                          ? current.filter((id) => id !== user.id)
+                          : [...current, user.id]
+                      )
+                    }
+                    type="button"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">
+                        {user.name}
+                        {user.username ? ` · @${user.username}` : ""}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {user.premiumPlan ? (
+                        <Badge variant="outline">Already Premium</Badge>
+                      ) : null}
+                      <Badge variant={isSelected ? "default" : "secondary"}>
+                        {isSelected ? "Selected" : "Select"}
+                      </Badge>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Enter at least two characters to search the user database.
+          </p>
+        )}
+
+        <Button
+          className="w-full font-bold"
+          disabled={selectedUserIds.length === 0 || grantMutation.isPending}
+          onClick={() => grantMutation.mutate()}
+          type="button"
+        >
+          {grantMutation.isPending
+            ? "Granting Premium…"
+            : `Grant Premium to ${selectedUserIds.length || 0} user${selectedUserIds.length === 1 ? "" : "s"}`}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -1948,130 +1994,5 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
 }
 
 function CouponsPanel() {
-  const [coupons, setCoupons] = useState([
-    {
-      code: "FREE1YEAR",
-      discount: "100% OFF (1 Year)",
-      status: "Active",
-      uses: 42,
-    },
-    {
-      code: "FREE1MONTH",
-      discount: "100% OFF (1 Month)",
-      status: "Active",
-      uses: 88,
-    },
-    {
-      code: "SOUNDKITVIP",
-      discount: "100% VIP Pass",
-      status: "Active",
-      uses: 120,
-    },
-    { code: "100OFF", discount: "100% OFF Pass", status: "Active", uses: 15 },
-    {
-      code: "VIP2026",
-      discount: "100% Promo Code",
-      status: "Active",
-      uses: 64,
-    },
-  ]);
-
-  const [newCode, setNewCode] = useState("");
-  const [newDiscount, setNewDiscount] = useState("100% OFF");
-
-  const handleCreateCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCode.trim()) {
-      return;
-    }
-    const formattedCode = newCode.trim().toUpperCase();
-    setCoupons((prev) => [
-      { code: formattedCode, discount: newDiscount, status: "Active", uses: 0 },
-      ...prev,
-    ]);
-    setNewCode("");
-    toast({
-      description: `Promo code ${formattedCode} is now active.`,
-      title: "Coupon Created",
-    });
-  };
-
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <CircleDollarSign className="size-4 text-primary" /> Create New
-            Promo Code / Coupon
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={handleCreateCoupon}
-            className="flex flex-col sm:flex-row gap-3"
-          >
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="coupon-code">Promo Code</Label>
-              <Input
-                id="coupon-code"
-                placeholder="e.g. SUMMER2026"
-                value={newCode}
-                onChange={(e) => setNewCode(e.target.value)}
-              />
-            </div>
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="coupon-discount">Discount / Perk</Label>
-              <Input
-                id="coupon-discount"
-                placeholder="e.g. 100% OFF"
-                value={newDiscount}
-                onChange={(e) => setNewDiscount(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" className="w-full sm:w-auto font-bold">
-                Create Coupon
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-bold">
-            Active Platform Coupons
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Discount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Redemptions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {coupons.map((coupon) => (
-                <TableRow key={coupon.code}>
-                  <TableCell className="font-mono font-bold text-primary">
-                    {coupon.code}
-                  </TableCell>
-                  <TableCell>{coupon.discount}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{coupon.status}</Badge>
-                  </TableCell>
-                  <TableCell className="font-mono">
-                    {coupon.uses} uses
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <CouponsManagerCard />;
 }

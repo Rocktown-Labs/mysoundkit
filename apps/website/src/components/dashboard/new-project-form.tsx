@@ -742,6 +742,9 @@ export function NewProjectForm({
 
       const projectTracks = values.newTracks.map((track, index) => {
         const projectTrack = {
+          downloadsAllowed: true,
+          downloadsRequireFirstPlay: true,
+          downloadsRequirePurchase: false,
           durationMs: pendingTrackFiles[index]?.durationMs ?? undefined,
           genre: track.genre || values.genre || "Hip-Hop/Rap",
           title: track.name,

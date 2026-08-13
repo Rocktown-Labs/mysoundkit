@@ -59,12 +59,10 @@ export const stripeRequest = async <T>({
       // Keep the bounded raw response when Stripe does not return JSON.
     }
 
-    throw new Error(
-      `Stripe request failed with ${response.status}: ${detail}`
-    );
+    throw new Error(`Stripe request failed with ${response.status}: ${detail}`);
   }
 
-  return (JSON.parse(responseBody) as T);
+  return JSON.parse(responseBody) as T;
 };
 
 export interface StripeListResponse<T> {
@@ -190,14 +188,30 @@ export interface StripeCouponSummary {
   valid: boolean;
 }
 
-export const listStripeCoupons = () => {
+export interface StripePromotionCodeSummary {
+  active: boolean;
+  code: string;
+  created: number;
+  expires_at?: number | null;
+  id: string;
+  max_redemptions?: number | null;
+  promotion: {
+    coupon: string | StripeCouponSummary;
+    type: "coupon";
+  };
+  times_redeemed: number;
+}
+
+export const listStripePromotionCodes = () => {
   const params = new URLSearchParams();
+  appendValue(params, "active", true);
+  appendValue(params, "expand[]", "data.promotion.coupon");
   appendValue(params, "limit", 100);
 
-  return stripeRequest<StripeListResponse<StripeCouponSummary>>({
+  return stripeRequest<StripeListResponse<StripePromotionCodeSummary>>({
     method: "GET",
     params,
-    path: "/coupons",
+    path: "/promotion_codes",
   });
 };
 
@@ -267,11 +281,35 @@ export const createStripeCoupon = ({
   });
 };
 
-export const deleteStripeCoupon = (couponId: string) =>
-  stripeRequest<{ deleted: boolean; id: string }>({
-    method: "DELETE",
-    path: `/coupons/${encodeURIComponent(couponId)}`,
+export const createStripePromotionCode = ({
+  code,
+  couponId,
+  maxRedemptions,
+}: {
+  code: string;
+  couponId: string;
+  maxRedemptions?: number;
+}) => {
+  const params = new URLSearchParams();
+  appendValue(params, "promotion[type]", "coupon");
+  appendValue(params, "promotion[coupon]", couponId);
+  appendValue(params, "code", code);
+  appendValue(params, "max_redemptions", maxRedemptions);
+
+  return stripeRequest<StripePromotionCodeSummary>({
+    params,
+    path: "/promotion_codes",
   });
+};
+
+export const archiveStripePromotionCode = (promotionCodeId: string) => {
+  const params = new URLSearchParams();
+  appendValue(params, "active", false);
+  return stripeRequest<StripePromotionCodeSummary>({
+    params,
+    path: `/promotion_codes/${encodeURIComponent(promotionCodeId)}`,
+  });
+};
 
 export const createDestinationCheckout = ({
   applicationFeeCents,
