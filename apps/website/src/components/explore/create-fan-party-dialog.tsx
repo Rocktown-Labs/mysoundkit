@@ -3,14 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
-  Bell,
   Check,
   Copy,
   Headphones,
-  Music,
   Plus,
   Radio,
-  Share2,
   Users,
 } from "lucide-react";
 import React, { useState } from "react";
@@ -34,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
@@ -46,6 +42,11 @@ import {
 interface CreateFanPartyDialogProps {
   children?: React.ReactNode;
 }
+
+const padDateTimePart = (value: number) => value.toString().padStart(2, "0");
+
+const toLocalDateTimeInputValue = (date: Date) =>
+  `${date.getFullYear()}-${padDateTimePart(date.getMonth() + 1)}-${padDateTimePart(date.getDate())}T${padDateTimePart(date.getHours())}:${padDateTimePart(date.getMinutes())}`;
 
 export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   const { data: session } = authClient.useSession();
@@ -294,7 +295,7 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
               <Label htmlFor="fan-party-time">Scheduled Start</Label>
               <Input
                 id="fan-party-time"
-                min={new Date().toISOString().slice(0, 16)}
+                min={toLocalDateTimeInputValue(new Date())}
                 required
                 type="datetime-local"
                 value={scheduledStartAt}

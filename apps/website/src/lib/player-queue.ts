@@ -22,8 +22,8 @@ export const completeQueuedTrack = ({
   }
 
   const currentIndex = queue.findIndex((track) => track.id === currentTrack.id);
-  const nextTrack =
-    currentIndex >= 0 ? queue[currentIndex + 1] ?? queue[0] : queue[0];
+  const sequentialNextTrack =
+    currentIndex >= 0 ? queue[currentIndex + 1] ?? null : queue[0] ?? null;
   const remainingQueue = queue.filter(
     (track) => track.id !== currentTrack.id
   );
@@ -34,17 +34,18 @@ export const completeQueuedTrack = ({
     }
 
     return {
-      nextTrack: nextTrack ?? remainingQueue[0] ?? null,
+      nextTrack: sequentialNextTrack ?? remainingQueue[0] ?? null,
       queue: [...remainingQueue, currentTrack],
       restartCurrent: false,
     };
   }
 
   return {
-    nextTrack:
-      remainingQueue.find((track) => track.id === nextTrack?.id) ??
-      remainingQueue[0] ??
-      null,
+    nextTrack: sequentialNextTrack
+      ? (remainingQueue.find(
+          (track) => track.id === sequentialNextTrack.id
+        ) ?? null)
+      : null,
     queue: remainingQueue,
     restartCurrent: false,
   };

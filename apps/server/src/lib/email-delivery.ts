@@ -1,6 +1,6 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { emailDeliveries } from "@soundkit/db/schema/app";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getPublicSiteUrl, sendTransactionalEmail } from "@/lib/email";
 import type { TransactionalEmailTemplate } from "@/lib/email";
@@ -88,8 +88,34 @@ export const enqueueTransactionalEmail = async ({
   }
 
   if (queue) {
-    await queue.send({ deliveryId: delivery.id }, { contentType: "json" });
-    return { deliveryId: delivery.id, enqueued: true, transport: "queue" };
+    try {
+      await queue.send({ deliveryId: delivery.id }, { contentType: "json" });
+      return { deliveryId: delivery.id, enqueued: true, transport: "queue" };
+    } catch (error) {
+      const message = getErrorMessage(error);
+      await db
+        .update(emailDeliveries)
+        .set({
+          error: message,
+          nextAttemptAt: new Date(
+            Date.now() + getRetryDelaySeconds(1) * 1000
+          ),
+          status: "failed",
+        })
+        .where(eq(emailDeliveries.id, delivery.id));
+      logWarn({
+        deliveryId: delivery.id,
+        error: message,
+        event: "email_queue_enqueue_failed",
+        template,
+      });
+      return {
+        deliveryId: delivery.id,
+        enqueued: false,
+        reason: "queue_send_failed" as const,
+        retryable: true,
+      };
+    }
   }
 
   const result = await deliverTransactionalEmail({ deliveryId: delivery.id });
@@ -100,6 +126,53 @@ export const enqueueTransactionalEmail = async ({
     sentImmediately: result.delivered,
     transport: "inline",
   };
+};
+
+export const retryDueEmailDeliveries = async ({
+  limit = 100,
+  queue,
+}: {
+  limit?: number;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+}) => {
+  if (!(isDatabaseConfigured() && queue)) {
+    return { requeued: 0 };
+  }
+
+  const db = createDb();
+  const retryIsDue = or(
+    isNull(emailDeliveries.nextAttemptAt),
+    lte(emailDeliveries.nextAttemptAt, new Date())
+  );
+  const failedAndDue = and(
+    eq(emailDeliveries.status, "failed"),
+    retryIsDue
+  );
+  const dueDeliveries = await db
+    .select({ id: emailDeliveries.id })
+    .from(emailDeliveries)
+    .where(failedAndDue)
+    .limit(limit);
+
+  let requeued = 0;
+  for (const delivery of dueDeliveries) {
+    try {
+      await queue.send({ deliveryId: delivery.id }, { contentType: "json" });
+      await db
+        .update(emailDeliveries)
+        .set({ error: null, nextAttemptAt: null, status: "queued" })
+        .where(eq(emailDeliveries.id, delivery.id));
+      requeued += 1;
+    } catch (error) {
+      logWarn({
+        deliveryId: delivery.id,
+        error: getErrorMessage(error),
+        event: "email_queue_requeue_failed",
+      });
+    }
+  }
+
+  return { requeued };
 };
 
 export const deliverTransactionalEmail = async ({

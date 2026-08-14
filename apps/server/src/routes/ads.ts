@@ -143,9 +143,11 @@ const requestTargets = (headers: Headers) => {
       headers.get("x-region-code")
   );
 
-  return [region ? `US-${region.replace(/^US-/u, "")}` : "", country].filter(
-    Boolean
-  );
+  return [
+    "GLOBAL",
+    region ? `US-${region.replace(/^US-/u, "")}` : "",
+    country,
+  ].filter(Boolean);
 };
 
 const computeMetrics = ({
@@ -347,7 +349,7 @@ app.openapi(
         name: body.name,
         placement: body.placement,
         startDate: body.startDate ? new Date(body.startDate) : new Date(),
-        status: "active",
+        status: "draft",
       })
       .returning();
 

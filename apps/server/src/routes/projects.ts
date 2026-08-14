@@ -903,6 +903,7 @@ app.openapi(
     const attachedIds = new Set(attachedTracks.map((entry) => entry.trackId));
     const requestedIds = new Set(trackIds);
     const matchesProject =
+      trackIds.length === attachedIds.size &&
       attachedIds.size === requestedIds.size &&
       trackIds.every((trackId) => attachedIds.has(trackId));
 

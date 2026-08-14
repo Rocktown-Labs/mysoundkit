@@ -35,6 +35,19 @@ describe("player queue", () => {
     ).toEqual({ nextTrack: second, queue: [second], restartCurrent: false });
   });
 
+  it("stops after the final queued track when repeat is off", () => {
+    const first = track("one");
+    const second = track("two");
+
+    expect(
+      completeQueuedTrack({
+        currentTrack: second,
+        queue: [first, second],
+        repeatMode: "off",
+      })
+    ).toEqual({ nextTrack: null, queue: [first], restartCurrent: false });
+  });
+
   it("rotates completed tracks when repeat all is enabled", () => {
     const first = track("one");
     const second = track("two");

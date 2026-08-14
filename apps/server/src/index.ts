@@ -10,7 +10,10 @@ import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
 import { runBattleServiceSweep } from "@/lib/battle-service";
-import { handleEmailDeliveryQueue } from "@/lib/email-delivery";
+import {
+  handleEmailDeliveryQueue,
+  retryDueEmailDeliveries,
+} from "@/lib/email-delivery";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
@@ -242,6 +245,7 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         publishDueLiveRecordings(),
+        retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
         publishDueTrackReleases({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
