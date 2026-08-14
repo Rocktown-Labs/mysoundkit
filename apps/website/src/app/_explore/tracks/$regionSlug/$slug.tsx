@@ -22,7 +22,9 @@ export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
     const trackTitle = track?.title ?? "Track";
     const artistName = track?.artist.name ?? "SoundKit artist";
     const title = `Stream ${trackTitle} by ${artistName} on SoundKit`;
-    const artistUrl = absoluteSiteUrl(`/artist/${track?.artist.handle ?? "artist"}`);
+    const artistUrl = absoluteSiteUrl(
+      `/artist/${track?.artist.handle ?? "artist"}`
+    );
     const genre = track?.genre ? `${track.genre} track` : "track";
     const descriptionFallback = `Play ${trackTitle} by ${artistName} on SoundKit.`;
     const description = seoDescription(track?.description, descriptionFallback);
@@ -58,9 +60,9 @@ export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
                   url: artistUrl,
                 },
                 duration:
-                  track.durationMs != null
-                    ? `PT${Math.round(track.durationMs / 1000)}S`
-                    : undefined,
+                  track.durationMs == null
+                    ? undefined
+                    : `PT${Math.round(track.durationMs / 1000)}S`,
                 image: seoImageUrl(track.coverArtUrl),
                 name: trackTitle,
                 url: absoluteSiteUrl(canonicalPath),

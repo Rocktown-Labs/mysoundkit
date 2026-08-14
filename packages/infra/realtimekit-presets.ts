@@ -19,9 +19,9 @@
 
 import { createCloudflareApi } from "alchemy/cloudflare";
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const deleteMode = args.includes("--delete");
+const args = new Set(process.argv.slice(2));
+const dryRun = args.has("--dry-run");
+const deleteMode = args.has("--delete");
 
 const mediaConfig = {
   audio: { enable_high_bitrate: true, enable_stereo: true },
@@ -35,11 +35,11 @@ const uiConfig = {
     border_width: "thin",
     colors: {
       background: {
+        "1000": "#000000",
         "600": "#171717",
         "700": "#101010",
         "800": "#0a0a0a",
         "900": "#050505",
-        "1000": "#000000",
       },
       brand: {
         "300": "#fda4af",
@@ -149,8 +149,8 @@ const hostPermissions = {
 
 const presets = [
   {
-    name: "soundkit-battle-lobby-text",
     config: textOnlyConfig,
+    name: "soundkit-battle-lobby-text",
     permissions: {
       ...viewerPermissions,
       accept_waiting_requests: true,
@@ -158,16 +158,16 @@ const presets = [
     },
   },
   {
-    name: "soundkit-battle-artist-live",
     config: hostConfig,
+    name: "soundkit-battle-artist-live",
     permissions: {
       ...hostPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-battle-artist-muted",
     config: textOnlyConfig,
+    name: "soundkit-battle-artist-muted",
     permissions: {
       ...hostPermissions,
       media: {
@@ -179,8 +179,8 @@ const presets = [
     },
   },
   {
-    name: "soundkit-battle-voter",
     config: textOnlyConfig,
+    name: "soundkit-battle-voter",
     permissions: {
       ...viewerPermissions,
       polls: { can_create: false, can_view: true, can_vote: true },
@@ -188,32 +188,32 @@ const presets = [
     },
   },
   {
-    name: "soundkit-party-host",
     config: hostConfig,
+    name: "soundkit-party-host",
     permissions: {
       ...hostPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-party-listener",
     config: textOnlyConfig,
+    name: "soundkit-party-listener",
     permissions: {
       ...viewerPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-stream-host",
     config: hostConfig,
+    name: "soundkit-stream-host",
     permissions: {
       ...hostPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-stream-viewer",
     config: textOnlyConfig,
+    name: "soundkit-stream-viewer",
     permissions: {
       ...viewerPermissions,
       waiting_room_type: "SKIP",

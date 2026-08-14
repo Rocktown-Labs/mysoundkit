@@ -823,11 +823,12 @@ export const publishExperienceRecordingAsVideo = async ({
 };
 
 const getRecordingMediaHelpers = () => ({
-  bucket:
-    (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+  bucket: (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
   publicUrl:
-    (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined }).MEDIA_PUBLIC_URL ??
-    (env as unknown as { VITE_MEDIA_URL?: string | undefined }).VITE_MEDIA_URL ??
+    (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined })
+      .MEDIA_PUBLIC_URL ??
+    (env as unknown as { VITE_MEDIA_URL?: string | undefined })
+      .VITE_MEDIA_URL ??
     "",
 });
 
@@ -858,8 +859,7 @@ const copyRecordingToPublicMedia = async ({
 
     await bucket.put(objectKey, response.body, {
       httpMetadata: {
-        contentType:
-          extension === "mp4" ? "video/mp4" : "audio/mpeg",
+        contentType: extension === "mp4" ? "video/mp4" : "audio/mpeg",
       },
     });
 

@@ -394,6 +394,12 @@ export const buildProjectSummary = async (
   }
 
   return {
+    artistName:
+      ownerProfile?.displayName ??
+      ownerProfile?.userName ??
+      ownerProfile?.username ??
+      "SoundKit Artist",
+    artistUsername: ownerProfile?.username ?? null,
     collaboratorCount: collaboratorRows.length,
     coverArtUrl: publicProjectAssetUrl(coverAsset),
     description: row.description,
@@ -401,12 +407,6 @@ export const buildProjectSummary = async (
     durationMs,
     genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
-    artistName:
-      ownerProfile?.displayName ??
-      ownerProfile?.userName ??
-      ownerProfile?.username ??
-      "SoundKit Artist",
-    artistUsername: ownerProfile?.username ?? null,
     exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     isForSale: row.isForSale,
     isPublic: row.isPublic,

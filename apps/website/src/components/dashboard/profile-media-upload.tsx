@@ -1,6 +1,7 @@
 "use client";
 
 import { useUploadFiles } from "@better-upload/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { ImageIcon, LoaderCircle, Upload } from "lucide-react";
 import { useId, useState } from "react";
 import type { ChangeEvent } from "react";
@@ -8,7 +9,6 @@ import type { ChangeEvent } from "react";
 import { ImageCropperDialog } from "@/components/dashboard/image-cropper-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   API_V1_URL,
   MEDIA_BASE_URL,
@@ -29,7 +29,9 @@ export function ProfileMediaUpload({
 }) {
   const inputId = useId();
   const queryClient = useQueryClient();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl ?? null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    currentUrl ?? null
+  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedObjectUrl, setSelectedObjectUrl] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);

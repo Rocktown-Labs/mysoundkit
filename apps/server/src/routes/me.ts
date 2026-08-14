@@ -302,7 +302,10 @@ app.openapi(
       ),
     },
     responses: {
-      [HttpStatusCodes.OK]: jsonContent(workspaceSummarySchema, "Updated workspace"),
+      [HttpStatusCodes.OK]: jsonContent(
+        workspaceSummarySchema,
+        "Updated workspace"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
         "Authentication required"

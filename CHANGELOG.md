@@ -23,6 +23,9 @@
 
 ### Fixed
 
+- Fixed friend request acceptance and decline handling (`PATCH /v1/messages/friend-requests/:requestId`) to gracefully handle existing states, prevent 404s on pending requests, and ensure proper notification dispatch.
+- Added URL-synchronized tabs (`?tab=all|collaborators|friends|requests|following`) to `/dashboard/collaborators` with separate views and counters for Track Collaborators, Mutual Artist Friends, Incoming/Sent Requests, and Followers.
+- Fixed friends data parsing in `/dashboard/messages` New Chat modal and added active online presence bar with 1-click direct messaging from the collaborators workspace (`?friendId=...`).
 - Kept unfunded artist ad campaigns out of serving, enabled global house-ad matching, stopped non-repeat queues at the final track, made failed release-email queueing retryable, used local party scheduling minimums, and rejected duplicate project reorder IDs.
 - Fixed the listening-party dashboard SSR crash, refreshed live-surface E2E expectations, and restored admin user fixtures for static browser tests.
 - Fixed Tracks Featured View All navigation so Back returns to the originating Tracks sections instead of a previously visited Projects route.

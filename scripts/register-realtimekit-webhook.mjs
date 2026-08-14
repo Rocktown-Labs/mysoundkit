@@ -15,13 +15,13 @@
 
 const args = process.argv.slice(2);
 const urlIndex = args.findIndex((arg) => !arg.startsWith("--"));
-const webhookUrl = urlIndex >= 0 ? args[urlIndex] : null;
+const webhookUrl = urlIndex !== -1 ? args[urlIndex] : null;
 const options = args.filter((arg) => arg.startsWith("--"));
 const deleteMode = options.includes("--delete");
 
 const nameArgIndex = args.indexOf("--name");
 const name =
-  nameArgIndex >= 0 ? args[nameArgIndex + 1] : "SoundKit live experiences";
+  nameArgIndex !== -1 ? args[nameArgIndex + 1] : "SoundKit live experiences";
 
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const apiToken = process.env.CLOUDFLARE_API_TOKEN;
@@ -71,7 +71,9 @@ const resolveAppId = async () => {
     );
   }
 
-  const apps = Array.isArray(body.result) ? body.result : body.result?.apps ?? [];
+  const apps = Array.isArray(body.result)
+    ? body.result
+    : (body.result?.apps ?? []);
   const app = apps.find((entry) =>
     entry.name?.toLowerCase().includes("soundkit")
   );

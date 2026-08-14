@@ -164,14 +164,13 @@ describe("SoundKit Worker API", () => {
     const tracks = await readJson<unknown[]>(tracksResponse);
     const videos = await readJson<unknown[]>(videosResponse);
     const battles = await readJson<unknown[]>(battlesResponse);
-    const projects =
-      await readJson<
-        {
-          genre: string | null;
-          projectType: string;
-          regionSlug: string | null;
-        }[]
-      >(projectsResponse);
+    const projects = await readJson<
+      {
+        genre: string | null;
+        projectType: string;
+        regionSlug: string | null;
+      }[]
+    >(projectsResponse);
 
     expect(tracks).toEqual([]);
     expect(videos.length).toBeGreaterThan(0);

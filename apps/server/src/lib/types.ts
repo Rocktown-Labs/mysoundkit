@@ -1,5 +1,5 @@
-import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 
 export interface AuthenticatedSession {
   activeOrganizationId?: string | null;

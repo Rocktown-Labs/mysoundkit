@@ -979,9 +979,9 @@ const buildBattleRoomSnapshot = async (
     status:
       battle.status === "completed"
         ? "ended"
-        : battle.status === "live"
+        : (battle.status === "live"
           ? "live"
-          : "upcoming",
+          : "upcoming"),
     summary:
       "Turn-based artist stages, synced lyrics, live chat, and voting at the end of every round.",
     title: battle.title,

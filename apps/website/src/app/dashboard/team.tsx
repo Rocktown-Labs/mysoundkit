@@ -79,7 +79,7 @@ export function TeamPage() {
   ]);
 
   const handleRenameWorkspace = async () => {
-    if (!newWorkspaceName.trim()) return;
+    if (!newWorkspaceName.trim()) {return;}
     try {
       await updateWorkspaceMutation.mutateAsync({ name: newWorkspaceName });
       setIsRenameOpen(false);
@@ -105,9 +105,9 @@ export function TeamPage() {
   };
 
   const filteredCollaborators = collaborators.filter((person) => {
-    if (person.id === user?.id) return false;
+    if (person.id === user?.id) {return false;}
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
+    if (!query) {return true;}
     return [person.name, person.username, person.email, person.role]
       .filter((value): value is string => typeof value === "string")
       .some((value) => value.toLowerCase().includes(query));
@@ -148,10 +148,14 @@ export function TeamPage() {
             Team & Workspace
           </h1>
           <p className="text-muted-foreground">
-            Manage your subscription plan seats, workspace details, and music collaborators.
+            Manage your subscription plan seats, workspace details, and music
+            collaborators.
           </p>
         </div>
-        <Button onClick={() => setIsInviteOpen(true)} disabled={teamMembers.length >= 5}>
+        <Button
+          onClick={() => setIsInviteOpen(true)}
+          disabled={teamMembers.length >= 5}
+        >
           <UserPlus className="mr-2 size-4" />
           Invite Plan Member ({teamMembers.length}/5)
         </Button>
@@ -165,7 +169,8 @@ export function TeamPage() {
           <div>
             <CardTitle>Workspace Configuration</CardTitle>
             <CardDescription>
-              Your team name is tied to your SoundKit creator workspace & billing profile.
+              Your team name is tied to your SoundKit creator workspace &
+              billing profile.
             </CardDescription>
           </div>
           <Button
@@ -184,9 +189,12 @@ export function TeamPage() {
           {activeWorkspace ? (
             <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-semibold text-base">{activeWorkspace.name}</p>
+                <p className="font-semibold text-base">
+                  {activeWorkspace.name}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  /{activeWorkspace.slug} • {activeWorkspace.workspaceType} workspace
+                  /{activeWorkspace.slug} • {activeWorkspace.workspaceType}{" "}
+                  workspace
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -210,7 +218,8 @@ export function TeamPage() {
         <CardHeader>
           <CardTitle>Subscription Team Members (5 Seats Included)</CardTitle>
           <CardDescription>
-            Add managers, assistant engineers, or family members to share your plan access.
+            Add managers, assistant engineers, or family members to share your
+            plan access.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -222,15 +231,23 @@ export function TeamPage() {
               >
                 <div className="flex items-center gap-3">
                   <Avatar>
-                    <AvatarFallback>{member.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback>
+                      {member.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <div>
                     <p className="font-semibold text-sm">{member.name}</p>
-                    <p className="text-xs text-muted-foreground">{member.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {member.email}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={member.status === "active" ? "default" : "secondary"}>
+                  <Badge
+                    variant={
+                      member.status === "active" ? "default" : "secondary"
+                    }
+                  >
                     {member.role}
                   </Badge>
                   {member.id !== "member-owner" && (
@@ -258,7 +275,8 @@ export function TeamPage() {
             <div>
               <CardTitle>Track & Song Collaborators</CardTitle>
               <CardDescription>
-                Artists, features, and producers credited on your songs and projects.
+                Artists, features, and producers credited on your songs and
+                projects.
               </CardDescription>
             </div>
             <div className="relative w-full md:w-80">
@@ -272,7 +290,9 @@ export function TeamPage() {
         </CardHeader>
         <CardContent>
           {friendsQuery.isLoading && (
-            <p className="text-sm text-muted-foreground">Loading collaborators...</p>
+            <p className="text-sm text-muted-foreground">
+              Loading collaborators...
+            </p>
           )}
 
           {!friendsQuery.isLoading && filteredCollaborators.length === 0 && (
@@ -280,7 +300,8 @@ export function TeamPage() {
               <Mail className="mx-auto mb-3 size-8 text-muted-foreground" />
               <p className="font-semibold">No track collaborators found</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Credit features or producers on your uploaded tracks to list them here.
+                Credit features or producers on your uploaded tracks to list
+                them here.
               </p>
             </div>
           )}
@@ -305,9 +326,13 @@ export function TeamPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {person.role && <Badge variant="outline">{person.role}</Badge>}
+                    {person.role && (
+                      <Badge variant="outline">{person.role}</Badge>
+                    )}
                     <Button asChild size="sm" variant="outline">
-                      <Link to="/dashboard/messages">Message</Link>
+                      <Link search={{ friendId: person.id }} to="/dashboard/messages">
+                        Message
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -341,7 +366,10 @@ export function TeamPage() {
             <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleRenameWorkspace} disabled={updateWorkspaceMutation.isPending}>
+            <Button
+              onClick={handleRenameWorkspace}
+              disabled={updateWorkspaceMutation.isPending}
+            >
               Save Workspace Name
             </Button>
           </DialogFooter>

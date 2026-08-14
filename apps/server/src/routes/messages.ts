@@ -199,7 +199,9 @@ app.openapi(
         avatarUrl: userProfiles.avatarUrl,
         createdAt: artistFriendRequests.createdAt,
         displayName: userProfiles.displayName,
+        email: authUser.email,
         message: artistFriendRequests.message,
+        name: authUser.name,
         recipientUserId: artistFriendRequests.recipientUserId,
         requestId: artistFriendRequests.id,
         requesterUserId: artistFriendRequests.requesterUserId,
@@ -208,12 +210,13 @@ app.openapi(
       })
       .from(artistFriendRequests)
       .innerJoin(
-        userProfiles,
+        authUser,
         eq(
-          userProfiles.userId,
+          authUser.id,
           sql`case when ${artistFriendRequests.requesterUserId} = ${user.id} then ${artistFriendRequests.recipientUserId} else ${artistFriendRequests.requesterUserId} end`
         )
       )
+      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
       .where(
         or(
           eq(artistFriendRequests.requesterUserId, user.id),
@@ -229,7 +232,8 @@ app.openapi(
           avatarUrl: row.avatarUrl,
           createdAt: row.createdAt,
           direction: row.recipientUserId === user.id ? "incoming" : "outgoing",
-          displayName: row.displayName,
+          displayName:
+            row.displayName ?? row.name ?? row.username ?? "SoundKit Artist",
           message: row.message,
           requestId: row.requestId,
           status: row.status,
@@ -411,7 +415,7 @@ app.openapi(
 
     await db.insert(userNotifications).values({
       id: crypto.randomUUID(),
-      link: "/dashboard/collaborators",
+      link: "/dashboard/collaborators?tab=requests",
       message: `${user.name ?? "An artist"} sent you a friend request.`,
       title: "New Friend Request",
       type: "artist_friend_request",
@@ -458,6 +462,10 @@ app.openapi(
         friendRequestSummarySchema,
         "Artist friend request updated"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        z.object({ message: z.string() }),
+        "Invalid friend request action"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         z.object({ message: z.string() }),
         "Friend request not found"
@@ -497,77 +505,124 @@ app.openapi(
       );
     }
 
-    const db = createDb(),
-      allowedUserClause =
-      action === "cancel"
-        ? eq(artistFriendRequests.requesterUserId, user.id)
-          : eq(artistFriendRequests.recipientUserId, user.id),
-      nextStatus =
-      action === "accept"
-        ? ("accepted" as const)
-          : action === "cancel"
-          ? ("canceled" as const)
-            : ("declined" as const);
-    const [request] = await db
-      .update(artistFriendRequests)
-      .set({
-        respondedAt: new Date(),
-        status: nextStatus,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(artistFriendRequests.id, requestId),
-          allowedUserClause,
-          eq(artistFriendRequests.status, "pending")
-        )
-      )
-      .returning();
+    const db = createDb();
+    const [existingRequest] = await db
+      .select()
+      .from(artistFriendRequests)
+      .where(eq(artistFriendRequests.id, requestId))
+      .limit(1);
 
-    if (!request) {
+    if (!existingRequest) {
       return c.json(
         { message: "Friend request not found." },
         HttpStatusCodes.NOT_FOUND
       );
     }
 
-    if (nextStatus === "accepted") {
+    const isRequester = existingRequest.requesterUserId === user.id;
+    const isRecipient = existingRequest.recipientUserId === user.id;
+
+    if (!isRequester && !isRecipient) {
+      return c.json(
+        {
+          message: "You are not authorized to respond to this friend request.",
+        },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    if (action === "cancel" && !isRequester) {
+      return c.json(
+        { message: "Only the sender can cancel a friend request." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if ((action === "accept" || action === "decline") && !isRecipient) {
+      return c.json(
+        {
+          message: "Only the recipient can accept or decline a friend request.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const nextStatus =
+      action === "accept"
+        ? ("accepted" as const)
+        : (action === "cancel"
+          ? ("canceled" as const)
+          : ("declined" as const));
+
+    let updatedRequest = existingRequest;
+
+    if (existingRequest.status === "pending") {
+      const [updated] = await db
+        .update(artistFriendRequests)
+        .set({
+          respondedAt: new Date(),
+          status: nextStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(artistFriendRequests.id, requestId))
+        .returning();
+
+      if (updated) {
+        updatedRequest = updated;
+      }
+    } else if (existingRequest.status !== nextStatus) {
+      return c.json(
+        {
+          message: `Friend request has already been ${existingRequest.status}.`,
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (nextStatus === "accepted" && existingRequest.status === "pending") {
       await db.insert(userNotifications).values({
         id: crypto.randomUUID(),
-        link: "/dashboard/messages",
+        link: `/dashboard/messages?friendId=${user.id}`,
         message: `${user.name ?? "An artist"} accepted your friend request. You can start a chat now.`,
         title: "Friend Request Accepted",
         type: "artist_friend_accepted",
-        userId: request.requesterUserId,
+        userId: updatedRequest.requesterUserId,
       });
     }
 
     const otherUserId =
-      request.recipientUserId === user.id
-        ? request.requesterUserId
-          : request.recipientUserId,
-      [otherProfile] = await db
+      updatedRequest.recipientUserId === user.id
+        ? updatedRequest.requesterUserId
+        : updatedRequest.recipientUserId;
+
+    const [otherUser] = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         displayName: userProfiles.displayName,
+        name: authUser.name,
         username: userProfiles.username,
       })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, otherUserId))
+      .from(authUser)
+      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+      .where(eq(authUser.id, otherUserId))
       .limit(1);
 
     return c.json(
       toFriendRequestSummary({
-        avatarUrl: otherProfile?.avatarUrl ?? null,
-        createdAt: request.createdAt,
+        avatarUrl: otherUser?.avatarUrl ?? null,
+        createdAt: updatedRequest.createdAt,
         direction:
-          request.recipientUserId === user.id ? "incoming" : "outgoing",
-        displayName: otherProfile?.displayName ?? null,
-        message: request.message,
-        requestId: request.id,
-        status: request.status,
+          updatedRequest.recipientUserId === user.id ? "incoming" : "outgoing",
+        displayName:
+          otherUser?.displayName ??
+          otherUser?.name ??
+          otherUser?.username ??
+          null,
+        message: updatedRequest.message,
+        requestId: updatedRequest.id,
+        status: updatedRequest.status,
         userId: otherUserId,
-        username: otherProfile?.username ?? null,
+        username: otherUser?.username ?? null,
       }),
       HttpStatusCodes.OK
     );

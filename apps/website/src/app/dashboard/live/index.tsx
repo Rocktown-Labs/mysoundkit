@@ -319,9 +319,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : req.status === "declined"
+                                    : (req.status === "declined"
                                       ? "destructive"
-                                      : "outline"
+                                      : "outline")
                                 }
                               >
                                 {req.status}

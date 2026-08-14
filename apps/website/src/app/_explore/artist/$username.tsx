@@ -121,9 +121,7 @@ const artistToProfileUser = (
     youtube: artist.links?.youtube,
   },
   location: artist.location || artist.state || "SoundKit",
-  monthlyListeners: formatCount(
-    totalPlaysOverride ?? artist.weeklyPlays ?? 0
-  ),
+  monthlyListeners: formatCount(totalPlaysOverride ?? artist.weeklyPlays ?? 0),
   name: artist.name,
   tracks: trackCountOverride ?? artist.trackCount ?? 0,
   username: artist.username,

@@ -633,9 +633,9 @@ export function LivePreviewShowcase({
                             variant={
                               track.status === "played"
                                 ? "secondary"
-                                : track.status === "queued"
+                                : (track.status === "queued"
                                   ? "default"
-                                  : "outline"
+                                  : "outline")
                             }
                             className="text-[10px] uppercase font-bold"
                           >

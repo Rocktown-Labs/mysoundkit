@@ -18,16 +18,12 @@ export const optimizeCoverImageFile = async (
     const shouldDownscale = width > maxDimension || height > maxDimension;
     const outputWidth = shouldDownscale
       ? Math.round(
-          width > height
-            ? maxDimension
-            : maxDimension * (width / height)
+          width > height ? maxDimension : maxDimension * (width / height)
         )
       : width;
     const outputHeight = shouldDownscale
       ? Math.round(
-          height > width
-            ? maxDimension
-            : maxDimension * (height / width)
+          height > width ? maxDimension : maxDimension * (height / width)
         )
       : height;
 

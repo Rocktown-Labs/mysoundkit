@@ -1,14 +1,19 @@
+"use client";
+
 import { useUploadFiles } from "@better-upload/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  LoaderCircle,
   FolderKanban,
+  LoaderCircle,
   MessageSquare,
   Paperclip,
   Plus,
   Search,
   Send,
+  Sparkles,
   Star,
+  UserCheck,
+  UserRoundPlus,
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
@@ -43,8 +48,23 @@ import type {
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
+interface MessagesSearch {
+  conversationId?: string;
+  friendId?: string;
+}
+
 export const Route = createFileRoute("/dashboard/messages")({
   component: MessagesPage,
+  validateSearch: (search: Record<string, unknown>): MessagesSearch => ({
+    conversationId:
+      typeof search.conversationId === "string" && search.conversationId
+        ? search.conversationId
+        : undefined,
+    friendId:
+      typeof search.friendId === "string" && search.friendId
+        ? search.friendId
+        : undefined,
+  }),
 });
 
 const initials = (value: string) =>
@@ -56,75 +76,152 @@ const initials = (value: string) =>
     .toUpperCase();
 
 function MessagesPage() {
-  const conversationsQuery = useConversationsQuery(),
-    conversations = useMemo(
-    () => conversationsQuery.data ?? [],
-    [conversationsQuery.data]
-    ),
-    [selectedId, setSelectedId] = useState(""),
-    [searchQuery, setSearchQuery] = useState(""),
-    [attachments, setAttachments] = useState<
-      {
-        displayName: string;
-        mimeType?: string;
-        objectKey?: string;
-        sizeBytes?: number;
-        sourceTrackId?: string;
-        url: string;
-      }[]
-    >([]),
-    [composerText, setComposerText] = useState(""),
-    [isCollaborationOpen, setIsCollaborationOpen] = useState(false),
-    [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const searchParams = Route.useSearch();
+  const conversationsQuery = useConversationsQuery();
+  const friendsQuery = useFriendsQuery();
 
+  const conversations = useMemo(
+    () =>
+      Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
+    [conversationsQuery.data]
+  );
+  const friends = useMemo(
+    () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+    [friendsQuery.data]
+  );
+
+  // Messageable connections: mutual friends & track collaborators
+  const messageableFriends = useMemo(
+    () =>
+      friends.filter(
+        (friend) =>
+          friend.relationship === "friend" ||
+          friend.relationship === "collaborator"
+      ),
+    [friends]
+  );
+
+  const [selectedId, setSelectedId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [attachments, setAttachments] = useState<
+    {
+      displayName: string;
+      mimeType?: string;
+      objectKey?: string;
+      sizeBytes?: number;
+      sourceTrackId?: string;
+      url: string;
+    }[]
+  >([]);
+  const [composerText, setComposerText] = useState("");
+  const [isCollaborationOpen, setIsCollaborationOpen] = useState(false);
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const [targetFriendId, setTargetFriendId] = useState<string | undefined>(
+    undefined
+  );
+
+  // Handle URL search params (friendId or conversationId)
   useEffect(() => {
+    if (searchParams.conversationId) {
+      setSelectedId(searchParams.conversationId);
+      return;
+    }
+
+    if (searchParams.friendId) {
+      const targetFriend = friends.find((f) => f.id === searchParams.friendId);
+      // Check if conversation already exists with this friend
+      const existing = conversations.find(
+        (c) =>
+          targetFriend &&
+          (c.title.toLowerCase().includes(targetFriend.name.toLowerCase()) ||
+            (targetFriend.username &&
+              c.title
+                .toLowerCase()
+                .includes(targetFriend.username.toLowerCase())))
+      );
+
+      if (existing) {
+        setSelectedId(existing.id);
+      } else {
+        setTargetFriendId(searchParams.friendId);
+        setIsNewChatOpen(true);
+      }
+      return;
+    }
+
     if (!selectedId && conversations[0]) {
       setSelectedId(conversations[0].id);
     }
-  }, [conversations, selectedId]);
+  }, [
+    conversations,
+    friends,
+    searchParams.conversationId,
+    searchParams.friendId,
+    selectedId,
+  ]);
 
   const selectedConversation = conversations.find(
     (conversation) => conversation.id === selectedId
-    ),
-    messagesQuery = useConversationMessagesQuery(selectedId),
-    sendMessage = useCreateMessageMutation(selectedId),
-    purchasesQuery = useLibraryPurchasesQuery(),
-    savedTracksQuery = useLibrarySavedQuery(),
-    { isPending: isUploading, upload } = useUploadFiles({
-      api: MEDIA_UPLOAD_URL,
-      credentials: "include",
-      onUploadComplete: ({ files }) => {
-        setAttachments((current) => [
-          ...current,
-          ...files.map((file) => ({
-            displayName: file.raw.name,
-            mimeType: file.raw.type,
-            objectKey: file.objectInfo.key,
-            sizeBytes: file.raw.size,
-            url: `${MEDIA_BASE_URL}/${file.objectInfo.key}`,
-          })),
-        ]);
-      },
-    }),
-    filteredConversations = conversations.filter((conversation) =>
+  );
+  const messagesQuery = useConversationMessagesQuery(selectedId);
+  const sendMessage = useCreateMessageMutation(selectedId);
+  const purchasesQuery = useLibraryPurchasesQuery();
+  const savedTracksQuery = useLibrarySavedQuery();
+  const { isPending: isUploading, upload } = useUploadFiles({
+    api: MEDIA_UPLOAD_URL,
+    credentials: "include",
+    onUploadComplete: ({ files }) => {
+      setAttachments((current) => [
+        ...current,
+        ...files.map((file) => ({
+          displayName: file.raw.name,
+          mimeType: file.raw.type,
+          objectKey: file.objectInfo.key,
+          sizeBytes: file.raw.size,
+          url: `${MEDIA_BASE_URL}/${file.objectInfo.key}`,
+        })),
+      ]);
+    },
+  });
+  const filteredConversations = conversations.filter((conversation) =>
     conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
-    submitMessage = (event: FormEvent<HTMLFormElement>) => {
+  );
+
+  const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-      if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
+    if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
       return;
     }
 
     sendMessage.mutate(
-        { attachments, body: composerText.trim() },
       {
-          onSuccess: () => {
-            setAttachments([]);
-            setComposerText("");
-          },
+        attachments,
+        body: composerText.trim(),
+      },
+      {
+        onSuccess: () => {
+          setComposerText("");
+          setAttachments([]);
+        },
       }
     );
+  };
+
+  const handleStartChatWithFriend = (friend: FriendSummary) => {
+    const existing = conversations.find(
+      (c) =>
+        c.title.toLowerCase().includes(friend.name.toLowerCase()) ||
+        (friend.username &&
+          c.title.toLowerCase().includes(friend.username.toLowerCase()))
+    );
+
+    if (existing) {
+      setSelectedId(existing.id);
+    } else {
+      setTargetFriendId(friend.id);
+      setIsNewChatOpen(true);
+    }
   };
 
   return (
@@ -135,21 +232,22 @@ function MessagesPage() {
             Messages
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Chat with your collaborators
+            Chat with your friends and music collaborators
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            className="bg-card/40 border-border/40"
-            size="sm"
-            variant="outline"
-          >
-            <Star className="mr-2 size-3.5" />
-            Starred
+          <Button asChild size="sm" variant="outline" className="bg-card/40 border-border/40">
+            <Link to="/dashboard/collaborators">
+              <UserRoundPlus className="mr-2 size-3.5" />
+              Friends &amp; Collaborators
+            </Link>
           </Button>
           <Button
             className="shadow-lg shadow-primary/20"
-            onClick={() => setIsNewChatOpen(true)}
+            onClick={() => {
+              setTargetFriendId(undefined);
+              setIsNewChatOpen(true);
+            }}
             size="sm"
           >
             <Plus className="mr-2 size-3.5" />
@@ -159,18 +257,60 @@ function MessagesPage() {
       </div>
 
       <div className="flex flex-1 gap-4 overflow-hidden">
-        <Card className="flex h-full w-full flex-col overflow-hidden border-border/40 bg-card/40 backdrop-blur-md md:w-80">
-          <div className="border-b border-border/20 p-4">
+        <Card className="flex h-full w-full flex-col overflow-hidden border-border/40 bg-card/40 backdrop-blur-md md:w-80 shrink-0">
+          {/* Search bar */}
+          <div className="border-b border-border/20 p-3">
             <div className="relative">
               <Search className="-translate-y-1/2 absolute left-3 top-1/2 size-4 text-muted-foreground" />
               <Input
-                className="border-none bg-muted/30 pl-9 focus-visible:ring-1 focus-visible:ring-primary/30"
+                className="border-none bg-muted/30 pl-9 text-xs focus-visible:ring-1 focus-visible:ring-primary/30"
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search chats..."
                 value={searchQuery}
               />
             </div>
           </div>
+
+          {/* Quick Active Friends & Collaborators Bar */}
+          {messageableFriends.length > 0 && (
+            <div className="border-b border-border/20 p-3 bg-muted/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Friends Online
+                </span>
+                <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {messageableFriends.length} active
+                </span>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-1 custom-scrollbar">
+                {messageableFriends.map((friend) => (
+                  <button
+                    key={friend.id}
+                    className="flex flex-col items-center gap-1 shrink-0 group text-center focus:outline-none"
+                    onClick={() => handleStartChatWithFriend(friend)}
+                    type="button"
+                    title={`Chat with ${friend.name}`}
+                  >
+                    <div className="relative">
+                      <Avatar className="size-10 border-2 border-border/40 group-hover:border-primary/50 transition-all">
+                        <AvatarImage src={friend.avatarUrl ?? undefined} />
+                        <AvatarFallback className="text-[10px]">
+                          {initials(friend.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background shadow-sm" />
+                    </div>
+                    <span className="text-[10px] truncate max-w-[54px] text-muted-foreground group-hover:text-foreground">
+                      {friend.name.split(" ")[0]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Conversations List */}
           <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
             {conversationsQuery.isLoading && (
               <p className="p-4 text-sm text-muted-foreground">
@@ -183,7 +323,7 @@ function MessagesPage() {
                   <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
                   <p className="font-medium text-sm">No conversations</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Start a new chat with a friend or collaborator.
+                    Start a new chat with a friend or collaborator above.
                   </p>
                 </div>
               )}
@@ -198,25 +338,35 @@ function MessagesPage() {
           </div>
         </Card>
 
+        {/* Chat area */}
         <Card className="hidden flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:flex">
           {selectedConversation ? (
             <>
               <div className="flex items-center justify-between border-b border-border/20 bg-white/[0.02] p-4">
                 <div className="flex items-center gap-3">
-                  <Avatar className="size-10 border-2 border-border/40">
-                    <AvatarFallback>
-                      {initials(selectedConversation.title)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="size-10 border-2 border-border/40">
+                      <AvatarFallback>
+                        {initials(selectedConversation.title)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-sm leading-none">
                       {selectedConversation.title}
                     </h3>
-                    <Badge className="mt-2 capitalize" variant="secondary">
-                      {selectedConversation.conversationType}
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge className="capitalize text-[10px] px-1.5 py-0" variant="secondary">
+                        {selectedConversation.conversationType}
+                      </Badge>
+                      <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
+                        Active now
+                      </span>
+                    </div>
                   </div>
                 </div>
+
                 <Button
                   onClick={() => setIsCollaborationOpen(true)}
                   size="sm"
@@ -235,9 +385,11 @@ function MessagesPage() {
                 )}
                 {(messagesQuery.data ?? []).map((message) => (
                   <div className="flex justify-start" key={message.id}>
-                    <div className="max-w-[75%] rounded-2xl rounded-bl-none border border-border/20 bg-muted/80 px-4 py-3 text-sm">
-                      {message.body ? <p>{message.body}</p> : null}
-                      {message.attachments.map((attachment) => (
+                    <div className="max-w-[75%] rounded-2xl rounded-bl-none border border-border/20 bg-muted/80 px-4 py-3 text-sm shadow-sm">
+                      {message.body ? (
+                        <p className="whitespace-pre-wrap">{message.body}</p>
+                      ) : null}
+                      {message.attachments?.map((attachment) => (
                         <a
                           className="mt-2 block rounded-lg border bg-background/60 p-2 text-xs hover:border-primary"
                           href={attachment.url}
@@ -250,7 +402,10 @@ function MessagesPage() {
                         </a>
                       ))}
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        {new Date(message.createdAt).toLocaleString()}
+                        {new Date(message.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                   </div>
@@ -261,7 +416,7 @@ function MessagesPage() {
                       <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
                       <p className="font-medium">No messages yet</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Send the first message to get this chat moving.
+                        Send the first message to start this chat.
                       </p>
                     </div>
                   )}
@@ -275,13 +430,14 @@ function MessagesPage() {
                   <div className="mb-2 flex flex-wrap gap-2">
                     {attachments.map((attachment) => (
                       <Badge
-                        className="gap-1"
+                        className="gap-1 text-xs"
                         key={attachment.url}
                         variant="secondary"
                       >
+                        <Paperclip className="size-3" />
                         {attachment.displayName}
                         <button
-                          aria-label={`Remove ${attachment.displayName}`}
+                          aria-label={`Remove attachment ${attachment.displayName}`}
                           onClick={() =>
                             setAttachments((current) =>
                               current.filter(
@@ -297,74 +453,6 @@ function MessagesPage() {
                     ))}
                   </div>
                 ) : null}
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
-                    <Paperclip className="size-3" />
-                    {isUploading ? "Uploading…" : "Attach file"}
-                    <input
-                      className="sr-only"
-                      disabled={isUploading}
-                      multiple
-                      onChange={(event) => {
-                        const files = [...(event.target.files ?? [])].slice(
-                          0,
-                          8
-                        );
-                        if (files.length > 0) {
-                          void upload(files);
-                        }
-                      }}
-                      type="file"
-                    />
-                  </label>
-                  <select
-                    aria-label="Attach saved or purchased music"
-                    className="h-7 rounded-md border bg-background px-2 text-xs"
-                    defaultValue=""
-                    onChange={(event) => {
-                      const track = [
-                        ...(savedTracksQuery.data ?? []),
-                        ...(purchasesQuery.data ?? [])
-                          .filter((item) => item.productType === "track")
-                          .map((item) => ({
-                            artist: item.artist,
-                            id: item.productId ?? item.id,
-                            title: item.title,
-                          })),
-                      ].find((item) => item.id === event.target.value);
-                      if (!track) {
-                        return;
-                      }
-                      setAttachments((current) => [
-                        ...current.filter(
-                          (item) => item.sourceTrackId !== track.id
-                        ),
-                        {
-                          displayName: `${track.title} by ${track.artist}`,
-                          sourceTrackId: track.id,
-                          url: `/tracks/${track.id}`,
-                        },
-                      ]);
-                      event.target.value = "";
-                    }}
-                  >
-                    <option value="">Attach saved or purchased music…</option>
-                    {[
-                      ...(savedTracksQuery.data ?? []),
-                      ...(purchasesQuery.data ?? [])
-                        .filter((item) => item.productType === "track")
-                        .map((item) => ({
-                          artist: item.artist,
-                          id: item.productId ?? item.id,
-                          title: item.title,
-                        })),
-                    ].map((track) => (
-                      <option key={track.id} value={track.id}>
-                        {track.title} · {track.artist}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div className="flex items-center gap-2 rounded-2xl border border-border/20 bg-muted/40 p-1.5 pl-3 backdrop-blur-xl transition-all focus-within:ring-1 focus-within:ring-primary/20">
                   <Input
                     className="h-10 border-none bg-transparent px-1 text-sm focus-visible:ring-0"
@@ -372,6 +460,23 @@ function MessagesPage() {
                     placeholder="Type your message..."
                     value={composerText}
                   />
+                  <label
+                    className="inline-flex size-10 cursor-pointer items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"
+                    title="Upload file attachment"
+                  >
+                    <Paperclip className="size-4" />
+                    <input
+                      className="hidden"
+                      disabled={isUploading}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          upload([file]);
+                        }
+                      }}
+                      type="file"
+                    />
+                  </label>
                   <Button
                     className="size-10 shrink-0 rounded-xl shadow-lg shadow-primary/20"
                     disabled={
@@ -382,12 +487,56 @@ function MessagesPage() {
                     size="icon"
                     type="submit"
                   >
-                    {sendMessage.isPending ? (
+                    {sendMessage.isPending || isUploading ? (
                       <LoaderCircle className="size-4 animate-spin" />
                     ) : (
                       <Send className="size-4" />
                     )}
                   </Button>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>Attach music from library:</span>
+                  {(savedTracksQuery.data ?? []).slice(0, 3).map((track) => (
+                    <button
+                      className="underline hover:text-foreground"
+                      key={track.id}
+                      onClick={() =>
+                        setAttachments((current) => [
+                          ...current,
+                          {
+                            displayName: track.title,
+                            sourceTrackId: track.id,
+                            url: track.streamUrl,
+                          },
+                        ])
+                      }
+                      type="button"
+                    >
+                      +{track.title}
+                    </button>
+                  ))}
+                  {(purchasesQuery.data ?? []).slice(0, 2).map((purchase) =>
+                    purchase.track ? (
+                      <button
+                        className="underline hover:text-foreground"
+                        key={purchase.id}
+                        onClick={() =>
+                          setAttachments((current) => [
+                            ...current,
+                            {
+                              displayName: purchase.track?.title ?? "Purchased track",
+                              sourceTrackId: purchase.trackId ?? undefined,
+                              url: purchase.track?.audioMasterUrl ?? "",
+                            },
+                          ])
+                        }
+                        type="button"
+                      >
+                        +{purchase.track.title}
+                      </button>
+                    ) : null
+                  )}
                 </div>
               </form>
             </>
@@ -397,7 +546,8 @@ function MessagesPage() {
                 <MessageSquare className="mx-auto mb-3 size-10 text-muted-foreground/30" />
                 <p className="font-medium">Select or start a conversation</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Your real collaborator messages will appear here.
+                  Pick a friend from the left or click New Chat to start
+                  messaging.
                 </p>
               </div>
             </div>
@@ -410,7 +560,12 @@ function MessagesPage() {
         open={isCollaborationOpen}
         onOpenChange={setIsCollaborationOpen}
       />
-      <NewChatDialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen} />
+      <NewChatDialog
+        initialFriendId={targetFriendId}
+        onOpenChange={setIsNewChatOpen}
+        onConversationCreated={(id) => setSelectedId(id)}
+        open={isNewChatOpen}
+      />
     </div>
   );
 }
@@ -424,31 +579,32 @@ function CollaborationDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const [kind, setKind] = useState<"project" | "track">("track"),
-    [title, setTitle] = useState(""),
-    [isCreating, setIsCreating] = useState(false),
-    createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setIsCreating(true);
-      try {
-        const response = await fetch(
-          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
-          {
-            body: JSON.stringify({ kind, title }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
-        );
-        if (!response.ok) {
-          throw new Error("Could not start the collaboration.");
+  const [kind, setKind] = useState<"project" | "track">("track");
+  const [title, setTitle] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  const createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsCreating(true);
+    try {
+      const response = await fetch(
+        `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
+        {
+          body: JSON.stringify({ kind, title }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
         }
-        const result = (await response.json()) as { href: string };
-        window.location.assign(result.href);
-      } finally {
-        setIsCreating(false);
+      );
+      if (!response.ok) {
+        throw new Error("Could not start the collaboration.");
       }
-    };
+      const result = (await response.json()) as { href: string };
+      window.location.assign(result.href);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -495,29 +651,60 @@ function CollaborationDialog({
 }
 
 function NewChatDialog({
+  initialFriendId,
+  onConversationCreated,
   onOpenChange,
   open,
 }: {
+  initialFriendId?: string;
+  onConversationCreated?: (id: string) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const friendsQuery = useFriendsQuery(),
-    startConversation = useStartConversationMutation(),
-    [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]),
-    [message, setMessage] = useState(""),
-    [search, setSearch] = useState(""),
-    friends = friendsQuery.data?.friends ?? [],
-    normalizedSearch = search.trim().replace(/^@/, "").toLowerCase(),
-    filteredFriends = friends.filter((friend) =>
+  const friendsQuery = useFriendsQuery();
+  const startConversation = useStartConversationMutation();
+  const [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]);
+  const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
+
+  const friends = useMemo(
+    () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+    [friendsQuery.data]
+  );
+
+  // Allow only friends & collaborators to be messaged
+  const messageableFriends = useMemo(
+    () =>
+      friends.filter(
+        (friend) =>
+          friend.relationship === "friend" ||
+          friend.relationship === "collaborator"
+      ),
+    [friends]
+  );
+
+  // Preselect initialFriendId when dialog opens
+  useEffect(() => {
+    if (open && initialFriendId && messageableFriends.length > 0) {
+      const match = messageableFriends.find((f) => f.id === initialFriendId);
+      if (match) {
+        setSelectedFriends([match]);
+      }
+    }
+  }, [open, initialFriendId, messageableFriends]);
+
+  const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase();
+  const filteredFriends = messageableFriends.filter((friend) =>
     [friend.name, friend.username, friend.email, friend.role]
       .filter(Boolean)
       .some((value) => value?.toLowerCase().includes(normalizedSearch))
-    ),
-    selectedIds = new Set(selectedFriends.map((friend) => friend.id)),
-    availableFriends = filteredFriends.filter(
+  );
+  const selectedIds = new Set(selectedFriends.map((friend) => friend.id));
+  const availableFriends = filteredFriends.filter(
     (friend) => !selectedIds.has(friend.id)
-    ),
-    startChat = (event: FormEvent<HTMLFormElement>) => {
+  );
+
+  const startChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (selectedFriends.length === 0 || !message.trim()) {
@@ -533,11 +720,14 @@ function NewChatDialog({
         message: { body: message.trim() },
       },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
           setMessage("");
           setSearch("");
           setSelectedFriends([]);
           onOpenChange(false);
+          if (res?.id && onConversationCreated) {
+            onConversationCreated(res.id);
+          }
         },
       }
     );
@@ -579,28 +769,48 @@ function NewChatDialog({
           <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-border/40 p-2">
             {availableFriends.map((friend) => (
               <button
-                className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted"
+                className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted transition-colors"
                 key={friend.id}
                 onClick={() =>
                   setSelectedFriends((current) => [...current, friend])
                 }
                 type="button"
               >
-                <Avatar className="size-8">
-                  <AvatarImage src={friend.avatarUrl ?? undefined} />
-                  <AvatarFallback>{initials(friend.name)}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
+                <div className="relative">
+                  <Avatar className="size-8">
+                    <AvatarImage src={friend.avatarUrl ?? undefined} />
+                    <AvatarFallback>{initials(friend.name)}</AvatarFallback>
+                  </Avatar>
+                  <span className="absolute bottom-0 right-0 size-2 rounded-full bg-emerald-500 ring-1 ring-background" />
+                </div>
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{friend.name}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {friend.username ? `@${friend.username}` : friend.email}
                   </p>
                 </div>
+                {friend.relationship === "collaborator" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-violet-400 border-violet-500/30"
+                  >
+                    Collaborator
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-emerald-400 border-emerald-500/30"
+                  >
+                    Friend
+                  </Badge>
+                )}
               </button>
             ))}
             {availableFriends.length === 0 && (
               <p className="p-4 text-center text-sm text-muted-foreground">
-                No friends or collaborators match that search.
+                {messageableFriends.length === 0
+                  ? "No friends or collaborators available yet. Add friends to start chatting."
+                  : "No matching friends or collaborators."}
               </p>
             )}
           </div>
@@ -658,11 +868,14 @@ function ConversationItem({
       {isSelected && (
         <div className="-left-1 absolute top-1/2 h-6 w-1.5 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
       )}
-      <Avatar className="size-11 border-2 border-border/10 transition-colors group-hover:border-primary/20">
-        <AvatarFallback className="bg-muted text-xs">
-          {initials(conversation.title)}
-        </AvatarFallback>
-      </Avatar>
+      <div className="relative">
+        <Avatar className="size-11 border-2 border-border/10 transition-colors group-hover:border-primary/20">
+          <AvatarFallback className="bg-muted text-xs">
+            {initials(conversation.title)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+      </div>
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-center justify-between">
           <p

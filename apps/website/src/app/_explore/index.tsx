@@ -25,10 +25,10 @@ import {
   WorldAndUSAMap,
 } from "@/components/explore/world-and-usa-map";
 import type { MapScope } from "@/components/explore/world-and-usa-map";
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AppImage } from "@/components/ui/app-image";
 import {
   useArtistsQuery,
   useBattlesQuery,
@@ -590,7 +590,9 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
         <CardContent className="space-y-4 p-4">
           <div className="flex items-center justify-between gap-2">
             <Badge variant="secondary">{battle.genre}</Badge>
-            <Badge variant={battle.status === "live" ? "destructive" : "outline"}>
+            <Badge
+              variant={battle.status === "live" ? "destructive" : "outline"}
+            >
               {battle.status}
             </Badge>
           </div>

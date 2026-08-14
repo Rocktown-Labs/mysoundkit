@@ -773,7 +773,7 @@ export const notifyFollowerEmail = async ({
     actionPath:
       followerUsername && !isFan
         ? `/artist/${followerUsername}`
-        : "/dashboard/collaborators",
+        : "/dashboard/collaborators?tab=following",
     body: isFan
       ? `${followerName} became a fan of your SoundKit profile. Open your collaborators dashboard to see the fan and keep building your audience.`
       : `${followerName} started following your SoundKit profile. Open their artist page to see what they are building.`,
@@ -813,7 +813,7 @@ export const notifyFriendRequestEmail = async ({
   }
 
   return enqueueForRecipient({
-    actionPath: "/dashboard/collaborators",
+    actionPath: "/dashboard/collaborators?tab=requests",
     body: `${requesterName} sent you an artist friend request on SoundKit. Accept it to add them to your friends list and start messaging when you are ready.`,
     ctaLabel: "Review request",
     eyebrow: "Friend request",

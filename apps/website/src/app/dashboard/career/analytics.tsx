@@ -41,21 +41,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { Progress } from "@/components/ui/progress";
-import {
-  useBattlesQuery,
-  useListeningPartiesQuery,
-  useProjectsQuery,
-  useTracksQuery,
-  useVideosQuery,
-  type TrackSummary,
-} from "@/lib/soundkit-api-hooks";
+import { useBattlesQuery, useListeningPartiesQuery, useProjectsQuery, useTracksQuery, useVideosQuery } from '@/lib/soundkit-api-hooks';
+import type { TrackSummary } from '@/lib/soundkit-api-hooks';
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
@@ -81,55 +71,55 @@ const streamTrends28d = [
 
 // Stream Sources Stacked Area Chart data
 const sourcesData = [
-  { label: "Mon", direct: 180, algorithmic: 120, playlists: 100 },
-  { label: "Tue", direct: 210, algorithmic: 150, playlists: 100 },
-  { label: "Wed", direct: 260, algorithmic: 210, playlists: 130 },
-  { label: "Thu", direct: 310, algorithmic: 240, playlists: 150 },
-  { label: "Fri", direct: 420, algorithmic: 330, playlists: 200 },
-  { label: "Sat", direct: 580, algorithmic: 450, playlists: 270 },
-  { label: "Sun", direct: 510, algorithmic: 410, playlists: 250 },
+  { algorithmic: 120, direct: 180, label: "Mon", playlists: 100 },
+  { algorithmic: 150, direct: 210, label: "Tue", playlists: 100 },
+  { algorithmic: 210, direct: 260, label: "Wed", playlists: 130 },
+  { algorithmic: 240, direct: 310, label: "Thu", playlists: 150 },
+  { algorithmic: 330, direct: 420, label: "Fri", playlists: 200 },
+  { algorithmic: 450, direct: 580, label: "Sat", playlists: 270 },
+  { algorithmic: 410, direct: 510, label: "Sun", playlists: 250 },
 ];
 
 // Geographic Reach Horizontal Bar Chart
 const geographicData = [
-  { region: "Arkansas (Local HQ)", plays: 3450 },
-  { region: "Texas (South)", plays: 2120 },
-  { region: "California (West)", plays: 1680 },
-  { region: "New York (East)", plays: 1240 },
-  { region: "International", plays: 890 },
+  { plays: 3450, region: "Arkansas (Local HQ)" },
+  { plays: 2120, region: "Texas (South)" },
+  { plays: 1680, region: "California (West)" },
+  { plays: 1240, region: "New York (East)" },
+  { plays: 890, region: "International" },
 ];
 
 // Donut Chart data for Subscribers vs Free
 const subscriberDonutData = [
   {
+    fill: "hsl(var(--primary))",
     name: "Subscriber Qualified Streams",
     value: 6800,
-    fill: "hsl(var(--primary))",
   },
   {
+    fill: "hsl(var(--muted-foreground)/0.4)",
     name: "Free Listener Streams",
     value: 2600,
-    fill: "hsl(var(--muted-foreground)/0.4)",
   },
 ];
 
 const areaChartConfig: ChartConfig = {
-  desktop: { label: "Desktop Streams", color: "hsl(var(--primary))" },
+  desktop: { color: "hsl(var(--primary))", label: "Desktop Streams" },
   mobile: {
-    label: "Mobile Streams",
     color: "hsl(var(--chart-2, 220 70% 50%))",
+    label: "Mobile Streams",
   },
 };
 
 const sourcesChartConfig: ChartConfig = {
   algorithmic: {
-    label: "Algorithmic Radio",
     color: "hsl(var(--chart-2, 160 60% 45%))",
+    label: "Algorithmic Radio",
   },
-  direct: { label: "Direct & Profile", color: "hsl(var(--primary))" },
+  direct: { color: "hsl(var(--primary))", label: "Direct & Profile" },
   playlists: {
-    label: "User Playlists",
     color: "hsl(var(--chart-3, 30 80% 55%))",
+    label: "User Playlists",
   },
 };
 
@@ -259,7 +249,7 @@ export function AnalyticsPage() {
             >
               <AreaChart
                 data={trendData}
-                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+                margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
               >
                 <defs>
                   <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
@@ -324,7 +314,7 @@ export function AnalyticsPage() {
             >
               <AreaChart
                 data={sourcesData}
-                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+                margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
               >
                 <defs>
                   <linearGradient id="fillDirect" x1="0" y1="0" x2="0" y2="1">
@@ -410,7 +400,7 @@ export function AnalyticsPage() {
           <ChartContainer config={{}} className="h-[200px] w-full">
             <AreaChart
               data={spike48hData}
-              margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+              margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
             >
               <defs>
                 <linearGradient id="fillSpike" x1="0" y1="0" x2="0" y2="1">
@@ -508,7 +498,7 @@ export function AnalyticsPage() {
               <BarChart
                 data={geographicData}
                 layout="vertical"
-                margin={{ left: 20, right: 20, top: 0, bottom: 0 }}
+                margin={{ bottom: 0, left: 20, right: 20, top: 0 }}
               >
                 <XAxis type="number" hide />
                 <YAxis
