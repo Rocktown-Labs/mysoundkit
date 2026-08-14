@@ -20,6 +20,7 @@ import {
   PRODUCT_PLATFORM_FEE_BPS,
   TIP_PLATFORM_FEE_BPS,
 } from "@/lib/fees";
+import { refreshSellerAccount } from "@/lib/seller";
 import { createDestinationCheckout } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
@@ -40,6 +41,7 @@ const tipBodySchema = checkoutBodySchema.extend({
 });
 
 const getEnabledSeller = async (userId: string) => {
+  await refreshSellerAccount({ organizationId: null, userId });
   const db = createDb();
   const [seller] = await db
     .select()

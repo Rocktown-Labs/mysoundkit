@@ -310,6 +310,11 @@ const protectedRequests: {
     path: "/v1/live/cloudflare-stream/stream_123",
   },
   {
+    init: { method: "POST" },
+    label: "Connect account session",
+    path: "/v1/seller/account-session",
+  },
+  {
     init: { method: "GET" },
     label: "track asset download",
     path: "/v1/tracks/track_123/assets/asset_123/download",

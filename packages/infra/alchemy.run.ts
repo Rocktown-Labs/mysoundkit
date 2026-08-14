@@ -27,9 +27,9 @@ const app = await alchemy("soundkit", {
             : undefined,
         })
     : undefined,
-});
-const isProduction = app.stage === "prod";
-const isPullRequestPreview = app.stage.startsWith("pr-");
+}),
+ isProduction = app.stage === "prod",
+ isPullRequestPreview = app.stage.startsWith("pr-");
 
 if (!(app.local || isProduction || isPullRequestPreview)) {
   throw new Error(
@@ -39,34 +39,34 @@ if (!(app.local || isProduction || isPullRequestPreview)) {
 
 const SITE_HOST = isProduction
   ? "mysoundkit.com"
-  : `web-${app.stage}.mysoundkit.com`;
-const API_HOST = isProduction
+  : `web-${app.stage}.mysoundkit.com`,
+ API_HOST = isProduction
   ? "api.mysoundkit.com"
-  : `api-${app.stage}.mysoundkit.com`;
-const MEDIA_HOST = isProduction
+  : `api-${app.stage}.mysoundkit.com`,
+ MEDIA_HOST = isProduction
   ? "media.mysoundkit.com"
-  : `media-${app.stage}.mysoundkit.com`;
-const SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`;
-const API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`;
-const MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`;
-const SENTRY_WEB_DSN =
+  : `media-${app.stage}.mysoundkit.com`,
+ SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
+ API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
+ MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`,
+ SENTRY_WEB_DSN =
   process.env.VITE_SENTRY_DSN ||
-  "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704";
-const SENTRY_SERVER_DSN =
+  "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
+ SENTRY_SERVER_DSN =
   process.env.SENTRY_DSN ||
-  "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208";
-const resourceName = (name: string) =>
-  isProduction ? name : `${name}-${app.stage}`;
-const shouldAdoptRemoteResources = isProduction || isPullRequestPreview;
-const requiredSecret = <T>(value: T | undefined, name: string) => {
+  "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208",
+ resourceName = (name: string) =>
+  isProduction ? name : `${name}-${app.stage}`,
+ shouldAdoptRemoteResources = isProduction || isPullRequestPreview,
+ requiredSecret = <T>(value: T | undefined, name: string) => {
   if (!value) {
     throw new Error(`${name} is required.`);
   }
 
   return value;
-};
+},
 
-const requiredEnv = (name: string) => {
+ requiredEnv = (name: string) => {
   const value = process.env[name];
 
   if (!value) {
@@ -74,17 +74,17 @@ const requiredEnv = (name: string) => {
   }
 
   return value;
-};
+},
 
-const optionalEnvBinding = (name: string) => {
+ optionalEnvBinding = (name: string) => {
   const value = process.env[name];
 
   return value ? { [name]: value } : {};
-};
+},
 
-const cloudflareAccountId = await AccountId();
+ cloudflareAccountId = await AccountId(),
 
-const getR2Jurisdiction = () => {
+ getR2Jurisdiction = () => {
   const jurisdiction = process.env.CLOUDFLARE_R2_JURISDICTION;
 
   if (!jurisdiction || jurisdiction === "default") {
@@ -98,11 +98,11 @@ const getR2Jurisdiction = () => {
   }
 
   return jurisdiction as "eu" | "fedramp";
-};
+},
 
-const r2Jurisdiction = getR2Jurisdiction();
+ r2Jurisdiction = getR2Jurisdiction(),
 
-const media = await R2Bucket("media", {
+ media = await R2Bucket("media", {
   adopt: shouldAdoptRemoteResources,
   cors: [
     {
@@ -122,9 +122,9 @@ const media = await R2Bucket("media", {
     : [{ adopt: shouldAdoptRemoteResources, domain: MEDIA_HOST }],
   jurisdiction: r2Jurisdiction,
   name: resourceName("soundkit-media"),
-});
+}),
 
-const mediaUploadToken = await AccountApiToken("media-upload-token", {
+ mediaUploadToken = await AccountApiToken("media-upload-token", {
   name: resourceName("soundkit-media-upload-token"),
   policies: [
     {
@@ -139,16 +139,16 @@ const mediaUploadToken = await AccountApiToken("media-upload-token", {
       },
     },
   ],
-});
+}),
 
 // Storage bucket for RealtimeKit live recordings. Recordings stay private
 // until a live experience is published; the server streams them via R2.
-const recordings = await R2Bucket("recordings", {
+ recordings = await R2Bucket("recordings", {
   adopt: shouldAdoptRemoteResources,
   name: resourceName("soundkit-recordings"),
-});
+}),
 
-const recordingsUploadToken = await AccountApiToken("recordings-upload-token", {
+ recordingsUploadToken = await AccountApiToken("recordings-upload-token", {
   name: resourceName("soundkit-recordings-upload-token"),
   policies: [
     {
@@ -163,36 +163,36 @@ const recordingsUploadToken = await AccountApiToken("recordings-upload-token", {
       },
     },
   ],
-});
+}),
 
-const trackProcessingWorkflow = Workflow("track-processing", {
+ trackProcessingWorkflow = Workflow("track-processing", {
   className: "TrackProcessingWorkflow",
   workflowName: resourceName("soundkit-track-processing"),
-});
+}),
 
-const emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
+ emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
   adopt: shouldAdoptRemoteResources,
   name: resourceName("soundkit-email-delivery-dlq"),
   settings: {
     messageRetentionPeriod: 1_209_600,
   },
-});
+}),
 
-const emailDeliveryQueue = await Queue("email-delivery", {
+ emailDeliveryQueue = await Queue("email-delivery", {
   adopt: shouldAdoptRemoteResources,
   dlq: emailDeliveryDeadLetterQueue,
   name: resourceName("soundkit-email-delivery"),
   settings: {
     messageRetentionPeriod: 1_209_600,
   },
-});
+}),
 
-const liveRooms = DurableObjectNamespace("live-rooms", {
+ liveRooms = DurableObjectNamespace("live-rooms", {
   className: "LiveRoomDurableObject",
   sqlite: true,
-});
+}),
 
-const trackDurationBackfillDeadLetterQueue = await Queue(
+ trackDurationBackfillDeadLetterQueue = await Queue(
   "track-duration-backfill-dlq",
   {
     adopt: shouldAdoptRemoteResources,
@@ -201,18 +201,18 @@ const trackDurationBackfillDeadLetterQueue = await Queue(
       messageRetentionPeriod: 1_209_600,
     },
   }
-);
+),
 
-const trackDurationBackfillQueue = await Queue("track-duration-backfill", {
+ trackDurationBackfillQueue = await Queue("track-duration-backfill", {
   adopt: shouldAdoptRemoteResources,
   dlq: trackDurationBackfillDeadLetterQueue,
   name: resourceName("soundkit-track-duration-backfill"),
   settings: {
     messageRetentionPeriod: 1_209_600,
   },
-});
+}),
 
-const hyperdrive = await Hyperdrive("hyperdrive", {
+ hyperdrive = await Hyperdrive("hyperdrive", {
   ...(isProduction
     ? {
         adopt: true,
@@ -241,6 +241,7 @@ export const web = await TanStackStart("web", {
     VITE_ENABLE_MERCH: "false",
     VITE_MEDIA_URL: MEDIA_URL,
     ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
+    ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
     VITE_SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_SERVER_URL: API_URL,
   },
@@ -301,6 +302,7 @@ export const server = await Worker("server", {
     HYPERDRIVE: hyperdrive,
     LIVE_ROOMS: liveRooms,
     MEDIA_BUCKET: media,
+    MEDIA_CANONICAL_URL: "https://media.mysoundkit.com",
     MEDIA_PUBLIC_URL: MEDIA_URL,
     RECORDINGS_ACCESS_KEY_ID: recordingsUploadToken.accessKeyId,
     RECORDINGS_BUCKET: recordings,
@@ -351,8 +353,6 @@ export const server = await Worker("server", {
     ...(r2Jurisdiction ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction } : {}),
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_ARTIST_TEAM_MONTHLY_PRICE_ID"),
-    ...optionalEnvBinding("STRIPE_FAN_FAMILY_MONTHLY_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
   },

@@ -10,10 +10,12 @@ SET
   END
 WHERE "code" IN ('soundkit_premium_artist', 'soundkit_premium_fan');
 
-UPDATE "plan_catalog_v2"
-SET "is_active" = false
+DELETE FROM "plan_catalog_v2"
 WHERE "code" IN ('artist_team', 'fan_family');
 
 UPDATE "plan_catalog"
 SET "monthly_price" = '22.99'
 WHERE "code" IN ('soundkit_premium_artist', 'soundkit_premium_fan');
+
+DELETE FROM "plan_catalog"
+WHERE "code" IN ('artist_team', 'fan_family');

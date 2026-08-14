@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added Accounts v2 Stripe Connect onboarding for Premium artists, a Career Payments workspace with embedded payment and payout management, post-Premium routing, destination Checkout readiness checks, and artist payment setup prompts.
 - Reworked admin Premium management around the two equal-price Fan and Artist Premium plans, including searchable multi-user grants, subscription visibility, welcome notifications and email, plus live Stripe promotion-code creation and redemption reporting.
 - Added real Cloudflare Stream playback to public creator stream rooms, persisted live-input IDs, live status polling, and host-controlled input shutdown.
 
@@ -11,6 +12,7 @@
 
 ### Fixed
 
+- Fixed preview-deployment downloads for media stored in the canonical production bucket while preserving authenticated first-play and purchase access rules.
 - Standardized newly created track download defaults across standalone and project-created tracks: authenticated users must play once before downloading, while free tracks are not purchase-gated.
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.

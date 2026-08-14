@@ -25,13 +25,18 @@ import {
   notifyBillingIssueEmail,
   notifyPurchaseEmails,
 } from "@/lib/email-events";
-import { verifyStripeSignature } from "@/lib/stripe";
+import {
+  retrieveStripeCharge,
+  reverseStripeTransfer,
+  verifyStripeSignature,
+} from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
 
 interface StripeObject {
   amount?: number;
+  charge?: string;
   current_period_end?: number;
   customer?: string;
   id?: string;
@@ -48,208 +53,228 @@ interface StripeEvent {
 }
 
 const processCommunitySubscription = async ({
-  eventType,
-  object,
-}: {
-  eventType: string;
-  object: StripeObject;
-}) => {
-  const communitySubscriptionId = object.metadata?.communitySubscriptionId;
-
-  if (!communitySubscriptionId) {
-    return;
-  }
-
-  const db = createDb();
-  const status = resolveCommunitySubscriptionStatus({
-    currentPeriodEndSeconds: object.current_period_end,
     eventType,
-    stripeStatus: object.status,
-  });
-  const currentPeriodEnd = object.current_period_end
-    ? new Date(object.current_period_end * 1000)
-    : null;
+    object,
+  }: {
+    eventType: string;
+    object: StripeObject;
+  }) => {
+    const communitySubscriptionId = object.metadata?.communitySubscriptionId;
 
-  await db
-    .update(communitySubscriptions)
-    .set({
-      currentPeriodEnd,
-      status,
-      stripeCustomerId: object.customer,
-      stripeSubscriptionId: object.id,
-    })
-    .where(eq(communitySubscriptions.id, communitySubscriptionId));
-
-  if (status === "active") {
-    const [subscription] = await db
-      .select()
-      .from(communitySubscriptions)
-      .where(eq(communitySubscriptions.id, communitySubscriptionId))
-      .limit(1);
-
-    if (subscription) {
-      await db
-        .insert(communityMembers)
-        .values({
-          communityId: subscription.communityId,
-          role: "member",
-          userId: subscription.userId,
-        })
-        .onConflictDoNothing();
+    if (!communitySubscriptionId) {
+      return;
     }
-  }
-};
 
-const processStripeEvent = async ({
-  emailQueue,
-  event,
-}: {
-  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
-  event: StripeEvent;
-}) => {
-  const eventType = event.type ?? "unknown";
-  const object = event.data?.object ?? {};
-  const transactionId = object.metadata?.transactionId;
-  const db = createDb();
+    const db = createDb(),
+      status = resolveCommunitySubscriptionStatus({
+        currentPeriodEndSeconds: object.current_period_end,
+        eventType,
+        stripeStatus: object.status,
+      }),
+      currentPeriodEnd = object.current_period_end
+        ? new Date(object.current_period_end * 1000)
+        : null;
 
-  if (eventType === "checkout.session.completed") {
-    if (transactionId) {
-      const [order] = await db
+    await db
+      .update(communitySubscriptions)
+      .set({
+        currentPeriodEnd,
+        status,
+        stripeCustomerId: object.customer,
+        stripeSubscriptionId: object.id,
+      })
+      .where(eq(communitySubscriptions.id, communitySubscriptionId));
+
+    if (status === "active") {
+      const [subscription] = await db
         .select()
-        .from(orders)
-        .where(eq(orders.transactionId, transactionId))
+        .from(communitySubscriptions)
+        .where(eq(communitySubscriptions.id, communitySubscriptionId))
         .limit(1);
 
-      await db
-        .update(transactions)
-        .set({
-          status: "succeeded",
-          stripePaymentIntentId: object.payment_intent,
-          stripeSubscriptionId: object.subscription,
-        })
-        .where(eq(transactions.id, transactionId));
-      await db
-        .update(orders)
-        .set({
-          status: "paid",
-          stripePaymentIntentId: object.payment_intent,
-        })
-        .where(eq(orders.transactionId, transactionId));
-
-      if (order?.buyerUserId) {
-        const {buyerUserId} = order;
-        const purchasedItems = await db
-          .select()
-          .from(orderItems)
-          .where(eq(orderItems.orderId, order.id));
-
-        const purchaseRows = purchasedItems.map((item) => ({
-          buyerUserId,
-          id: crypto.randomUUID(),
-          orderItemId: item.id,
-          projectId: item.projectId,
-          trackId: item.trackId,
-          videoId: item.videoId,
-        }));
-
-        if (purchaseRows.length > 0) {
-          await db.insert(purchases).values(purchaseRows).onConflictDoNothing();
-        }
-
-        await notifyPurchaseEmails({
-          orderId: order.id,
-          queue: emailQueue,
-        });
-
+      if (subscription) {
         await db
-          .insert(userNotifications)
+          .insert(communityMembers)
           .values({
-            id: `purchase_ready:${order.id}:${buyerUserId}`,
-            link: purchaseRows[0]?.id
-              ? `/library/purchased/${purchaseRows[0].id}`
-              : "/library/purchased",
-            message: "Your purchase is ready in your SoundKit library.",
-            title: "Purchase Ready",
-            type: "purchase_ready",
-            userId: buyerUserId,
+            communityId: subscription.communityId,
+            role: "member",
+            userId: subscription.userId,
           })
           .onConflictDoNothing();
+      }
+    }
+  },
+  processStripeEvent = async ({
+    emailQueue,
+    event,
+  }: {
+    emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+    event: StripeEvent;
+  }) => {
+    const eventType = event.type ?? "unknown",
+      object = event.data?.object ?? {},
+      transactionId = object.metadata?.transactionId,
+      db = createDb();
 
-        if (order.sellerUserId) {
+    if (eventType === "checkout.session.completed") {
+      if (transactionId) {
+        const [order] = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.transactionId, transactionId))
+          .limit(1);
+
+        await db
+          .update(transactions)
+          .set({
+            status: "succeeded",
+            stripePaymentIntentId: object.payment_intent,
+            stripeSubscriptionId: object.subscription,
+          })
+          .where(eq(transactions.id, transactionId));
+        await db
+          .update(orders)
+          .set({
+            status: "paid",
+            stripePaymentIntentId: object.payment_intent,
+          })
+          .where(eq(orders.transactionId, transactionId));
+
+        if (order?.buyerUserId) {
+          const { buyerUserId } = order,
+            purchasedItems = await db
+              .select()
+              .from(orderItems)
+              .where(eq(orderItems.orderId, order.id)),
+            purchaseRows = purchasedItems.map((item) => ({
+              buyerUserId,
+              id: crypto.randomUUID(),
+              orderItemId: item.id,
+              projectId: item.projectId,
+              trackId: item.trackId,
+              videoId: item.videoId,
+            }));
+
+          if (purchaseRows.length > 0) {
+            await db
+              .insert(purchases)
+              .values(purchaseRows)
+              .onConflictDoNothing();
+          }
+
+          await notifyPurchaseEmails({
+            orderId: order.id,
+            queue: emailQueue,
+          });
+
           await db
             .insert(userNotifications)
             .values({
-              id: `sale_notification:${order.id}:${order.sellerUserId}`,
-              link: "/dashboard/sales",
-              message: "You made a new sale on SoundKit.",
-              title: "New Sale",
-              type: "sale_notification",
-              userId: order.sellerUserId,
+              id: `purchase_ready:${order.id}:${buyerUserId}`,
+              link: purchaseRows[0]?.id
+                ? `/library/purchased/${purchaseRows[0].id}`
+                : "/library/purchased",
+              message: "Your purchase is ready in your SoundKit library.",
+              title: "Purchase Ready",
+              type: "purchase_ready",
+              userId: buyerUserId,
             })
             .onConflictDoNothing();
+
+          if (order.sellerUserId) {
+            await db
+              .insert(userNotifications)
+              .values({
+                id: `sale_notification:${order.id}:${order.sellerUserId}`,
+                link: "/dashboard/sales",
+                message: "You made a new sale on SoundKit.",
+                title: "New Sale",
+                type: "sale_notification",
+                userId: order.sellerUserId,
+              })
+              .onConflictDoNothing();
+          }
         }
       }
+
+      return;
     }
 
-    return;
-  }
-
-  if (
-    eventType === "invoice.payment_failed" ||
-    (eventType === "customer.subscription.updated" &&
-      (object.status === "past_due" || object.status === "unpaid"))
-  ) {
-    await notifyBillingIssueEmail({
-      queue: emailQueue,
-      stripeCustomerId: object.customer,
-      stripeSubscriptionId: object.subscription ?? object.id,
-      userId: object.metadata?.userId,
-    });
-  }
-
-  if (
-    eventType === "customer.subscription.created" ||
-    eventType === "customer.subscription.updated" ||
-    eventType === "customer.subscription.deleted"
-  ) {
-    await processCommunitySubscription({ eventType, object });
-    return;
-  }
-
-  if (
-    eventType === "coupon.created" ||
-    eventType === "coupon.updated" ||
-    eventType === "coupon.deleted"
-  ) {
-    console.info(
-      `Stripe webhook coupon event received: ${eventType} (${object.id})`
-    );
-    return;
-  }
-
-  if (eventType === "charge.refunded" && object.id) {
-    const [transaction] = object.payment_intent
-      ? await db
-          .select()
-          .from(transactions)
-          .where(eq(transactions.stripePaymentIntentId, object.payment_intent))
-          .limit(1)
-      : [];
-
-    if (transaction) {
-      await db.insert(paymentRefunds).values({
-        amountCents: object.amount ?? transaction.amountCents,
-        id: crypto.randomUUID(),
-        stripeRefundId: object.id,
-        transactionId: transaction.id,
+    if (
+      eventType === "invoice.payment_failed" ||
+      (eventType === "customer.subscription.updated" &&
+        (object.status === "past_due" || object.status === "unpaid"))
+    ) {
+      await notifyBillingIssueEmail({
+        queue: emailQueue,
+        stripeCustomerId: object.customer,
+        stripeSubscriptionId: object.subscription ?? object.id,
+        userId: object.metadata?.userId,
       });
-      await db
-        .update(transactions)
-        .set({ status: "refunded" })
-        .where(eq(transactions.id, transaction.id));
     }
-  }
-};
+
+    if (
+      eventType === "customer.subscription.created" ||
+      eventType === "customer.subscription.updated" ||
+      eventType === "customer.subscription.deleted"
+    ) {
+      await processCommunitySubscription({ eventType, object });
+      return;
+    }
+
+    if (
+      eventType === "coupon.created" ||
+      eventType === "coupon.updated" ||
+      eventType === "coupon.deleted"
+    ) {
+      console.info(
+        `Stripe webhook coupon event received: ${eventType} (${object.id})`
+      );
+      return;
+    }
+
+    if (eventType === "charge.dispute.created" && object.charge) {
+      const charge = await retrieveStripeCharge(object.charge).catch(
+          () => null
+        ),
+        transactionId = charge?.metadata?.transactionId;
+      if (transactionId) {
+        await db
+          .update(transactions)
+          .set({ status: "failed" })
+          .where(eq(transactions.id, transactionId));
+      }
+      if (charge?.transfer) {
+        await reverseStripeTransfer(charge.transfer).catch(() => null);
+      }
+      return;
+    }
+
+    if (eventType === "charge.refunded" && object.id) {
+      const [transaction] = object.payment_intent
+        ? await db
+            .select()
+            .from(transactions)
+            .where(
+              eq(transactions.stripePaymentIntentId, object.payment_intent)
+            )
+            .limit(1)
+        : [];
+
+      if (transaction) {
+        await db.insert(paymentRefunds).values({
+          amountCents: object.amount ?? transaction.amountCents,
+          id: crypto.randomUUID(),
+          stripeRefundId: object.id,
+          transactionId: transaction.id,
+        });
+        await db
+          .update(transactions)
+          .set({ status: "refunded" })
+          .where(eq(transactions.id, transaction.id));
+      }
+    }
+  };
 
 app.openapi(
   createRoute({
@@ -268,8 +293,8 @@ app.openapi(
     tags: ["Webhooks"],
   }),
   async (c) => {
-    const payload = await c.req.raw.text();
-    const signature = c.req.raw.headers.get("stripe-signature");
+    const payload = await c.req.raw.text(),
+      signature = c.req.raw.headers.get("stripe-signature");
 
     if (!(await verifyStripeSignature({ payload, signature }))) {
       return c.json(
@@ -287,12 +312,12 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [existing] = await db
-      .select({ id: stripeWebhookEvents.id })
-      .from(stripeWebhookEvents)
-      .where(eq(stripeWebhookEvents.stripeEventId, event.id))
-      .limit(1);
+    const db = createDb(),
+      [existing] = await db
+        .select({ id: stripeWebhookEvents.id })
+        .from(stripeWebhookEvents)
+        .where(eq(stripeWebhookEvents.stripeEventId, event.id))
+        .limit(1);
 
     if (existing) {
       return c.json(

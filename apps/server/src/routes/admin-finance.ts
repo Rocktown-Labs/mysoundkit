@@ -106,8 +106,7 @@ const ensureDefaultPlansSeeded = async () => {
   }
   const db = createDb();
   await db
-    .update(planCatalog)
-    .set({ isActive: false })
+    .delete(planCatalog)
     .where(inArray(planCatalog.code, ["artist_team", "fan_family"]));
   for (const plan of DEFAULT_PLANS) {
     await db
@@ -943,8 +942,14 @@ app.post("/payments/grant-premium", async (c) => {
   await ensureDefaultPlansSeeded();
   const db = createDb();
   const targets = await db
-    .select({ email: user.email, id: user.id, name: user.name })
+    .select({
+      accountType: userProfiles.accountType,
+      email: user.email,
+      id: user.id,
+      name: user.name,
+    })
     .from(user)
+    .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
     .where(inArray(user.id, userIds));
   if (targets.length !== userIds.length) {
     return c.json(
@@ -1024,11 +1029,13 @@ app.post("/payments/grant-premium", async (c) => {
         subscriptionId,
       }))
     );
+    const premiumLandingPath =
+      target.accountType === "artist" ? "/dashboard/career/payments" : "/";
     await db
       .insert(userNotifications)
       .values({
         id: `premium_grant:${subscriptionId}:${now.toISOString()}`,
-        link: "/dashboard",
+        link: premiumLandingPath,
         message: `You've been selected for ${plan?.name ?? "SoundKit Premium"}. Welcome to Premium!`,
         title: "Welcome to SoundKit Premium",
         type: "premium_granted",
@@ -1036,7 +1043,7 @@ app.post("/payments/grant-premium", async (c) => {
       })
       .onConflictDoNothing();
     await enqueueTransactionalEmail({
-      actionPath: "/dashboard",
+      actionPath: premiumLandingPath,
       idempotencyKey: `premium_grant:${subscriptionId}:${now.toISOString()}`,
       payload: {
         body: `You've been selected to receive ${plan?.name ?? "SoundKit Premium"}. Your Premium access is active now and will remain available for one year.`,

@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   UserRoundPlus,
   CalendarDays,
+  CircleDollarSign,
   Compass,
 } from "lucide-react";
 
@@ -50,42 +51,47 @@ const myMusicNavigation: SidebarNavItem[] = [
   { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
   { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
   { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Friends" },
-].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
+].map(({ href, icon, name }) => ({ icon, title: name, url: href })),
 
-const careerNavigation: SidebarNavItem[] = [
+ careerNavigation: SidebarNavItem[] = [
   { href: "/dashboard/career/profile", icon: User, name: "Profile" },
   { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
   { href: "/dashboard/career/calendar", icon: CalendarDays, name: "Calendar" },
   { href: "/dashboard/team", icon: Users, name: "Team" },
   { href: "/dashboard/ads", icon: Megaphone, name: "Ads" },
   { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
+  {
+    href: "/dashboard/career/payments",
+    icon: CircleDollarSign,
+    name: "Payments",
+  },
 ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
 export function AppSidebar() {
-  const { data: session } = authClient.useSession();
-  const adminAccess = useAdminAccessQuery(Boolean(session?.user));
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isAdmin =
+  const { data: session } = authClient.useSession(),
+   adminAccess = useAdminAccessQuery(Boolean(session?.user)),
+   pathname = useRouterState({ select: (s) => s.location.pathname }),
+   isAdmin =
     session?.user.role
       ?.split(",")
       .map((role) => role.trim())
-      .includes("admin") || adminAccess.data?.isAdmin;
-  const isRouteActive = (href: string) =>
+      .includes("admin") || adminAccess.data?.isAdmin,
+   isRouteActive = (href: string) =>
     href === "/dashboard"
       ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`);
+      : pathname === href || pathname.startsWith(`${href}/`),
 
-  const resolvedMyMusicNavigation = myMusicNavigation.map((item) => ({
+   resolvedMyMusicNavigation = myMusicNavigation.map((item) => ({
     ...item,
     isActive: isRouteActive(item.url ?? "/dashboard"),
-  }));
+  })),
 
-  const resolvedCareerNavigation = careerNavigation.map((item) => ({
+   resolvedCareerNavigation = careerNavigation.map((item) => ({
     ...item,
     isActive: isRouteActive(item.url ?? "/dashboard"),
-  }));
+  })),
 
-  const liveNavigation: SidebarNavItem[] = [
+   liveNavigation: SidebarNavItem[] = [
     {
       icon: Trophy,
       isActive: pathname === "/dashboard/live",

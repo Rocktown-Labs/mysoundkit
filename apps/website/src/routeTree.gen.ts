@@ -63,6 +63,7 @@ import { Route as DashboardLiveFindRouteImport } from './app/dashboard/live/find
 import { Route as DashboardLiveChallengeRouteImport } from './app/dashboard/live/challenge'
 import { Route as DashboardCareerSettingsRouteImport } from './app/dashboard/career/settings'
 import { Route as DashboardCareerProfileRouteImport } from './app/dashboard/career/profile'
+import { Route as DashboardCareerPaymentsRouteImport } from './app/dashboard/career/payments'
 import { Route as DashboardCareerCalendarRouteImport } from './app/dashboard/career/calendar'
 import { Route as DashboardCareerAnalyticsRouteImport } from './app/dashboard/career/analytics'
 import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/career/ai-studio'
@@ -373,6 +374,11 @@ const DashboardCareerProfileRoute = DashboardCareerProfileRouteImport.update({
   path: '/career/profile',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardCareerPaymentsRoute = DashboardCareerPaymentsRouteImport.update({
+  id: '/career/payments',
+  path: '/career/payments',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardCareerCalendarRoute = DashboardCareerCalendarRouteImport.update({
   id: '/career/calendar',
   path: '/career/calendar',
@@ -617,6 +623,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
@@ -707,6 +714,7 @@ export interface FileRoutesByTo {
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
@@ -802,6 +810,7 @@ export interface FileRoutesById {
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
@@ -897,6 +906,7 @@ export interface FileRouteTypes {
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
     | '/dashboard/live/challenge'
@@ -987,6 +997,7 @@ export interface FileRouteTypes {
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
     | '/dashboard/live/challenge'
@@ -1081,6 +1092,7 @@ export interface FileRouteTypes {
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
     | '/dashboard/live/challenge'
@@ -1529,6 +1541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCareerProfileRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/career/payments': {
+      id: '/dashboard/career/payments'
+      path: '/career/payments'
+      fullPath: '/dashboard/career/payments'
+      preLoaderRoute: typeof DashboardCareerPaymentsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/career/calendar': {
       id: '/dashboard/career/calendar'
       path: '/career/calendar'
@@ -1950,6 +1969,7 @@ interface DashboardRouteChildren {
   DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute
   DashboardCareerAnalyticsRoute: typeof DashboardCareerAnalyticsRoute
   DashboardCareerCalendarRoute: typeof DashboardCareerCalendarRoute
+  DashboardCareerPaymentsRoute: typeof DashboardCareerPaymentsRoute
   DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute
   DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute
   DashboardLiveChallengeRoute: typeof DashboardLiveChallengeRoute
@@ -1991,6 +2011,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCareerAiStudioRoute: DashboardCareerAiStudioRoute,
   DashboardCareerAnalyticsRoute: DashboardCareerAnalyticsRoute,
   DashboardCareerCalendarRoute: DashboardCareerCalendarRoute,
+  DashboardCareerPaymentsRoute: DashboardCareerPaymentsRoute,
   DashboardCareerProfileRoute: DashboardCareerProfileRoute,
   DashboardCareerSettingsRoute: DashboardCareerSettingsRoute,
   DashboardLiveChallengeRoute: DashboardLiveChallengeRoute,

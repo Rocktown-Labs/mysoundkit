@@ -21,9 +21,12 @@ describe("pricing flow", () => {
     expect(premiumPlanCodeForAccount(null)).toBe("soundkit_premium_fan");
   });
 
-  it("routes artists to dashboard and fans to library after signup or checkout", () => {
+  it("routes artists to payments setup and fans to Explore after checkout", () => {
     expect(accountHomePathForAccount("artist")).toBe("/dashboard");
-    expect(accountHomePathForAccount("fan")).toBe("/library/settings");
-    expect(premiumSuccessPathForAccount("fan")).toBe("/library/settings");
+    expect(accountHomePathForAccount("fan")).toBe("/");
+    expect(premiumSuccessPathForAccount("artist")).toBe(
+      "/dashboard/career/payments"
+    );
+    expect(premiumSuccessPathForAccount("fan")).toBe("/");
   });
 });
