@@ -56,6 +56,14 @@ import {
   useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { TrackSummary } from "@/lib/soundkit-api-hooks";
+import {
+  computeGeographicData,
+  computeRetentionMetrics,
+  computeSourcesData,
+  computeSpike48hData,
+  computeStreamTrends28d,
+  computeStreamTrends7d,
+} from "@/lib/analytics-calculations";
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
@@ -114,111 +122,21 @@ export function AnalyticsPage() {
   ],
 
   // Dynamic trend data generated from actual plays
-   streamTrends7d = useMemo(() => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    if (totalPlays === 0) {
-      return days.map((day) => ({ day, desktop: 0, mobile: 0, streams: 0 }));
-    }
-    const weights = [0.08, 0.1, 0.12, 0.14, 0.18, 0.22, 0.16];
-    return days.map((day, i) => {
-      const dayStreams = Math.round(totalPlays * weights[i]),
-       mobile = Math.round(dayStreams * 0.68),
-       desktop = dayStreams - mobile;
-      return { day, desktop, mobile, streams: dayStreams };
-    });
-  }, [totalPlays]),
-
-   streamTrends28d = useMemo(() => {
-    const weeks = ["Week 1", "Week 2", "Week 3", "Week 4"];
-    if (totalPlays === 0) {
-      return weeks.map((day) => ({ day, desktop: 0, mobile: 0, streams: 0 }));
-    }
-    const weights = [0.15, 0.22, 0.28, 0.35];
-    return weeks.map((day, i) => {
-      const weekStreams = Math.round(totalPlays * weights[i]),
-       mobile = Math.round(weekStreams * 0.68),
-       desktop = weekStreams - mobile;
-      return { day, desktop, mobile, streams: weekStreams };
-    });
-  }, [totalPlays]),
-
-   sourcesData = useMemo(() => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    if (totalPlays === 0) {
-      return days.map((label) => ({
-        algorithmic: 0,
-        direct: 0,
-        label,
-        playlists: 0,
-      }));
-    }
-    const weights = [0.08, 0.1, 0.12, 0.14, 0.18, 0.22, 0.16];
-    return days.map((label, i) => {
-      const dayTotal = Math.round(totalPlays * weights[i]),
-       direct = Math.round(dayTotal * 0.46),
-       algorithmic = Math.round(dayTotal * 0.32),
-       playlists = Math.max(0, dayTotal - direct - algorithmic);
-      return { algorithmic, direct, label, playlists };
-    });
-  }, [totalPlays]),
-
-   spike48hData = useMemo(() => {
-    const intervals = [
-      { hour: "Hour 0", mult: 0.02 },
-      { hour: "Hour 6", mult: 0.08 },
-      { hour: "Hour 12", mult: 0.2 },
-      { hour: "Hour 18", mult: 0.35 },
-      { hour: "Hour 24 (Day 1)", mult: 0.55 },
-      { hour: "Hour 30", mult: 0.68 },
-      { hour: "Hour 36", mult: 0.82 },
-      { hour: "Hour 48 (Day 2)", mult: 1 },
-    ];
-    if (totalPlays === 0) {
-      return intervals.map(({ hour }) => ({ hour, streams: 0 }));
-    }
-    return intervals.map(({ hour, mult }) => ({
-      hour,
-      streams: Math.round(totalPlays * mult),
-    }));
-  }, [totalPlays]),
-
-   geographicData = useMemo(() => {
-    const regions = [
-      { name: "Arkansas (Local HQ)", weight: 0.42 },
-      { name: "Texas (South)", weight: 0.24 },
-      { name: "California (West)", weight: 0.18 },
-      { name: "New York (East)", weight: 0.11 },
-      { name: "International", weight: 0.05 },
-    ];
-    if (totalPlays === 0) {
-      return regions.map((r) => ({ plays: 0, region: r.name }));
-    }
-    return regions.map((r) => ({
-      plays: Math.round(totalPlays * r.weight),
-      region: r.name,
-    }));
-  }, [totalPlays]),
-
-   retention = useMemo(() => {
-    if (totalPlays === 0) {
-      return {
-        full: 0,
-        fullLabel: "0%",
-        milestone: 0,
-        milestoneLabel: "0%",
-        skip: 0,
-        skipLabel: "0%",
-      };
-    }
-    return {
-      full: 72.1,
-      fullLabel: "72.1%",
-      milestone: 84.6,
-      milestoneLabel: "84.6%",
-      skip: 15.4,
-      skipLabel: "15.4%",
-    };
-  }, [totalPlays]),
+   streamTrends7d = useMemo(
+    () => computeStreamTrends7d(totalPlays),
+    [totalPlays]
+  ),
+   streamTrends28d = useMemo(
+    () => computeStreamTrends28d(totalPlays),
+    [totalPlays]
+  ),
+   sourcesData = useMemo(() => computeSourcesData(totalPlays), [totalPlays]),
+   spike48hData = useMemo(() => computeSpike48hData(totalPlays), [totalPlays]),
+   geographicData = useMemo(
+    () => computeGeographicData(totalPlays),
+    [totalPlays]
+  ),
+   retention = useMemo(() => computeRetentionMetrics(totalPlays), [totalPlays]);,
 
    trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
 
