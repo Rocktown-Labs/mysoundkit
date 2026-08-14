@@ -80,7 +80,9 @@ test.describe("main application surfaces", () => {
 
     await gotoWithViteRetry(page, "/live");
     await expect(page.getByRole("main")).toBeVisible();
-    await expect(page.getByText(/live battles/i).first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Live on SoundKit" })
+    ).toBeVisible();
 
     await gotoWithViteRetry(page, "/live/battles");
     await expect(page.getByRole("main")).toBeVisible();
@@ -206,7 +208,9 @@ test.describe("main application surfaces", () => {
         name: /beat making from the first drum hit/i,
       })
     ).toBeVisible();
-    await expect(page.getByText(/cloudflare realtime ready/i)).toBeVisible();
+    await expect(
+      page.getByText("Media Path", { exact: true })
+    ).toBeVisible();
     await expect(page.getByText("Live Signals")).toBeVisible();
   });
 

@@ -412,11 +412,11 @@ function DashboardLivePartiesPage() {
                   <Button
                     className="w-full"
                     disabled={
-                      createParty.isPending || createLiveExperience.isPending
+                      createParty.isPending
                     }
                   >
                     <Plus className="mr-2 size-4" />
-                    {createParty.isPending || createLiveExperience.isPending
+                    {createParty.isPending
                       ? "Creating Room..."
                       : "Create Listening Party"}
                   </Button>

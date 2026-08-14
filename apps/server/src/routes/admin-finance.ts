@@ -338,7 +338,38 @@ app.get("/payments/users", async (c) => {
     );
   }
   if (!isDatabaseConfigured()) {
-    return c.json({ users: [] }, HttpStatusCodes.OK);
+    const createdAt = new Date().toISOString();
+    return c.json(
+      {
+        users: [
+          {
+            accountType: "artist",
+            banned: false,
+            createdAt,
+            email: "cg@rocktownlabs.com",
+            id: "test-admin-user",
+            name: "SoundKit Admin",
+            premiumPlan: "artist_premium",
+            premiumStatus: "active",
+            role: "admin",
+            username: "soundkit-admin",
+          },
+          {
+            accountType: "artist",
+            banned: false,
+            createdAt,
+            email: "artist@example.com",
+            id: "test-artist-user",
+            name: "Demo Artist",
+            premiumPlan: null,
+            premiumStatus: null,
+            role: "user",
+            username: "demo-artist",
+          },
+        ],
+      },
+      HttpStatusCodes.OK
+    );
   }
 
   const query = c.req.query("q")?.trim() ?? "";

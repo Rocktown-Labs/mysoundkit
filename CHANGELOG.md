@@ -23,6 +23,7 @@
 
 ### Fixed
 
+- Fixed the listening-party dashboard SSR crash, refreshed live-surface E2E expectations, and restored admin user fixtures for static browser tests.
 - Fixed Tracks Featured View All navigation so Back returns to the originating Tracks sections instead of a previously visited Projects route.
 - Stopped restoring abandoned track/project creation attempts from local storage; confirmed navigation now discards temporary track records while explicit Draft publication remains private and editable.
 - Fixed preview-deployment downloads for media stored in the canonical production bucket while preserving authenticated first-play and purchase access rules.

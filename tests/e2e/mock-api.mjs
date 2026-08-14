@@ -369,6 +369,43 @@ export const createMockApiServer = async ({
       return;
     }
 
+    if (url.pathname === "/v1/admin/finance/payments/users") {
+      json(
+        response,
+        200,
+        {
+          users: [
+            {
+              accountType: "artist",
+              banned: false,
+              createdAt: "2026-06-22T12:00:00.000Z",
+              email: "cg@rocktownlabs.com",
+              id: "user_admin",
+              name: "CG Admin",
+              premiumPlan: "artist_premium",
+              premiumStatus: "active",
+              role: "admin",
+              username: "cg_admin",
+            },
+            {
+              accountType: "artist",
+              banned: false,
+              createdAt: "2026-06-21T12:00:00.000Z",
+              email: "artist@example.com",
+              id: "user_artist_2",
+              name: "Arkansas Artist",
+              premiumPlan: null,
+              premiumStatus: null,
+              role: "user",
+              username: "arkansas_artist",
+            },
+          ],
+        },
+        webOrigin
+      );
+      return;
+    }
+
     if (url.pathname === "/v1/admin/access") {
       json(response, 200, { isAdmin: true }, webOrigin);
       return;
