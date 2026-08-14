@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Ban,
+  Check,
   CheckCircle2,
   CircleDollarSign,
+  Copy,
   Disc3,
   Globe2,
   Megaphone,
@@ -77,6 +79,7 @@ import {
   useTrackDurationBackfillStatusQuery,
   useUpdateAdminSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/admin")({
   component: AdminDashboard,
@@ -1193,86 +1196,68 @@ function PaymentsPanel() {
 
   return (
     <div className="space-y-5">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <CircleDollarSign className="size-4 text-primary" />
-                  Payments Health
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Stripe setup, checkout readiness, and Premium grants.
-                </CardDescription>
+      <Card className="border-primary/20 bg-primary/5 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <CircleDollarSign className="size-5 text-primary shrink-0" />
+                <CardTitle className="text-base font-bold">Payments &amp; Stripe Health</CardTitle>
+                <Badge
+                  className="shrink-0 text-xs font-semibold"
+                  variant={data.stripeConfigured ? "secondary" : "destructive"}
+                >
+                  {data.stripeConfigured ? "Stripe Connected" : "Stripe Missing"}
+                </Badge>
               </div>
-              <Badge
-                className="shrink-0"
-                variant={data.stripeConfigured ? "secondary" : "destructive"}
-              >
-                {data.stripeConfigured ? "Stripe Connected" : "Stripe Missing"}
-              </Badge>
+              <CardDescription className="mt-1 text-xs">
+                {data.stripeConfigured
+                  ? missingCheckoutEnv.length > 0
+                    ? `${missingCheckoutEnv.length} plan needs deployed checkout environment variables.`
+                    : "Stripe setup is live and all linked checkout plans are ready."
+                  : "Add STRIPE_SECRET_KEY before syncing or importing price IDs."}
+              </CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Button
+              className="shrink-0 font-medium shadow-sm"
+              disabled={syncMutation.isPending}
+              onClick={handleSync}
+              size="sm"
+            >
+              <RefreshCw
+                className={`mr-2 size-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`}
+              />
+              {syncMutation.isPending ? "Syncing Stripe…" : "Sync Products & Prices"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {paymentMetrics.map((metric) => (
               <div
-                className="rounded-md border bg-background/70 p-3"
+                className="rounded-lg border bg-background/80 p-3.5 shadow-sm transition-colors"
                 key={metric.label}
               >
                 <p className="text-xs font-medium text-muted-foreground">
                   {metric.label}
                 </p>
-                <p className="mt-2 font-semibold text-2xl tabular-nums">
+                <p className="mt-1.5 font-bold text-xl sm:text-2xl tabular-nums tracking-tight">
                   {metric.value}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">
                   {metric.supporting}
                 </p>
               </div>
             ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Next Action</CardTitle>
-            <CardDescription>
-              Use Stripe as the source for the two SoundKit Premium products and
-              prices.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              className="w-full justify-center"
-              disabled={syncMutation.isPending}
-              onClick={handleSync}
-            >
-              <RefreshCw
-                className={`size-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
-              />
-              {syncMutation.isPending ? "Syncing…" : "Sync Products & Prices"}
-            </Button>
-            <div className="rounded-md border p-3 text-xs text-muted-foreground">
-              {data.stripeConfigured ? (
-                <p>
-                  {missingCheckoutEnv.length > 0
-                    ? `${missingCheckoutEnv.length} plan needs deployed checkout env vars.`
-                    : "All linked checkout plans are ready."}
-                </p>
-              ) : (
-                <p>Add `STRIPE_SECRET_KEY` before syncing or importing IDs.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+          </div>
+        </CardContent>
+      </Card>
 
       {missingCheckoutEnv.length > 0 && (
-        <Alert>
-          <TriangleAlert className="size-4" />
-          <AlertTitle>Checkout Env Vars Need Updating</AlertTitle>
-          <AlertDescription>
+        <Alert className="border-amber-500/30 bg-amber-500/5">
+          <TriangleAlert className="size-4 text-amber-500" />
+          <AlertTitle className="text-amber-500 font-semibold">Checkout Env Vars Need Updating</AlertTitle>
+          <AlertDescription className="text-xs text-muted-foreground">
             Synced DB price IDs are visible here. Copy the matching monthly and
             annual IDs into the listed env keys before testing paid checkout.
           </AlertDescription>
@@ -1283,7 +1268,7 @@ function PaymentsPanel() {
 
       <PremiumGrantCard />
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <RecentTransactions transactions={data.recentTransactions} />
         <StripeCatalog prices={data.stripePrices} />
       </section>
@@ -1836,48 +1821,34 @@ function PaymentPlanCatalog({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Subscription Catalog</CardTitle>
-            <CardDescription>
-              Link SoundKit plan rows to Stripe prices and checkout env keys.
+            <CardTitle className="text-base font-bold">Subscription Catalog</CardTitle>
+            <CardDescription className="text-xs">
+              Link SoundKit plan rows to Stripe prices and checkout environment keys.
             </CardDescription>
           </div>
-          <Badge variant="outline">{plans.length} Plans</Badge>
+          <Badge className="font-semibold" variant="outline">
+            {plans.length} Plans
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[220px]">Plan</TableHead>
-                <TableHead className="min-w-[130px]">Pricing</TableHead>
-                <TableHead className="min-w-[150px]">Checkout Status</TableHead>
-                <TableHead className="min-w-[360px]">
-                  Stripe Price IDs
-                </TableHead>
-                <TableHead className="min-w-[280px]">Env Keys</TableHead>
-                <TableHead className="w-[120px] text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {plans.map((plan) => (
-                <PaymentPlanRow
-                  key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
-                  plan={plan}
-                  stripePrices={stripePrices}
-                />
-              ))}
-            </TableBody>
-          </Table>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {plans.map((plan) => (
+            <PaymentPlanCard
+              key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
+              plan={plan}
+              stripePrices={stripePrices}
+            />
+          ))}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function PaymentPlanRow({
+function PaymentPlanCard({
   plan,
   stripePrices,
 }: Readonly<{
@@ -1934,97 +1905,106 @@ function PaymentPlanRow({
   };
 
   return (
-    <TableRow className="align-top">
-      <TableCell>
-        <div className="min-w-0">
-          <p className="font-semibold">{plan.name}</p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {plan.code}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <Badge variant="outline">{plan.audience}</Badge>
-            <Badge variant={plan.isActive ? "secondary" : "outline"}>
-              {plan.isActive ? "Active" : "Inactive"}
+    <div className="flex flex-col justify-between rounded-xl border bg-card/60 p-4 shadow-sm transition-all hover:border-border/80">
+      <div className="space-y-4">
+        {/* Card Header */}
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
+          <div className="min-w-0">
+            <h4 className="font-bold text-sm tracking-tight text-foreground">{plan.name}</h4>
+            <p className="font-mono text-xs text-muted-foreground truncate">{plan.code}</p>
+            <div className="mt-2 flex items-center gap-1.5">
+              <Badge className="text-[11px] capitalize" variant="outline">
+                {plan.audience}
+              </Badge>
+              <Badge className="text-[11px]" variant={plan.isActive ? "secondary" : "outline"}>
+                {plan.isActive ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge
+              className={cn(
+                "text-xs font-semibold",
+                checkoutReady
+                  ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+              )}
+              variant="outline"
+            >
+              {checkoutReady ? "Ready" : "Needs Setup"}
             </Badge>
+            <Button
+              className="h-8 gap-1.5 text-xs font-medium"
+              disabled={importMutation.isPending}
+              onClick={handleImport}
+              size="sm"
+              variant="outline"
+            >
+              <UploadCloud className="size-3.5" />
+              {importMutation.isPending ? "Saving…" : "Save IDs"}
+            </Button>
           </div>
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="text-muted-foreground">Monthly</span>{" "}
-            <span className="font-medium tabular-nums">
+
+        {/* Pricing Summary */}
+        <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/30 p-2.5 text-xs">
+          <div>
+            <span className="block text-[11px] text-muted-foreground">Monthly Price</span>
+            <span className="font-bold text-foreground text-sm tabular-nums">
               {formatCurrency(plan.monthlyPriceCents)}
             </span>
-          </p>
-          <p>
-            <span className="text-muted-foreground">Annual</span>{" "}
-            <span className="font-medium tabular-nums">
-              {plan.annualPriceCents
-                ? formatCurrency(plan.annualPriceCents)
-                : "-"}
+            <span className="text-[11px] text-muted-foreground"> / mo</span>
+          </div>
+          <div>
+            <span className="block text-[11px] text-muted-foreground">Annual Price</span>
+            <span className="font-bold text-foreground text-sm tabular-nums">
+              {plan.annualPriceCents ? formatCurrency(plan.annualPriceCents) : "—"}
             </span>
-          </p>
+            {plan.annualPriceCents ? (
+              <span className="text-[11px] text-muted-foreground"> / yr</span>
+            ) : null}
+          </div>
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="space-y-2">
-          <Badge variant={checkoutReady ? "secondary" : "outline"}>
-            {checkoutReady ? "Ready" : "Needs Setup"}
-          </Badge>
-          {!checkoutReady && (
-            <p className="max-w-[150px] text-xs text-muted-foreground">
-              Import Stripe IDs, then deploy matching env keys.
-            </p>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        <div className="grid gap-2">
+
+        {/* Stripe Price IDs Input Form */}
+        <div className="space-y-3">
           <PriceIdField
             id={`${plan.code}-monthly`}
-            label="Monthly Price ID"
+            label="Monthly Stripe Price ID"
             onChange={setMonthlyPriceId}
             value={monthlyPriceId}
           />
-          {plan.annualPriceCents && (
+          {plan.annualPriceCents ? (
             <PriceIdField
               id={`${plan.code}-annual`}
-              label="Annual Price ID"
+              label="Annual Stripe Price ID"
               onChange={setAnnualPriceId}
               value={annualPriceId}
             />
-          )}
+          ) : null}
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="space-y-2 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+
+        {/* Required Environment Keys */}
+        <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
+          <p className="font-semibold text-[11px] text-muted-foreground tracking-wider uppercase">
+            Required Environment Variables
+          </p>
           <EnvKeyLine
             isReady={monthlyCheckoutReady}
-            label="Monthly"
+            label="Monthly Env Key"
             value={plan.envMonthlyKey ?? "not required"}
           />
-          {plan.envAnnualKey && (
+          {plan.envAnnualKey ? (
             <EnvKeyLine
               isReady={annualCheckoutReady}
-              label="Annual"
+              label="Annual Env Key"
               value={plan.envAnnualKey}
             />
-          )}
+          ) : null}
         </div>
-      </TableCell>
-      <TableCell className="text-right">
-        <Button
-          disabled={importMutation.isPending}
-          onClick={handleImport}
-          size="sm"
-          variant="outline"
-        >
-          <UploadCloud className="size-4" />
-          {importMutation.isPending ? "Saving…" : "Import"}
-        </Button>
-      </TableCell>
-    </TableRow>
+      </div>
+    </div>
   );
 }
 
@@ -2033,17 +2013,45 @@ function EnvKeyLine({
   label,
   value,
 }: Readonly<{ isReady: boolean; label: string; value: string }>) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!value || value === "not required") return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ description: `${label} copied to clipboard.` });
+    } catch {
+      // ignore
+    }
+  };
+
   return (
-    <div className="flex min-w-0 items-start gap-2">
-      {isReady ? (
-        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
-      ) : (
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
-      )}
-      <div className="min-w-0">
-        <p className="font-medium text-foreground">{label}</p>
-        <p className="break-all font-mono">{value}</p>
+    <div className="flex min-w-0 items-start justify-between gap-2 rounded-md bg-background/60 p-2 text-xs transition-colors hover:bg-background/90">
+      <div className="flex min-w-0 items-start gap-2">
+        {isReady ? (
+          <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
+        ) : (
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+        )}
+        <div className="min-w-0">
+          <p className="font-medium text-[11px] text-foreground">{label}</p>
+          <p className="break-all font-mono text-[11px] text-muted-foreground">{value}</p>
+        </div>
       </div>
+      {value && value !== "not required" ? (
+        <Button
+          className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={handleCopy}
+          size="icon"
+          title="Copy env var name"
+          type="button"
+          variant="ghost"
+        >
+          {copied ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -2061,7 +2069,7 @@ function PriceIdField({
 }>) {
   return (
     <div className="grid gap-1.5">
-      <Label className="text-xs" htmlFor={id}>
+      <Label className="font-medium text-xs text-foreground/90" htmlFor={id}>
         {label}
       </Label>
       <Input
@@ -2094,8 +2102,8 @@ function RecentTransactions({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Recent transactions</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-base font-bold">Recent transactions</CardTitle>
+        <CardDescription className="text-xs">
           Latest successful payments and platform fees.
         </CardDescription>
       </CardHeader>
@@ -2105,8 +2113,8 @@ function RecentTransactions({
             No transactions yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto rounded-md border">
+            <Table className="min-w-[440px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
@@ -2118,14 +2126,14 @@ function RecentTransactions({
               <TableBody>
                 {transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell>{transaction.transactionType}</TableCell>
+                    <TableCell className="font-medium capitalize">{transaction.transactionType}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{transaction.status}</Badge>
                     </TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className="tabular-nums font-semibold">
                       {formatCurrency(transaction.amountCents)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
                       {new Intl.DateTimeFormat("en-US", {
                         day: "numeric",
                         month: "short",
@@ -2147,8 +2155,8 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Stripe prices</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-base font-bold">Stripe prices</CardTitle>
+        <CardDescription className="text-xs">
           Active Stripe price objects detected during sync.
         </CardDescription>
       </CardHeader>
@@ -2164,19 +2172,19 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
               key={price.id}
             >
               <div className="min-w-0">
-                <p className="font-medium">{price.productName}</p>
+                <p className="font-medium text-sm">{price.productName}</p>
                 <p className="break-all font-mono text-xs text-muted-foreground">
                   {price.id}
                 </p>
               </div>
               <div className="shrink-0 text-right text-sm">
-                <p className="tabular-nums">
+                <p className="font-semibold tabular-nums">
                   {typeof price.unitAmount === "number"
                     ? formatCurrency(price.unitAmount)
                     : "-"}
                 </p>
                 <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                  <CheckCircle2 className="size-3" />
+                  <CheckCircle2 className="size-3 text-emerald-500" />
                   {price.interval ?? "one-time"}
                 </p>
               </div>

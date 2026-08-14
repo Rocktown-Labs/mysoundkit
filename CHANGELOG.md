@@ -23,6 +23,7 @@
 
 ### Fixed
 
+- Overhauled the Admin Payments dashboard tab with a fully responsive layout: consolidated Payments Health and Stripe actions into a unified header card, replaced overflowing HTML tables in the Subscription Catalog with responsive plan cards, resolved overlapping price ID input labels, and added copy-to-clipboard helpers for environment variable keys.
 - Fixed friend request acceptance and decline handling (`PATCH /v1/messages/friend-requests/:requestId`) to gracefully handle existing states, prevent 404s on pending requests, and ensure proper notification dispatch.
 - Added URL-synchronized tabs (`?tab=all|collaborators|friends|requests|following`) to `/dashboard/collaborators` with separate views and counters for Track Collaborators, Mutual Artist Friends, Incoming/Sent Requests, and Followers.
 - Fixed friends data parsing in `/dashboard/messages` New Chat modal and added active online presence bar with 1-click direct messaging from the collaborators workspace (`?friendId=...`).
