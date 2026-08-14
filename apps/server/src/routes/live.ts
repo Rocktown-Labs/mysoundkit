@@ -85,6 +85,7 @@ app.get("/experiences/public", async (c) => {
   const experiences = await db
     .select({
       endsAt: liveExperiences.endsAt,
+      genre: liveExperiences.genre,
       id: liveExperiences.id,
       kind: liveExperiences.kind,
       source: liveExperiences.source,
@@ -589,6 +590,7 @@ const persistLiveExperience = async ({
         battleId: null,
         battleKitId: body.battleKitId,
         createdByUserId,
+        genre: body.genre,
         id: experienceId,
         kind: body.kind,
         meetingId,

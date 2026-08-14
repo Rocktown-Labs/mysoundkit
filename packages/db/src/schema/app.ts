@@ -1950,6 +1950,7 @@ export const liveExperiences = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     endsAt: timestamp("ends_at"),
+    genre: text("genre"),
     id: text("id").primaryKey(),
     kind: liveExperienceKindEnum("kind").notNull(),
     meetingId: text("meeting_id").notNull(),

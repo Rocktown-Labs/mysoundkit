@@ -2,14 +2,38 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarClock, Headphones, Mic, Radio } from "lucide-react";
 
 import { CreateFanPartyDialog } from "@/components/explore/create-fan-party-dialog";
-import { SectionHeader } from "@/components/explore/section-header";
+import {
+  ExploreCollectionGrid,
+  ExploreCollectionSection,
+} from "@/components/explore/explore-collection";
+import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { filterAndSortLiveItems } from "@/lib/live-collection";
+import { musicGenres } from "@/lib/music-genres";
 import { useListeningPartiesQuery } from "@/lib/soundkit-api-hooks";
 import type { ListeningPartySummary } from "@/lib/soundkit-api-hooks";
 
+interface LivePartiesSearch {
+  genre?: string;
+  sort?: string;
+  status?: string;
+  view?: "all" | "sections";
+}
+
+type PartyCollectionItem = ListeningPartySummary & {
+  startsAt: string;
+  viewerCount: number;
+};
+
 export const Route = createFileRoute("/_explore/live/parties/")({
   component: LivePartiesPage,
+  validateSearch: (search: Record<string, unknown>): LivePartiesSearch => ({
+    genre: typeof search.genre === "string" ? search.genre : "all",
+    sort: typeof search.sort === "string" ? search.sort : "starts-asc",
+    status: typeof search.status === "string" ? search.status : "all",
+    view: search.view === "all" ? "all" : "sections",
+  }),
 });
 
 const formatPartyDate = (value: string) =>
@@ -20,45 +44,12 @@ const formatPartyDate = (value: string) =>
     month: "short",
   }).format(new Date(value));
 
-function PartyRail({
-  empty,
-  items,
-  title,
-}: {
-  empty: string;
-  items: ListeningPartySummary[];
-  title: string;
-}) {
-  return (
-    <section className="space-y-3">
-      <SectionHeader
-        description="Synced listening rooms with shared chat and saves."
-        title={title}
-        viewAllHref="/live/parties"
-      />
-      {items.length > 0 ? (
-        <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
-          <div className="flex min-w-max gap-4 md:gap-6">
-            {items.map((party) => (
-              <PartySummaryCard key={party.id} party={party} />
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
-          {empty}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
+function PartySummaryCard({ party }: { party: PartyCollectionItem }) {
   const isLive = party.status === "live";
 
   return (
     <Link
-      className="block w-[300px] shrink-0 md:w-[350px]"
+      className="block w-full min-w-[280px]"
       params={{ id: party.liveRoomId ?? party.id }}
       to="/live/parties/$id"
     >
@@ -67,20 +58,14 @@ function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
           <div className="flex items-center justify-between gap-2">
             <Badge variant={isLive ? "destructive" : "secondary"}>
               {isLive ? (
-                <>
-                  <Radio className="mr-1 size-3" />
-                  Live
-                </>
+                <><Radio className="mr-1 size-3" />Live</>
               ) : (
                 "Scheduled"
               )}
             </Badge>
             <Badge variant="outline">
               {party.playbackMode === "artist_hosted" ? (
-                <>
-                  <Mic className="mr-1 size-3" />
-                  Artist Hosted
-                </>
+                <><Mic className="mr-1 size-3" />Artist Hosted</>
               ) : (
                 "Release Party"
               )}
@@ -88,11 +73,9 @@ function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
           </div>
           <div>
             <h3 className="line-clamp-2 font-bold text-lg">{party.title}</h3>
-            {party.description ? (
-              <p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
-                {party.description}
-              </p>
-            ) : null}
+            <p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
+              {party.description ?? party.genre ?? "Listening party"}
+            </p>
           </div>
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <CalendarClock className="size-4 text-primary" />
@@ -105,24 +88,30 @@ function PartySummaryCard({ party }: { party: ListeningPartySummary }) {
 }
 
 function LivePartiesPage() {
+  const navigate = Route.useNavigate();
+  const search = Route.useSearch();
   const { data: parties = [], isLoading } = useListeningPartiesQuery();
-  const featured = parties.slice(0, 6);
-  const liveParties = parties.filter((party) => party.status === "live");
-  const upcomingParties = parties.filter(
-    (party) => party.status === "scheduled"
-  );
-  const modeSections = [
-    {
-      items: parties.filter((party) => party.playbackMode === "artist_hosted"),
-      title: "Artist Hosted",
-    },
-    {
-      items: parties.filter(
-        (party) => party.playbackMode === "programmed_release"
-      ),
-      title: "Release Parties",
-    },
-  ].filter((section) => section.items.length > 0);
+  const genre = search.genre ?? "all";
+  const sort = search.sort ?? "starts-asc";
+  const status = search.status ?? "all";
+  const view = search.view ?? "sections";
+  const partyItems: PartyCollectionItem[] = parties.map((party) => ({
+    ...party,
+    startsAt: party.scheduledStartAt,
+    viewerCount: 0,
+  }));
+  const filteredParties = filterAndSortLiveItems({
+    genre,
+    items: partyItems,
+    sort,
+    status,
+  });
+
+  const openCollection = (next: Partial<LivePartiesSearch>) => {
+    void navigate({
+      search: (previous) => ({ ...previous, ...next, view: "all" }),
+    });
+  };
 
   return (
     <div className="space-y-8 pb-8">
@@ -133,43 +122,70 @@ function LivePartiesPage() {
             Listening Parties
           </h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
-            Join release rooms and artist-hosted listening sessions. Browse
-            featured rooms, live chats, upcoming parties, and room types.
+            Join scheduled release rooms and fan-hosted playlist sessions with
+            synchronized playback and chat.
           </p>
         </div>
         <CreateFanPartyDialog />
       </section>
 
-      {isLoading ? (
-        <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
-          Loading listening parties...
-        </div>
+      <LiveCollectionFilters
+        onChange={(next) => {
+          void navigate({ search: { ...next, view: "all" } });
+        }}
+        value={{ genre, sort, status }}
+      />
+
+      {view === "all" ? (
+        <ExploreCollectionGrid
+          empty="No listening parties match these filters."
+          isLoading={isLoading}
+          items={filteredParties}
+          title="Listening Parties"
+        >
+          {(party) => <PartySummaryCard party={party} />}
+        </ExploreCollectionGrid>
       ) : (
-        <div className="space-y-8">
-          <PartyRail
+        <>
+          <ExploreCollectionSection
             empty="No featured parties yet."
-            items={featured}
+            isLoading={isLoading}
+            items={partyItems.slice(0, 6)}
+            onViewAll={() => openCollection({})}
             title="Featured"
-          />
-          <PartyRail
+          >
+            {(party) => <PartySummaryCard party={party} />}
+          </ExploreCollectionSection>
+          <ExploreCollectionSection
             empty="No listening parties are live right now."
-            items={liveParties}
+            items={partyItems.filter((party) => party.status === "live")}
+            onViewAll={() => openCollection({ status: "live" })}
             title="Live Now"
-          />
-          <PartyRail
-            empty="No upcoming listening parties are scheduled yet."
-            items={upcomingParties}
+          >
+            {(party) => <PartySummaryCard party={party} />}
+          </ExploreCollectionSection>
+          <ExploreCollectionSection
+            empty="No upcoming listening parties are scheduled."
+            items={partyItems.filter((party) => party.status === "scheduled")}
+            onViewAll={() => openCollection({ status: "scheduled" })}
             title="Upcoming"
-          />
-          {modeSections.map((section) => (
-            <PartyRail
-              empty={`No ${section.title} parties yet.`}
-              items={section.items}
-              key={section.title}
-              title={section.title}
-            />
+          >
+            {(party) => <PartySummaryCard party={party} />}
+          </ExploreCollectionSection>
+          {musicGenres.map((sectionGenre) => (
+            <ExploreCollectionSection
+              empty={`No ${sectionGenre.label} parties are scheduled.`}
+              items={partyItems.filter(
+                (party) => party.genre === sectionGenre.value
+              )}
+              key={sectionGenre.value}
+              onViewAll={() => openCollection({ genre: sectionGenre.value })}
+              title={sectionGenre.label}
+            >
+              {(party) => <PartySummaryCard party={party} />}
+            </ExploreCollectionSection>
           ))}
-        </div>
+        </>
       )}
     </div>
   );
