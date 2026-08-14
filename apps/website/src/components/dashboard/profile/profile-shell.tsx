@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
-import { FloatingChatBar } from "@/components/dashboard/floating-chat-bar";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -89,20 +88,20 @@ export function ProfileShell({
   user,
   viewerAccountType,
 }: ProfileShellProps) {
-  const router = useRouter();
-  const followArtist = useFollowArtistMutation(user.username);
-  const [followerCount, setFollowerCount] = useState(user.followers);
-  const [isShareOpen, setIsShareOpen] = useState(false);
+  const router = useRouter(),
+   followArtist = useFollowArtistMutation(user.username),
+   [followerCount, setFollowerCount] = useState(user.followers),
+   [isShareOpen, setIsShareOpen] = useState(false),
 
-  const showChallenge = canShowChallengeAction({
+   showChallenge = canShowChallengeAction({
     isOwner: Boolean(isOwner),
     targetIsArtist,
     viewerAccountType,
-  });
+  }),
 
-  const appleMusicLink = user.links.appleMusic ?? user.links.apple;
+   appleMusicLink = user.links.appleMusic ?? user.links.apple,
 
-  const listenLinks = [
+   listenLinks = [
     user.links.spotify
       ? {
           href: user.links.spotify,
@@ -127,9 +126,9 @@ export function ProfileShell({
           tone: "border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500",
         }
       : null,
-  ].filter((link): link is Exclude<typeof link, null> => Boolean(link));
+  ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
 
-  const followLinks = [
+   followLinks = [
     user.links.instagram
       ? { href: user.links.instagram, icon: InstagramIcon, label: "Instagram" }
       : null,
@@ -145,18 +144,18 @@ export function ProfileShell({
     user.links.personalSite
       ? { href: user.links.personalSite, icon: Globe, label: "Website" }
       : null,
-  ].filter((link): link is Exclude<typeof link, null> => Boolean(link));
+  ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
 
-  const handleFollow = async () => {
+   handleFollow = async () => {
     const result = await followArtist.mutateAsync();
     setFollowerCount(result.followerCount.toLocaleString());
-  };
+  },
 
-  const profileShareUrl = absoluteSiteUrl(`/artist/${user.username}`);
-  const profileShareTitle = `Check out ${user.name} on SoundKit`;
-  const profileShareText = `Follow @${user.username} on SoundKit.`;
+   profileShareUrl = absoluteSiteUrl(`/artist/${user.username}`),
+   profileShareTitle = `Check out ${user.name} on SoundKit`,
+   profileShareText = `Follow @${user.username} on SoundKit.`,
 
-  const handleNativeShare = async () => {
+   handleNativeShare = async () => {
     const outcome = await shareLink({
       text: profileShareText,
       title: profileShareTitle,
@@ -182,9 +181,9 @@ export function ProfileShell({
       description: `Profile URL copied to clipboard: ${profileShareUrl}`,
       title: "Link Copied",
     });
-  };
+  },
 
-  const handleCopyLink = () => {
+   handleCopyLink = () => {
     void navigator.clipboard
       .writeText(profileShareUrl)
       .then(() => {
@@ -194,11 +193,11 @@ export function ProfileShell({
         });
       })
       .catch(() => {});
-  };
+  },
 
-  const handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {
-    const url = encodeURIComponent(profileShareUrl);
-    const text = encodeURIComponent(profileShareTitle);
+   handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {
+    const url = encodeURIComponent(profileShareUrl),
+     text = encodeURIComponent(profileShareTitle);
 
     let shareUrl = "";
     if (platform === "twitter") {
@@ -219,7 +218,7 @@ export function ProfileShell({
       {/* Cover Section */}
       <div className="relative h-[250px] md:h-[400px] w-full overflow-hidden group">
         <AppImage
-          src={user.coverImage || "/hip-hop-battle-stage.jpg"}
+          src={user.coverImage || "/soundkit-default-banner.svg"}
           alt="Cover"
           width={1920}
           height={400}
@@ -487,9 +486,6 @@ export function ProfileShell({
         {/* Child Content */}
         <div className="mt-8">{children}</div>
       </div>
-
-      {/* Floating Chat Bar Component */}
-      <FloatingChatBar />
 
       {/* Share Options Modal */}
       <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>

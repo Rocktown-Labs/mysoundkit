@@ -40,6 +40,7 @@ import {
   useFriendsQuery,
   useLibraryPurchasesQuery,
   useLibrarySavedQuery,
+  usePeopleSearchQuery,
   useStartConversationMutation,
 } from "@/lib/soundkit-api-hooks";
 import type {
@@ -76,22 +77,22 @@ const initials = (value: string) =>
     .toUpperCase();
 
 function MessagesPage() {
-  const searchParams = Route.useSearch();
-  const conversationsQuery = useConversationsQuery();
-  const friendsQuery = useFriendsQuery();
+  const searchParams = Route.useSearch(),
+   conversationsQuery = useConversationsQuery(),
+   friendsQuery = useFriendsQuery(),
 
-  const conversations = useMemo(
+   conversations = useMemo(
     () =>
       Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
     [conversationsQuery.data]
-  );
-  const friends = useMemo(
+  ),
+   friends = useMemo(
     () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
     [friendsQuery.data]
-  );
+  ),
 
   // Messageable connections: mutual friends & track collaborators
-  const messageableFriends = useMemo(
+   messageableFriends = useMemo(
     () =>
       friends.filter(
         (friend) =>
@@ -99,11 +100,11 @@ function MessagesPage() {
           friend.relationship === "collaborator"
       ),
     [friends]
-  );
+  ),
 
-  const [selectedId, setSelectedId] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [attachments, setAttachments] = useState<
+   [selectedId, setSelectedId] = useState(""),
+   [searchQuery, setSearchQuery] = useState(""),
+   [attachments, setAttachments] = useState<
     {
       displayName: string;
       mimeType?: string;
@@ -112,13 +113,12 @@ function MessagesPage() {
       sourceTrackId?: string;
       url: string;
     }[]
-  >([]);
-  const [composerText, setComposerText] = useState("");
-  const [isCollaborationOpen, setIsCollaborationOpen] = useState(false);
-  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
-  const [targetFriendId, setTargetFriendId] = useState<string | undefined>(
-    undefined
-  );
+  >([]),
+   [composerText, setComposerText] = useState(""),
+   [isCollaborationOpen, setIsCollaborationOpen] = useState(false),
+   [isNewChatOpen, setIsNewChatOpen] = useState(false),
+   [targetFriendId, setTargetFriendId] = useState<string | undefined>(
+    );
 
   // Handle URL search params (friendId or conversationId)
   useEffect(() => {
@@ -128,9 +128,9 @@ function MessagesPage() {
     }
 
     if (searchParams.friendId) {
-      const targetFriend = friends.find((f) => f.id === searchParams.friendId);
+      const targetFriend = friends.find((f) => f.id === searchParams.friendId),
       // Check if conversation already exists with this friend
-      const existing = conversations.find(
+       existing = conversations.find(
         (c) =>
           targetFriend &&
           (c.title.toLowerCase().includes(targetFriend.name.toLowerCase()) ||
@@ -162,12 +162,12 @@ function MessagesPage() {
 
   const selectedConversation = conversations.find(
     (conversation) => conversation.id === selectedId
-  );
-  const messagesQuery = useConversationMessagesQuery(selectedId);
-  const sendMessage = useCreateMessageMutation(selectedId);
-  const purchasesQuery = useLibraryPurchasesQuery();
-  const savedTracksQuery = useLibrarySavedQuery();
-  const { isPending: isUploading, upload } = useUploadFiles({
+  ),
+   messagesQuery = useConversationMessagesQuery(selectedId),
+   sendMessage = useCreateMessageMutation(selectedId),
+   purchasesQuery = useLibraryPurchasesQuery(),
+   savedTracksQuery = useLibrarySavedQuery(),
+   { isPending: isUploading, upload } = useUploadFiles({
     api: MEDIA_UPLOAD_URL,
     credentials: "include",
     onUploadComplete: ({ files }) => {
@@ -182,12 +182,12 @@ function MessagesPage() {
         })),
       ]);
     },
-  });
-  const filteredConversations = conversations.filter((conversation) =>
+  }),
+   filteredConversations = conversations.filter((conversation) =>
     conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ),
 
-  const submitMessage = (event: FormEvent<HTMLFormElement>) => {
+   submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
@@ -206,9 +206,9 @@ function MessagesPage() {
         },
       }
     );
-  };
+  },
 
-  const handleStartChatWithFriend = (friend: FriendSummary) => {
+   handleStartChatWithFriend = (friend: FriendSummary) => {
     const existing = conversations.find(
       (c) =>
         c.title.toLowerCase().includes(friend.name.toLowerCase()) ||
@@ -236,7 +236,12 @@ function MessagesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline" className="bg-card/40 border-border/40">
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="bg-card/40 border-border/40"
+          >
             <Link to="/dashboard/collaborators">
               <UserRoundPlus className="mr-2 size-3.5" />
               Friends &amp; Collaborators
@@ -357,7 +362,10 @@ function MessagesPage() {
                       {selectedConversation.title}
                     </h3>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <Badge className="capitalize text-[10px] px-1.5 py-0" variant="secondary">
+                      <Badge
+                        className="capitalize text-[10px] px-1.5 py-0"
+                        variant="secondary"
+                      >
                         {selectedConversation.conversationType}
                       </Badge>
                       <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
@@ -525,7 +533,8 @@ function MessagesPage() {
                           setAttachments((current) => [
                             ...current,
                             {
-                              displayName: purchase.track?.title ?? "Purchased track",
+                              displayName:
+                                purchase.track?.title ?? "Purchased track",
                               sourceTrackId: purchase.trackId ?? undefined,
                               url: purchase.track?.audioMasterUrl ?? "",
                             },
@@ -579,11 +588,11 @@ function CollaborationDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const [kind, setKind] = useState<"project" | "track">("track");
-  const [title, setTitle] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
+  const [kind, setKind] = useState<"project" | "track">("track"),
+   [title, setTitle] = useState(""),
+   [isCreating, setIsCreating] = useState(false),
 
-  const createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
+   createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsCreating(true);
     try {
@@ -661,50 +670,87 @@ function NewChatDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const friendsQuery = useFriendsQuery();
-  const startConversation = useStartConversationMutation();
-  const [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]);
-  const [message, setMessage] = useState("");
-  const [search, setSearch] = useState("");
+  const friendsQuery = useFriendsQuery(),
+   startConversation = useStartConversationMutation(),
+   [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]),
+   [message, setMessage] = useState(""),
+   [search, setSearch] = useState(""),
+   peopleSearchQuery = usePeopleSearchQuery(search),
 
-  const friends = useMemo(
+   friends = useMemo(
     () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
     [friendsQuery.data]
   );
 
-  // Allow only friends & collaborators to be messaged
-  const messageableFriends = useMemo(
-    () =>
-      friends.filter(
-        (friend) =>
-          friend.relationship === "friend" ||
-          friend.relationship === "collaborator"
-      ),
-    [friends]
-  );
-
   // Preselect initialFriendId when dialog opens
   useEffect(() => {
-    if (open && initialFriendId && messageableFriends.length > 0) {
-      const match = messageableFriends.find((f) => f.id === initialFriendId);
+    if (open && initialFriendId && friends.length > 0) {
+      const match = friends.find((f) => f.id === initialFriendId);
       if (match) {
-        setSelectedFriends([match]);
+        setSelectedFriends((current) =>
+          current.some((f) => f.id === match.id) ? current : [...current, match]
+        );
       }
     }
-  }, [open, initialFriendId, messageableFriends]);
+  }, [open, initialFriendId, friends]);
 
-  const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase();
-  const filteredFriends = messageableFriends.filter((friend) =>
-    [friend.name, friend.username, friend.email, friend.role]
-      .filter(Boolean)
-      .some((value) => value?.toLowerCase().includes(normalizedSearch))
-  );
-  const selectedIds = new Set(selectedFriends.map((friend) => friend.id));
-  const availableFriends = filteredFriends.filter(
-    (friend) => !selectedIds.has(friend.id)
-  );
+  const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase(),
 
-  const startChat = (event: FormEvent<HTMLFormElement>) => {
+  // Combine local friends with database search results
+   allCandidates = useMemo(() => {
+    const candidatesMap = new Map<string, FriendSummary>();
+
+    // 1. Add all local friends/collaborators/following/fans
+    for (const friend of friends) {
+      candidatesMap.set(friend.id, friend);
+    }
+
+    // 2. Merge in database search results
+    if (Array.isArray(peopleSearchQuery.data)) {
+      for (const person of peopleSearchQuery.data) {
+        if (!candidatesMap.has(person.userId)) {
+          candidatesMap.set(person.userId, {
+            avatarUrl: person.avatarUrl,
+            email: person.email,
+            id: person.userId,
+            lastInteractionAt: null,
+            name: person.displayName,
+            relationship: "user",
+            role: person.stageName ? "Artist" : "User",
+            username: person.username,
+          });
+        }
+      }
+    }
+
+    return [...candidatesMap.values()];
+  }, [friends, peopleSearchQuery.data]),
+
+   selectedIds = useMemo(
+    () => new Set(selectedFriends.map((f) => f.id)),
+    [selectedFriends]
+  ),
+
+  // Filter candidates based on search query and exclude already selected
+   filteredCandidates = useMemo(() => 
+    allCandidates
+      .filter((candidate) => !selectedIds.has(candidate.id))
+      .filter((candidate) => {
+        if (!normalizedSearch) return true;
+        return [
+          candidate.name,
+          candidate.username,
+          candidate.email,
+          candidate.role,
+        ]
+          .filter(Boolean)
+          .some((val) => val?.toLowerCase().includes(normalizedSearch));
+      })
+  , [allCandidates, selectedIds, normalizedSearch]),
+
+   isGroupChat = selectedFriends.length > 1,
+
+   startChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (selectedFriends.length === 0 || !message.trim()) {
@@ -715,7 +761,9 @@ function NewChatDialog({
       {
         conversation: {
           participantUserIds: selectedFriends.map((friend) => friend.id),
-          title: selectedFriends.map((friend) => friend.name).join(", "),
+          title: isGroupChat
+            ? selectedFriends.map((friend) => friend.name).join(", ")
+            : undefined,
         },
         message: { body: message.trim() },
       },
@@ -735,95 +783,153 @@ function NewChatDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New Chat</DialogTitle>
+          <DialogTitle className="flex items-center justify-between text-base">
+            <span>
+              {isGroupChat
+                ? `New Group Chat (${selectedFriends.length})`
+                : "New Chat"}
+            </span>
+            {isGroupChat && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-primary/20 text-primary"
+              >
+                Group Chat
+              </Badge>
+            )}
+          </DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={startChat}>
           <div className="space-y-2">
-            <Input
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search friends or collaborators"
-              value={search}
-            />
-            <div className="flex flex-wrap gap-2">
-              {selectedFriends.map((friend) => (
-                <Badge className="gap-1" key={friend.id} variant="secondary">
-                  {friend.name}
-                  <button
-                    aria-label={`Remove ${friend.name}`}
-                    onClick={() =>
-                      setSelectedFriends((current) =>
-                        current.filter((item) => item.id !== friend.id)
-                      )
-                    }
-                    type="button"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </Badge>
-              ))}
+            <div className="relative">
+              <Input
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by name, @username, or email..."
+                value={search}
+                className="pr-8"
+              />
+              {peopleSearchQuery.isFetching && (
+                <LoaderCircle className="absolute right-2.5 top-2.5 size-4 animate-spin text-muted-foreground" />
+              )}
             </div>
+
+            {selectedFriends.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-muted/30 border">
+                <span className="text-[11px] font-medium text-muted-foreground mr-1">
+                  To:
+                </span>
+                {selectedFriends.map((friend) => (
+                  <Badge
+                    className="gap-1 text-xs py-1"
+                    key={friend.id}
+                    variant="secondary"
+                  >
+                    {friend.name}
+                    <button
+                      aria-label={`Remove ${friend.name}`}
+                      onClick={() =>
+                        setSelectedFriends((current) =>
+                          current.filter((item) => item.id !== friend.id)
+                        )
+                      }
+                      type="button"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-border/40 p-2">
-            {availableFriends.map((friend) => (
+          <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-border/40 p-2">
+            {filteredCandidates.map((candidate) => (
               <button
-                className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted transition-colors"
-                key={friend.id}
+                className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted transition-colors group"
+                key={candidate.id}
                 onClick={() =>
-                  setSelectedFriends((current) => [...current, friend])
+                  setSelectedFriends((current) => [...current, candidate])
                 }
                 type="button"
               >
                 <div className="relative">
                   <Avatar className="size-8">
-                    <AvatarImage src={friend.avatarUrl ?? undefined} />
-                    <AvatarFallback>{initials(friend.name)}</AvatarFallback>
+                    <AvatarImage src={candidate.avatarUrl ?? undefined} />
+                    <AvatarFallback>{initials(candidate.name)}</AvatarFallback>
                   </Avatar>
                   <span className="absolute bottom-0 right-0 size-2 rounded-full bg-emerald-500 ring-1 ring-background" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{friend.name}</p>
+                  <p className="truncate text-sm font-medium group-hover:text-primary transition-colors">
+                    {candidate.name}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {friend.username ? `@${friend.username}` : friend.email}
+                    {candidate.username
+                      ? `@${candidate.username}`
+                      : candidate.email}
                   </p>
                 </div>
-                {friend.relationship === "collaborator" ? (
+                {candidate.relationship === "collaborator" ? (
                   <Badge
                     variant="outline"
                     className="text-[10px] text-violet-400 border-violet-500/30"
                   >
                     Collaborator
                   </Badge>
-                ) : (
+                ) : candidate.relationship === "friend" ? (
                   <Badge
                     variant="outline"
                     className="text-[10px] text-emerald-400 border-emerald-500/30"
                   >
                     Friend
                   </Badge>
+                ) : candidate.relationship === "following" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-sky-400 border-sky-500/30"
+                  >
+                    Following
+                  </Badge>
+                ) : candidate.relationship === "fan" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-amber-400 border-amber-500/30"
+                  >
+                    Fan
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-muted-foreground"
+                  >
+                    {candidate.role ?? "User"}
+                  </Badge>
                 )}
               </button>
             ))}
-            {availableFriends.length === 0 && (
-              <p className="p-4 text-center text-sm text-muted-foreground">
-                {messageableFriends.length === 0
-                  ? "No friends or collaborators available yet. Add friends to start chatting."
-                  : "No matching friends or collaborators."}
-              </p>
+            {filteredCandidates.length === 0 && (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                {search.trim().length > 0
+                  ? `No users found matching "${search}".`
+                  : (selectedFriends.length > 0
+                    ? "Type above to search and add more participants."
+                    : "Search users by name, username, or email to start a conversation.")}
+              </div>
             )}
           </div>
 
           <Textarea
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Write the first message"
+            placeholder="Write your message..."
             value={message}
+            className="min-h-[80px]"
           />
 
-          <div className="flex justify-between gap-3">
-            <Button asChild={true} type="button" variant="outline">
-              <Link to="/dashboard/collaborators">Add Friend</Link>
+          <div className="flex items-center justify-between gap-3">
+            <Button asChild={true} type="button" variant="outline" size="sm">
+              <Link to="/dashboard/collaborators">Manage Friends</Link>
             </Button>
             <Button
               disabled={
@@ -836,7 +942,9 @@ function NewChatDialog({
               {startConversation.isPending && (
                 <LoaderCircle className="mr-2 size-4 animate-spin" />
               )}
-              Start Chat
+              {isGroupChat
+                ? `Start Group Chat (${selectedFriends.length})`
+                : "Start Chat"}
             </Button>
           </div>
         </form>

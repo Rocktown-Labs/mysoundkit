@@ -26,15 +26,15 @@ const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
   head: ({ loaderData, params }) => {
-    const artist = loaderData;
-    const artistName = artist?.name ?? `@${params.username}`;
-    const canonicalPath = `/artist/${artist?.username ?? params.username}`;
-    const title = `Check out ${artistName} on SoundKit`;
-    const description = seoDescription(
+    const artist = loaderData,
+     artistName = artist?.name ?? `@${params.username}`,
+     canonicalPath = `/artist/${artist?.username ?? params.username}`,
+     title = `Check out ${artistName} on SoundKit`,
+     description = seoDescription(
       artist?.bio,
       `Listen to tracks, watch videos, and follow ${artistName} on SoundKit.`
-    );
-    const head = createShareMeta({
+    ),
+     head = createShareMeta({
       canonicalPath,
       description,
       imageUrl: artist?.coverImageUrl ?? artist?.avatarUrl,
@@ -81,9 +81,9 @@ const formatCount = (value?: number) => {
   }
 
   return value.toLocaleString();
-};
+},
 
-const formatJoinedDate = (joinedAt?: string) => {
+ formatJoinedDate = (joinedAt?: string) => {
   if (!joinedAt) {
     return "SoundKit";
   }
@@ -92,9 +92,9 @@ const formatJoinedDate = (joinedAt?: string) => {
     month: "short",
     year: "numeric",
   }).format(new Date(joinedAt));
-};
+},
 
-const artistToProfileUser = (
+ artistToProfileUser = (
   artist: ArtistSummary,
   trackCountOverride?: number,
   totalPlaysOverride?: number
@@ -105,7 +105,7 @@ const artistToProfileUser = (
   bio:
     artist.bio ??
     `${artist.genre} artist${artist.location ? ` from ${artist.location}` : ""}.`,
-  coverImage: artist.coverImageUrl ?? "/hip-hop-battle-stage.jpg",
+  coverImage: artist.coverImageUrl ?? "/soundkit-default-banner.svg",
   followers: formatCount(artist.followers),
   following: "0",
   genre: artist.genre,
@@ -147,10 +147,10 @@ function EmptyArtistTab({
 }
 
 function ArtistProfilePage() {
-  const { username } = Route.useParams();
-  const artistQuery = useArtistQuery(username);
-  const meQuery = useMeQuery();
-  const [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
+  const { username } = Route.useParams(),
+   artistQuery = useArtistQuery(username),
+   meQuery = useMeQuery(),
+   [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
 
   useEffect(() => {
     const hashTab = window.location.hash.replace("#", "");
@@ -160,17 +160,17 @@ function ArtistProfilePage() {
     }
   }, []);
 
-  const currentUser = meQuery.data?.user;
-  const artist = artistQuery.data;
+  const currentUser = meQuery.data?.user,
+   artist = artistQuery.data,
 
-  const isOwner = Boolean(
+   isOwner = Boolean(
     artist &&
     currentUser &&
     (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
       currentUser.id === artist.id)
-  );
+  ),
 
-  const tracksQuery = useTracksQuery(undefined, {
+   tracksQuery = useTracksQuery(undefined, {
     scope: isOwner ? "dashboard" : "public",
   });
 
@@ -193,15 +193,15 @@ function ArtistProfilePage() {
     );
   }
 
-  const allTracks = tracksQuery.data ?? [];
-  const artistTracks = allTracks.filter(
+  const allTracks = tracksQuery.data ?? [],
+   artistTracks = allTracks.filter(
     (t) =>
       t.artistUsername?.toLowerCase() === artist.username.toLowerCase() ||
       t.artistName?.toLowerCase() === artist.name.toLowerCase() ||
       isOwner
-  );
+  ),
 
-  const totalArtistPlays = artistTracks.reduce(
+   totalArtistPlays = artistTracks.reduce(
     (sum, t) => sum + (t.plays || 0),
     0
   );

@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added default sleek pitch-black header banner (`/soundkit-default-banner.svg`, 1500x500 standard dimension, 3:1 ratio) with centered SoundKit logo across profile shells and public artist pages.
+- Added global `FloatingChatBar` provider for authenticated artists with dynamic clearance above the mobile audio player (`bottom-28 sm:bottom-6`), quick Friends/Chats tab switcher, and 1-click conversation starter.
+- Added audio output device selector in `MusicPlayer` with real-time Bluetooth, headphones, and speaker enumeration (`navigator.mediaDevices.enumerateDevices` + `devicechange` events) and active output indicator.
+- Added desktop accessibility tooltips across all music player controls (mini-player & full player).
 - Added chat file and saved/purchased music attachments, attachment persistence, and one-click shared track/project workspaces with accepted collaborator permissions and notifications.
 - Replaced Admin Ads prompt-only controls with real zero-budget house campaign creation, creative uploads/previews, and active/paused controls; repaired artist campaign payloads, media uploads, wallet display, real creative library, and uploaded-track promotion selection.
 - Added onboarding and account-setting media layout preferences, with card/compact-list rendering across artist track, project, video, dashboard, and public profile collections.
@@ -23,6 +27,8 @@
 
 ### Fixed
 
+- Fixed database user search and friend relationship awareness in `/dashboard/messages` New Chat modal, enabling multi-participant group chats, relationship badges, and server-side profile search.
+- Replaced mock dummy trend data in `/dashboard/career/analytics` with dynamic stream trends, source distributions, 48h release curves, and granular duration retention calculated from the user's real track plays and catalog.
 - Overhauled the Admin Payments dashboard tab with a fully responsive layout: consolidated Payments Health and Stripe actions into a unified header card, replaced overflowing HTML tables in the Subscription Catalog with responsive plan cards, resolved overlapping price ID input labels, and added copy-to-clipboard helpers for environment variable keys.
 - Fixed friend request acceptance and decline handling (`PATCH /v1/messages/friend-requests/:requestId`) to gracefully handle existing states, prevent 404s on pending requests, and ensure proper notification dispatch.
 - Added URL-synchronized tabs (`?tab=all|collaborators|friends|requests|following`) to `/dashboard/collaborators` with separate views and counters for Track Collaborators, Mutual Artist Friends, Incoming/Sent Requests, and Followers.
