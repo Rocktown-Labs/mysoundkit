@@ -76,13 +76,33 @@ export function ExploreAppSidebar() {
     isActive: isRouteActive(item.url ?? "/live"),
   }));
 
-  const resolvedLibraryLinks = libraryLinks.map((item) => ({
-    ...item,
-    isActive: isRouteActive(item.url ?? "/library"),
-    url: isSignedIn
-      ? item.url
-      : `/login?redirect=${encodeURIComponent(item.url ?? "/library")}`,
-  }));
+  const profileLink: SidebarNavItem | null = meQuery.data
+    ? {
+        icon: Users,
+        isActive:
+          meQuery.data.user.accountType === "artist"
+            ? pathname.startsWith("/dashboard")
+            : pathname.startsWith("/people/"),
+        title:
+          meQuery.data.user.accountType === "artist"
+            ? "Artist Dashboard"
+            : "My Fan Profile",
+        url:
+          meQuery.data.user.accountType === "artist"
+            ? "/dashboard"
+            : `/people/${meQuery.data.user.username}`,
+      }
+    : null;
+  const resolvedLibraryLinks = [
+    ...(profileLink ? [profileLink] : []),
+    ...libraryLinks.map((item) => ({
+      ...item,
+      isActive: isRouteActive(item.url ?? "/library"),
+      url: isSignedIn
+        ? item.url
+        : `/login?redirect=${encodeURIComponent(item.url ?? "/library")}`,
+    })),
+  ];
 
   return (
     <Sidebar collapsible="icon">

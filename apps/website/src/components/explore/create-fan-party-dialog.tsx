@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   Bell,
@@ -35,11 +36,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import {
   useCreateListeningPartyMutation,
-  useProjectsQuery,
-  useTracksQuery,
+  useMeEntitlementsQuery,
 } from "@/lib/soundkit-api-hooks";
 
 interface CreateFanPartyDialogProps {
@@ -51,9 +52,25 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   const user = session?.user;
   const isAuthenticated = Boolean(user);
 
-  const projectsQuery = useProjectsQuery();
-  const tracksQuery = useTracksQuery();
+  const entitlementsQuery = useMeEntitlementsQuery();
   const createParty = useCreateListeningPartyMutation();
+  const sourcesQuery = useQuery({
+    enabled: isAuthenticated,
+    queryFn: async () => {
+      const response = await fetch(`${API_V1_URL}/listening-parties/sources`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Could not load listening party sources.");
+      }
+      return (await response.json()) as {
+        accountType: "artist" | "fan";
+        playlists: { id: string; title: string }[];
+        projects: { id: string; releaseDate: string | null; title: string }[];
+      };
+    },
+    queryKey: ["listening-party-sources"],
+  });
 
   const [open, setOpen] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
@@ -62,10 +79,8 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   const [title, setTitle] = useState("");
   const [scheduledStartAt, setScheduledStartAt] = useState("");
 
-  const projects = (projectsQuery.data ?? []).filter(
-    (p) => p.projectType !== "single"
-  );
-  const tracks = tracksQuery.data ?? [];
+  const projects = sourcesQuery.data?.projects ?? [];
+  const playlists = sourcesQuery.data?.playlists ?? [];
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,21 +95,21 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
       return;
     }
 
-    const startAt = scheduledStartAt
-      ? new Date(scheduledStartAt).toISOString()
-      : new Date().toISOString();
+    const startAt = new Date(scheduledStartAt).toISOString();
+    const [sourceType, sourceId] = selectedProjectId.split(":", 2);
 
     createParty.mutate(
       {
         description: `Fan listening party created by @${user?.name || "listener"}. Chat and synced playback enabled.`,
-        playbackMode: "artist_hosted", // Audio tracklist + chat room
-        projectId: selectedProjectId,
+        playbackMode: "artist_hosted",
+        playlistId: sourceType === "playlist" ? sourceId : undefined,
+        projectId: sourceType === "project" ? sourceId : undefined,
         scheduledStartAt: startAt,
         title: title.trim() || `${user?.name || "Fan"}'s Listening Room`,
       },
       {
         onSuccess: (res) => {
-          const roomId = res.party.liveRoomId || res.party.id;
+          const roomId = res.liveRoomId || res.id;
           setCreatedRoomId(roomId);
           toast({
             description:
@@ -127,9 +142,31 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   if (!isAuthenticated) {
     return (
       <Button asChild>
-        <Link to="/login">
+        <Link search={{ redirect: "/live/parties" }} to="/login">
           <Plus className="mr-2 size-4" />
           Create Fan Party
+        </Link>
+      </Button>
+    );
+  }
+
+  if (sourcesQuery.data?.accountType === "artist") {
+    return (
+      <Button asChild>
+        <Link to="/dashboard/live/parties">
+          <Plus className="mr-2 size-4" />
+          Schedule Release Party
+        </Link>
+      </Button>
+    );
+  }
+
+  if (!entitlementsQuery.data?.isPremium) {
+    return (
+      <Button asChild>
+        <Link to="/pricing">
+          <Plus className="mr-2 size-4" />
+          Upgrade to Host
         </Link>
       </Button>
     );
@@ -233,27 +270,32 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
                   <SelectValue placeholder="Choose project or playlist" />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.title} ({p.projectType.toUpperCase()})
+                  {projects.map((project) => (
+                    <SelectItem
+                      key={`project:${project.id}`}
+                      value={`project:${project.id}`}
+                    >
+                      {project.title} · Project
                     </SelectItem>
                   ))}
-                  {/* Fallback option if user has no project of their own */}
-                  {projects.length === 0 && (
-                    <SelectItem value="project-1">
-                      Featured Community Tracklist (Album)
+                  {playlists.map((playlist) => (
+                    <SelectItem
+                      key={`playlist:${playlist.id}`}
+                      value={`playlist:${playlist.id}`}
+                    >
+                      {playlist.title} · Playlist
                     </SelectItem>
-                  )}
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="fan-party-time">
-                Scheduled Start (Leave blank to open now)
-              </Label>
+              <Label htmlFor="fan-party-time">Scheduled Start</Label>
               <Input
                 id="fan-party-time"
+                min={new Date().toISOString().slice(0, 16)}
+                required
                 type="datetime-local"
                 value={scheduledStartAt}
                 onChange={(e) => setScheduledStartAt(e.target.value)}

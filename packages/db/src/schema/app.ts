@@ -1149,9 +1149,10 @@ export const listeningParties = pgTable(
     playbackMode: listeningPartyPlaybackModeEnum("playback_mode")
       .default("artist_hosted")
       .notNull(),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    playlistId: text("playlist_id"),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
     scheduledStartAt: timestamp("scheduled_start_at").notNull(),
     startedAt: timestamp("started_at"),
     status: listeningPartyStatusEnum("status").default("scheduled").notNull(),
@@ -1444,6 +1445,22 @@ export const artistFollows = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.followerUserId, table.artistUserId] }),
+  ]
+);
+
+export const userFollows = pgTable(
+  "user_follows",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    followerUserId: text("follower_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetUserId: text("target_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.followerUserId, table.targetUserId] }),
   ]
 );
 

@@ -3,6 +3,7 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   genres,
+  listeningParties,
   projectAssets,
   projectCollaborators,
   projectPreSaves,
@@ -28,6 +29,7 @@ import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
+  resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
@@ -608,6 +610,32 @@ app.openapi(
 
       if (!project) {
         throw new Error("Failed to create project.");
+      }
+
+      if (
+        projectStatus === "scheduled" &&
+        project.projectType !== "single" &&
+        project.releaseDate &&
+        project.releaseDate.getTime() > Date.now()
+      ) {
+        const entitlements = await resolveEntitlements({
+          session: isAuthenticatedSession(session) ? session : null,
+          user,
+        });
+        if (entitlements.isPremium) {
+          await db.insert(listeningParties).values({
+            description: `Join ${user.name ?? "the artist"} for the first listen.`,
+            genreId: projectGenreId,
+            hostUserId: user.id,
+            id: crypto.randomUUID(),
+            liveRoomId: crypto.randomUUID(),
+            organizationId,
+            playbackMode: "programmed_release",
+            projectId,
+            scheduledStartAt: project.releaseDate,
+            title: `${project.title} Release Party`,
+          });
+        }
       }
 
       return c.json(

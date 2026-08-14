@@ -36,7 +36,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import type { LiveScheduleMode } from "@/lib/live-experience";
 import {
-  useCreateLiveExperienceMutation,
   useCreateListeningPartyMutation,
   useListeningPartiesQuery,
   useProjectsQuery,
@@ -87,16 +86,14 @@ const resolveScheduledStartAt = ({
 };
 
 function DashboardLivePartiesPage() {
-  const [creationType, setCreationType] =
-    useState<PartyCreationType>("artist_manual");
-  const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
+  const creationType: PartyCreationType = "release_auto";
+  const scheduleMode: LiveScheduleMode = "scheduled";
   const [hostPresence, setHostPresence] = useState<"video" | "chat">("chat");
-  const [selectedProjectId, setSelectedProjectId] = useState("no-project");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
 
   const partiesQuery = useListeningPartiesQuery();
   const projectsQuery = useProjectsQuery();
   const createParty = useCreateListeningPartyMutation();
-  const createLiveExperience = useCreateLiveExperienceMutation();
 
   const parties = partiesQuery.data ?? [];
   const projects = projectsQuery.data ?? [];
@@ -117,8 +114,7 @@ function DashboardLivePartiesPage() {
     const form = new FormData(event.currentTarget);
 
     const title = String(form.get("title") ?? "").trim();
-    const projectId =
-      selectedProjectId === "no-project" ? "" : selectedProjectId;
+    const projectId = selectedProjectId;
     const description = String(form.get("description") ?? "");
 
     const scheduledStartAt = resolveScheduledStartAt({
@@ -134,28 +130,11 @@ function DashboardLivePartiesPage() {
     const partyTitle = title || suggestedTitle;
 
     if (!projectId) {
-      createLiveExperience.mutate(
-        {
-          description,
-          kind: "party",
-          scheduleMode,
-          scheduledStartAt,
-          source: "playlist",
-          title: partyTitle,
-          visibility: "public",
-        },
-        {
-          onSuccess: () => {
-            toast({
-              description:
-                "Projectless live party room created. You can share the room once it opens.",
-              title: "Party Room Created",
-            });
-            event.currentTarget.reset();
-            setSelectedProjectId("no-project");
-          },
-        }
-      );
+      toast({
+        description: "Choose an album, EP, or mixtape before scheduling.",
+        title: "Release required",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -175,7 +154,7 @@ function DashboardLivePartiesPage() {
             title: "Party Created",
           });
           event.currentTarget.reset();
-          setSelectedProjectId("no-project");
+          setSelectedProjectId("");
         },
       }
     );
@@ -239,13 +218,12 @@ function DashboardLivePartiesPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <RadioGroup
-                  className="grid gap-3 sm:grid-cols-2"
-                  onValueChange={(value) =>
-                    setCreationType(value as PartyCreationType)
-                  }
-                  value={creationType}
-                >
+                <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                  Artist parties are scheduled release events attached to an
+                  album, EP, or mixtape. Choose whether you will join in chat or
+                  on video.
+                </div>
+                <RadioGroup className="hidden" value={creationType}>
                   <label
                     className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"
                     htmlFor="party-mode-artist-manual"
@@ -299,12 +277,9 @@ function DashboardLivePartiesPage() {
                       value={selectedProjectId}
                     >
                       <SelectTrigger id="projectId">
-                        <SelectValue placeholder="Choose a project or go projectless" />
+                        <SelectValue placeholder="Choose an album, EP, or mixtape" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="no-project">
-                          No project, just open a room
-                        </SelectItem>
                         {projects.map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.title} ({project.projectType.toUpperCase()}

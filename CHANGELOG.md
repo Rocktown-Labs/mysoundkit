@@ -4,6 +4,8 @@
 
 ### Added
 
+- Simplified listening parties to scheduled, non-empty album/project or fan-playlist rooms; scheduled Premium artist projects now create release parties automatically, while Premium fan sources and artist video/chat presence remain explicit.
+- Added public fan profiles, fan-to-fan follows, follower notifications, and account-aware My SoundKit profile/dashboard navigation.
 - Added Premium-only battle opponent search by artist name/handle, native date/time challenge scheduling, acceptance-created public battle schedules, challenge status notifications, and profile challenge compatibility.
 - Added Cloudflare Stream live-input status synchronization so OBS connection/disconnection drives public Live/Ended state and scheduled stream pages show the actual player only when broadcasting.
 - Unified `/live`, battles, streams, and listening parties around real Featured, Live Now, Upcoming, filterable view-all, and genre collection rails; added live-experience genre persistence and removed dummy mobile live overview data.

@@ -828,23 +828,29 @@ export const listeningPartySummarySchema = z.object({
   liveRoomId: z.string().nullable(),
   organizationId: z.string().nullable(),
   playbackMode: z.enum(["artist_hosted", "programmed_release"]),
-  projectId: z.string(),
+  playlistId: z.string().nullable(),
+  projectId: z.string().nullable(),
   scheduledStartAt: z.string(),
   startedAt: z.string().nullable(),
   status: z.enum(["scheduled", "live", "ended", "canceled"]),
   title: z.string(),
 });
 
-export const createListeningPartyBodySchema = z.object({
-  description: z.string().max(2000).optional(),
-  genre: z.string().optional(),
-  playbackMode: z
-    .enum(["artist_hosted", "programmed_release"])
-    .default("artist_hosted"),
-  projectId: z.string().min(1),
-  scheduledStartAt: z.string().datetime(),
-  title: z.string().min(1).max(140),
-});
+export const createListeningPartyBodySchema = z
+  .object({
+    description: z.string().max(2000).optional(),
+    genre: z.string().optional(),
+    playbackMode: z
+      .enum(["artist_hosted", "programmed_release"])
+      .default("artist_hosted"),
+    playlistId: z.string().min(1).optional(),
+    projectId: z.string().min(1).optional(),
+    scheduledStartAt: z.string().datetime(),
+    title: z.string().min(1).max(140),
+  })
+  .refine((body) => Boolean(body.projectId) !== Boolean(body.playlistId), {
+    message: "Choose exactly one project or playlist.",
+  });
 
 export const videoSummarySchema = z.object({
   creatorName: z.string().optional(),

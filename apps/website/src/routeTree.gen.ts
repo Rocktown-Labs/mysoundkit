@@ -70,6 +70,7 @@ import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/car
 import { Route as ExploreVideosIdRouteImport } from './app/_explore/videos/$id'
 import { Route as ExploreTracksIdRouteImport } from './app/_explore/tracks/$id'
 import { Route as ExploreProjectsIdRouteImport } from './app/_explore/projects/$id'
+import { Route as ExplorePeopleUsernameRouteImport } from './app/_explore/people/$username'
 import { Route as ExploreLivePreviewRouteImport } from './app/_explore/live/preview'
 import { Route as ExploreLibrarySettingsRouteImport } from './app/_explore/library/settings'
 import { Route as ExploreGenresIdRouteImport } from './app/_explore/genres/$id'
@@ -410,6 +411,11 @@ const ExploreProjectsIdRoute = ExploreProjectsIdRouteImport.update({
   path: '/projects/$id',
   getParentRoute: () => ExploreRoute,
 } as any)
+const ExplorePeopleUsernameRoute = ExplorePeopleUsernameRouteImport.update({
+  id: '/people/$username',
+  path: '/people/$username',
+  getParentRoute: () => ExploreRoute,
+} as any)
 const ExploreLivePreviewRoute = ExploreLivePreviewRouteImport.update({
   id: '/preview',
   path: '/preview',
@@ -617,6 +623,7 @@ export interface FileRoutesByFullPath {
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
+  '/people/$username': typeof ExplorePeopleUsernameRoute
   '/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
@@ -709,6 +716,7 @@ export interface FileRoutesByTo {
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
+  '/people/$username': typeof ExplorePeopleUsernameRoute
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
@@ -804,6 +812,7 @@ export interface FileRoutesById {
   '/_explore/genres/$id': typeof ExploreGenresIdRoute
   '/_explore/library/settings': typeof ExploreLibrarySettingsRoute
   '/_explore/live/preview': typeof ExploreLivePreviewRoute
+  '/_explore/people/$username': typeof ExplorePeopleUsernameRoute
   '/_explore/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/_explore/tracks/$id': typeof ExploreTracksIdRoute
   '/_explore/videos/$id': typeof ExploreVideosIdRoute
@@ -900,6 +909,7 @@ export interface FileRouteTypes {
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
+    | '/people/$username'
     | '/projects/$id'
     | '/tracks/$id'
     | '/videos/$id'
@@ -992,6 +1002,7 @@ export interface FileRouteTypes {
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
+    | '/people/$username'
     | '/tracks/$id'
     | '/videos/$id'
     | '/dashboard/career/ai-studio'
@@ -1086,6 +1097,7 @@ export interface FileRouteTypes {
     | '/_explore/genres/$id'
     | '/_explore/library/settings'
     | '/_explore/live/preview'
+    | '/_explore/people/$username'
     | '/_explore/projects/$id'
     | '/_explore/tracks/$id'
     | '/_explore/videos/$id'
@@ -1590,6 +1602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExploreProjectsIdRouteImport
       parentRoute: typeof ExploreRoute
     }
+    '/_explore/people/$username': {
+      id: '/_explore/people/$username'
+      path: '/people/$username'
+      fullPath: '/people/$username'
+      preLoaderRoute: typeof ExplorePeopleUsernameRouteImport
+      parentRoute: typeof ExploreRoute
+    }
     '/_explore/live/preview': {
       id: '/_explore/live/preview'
       path: '/preview'
@@ -1871,6 +1890,7 @@ interface ExploreRouteChildren {
   ExploreArtistTopRoute: typeof ExploreArtistTopRoute
   ExploreGenresIdRoute: typeof ExploreGenresIdRoute
   ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute
+  ExplorePeopleUsernameRoute: typeof ExplorePeopleUsernameRoute
   ExploreProjectsIdRoute: typeof ExploreProjectsIdRouteWithChildren
   ExploreTracksIdRoute: typeof ExploreTracksIdRoute
   ExploreVideosIdRoute: typeof ExploreVideosIdRoute
@@ -1903,6 +1923,7 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreArtistTopRoute: ExploreArtistTopRoute,
   ExploreGenresIdRoute: ExploreGenresIdRoute,
   ExploreLibrarySettingsRoute: ExploreLibrarySettingsRoute,
+  ExplorePeopleUsernameRoute: ExplorePeopleUsernameRoute,
   ExploreProjectsIdRoute: ExploreProjectsIdRouteWithChildren,
   ExploreTracksIdRoute: ExploreTracksIdRoute,
   ExploreVideosIdRoute: ExploreVideosIdRoute,
