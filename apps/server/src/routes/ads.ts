@@ -54,6 +54,15 @@ const createCampaignBodySchema = z.object({
   targets: adTargetSchema.array().min(1).max(80),
 });
 
+const houseCampaignBodySchema = z.object({
+  clickthroughUrl: z.url(),
+  creativeFormat: adCreativeFormatSchema,
+  creativeImageUrl: z.url().optional(),
+  creativeUrl: z.url(),
+  name: z.string().trim().min(1).max(120),
+  placement: adPlacementSchema,
+});
+
 const adCampaignSchema = z.object({
   billingType: adBillingTypeSchema,
   clickthroughUrl: z.string(),
@@ -338,7 +347,7 @@ app.openapi(
         name: body.name,
         placement: body.placement,
         startDate: body.startDate ? new Date(body.startDate) : new Date(),
-        status: "draft",
+        status: "active",
       })
       .returning();
 
@@ -356,6 +365,123 @@ app.openapi(
     );
 
     return c.json(await serializeCampaign(campaign), HttpStatusCodes.CREATED);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/admin/campaigns",
+    request: {
+      body: jsonContentRequired(houseCampaignBodySchema, "House ad payload"),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        adCampaignSchema,
+        "Created house ad"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+    },
+    tags: ["Ads"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAdminUser(user)) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const body = c.req.valid("json");
+    const db = createDb();
+    const [campaign] = await db
+      .insert(adCampaigns)
+      .values({
+        advertiserId: user?.id ?? "soundkit",
+        billingType: "prepaid_wallet",
+        clickthroughUrl: body.clickthroughUrl,
+        creativeFormat: body.creativeFormat,
+        creativeImageUrl: body.creativeImageUrl ?? null,
+        creativeUrl: body.creativeUrl,
+        dailyBudgetCents: 0,
+        dailyImpressionCap: 100_000,
+        id: crypto.randomUUID(),
+        name: body.name,
+        placement: body.placement,
+        startDate: new Date(),
+        status: "active",
+      })
+      .returning();
+    if (!campaign) {
+      throw new Error("Failed to create house ad.");
+    }
+    await db.insert(adCampaignTargets).values([
+      {
+        campaignId: campaign.id,
+        id: crypto.randomUUID(),
+        targetCode: "US",
+        targetType: "country",
+      },
+      {
+        campaignId: campaign.id,
+        id: crypto.randomUUID(),
+        targetCode: "GLOBAL",
+        targetType: "country",
+      },
+    ]);
+    return c.json(await serializeCampaign(campaign), HttpStatusCodes.CREATED);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/admin/campaigns/{campaignId}/status",
+    request: {
+      body: jsonContentRequired(
+        z.object({ status: z.enum(["active", "paused"]) }),
+        "Campaign status"
+      ),
+      params: z.object({ campaignId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(adCampaignSchema, "Updated campaign"),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Admin required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Campaign not found"
+      ),
+    },
+    tags: ["Ads"],
+  }),
+  async (c) => {
+    if (!isAdminUser(c.get("user"))) {
+      return c.json(
+        { message: "Admin access is required." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const { campaignId } = c.req.valid("param");
+    const { status } = c.req.valid("json");
+    const [campaign] = await createDb()
+      .update(adCampaigns)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(adCampaigns.id, campaignId))
+      .returning();
+    if (!campaign) {
+      return c.json(
+        { message: "Campaign not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    return c.json(await serializeCampaign(campaign), HttpStatusCodes.OK);
   }
 );
 

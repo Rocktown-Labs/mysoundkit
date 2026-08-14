@@ -1,4 +1,5 @@
 /* eslint-disable complexity, no-nested-ternary, oxc/branches-sharing-code, react/no-unescaped-entities */
+import { useUploadFiles } from "@better-upload/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -32,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,7 +63,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { API_V1_URL } from "@/lib/api";
+import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import {
   useAdminAccessQuery,
@@ -279,6 +281,71 @@ function SettingsPanel() {
 
 function AdsPanel() {
   const campaignsQuery = useAdminAdCampaignsQuery();
+  const queryClient = useQueryClient();
+  const [clickthroughUrl, setClickthroughUrl] = useState("https://mysoundkit.com");
+  const [creativeFormat, setCreativeFormat] = useState<"audio" | "image" | "video">("image");
+  const [creativeUrl, setCreativeUrl] = useState("");
+  const [name, setName] = useState("");
+  const [placement, setPlacement] = useState<
+    "audio_preroll" | "video_overlay" | "video_preroll"
+  >("video_overlay");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const { isPending: isUploading, upload } = useUploadFiles({
+    api: MEDIA_UPLOAD_URL,
+    credentials: "include",
+    onUploadComplete: ({ files }) => {
+      const uploadedFile = files[0];
+      if (uploadedFile) {
+        setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
+      }
+    },
+  });
+  const createHouseAd = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${API_V1_URL}/ads/admin/campaigns`, {
+        body: JSON.stringify({
+          clickthroughUrl,
+          creativeFormat,
+          creativeImageUrl: creativeFormat === "image" ? creativeUrl : undefined,
+          creativeUrl,
+          name,
+          placement,
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("Could not create house ad.");
+      }
+    },
+    onSuccess: async () => {
+      setName("");
+      setCreativeUrl("");
+      setPreviewUrl("");
+      await queryClient.invalidateQueries({ queryKey: ["ads", "admin", "campaigns"] });
+      toast({ description: "The zero-budget house ad is now active.", title: "House ad created" });
+    },
+  });
+  const updateStatus = useMutation({
+    mutationFn: async ({ campaignId, status }: { campaignId: string; status: "active" | "paused" }) => {
+      const response = await fetch(
+        `${API_V1_URL}/ads/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
+        {
+          body: JSON.stringify({ status }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "PATCH",
+        }
+      );
+      if (!response.ok) {
+        throw new Error("Could not update campaign status.");
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["ads", "admin", "campaigns"] });
+    },
+  });
   const campaigns = campaignsQuery.data ?? [];
 
   if (campaignsQuery.isLoading) {
@@ -302,26 +369,131 @@ function AdsPanel() {
             toggle live campaign status across all regions.
           </CardDescription>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            const name = prompt(
-              "Enter House Ad Campaign Name:",
-              "Global House Pre-Roll"
-            );
-            if (name) {
-              toast({
-                description: `Created house ad "${name}". Setting to live running status across all regions.`,
-                title: "House Ad Launched",
-              });
-            }
-          }}
-        >
-          <Plus className="mr-2 size-4" />
-          Create House Ad (Zero Budget)
-        </Button>
+        <Badge variant="secondary">Zero-budget house campaigns</Badge>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 rounded-lg border bg-muted/20 p-4 md:grid-cols-2">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="house-ad-name">Campaign name</Label>
+              <Input
+                id="house-ad-name"
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Global SoundKit house campaign"
+                value={name}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="house-ad-destination">Destination URL</Label>
+              <Input
+                id="house-ad-destination"
+                onChange={(event) => setClickthroughUrl(event.target.value)}
+                type="url"
+                value={clickthroughUrl}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                aria-label="Creative format"
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                onChange={(event) =>
+                  setCreativeFormat(
+                    event.target.value === "audio"
+                      ? "audio"
+                      : event.target.value === "video"
+                        ? "video"
+                        : "image"
+                  )
+                }
+                value={creativeFormat}
+              >
+                <option value="image">Banner image</option>
+                <option value="audio">Audio pre-roll</option>
+                <option value="video">Video pre-roll</option>
+              </select>
+              <select
+                aria-label="Ad placement"
+                className="h-10 rounded-md border bg-background px-3 text-sm"
+                onChange={(event) =>
+                  setPlacement(
+                    event.target.value as
+                      | "audio_preroll"
+                      | "video_overlay"
+                      | "video_preroll"
+                  )
+                }
+                value={placement}
+              >
+                <option value="video_overlay">Display overlay</option>
+                <option value="audio_preroll">Audio pre-roll</option>
+                <option value="video_preroll">Video pre-roll</option>
+              </select>
+            </div>
+            <Input
+              accept="audio/*,image/*,video/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) {
+                  return;
+                }
+                const maxBytes = file.type.startsWith("image/")
+                  ? 10 * 1024 * 1024
+                  : 100 * 1024 * 1024;
+                if (file.size > maxBytes) {
+                  toast({
+                    description: "Images must be under 10 MB; audio and video must be under 100 MB.",
+                    title: "Creative too large",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setPreviewUrl(URL.createObjectURL(file));
+                const nextFormat = file.type.startsWith("audio/")
+                  ? "audio"
+                  : file.type.startsWith("video/")
+                    ? "video"
+                    : "image";
+                setCreativeFormat(nextFormat);
+                setPlacement(
+                  nextFormat === "audio"
+                    ? "audio_preroll"
+                    : nextFormat === "video"
+                      ? "video_preroll"
+                      : "video_overlay"
+                );
+                void upload([file]);
+              }}
+              type="file"
+            />
+            <Button
+              disabled={
+                createHouseAd.isPending || isUploading || !name || !creativeUrl
+              }
+              onClick={() => createHouseAd.mutate()}
+            >
+              <Plus className="mr-2 size-4" />
+              {isUploading ? "Uploading…" : "Create House Ad"}
+            </Button>
+          </div>
+          <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border bg-background">
+            {!previewUrl ? (
+              <p className="text-muted-foreground text-sm">Creative preview</p>
+            ) : creativeFormat === "audio" ? (
+              <audio className="w-full px-4" controls src={previewUrl} />
+            ) : creativeFormat === "video" ? (
+              <video className="aspect-video w-full object-cover" controls src={previewUrl} />
+            ) : (
+              <AppImage
+                alt="House ad preview"
+                className="h-full w-full object-contain"
+                height={300}
+                src={previewUrl}
+                width={500}
+              />
+            )}
+          </div>
+        </div>
+
         <Table>
           <TableHeader>
             <TableRow>
@@ -348,7 +520,7 @@ function AdsPanel() {
                   <TableCell>
                     <Badge
                       variant={
-                        campaign.status === "running" ? "default" : "outline"
+                        campaign.status === "active" ? "default" : "outline"
                       }
                     >
                       {campaign.status}
@@ -372,12 +544,14 @@ function AdsPanel() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        toast({
-                          description: `Toggled status for "${campaign.name}" to live running status.`,
-                          title: "Ad Status Updated",
-                        });
-                      }}
+                      disabled={updateStatus.isPending}
+                      onClick={() =>
+                        updateStatus.mutate({
+                          campaignId: campaign.id,
+                          status:
+                            campaign.status === "active" ? "paused" : "active",
+                        })
+                      }
                     >
                       Toggle Run Status
                     </Button>

@@ -4,6 +4,7 @@
 
 ### Added
 
+- Replaced Admin Ads prompt-only controls with real zero-budget house campaign creation, creative uploads/previews, and active/paused controls; repaired artist campaign payloads, media uploads, wallet display, real creative library, and uploaded-track promotion selection.
 - Added onboarding and account-setting media layout preferences, with card/compact-list rendering across artist track, project, video, dashboard, and public profile collections.
 - Added deduplicated in-app and transactional-email fan-out to pre-savers, artist followers, and profile followers when tracks, projects, and videos release or listening parties are scheduled.
 - Simplified listening parties to scheduled, non-empty album/project or fan-playlist rooms; scheduled Premium artist projects now create release parties automatically, while Premium fan sources and artist video/chat presence remain explicit.
