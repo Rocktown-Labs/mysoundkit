@@ -1,10 +1,13 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistFollows,
   genres,
   listeningParties,
   playlists,
   projects,
+  userFollows,
+  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { and, desc, eq, gte } from "drizzle-orm";
@@ -12,6 +15,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { notifyLiveEventScheduledEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   forbiddenMessage,
@@ -324,6 +328,47 @@ app.openapi(
 
     if (!party) {
       throw new Error("Failed to create listening party.");
+    }
+
+    const [artistFollowers, profileFollowers] = await Promise.all([
+      db
+        .select({ userId: artistFollows.followerUserId })
+        .from(artistFollows)
+        .where(eq(artistFollows.artistUserId, user.id)),
+      db
+        .select({ userId: userFollows.followerUserId })
+        .from(userFollows)
+        .where(eq(userFollows.targetUserId, user.id)),
+    ]);
+    const followerIds = [
+      ...new Set([
+        ...artistFollowers.map((entry) => entry.userId),
+        ...profileFollowers.map((entry) => entry.userId),
+      ]),
+    ];
+    for (const followerId of followerIds) {
+      const [notification] = await db
+        .insert(userNotifications)
+        .values({
+          id: `party_scheduled:${party.id}:${followerId}`,
+          link: `/live/parties/${party.liveRoomId ?? party.id}`,
+          message: `${user.name ?? "A host you follow"} scheduled ${party.title}.`,
+          title: "Listening party scheduled",
+          type: "party_scheduled",
+          userId: followerId,
+        })
+        .onConflictDoNothing()
+        .returning({ id: userNotifications.id });
+      if (notification) {
+        await notifyLiveEventScheduledEmail({
+          eventId: party.liveRoomId ?? party.id,
+          eventTitle: party.title,
+          eventType: "party",
+          hostName: user.name ?? "A host you follow",
+          queue: c.env.EMAIL_DELIVERY_QUEUE,
+          recipientUserId: followerId,
+        });
+      }
     }
 
     return c.json(mapParty(party), HttpStatusCodes.CREATED);

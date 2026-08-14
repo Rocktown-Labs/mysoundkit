@@ -242,7 +242,9 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         publishDueLiveRecordings(),
-        publishDueTrackReleases(),
+        publishDueTrackReleases({
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
       ])
     );
   },

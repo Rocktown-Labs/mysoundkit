@@ -2,6 +2,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistFollows,
   genres,
   listeningParties,
   projectAssets,
@@ -11,6 +12,7 @@ import {
   projects,
   trackAssets,
   tracks,
+  userFollows,
   userNotifications,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
@@ -24,7 +26,10 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
-import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
+import {
+  notifyCollaboratorInviteEmail,
+  notifyLiveEventScheduledEmail,
+} from "@/lib/email-events";
 import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   isAuthenticatedSession,
@@ -623,18 +628,63 @@ app.openapi(
           user,
         });
         if (entitlements.isPremium) {
-          await db.insert(listeningParties).values({
-            description: `Join ${user.name ?? "the artist"} for the first listen.`,
-            genreId: projectGenreId,
-            hostUserId: user.id,
-            id: crypto.randomUUID(),
-            liveRoomId: crypto.randomUUID(),
-            organizationId,
-            playbackMode: "programmed_release",
-            projectId,
-            scheduledStartAt: project.releaseDate,
-            title: `${project.title} Release Party`,
-          });
+          const [releaseParty] = await db
+            .insert(listeningParties)
+            .values({
+              description: `Join ${user.name ?? "the artist"} for the first listen.`,
+              genreId: projectGenreId,
+              hostUserId: user.id,
+              id: crypto.randomUUID(),
+              liveRoomId: crypto.randomUUID(),
+              organizationId,
+              playbackMode: "programmed_release",
+              projectId,
+              scheduledStartAt: project.releaseDate,
+              title: `${project.title} Release Party`,
+            })
+            .returning();
+          if (releaseParty) {
+            const [artistFollowers, profileFollowers] = await Promise.all([
+              db
+                .select({ userId: artistFollows.followerUserId })
+                .from(artistFollows)
+                .where(eq(artistFollows.artistUserId, user.id)),
+              db
+                .select({ userId: userFollows.followerUserId })
+                .from(userFollows)
+                .where(eq(userFollows.targetUserId, user.id)),
+            ]);
+            const followerIds = [
+              ...new Set([
+                ...artistFollowers.map((entry) => entry.userId),
+                ...profileFollowers.map((entry) => entry.userId),
+              ]),
+            ];
+            for (const followerId of followerIds) {
+              const [notification] = await db
+                .insert(userNotifications)
+                .values({
+                  id: `party_scheduled:${releaseParty.id}:${followerId}`,
+                  link: `/live/parties/${releaseParty.liveRoomId ?? releaseParty.id}`,
+                  message: `${user.name ?? "An artist you follow"} scheduled ${releaseParty.title}.`,
+                  title: "Release party scheduled",
+                  type: "party_scheduled",
+                  userId: followerId,
+                })
+                .onConflictDoNothing()
+                .returning({ id: userNotifications.id });
+              if (notification) {
+                await notifyLiveEventScheduledEmail({
+                  eventId: releaseParty.liveRoomId ?? releaseParty.id,
+                  eventTitle: releaseParty.title,
+                  eventType: "party",
+                  hostName: user.name ?? "An artist you follow",
+                  queue: c.env.EMAIL_DELIVERY_QUEUE,
+                  recipientUserId: followerId,
+                });
+              }
+            }
+          }
         }
       }
 

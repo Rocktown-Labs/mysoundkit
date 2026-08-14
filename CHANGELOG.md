@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added deduplicated in-app and transactional-email fan-out to pre-savers, artist followers, and profile followers when tracks, projects, and videos release or listening parties are scheduled.
 - Simplified listening parties to scheduled, non-empty album/project or fan-playlist rooms; scheduled Premium artist projects now create release parties automatically, while Premium fan sources and artist video/chat presence remain explicit.
 - Added public fan profiles, fan-to-fan follows, follower notifications, and account-aware My SoundKit profile/dashboard navigation.
 - Added Premium-only battle opponent search by artist name/handle, native date/time challenge scheduling, acceptance-created public battle schedules, challenge status notifications, and profile challenge compatibility.
