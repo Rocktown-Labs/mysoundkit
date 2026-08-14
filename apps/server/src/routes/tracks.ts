@@ -29,7 +29,10 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { createWorkflowJobRow } from "@/lib/audio-processing";
 import type { TrackProcessingWorkflowPayload } from "@/lib/audio-processing";
-import { resolveListeningAccess } from "@/lib/content-access";
+import {
+  resolveDownloadAccess,
+  resolveListeningAccess,
+} from "@/lib/content-access";
 import {
   buildTrackDetail,
   buildTrackSummary,
@@ -2224,33 +2227,48 @@ app.openapi(
         );
       }
 
-      if (
-        (row.track.isForSale || row.track.downloadsRequirePurchase) &&
-        !hasPurchase
-      ) {
+      const downloadAccess = resolveDownloadAccess({
+        hasPlayed: await hasPlayedTrackOnce({ db, trackId, userId: user.id }),
+        hasPurchase,
+        isPremium: false,
+        policy: row.track,
+      });
+      if (!downloadAccess.allowed) {
+        const messageByReason = {
+          downloads_disabled:
+            "The artist has disabled downloads for this track.",
+          first_play_required:
+            "Play this track once before downloading its files.",
+          purchase_required:
+            "Purchase this track before downloading its files.",
+        } as const;
         return c.json(
-          { message: "Purchase this track before downloading its files." },
-          HttpStatusCodes.FORBIDDEN
-        );
-      }
-
-      if (
-        !row.track.downloadsRequirePurchase &&
-        row.track.downloadsRequireFirstPlay &&
-        !(await hasPlayedTrackOnce({ db, trackId, userId: user.id }))
-      ) {
-        return c.json(
-          { message: "Play this track once before downloading its files." },
+          { message: messageByReason[downloadAccess.reason] },
           HttpStatusCodes.FORBIDDEN
         );
       }
     }
 
     const object = await bucket.get(row.asset.objectKey);
+    const canonicalMediaUrl = (
+      env as unknown as { MEDIA_CANONICAL_URL?: string }
+    ).MEDIA_CANONICAL_URL?.replace(/\/+$/u, "");
+    const canonicalResponse =
+      !object && canonicalMediaUrl
+        ? await fetch(
+            `${canonicalMediaUrl}/${row.asset.objectKey
+              .split("/")
+              .map(encodeURIComponent)
+              .join("/")}`
+          ).catch(() => null)
+        : null;
 
-    if (!object) {
+    if (!(object || canonicalResponse?.ok)) {
       return c.json(
-        { message: "Download file is no longer available." },
+        {
+          message:
+            "The download source is temporarily unavailable. The artist may need to re-upload this file.",
+        },
         HttpStatusCodes.NOT_FOUND
       );
     }
@@ -2273,8 +2291,8 @@ app.openapi(
     const fileName =
       trackAssetFileName(row.asset) ??
       `${uniqueSlug(row.track.title)}.download`;
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
+    const headers = new Headers(canonicalResponse?.headers);
+    object?.writeHttpMetadata(headers);
     headers.set(
       "Content-Disposition",
       `attachment; filename="${quotedDownloadFileName(fileName)}"`
@@ -2284,9 +2302,16 @@ app.openapi(
       row.asset.mimeType ?? "application/octet-stream"
     );
     headers.set("Cache-Control", "private, no-store");
-    headers.set("Content-Length", String(object.size));
+    const contentLength =
+      object?.size ?? canonicalResponse?.headers.get("content-length");
+    if (contentLength) {
+      headers.set("Content-Length", String(contentLength));
+    }
 
-    return new Response(object.body, { headers, status: HttpStatusCodes.OK });
+    return new Response(object?.body ?? canonicalResponse?.body, {
+      headers,
+      status: HttpStatusCodes.OK,
+    });
   }
 );
 
@@ -2550,6 +2575,10 @@ app.openapi(
         }),
         "Pre-save status"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
     },
     tags: ["Tracks"],
   }),
@@ -2559,11 +2588,8 @@ app.openapi(
 
     if (!isAuthenticatedUser(user)) {
       return c.json(
-        {
-          isPreSaved: true,
-          message: "Track pre-saved! We'll notify you on release date.",
-        },
-        HttpStatusCodes.OK
+        { message: "Authentication is required." },
+        HttpStatusCodes.UNAUTHORIZED
       );
     }
 

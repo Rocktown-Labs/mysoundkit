@@ -663,6 +663,91 @@ export const notifyCollaboratorInviteEmail = ({
     template: "collaborator_invite",
   });
 
+export const notifyLiveEventScheduledEmail = async ({
+  eventId,
+  eventTitle,
+  eventType,
+  hostName,
+  queue,
+  recipientUserId,
+}: {
+  eventId: string;
+  eventTitle: string;
+  eventType: "battle" | "party" | "stream";
+  hostName: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  recipientUserId: string;
+}) => {
+  const recipient = await getUserRecipient(recipientUserId);
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+  const actionPath =
+    eventType === "party"
+      ? `/live/parties/${eventId}`
+      : eventType === "stream"
+        ? `/live/streams/${eventId}`
+        : `/live/battles/${eventId}`;
+  return enqueueForRecipient({
+    actionPath,
+    body: `${hostName} scheduled ${eventTitle}. Open SoundKit to view the event time and join when it starts.`,
+    ctaLabel: "View event",
+    eyebrow: "Live event scheduled",
+    footerNote: followerFooter,
+    heading: `${hostName} scheduled a live ${eventType}`,
+    idempotencyKey: `live-scheduled/${eventType}/${eventId}/${recipientUserId}`,
+    preference: "followers",
+    previewText: `${eventTitle} is scheduled on SoundKit.`,
+    queue,
+    recipient,
+    subject: `${hostName} scheduled ${eventTitle}`,
+    template: "follower",
+  });
+};
+
+export const notifyArtistReleaseEmail = async ({
+  artistName,
+  contentId,
+  contentTitle,
+  contentType,
+  queue,
+  recipientUserId,
+}: {
+  artistName: string;
+  contentId: string;
+  contentTitle: string;
+  contentType: "project" | "track" | "video";
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  recipientUserId: string;
+}) => {
+  const recipient = await getUserRecipient(recipientUserId);
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  const contentPath =
+    contentType === "project"
+      ? `/projects/${contentId}`
+      : contentType === "video"
+        ? `/videos/${contentId}`
+        : `/tracks/${contentId}`;
+  return enqueueForRecipient({
+    actionPath: contentPath,
+    body: `${artistName} just released ${contentType === "project" ? "a project" : `a ${contentType}`}: ${contentTitle}. Listen or watch it now on SoundKit.`,
+    ctaLabel: contentType === "video" ? "Watch now" : "Listen now",
+    eyebrow: "New release",
+    footerNote: followerFooter,
+    heading: `${artistName} just released ${contentTitle}`,
+    idempotencyKey: `artist-release/${contentType}/${contentId}/${recipientUserId}`,
+    preference: "followers",
+    previewText: `${artistName} just released ${contentTitle}.`,
+    queue,
+    recipient,
+    subject: `New from ${artistName}: ${contentTitle}`,
+    template: "follower",
+  });
+};
+
 export const notifyFollowerEmail = async ({
   artistUserId,
   followerName,

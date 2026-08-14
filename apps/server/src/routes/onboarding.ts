@@ -16,6 +16,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { createPlanCheckout, isFreePlan } from "@/lib/billing";
+import { indexSearchEntity } from "@/lib/audio-processing";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
@@ -283,6 +284,7 @@ app.openapi(
           ...avatar,
           city: body.city,
           displayName: user.name ?? body.username,
+          mediaLayout: body.mediaLayout,
           onboardingCompletedAt: now,
           state: body.state,
           updatedAt: now,
@@ -294,6 +296,7 @@ app.openapi(
             accountType: "artist",
             ...avatar,
             city: body.city,
+            mediaLayout: body.mediaLayout,
             onboardingCompletedAt: now,
             state: body.state,
             updatedAt: now,
@@ -326,6 +329,15 @@ app.openapi(
           },
           target: artistProfiles.userId,
         });
+
+      await indexSearchEntity({
+        entityId: user.id,
+        entityType: "artist",
+        organizationId: workspaceId,
+        text: [user.name, body.username, body.primaryGenre, body.city, body.state]
+          .filter(Boolean)
+          .join("\n"),
+      });
 
       await db
         .delete(artistProfileRoles)
@@ -461,6 +473,7 @@ app.openapi(
           accountType: "fan",
           city: body.city,
           displayName: user.name ?? body.username,
+          mediaLayout: body.mediaLayout,
           onboardingCompletedAt: now,
           state: body.state,
           updatedAt: now,
@@ -471,6 +484,7 @@ app.openapi(
           set: {
             accountType: "fan",
             city: body.city,
+            mediaLayout: body.mediaLayout,
             onboardingCompletedAt: now,
             state: body.state,
             updatedAt: now,

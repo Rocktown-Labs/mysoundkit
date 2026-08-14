@@ -9,9 +9,9 @@ export const premiumPlanCodeForAccount = (
 
 export const accountHomePathForAccount = (
   accountType: SignupAccountType | null | undefined
-): "/dashboard" | "/library/settings" =>
-  accountType === "artist" ? "/dashboard" : "/library/settings";
+): "/" | "/dashboard" => (accountType === "artist" ? "/dashboard" : "/");
 
 export const premiumSuccessPathForAccount = (
   accountType: SignupAccountType | null | undefined
-): "/dashboard" | "/library/settings" => accountHomePathForAccount(accountType);
+): "/" | "/dashboard/career/payments" =>
+  accountType === "artist" ? "/dashboard/career/payments" : "/";

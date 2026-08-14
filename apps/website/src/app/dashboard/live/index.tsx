@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
@@ -37,9 +38,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 import { musicGenres } from "@/lib/music-genres";
 import {
-  useArtistsQuery,
   useBattleChallengesQuery,
   useBattlesQuery,
   useCreateBattleChallengeMutation,
@@ -74,14 +75,26 @@ function BattleHubPage() {
   const [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre);
   const [selectedFormat, setSelectedFormat] = useState<string>("best_of_5");
   const [targetUsername, setTargetUsername] = useState<string>("");
-  const [opponentMode, setOpponentMode] = useState<"direct" | "match">(
-    "direct"
-  );
-  const artistsQuery = useArtistsQuery({
-    genre: selectedGenre,
-    limit: "8",
-    region: "all",
-    regionType: "global",
+  const artistsQuery = useQuery({
+    enabled: targetUsername.trim().length > 0,
+    queryFn: async () => {
+      const query = new URLSearchParams({
+        genre: selectedGenre,
+        q: targetUsername.trim(),
+      });
+      const response = await fetch(`${API_V1_URL}/battles/opponents?${query}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Could not search battle opponents.");
+      }
+      return (await response.json()) as {
+        genre: string | null;
+        name: string;
+        username: string;
+      }[];
+    },
+    queryKey: ["battle-opponents", selectedGenre, targetUsername.trim()],
   });
 
   useEffect(() => {
@@ -91,11 +104,7 @@ function BattleHubPage() {
   const battles = battlesQuery.data ?? [];
   const incomingRequests = battleChallengesQuery.data?.incoming ?? [];
   const outgoingRequests = battleChallengesQuery.data?.outgoing ?? [];
-  const candidateArtists = (artistsQuery.data ?? []).filter(
-    (artist) =>
-      Boolean(artist.username) &&
-      artist.username !== meQuery.data?.user.username
-  );
+  const candidateArtists = artistsQuery.data ?? [];
   const liveBattles = battles.filter((battle) => battle.status === "live");
   const scheduledBattles = battles.filter(
     (battle) => battle.status === "scheduled"
@@ -145,8 +154,22 @@ function BattleHubPage() {
       return;
     }
 
-    const proposedDate = String(form.get("proposedDate") ?? "");
-    const proposedTimeLabel = String(form.get("proposedTimeLabel") ?? "");
+    const proposedDateValue = String(form.get("proposedDate") ?? "");
+    const proposedTimeValue = String(form.get("proposedTime") ?? "");
+    const proposedDateTime =
+      proposedDateValue && proposedTimeValue
+        ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
+        : null;
+    const proposedDate =
+      proposedDateTime && !Number.isNaN(proposedDateTime.getTime())
+        ? proposedDateTime.toISOString()
+        : "";
+    const proposedTimeLabel = proposedDateTime
+      ? proposedDateTime.toLocaleString(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })
+      : "";
     const message = String(form.get("message") ?? "");
 
     createChallenge.mutate(
@@ -496,81 +519,48 @@ function BattleHubPage() {
                     </Select>
                   </div>
 
-                  {/* Opponent Selection Mode */}
                   <div className="space-y-2 pt-2">
-                    <Label>Opponent Selection</Label>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={
-                          opponentMode === "direct" ? "default" : "outline"
-                        }
-                        onClick={() => setOpponentMode("direct")}
-                      >
-                        By Username
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={
-                          opponentMode === "match" ? "default" : "outline"
-                        }
-                        onClick={() => setOpponentMode("match")}
-                      >
-                        Open Artists
-                      </Button>
+                    <Label htmlFor="opponentUsername">Opponent</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        autoComplete="off"
+                        className="pl-9"
+                        id="opponentUsername"
+                        name="opponentUsername"
+                        onChange={(event) => setTargetUsername(event.target.value)}
+                        placeholder="Type an artist name or @handle"
+                        value={targetUsername}
+                      />
                     </div>
-
-                    {opponentMode === "direct" ? (
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          id="opponentUsername"
-                          name="opponentUsername"
-                          className="pl-9"
-                          placeholder="Search @username"
-                          value={targetUsername}
-                          onChange={(e) => setTargetUsername(e.target.value)}
-                        />
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-2 bg-muted/20">
-                        {artistsQuery.isLoading && (
-                          <p className="p-2 text-muted-foreground text-xs">
-                            Loading artists in this genre...
-                          </p>
-                        )}
-                        {!artistsQuery.isLoading &&
-                          candidateArtists.length === 0 && (
-                            <p className="p-2 text-muted-foreground text-xs">
-                              No artists found for this genre yet. Search by
-                              username instead.
-                            </p>
-                          )}
+                    {targetUsername.trim() ? (
+                      <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border bg-muted/20 p-2">
+                        {artistsQuery.isLoading ? (
+                          <p className="p-2 text-muted-foreground text-xs">Searching Premium artists…</p>
+                        ) : null}
                         {candidateArtists.map((artist) => (
-                          <div
-                            key={artist.username}
-                            onClick={() =>
-                              setTargetUsername(artist.username ?? "")
-                            }
-                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs ${
+                          <button
+                            className={`flex w-full items-center justify-between rounded-md p-2 text-left text-xs transition-colors ${
                               targetUsername === artist.username
-                                ? "bg-primary/20 border border-primary/40 font-medium"
+                                ? "border border-primary/40 bg-primary/20"
                                 : "hover:bg-accent"
                             }`}
+                            key={artist.username}
+                            onClick={() => setTargetUsername(artist.username ?? "")}
+                            type="button"
                           >
-                            <div>
-                              <p className="font-semibold">{artist.name}</p>
-                              <p className="text-muted-foreground">
-                                @{artist.username} &bull; {artist.genre}
-                              </p>
-                            </div>
-                            <Badge variant="outline">Same genre</Badge>
-                          </div>
+                            <span>
+                              <span className="block font-semibold">{artist.name}</span>
+                              <span className="text-muted-foreground">@{artist.username} · {artist.genre}</span>
+                            </span>
+                            <Badge variant="outline">Select</Badge>
+                          </button>
                         ))}
+                        {!artistsQuery.isLoading && candidateArtists.length === 0 ? (
+                          <p className="p-2 text-muted-foreground text-xs">No matching artists found.</p>
+                        ) : null}
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -579,15 +569,17 @@ function BattleHubPage() {
                       <Input
                         id="proposedDate"
                         name="proposedDate"
+                        required
                         type="date"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="proposedTimeLabel">Time</Label>
+                      <Label htmlFor="proposedTime">Time</Label>
                       <Input
-                        id="proposedTimeLabel"
-                        name="proposedTimeLabel"
-                        placeholder="8:00 PM ET"
+                        id="proposedTime"
+                        name="proposedTime"
+                        required
+                        type="time"
                       />
                     </div>
                   </div>

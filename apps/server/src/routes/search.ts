@@ -14,6 +14,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
+import { searchSemanticEntities } from "@/lib/audio-processing";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleArtists, sampleProjects, sampleTracks } from "@/lib/sample-data";
 import {
@@ -23,6 +24,15 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.get("/semantic", async (c) => {
+  const q = c.req.query("q")?.trim() ?? "";
+  const limit = Number(c.req.query("limit") ?? 12);
+  return c.json(
+    await searchSemanticEntities({ limit: Number.isFinite(limit) ? limit : 12, text: q }),
+    HttpStatusCodes.OK
+  );
+});
 
 const normalizeState = (state: string | undefined) => {
   const value = state?.trim();

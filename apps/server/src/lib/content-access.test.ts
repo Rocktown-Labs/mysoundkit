@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isExclusivityActive,
+  resolveDownloadAccess,
   resolveListeningAccess,
 } from "@/lib/content-access";
 
@@ -63,6 +64,52 @@ describe("resolveListeningAccess", () => {
         policy: protectedPolicy,
       })
     ).toEqual({ canListen: true, isPreview: false, reason: "public" });
+  });
+});
+
+describe("resolveDownloadAccess", () => {
+  const freePolicy = {
+    downloadsAllowed: true,
+    downloadsRequireFirstPlay: true,
+    downloadsRequirePurchase: false,
+    isForSale: false,
+  };
+
+  it("allows free downloads after the first play", () => {
+    expect(
+      resolveDownloadAccess({
+        hasPlayed: true,
+        hasPurchase: false,
+        isPremium: false,
+        policy: freePolicy,
+      })
+    ).toEqual({ allowed: true, reason: "free" });
+  });
+
+  it("requires first play for free downloads", () => {
+    expect(
+      resolveDownloadAccess({
+        hasPlayed: false,
+        hasPurchase: false,
+        isPremium: false,
+        policy: freePolicy,
+      })
+    ).toEqual({ allowed: false, reason: "first_play_required" });
+  });
+
+  it("requires purchase for monetized downloads", () => {
+    expect(
+      resolveDownloadAccess({
+        hasPlayed: true,
+        hasPurchase: false,
+        isPremium: false,
+        policy: {
+          ...freePolicy,
+          downloadsRequirePurchase: true,
+          isForSale: true,
+        },
+      })
+    ).toEqual({ allowed: false, reason: "purchase_required" });
   });
 });
 

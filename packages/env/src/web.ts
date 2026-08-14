@@ -8,6 +8,7 @@ export const env = createEnv({
     VITE_RADAR_PUBLISHABLE_KEY: z.string().optional(),
     VITE_SENTRY_DSN: z.url().optional(),
     VITE_SERVER_URL: z.url(),
+    VITE_STRIPE_PUBLISHABLE_KEY: z.string().startsWith("pk_").optional(),
   },
   clientPrefix: "VITE_",
   emptyStringAsUndefined: true,

@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import {
   useDeleteProjectMutation,
+  useMeQuery,
   useProjectsQuery,
 } from "@/lib/soundkit-api-hooks";
 
@@ -57,6 +58,7 @@ const getStatusClassName = (status: string) => {
 function ProjectsPage() {
   const { data: projects = [], error, isLoading } = useProjectsQuery();
   const deleteProjectMutation = useDeleteProjectMutation();
+  const meQuery = useMeQuery();
   const [deleteCandidate, setDeleteCandidate] = useState<{
     id: string;
     title: string;
@@ -123,7 +125,13 @@ function ProjectsPage() {
       <StatsGrid stats={projectStats} />
 
       {/* Project Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div
+        className={
+          meQuery.data?.user.mediaLayout === "list"
+            ? "grid grid-cols-1 gap-2"
+            : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+        }
+      >
         {projects.map((project) => (
           <Card
             key={project.id}

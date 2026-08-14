@@ -1,5 +1,6 @@
 "use client";
 
+import { useUploadFiles } from "@better-upload/client";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Check,
@@ -64,13 +65,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
   useAdCampaignsQuery,
   useAdWalletQuery,
   useBillingCheckoutMutation,
   useCreateAdCampaignMutation,
+  useTracksQuery,
   type AdBillingType,
-  type AdCampaign,
+  type AdCampaignSummary,
   type AdCreativeFormat,
   type AdPlacement,
   type AdTarget,
@@ -144,7 +147,8 @@ function DashboardAdsPage() {
   const campaigns = campaignsQuery.data ?? [];
   const wallet = walletQuery.data;
 
-  const [selectedCampaign, setSelectedCampaign] = useState<AdCampaign | null>(null);
+  const [selectedCampaign, setSelectedCampaign] =
+    useState<AdCampaignSummary | null>(null);
 
   const handleTabChange = (val: string) => {
     navigate({ search: { tab: val as AdsSearch["tab"] } });
@@ -157,8 +161,8 @@ function DashboardAdsPage() {
         planCode: "artist_pro",
         successUrl: window.location.href,
       });
-      if (result?.url) {
-        window.location.href = result.url;
+      if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
       }
     } catch {
       toast({
@@ -231,7 +235,10 @@ function DashboardAdsPage() {
               <CardContent className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-emerald-400">
-                    {wallet?.balanceLabel ?? "$0.00"}
+                    {new Intl.NumberFormat("en-US", {
+                      currency: wallet?.currency ?? "USD",
+                      style: "currency",
+                    }).format((wallet?.balanceCents ?? 0) / 100)}
                   </div>
                   <p className="text-xs text-muted-foreground">Prepaid ad balance</p>
                 </div>
@@ -339,26 +346,33 @@ function DashboardAdsPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-lg border p-4 flex flex-col justify-between space-y-3 bg-card">
-                  <div className="flex items-center gap-3">
-                    <Radio className="size-8 text-primary" />
-                    <div>
-                      <p className="font-semibold text-sm">Official Pre-Roll Audio</p>
-                      <p className="text-xs text-muted-foreground">30-second HQ MP3</p>
+                {campaigns.map((campaign) => (
+                  <div
+                    className="space-y-3 rounded-lg border bg-card p-4"
+                    key={`creative-${campaign.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate font-semibold text-sm">{campaign.name}</p>
+                      <Badge variant="outline">{campaign.creativeFormat}</Badge>
                     </div>
+                    {campaign.creativeFormat === "audio" ? (
+                      <audio className="w-full" controls src={campaign.creativeUrl} />
+                    ) : campaign.creativeFormat === "video" ? (
+                      <video className="aspect-video w-full rounded object-cover" controls src={campaign.creativeUrl} />
+                    ) : (
+                      <AppImage
+                        alt={campaign.name}
+                        className="aspect-video w-full rounded object-cover"
+                        height={180}
+                        src={campaign.creativeImageUrl ?? campaign.creativeUrl}
+                        width={320}
+                      />
+                    )}
                   </div>
-                  <audio controls className="w-full h-8" src="/sample-audio.mp3" />
-                </div>
-                <div className="rounded-lg border p-4 flex flex-col justify-between space-y-3 bg-card">
-                  <div className="flex items-center gap-3">
-                    <PlayCircle className="size-8 text-primary" />
-                    <div>
-                      <p className="font-semibold text-sm">HD Video Pre-Roll</p>
-                      <p className="text-xs text-muted-foreground">1080p MP4 Commercial</p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="w-fit">Attached Asset</Badge>
-                </div>
+                ))}
+                {campaigns.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No uploaded ad creatives yet.</p>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -381,7 +395,10 @@ function DashboardAdsPage() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase">Current Available Balance</p>
                   <p className="text-4xl font-bold text-emerald-400 mt-1">
-                    {wallet?.balanceLabel ?? "$0.00"}
+                    {new Intl.NumberFormat("en-US", {
+                      currency: wallet?.currency ?? "USD",
+                      style: "currency",
+                    }).format((wallet?.balanceCents ?? 0) / 100)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -424,7 +441,7 @@ function DashboardAdsPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Format:</span>
-                  <p className="font-semibold">{selectedCampaign.creative.format}</p>
+                  <p className="font-semibold">{selectedCampaign.creativeFormat}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Total Impressions:</span>
@@ -463,27 +480,65 @@ function AccordionBuilderForm({
   onCreate: (body: CreateAdCampaignBody) => void;
 }) {
   const [activeStep, setActiveStep] = useState<string>("step-1");
+  const tracksQuery = useTracksQuery();
+  const catalogTracks = tracksQuery.data ?? [];
 
   // Form State
   const [name, setName] = useState("");
-  const [placement, setPlacement] = useState<AdPlacement>("pre_roll_audio");
-  const [format, setFormat] = useState<AdCreativeFormat>("audio_preroll");
+  const [placement, setPlacement] = useState<AdPlacement>("audio_preroll");
+  const [format, setFormat] = useState<AdCreativeFormat>("audio");
   const [destinationUrl, setDestinationUrl] = useState("https://mysoundkit.com");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState("");
+  const [creativeUrl, setCreativeUrl] = useState("");
 
   const [mapScope, setMapScope] = useState<MapScope>("north-america");
   const [selectedCodes, setSelectedCodes] = useState<string[]>(["US-AR"]);
 
-  const [billingType, setBillingType] = useState<AdBillingType>("upfront");
+  const [billingType, setBillingType] =
+    useState<AdBillingType>("prepaid_wallet");
   const [budgetDollars, setBudgetDollars] = useState(50);
+  const { isPending: isUploading, upload } = useUploadFiles({
+    api: MEDIA_UPLOAD_URL,
+    credentials: "include",
+    onError: () => {
+      setCreativeUrl("");
+    },
+    onUploadComplete: ({ files }) => {
+      const uploadedFile = files[0];
+      if (uploadedFile) {
+        setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
+      }
+    },
+  });
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setAttachedFile(file);
-      setMediaPreviewUrl(URL.createObjectURL(file));
+    if (!file) {
+      return;
     }
+    const maxBytes = file.type.startsWith("image/")
+      ? 10 * 1024 * 1024
+      : 100 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return;
+    }
+    setAttachedFile(file);
+    setMediaPreviewUrl(URL.createObjectURL(file));
+    const nextFormat = file.type.startsWith("video/")
+      ? "video"
+      : file.type.startsWith("image/")
+        ? "image"
+        : "audio";
+    setFormat(nextFormat);
+    setPlacement(
+      nextFormat === "audio"
+        ? "audio_preroll"
+        : nextFormat === "video"
+          ? "video_preroll"
+          : "video_overlay"
+    );
+    void upload([file]);
   };
 
   const handleMacroSelect = (group: "africa" | "all" | "europe" | "north-america") => {
@@ -507,16 +562,18 @@ function AccordionBuilderForm({
 
     onCreate({
       billingType,
-      budgetCents: budgetDollars * 100,
-      creative: {
-        ctaText: "Listen Now",
-        destinationUrl,
-        format,
-        mediaUrl: mediaPreviewUrl || "https://media.mysoundkit.com/ads/default-preroll.mp3",
-      },
+      clickthroughUrl: destinationUrl,
+      creativeFormat: format,
+      creativeImageUrl: format === "image" ? creativeUrl : undefined,
+      creativeUrl,
+      dailyBudgetCents: budgetDollars * 100,
+      dailyImpressionCap: 1000,
       name,
       placement,
-      targets: targets.length > 0 ? targets : [{ targetCode: "US-AR", targetType: "state" }],
+      targets:
+        targets.length > 0
+          ? targets
+          : [{ targetCode: "US-AR", targetType: "state" }],
     });
   };
 
@@ -553,12 +610,43 @@ function AccordionBuilderForm({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pre_roll_audio">Audio Pre-Roll (In-Stream)</SelectItem>
-                      <SelectItem value="pre_roll_video">Video Pre-Roll</SelectItem>
-                      <SelectItem value="banner">Display Banner</SelectItem>
+                      <SelectItem value="audio_preroll">Audio Pre-Roll</SelectItem>
+                      <SelectItem value="video_preroll">Video Pre-Roll</SelectItem>
+                      <SelectItem value="video_overlay">Display Overlay</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="catalog-ad-track">Promote an uploaded song</Label>
+                <Select
+                  onValueChange={(trackId) => {
+                    const track = catalogTracks.find((item) => item.id === trackId);
+                    if (!track) {
+                      return;
+                    }
+                    setDestinationUrl(`${window.location.origin}/tracks/${track.id}`);
+                    if (track.coverArtUrl) {
+                      setCreativeUrl(track.coverArtUrl);
+                      setMediaPreviewUrl(track.coverArtUrl);
+                      setFormat("image");
+                      setPlacement("video_overlay");
+                    }
+                    setName((current) => current || `Promote ${track.title}`);
+                  }}
+                >
+                  <SelectTrigger id="catalog-ad-track">
+                    <SelectValue placeholder="Select one of your tracks (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {catalogTracks.map((track) => (
+                      <SelectItem key={track.id} value={track.id}>
+                        {track.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* File Attachment Upload */}
@@ -567,6 +655,17 @@ function AccordionBuilderForm({
                 <div className="flex items-center gap-3">
                   <Input type="file" accept="audio/*,video/*,image/*" onChange={handleFileSelected} />
                 </div>
+                {mediaPreviewUrl ? (
+                  <div className="mt-3 overflow-hidden rounded-lg border bg-background p-3">
+                    {format === "audio" ? (
+                      <audio className="w-full" controls src={mediaPreviewUrl} />
+                    ) : format === "video" ? (
+                      <video className="aspect-video w-full rounded object-cover" controls src={mediaPreviewUrl} />
+                    ) : (
+                      <img alt="Ad creative preview" className="max-h-64 w-full rounded object-contain" src={mediaPreviewUrl} />
+                    )}
+                  </div>
+                ) : null}
                 {attachedFile && (
                   <div className="mt-2 p-2 rounded bg-accent/40 text-xs font-semibold flex items-center justify-between">
                     <span>Attached: {attachedFile.name} ({(attachedFile.size / 1024 / 1024).toFixed(2)} MB)</span>
@@ -647,8 +746,8 @@ function AccordionBuilderForm({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="upfront">Upfront Prepaid Balance</SelectItem>
-                      <SelectItem value="daily">Daily Impression Billing</SelectItem>
+                      <SelectItem value="prepaid_wallet">Prepaid Wallet</SelectItem>
+                      <SelectItem value="upfront_recurring">Recurring Billing</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -665,10 +764,14 @@ function AccordionBuilderForm({
               <Button
                 type="button"
                 className="w-full font-bold text-base py-6"
-                disabled={isPending || !name.trim()}
+                disabled={isPending || isUploading || !name.trim() || !creativeUrl}
                 onClick={handleSubmit}
               >
-                {isPending ? "Launching Campaign..." : "Launch Ad Campaign"}
+                {isUploading
+                  ? "Uploading Creative..."
+                  : isPending
+                    ? "Launching Campaign..."
+                    : "Launch Ad Campaign"}
               </Button>
             </AccordionContent>
           </AccordionItem>

@@ -41,6 +41,7 @@ import { toast } from "@/components/ui/use-toast";
 import { downloadFileFromApi } from "@/lib/api";
 import {
   useDeleteTrackMutation,
+  useMeQuery,
   useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 import { getDashboardTracks } from "@/lib/soundkit.functions";
@@ -71,6 +72,7 @@ function TracksPage() {
   const initialTracks = Route.useLoaderData();
   const { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks);
   const deleteTrackMutation = useDeleteTrackMutation();
+  const meQuery = useMeQuery();
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const [deleteCandidate, setDeleteCandidate] = useState<{
     id: string;
@@ -209,7 +211,13 @@ function TracksPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={
+          meQuery.data?.user.mediaLayout === "list"
+            ? "grid grid-cols-1 gap-2"
+            : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+        }
+      >
         {tracks.map((track) => (
           <Card
             className="group overflow-hidden border-border/40 bg-card/50 backdrop-blur-sm transition-all hover:border-primary/50"

@@ -3,55 +3,93 @@ import { sellerAccounts } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { and, eq, or } from "drizzle-orm";
 
+import { stripeRequest } from "@/lib/stripe";
 import type { AuthenticatedUser } from "@/lib/types";
 
-const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
-
-const stripeFetch = async <T>({
-  body,
-  method = "POST",
-  path,
-}: {
-  body?: URLSearchParams;
-  method?: "GET" | "POST";
-  path: string;
-}) => {
-  const secretKey = getEnvValue("STRIPE_SECRET_KEY");
-
-  if (!secretKey) {
-    return null;
-  }
-
-  const response = await fetch(`https://api.stripe.com/v1${path}`, {
+const STRIPE_V2_VERSION = "2026-07-29.dahlia",
+  getEnvValue = (key: string) =>
+    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  stripeV2Request = async <T>({
     body,
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    method,
-  }).catch(() => null);
+    method = "POST",
+    path,
+  }: {
+    body?: Record<string, unknown>;
+    method?: "GET" | "POST";
+    path: string;
+  }): Promise<T | null> => {
+    const secretKey = getEnvValue("STRIPE_SECRET_KEY");
+    if (!secretKey) {
+      return null;
+    }
 
-  if (!(response && response.ok)) {
-    return null;
-  }
+    const response = await fetch(`https://api.stripe.com/v2${path}`, {
+      body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+        "Stripe-Version": STRIPE_V2_VERSION,
+      },
+      method,
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 300);
+      throw new Error(
+        `Stripe Connect request failed (${response.status}): ${detail}`
+      );
+    }
+    return (await response.json()) as T;
+  };
 
-  return (await response.json()) as T;
-};
-
-interface StripeAccountResponse {
-  charges_enabled?: boolean;
-  details_submitted?: boolean;
+interface StripeV2AccountResponse {
+  configuration?: {
+    recipient?: {
+      capabilities?: {
+        stripe_balance?: {
+          stripe_transfers?: {
+            status?: string;
+            status_details?: { code?: string }[];
+          };
+        };
+      };
+    };
+  };
   id: string;
-  payouts_enabled?: boolean;
   requirements?: {
-    currently_due?: string[];
+    entries?: { field?: string; requested_reasons?: { code?: string }[] }[];
   };
 }
 
-interface StripeAccountLinkResponse {
+interface StripeV2AccountLinkResponse {
   url: string;
 }
+
+const serializeAccountStatus = (account: StripeV2AccountResponse) => {
+  const transferCapability =
+      account.configuration?.recipient?.capabilities?.stripe_balance
+        ?.stripe_transfers,
+    transfersActive = transferCapability?.status === "active",
+    requirementsDue = [
+      ...(account.requirements?.entries
+        ?.map((entry) => entry.field)
+        .filter(Boolean) ?? []),
+      ...(transferCapability?.status_details
+        ?.map((detail) => detail.code)
+        .filter(Boolean) ?? []),
+    ] as string[];
+
+  return {
+    chargesEnabled: transfersActive,
+    detailsSubmitted: requirementsDue.length === 0,
+    onboardingStatus: transfersActive
+      ? ("enabled" as const)
+      : (requirementsDue.length > 0
+        ? ("restricted" as const)
+        : ("pending" as const)),
+    payoutsEnabled: transfersActive,
+    requirementsDue,
+  };
+};
 
 export const getSellerAccount = async ({
   organizationId,
@@ -64,24 +102,53 @@ export const getSellerAccount = async ({
     return null;
   }
 
-  const db = createDb();
-  const [seller] = await db
-    .select()
-    .from(sellerAccounts)
-    .where(
-      organizationId
-        ? or(
-            eq(sellerAccounts.organizationId, organizationId),
-            and(
-              eq(sellerAccounts.userId, userId),
-              eq(sellerAccounts.organizationId, organizationId)
+  const db = createDb(),
+    [seller] = await db
+      .select()
+      .from(sellerAccounts)
+      .where(
+        organizationId
+          ? or(
+              eq(sellerAccounts.organizationId, organizationId),
+              and(
+                eq(sellerAccounts.userId, userId),
+                eq(sellerAccounts.organizationId, organizationId)
+              )
             )
-          )
-        : eq(sellerAccounts.userId, userId)
-    )
-    .limit(1);
+          : eq(sellerAccounts.userId, userId)
+      )
+      .limit(1);
 
   return seller ?? null;
+};
+
+export const refreshSellerAccount = async ({
+  organizationId,
+  userId,
+}: {
+  organizationId: string | null;
+  userId: string;
+}) => {
+  const seller = await getSellerAccount({ organizationId, userId });
+  if (!seller) {
+    return null;
+  }
+
+  const stripeAccount = await stripeV2Request<StripeV2AccountResponse>({
+    method: "GET",
+    path: `/core/accounts/${encodeURIComponent(seller.stripeAccountId)}?include%5B%5D=configuration.recipient&include%5B%5D=requirements`,
+  }).catch(() => null);
+  if (!stripeAccount) {
+    return seller;
+  }
+
+  const status = serializeAccountStatus(stripeAccount),
+    [updated] = await createDb()
+      .update(sellerAccounts)
+      .set(status)
+      .where(eq(sellerAccounts.id, seller.id))
+      .returning();
+  return updated ?? seller;
 };
 
 export const isSellerEnabled = async ({
@@ -92,8 +159,7 @@ export const isSellerEnabled = async ({
   userId: string;
 }) => {
   try {
-    const seller = await getSellerAccount({ organizationId, userId });
-
+    const seller = await refreshSellerAccount({ organizationId, userId });
     return Boolean(
       seller?.onboardingStatus === "enabled" && seller.chargesEnabled
     );
@@ -122,60 +188,72 @@ export const createSellerAccountLink = async ({
     };
   }
 
-  const db = createDb();
-  const existingSeller = await getSellerAccount({
-    organizationId,
-    userId: user.id,
-  });
-
+  const db = createDb(),
+    existingSeller = await getSellerAccount({
+      organizationId,
+      userId: user.id,
+    });
   let stripeAccountId = existingSeller?.stripeAccountId ?? null;
 
   if (!stripeAccountId) {
-    const account = await stripeFetch<StripeAccountResponse>({
-      body: new URLSearchParams({
-        "business_profile[url]": "https://mysoundkit.com",
-        "capabilities[card_payments][requested]": "true",
-        "capabilities[transfers][requested]": "true",
-        country: "US",
-        email: user.email ?? "",
-        type: "express",
-      }),
-      path: "/accounts",
-    });
+    const account = await stripeV2Request<StripeV2AccountResponse>({
+      body: {
+        configuration: {
+          recipient: {
+            capabilities: {
+              stripe_balance: { stripe_transfers: { requested: true } },
+            },
+          },
+        },
+        contact_email: user.email ?? undefined,
+        dashboard: "express",
+        defaults: {
+          responsibilities: {
+            fees_collector: "application",
+            losses_collector: "application",
+          },
+        },
+        display_name: user.name ?? "SoundKit artist",
+        identity: { country: "us" },
+        include: ["configuration.recipient", "identity", "requirements"],
+      },
+      path: "/core/accounts",
+    }).catch(() => null);
 
     if (!account) {
       return {
         accountLinkUrl: null,
-        message: "Stripe Connect credentials are not configured yet.",
+        message: "Stripe Connect account creation is not configured yet.",
         onboardingStatus: existingSeller?.onboardingStatus ?? "not_started",
         setupRequired: true,
       };
     }
 
     stripeAccountId = account.id;
-
     await db.insert(sellerAccounts).values({
-      chargesEnabled: Boolean(account.charges_enabled),
-      detailsSubmitted: Boolean(account.details_submitted),
+      ...serializeAccountStatus(account),
       id: crypto.randomUUID(),
-      onboardingStatus: "pending",
+      metadata: { stripeAccountApi: "v2" },
       organizationId,
-      payoutsEnabled: Boolean(account.payouts_enabled),
-      requirementsDue: account.requirements?.currently_due ?? [],
       stripeAccountId,
       userId: user.id,
     });
   }
 
-  const accountLink = await stripeFetch<StripeAccountLinkResponse>({
-    body: new URLSearchParams({
+  const accountLink = await stripeV2Request<StripeV2AccountLinkResponse>({
+    body: {
       account: stripeAccountId,
-      refresh_url: refreshUrl,
-      return_url: returnUrl,
-      type: "account_onboarding",
-    }),
-    path: "/account_links",
-  });
+      use_case: {
+        account_onboarding: {
+          configurations: ["recipient"],
+          refresh_url: refreshUrl,
+          return_url: returnUrl,
+        },
+        type: "account_onboarding",
+      },
+    },
+    path: "/core/account_links",
+  }).catch(() => null);
 
   if (!accountLink) {
     return {
@@ -191,4 +269,36 @@ export const createSellerAccountLink = async ({
     onboardingStatus: existingSeller?.onboardingStatus ?? "pending",
     setupRequired: false,
   };
+};
+
+export const createSellerAccountSession = async ({
+  organizationId,
+  userId,
+}: {
+  organizationId: string | null;
+  userId: string;
+}) => {
+  const seller = await refreshSellerAccount({ organizationId, userId });
+  if (!seller?.stripeAccountId) {
+    return null;
+  }
+
+  const params = new URLSearchParams();
+  params.set("account", seller.stripeAccountId);
+  for (const component of [
+    "account_management",
+    "notification_banner",
+    "payments",
+    "payouts",
+    "payout_reconciliation_report",
+  ]) {
+    params.set(`components[${component}][enabled]`, "true");
+  }
+  params.set("components[payments][features][dispute_management]", "true");
+  params.set("components[payments][features][refund_management]", "true");
+
+  return stripeRequest<{ client_secret: string }>({
+    params,
+    path: "/account_sessions",
+  });
 };

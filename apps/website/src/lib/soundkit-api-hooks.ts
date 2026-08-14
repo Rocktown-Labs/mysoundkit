@@ -1105,6 +1105,7 @@ export const usePublicLiveExperiencesQuery = (kind: "party" | "stream") =>
   useQuery({
     queryFn: async () => rpcJson(await liveExperiencesGet({ query: { kind } })),
     queryKey: ["live", "experiences", kind],
+    refetchInterval: 10_000,
   });
 
 export const useBattleChallengesQuery = () =>
@@ -1164,7 +1165,20 @@ export const useToggleSaveTrackMutation = () => {
   return useMutation({
     mutationFn: async (trackId: string) =>
       rpcJson(await librarySaveTrackPost({ param: { trackId } })),
-    onSuccess: () => {
+    onMutate: async (trackId) => {
+      await queryClient.cancelQueries({
+        queryKey: soundkitQueryKeys.librarySaved,
+      });
+      return { trackId };
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData<LibrarySavedTrack[]>(
+        soundkitQueryKeys.librarySaved,
+        (savedTracks = []) =>
+          result.saved
+            ? savedTracks
+            : savedTracks.filter((track) => track.id !== result.trackId)
+      );
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.librarySaved,
       });
@@ -1181,7 +1195,12 @@ export const useRemoveSavedTrackMutation = () => {
   return useMutation({
     mutationFn: async (trackId: string) =>
       rpcJson(await librarySaveTrackDelete({ param: { trackId } })),
-    onSuccess: () => {
+    onSuccess: (_, trackId) => {
+      queryClient.setQueryData<LibrarySavedTrack[]>(
+        soundkitQueryKeys.librarySaved,
+        (savedTracks = []) =>
+          savedTracks.filter((track) => track.id !== trackId)
+      );
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.librarySaved,
       });

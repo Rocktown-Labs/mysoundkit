@@ -2,13 +2,17 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistFollows,
   genres,
+  listeningParties,
   projectAssets,
   projectCollaborators,
+  projectPreSaves,
   projectTracks,
   projects,
   trackAssets,
   tracks,
+  userFollows,
   userNotifications,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
@@ -22,10 +26,15 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
-import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
+import {
+  notifyCollaboratorInviteEmail,
+  notifyLiveEventScheduledEmail,
+} from "@/lib/email-events";
+import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
+  resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
@@ -47,6 +56,21 @@ import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.post("/:projectId/pre-save", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json({ message: "Authentication is required." }, 401);
+  }
+  const projectId = c.req.param("projectId");
+  if (isDatabaseConfigured()) {
+    await createDb().insert(projectPreSaves).values({
+      projectId,
+      userId: user.id,
+    }).onConflictDoNothing();
+  }
+  return c.json({ isPreSaved: true, projectId }, 200);
+});
 
 const publicProjectExploreQuerySchema = publicExploreQuerySchema.extend({
   q: z.string().trim().max(120).optional(),
@@ -400,6 +424,11 @@ app.openapi(
       const projectId = crypto.randomUUID();
       const now = new Date();
       const hasNewTracks = body.newTracks.length > 0;
+      const projectGenreId = body.genre
+        ? await ensureGenreId(body.genre)
+        : (body.newTracks[0]?.genre
+          ? await ensureGenreId(body.newTracks[0].genre)
+          : null);
       const projectStatus =
         body.status ?? (body.releaseDate ? "scheduled" : "draft");
       const [project] = await db
@@ -410,6 +439,7 @@ app.openapi(
           exclusiveUntil: body.exclusiveUntil
             ? new Date(body.exclusiveUntil)
             : null,
+          genreId: projectGenreId,
           id: projectId,
           isForSale: body.isForSale,
           isPublic: body.isPublic && !hasNewTracks,
@@ -426,6 +456,13 @@ app.openapi(
         })
         .returning();
 
+      await indexSearchEntity({
+        entityId: projectId,
+        entityType: "project",
+        organizationId,
+        text: [body.title, body.description, body.genre].filter(Boolean).join("\n"),
+      });
+
       const existingTrackIds = body.trackIds;
       const newTrackIds = [];
 
@@ -434,6 +471,9 @@ app.openapi(
         const genreId = await ensureGenreId(newTrack.genre);
         await db.insert(tracks).values({
           catalogItemType: "single",
+          downloadsAllowed: newTrack.downloadsAllowed,
+          downloadsRequireFirstPlay: newTrack.downloadsRequireFirstPlay,
+          downloadsRequirePurchase: newTrack.downloadsRequirePurchase,
           exclusiveUntil: body.exclusiveUntil
             ? new Date(body.exclusiveUntil)
             : null,
@@ -577,6 +617,77 @@ app.openapi(
         throw new Error("Failed to create project.");
       }
 
+      if (
+        projectStatus === "scheduled" &&
+        project.projectType !== "single" &&
+        project.releaseDate &&
+        project.releaseDate.getTime() > Date.now()
+      ) {
+        const entitlements = await resolveEntitlements({
+          session: isAuthenticatedSession(session) ? session : null,
+          user,
+        });
+        if (entitlements.isPremium) {
+          const [releaseParty] = await db
+            .insert(listeningParties)
+            .values({
+              description: `Join ${user.name ?? "the artist"} for the first listen.`,
+              genreId: projectGenreId,
+              hostUserId: user.id,
+              id: crypto.randomUUID(),
+              liveRoomId: crypto.randomUUID(),
+              organizationId,
+              playbackMode: "programmed_release",
+              projectId,
+              scheduledStartAt: project.releaseDate,
+              title: `${project.title} Release Party`,
+            })
+            .returning();
+          if (releaseParty) {
+            const [artistFollowers, profileFollowers] = await Promise.all([
+              db
+                .select({ userId: artistFollows.followerUserId })
+                .from(artistFollows)
+                .where(eq(artistFollows.artistUserId, user.id)),
+              db
+                .select({ userId: userFollows.followerUserId })
+                .from(userFollows)
+                .where(eq(userFollows.targetUserId, user.id)),
+            ]);
+            const followerIds = [
+              ...new Set([
+                ...artistFollowers.map((entry) => entry.userId),
+                ...profileFollowers.map((entry) => entry.userId),
+              ]),
+            ];
+            for (const followerId of followerIds) {
+              const [notification] = await db
+                .insert(userNotifications)
+                .values({
+                  id: `party_scheduled:${releaseParty.id}:${followerId}`,
+                  link: `/live/parties/${releaseParty.liveRoomId ?? releaseParty.id}`,
+                  message: `${user.name ?? "An artist you follow"} scheduled ${releaseParty.title}.`,
+                  title: "Release party scheduled",
+                  type: "party_scheduled",
+                  userId: followerId,
+                })
+                .onConflictDoNothing()
+                .returning({ id: userNotifications.id });
+              if (notification) {
+                await notifyLiveEventScheduledEmail({
+                  eventId: releaseParty.liveRoomId ?? releaseParty.id,
+                  eventTitle: releaseParty.title,
+                  eventType: "party",
+                  hostName: user.name ?? "An artist you follow",
+                  queue: c.env.EMAIL_DELIVERY_QUEUE,
+                  recipientUserId: followerId,
+                });
+              }
+            }
+          }
+        }
+      }
+
       return c.json(
         await buildProjectSummary(project),
         HttpStatusCodes.CREATED
@@ -665,18 +776,16 @@ app.openapi(
       exclusiveUntil = new Date(body.exclusiveUntil);
     }
     const monetizationPatch = {
-      ...(body.exclusiveUntil !== undefined ? { exclusiveUntil } : {}),
-      ...(body.isForSale !== undefined
-        ? { isForSale: body.isForSale }
-        : {}),
-      ...(body.listeningAccess !== undefined
-        ? { listeningAccess: body.listeningAccess }
-        : {}),
+      ...(body.exclusiveUntil === undefined ? {} : { exclusiveUntil }),
+      ...(body.isForSale === undefined ? {} : { isForSale: body.isForSale }),
+      ...(body.listeningAccess === undefined
+        ? {}
+        : { listeningAccess: body.listeningAccess }),
       ...(body.isForSale === false
         ? { priceCents: null }
-        : body.priceCents !== undefined
+        : (body.priceCents !== undefined
           ? { priceCents: body.priceCents }
-          : {}),
+          : {})),
     };
     const [project] = await db
       .update(projects)
@@ -723,6 +832,98 @@ app.openapi(
         storageProvider: "r2",
         uploaderUserId: user.id,
       });
+    }
+
+    return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/{projectId}/tracks/order",
+    request: {
+      body: jsonContentRequired(
+        z.object({ trackIds: z.array(z.string()).min(1) }),
+        "Ordered project track IDs"
+      ),
+      params: z.object({ projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        projectDashboardDetailSchema,
+        "Project tracks reordered"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Track order does not match the project"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { projectId } = c.req.valid("param");
+    const { trackIds } = c.req.valid("json");
+    const session = c.get("session");
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const db = createDb();
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+      .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const attachedTracks = await db
+      .select({ trackId: projectTracks.trackId })
+      .from(projectTracks)
+      .where(eq(projectTracks.projectId, projectId));
+    const attachedIds = new Set(attachedTracks.map((entry) => entry.trackId));
+    const requestedIds = new Set(trackIds);
+    const matchesProject =
+      trackIds.length === attachedIds.size &&
+      attachedIds.size === requestedIds.size &&
+      trackIds.every((trackId) => attachedIds.has(trackId));
+
+    if (!matchesProject) {
+      return c.json(
+        { message: "Track order must include every project track once." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    for (const [position, trackId] of trackIds.entries()) {
+      await db
+        .update(projectTracks)
+        .set({ position })
+        .where(
+          and(
+            eq(projectTracks.projectId, projectId),
+            eq(projectTracks.trackId, trackId)
+          )
+        );
     }
 
     return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);

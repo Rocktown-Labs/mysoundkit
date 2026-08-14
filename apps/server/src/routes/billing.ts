@@ -60,7 +60,6 @@ app.openapi(
 const checkoutBodySchema = z.object({
   cancelUrl: z.url(),
   planCode: z.string(),
-  promoCode: z.string().optional(),
   referenceId: z.string().optional(),
   seats: z.number().int().positive().optional(),
   successUrl: z.url(),
@@ -77,7 +76,6 @@ app.openapi(
       [HttpStatusCodes.OK]: jsonContent(
         z.object({
           checkoutUrl: z.string().url().nullable(),
-          discountApplied: z.string().optional(),
           requiresCheckout: z.boolean(),
           setupRequired: z.boolean(),
         }),
@@ -107,7 +105,6 @@ app.openapi(
     const checkout = await checkoutForPlan({
       cancelUrl: body.cancelUrl,
       planCode: body.planCode,
-      promoCode: body.promoCode,
       referenceId,
       request: c.req.raw,
       seats: body.seats,

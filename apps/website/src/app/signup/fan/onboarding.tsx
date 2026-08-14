@@ -33,6 +33,7 @@ function FanOnboardingPage() {
   const [city, setCity] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards");
   const [selectedPlanCode, setSelectedPlanCode] = useState(
     "soundkit_premium_fan"
   );
@@ -76,6 +77,7 @@ function FanOnboardingPage() {
         body: JSON.stringify({
           city: city || "Los Angeles",
           genrePreferences: selectedGenres,
+          mediaLayout,
           selectedPlanCode: planCode,
           state: stateValue || "ca",
           username: username || "soundkit-fan",
@@ -286,6 +288,23 @@ function FanOnboardingPage() {
                   <p className="text-muted-foreground text-sm mt-2">
                     You can always upgrade later
                   </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="onboarding-media-layout">Media layout</Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setMediaLayout(value === "list" ? "list" : "cards")
+                    }
+                    value={mediaLayout}
+                  >
+                    <SelectTrigger id="onboarding-media-layout">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cards">Visual cards</SelectItem>
+                      <SelectItem value="list">Compact list</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-4">
                   <Card

@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, FolderOpen, Music, Sparkles, Users } from "lucide-react";
 
@@ -6,8 +7,10 @@ import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
 import { UpcomingReleases } from "@/components/dashboard/upcoming-releases";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { API_V1_URL } from "@/lib/api";
 import {
   useMeEntitlementsQuery,
   useMeQuery,
@@ -20,35 +23,50 @@ export const Route = createFileRoute("/dashboard/")({
 });
 
 function DashboardPage() {
-  const meQuery = useMeQuery();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const tracksQuery = useTracksQuery();
-  const projectsQuery = useProjectsQuery();
-  const entitlements = entitlementsQuery.data;
-  const isPremium = Boolean(entitlements?.isPremium);
-  const activePlanLabel = entitlements?.activePlanCode
+  const meQuery = useMeQuery(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   tracksQuery = useTracksQuery(),
+   projectsQuery = useProjectsQuery(),
+   entitlements = entitlementsQuery.data,
+   isPremium = Boolean(entitlements?.isPremium),
+   sellerStatusQuery = useQuery({
+    enabled: isPremium,
+    queryFn: async () => {
+      const response = await fetch(`${API_V1_URL}/seller/status`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return (await response.json()) as { onboardingStatus: string };
+    },
+    queryKey: ["seller", "status"],
+  }),
+   needsPaymentsSetup =
+    isPremium && sellerStatusQuery.data?.onboardingStatus !== "enabled",
+   activePlanLabel = entitlements?.activePlanCode
     ? entitlements.activePlanCode.replaceAll("_", " ")
-    : "SoundKit Free";
-  const displayName =
+    : "SoundKit Free",
+   displayName =
     meQuery.data?.user.displayName ??
     meQuery.data?.user.username ??
-    "SoundKit Artist";
-  const firstName = displayName.split(" ")[0] ?? displayName;
-  const tracks = tracksQuery.data ?? [];
-  const projects = projectsQuery.data ?? [];
-  const collaboratorCount = Math.max(
+    "SoundKit Artist",
+   firstName = displayName.split(" ")[0] ?? displayName,
+   tracks = tracksQuery.data ?? [],
+   projects = projectsQuery.data ?? [],
+   collaboratorCount = Math.max(
     ...tracks.map((track) => track.collaboratorCount),
     ...projects.map((project) => project.collaboratorCount),
     0
-  );
-  const upcomingReleases = projects.filter((project) => {
+  ),
+   upcomingReleases = projects.filter((project) => {
     if (!project.releaseDate) {
       return false;
     }
 
     return new Date(project.releaseDate).getTime() >= Date.now();
-  });
-  const projectTypeCounts: Record<string, number> = {};
+  }),
+   projectTypeCounts: Record<string, number> = {};
   for (const project of projects) {
     projectTypeCounts[project.projectType] =
       (projectTypeCounts[project.projectType] ?? 0) + 1;
@@ -84,6 +102,22 @@ function DashboardPage() {
 
   return (
     <div className="space-y-8 pb-8">
+      {needsPaymentsSetup ? (
+        <Alert className="border-primary/30 bg-primary/5">
+          <BadgeCheck className="size-4" />
+          <AlertTitle>Finish setting up artist payments</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>
+              Connect with Stripe before fans can purchase your releases or send
+              tips.
+            </span>
+            <Button asChild size="sm">
+              <Link to="/dashboard/career/payments">Set up payments</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div className="space-y-1">

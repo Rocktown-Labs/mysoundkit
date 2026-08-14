@@ -6,11 +6,15 @@ import {
   ImageIcon,
   File,
   LoaderCircle,
+  ArrowDown,
+  ArrowUp,
 } from "lucide-react";
+import { useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 import {
   Card,
   CardContent,
@@ -18,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { API_V1_URL } from "@/lib/api";
 import { useProjectQuery } from "@/lib/soundkit-api-hooks";
 
 interface ProjectFilesProps {
@@ -48,6 +53,7 @@ const assetKindIcon = (assetKind: string) => {
 
 export function ProjectFiles({ projectId }: ProjectFilesProps) {
   const projectQuery = useProjectQuery(projectId);
+  const [isReordering, setIsReordering] = useState(false);
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const project = projectQuery.data;
   const tracks = project?.tracks ?? [];
@@ -73,6 +79,48 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
   };
 
   const playableTracks = tracks.filter((track) => Boolean(track.playbackUrl));
+
+  const handleMoveTrack = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= tracks.length) {
+      return;
+    }
+
+    const orderedTrackIds = tracks.map((track) => track.id);
+    const currentId = orderedTrackIds[index];
+    const targetId = orderedTrackIds[targetIndex];
+    if (!(currentId && targetId)) {
+      return;
+    }
+    orderedTrackIds[index] = targetId;
+    orderedTrackIds[targetIndex] = currentId;
+
+    setIsReordering(true);
+    try {
+      const response = await fetch(
+        `${API_V1_URL}/projects/${encodeURIComponent(projectId)}/tracks/order`,
+        {
+          body: JSON.stringify({ trackIds: orderedTrackIds }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "PATCH",
+        }
+      );
+      if (!response.ok) {
+        throw new Error("Could not update the project sequence.");
+      }
+      await projectQuery.refetch();
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Could not reorder tracks.",
+        title: "Sequence update failed",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReordering(false);
+    }
+  };
 
   const handlePlayAll = () => {
     if (playableTracks.length === 0) {
@@ -138,7 +186,7 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
           </div>
         ) : (
           <>
-            {tracks.map((track) => {
+            {tracks.map((track, index) => {
               const hasAudio = Boolean(track.playbackUrl);
               const IconComponent = hasAudio ? FileAudio : File;
               return (
@@ -174,6 +222,30 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
                   </div>
 
                   <div className="flex items-center space-x-2">
+                    {tracks.length > 1 ? (
+                      <>
+                        <Button
+                          aria-label={`Move ${track.title} up`}
+                          disabled={isReordering || index === 0}
+                          onClick={() => handleMoveTrack(index, -1)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <ArrowUp className="size-4" />
+                        </Button>
+                        <Button
+                          aria-label={`Move ${track.title} down`}
+                          disabled={
+                            isReordering || index === tracks.length - 1
+                          }
+                          onClick={() => handleMoveTrack(index, 1)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          <ArrowDown className="size-4" />
+                        </Button>
+                      </>
+                    ) : null}
                     {hasAudio ? (
                       <Button
                         onClick={() => handlePlayTrack(track)}

@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import {
   useDeleteVideoMutation,
+  useMeQuery,
   useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { VideoSummary } from "@/lib/soundkit-api-hooks";
@@ -47,6 +48,7 @@ function DashboardVideosPage() {
   const [pendingDeleteVideo, setPendingDeleteVideo] =
     useState<VideoSummary | null>(null);
   const videosQuery = useVideosQuery();
+  const meQuery = useMeQuery();
   const deleteVideoMutation = useDeleteVideoMutation();
   const videos = videosQuery.data ?? [];
   const verifiedUploads = videos.filter(
@@ -155,7 +157,13 @@ function DashboardVideosPage() {
 
         <Card className="bg-card/40 backdrop-blur-sm border-border/40">
           <CardContent className="p-0">
-            <div className="divide-y divide-border/20">
+            <div
+              className={
+                meQuery.data?.user.mediaLayout === "cards"
+                  ? "grid gap-3 p-3 md:grid-cols-2"
+                  : "divide-y divide-border/20"
+              }
+            >
               {filteredVideos.map((video) => (
                 <div
                   className="group flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between hover:bg-white/[0.02] transition-colors"

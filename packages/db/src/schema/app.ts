@@ -556,6 +556,7 @@ export const userProfiles = pgTable(
     displayName: text("display_name"),
     headerObjectKey: text("header_object_key"),
     headerUrl: text("header_url"),
+    mediaLayout: text("media_layout").default("cards").notNull(),
     onboardingCompletedAt: timestamp("onboarding_completed_at"),
     state: text("state"),
     updatedAt: timestamp("updated_at")
@@ -774,21 +775,22 @@ export const tracks = pgTable(
     description: text("description"),
     downloadsAllowed: boolean("downloads_allowed").default(true).notNull(),
     downloadsRequireFirstPlay: boolean("downloads_require_first_play")
-      .default(false)
-      .notNull(),
-    downloadsRequirePurchase: boolean("downloads_require_purchase")
       .default(true)
       .notNull(),
+    downloadsRequirePurchase: boolean("downloads_require_purchase")
+      .default(false)
+      .notNull(),
+    exclusiveUntil: timestamp("exclusive_until"),
     genreId: text("genre_id").references(() => genres.id, {
       onDelete: "set null",
     }),
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
+    isrc: text("isrc"),
     listeningAccess: listeningAccessEnum("listening_access")
       .default("public")
       .notNull(),
-    isrc: text("isrc"),
     lyricsStatus: lyricsStatusEnum("lyrics_status")
       .default("missing")
       .notNull(),
@@ -801,7 +803,6 @@ export const tracks = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     price: numeric("price", { precision: 10, scale: 2 }),
     priceCents: integer("price_cents"),
-    exclusiveUntil: timestamp("exclusive_until"),
     productionStatus: trackProductionStatusEnum("production_status")
       .default("demo")
       .notNull(),
@@ -1018,6 +1019,10 @@ export const projects = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     description: text("description"),
+    exclusiveUntil: timestamp("exclusive_until"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     id: text("id").primaryKey(),
     isForSale: boolean("is_for_sale").default(false).notNull(),
     isPublic: boolean("is_public").default(true).notNull(),
@@ -1031,7 +1036,6 @@ export const projects = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     priceCents: integer("price_cents"),
-    exclusiveUntil: timestamp("exclusive_until"),
     projectType: projectTypeEnum("project_type").notNull(),
     purchaseMode: purchaseModeEnum("purchase_mode")
       .default("digital_download")
@@ -1131,6 +1135,9 @@ export const listeningParties = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     description: text("description"),
     endedAt: timestamp("ended_at"),
+    genreId: text("genre_id").references(() => genres.id, {
+      onDelete: "set null",
+    }),
     hostUserId: text("host_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -1143,9 +1150,10 @@ export const listeningParties = pgTable(
     playbackMode: listeningPartyPlaybackModeEnum("playback_mode")
       .default("artist_hosted")
       .notNull(),
-    projectId: text("project_id")
-      .notNull()
-      .references(() => projects.id, { onDelete: "cascade" }),
+    playlistId: text("playlist_id"),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
     scheduledStartAt: timestamp("scheduled_start_at").notNull(),
     startedAt: timestamp("started_at"),
     status: listeningPartyStatusEnum("status").default("scheduled").notNull(),
@@ -1438,6 +1446,22 @@ export const artistFollows = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.followerUserId, table.artistUserId] }),
+  ]
+);
+
+export const userFollows = pgTable(
+  "user_follows",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    followerUserId: text("follower_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetUserId: text("target_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.followerUserId, table.targetUserId] }),
   ]
 );
 
@@ -1750,6 +1774,29 @@ export const messages = pgTable(
   (table) => [index("messages_conversation_id_idx").on(table.conversationId)]
 );
 
+export const messageAttachments = pgTable(
+  "message_attachments",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    displayName: text("display_name").notNull(),
+    id: text("id").primaryKey(),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    mimeType: text("mime_type"),
+    objectKey: text("object_key"),
+    sizeBytes: integer("size_bytes"),
+    sourceProjectId: text("source_project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    sourceTrackId: text("source_track_id").references(() => tracks.id, {
+      onDelete: "set null",
+    }),
+    url: text("url").notNull(),
+  },
+  (table) => [index("message_attachments_message_id_idx").on(table.messageId)]
+);
+
 export const battleProfiles = pgTable("battle_profiles", {
   totalDownloads: integer("total_downloads").default(0).notNull(),
   totalLosses: integer("total_losses").default(0).notNull(),
@@ -1944,6 +1991,7 @@ export const liveExperiences = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     endsAt: timestamp("ends_at"),
+    genre: text("genre"),
     id: text("id").primaryKey(),
     kind: liveExperienceKindEnum("kind").notNull(),
     meetingId: text("meeting_id").notNull(),
@@ -1960,9 +2008,9 @@ export const liveExperiences = pgTable(
     recordingStatus: text("recording_status"),
     recordingUrl: text("recording_url"),
     source: text("source").default("browser").notNull(),
-    streamInputId: text("stream_input_id"),
     startsAt: timestamp("starts_at").notNull(),
     status: liveExperienceStatusEnum("status").default("scheduled").notNull(),
+    streamInputId: text("stream_input_id"),
     title: text("title").notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -2970,6 +3018,34 @@ export const settlementRuns = pgTable(
     uniqueIndex("settlement_runs_idempotency_key_idx").on(table.idempotencyKey),
     index("settlement_runs_period_idx").on(table.accountingPeriodId),
   ]
+);
+
+export const projectPreSaves = pgTable(
+  "project_pre_saves",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.projectId] })]
+);
+
+export const videoPreSaves = pgTable(
+  "video_pre_saves",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    videoId: text("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.videoId] })]
 );
 
 export const trackPreSaves = pgTable(

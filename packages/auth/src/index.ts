@@ -1,6 +1,7 @@
 import { expo } from "@better-auth/expo";
 import { stripe } from "@better-auth/stripe";
 import { createDb } from "@soundkit/db";
+import { userNotifications } from "@soundkit/db/schema/app";
 import { member } from "@soundkit/db/schema/auth";
 import * as schema from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
@@ -13,36 +14,36 @@ import { Stripe } from "stripe";
 import { createStripePlans } from "./plans";
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
 
-const hostFromUrl = (value: string) => {
+ hostFromUrl = (value: string) => {
   try {
     return new URL(value).host;
   } catch {
     return "";
   }
-};
+},
 
-const uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))];
+ uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))],
 
-const getAdminEmails = () =>
+ getAdminEmails = () =>
   getEnvValue("ADMIN_EMAILS")
     .split(",")
     .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean),
 
-const getPublicSiteUrl = () =>
+ getPublicSiteUrl = () =>
   getEnvValue("SOUNDKIT_PUBLIC_URL") ||
   getEnvValue("CORS_ORIGIN") ||
-  "https://mysoundkit.com";
+  "https://mysoundkit.com",
 
-const getEmailFrom = () =>
+ getEmailFrom = () =>
   getEnvValue("SOUNDKIT_EMAIL_FROM") ||
-  "SoundKit <noreply@news.mysoundkit.com>";
+  "SoundKit <noreply@news.mysoundkit.com>",
 
-const getResendApiKey = () => getEnvValue("RESEND_API_KEY");
+ getResendApiKey = () => getEnvValue("RESEND_API_KEY"),
 
-const absoluteSiteUrl = (pathOrUrl: string) => {
+ absoluteSiteUrl = (pathOrUrl: string) => {
   if (/^https?:\/\//u.test(pathOrUrl)) {
     return pathOrUrl;
   }
@@ -99,10 +100,10 @@ const sendAuthNotificationEmail = async ({
     return;
   }
 
-  const publicSiteUrl = getPublicSiteUrl();
-  const [{ renderTransactionalNotificationEmail }, { Resend }] =
-    await Promise.all([import("@soundkit/transactional"), import("resend")]);
-  const { html, text } = await renderTransactionalNotificationEmail({
+  const publicSiteUrl = getPublicSiteUrl(),
+   [{ renderTransactionalNotificationEmail }, { Resend }] =
+    await Promise.all([import("@soundkit/transactional"), import("resend")]),
+   { html, text } = await renderTransactionalNotificationEmail({
     actionUrl,
     assetBaseUrl: publicSiteUrl,
     body,
@@ -114,9 +115,9 @@ const sendAuthNotificationEmail = async ({
     previewText,
     recipientName,
     subject,
-  });
-  const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send(
+  }),
+   resend = new Resend(apiKey),
+   { error } = await resend.emails.send(
     {
       from: getEmailFrom(),
       html,
@@ -135,9 +136,9 @@ const sendAuthNotificationEmail = async ({
       tag,
     });
   }
-};
+},
 
-const sendOrganizationInviteEmail = ({
+ sendOrganizationInviteEmail = ({
   email,
   id,
   inviterName,
@@ -162,9 +163,9 @@ const sendOrganizationInviteEmail = ({
     recipientName: "there",
     subject: `Invite to ${organizationName ?? "SoundKit"}`,
     tag: "org_invite",
-  });
+  }),
 
-const sendWelcomeEmail = ({
+ sendWelcomeEmail = ({
   email,
   name,
   userId,
@@ -213,79 +214,58 @@ const sendWelcomeEmail = ({
     recipientName: name ?? "there",
     subject: "Welcome to SoundKit",
     tag: "welcome",
-  });
+  }),
 
-const sendPremiumWelcomeEmail = ({
+ sendPremiumWelcomeEmail = ({
   email,
   name,
+  plan,
   subscriptionId,
 }: {
   email: string;
   name?: string | null;
+  plan: string;
   subscriptionId: string;
-}) =>
-  sendAuthNotificationEmail({
-    actionUrl: absoluteSiteUrl("/dashboard/live"),
-    body: "Your premium access is active. You can keep building your catalog, publish videos and open verses, join live rooms, and participate in battles when you are ready.",
-    ctaLabel: "Open live dashboard",
+}) => {
+  const isArtistPremium = plan === "soundkit_premium_artist";
+  return sendAuthNotificationEmail({
+    actionUrl: absoluteSiteUrl(
+      isArtistPremium ? "/dashboard/career/payments" : "/"
+    ),
+    body: isArtistPremium
+      ? "Your premium access is active. Set up artist payments with Stripe so fans can purchase your releases and send tips."
+      : "Your premium access is active. Head back to SoundKit to explore full listening, video, and live experiences.",
+    ctaLabel: isArtistPremium ? "Set up artist payments" : "Explore SoundKit",
     email,
     eyebrow: "Premium active",
     footerNote:
       "You are receiving this because SoundKit Premium is active on your account.",
     heading: "Welcome to SoundKit Premium",
     idempotencyKey: `welcome-premium/${subscriptionId}`,
-    links: [
-      {
-        description:
-          "Add audio, cover art, credits, and release details in one place.",
-        href: absoluteSiteUrl("/dashboard/tracks/new"),
-        label: "Upload a track",
-      },
-      {
-        description:
-          "Group multiple songs, assets, and notes into a release workspace.",
-        href: absoluteSiteUrl("/dashboard/projects/new"),
-        label: "Create a project",
-      },
-      {
-        description:
-          "Share visuals, performances, or music videos with your audience.",
-        href: absoluteSiteUrl("/dashboard/videos/new"),
-        label: "Upload a video",
-      },
-      {
-        description:
-          "Post a track section for other artists to write and submit to.",
-        href: absoluteSiteUrl("/dashboard/open-verses/new"),
-        label: "Create an open verse",
-      },
-      {
-        description:
-          "Choose the songs you want ready when a live battle starts.",
-        href: absoluteSiteUrl("/dashboard/live/my-kit"),
-        label: "Build your battle kit",
-      },
-      {
-        description:
-          "Watch live battles, parties, and streams from the SoundKit community.",
-        href: absoluteSiteUrl("/live/battles"),
-        label: "Watch live battles",
-      },
-      {
-        description:
-          "Send or respond to battle challenges when you are ready to compete.",
-        href: absoluteSiteUrl("/dashboard/live/challenge"),
-        label: "Open battle challenges",
-      },
-    ],
-    previewText:
-      "Your premium access is active. Build your catalog and open the live tools when you are ready.",
+    links: isArtistPremium
+      ? [
+          {
+            description:
+              "Complete Stripe verification so fans can purchase your music and send tips.",
+            href: absoluteSiteUrl("/dashboard/career/payments"),
+            label: "Set up artist payments",
+          },
+          {
+            description:
+              "Add audio, cover art, credits, and release details in one place.",
+            href: absoluteSiteUrl("/dashboard/tracks/new"),
+            label: "Upload a track",
+          },
+        ]
+      : [],
+    previewText: "Your SoundKit Premium access is active.",
     recipientName: name ?? "there",
     subject: "Welcome to SoundKit Premium",
     tag: "welcome_premium",
   });
+},
 
-const sendPasswordResetEmail = ({
+ sendPasswordResetEmail = ({
   email,
   name,
   url,
@@ -308,9 +288,9 @@ const sendPasswordResetEmail = ({
     recipientName: name ?? "there",
     subject: "Reset your SoundKit password",
     tag: "password_reset",
-  });
+  }),
 
-const sendEmailVerificationEmail = ({
+ sendEmailVerificationEmail = ({
   email,
   name,
   url,
@@ -333,12 +313,37 @@ const sendEmailVerificationEmail = ({
     recipientName: name ?? "there",
     subject: "Verify your SoundKit email",
     tag: "email_verification",
-  });
+  }),
 
-const isPremiumPlan = (plan: string | null | undefined) =>
-  Boolean(plan?.startsWith("soundkit_premium_"));
+ isPremiumPlan = (plan: string | null | undefined) =>
+  Boolean(plan?.startsWith("soundkit_premium_")),
 
-const sendPremiumWelcomeForSubscription = async ({
+ addPremiumNotification = async ({
+  plan,
+  subscriptionId,
+  userId,
+}: {
+  plan: string;
+  subscriptionId: string;
+  userId: string;
+}) => {
+  const isArtistPremium = plan === "soundkit_premium_artist";
+  await createDb()
+    .insert(userNotifications)
+    .values({
+      id: `premium_active:${subscriptionId}:${userId}`,
+      link: isArtistPremium ? "/dashboard/career/payments" : "/",
+      message: isArtistPremium
+        ? "Welcome to SoundKit Premium. Set up Stripe payments to start earning."
+        : "Welcome to SoundKit Premium. Your Premium listening access is active.",
+      title: "Welcome to SoundKit Premium",
+      type: "premium_active",
+      userId,
+    })
+    .onConflictDoNothing();
+},
+
+ sendPremiumWelcomeForSubscription = async ({
   id,
   plan,
   referenceId,
@@ -347,6 +352,7 @@ const sendPremiumWelcomeForSubscription = async ({
   if (!(id && referenceId && isPremiumPlan(plan))) {
     return;
   }
+  const premiumPlan = plan ?? "";
 
   if (!(status === "active" || status === "trialing")) {
     return;
@@ -362,9 +368,15 @@ const sendPremiumWelcomeForSubscription = async ({
     .limit(1);
 
   if (directUser) {
+    await addPremiumNotification({
+      plan: premiumPlan,
+      subscriptionId: id,
+      userId: referenceId,
+    });
     await sendPremiumWelcomeEmail({
       email: directUser.email,
       name: directUser.name,
+      plan: premiumPlan,
       subscriptionId: id,
     });
     return;
@@ -373,6 +385,7 @@ const sendPremiumWelcomeForSubscription = async ({
   const [owner] = await createDb()
     .select({
       email: schema.user.email,
+      id: schema.user.id,
       name: schema.user.name,
     })
     .from(member)
@@ -383,15 +396,21 @@ const sendPremiumWelcomeForSubscription = async ({
     .limit(1);
 
   if (owner) {
+    await addPremiumNotification({
+      plan: premiumPlan,
+      subscriptionId: id,
+      userId: owner.id,
+    });
     await sendPremiumWelcomeEmail({
       email: owner.email,
       name: owner.name,
+      plan: premiumPlan,
       subscriptionId: id,
     });
   }
-};
+},
 
-const createStripeClient = () => {
+ createStripeClient = () => {
   const secretKey = getEnvValue("STRIPE_SECRET_KEY");
 
   if (!secretKey) {
@@ -404,17 +423,17 @@ const createStripeClient = () => {
 };
 
 export const createAuth = () => {
-  const db = createDb();
-  const authHost = hostFromUrl(env.BETTER_AUTH_URL);
-  const siteHost = hostFromUrl(env.CORS_ORIGIN);
-  const isLocalAuthUrl =
+  const db = createDb(),
+   authHost = hostFromUrl(env.BETTER_AUTH_URL),
+   siteHost = hostFromUrl(env.CORS_ORIGIN),
+   isLocalAuthUrl =
     env.BETTER_AUTH_URL.includes("localhost") ||
-    env.BETTER_AUTH_URL.includes("127.0.0.1");
-  const isDevelopment =
-    globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl;
-  const stripeClient = createStripeClient();
-  const stripeWebhookSecret = getEnvValue("STRIPE_WEBHOOK_SECRET");
-  const allowedAuthHosts = uniqueValues([
+    env.BETTER_AUTH_URL.includes("127.0.0.1"),
+   isDevelopment =
+    globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
+   stripeClient = createStripeClient(),
+   stripeWebhookSecret = getEnvValue("STRIPE_WEBHOOK_SECRET"),
+   allowedAuthHosts = uniqueValues([
     authHost,
     siteHost,
     "mysoundkit.com",
@@ -423,8 +442,8 @@ export const createAuth = () => {
     "*.pages.dev",
     "*.workers.dev",
     "*.rocktown-labs.workers.dev",
-  ]);
-  const dynamicBaseURL = isDevelopment
+  ]),
+   dynamicBaseURL = isDevelopment
     ? env.BETTER_AUTH_URL
     : {
         allowedHosts: allowedAuthHosts,
@@ -569,6 +588,15 @@ export const createAuth = () => {
                   return true;
                 },
                 enabled: true,
+                getCheckoutSessionParams: () => ({
+                  params: {
+                    allow_promotion_codes: true,
+                    integration_identifier: `soundkit_${crypto
+                      .randomUUID()
+                      .replaceAll("-", "")
+                      .slice(0, 8)}`,
+                  },
+                }),
                 plans: createStripePlans,
               },
             }),

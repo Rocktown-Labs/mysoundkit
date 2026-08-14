@@ -53,6 +53,10 @@ import { SIDEBAR_STATE_CHANGE_EVENT } from "@/components/ui/sidebar";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
+import {
+  completeQueuedTrack,
+  shouldRestartCurrentTrack,
+} from "@/lib/player-queue";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 interface Device {
@@ -93,11 +97,11 @@ interface ServedAudioAd {
   title: string;
 }
 
-const playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1";
-const sidebarStateCookieName = "sidebar_state";
-const guestDailyPlaybackLimitSeconds = 300;
+const playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1",
+ sidebarStateCookieName = "sidebar_state",
+ guestDailyPlaybackLimitSeconds = 300,
 
-const demoPlaybackQueue = [
+ demoPlaybackQueue = [
   {
     artist: "Luna Eclipse",
     artistHref: "/artist/luna-eclipse",
@@ -136,12 +140,12 @@ function PlayerRouteLink({
   className: string;
   href: string | null | undefined;
 }) {
-  const artistMatch = href?.match(/^\/artist\/(?<username>[^/]+)$/u);
-  const trackMatch = href?.match(/^\/tracks\/(?<id>[^/]+)$/u);
-  const regionTrackMatch = href?.match(
+  const artistMatch = href?.match(/^\/artist\/(?<username>[^/]+)$/u),
+   trackMatch = href?.match(/^\/tracks\/(?<id>[^/]+)$/u),
+   regionTrackMatch = href?.match(
     /^\/tracks\/(?<regionSlug>[^/]+)\/(?<slug>[^/]+)$/u
-  );
-  const dashboardTrackMatch = href?.match(
+  ),
+   dashboardTrackMatch = href?.match(
     /^\/dashboard\/tracks\/(?<id>[^/]+)$/u
   );
 
@@ -204,12 +208,12 @@ const formatTime = (seconds: number) => {
     return "0:00";
   }
 
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
+  const mins = Math.floor(seconds / 60),
+   secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
-};
+},
 
-const getDeviceIcon = (type: Device["type"]) => {
+ getDeviceIcon = (type: Device["type"]) => {
   if (type === "phone") {
     return <Smartphone className="size-4" />;
   }
@@ -219,9 +223,9 @@ const getDeviceIcon = (type: Device["type"]) => {
   }
 
   return <Laptop2 className="size-4" />;
-};
+},
 
-const readSidebarIsExpanded = () => {
+ readSidebarIsExpanded = () => {
   if (typeof document === "undefined") {
     return true;
   }
@@ -236,16 +240,18 @@ const readSidebarIsExpanded = () => {
 export function MusicPlayer() {
   const {
     currentTrack,
+    markRecentlyPlayed,
     queue,
+    recentlyPlayed,
     registerTogglePlay,
     setCurrentTrack,
     setIsPlaying: setContextIsPlaying,
     setQueue,
     setVisible,
     visible,
-  } = useAudioPlayer();
-  const location = useLocation();
-  const hasSidebar =
+  } = useAudioPlayer(),
+   location = useLocation(),
+   hasSidebar =
     location.pathname === "/" ||
     location.pathname.startsWith("/dashboard") ||
     location.pathname.startsWith("/tracks") ||
@@ -257,38 +263,39 @@ export function MusicPlayer() {
     location.pathname.startsWith("/new-releases") ||
     location.pathname.startsWith("/projects") ||
     location.pathname.startsWith("/shop") ||
-    location.pathname.startsWith("/videos");
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const activeAdRef = useRef<ServedAudioAd | null>(null);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingContentSrcRef = useRef<string | null>(null);
-  const playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null);
-  const prerollServedTrackRef = useRef<string | null>(null);
-  const [audioOutput, setAudioOutput] = useState<Device>({
+    location.pathname.startsWith("/videos"),
+   audioRef = useRef<HTMLAudioElement>(null),
+   preloadedAudioRef = useRef<HTMLAudioElement | null>(null),
+   activeAdRef = useRef<ServedAudioAd | null>(null),
+   hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
+   pendingContentSrcRef = useRef<string | null>(null),
+   playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null),
+   prerollServedTrackRef = useRef<string | null>(null),
+   [audioOutput, setAudioOutput] = useState<Device>({
     active: true,
     id: "default",
     name: "This Computer",
     type: "computer",
-  });
-  const [sidebarExpanded, setSidebarExpanded] = useState(readSidebarIsExpanded);
-  const [duration, setDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isPlaying, setIsPlayingState] = useState(false);
+  }),
+   [sidebarExpanded, setSidebarExpanded] = useState(readSidebarIsExpanded),
+   [duration, setDuration] = useState(0),
+   [isMuted, setIsMuted] = useState(false),
+   [isPlaying, setIsPlayingState] = useState(false),
 
-  const setIsPlaying = useCallback(
+   setIsPlaying = useCallback(
     (playing: boolean) => {
       setIsPlayingState(playing);
       setContextIsPlaying(playing);
     },
     [setContextIsPlaying]
-  );
-  const [isShuffled, setIsShuffled] = useState(false);
-  const [isMiniPlayer, setIsMiniPlayer] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [queueOpen, setQueueOpen] = useState(false);
-  const [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off");
-  const [volume, setVolume] = useState(75);
-  const [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null);
+  ),
+   [isShuffled, setIsShuffled] = useState(false),
+   [isMiniPlayer, setIsMiniPlayer] = useState(false),
+   [progress, setProgress] = useState(0),
+   [queueOpen, setQueueOpen] = useState(false),
+   [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
+   [volume, setVolume] = useState(75),
+   [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null);
 
   useEffect(() => {
     const handleSidebarStateChange = (event: Event) => {
@@ -321,9 +328,9 @@ export function MusicPlayer() {
     handlePlayPause();
   });
 
-  const meQuery = useMeQuery();
-  const isSignedIn = Boolean(meQuery.data);
-  const [guestLimitReached, setGuestLimitReached] = useState(false);
+  const meQuery = useMeQuery(),
+   isSignedIn = Boolean(meQuery.data),
+   [guestLimitReached, setGuestLimitReached] = useState(false);
 
   useEffect(() => {
     if (isSignedIn || !isPlaying || typeof window === "undefined") {
@@ -331,8 +338,8 @@ export function MusicPlayer() {
     }
 
     const interval = setInterval(() => {
-      const today = new Date().toISOString().slice(0, 10);
-      const stored = window.localStorage.getItem("soundkit_guest_playback_v1");
+      const today = new Date().toISOString().slice(0, 10),
+       stored = window.localStorage.getItem("soundkit_guest_playback_v1");
       let secondsPlayed = 0;
 
       if (stored) {
@@ -418,15 +425,15 @@ export function MusicPlayer() {
     ended = false,
     force = false,
   }: { ended?: boolean; force?: boolean } = {}) => {
-    const audio = audioRef.current;
-    const telemetry = playbackTelemetryRef.current;
+    const audio = audioRef.current,
+     telemetry = playbackTelemetryRef.current;
 
     if (!(audio && telemetry)) {
       return;
     }
 
-    const playedSeconds = Math.max(0, Math.floor(audio.currentTime));
-    const durationSeconds = Math.ceil(audio.duration || duration || 0);
+    const playedSeconds = Math.max(0, Math.floor(audio.currentTime)),
+     durationSeconds = Math.ceil(audio.duration || duration || 0);
 
     if (
       !(
@@ -461,9 +468,9 @@ export function MusicPlayer() {
         method: "POST",
       }
     ).catch(() => {});
-  };
+  },
 
-  const sendAdEvent = (
+   sendAdEvent = (
     campaignId: string,
     eventType: "click" | "complete" | "impression"
   ) => {
@@ -476,9 +483,9 @@ export function MusicPlayer() {
       keepalive: eventType !== "impression",
       method: "POST",
     }).catch(() => {});
-  };
+  },
 
-  const requestAudioPreroll = async () => {
+   requestAudioPreroll = async () => {
     const audio = audioRef.current;
 
     if (
@@ -523,9 +530,9 @@ export function MusicPlayer() {
     await audio.play();
     sendAdEvent(payload.ad.campaignId, "impression");
     return true;
-  };
+  },
 
-  const startContentPlayback = async () => {
+   startContentPlayback = async () => {
     const audio = audioRef.current;
 
     if (!(audio && currentTrack)) {
@@ -607,6 +614,35 @@ export function MusicPlayer() {
   }, [currentTrack?.id]);
 
   useEffect(() => {
+    if (!(currentTrack && typeof Audio !== "undefined")) {
+      return;
+    }
+
+    const currentIndex = queue.findIndex(
+      (track) => track.id === currentTrack.id
+    ),
+     nextTrack = currentIndex !== -1 ? queue[currentIndex + 1] : queue[0];
+
+    if (!nextTrack || nextTrack.id === currentTrack.id) {
+      preloadedAudioRef.current = null;
+      return;
+    }
+
+    const preloadAudio = new Audio();
+    preloadAudio.preload = "metadata";
+    preloadAudio.src = nextTrack.src;
+    preloadedAudioRef.current = preloadAudio;
+
+    return () => {
+      preloadAudio.removeAttribute("src");
+      preloadAudio.load();
+      if (preloadedAudioRef.current === preloadAudio) {
+        preloadedAudioRef.current = null;
+      }
+    };
+  }, [currentTrack, queue]);
+
+  useEffect(() => {
     const audio = audioRef.current;
 
     if (!(audio && currentTrack)) {
@@ -651,8 +687,8 @@ export function MusicPlayer() {
       return;
     }
 
-    const handleLoadedMetadata = () => setDuration(audio.duration || 0);
-    const handleTimeUpdate = () => {
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0),
+     handleTimeUpdate = () => {
       if (activeAdRef.current) {
         return;
       }
@@ -663,10 +699,10 @@ export function MusicPlayer() {
           force: (audio.currentTime / audio.duration) * 100 >= 70,
         });
       }
-    };
-    const handleEnded = () => {
-      const completedAd = activeAdRef.current;
-      const pendingContentSrc = pendingContentSrcRef.current;
+    },
+     handleEnded = () => {
+      const completedAd = activeAdRef.current,
+       pendingContentSrc = pendingContentSrcRef.current;
 
       if (completedAd && pendingContentSrc) {
         sendAdEvent(completedAd.campaignId, "complete");
@@ -687,7 +723,7 @@ export function MusicPlayer() {
         return;
       }
 
-      handleNext();
+      handleNext(true);
     };
 
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
@@ -730,8 +766,8 @@ export function MusicPlayer() {
     };
   }, [handlePlayPause, registerTogglePlay]);
 
-  const handleNext = () => {
-    if (!(currentTrack && queue.length > 0)) {
+  const handleNext = (completed = false) => {
+    if (!currentTrack) {
       setIsPlaying(false);
       return;
     }
@@ -739,33 +775,86 @@ export function MusicPlayer() {
     const currentIndex = queue.findIndex(
       (track) => track.id === currentTrack.id
     );
+
+    if (completed) {
+      markRecentlyPlayed(currentTrack);
+      const completedState = completeQueuedTrack({
+        currentTrack,
+        queue,
+        repeatMode,
+      });
+
+      if (completedState.restartCurrent) {
+        const audio = audioRef.current;
+        if (audio) {
+          audio.currentTime = 0;
+          void audio.play().catch(() => setIsPlaying(false));
+        }
+        return;
+      }
+
+      setQueue(completedState.queue);
+      if (!completedState.nextTrack) {
+        setIsPlaying(false);
+        setCurrentTrack(null);
+        setVisible(false);
+        return;
+      }
+
+      setCurrentTrack(completedState.nextTrack);
+      return;
+    }
+
+    if (queue.length <= 1) {
+      return;
+    }
+
     const nextIndex =
       currentIndex === -1 ? 0 : (currentIndex + 1) % queue.length;
     setCurrentTrack(queue[nextIndex] ?? currentTrack);
-  };
+  },
 
-  const handlePrevious = () => {
-    if (!(currentTrack && queue.length > 0)) {
+   handlePrevious = () => {
+    const audio = audioRef.current;
+
+    if (!currentTrack) {
       return;
     }
 
     const currentIndex = queue.findIndex(
       (track) => track.id === currentTrack.id
-    );
-    const previousIndex =
-      currentIndex <= 0 ? queue.length - 1 : currentIndex - 1;
-    setCurrentTrack(queue[previousIndex] ?? currentTrack);
-  };
+    ),
+     shouldRestart =
+      !audio ||
+      shouldRestartCurrentTrack({
+        currentIndex,
+        currentTime: audio.currentTime,
+        queueLength: queue.length,
+      });
 
-  const handleRepeatToggle = () => {
-    const modes: ("off" | "all" | "one")[] = ["off", "all", "one"];
-    const currentIndex = modes.indexOf(repeatMode);
+    if (shouldRestart) {
+      if (audio) {
+        audio.currentTime = 0;
+        setProgress(0);
+        if (!isPlaying) {
+          void startContentPlayback().catch(() => setIsPlaying(false));
+        }
+      }
+      return;
+    }
+
+    setCurrentTrack(queue[currentIndex - 1] ?? currentTrack);
+  },
+
+   handleRepeatToggle = () => {
+    const modes: ("off" | "all" | "one")[] = ["off", "all", "one"],
+     currentIndex = modes.indexOf(repeatMode);
     setRepeatMode(modes[(currentIndex + 1) % modes.length] ?? "off");
-  };
+  },
 
-  const handleScrub = (value: number[]) => {
-    const nextProgress = value[0] ?? 0;
-    const audio = audioRef.current;
+   handleScrub = (value: number[]) => {
+    const nextProgress = value[0] ?? 0,
+     audio = audioRef.current;
 
     setProgress(nextProgress);
 
@@ -777,8 +866,8 @@ export function MusicPlayer() {
   // Keyboard playback shortcuts with input guard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput =
+      const target = e.target as HTMLElement | null,
+       isInput =
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
@@ -812,43 +901,48 @@ export function MusicPlayer() {
     if (index <= 0) {
       return;
     }
-    const nextQueue = [...queue];
-    const item = nextQueue[index];
+    const nextQueue = [...queue],
+     item = nextQueue[index];
     if (!item || !nextQueue[index - 1]) {
       return;
     }
     nextQueue[index] = nextQueue[index - 1]!;
     nextQueue[index - 1] = item;
     setQueue(nextQueue);
-  };
+  },
 
-  const handleMoveQueueItemDown = (index: number) => {
+   handleMoveQueueItemDown = (index: number) => {
     if (index >= queue.length - 1) {
       return;
     }
-    const nextQueue = [...queue];
-    const item = nextQueue[index];
+    const nextQueue = [...queue],
+     item = nextQueue[index];
     if (!item || !nextQueue[index + 1]) {
       return;
     }
     nextQueue[index] = nextQueue[index + 1]!;
     nextQueue[index + 1] = item;
     setQueue(nextQueue);
-  };
+  },
 
-  const handleRemoveQueueItem = (index: number) => {
+   handleRemoveQueueItem = (index: number) => {
     setQueue(queue.filter((_, itemIndex) => itemIndex !== index));
-  };
+  },
 
-  const handleClearQueue = () => {
+   handleClearQueue = () => {
     setQueue([]);
-  };
+  },
 
-  const handleSelectAudioOutput = async () => {
+   handleReplayRecent = (track: (typeof recentlyPlayed)[number]) => {
+    setQueue([track, ...queue.filter((item) => item.id !== track.id)]);
+    setCurrentTrack({ ...track, autoplay: true });
+  },
+
+   handleSelectAudioOutput = async () => {
     const mediaDevices = navigator.mediaDevices as
       | AudioOutputMediaDevices
-      | undefined;
-    const audio = audioRef.current as SinkAudioElement | null;
+      | undefined,
+     audio = audioRef.current as SinkAudioElement | null;
 
     if (!mediaDevices?.selectAudioOutput || !audio?.setSinkId) {
       toast({
@@ -890,17 +984,17 @@ export function MusicPlayer() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleClose = () => {
+   handleClose = () => {
     audioRef.current?.pause();
     sendPlaybackProgress({ ended: true });
     setIsPlaying(false);
     setCurrentTrack(null);
     setVisible(false);
-  };
+  },
 
-  const queueSheet = (
+   queueSheet = (
     <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
       <SheetTrigger asChild={true}>
         <Button
@@ -1013,13 +1107,58 @@ export function MusicPlayer() {
                 </div>
               );
             })}
+            {queue.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-4 text-center text-muted-foreground text-sm">
+                Your queue is empty.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="mt-8 border-t pt-5">
+            <h3 className="font-semibold text-sm">Recently Played</h3>
+            <p className="mt-1 text-muted-foreground text-xs">
+              Completed tracks move here automatically.
+            </p>
+            <div className="mt-3 space-y-2">
+              {recentlyPlayed.map((track) => (
+                <button
+                  className="flex w-full items-center gap-3 rounded-lg border border-transparent bg-card/40 p-2 text-left transition-colors hover:border-primary/20 hover:bg-accent/60"
+                  key={`recent-${track.id}`}
+                  onClick={() => handleReplayRecent(track)}
+                  type="button"
+                >
+                  <AppImage
+                    alt={track.title}
+                    className="shrink-0 rounded"
+                    height={36}
+                    layout="fixed"
+                    src={track.cover || "/placeholder.svg"}
+                    width={36}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-sm">
+                      {track.title}
+                    </span>
+                    <span className="block truncate text-muted-foreground text-xs">
+                      {track.artist}
+                    </span>
+                  </span>
+                  <Play className="size-4 shrink-0" />
+                </button>
+              ))}
+              {recentlyPlayed.length === 0 ? (
+                <p className="py-4 text-center text-muted-foreground text-sm">
+                  No completed tracks yet.
+                </p>
+              ) : null}
+            </div>
           </div>
         </ScrollArea>
       </SheetContent>
     </Sheet>
-  );
+  ),
 
-  const deviceButton = (
+   deviceButton = (
     <Button
       aria-label={`Choose audio output. Current output: ${audioOutput.name}`}
       className="size-8"
@@ -1030,9 +1169,9 @@ export function MusicPlayer() {
     >
       {getDeviceIcon(audioOutput.type)}
     </Button>
-  );
+  ),
 
-  const volumeMenu = (
+   volumeMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild={true}>
         <Button
@@ -1139,7 +1278,7 @@ export function MusicPlayer() {
           <Button
             aria-label="Next track"
             className="hidden size-7 sm:inline-flex"
-            onClick={handleNext}
+            onClick={() => handleNext()}
             size="icon"
             variant="ghost"
           >
@@ -1197,7 +1336,7 @@ export function MusicPlayer() {
 
         <div className="container mx-auto px-4 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
-            <div className="flex min-w-0 items-center gap-3 pr-16 lg:w-1/4 lg:pr-0">
+            <div className="hidden min-w-0 items-center gap-3 lg:flex lg:w-1/4">
               <AppImage
                 alt={activeAd?.title ?? currentTrack.title}
                 className="rounded-md"
@@ -1244,59 +1383,103 @@ export function MusicPlayer() {
             </div>
 
             <div className="flex flex-col gap-3 lg:w-1/2">
-              <div className="flex items-center justify-center gap-2">
-                <Button
-                  className="size-8"
-                  onClick={() => setIsShuffled(!isShuffled)}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <Shuffle
-                    className={`size-4 ${isShuffled ? "text-primary" : ""}`}
-                  />
-                </Button>
-                <Button
-                  className="size-8"
-                  onClick={handlePrevious}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <SkipBack className="size-4" />
-                </Button>
-                <Button
-                  className="size-10"
-                  onClick={handlePlayPause}
-                  size="icon"
-                  variant="default"
-                >
-                  {isPlaying ? (
-                    <Pause className="size-5" />
-                  ) : (
-                    <Play className="size-5" />
-                  )}
-                </Button>
-                <Button
-                  className="size-8"
-                  onClick={handleNext}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <SkipForward className="size-4" />
-                </Button>
-                <Button
-                  className="size-8"
-                  onClick={handleRepeatToggle}
-                  size="icon"
-                  variant="ghost"
-                >
-                  <Repeat
-                    className={`size-4 ${repeatMode === "off" ? "" : "text-primary"}`}
-                  />
-                  {repeatMode === "one" && (
-                    <span className="absolute text-[10px] font-bold">1</span>
-                  )}
-                </Button>
-                <div className="lg:hidden">{queueSheet}</div>
+              <div className="min-w-0 px-14 text-center lg:hidden">
+                {activeAd ? (
+                  <a
+                    className="block truncate font-medium text-sm transition-colors hover:text-primary"
+                    href={activeAd.clickthroughUrl}
+                    onClick={() => sendAdEvent(activeAd.campaignId, "click")}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    {activeAd.title} · Sponsored audio
+                  </a>
+                ) : (
+                  <p className="truncate font-medium text-sm">
+                    <PlayerRouteLink
+                      className="transition-colors hover:text-primary"
+                      href={currentTrack.trackHref}
+                    >
+                      {currentTrack.title}
+                    </PlayerRouteLink>{" "}
+                    <span className="text-muted-foreground">by</span>{" "}
+                    <PlayerRouteLink
+                      className="transition-colors hover:text-primary"
+                      href={currentTrack.artistHref}
+                    >
+                      {currentTrack.artist}
+                    </PlayerRouteLink>
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 lg:justify-center">
+                <AppImage
+                  alt={activeAd?.title ?? currentTrack.title}
+                  className="size-11 shrink-0 rounded-md lg:hidden"
+                  height={44}
+                  layout="fixed"
+                  src={
+                    activeAd?.imageUrl ||
+                    currentTrack.cover ||
+                    "/placeholder.svg"
+                  }
+                  width={44}
+                  key={`mobile-${activeAd?.campaignId ?? currentTrack.id}-${activeAd?.imageUrl ?? currentTrack.cover ?? "cover"}`}
+                />
+                <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-2 lg:flex-none">
+                  <Button
+                    className="size-8"
+                    onClick={() => setIsShuffled(!isShuffled)}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <Shuffle
+                      className={`size-4 ${isShuffled ? "text-primary" : ""}`}
+                    />
+                  </Button>
+                  <Button
+                    className="size-8"
+                    onClick={handlePrevious}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <SkipBack className="size-4" />
+                  </Button>
+                  <Button
+                    className="size-10"
+                    onClick={handlePlayPause}
+                    size="icon"
+                    variant="default"
+                  >
+                    {isPlaying ? (
+                      <Pause className="size-5" />
+                    ) : (
+                      <Play className="size-5" />
+                    )}
+                  </Button>
+                  <Button
+                    className="size-8"
+                    onClick={() => handleNext()}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <SkipForward className="size-4" />
+                  </Button>
+                  <Button
+                    className="size-8"
+                    onClick={handleRepeatToggle}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <Repeat
+                      className={`size-4 ${repeatMode === "off" ? "" : "text-primary"}`}
+                    />
+                    {repeatMode === "one" && (
+                      <span className="absolute text-[10px] font-bold">1</span>
+                    )}
+                  </Button>
+                  <div className="lg:hidden">{queueSheet}</div>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">

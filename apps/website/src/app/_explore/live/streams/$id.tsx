@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
+  CalendarClock,
   Captions,
   Lock,
   MessageSquare,
@@ -45,6 +46,7 @@ function StreamDetailPage() {
         playbackUrl: string | null;
         playerUrl: string | null;
         source: string;
+        startsAt: string;
         status: string;
         visibility: string;
       };
@@ -74,7 +76,7 @@ function StreamDetailPage() {
         <div className="space-y-6">
           <section className="overflow-hidden rounded-lg border bg-card">
             <div className="relative aspect-video bg-black">
-              {experience?.playerUrl ? (
+              {experience?.playerUrl && experience.status === "live" ? (
                 <iframe
                   allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
@@ -96,15 +98,33 @@ function StreamDetailPage() {
                   />
                   <div className="absolute inset-0 bg-black/40" />
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg">
-                      <Play className="ml-1 size-8 fill-current" />
+                    <div className="rounded-xl bg-black/70 px-6 py-4 text-center text-white">
+                      {experience?.status === "scheduled" ? (
+                        <>
+                          <CalendarClock className="mx-auto mb-2 size-7" />
+                          <p className="font-semibold">Stream scheduled</p>
+                          <p className="mt-1 text-sm text-white/70">
+                            {new Date(experience.startsAt).toLocaleString()}
+                          </p>
+                        </>
+                      ) : (
+                        <Play className="mx-auto size-8 fill-current" />
+                      )}
                     </div>
                   </div>
                 </>
               )}
               <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                <Badge variant="destructive">Live</Badge>
-                <Badge variant="secondary">Cloudflare Realtime ready</Badge>
+                <Badge
+                  variant={
+                    experience?.status === "live" ? "destructive" : "secondary"
+                  }
+                >
+                  {experience?.status === "live" ? "Live" : "Scheduled"}
+                </Badge>
+                <Badge variant="secondary">
+                  {experience?.source === "obs" ? "OBS / RTMPS" : "Browser"}
+                </Badge>
               </div>
             </div>
           </section>

@@ -1,17 +1,23 @@
 import { env } from "@soundkit/env/server";
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
-
-const appendValue = (
-  params: URLSearchParams,
-  key: string,
-  value: boolean | number | string | null | undefined
-) => {
-  if (value !== null && value !== undefined) {
-    params.append(key, String(value));
-  }
-};
+    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  checkoutIntegrationIdentifier = () => {
+    const suffix = Array.from(
+      crypto.getRandomValues(new Uint8Array(8)),
+      (value) => String.fromCharCode(97 + (value % 26))
+    ).join("");
+    return `soundkit_${suffix}`;
+  },
+  appendValue = (
+    params: URLSearchParams,
+    key: string,
+    value: boolean | number | string | null | undefined
+  ) => {
+    if (value !== null && value !== undefined) {
+      params.append(key, String(value));
+    }
+  };
 
 export const stripeRequest = async <T>({
   connectedAccountId,
@@ -39,14 +45,13 @@ export const stripeRequest = async <T>({
     headers.set("Stripe-Account", connectedAccountId);
   }
 
-  const query = method === "GET" && params ? `?${params.toString()}` : "";
-  const response = await fetch(`https://api.stripe.com/v1${path}${query}`, {
-    body: method === "POST" ? params : undefined,
-    headers,
-    method,
-  });
-
-  const responseBody = await response.text();
+  const query = method === "GET" && params ? `?${params.toString()}` : "",
+    response = await fetch(`https://api.stripe.com/v1${path}${query}`, {
+      body: method === "POST" ? params : undefined,
+      headers,
+      method,
+    }),
+    responseBody = await response.text();
 
   if (!response.ok) {
     let detail = responseBody.slice(0, 300);
@@ -59,12 +64,10 @@ export const stripeRequest = async <T>({
       // Keep the bounded raw response when Stripe does not return JSON.
     }
 
-    throw new Error(
-      `Stripe request failed with ${response.status}: ${detail}`
-    );
+    throw new Error(`Stripe request failed with ${response.status}: ${detail}`);
   }
 
-  return (JSON.parse(responseBody) as T);
+  return JSON.parse(responseBody) as T;
 };
 
 export interface StripeListResponse<T> {
@@ -190,14 +193,30 @@ export interface StripeCouponSummary {
   valid: boolean;
 }
 
-export const listStripeCoupons = () => {
+export interface StripePromotionCodeSummary {
+  active: boolean;
+  code: string;
+  created: number;
+  expires_at?: number | null;
+  id: string;
+  max_redemptions?: number | null;
+  promotion: {
+    coupon: string | StripeCouponSummary;
+    type: "coupon";
+  };
+  times_redeemed: number;
+}
+
+export const listStripePromotionCodes = () => {
   const params = new URLSearchParams();
+  appendValue(params, "active", true);
+  appendValue(params, "expand[]", "data.promotion.coupon");
   appendValue(params, "limit", 100);
 
-  return stripeRequest<StripeListResponse<StripeCouponSummary>>({
+  return stripeRequest<StripeListResponse<StripePromotionCodeSummary>>({
     method: "GET",
     params,
-    path: "/coupons",
+    path: "/promotion_codes",
   });
 };
 
@@ -267,10 +286,50 @@ export const createStripeCoupon = ({
   });
 };
 
-export const deleteStripeCoupon = (couponId: string) =>
-  stripeRequest<{ deleted: boolean; id: string }>({
-    method: "DELETE",
-    path: `/coupons/${encodeURIComponent(couponId)}`,
+export const createStripePromotionCode = ({
+  code,
+  couponId,
+  maxRedemptions,
+}: {
+  code: string;
+  couponId: string;
+  maxRedemptions?: number;
+}) => {
+  const params = new URLSearchParams();
+  appendValue(params, "promotion[type]", "coupon");
+  appendValue(params, "promotion[coupon]", couponId);
+  appendValue(params, "code", code);
+  appendValue(params, "max_redemptions", maxRedemptions);
+
+  return stripeRequest<StripePromotionCodeSummary>({
+    params,
+    path: "/promotion_codes",
+  });
+};
+
+export const archiveStripePromotionCode = (promotionCodeId: string) => {
+  const params = new URLSearchParams();
+  appendValue(params, "active", false);
+  return stripeRequest<StripePromotionCodeSummary>({
+    params,
+    path: `/promotion_codes/${encodeURIComponent(promotionCodeId)}`,
+  });
+};
+
+export const retrieveStripeCharge = (chargeId: string) =>
+  stripeRequest<{
+    id: string;
+    metadata?: Record<string, string>;
+    transfer?: string | null;
+  }>({
+    method: "GET",
+    path: `/charges/${encodeURIComponent(chargeId)}`,
+  });
+
+export const reverseStripeTransfer = (transferId: string) =>
+  stripeRequest<{ id: string }>({
+    params: new URLSearchParams(),
+    path: `/transfers/${encodeURIComponent(transferId)}/reversals`,
   });
 
 export const createDestinationCheckout = ({
@@ -297,6 +356,11 @@ export const createDestinationCheckout = ({
 }) => {
   const params = new URLSearchParams();
   appendValue(params, "mode", "payment");
+  appendValue(
+    params,
+    "integration_identifier",
+    checkoutIntegrationIdentifier()
+  );
   appendValue(params, "allow_promotion_codes", true);
   appendValue(params, "success_url", successUrl);
   appendValue(params, "cancel_url", cancelUrl);
@@ -365,6 +429,11 @@ export const createConnectedSubscriptionCheckout = ({
 }) => {
   const params = new URLSearchParams();
   appendValue(params, "mode", "subscription");
+  appendValue(
+    params,
+    "integration_identifier",
+    checkoutIntegrationIdentifier()
+  );
   appendValue(params, "allow_promotion_codes", true);
   appendValue(params, "success_url", successUrl);
   appendValue(params, "cancel_url", cancelUrl);
@@ -428,17 +497,17 @@ export const verifyStripeSignature = async ({
   }
 
   const parts = Object.fromEntries(
-    signature.split(",").map((part) => part.split("=", 2))
-  );
-  const timestamp = parts.t;
-  const expected = parts.v1;
+      signature.split(",").map((part) => part.split("=", 2))
+    ),
+    timestamp = parts.t,
+    expected = parts.v1;
 
   if (!(timestamp && expected)) {
     return false;
   }
 
-  const timestampSeconds = Number(timestamp);
-  const toleranceSeconds = 5 * 60;
+  const timestampSeconds = Number(timestamp),
+    toleranceSeconds = 5 * 60;
 
   if (
     !Number.isFinite(timestampSeconds) ||
@@ -448,13 +517,13 @@ export const verifyStripeSignature = async ({
   }
 
   const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["verify"]
-  );
-  const expectedBytes = hexToBytes(expected);
+      "raw",
+      new TextEncoder().encode(secret),
+      { hash: "SHA-256", name: "HMAC" },
+      false,
+      ["verify"]
+    ),
+    expectedBytes = hexToBytes(expected);
 
   if (!expectedBytes) {
     return false;

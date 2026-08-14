@@ -1,16 +1,20 @@
 import { google } from "@ai-sdk/google";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistProfiles,
+  projects,
   searchEmbeddings,
   trackAssets,
   trackLyrics,
   trackStemJobs,
   tracks,
+  userProfiles,
+  videos,
   workflowJobs,
 } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { embed } from "ai";
-import { and, eq, ne } from "drizzle-orm";
+import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
@@ -417,6 +421,116 @@ const embeddingModelName = () =>
     .replace(/^google\//u, "")
     .trim() || DEFAULT_EMBEDDING_MODEL;
 
+export const backfillSearchEmbeddings = async (limit = 100) => {
+  if (!isDatabaseConfigured()) {
+    return { indexed: 0 };
+  }
+
+  const db = createDb();
+  const cappedLimit = Math.min(Math.max(limit, 1), 500);
+  let indexed = 0;
+  const trackRows = await db.select().from(tracks).limit(cappedLimit);
+  for (const row of trackRows) {
+    await indexSearchEntity({
+      entityId: row.id,
+      entityType: "track",
+      organizationId: row.organizationId,
+      text: [row.title, row.description, row.musicalKey].filter(Boolean).join("\n"),
+    });
+    indexed += 1;
+  }
+  const projectRows = await db.select().from(projects).limit(cappedLimit);
+  for (const row of projectRows) {
+    await indexSearchEntity({
+      entityId: row.id,
+      entityType: "project",
+      organizationId: row.organizationId,
+      text: [row.title, row.description].filter(Boolean).join("\n"),
+    });
+    indexed += 1;
+  }
+  const videoRows = await db.select().from(videos).limit(cappedLimit);
+  for (const row of videoRows) {
+    await indexSearchEntity({
+      entityId: row.id,
+      entityType: "video",
+      organizationId: null,
+      text: [row.title, row.description].filter(Boolean).join("\n"),
+    });
+    indexed += 1;
+  }
+  const artistRows = await db
+    .select({ profile: artistProfiles, profileDetails: userProfiles })
+    .from(artistProfiles)
+    .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
+    .limit(cappedLimit);
+  for (const row of artistRows) {
+    await indexSearchEntity({
+      entityId: row.profile.userId,
+      entityType: "artist",
+      organizationId: row.profile.primaryOrganizationId,
+      text: [row.profile.stageName, row.profileDetails.username, row.profileDetails.city, row.profileDetails.state]
+        .filter(Boolean)
+        .join("\n"),
+    });
+    indexed += 1;
+  }
+
+  return { indexed };
+};
+
+export const loadEmbeddingStatus = async () => {
+  if (!isDatabaseConfigured()) {
+    return { byEntityType: {}, total: 0 };
+  }
+
+  const rows = await createDb()
+    .select({ entityType: searchEmbeddings.entityType, count: count() })
+    .from(searchEmbeddings)
+    .groupBy(searchEmbeddings.entityType);
+  return {
+    byEntityType: Object.fromEntries(rows.map((row) => [row.entityType, row.count])),
+    total: rows.reduce((sum, row) => sum + row.count, 0),
+  };
+};
+
+export const searchSemanticEntities = async ({
+  limit = 12,
+  text,
+}: {
+  limit?: number;
+  text: string;
+}) => {
+  if (!isDatabaseConfigured() || !text.trim() || !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")) {
+    return [];
+  }
+
+  const result = await embed({ model: google.embedding(embeddingModelName()), value: text });
+  const embedding = result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
+    ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
+    : [...result.embedding, ...Array.from({ length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length }, () => 0)];
+  const vector = `[${embedding.join(",")}]`;
+  return createDb()
+    .select({ entityId: searchEmbeddings.entityId, entityType: searchEmbeddings.entityType })
+    .from(searchEmbeddings)
+    .orderBy(asc(sql`${searchEmbeddings.embedding} <=> ${vector}::vector`))
+    .limit(Math.min(limit, 50));
+};
+
+export const indexSearchEntity = async ({
+  entityId,
+  entityType,
+  organizationId,
+  text,
+}: {
+  entityId: string;
+  entityType: "artist" | "lyrics" | "project" | "track" | "video";
+  organizationId: null | string;
+  text: string;
+}) => {
+  await saveEmbedding({ entityId, entityType, organizationId, text });
+};
+
 const saveEmbedding = async ({
   entityId,
   entityType,
@@ -424,7 +538,7 @@ const saveEmbedding = async ({
   text,
 }: {
   entityId: string;
-  entityType: "lyrics" | "track";
+  entityType: "artist" | "lyrics" | "project" | "track" | "video";
   organizationId: null | string;
   text: string;
 }) => {

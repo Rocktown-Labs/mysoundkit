@@ -6,6 +6,7 @@ import {
   muxUploads,
   playbackSessions,
   projectTracks,
+  videoPreSaves,
   purchases,
   tracks,
   userProfiles,
@@ -20,6 +21,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { resolveListeningAccess } from "@/lib/content-access";
+import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -54,6 +56,21 @@ import { videoPlaybackSourceType } from "@/lib/video-playback";
 import { uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
+
+app.post("/:videoId/pre-save", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json({ message: "Authentication is required." }, 401);
+  }
+  const videoId = c.req.param("videoId");
+  if (isDatabaseConfigured()) {
+    await createDb().insert(videoPreSaves).values({
+      userId: user.id,
+      videoId,
+    }).onConflictDoNothing();
+  }
+  return c.json({ isPreSaved: true, videoId }, 200);
+});
 
 const hasPurchasedTrack = async ({
   db,
@@ -402,6 +419,15 @@ app.openapi(
         videoKind: body.videoKind,
       })
       .returning();
+
+    if (video) {
+      await indexSearchEntity({
+        entityId: video.id,
+        entityType: "video",
+        organizationId: video.organizationId,
+        text: [video.title, video.description].filter(Boolean).join("\n"),
+      });
+    }
 
     return c.json(
       mapVideo(video ?? getSampleVideoFallback()),

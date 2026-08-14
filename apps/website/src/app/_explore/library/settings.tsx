@@ -45,6 +45,7 @@ function AccountSettingsPage() {
   const [city, setCity] = useState("");
   const [checkoutMessage, setCheckoutMessage] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards");
   const [stateValue, setStateValue] = useState("");
 
   useEffect(() => {
@@ -54,6 +55,7 @@ function AccountSettingsPage() {
 
     setCity(me.user.city ?? "");
     setDisplayName(me.user.displayName ?? "");
+    setMediaLayout(me.user.mediaLayout ?? "cards");
     setStateValue(me.user.state ?? "");
   }, [me]);
 
@@ -62,6 +64,7 @@ function AccountSettingsPage() {
     updateProfile.mutate({
       city,
       displayName,
+      mediaLayout,
       state: stateValue,
     });
   };
@@ -154,6 +157,34 @@ function AccountSettingsPage() {
               </div>
               <Button onClick={saveProfile} disabled={updateProfile.isPending}>
                 {updateProfile.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Media Layout</CardTitle>
+              <CardDescription>
+                Choose cards or a compact list for media collections.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Label htmlFor="fan-media-layout">Default media view</Label>
+              <select
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                id="fan-media-layout"
+                onChange={(event) =>
+                  setMediaLayout(
+                    event.target.value === "list" ? "list" : "cards"
+                  )
+                }
+                value={mediaLayout}
+              >
+                <option value="cards">Cards</option>
+                <option value="list">Compact list</option>
+              </select>
+              <Button onClick={saveProfile} disabled={updateProfile.isPending}>
+                Save Layout
               </Button>
             </CardContent>
           </Card>

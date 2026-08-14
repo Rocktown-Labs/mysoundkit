@@ -268,6 +268,7 @@ export const userSummarySchema = z.object({
       youtube: z.string().url().optional(),
     })
     .optional(),
+  mediaLayout: z.enum(["cards", "list"]).default("cards"),
   onboardingCompletedAt: z.string().nullable().optional(),
   proAffiliation: z.string().nullable().optional(),
   proMemberId: z.string().nullable().optional(),
@@ -359,6 +360,7 @@ export const profileUpdateBodySchema = z.object({
       youtube: z.string().optional(),
     })
     .optional(),
+  mediaLayout: z.enum(["cards", "list"]).optional(),
   proAffiliation: z.string().optional(),
   proMemberId: z.string().optional(),
   songwriterLegalName: z.string().optional(),
@@ -401,6 +403,7 @@ export const artistSummarySchema = z.object({
     })
     .optional(),
   location: z.string(),
+  mediaLayout: z.enum(["cards", "list"]).optional(),
   name: z.string(),
   projectCount: z.number().int().nonnegative().optional(),
   rank: z
@@ -420,8 +423,8 @@ export const publicExploreQuerySchema = z.object({
   genre: z.string().trim().max(80).default("all"),
   limit: z.coerce.number().int().positive().max(100).default(24),
   page: z.coerce.number().int().positive().default(1),
-  region: z.string().trim().max(80).default("us-arkansas"),
   q: z.string().trim().max(120).optional(),
+  region: z.string().trim().max(80).default("us-arkansas"),
   regionType: z.enum(["north-america", "global"]).default("north-america"),
   scope: z.enum(["dashboard", "public"]).default("dashboard"),
   sort: z.string().trim().max(80).default("rank-asc"),
@@ -466,8 +469,8 @@ export const trackSummarySchema = z.object({
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
-  previewUrl: z.string().nullable().optional(),
   plays: z.number(),
+  previewUrl: z.string().nullable().optional(),
   price: z.number().nullable(),
   priceCents: z.number().int().nullable().optional(),
   productionStatus: z
@@ -752,8 +755,8 @@ export const trackCatalogDetailSchema = z.object({
   id: z.string(),
   isForSale: z.boolean().default(false),
   isOwned: z.boolean().default(false),
-  isPurchasable: z.boolean(),
   isPreviewAvailable: z.boolean().default(false),
+  isPurchasable: z.boolean(),
   isStreamable: z.boolean(),
   isrc: z.string().nullable().optional(),
   licenseOptions: catalogLicenseOptionSchema.array().default([]),
@@ -787,9 +790,9 @@ export const projectSummarySchema = z.object({
   description: z.string().nullable().optional(),
   duration: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),
+  exclusiveUntil: z.string().nullable().optional(),
   genre: z.string().nullable().optional(),
   id: z.string(),
-  exclusiveUntil: z.string().nullable().optional(),
   isForSale: z.boolean().default(false),
   isPublic: z.boolean(),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
@@ -822,27 +825,35 @@ export const projectDashboardDetailSchema = projectSummarySchema.extend({
 export const listeningPartySummarySchema = z.object({
   description: z.string().nullable(),
   endedAt: z.string().nullable(),
+  genre: z.string().nullable(),
   hostUserId: z.string(),
   id: z.string(),
   liveRoomId: z.string().nullable(),
   organizationId: z.string().nullable(),
   playbackMode: z.enum(["artist_hosted", "programmed_release"]),
-  projectId: z.string(),
+  playlistId: z.string().nullable(),
+  projectId: z.string().nullable(),
   scheduledStartAt: z.string(),
   startedAt: z.string().nullable(),
   status: z.enum(["scheduled", "live", "ended", "canceled"]),
   title: z.string(),
 });
 
-export const createListeningPartyBodySchema = z.object({
-  description: z.string().max(2000).optional(),
-  playbackMode: z
-    .enum(["artist_hosted", "programmed_release"])
-    .default("artist_hosted"),
-  projectId: z.string().min(1),
-  scheduledStartAt: z.string().datetime(),
-  title: z.string().min(1).max(140),
-});
+export const createListeningPartyBodySchema = z
+  .object({
+    description: z.string().max(2000).optional(),
+    genre: z.string().optional(),
+    playbackMode: z
+      .enum(["artist_hosted", "programmed_release"])
+      .default("artist_hosted"),
+    playlistId: z.string().min(1).optional(),
+    projectId: z.string().min(1).optional(),
+    scheduledStartAt: z.string().datetime(),
+    title: z.string().min(1).max(140),
+  })
+  .refine((body) => Boolean(body.projectId) !== Boolean(body.playlistId), {
+    message: "Choose exactly one project or playlist.",
+  });
 
 export const videoSummarySchema = z.object({
   creatorName: z.string().optional(),
@@ -925,7 +936,19 @@ export const conversationSummarySchema = z.object({
   updatedAt: z.string(),
 });
 
+export const messageAttachmentSchema = z.object({
+  displayName: z.string(),
+  id: z.string(),
+  mimeType: z.string().nullable(),
+  objectKey: z.string().nullable(),
+  sizeBytes: z.number().int().nullable(),
+  sourceProjectId: z.string().nullable(),
+  sourceTrackId: z.string().nullable(),
+  url: z.string(),
+});
+
 export const messageSchema = z.object({
+  attachments: messageAttachmentSchema.array().default([]),
   body: z.string(),
   createdAt: z.string(),
   id: z.string(),
@@ -987,7 +1010,9 @@ export const battleSummarySchema = z.object({
     })
     .nullable()
     .optional(),
+  startsAt: z.string().nullable().optional(),
   status: z.enum(["scheduled", "live", "completed", "archived"]),
+  title: z.string(),
   tracks: z
     .object({
       artist: z.string(),
@@ -999,7 +1024,6 @@ export const battleSummarySchema = z.object({
     .array()
     .max(2)
     .default([]),
-  title: z.string(),
   viewerCount: z.number(),
   visibility: z.enum(["public", "premium_only"]),
 });
@@ -1139,6 +1163,7 @@ export const onboardingArtistBodySchema = z
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
     instagramHandle: z.string().optional(),
+    mediaLayout: z.enum(["cards", "list"]).default("cards"),
     primaryGenre: z.string().min(1),
     proAffiliation: z.string().default("None"),
     proMemberId: z.string().optional(),
@@ -1177,6 +1202,7 @@ export const onboardingResponseSchema = z.object({
 export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
+  mediaLayout: z.enum(["cards", "list"]).default("cards"),
   selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan", "fan_family"]),
   state: z.string().min(1),
   username: usernameSchema,
@@ -1210,15 +1236,15 @@ export const createTrackBodySchema = z.object({
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
   downloadsAllowed: z.boolean().default(true),
-  downloadsRequireFirstPlay: z.boolean().default(false),
-  downloadsRequirePurchase: z.boolean().default(true),
-  genre: z.string().min(1),
+  downloadsRequireFirstPlay: z.boolean().default(true),
+  downloadsRequirePurchase: z.boolean().default(false),
   exclusiveUntil: z.string().optional(),
+  genre: z.string().min(1),
   isForSale: z.boolean(),
   isOpenVerse: z.boolean().default(false),
   isPublic: z.boolean(),
-  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   isrc: z.string().optional(),
+  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   musicalKey: z.string().optional(),
   price: z.number().nonnegative().optional(),
   priceCents: z.number().int().nonnegative().optional(),
@@ -1425,10 +1451,11 @@ export const claimCartBodySchema = z.object({
 
 export const createProjectBodySchema = z.object({
   assetIds: z.array(z.string()).default([]),
-  exclusiveUntil: z.string().optional(),
   collaboratorNames: z.array(z.string()).default([]),
   collaborators: z.array(trackCollaboratorInputSchema).default([]),
   description: z.string().optional(),
+  exclusiveUntil: z.string().optional(),
+  genre: z.string().min(1).optional(),
   isForSale: z.boolean().default(false),
   isPublic: z.boolean().default(true),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
@@ -1436,6 +1463,9 @@ export const createProjectBodySchema = z.object({
     .array(
       z.object({
         assetId: z.string().optional(),
+        downloadsAllowed: z.boolean().default(true),
+        downloadsRequireFirstPlay: z.boolean().default(true),
+        downloadsRequirePurchase: z.boolean().default(false),
         durationMs: z.number().int().nonnegative().optional(),
         fileName: z.string().optional(),
         genre: z.string().min(1),
@@ -1662,6 +1692,24 @@ export const createConversationBodySchema = z.object({
   title: z.string().optional(),
 });
 
-export const createMessageBodySchema = z.object({
-  body: z.string().min(1),
-});
+export const createMessageBodySchema = z
+  .object({
+    attachments: z
+      .array(
+        z.object({
+          displayName: z.string().min(1).max(180),
+          mimeType: z.string().optional(),
+          objectKey: z.string().optional(),
+          sizeBytes: z.number().int().nonnegative().optional(),
+          sourceProjectId: z.string().optional(),
+          sourceTrackId: z.string().optional(),
+          url: z.string().min(1),
+        })
+      )
+      .max(8)
+      .default([]),
+    body: z.string().default(""),
+  })
+  .refine((message) => message.body.trim() || message.attachments.length > 0, {
+    message: "Add a message or attachment.",
+  });

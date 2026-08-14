@@ -1206,6 +1206,7 @@ export const buildLiveExperienceInsert = ({
   battleId,
   battleKitId,
   createdByUserId,
+  genre,
   id,
   kind,
   meetingId,
@@ -1220,6 +1221,7 @@ export const buildLiveExperienceInsert = ({
   battleId: string | null | undefined;
   battleKitId: string | null | undefined;
   createdByUserId: string;
+  genre?: string | null;
   id: string;
   kind: LiveExperienceKind;
   meetingId: string;
@@ -1234,6 +1236,7 @@ export const buildLiveExperienceInsert = ({
   battleId: battleId ?? null,
   battleKitId: battleKitId ?? null,
   createdByUserId,
+  genre: genre ?? null,
   id,
   kind,
   meetingId,

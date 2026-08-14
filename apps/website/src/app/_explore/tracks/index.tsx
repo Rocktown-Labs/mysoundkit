@@ -95,10 +95,23 @@ function TracksPage() {
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
       <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.history.back()}
         className="mb-4"
+        onClick={() => {
+          if (view === "all") {
+            void navigate({
+              replace: true,
+              search: (previous) => ({
+                ...previous,
+                genre: "all",
+                view: "sections",
+              }),
+            });
+            return;
+          }
+          router.history.back();
+        }}
+        size="sm"
+        variant="ghost"
       >
         <ArrowLeft className="size-4 mr-2" />
         Back
@@ -152,7 +165,19 @@ function TracksPage() {
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-xl">Featured Songs</h2>
               <Button
-                onClick={() => updateFilters({ view: "all" })}
+                onClick={() => {
+                  void navigate({
+                    search: (previous) => ({
+                      ...previous,
+                      genre,
+                      q,
+                      region,
+                      regionType,
+                      sort,
+                      view: "all",
+                    }),
+                  });
+                }}
                 size="sm"
                 variant="ghost"
               >

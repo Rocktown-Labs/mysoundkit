@@ -310,9 +310,14 @@ const protectedRequests: {
     path: "/v1/live/cloudflare-stream/stream_123",
   },
   {
+    init: { method: "POST" },
+    label: "Connect account session",
+    path: "/v1/seller/account-session",
+  },
+  {
+    init: { method: "GET" },
     label: "track asset download",
     path: "/v1/tracks/track_123/assets/asset_123/download",
-    init: { method: "GET" },
   },
 ];
 
@@ -365,6 +370,11 @@ describe("SoundKit API authentication boundaries", () => {
   it.each([
     ["summary", "/v1/admin/finance/summary", undefined],
     ["payments", "/v1/admin/finance/payments", undefined],
+    [
+      "premium user search",
+      "/v1/admin/finance/payments/users?q=artist",
+      undefined,
+    ],
     ["coupons", "/v1/admin/finance/payments/coupons", undefined],
     [
       "coupon creation",
@@ -383,12 +393,10 @@ describe("SoundKit API authentication boundaries", () => {
     [
       "premium grant",
       "/v1/admin/finance/payments/grant-premium",
-      jsonRequest({ target: "artist@example.com" }),
-    ],
-    [
-      "AI credit grant",
-      "/v1/admin/finance/payments/issue-credits",
-      jsonRequest({ credits: 500, target: "artist@example.com" }),
+      jsonRequest({
+        planCode: "soundkit_premium_artist",
+        userIds: ["artist_user_id"],
+      }),
     ],
   ])(
     "keeps finance administration restricted for %s",

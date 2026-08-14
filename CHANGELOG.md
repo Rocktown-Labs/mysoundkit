@@ -4,12 +4,31 @@
 
 ### Added
 
+- Added chat file and saved/purchased music attachments, attachment persistence, and one-click shared track/project workspaces with accepted collaborator permissions and notifications.
+- Replaced Admin Ads prompt-only controls with real zero-budget house campaign creation, creative uploads/previews, and active/paused controls; repaired artist campaign payloads, media uploads, wallet display, real creative library, and uploaded-track promotion selection.
+- Added onboarding and account-setting media layout preferences, with card/compact-list rendering across artist track, project, video, dashboard, and public profile collections.
+- Added deduplicated in-app and transactional-email fan-out to pre-savers, artist followers, and profile followers when tracks, projects, and videos release or listening parties are scheduled.
+- Simplified listening parties to scheduled, non-empty album/project or fan-playlist rooms; scheduled Premium artist projects now create release parties automatically, while Premium fan sources and artist video/chat presence remain explicit.
+- Added public fan profiles, fan-to-fan follows, follower notifications, and account-aware My SoundKit profile/dashboard navigation.
+- Added Premium-only battle opponent search by artist name/handle, native date/time challenge scheduling, acceptance-created public battle schedules, challenge status notifications, and profile challenge compatibility.
+- Added Cloudflare Stream live-input status synchronization so OBS connection/disconnection drives public Live/Ended state and scheduled stream pages show the actual player only when broadcasting.
+- Unified `/live`, battles, streams, and listening parties around real Featured, Live Now, Upcoming, filterable view-all, and genre collection rails; added live-experience genre persistence and removed dummy mobile live overview data.
+- Added draft track/project quick-release actions and project track sequencing controls directly to dashboard detail pages.
+- Added persistent Recently Played history to the web player, consumed completed queue entries, reliable single-track restart behavior, next-track metadata preloading, and a compact mobile player layout.
+- Added Accounts v2 Stripe Connect onboarding for Premium artists, a Career Payments workspace with embedded payment and payout management, post-Premium routing, destination Checkout readiness checks, and artist payment setup prompts.
+- Reworked admin Premium management around the two equal-price Fan and Artist Premium plans, including searchable multi-user grants, subscription visibility, welcome notifications and email, plus live Stripe promotion-code creation and redemption reporting.
 - Added real Cloudflare Stream playback to public creator stream rooms, persisted live-input IDs, live status polling, and host-controlled input shutdown.
 
 - Added a RealtimeKit presets setup script (`packages/infra/realtimekit-presets.ts`) that creates or updates the eight SoundKit presets (battle lobby/artist/voter, party host/listener, stream host/viewer) via the Cloudflare API using Alchemy credentials, with `--dry-run` and `--delete` modes, strict app selection, and checked mutation responses.
 
 ### Fixed
 
+- Kept unfunded artist ad campaigns out of serving, enabled global house-ad matching, stopped non-repeat queues at the final track, made failed release-email queueing retryable, used local party scheduling minimums, and rejected duplicate project reorder IDs.
+- Fixed the listening-party dashboard SSR crash, refreshed live-surface E2E expectations, and restored admin user fixtures for static browser tests.
+- Fixed Tracks Featured View All navigation so Back returns to the originating Tracks sections instead of a previously visited Projects route.
+- Stopped restoring abandoned track/project creation attempts from local storage; confirmed navigation now discards temporary track records while explicit Draft publication remains private and editable.
+- Fixed preview-deployment downloads for media stored in the canonical production bucket while preserving authenticated first-play and purchase access rules.
+- Standardized newly created track download defaults across standalone and project-created tracks: authenticated users must play once before downloading, while free tracks are not purchase-gated.
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.
 - Added production and suffixed-preview queue routing for duration backfills, plus focused coverage for queue-name classification.

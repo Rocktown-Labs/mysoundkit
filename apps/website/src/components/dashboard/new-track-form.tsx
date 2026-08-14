@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -72,6 +73,7 @@ import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import {
   apiClient,
+  API_V1_URL,
   MEDIA_UPLOAD_URL,
   MEDIA_BASE_URL,
   rpcJson,
@@ -242,8 +244,8 @@ const defaultTrackFormValues: TrackFormValues = {
   credits: [],
   description: "",
   downloadsAllowed: true,
-  downloadsRequireFirstPlay: false,
-  downloadsRequirePurchase: true,
+  downloadsRequireFirstPlay: true,
+  downloadsRequirePurchase: false,
   exclusiveUntil: "",
   genre: "Hip-Hop/Rap",
   isForSale: false,
@@ -301,6 +303,11 @@ export function NewTrackForm({
       : SUPPORTED_GENRES;
   const { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
     useAudioPlayer();
+  const isReleasedTrack = Boolean(
+    initialTrack &&
+      (initialTrack.isPublic === true ||
+        Number(initialTrack.playCount ?? initialTrack.plays ?? 0) > 0)
+  );
   const [step, setStep] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<
@@ -391,10 +398,8 @@ export function NewTrackForm({
       })),
       description: (initialTrack.description as string) ?? "",
       downloadsAllowed: initialTrack.downloadsAllowed !== false,
-      downloadsRequireFirstPlay: Boolean(
-        initialTrack.downloadsRequireFirstPlay
-      ),
-      downloadsRequirePurchase: initialTrack.downloadsRequirePurchase !== false,
+      downloadsRequireFirstPlay: initialTrack.downloadsRequireFirstPlay !== false,
+      downloadsRequirePurchase: Boolean(initialTrack.downloadsRequirePurchase),
       exclusiveUntil: exclusiveUntilForInput(initialTrack.exclusiveUntil),
       genre: (initialTrack.genre as string) ?? "",
       isForSale,
@@ -444,50 +449,6 @@ export function NewTrackForm({
       });
     }
   }, [initialTrack, form]);
-
-  // Restore preview metadata from localStorage if a local draft exists
-  useEffect(() => {
-    if (initialTrack) {
-      return;
-    }
-    try {
-      const metaKey = "soundkit:new-track-draft:meta";
-      const storedMeta = window.localStorage.getItem(metaKey);
-      if (storedMeta) {
-        const { coverUpload: storedCover, uploadedTrack: storedMaster } =
-          JSON.parse(storedMeta);
-        if (storedCover && !coverUpload) {
-          coverUploadRef.current = storedCover;
-          setCoverUpload(storedCover);
-        }
-        if (storedMaster && !uploadedTrack) {
-          setUploadedTrack(storedMaster);
-        }
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, [initialTrack]);
-
-  // Persist preview metadata to localStorage
-  useEffect(() => {
-    if (initialTrack) {
-      return;
-    }
-    try {
-      const metaKey = "soundkit:new-track-draft:meta";
-      if (coverUpload || uploadedTrack) {
-        window.localStorage.setItem(
-          metaKey,
-          JSON.stringify({ coverUpload, uploadedTrack })
-        );
-      } else {
-        window.localStorage.removeItem(metaKey);
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, [coverUpload, uploadedTrack, initialTrack]);
 
   const handleBatchFileUpload = (files: FileList | File[]) => {
     const fileList = [...files];
@@ -560,8 +521,17 @@ export function NewTrackForm({
     ),
     defaultValues: defaultTrackFormValues,
     form,
-    persist: !initialTrack,
-    restoreOnMount: !initialTrack,
+    onDiscard: async () => {
+      if (!(uploadedTrack?.trackId && !initialTrack)) {
+        return;
+      }
+      await fetch(
+        `${API_V1_URL}/tracks/${encodeURIComponent(uploadedTrack.trackId)}`,
+        { credentials: "include", method: "DELETE" }
+      );
+    },
+    persist: false,
+    restoreOnMount: false,
     storageKey: "soundkit:new-track-draft",
   });
 
@@ -1001,6 +971,18 @@ export function NewTrackForm({
       setSubmitStage("idle");
       setIsSubmitting(false);
     }
+  };
+
+  const handleInvalidSubmit = (errors: FieldErrors<TrackFormValues>) => {
+    const firstError = Object.keys(errors)[0];
+    if (firstError === "genre" || firstError === "name" || firstError === "status") {
+      setStep("details");
+    }
+    toast({
+      description: "Review the highlighted fields before continuing.",
+      title: "Track setup incomplete",
+      variant: "destructive",
+    });
   };
 
   const onSubmit = async (values: TrackFormValues) => {
@@ -1594,7 +1576,10 @@ export function NewTrackForm({
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, handleInvalidSubmit)}
+          className="space-y-6"
+        >
           <Accordion
             type="single"
             collapsible
@@ -1657,6 +1642,7 @@ export function NewTrackForm({
                           Genre <span className="text-destructive">*</span>
                         </FormLabel>
                         <Select
+                          disabled={isReleasedTrack}
                           onValueChange={field.onChange}
                           value={field.value}
                         >
@@ -1687,6 +1673,7 @@ export function NewTrackForm({
                       <FormItem>
                         <FormLabel>Status</FormLabel>
                         <Select
+                          disabled={isReleasedTrack}
                           onValueChange={field.onChange}
                           value={field.value}
                         >

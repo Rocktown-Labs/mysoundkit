@@ -3,6 +3,7 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
   artistProfiles,
+  userFollows,
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
@@ -37,6 +38,151 @@ const notFoundResponse = jsonContent(messageResponseSchema, "Artist not found");
 const commentListResponse = jsonContent(commentSchema.array(), "Post comments");
 const commentCreatedResponse = jsonContent(commentSchema, "Comment created");
 const likeAppliedResponse = jsonContent(messageResponseSchema, "Like applied");
+const publicProfileSchema = z.object({
+  accountType: z.enum(["artist", "fan"]),
+  avatarUrl: z.string().nullable(),
+  bio: z.string().nullable(),
+  displayName: z.string(),
+  followerCount: z.number().int().nonnegative(),
+  location: z.string().nullable(),
+  username: z.string(),
+});
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/profiles/{username}",
+    request: { params: usernameParamSchema },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(publicProfileSchema, "Public profile"),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Profile not found"
+      ),
+    },
+    tags: ["Social"],
+  }),
+  async (c) => {
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        {
+          accountType: "fan" as const,
+          avatarUrl: null,
+          bio: null,
+          displayName: "SoundKit Fan",
+          followerCount: 0,
+          location: null,
+          username: c.req.valid("param").username,
+        },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const { username } = c.req.valid("param");
+    const db = createDb();
+    const [profile] = await db
+      .select({
+        accountType: userProfiles.accountType,
+        avatarUrl: userProfiles.avatarUrl,
+        bio: userProfiles.bio,
+        city: userProfiles.city,
+        displayName: userProfiles.displayName,
+        state: userProfiles.state,
+        userId: userProfiles.userId,
+        username: userProfiles.username,
+      })
+      .from(userProfiles)
+      .where(eq(userProfiles.username, username))
+      .limit(1);
+
+    if (!(profile?.displayName && profile.username)) {
+      return c.json(
+        { message: "Profile not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [followerSummary] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userFollows)
+      .where(eq(userFollows.targetUserId, profile.userId));
+
+    return c.json(
+      {
+        accountType: profile.accountType,
+        avatarUrl: profile.avatarUrl,
+        bio: profile.bio,
+        displayName: profile.displayName,
+        followerCount: followerSummary?.count ?? 0,
+        location: [profile.city, profile.state].filter(Boolean).join(", ") || null,
+        username: profile.username,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/profiles/{username}/follow",
+    request: { params: usernameParamSchema },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(followResponseSchema, "User followed"),
+      [HttpStatusCodes.UNAUTHORIZED]: unauthorizedResponse,
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Profile not found"
+      ),
+    },
+    tags: ["Social"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { username } = c.req.valid("param");
+    const db = createDb();
+    const [target] = await db
+      .select({ userId: userProfiles.userId })
+      .from(userProfiles)
+      .where(eq(userProfiles.username, username))
+      .limit(1);
+    if (!target || target.userId === user.id) {
+      return c.json(
+        { message: "Profile not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    await db
+      .insert(userFollows)
+      .values({ followerUserId: user.id, targetUserId: target.userId })
+      .onConflictDoNothing();
+    const [summary] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(userFollows)
+      .where(eq(userFollows.targetUserId, target.userId));
+    await db
+      .insert(userNotifications)
+      .values({
+        id: `user_follow:${user.id}:${target.userId}`,
+        link: `/people/${username}`,
+        message: `${user.name ?? "Someone"} followed your SoundKit profile.`,
+        title: "New follower",
+        type: "user_follower",
+        userId: target.userId,
+      })
+      .onConflictDoNothing();
+
+    return c.json(
+      { followed: true, followerCount: summary?.count ?? 0 },
+      HttpStatusCodes.OK
+    );
+  }
+);
 
 app.openapi(
   createRoute({

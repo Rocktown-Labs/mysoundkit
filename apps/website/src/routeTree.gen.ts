@@ -63,12 +63,14 @@ import { Route as DashboardLiveFindRouteImport } from './app/dashboard/live/find
 import { Route as DashboardLiveChallengeRouteImport } from './app/dashboard/live/challenge'
 import { Route as DashboardCareerSettingsRouteImport } from './app/dashboard/career/settings'
 import { Route as DashboardCareerProfileRouteImport } from './app/dashboard/career/profile'
+import { Route as DashboardCareerPaymentsRouteImport } from './app/dashboard/career/payments'
 import { Route as DashboardCareerCalendarRouteImport } from './app/dashboard/career/calendar'
 import { Route as DashboardCareerAnalyticsRouteImport } from './app/dashboard/career/analytics'
 import { Route as DashboardCareerAiStudioRouteImport } from './app/dashboard/career/ai-studio'
 import { Route as ExploreVideosIdRouteImport } from './app/_explore/videos/$id'
 import { Route as ExploreTracksIdRouteImport } from './app/_explore/tracks/$id'
 import { Route as ExploreProjectsIdRouteImport } from './app/_explore/projects/$id'
+import { Route as ExplorePeopleUsernameRouteImport } from './app/_explore/people/$username'
 import { Route as ExploreLivePreviewRouteImport } from './app/_explore/live/preview'
 import { Route as ExploreLibrarySettingsRouteImport } from './app/_explore/library/settings'
 import { Route as ExploreGenresIdRouteImport } from './app/_explore/genres/$id'
@@ -373,6 +375,11 @@ const DashboardCareerProfileRoute = DashboardCareerProfileRouteImport.update({
   path: '/career/profile',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardCareerPaymentsRoute = DashboardCareerPaymentsRouteImport.update({
+  id: '/career/payments',
+  path: '/career/payments',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardCareerCalendarRoute = DashboardCareerCalendarRouteImport.update({
   id: '/career/calendar',
   path: '/career/calendar',
@@ -402,6 +409,11 @@ const ExploreTracksIdRoute = ExploreTracksIdRouteImport.update({
 const ExploreProjectsIdRoute = ExploreProjectsIdRouteImport.update({
   id: '/projects/$id',
   path: '/projects/$id',
+  getParentRoute: () => ExploreRoute,
+} as any)
+const ExplorePeopleUsernameRoute = ExplorePeopleUsernameRouteImport.update({
+  id: '/people/$username',
+  path: '/people/$username',
   getParentRoute: () => ExploreRoute,
 } as any)
 const ExploreLivePreviewRoute = ExploreLivePreviewRouteImport.update({
@@ -611,12 +623,14 @@ export interface FileRoutesByFullPath {
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
+  '/people/$username': typeof ExplorePeopleUsernameRoute
   '/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
@@ -702,11 +716,13 @@ export interface FileRoutesByTo {
   '/genres/$id': typeof ExploreGenresIdRoute
   '/library/settings': typeof ExploreLibrarySettingsRoute
   '/live/preview': typeof ExploreLivePreviewRoute
+  '/people/$username': typeof ExplorePeopleUsernameRoute
   '/tracks/$id': typeof ExploreTracksIdRoute
   '/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
@@ -796,12 +812,14 @@ export interface FileRoutesById {
   '/_explore/genres/$id': typeof ExploreGenresIdRoute
   '/_explore/library/settings': typeof ExploreLibrarySettingsRoute
   '/_explore/live/preview': typeof ExploreLivePreviewRoute
+  '/_explore/people/$username': typeof ExplorePeopleUsernameRoute
   '/_explore/projects/$id': typeof ExploreProjectsIdRouteWithChildren
   '/_explore/tracks/$id': typeof ExploreTracksIdRoute
   '/_explore/videos/$id': typeof ExploreVideosIdRoute
   '/dashboard/career/ai-studio': typeof DashboardCareerAiStudioRoute
   '/dashboard/career/analytics': typeof DashboardCareerAnalyticsRoute
   '/dashboard/career/calendar': typeof DashboardCareerCalendarRoute
+  '/dashboard/career/payments': typeof DashboardCareerPaymentsRoute
   '/dashboard/career/profile': typeof DashboardCareerProfileRoute
   '/dashboard/career/settings': typeof DashboardCareerSettingsRoute
   '/dashboard/live/challenge': typeof DashboardLiveChallengeRoute
@@ -891,12 +909,14 @@ export interface FileRouteTypes {
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
+    | '/people/$username'
     | '/projects/$id'
     | '/tracks/$id'
     | '/videos/$id'
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
     | '/dashboard/live/challenge'
@@ -982,11 +1002,13 @@ export interface FileRouteTypes {
     | '/genres/$id'
     | '/library/settings'
     | '/live/preview'
+    | '/people/$username'
     | '/tracks/$id'
     | '/videos/$id'
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
     | '/dashboard/live/challenge'
@@ -1075,12 +1097,14 @@ export interface FileRouteTypes {
     | '/_explore/genres/$id'
     | '/_explore/library/settings'
     | '/_explore/live/preview'
+    | '/_explore/people/$username'
     | '/_explore/projects/$id'
     | '/_explore/tracks/$id'
     | '/_explore/videos/$id'
     | '/dashboard/career/ai-studio'
     | '/dashboard/career/analytics'
     | '/dashboard/career/calendar'
+    | '/dashboard/career/payments'
     | '/dashboard/career/profile'
     | '/dashboard/career/settings'
     | '/dashboard/live/challenge'
@@ -1529,6 +1553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCareerProfileRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/career/payments': {
+      id: '/dashboard/career/payments'
+      path: '/career/payments'
+      fullPath: '/dashboard/career/payments'
+      preLoaderRoute: typeof DashboardCareerPaymentsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/career/calendar': {
       id: '/dashboard/career/calendar'
       path: '/career/calendar'
@@ -1569,6 +1600,13 @@ declare module '@tanstack/react-router' {
       path: '/projects/$id'
       fullPath: '/projects/$id'
       preLoaderRoute: typeof ExploreProjectsIdRouteImport
+      parentRoute: typeof ExploreRoute
+    }
+    '/_explore/people/$username': {
+      id: '/_explore/people/$username'
+      path: '/people/$username'
+      fullPath: '/people/$username'
+      preLoaderRoute: typeof ExplorePeopleUsernameRouteImport
       parentRoute: typeof ExploreRoute
     }
     '/_explore/live/preview': {
@@ -1852,6 +1890,7 @@ interface ExploreRouteChildren {
   ExploreArtistTopRoute: typeof ExploreArtistTopRoute
   ExploreGenresIdRoute: typeof ExploreGenresIdRoute
   ExploreLibrarySettingsRoute: typeof ExploreLibrarySettingsRoute
+  ExplorePeopleUsernameRoute: typeof ExplorePeopleUsernameRoute
   ExploreProjectsIdRoute: typeof ExploreProjectsIdRouteWithChildren
   ExploreTracksIdRoute: typeof ExploreTracksIdRoute
   ExploreVideosIdRoute: typeof ExploreVideosIdRoute
@@ -1884,6 +1923,7 @@ const ExploreRouteChildren: ExploreRouteChildren = {
   ExploreArtistTopRoute: ExploreArtistTopRoute,
   ExploreGenresIdRoute: ExploreGenresIdRoute,
   ExploreLibrarySettingsRoute: ExploreLibrarySettingsRoute,
+  ExplorePeopleUsernameRoute: ExplorePeopleUsernameRoute,
   ExploreProjectsIdRoute: ExploreProjectsIdRouteWithChildren,
   ExploreTracksIdRoute: ExploreTracksIdRoute,
   ExploreVideosIdRoute: ExploreVideosIdRoute,
@@ -1950,6 +1990,7 @@ interface DashboardRouteChildren {
   DashboardCareerAiStudioRoute: typeof DashboardCareerAiStudioRoute
   DashboardCareerAnalyticsRoute: typeof DashboardCareerAnalyticsRoute
   DashboardCareerCalendarRoute: typeof DashboardCareerCalendarRoute
+  DashboardCareerPaymentsRoute: typeof DashboardCareerPaymentsRoute
   DashboardCareerProfileRoute: typeof DashboardCareerProfileRoute
   DashboardCareerSettingsRoute: typeof DashboardCareerSettingsRoute
   DashboardLiveChallengeRoute: typeof DashboardLiveChallengeRoute
@@ -1991,6 +2032,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardCareerAiStudioRoute: DashboardCareerAiStudioRoute,
   DashboardCareerAnalyticsRoute: DashboardCareerAnalyticsRoute,
   DashboardCareerCalendarRoute: DashboardCareerCalendarRoute,
+  DashboardCareerPaymentsRoute: DashboardCareerPaymentsRoute,
   DashboardCareerProfileRoute: DashboardCareerProfileRoute,
   DashboardCareerSettingsRoute: DashboardCareerSettingsRoute,
   DashboardLiveChallengeRoute: DashboardLiveChallengeRoute,

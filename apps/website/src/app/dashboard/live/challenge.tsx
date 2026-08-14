@@ -92,6 +92,13 @@ function ChallengePage() {
       return;
     }
 
+    const proposedDateValue = String(form.get("proposedDate") ?? "");
+    const proposedTimeValue = String(form.get("proposedTime") ?? "");
+    const proposedDateTime =
+      scheduleMode === "scheduled" && proposedDateValue && proposedTimeValue
+        ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
+        : null;
+
     createChallenge.mutate(
       {
         format: String(form.get("format") ?? "best_of_5") as
@@ -101,14 +108,13 @@ function ChallengePage() {
         genre: String(form.get("genre") ?? "hip-hop"),
         message: String(form.get("message") ?? ""),
         opponentUsername,
-        proposedDate:
-          scheduleMode === "scheduled"
-            ? String(form.get("proposedDate") ?? "")
-            : undefined,
-        proposedTimeLabel:
-          scheduleMode === "scheduled"
-            ? String(form.get("proposedTimeLabel") ?? "")
-            : "ASAP",
+        proposedDate: proposedDateTime?.toISOString(),
+        proposedTimeLabel: proposedDateTime
+          ? proposedDateTime.toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })
+          : "ASAP",
       },
       {
         onSuccess: () => {
@@ -275,15 +281,17 @@ function ChallengePage() {
                         <Input
                           id="proposedDate"
                           name="proposedDate"
+                          required
                           type="date"
                         />
                       </div>
                       <div className="flex flex-col gap-2">
-                        <Label htmlFor="proposedTimeLabel">Proposed time</Label>
+                        <Label htmlFor="proposedTime">Proposed time</Label>
                         <Input
-                          id="proposedTimeLabel"
-                          name="proposedTimeLabel"
-                          placeholder="8:00 PM CT"
+                          id="proposedTime"
+                          name="proposedTime"
+                          required
+                          type="time"
                         />
                       </div>
                     </div>
