@@ -496,6 +496,8 @@ export function NewProjectForm({
     additionalDirtyState: Boolean(selectedCoverFile),
     defaultValues: defaultProjectFormValues,
     form,
+    persist: false,
+    restoreOnMount: false,
     storageKey: projectId
       ? `soundkit:edit-project-draft-${projectId}`
       : "soundkit:new-project-draft",

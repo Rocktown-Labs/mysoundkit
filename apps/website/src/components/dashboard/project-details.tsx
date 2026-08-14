@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   FolderOpen,
   Music,
+  Rocket,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,7 +23,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { useProjectQuery } from "@/lib/soundkit-api-hooks";
+import { toast } from "@/components/ui/use-toast";
+import { useProjectQuery, useUpdateProjectMutation } from "@/lib/soundkit-api-hooks";
 
 interface ProjectDetailsProps {
   projectId: string;
@@ -67,6 +69,7 @@ const formatDate = (value: string | null | undefined) => {
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const projectQuery = useProjectQuery(projectId);
+  const updateProjectMutation = useUpdateProjectMutation(projectId);
   const project = projectQuery.data;
 
   if (projectQuery.isLoading) {
@@ -111,6 +114,27 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const collaborators = Array.isArray(project.collaborators)
     ? project.collaborators
     : [];
+
+  const handleReleaseNow = async () => {
+    try {
+      await updateProjectMutation.mutateAsync({
+        isPublic: true,
+        releaseDate: new Date().toISOString(),
+        status: "released",
+      });
+      toast({
+        description: `${project.title} is now public.`,
+        title: "Project released",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Could not release project.",
+        title: "Release failed",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleShare = () => {
     const shareUrl =
@@ -169,6 +193,15 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              {project.status === "draft" ? (
+                <Button
+                  disabled={updateProjectMutation.isPending}
+                  onClick={handleReleaseNow}
+                >
+                  <Rocket className="mr-2 size-4" />
+                  Release now
+                </Button>
+              ) : null}
               <Link
                 to="/dashboard/projects/$id/edit"
                 params={{ id: projectId }}

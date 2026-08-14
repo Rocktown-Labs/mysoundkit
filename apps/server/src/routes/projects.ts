@@ -762,6 +762,97 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "patch",
+    path: "/{projectId}/tracks/order",
+    request: {
+      body: jsonContentRequired(
+        z.object({ trackIds: z.array(z.string()).min(1) }),
+        "Ordered project track IDs"
+      ),
+      params: z.object({ projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        projectDashboardDetailSchema,
+        "Project tracks reordered"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Track order does not match the project"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { projectId } = c.req.valid("param");
+    const { trackIds } = c.req.valid("json");
+    const session = c.get("session");
+    const organizationId = await resolveActiveOrganizationId({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    const db = createDb();
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+      .limit(1);
+
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const attachedTracks = await db
+      .select({ trackId: projectTracks.trackId })
+      .from(projectTracks)
+      .where(eq(projectTracks.projectId, projectId));
+    const attachedIds = new Set(attachedTracks.map((entry) => entry.trackId));
+    const requestedIds = new Set(trackIds);
+    const matchesProject =
+      attachedIds.size === requestedIds.size &&
+      trackIds.every((trackId) => attachedIds.has(trackId));
+
+    if (!matchesProject) {
+      return c.json(
+        { message: "Track order must include every project track once." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    for (const [position, trackId] of trackIds.entries()) {
+      await db
+        .update(projectTracks)
+        .set({ position })
+        .where(
+          and(
+            eq(projectTracks.projectId, projectId),
+            eq(projectTracks.trackId, trackId)
+          )
+        );
+    }
+
+    return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "delete",
     path: "/{projectId}",
     request: {

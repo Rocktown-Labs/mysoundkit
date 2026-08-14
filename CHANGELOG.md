@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added draft track/project quick-release actions and project track sequencing controls directly to dashboard detail pages.
 - Added persistent Recently Played history to the web player, consumed completed queue entries, reliable single-track restart behavior, next-track metadata preloading, and a compact mobile player layout.
 - Added Accounts v2 Stripe Connect onboarding for Premium artists, a Career Payments workspace with embedded payment and payout management, post-Premium routing, destination Checkout readiness checks, and artist payment setup prompts.
 - Reworked admin Premium management around the two equal-price Fan and Artist Premium plans, including searchable multi-user grants, subscription visibility, welcome notifications and email, plus live Stripe promotion-code creation and redemption reporting.
@@ -13,6 +14,7 @@
 
 ### Fixed
 
+- Stopped restoring abandoned track/project creation attempts from local storage; confirmed navigation now discards temporary track records while explicit Draft publication remains private and editable.
 - Fixed preview-deployment downloads for media stored in the canonical production bucket while preserving authenticated first-play and purchase access rules.
 - Standardized newly created track download defaults across standalone and project-created tracks: authenticated users must play once before downloading, while free tracks are not purchase-gated.
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.

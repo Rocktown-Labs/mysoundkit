@@ -15,6 +15,7 @@ import {
   Save,
   Plus,
   Clock3,
+  Rocket,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -41,6 +42,7 @@ import {
   useProcessTrackMutation,
   useReviewTrackLyricsMutation,
   useTrackQuery,
+  useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 import type { TrackDetail } from "@/lib/soundkit-api-hooks";
 
@@ -711,6 +713,7 @@ function TrackDetailPage() {
   const { id } = Route.useParams();
   const trackQuery = useTrackQuery(id);
   const processTrackMutation = useProcessTrackMutation(id);
+  const updateTrackMutation = useUpdateTrackMutation(id);
   const { setCurrentTrack, setQueue } = useAudioPlayer();
   const track = trackQuery.data;
   // Hooks must stay above the early returns below, otherwise the hook count
@@ -785,6 +788,23 @@ function TrackDetailPage() {
     });
   };
 
+  const handleReleaseNow = async () => {
+    try {
+      await updateTrackMutation.mutateAsync({ isPublic: true });
+      toast({
+        description: `${track.title} is now public.`,
+        title: "Track released",
+      });
+    } catch (error) {
+      toast({
+        description:
+          error instanceof Error ? error.message : "Could not release track.",
+        title: "Release failed",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleTranscribe = async () => {
     setIsTranscribing(true);
     try {
@@ -855,6 +875,16 @@ function TrackDetailPage() {
               <p className="text-muted-foreground">{track.genre}</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {!isLive ? (
+                <Button
+                  disabled={updateTrackMutation.isPending}
+                  onClick={handleReleaseNow}
+                  type="button"
+                >
+                  <Rocket className="mr-2 size-4" />
+                  Release now
+                </Button>
+              ) : null}
               {track.playbackUrl ? (
                 <Button onClick={handlePlay} type="button">
                   <Play className="mr-2 size-4" />

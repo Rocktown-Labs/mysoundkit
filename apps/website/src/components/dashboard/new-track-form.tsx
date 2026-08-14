@@ -73,6 +73,7 @@ import { useFormDraftGuard } from "@/hooks/use-form-draft-guard";
 import { toast } from "@/hooks/use-toast";
 import {
   apiClient,
+  API_V1_URL,
   MEDIA_UPLOAD_URL,
   MEDIA_BASE_URL,
   rpcJson,
@@ -449,50 +450,6 @@ export function NewTrackForm({
     }
   }, [initialTrack, form]);
 
-  // Restore preview metadata from localStorage if a local draft exists
-  useEffect(() => {
-    if (initialTrack) {
-      return;
-    }
-    try {
-      const metaKey = "soundkit:new-track-draft:meta";
-      const storedMeta = window.localStorage.getItem(metaKey);
-      if (storedMeta) {
-        const { coverUpload: storedCover, uploadedTrack: storedMaster } =
-          JSON.parse(storedMeta);
-        if (storedCover && !coverUpload) {
-          coverUploadRef.current = storedCover;
-          setCoverUpload(storedCover);
-        }
-        if (storedMaster && !uploadedTrack) {
-          setUploadedTrack(storedMaster);
-        }
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, [initialTrack]);
-
-  // Persist preview metadata to localStorage
-  useEffect(() => {
-    if (initialTrack) {
-      return;
-    }
-    try {
-      const metaKey = "soundkit:new-track-draft:meta";
-      if (coverUpload || uploadedTrack) {
-        window.localStorage.setItem(
-          metaKey,
-          JSON.stringify({ coverUpload, uploadedTrack })
-        );
-      } else {
-        window.localStorage.removeItem(metaKey);
-      }
-    } catch {
-      // Ignore storage errors
-    }
-  }, [coverUpload, uploadedTrack, initialTrack]);
-
   const handleBatchFileUpload = (files: FileList | File[]) => {
     const fileList = [...files];
     let masterFound = false;
@@ -564,8 +521,17 @@ export function NewTrackForm({
     ),
     defaultValues: defaultTrackFormValues,
     form,
-    persist: !initialTrack,
-    restoreOnMount: !initialTrack,
+    onDiscard: async () => {
+      if (!(uploadedTrack?.trackId && !initialTrack)) {
+        return;
+      }
+      await fetch(
+        `${API_V1_URL}/tracks/${encodeURIComponent(uploadedTrack.trackId)}`,
+        { credentials: "include", method: "DELETE" }
+      );
+    },
+    persist: false,
+    restoreOnMount: false,
     storageKey: "soundkit:new-track-draft",
   });
 

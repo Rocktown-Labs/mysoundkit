@@ -21,7 +21,7 @@ const draftReplacer = (_key: string, value: unknown) =>
 
 const DIALOG_TITLE = "Leave without finishing?";
 const DIALOG_DESCRIPTION =
-  "You have unsaved changes. Your progress is saved as a draft on this device and will be restored when you come back.";
+  "You have unsaved changes. If you leave, this attempt and any temporary uploads will be discarded.";
 const DIALOG_CANCEL_LABEL = "Keep editing";
 const DIALOG_CONFIRM_LABEL = "Leave";
 
@@ -29,6 +29,8 @@ interface UseFormDraftGuardOptions<TFieldValues extends FieldValues> {
   /** Extra dirty state not tracked by react-hook-form (e.g. selected files). */
   additionalDirtyState?: boolean;
   form: UseFormReturn<TFieldValues>;
+  /** Delete temporary records or uploads before leaving the form. */
+  onDiscard?: () => Promise<void> | void;
   /** Disable restoring an existing draft on mount (use when editing existing records). */
   restoreOnMount?: boolean;
   storageKey: string;
@@ -45,6 +47,7 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   additionalDirtyState,
   defaultValues,
   form,
+  onDiscard,
   persist = true,
   restoreOnMount = true,
   storageKey,
@@ -138,6 +141,15 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     });
   };
 
+  const discardAndProceed = async () => {
+    try {
+      await onDiscard?.();
+    } finally {
+      clearDraft();
+      proceed?.();
+    }
+  };
+
   const blockerDialog = (
     <AlertDialog
       onOpenChange={(open) => {
@@ -156,7 +168,12 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
           <AlertDialogCancel onClick={reset}>
             {DIALOG_CANCEL_LABEL}
           </AlertDialogCancel>
-          <AlertDialogAction onClick={proceed}>
+          <AlertDialogAction
+            onClick={(event) => {
+              event.preventDefault();
+              void discardAndProceed();
+            }}
+          >
             {DIALOG_CONFIRM_LABEL}
           </AlertDialogAction>
         </AlertDialogFooter>
