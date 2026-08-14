@@ -9,7 +9,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -124,6 +124,10 @@ app.openapi(
 
     if (genreSlug) {
       publicArtistConditions.push(eq(genres.slug, genreSlug));
+    }
+
+    if (query.q) {
+      publicArtistConditions.push(ilike(authUser.name, `%${query.q}%`));
     }
 
     if (state) {

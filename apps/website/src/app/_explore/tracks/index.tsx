@@ -3,6 +3,7 @@ import { ArrowLeft, Music } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
+import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
 import { musicGenres } from "@/lib/music-genres";
@@ -17,18 +18,22 @@ const sortOptions = [
 
 interface TracksSearch {
   genre?: string;
+  q?: string;
   region?: string;
   regionType?: "north-america" | "global";
   sort?: string;
+  view?: "all" | "sections";
 }
 
 export const Route = createFileRoute("/_explore/tracks/")({
   component: TracksPage,
   validateSearch: (search: Record<string, unknown>): TracksSearch => ({
     genre: typeof search.genre === "string" ? search.genre : undefined,
+    q: typeof search.q === "string" ? search.q : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
+    view: search.view === "all" ? "all" : "sections",
   }),
 });
 
@@ -52,7 +57,9 @@ function TracksPage() {
   const regionType = search.regionType ?? savedRegionType ?? "north-america";
   const region = search.region ?? savedRegion ?? "us-arkansas";
   const genre = search.genre ?? "all";
+  const q = search.q ?? "";
   const sort = search.sort ?? "plays-desc";
+  const view = search.view ?? "sections";
 
   const updateFilters = (next: Partial<TracksSearch>) => {
     const nextRegionType = next.regionType ?? regionType;
@@ -66,9 +73,11 @@ function TracksPage() {
       search: (prev) => ({
         ...prev,
         genre: next.genre ?? genre,
+        q: next.q ?? q,
         region: nextRegion,
         regionType: nextRegionType,
         sort: next.sort ?? sort,
+        view: next.view ?? view,
       }),
     });
   };
@@ -76,6 +85,7 @@ function TracksPage() {
   const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
     genre,
     limit: 48,
+    q: q || undefined,
     region,
     regionType,
     scope: "public",
@@ -115,57 +125,76 @@ function TracksPage() {
         sortOptions={sortOptions}
       />
 
-      <div className="mb-10">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-xl">Featured Songs</h2>
+      {view === "all" || genre !== "all" ? (
+        <ExploreCollectionGrid
+          empty="No songs found for the selected filters."
+          isLoading={isLoading}
+          items={tracks}
+          title={genre === "all" ? "All Songs" : "Matching Songs"}
+        >
+          {(track) => (
+            <TrackCard
+              id={track.id}
+              title={track.title}
+              artist={track.artistName}
+              artistSlug={track.artistUsername ?? "artist"}
+              cover={track.coverArtUrl ?? "/placeholder.svg"}
+              plays={track.plays.toLocaleString()}
+              duration={track.duration}
+              regionSlug={track.regionSlug}
+              slug={track.slug}
+            />
+          )}
+        </ExploreCollectionGrid>
+      ) : (
+        <>
+          <div className="mb-10">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="font-semibold text-xl">Featured Songs</h2>
+              <Button
+                onClick={() => updateFilters({ view: "all" })}
+                size="sm"
+                variant="ghost"
+              >
+                View All
+              </Button>
+            </div>
+            {isLoading || tracks.length > 0 ? (
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {tracks.slice(0, 12).map((track) => (
+                  <TrackCard
+                    key={track.id}
+                    id={track.id}
+                    title={track.title}
+                    artist={track.artistName}
+                    artistSlug={track.artistUsername ?? "artist"}
+                    cover={track.coverArtUrl ?? "/placeholder.svg"}
+                    plays={track.plays.toLocaleString()}
+                    duration={track.duration}
+                    regionSlug={track.regionSlug}
+                    slug={track.slug}
+                  />
+                ))}
+              </div>
+            ) : (
+              <TrackEmptyState>
+                No songs found for these filters.
+              </TrackEmptyState>
+            )}
           </div>
-          <Button asChild size="sm" variant="ghost">
-            <Link
-              to="/tracks"
-              search={
-                { genre, region, regionType, sort } satisfies TracksSearch
-              }
-            >
-              View All
-            </Link>
-          </Button>
-        </div>
-        {isLoading || tracks.length > 0 ? (
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {tracks.slice(0, 12).map((track) => (
-              <TrackCard
-                key={track.id}
-                id={track.id}
-                title={track.title}
-                artist={track.artistName}
-                artistSlug={track.artistUsername ?? "artist"}
-                cover={track.coverArtUrl ?? "/placeholder.svg"}
-                plays={track.plays.toLocaleString()}
-                duration={track.duration}
-                regionSlug={track.regionSlug}
-                slug={track.slug}
+          <div className="flex flex-col gap-10">
+            {musicGenres.map((sectionGenre) => (
+              <TrackGenreRail
+                key={sectionGenre.value}
+                genre={sectionGenre}
+                region={region}
+                regionType={regionType}
+                sort={sort}
               />
             ))}
           </div>
-        ) : (
-          <TrackEmptyState>
-            No songs found for the selected filters.
-          </TrackEmptyState>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-10">
-        {musicGenres.map((sectionGenre) => (
-          <TrackGenreRail
-            key={sectionGenre.value}
-            genre={sectionGenre}
-            region={region}
-            regionType={regionType}
-            sort={sort}
-          />
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -201,15 +230,14 @@ function TrackGenreRail({
         </div>
         <Button asChild size="sm" variant="ghost">
           <Link
+            search={{
+              genre: genre.value,
+              region,
+              regionType,
+              sort,
+              view: "all",
+            }}
             to="/tracks"
-            search={
-              {
-                genre: genre.value,
-                region,
-                regionType,
-                sort,
-              } satisfies TracksSearch
-            }
           >
             View All
           </Link>

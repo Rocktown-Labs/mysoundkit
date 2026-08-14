@@ -395,15 +395,14 @@ function AdsPanel() {
 function OverviewPanel() {
   const { data, error, isLoading } = useAdminOverviewQuery();
   const backfillDurations = useBackfillTrackDurationsMutation();
-  const [backfillStarted, setBackfillStarted] = useState(false);
+  const [backfillRunId, setBackfillRunId] = useState<string | null>(null);
+  const [backfillActive, setBackfillActive] = useState(false);
   const completionHandledRef = useRef(false);
-  const backfillStatus = useTrackDurationBackfillStatusQuery(
-    backfillStarted || (data?.operations.tracksMissingDuration ?? 0) > 0
-  );
+  const backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
 
   useEffect(() => {
     if (
-      !backfillStarted ||
+      !backfillActive ||
       completionHandledRef.current ||
       !backfillStatus.data
     ) {
@@ -418,12 +417,12 @@ function OverviewPanel() {
     }
 
     completionHandledRef.current = true;
-    setBackfillStarted(false);
+    setBackfillActive(false);
     toast({
       description: `Backfill finished · ${done} done${failed > 0 ? ` · ${failed} failed` : ""}.`,
       title: "Track durations backfilled",
     });
-  }, [backfillStarted, backfillStatus.data]);
+  }, [backfillActive, backfillStatus.data]);
 
   const handleBackfillDurations = () => {
     backfillDurations.mutate(
@@ -450,7 +449,8 @@ function OverviewPanel() {
           }
 
           completionHandledRef.current = false;
-          setBackfillStarted(true);
+          setBackfillRunId(result.runId);
+          setBackfillActive(true);
           toast({
             description: `Queued ${result.enqueued} track${result.enqueued === 1 ? "" : "s"} for duration detection in the background.`,
             title: "Backfill queued",
@@ -576,33 +576,54 @@ function OverviewPanel() {
                 {data.operations.tracksMissingDuration === 1 ? "" : "s"} have no
                 duration yet. Backfill reads each file in R2 to detect playback
                 length in the background.
-                {backfillStarted && backfillStatus.data ? (
-                  <span className="mt-1 block">
-                    {backfillStatus.data.queued +
-                      backfillStatus.data.processing}{" "}
-                    queued · {backfillStatus.data.processing} processing ·{" "}
-                    {backfillStatus.data.done} done ·{" "}
-                    {backfillStatus.data.failed} failed
-                  </span>
+                {backfillRunId && backfillStatus.data ? (
+                  <>
+                    <span className="mt-1 block">
+                      {backfillStatus.data.queued +
+                        backfillStatus.data.processing}{" "}
+                      queued · {backfillStatus.data.processing} processing ·{" "}
+                      {backfillStatus.data.done} done ·{" "}
+                      {backfillStatus.data.failed} failed
+                    </span>
+                    {backfillStatus.data.items.map((item) => (
+                      <span
+                        className="mt-1 flex justify-between gap-3"
+                        key={item.trackId}
+                      >
+                        <span className="truncate">{item.title}</span>
+                        <span
+                          className={
+                            item.status === "failed"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {item.status === "completed" && item.durationMs
+                            ? `${Math.round(item.durationMs / 1000)}s`
+                            : (item.error ?? item.status)}
+                        </span>
+                      </span>
+                    ))}
+                  </>
                 ) : null}
               </CardDescription>
             </div>
             <Button
               disabled={
                 backfillDurations.isPending ||
-                (backfillStarted && (backfillStatus.data?.queued ?? 0) > 0)
+                (backfillActive && (backfillStatus.data?.queued ?? 0) > 0)
               }
               onClick={handleBackfillDurations}
               size="sm"
             >
-              {backfillDurations.isPending || backfillStarted ? (
+              {backfillDurations.isPending || backfillActive ? (
                 <RefreshCw className="mr-2 size-4 animate-spin" />
               ) : (
                 <RefreshCw className="mr-2 size-4" />
               )}
               {backfillDurations.isPending
                 ? "Backfilling..."
-                : backfillStarted
+                : backfillActive
                   ? "Backfill running..."
                   : "Backfill durations"}
             </Button>

@@ -39,6 +39,7 @@ import {
   backfillTrackDurationsResponseSchema,
   messageResponseSchema,
   platformSettingsSchema,
+  trackDurationBackfillStatusQuerySchema,
   trackDurationBackfillStatusSchema,
   updatePlatformSettingsBodySchema,
 } from "@/lib/schemas";
@@ -348,6 +349,9 @@ app.openapi(
   createRoute({
     method: "get",
     path: "/tracks/backfill-durations/status",
+    request: {
+      query: trackDurationBackfillStatusQuerySchema,
+    },
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         trackDurationBackfillStatusSchema,
@@ -368,7 +372,11 @@ app.openapi(
       );
     }
 
-    return c.json(await loadTrackDurationBackfillStatus(), HttpStatusCodes.OK);
+    const { runId } = c.req.valid("query");
+    return c.json(
+      await loadTrackDurationBackfillStatus(runId),
+      HttpStatusCodes.OK
+    );
   }
 );
 
