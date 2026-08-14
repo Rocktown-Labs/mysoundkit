@@ -989,6 +989,7 @@ export const battleSummarySchema = z.object({
     })
     .nullable()
     .optional(),
+  startsAt: z.string().nullable().optional(),
   status: z.enum(["scheduled", "live", "completed", "archived"]),
   title: z.string(),
   tracks: z

@@ -113,7 +113,7 @@ function LiveHubPage() {
       href: "/live/battles/$id",
       id: battle.id,
       kind: "battle",
-      startsAt: null,
+      startsAt: battle.startsAt ?? null,
       status: battle.status,
       title: battle.title,
       viewerCount: battle.viewerCount,

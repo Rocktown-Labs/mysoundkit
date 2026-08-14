@@ -56,6 +56,7 @@ import {
   joinLiveExperienceBodySchema,
   liveSessionLockCheckBodySchema,
 } from "@/lib/schemas";
+import { canonicalGenreSlug } from "@/lib/genre-catalog";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new Hono<AppEnv>();
@@ -258,6 +259,58 @@ const createCloudflareStreamInput = async ({
 
   const data = (await response.json()) as CloudflareStreamResponse;
   return streamInputFromCloudflareResponse(data, title);
+};
+
+const syncCloudflareStreamStatus = async ({
+  env,
+  experience,
+}: {
+  env: AppEnv["Bindings"];
+  experience: typeof liveExperiences.$inferSelect;
+}) => {
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
+  const apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
+  if (!(accountId && apiToken && experience.streamInputId)) {
+    return experience;
+  }
+
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${experience.streamInputId}`,
+    { headers: { Authorization: `Bearer ${apiToken}` } }
+  ).catch(() => null);
+  if (!response?.ok) {
+    return experience;
+  }
+
+  const payload = (await response.json()) as CloudflareStreamResponse;
+  const inputStatus = payload.result?.status;
+  const connected = inputStatus === "connected" || inputStatus === "reconnected";
+  const disconnected =
+    inputStatus === "client_disconnect" ||
+    inputStatus === "ttl_exceeded" ||
+    inputStatus === "failed_to_connect" ||
+    inputStatus === "failed_to_reconnect";
+  let status = experience.status;
+  let endsAt = experience.endsAt;
+
+  if (connected) {
+    status = "live";
+    endsAt = null;
+  } else if (disconnected && experience.status === "live") {
+    status = "ended";
+    endsAt = new Date();
+  }
+
+  if (status === experience.status && endsAt === experience.endsAt) {
+    return experience;
+  }
+
+  const [updatedExperience] = await createDb()
+    .update(liveExperiences)
+    .set({ endsAt, status, updatedAt: new Date() })
+    .where(eq(liveExperiences.id, experience.id))
+    .returning();
+  return updatedExperience ?? experience;
 };
 
 const liveKindFromExperienceId = (experienceId: string): LiveExperienceKind => {
@@ -590,7 +643,7 @@ const persistLiveExperience = async ({
         battleId: null,
         battleKitId: body.battleKitId,
         createdByUserId,
-        genre: body.genre,
+        genre: body.genre ? canonicalGenreSlug(body.genre) : null,
         id: experienceId,
         kind: body.kind,
         meetingId,
@@ -1093,13 +1146,21 @@ const buildCreateExperienceResponse = ({
 });
 
 app.get("/experiences/:experienceId", async (c) => {
-  const experience = await loadLiveExperienceById(
+  const storedExperience = await loadLiveExperienceById(
     c.req.param("experienceId")
   );
 
-  if (!experience) {
+  if (!storedExperience) {
     return c.json({ message: "Live experience not found." }, HttpStatusCodes.NOT_FOUND);
   }
+
+  const experience =
+    storedExperience.kind === "stream" && storedExperience.source === "obs"
+      ? await syncCloudflareStreamStatus({
+          env: c.env,
+          experience: storedExperience,
+        })
+      : storedExperience;
 
   if (experience.visibility === "private") {
     const user = c.get("user");
@@ -1123,6 +1184,7 @@ app.get("/experiences/:experienceId", async (c) => {
       playbackUrl,
       playerUrl,
       source: experience.source,
+      startsAt: experience.startsAt,
       status: experience.status,
       streamInputId: experience.streamInputId,
       title: experience.title,
@@ -1477,6 +1539,7 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
         const streamInput = streamInputFromCloudflareResponse(data);
 
         if (streamInput) {
+          await syncCloudflareStreamStatus({ env: c.env, experience });
           return c.json(streamInput, HttpStatusCodes.OK);
         }
       }

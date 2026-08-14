@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added Premium-only battle opponent search by artist name/handle, native date/time challenge scheduling, acceptance-created public battle schedules, challenge status notifications, and profile challenge compatibility.
+- Added Cloudflare Stream live-input status synchronization so OBS connection/disconnection drives public Live/Ended state and scheduled stream pages show the actual player only when broadcasting.
 - Unified `/live`, battles, streams, and listening parties around real Featured, Live Now, Upcoming, filterable view-all, and genre collection rails; added live-experience genre persistence and removed dummy mobile live overview data.
 - Added draft track/project quick-release actions and project track sequencing controls directly to dashboard detail pages.
 - Added persistent Recently Played history to the web player, consumed completed queue entries, reliable single-track restart behavior, next-track metadata preloading, and a compact mobile player layout.

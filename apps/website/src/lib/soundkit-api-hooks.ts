@@ -1105,6 +1105,7 @@ export const usePublicLiveExperiencesQuery = (kind: "party" | "stream") =>
   useQuery({
     queryFn: async () => rpcJson(await liveExperiencesGet({ query: { kind } })),
     queryKey: ["live", "experiences", kind],
+    refetchInterval: 10_000,
   });
 
 export const useBattleChallengesQuery = () =>

@@ -13,7 +13,7 @@ import {
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -52,6 +52,7 @@ interface BattleFeedRow {
   format: "best_of_3" | "best_of_5" | "best_of_7";
   genre: string;
   id: string;
+  startsAt: Date | null;
   status: "scheduled" | "live" | "completed" | "archived";
   title: string;
   viewerCount: number;
@@ -202,6 +203,7 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
 
     return {
       ...battle,
+      startsAt: battle.startsAt?.toISOString() ?? null,
       joinMode:
         battle.status === "live" && currentRound?.status === "active"
           ? ("waiting_room" as const)
@@ -266,6 +268,7 @@ app.openapi(
         format: battles.format,
         genre: genres.name,
         id: battles.id,
+        startsAt: battles.startsAt,
         status: battles.status,
         title: battles.title,
         viewerCount: battles.viewerCount,
@@ -419,6 +422,100 @@ app.openapi(
         eligible: readiness.every((track) => track.ready),
         tracks: readiness,
       },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/opponents",
+    request: {
+      query: z.object({
+        genre: z.string().optional(),
+        q: z.string().trim().max(120).default(""),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.array(
+          z.object({
+            genre: z.string().nullable(),
+            name: z.string(),
+            username: z.string(),
+          })
+        ),
+        "Premium battle opponents"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const { genre, q } = c.req.valid("query");
+    const searchPattern = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+    const candidates = await createDb()
+      .select({
+        genre: genres.slug,
+        name: userProfiles.displayName,
+        userId: userProfiles.userId,
+        username: userProfiles.username,
+      })
+      .from(userProfiles)
+      .innerJoin(artistProfiles, eq(artistProfiles.userId, userProfiles.userId))
+      .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
+      .where(
+        and(
+          eq(userProfiles.accountType, "artist"),
+          q
+            ? or(
+                ilike(userProfiles.displayName, searchPattern),
+                ilike(userProfiles.username, searchPattern)
+              )
+            : undefined,
+          genre ? eq(genres.slug, canonicalGenreSlug(genre)) : undefined
+        )
+      )
+      .limit(12);
+
+    const eligibleCandidates = await Promise.all(
+      candidates
+        .filter((candidate) => candidate.userId !== user.id)
+        .map(async (candidate) => ({
+          candidate,
+          entitlements: await resolveEntitlements({
+            session: null,
+            user: { id: candidate.userId },
+          }),
+        }))
+    );
+
+    return c.json(
+      eligibleCandidates
+        .filter(({ candidate, entitlements }) =>
+          Boolean(
+            entitlements.canCreateLiveBattles &&
+              candidate.name &&
+              candidate.username
+          )
+        )
+        .map(({ candidate }) => ({
+          genre: candidate.genre,
+          name: candidate.name ?? "SoundKit Artist",
+          username: candidate.username ?? "artist",
+        })),
       HttpStatusCodes.OK
     );
   }
@@ -585,7 +682,11 @@ app.openapi(
     const [challenge] = await db
       .select({
         challengerUserId: battleChallenges.challengerUserId,
+        format: battleChallenges.format,
+        genreId: battleChallenges.genreId,
         opponentArtistUserId: battleChallenges.opponentArtistUserId,
+        proposedDate: battleChallenges.proposedDate,
+        status: battleChallenges.status,
       })
       .from(battleChallenges)
       .where(eq(battleChallenges.id, challengeId))
@@ -607,6 +708,45 @@ app.openapi(
       .update(battleChallenges)
       .set({ status })
       .where(eq(battleChallenges.id, challengeId));
+
+    if (status === "accepted" || status === "declined") {
+      await db.insert(userNotifications).values({
+        id: crypto.randomUUID(),
+        link: "/dashboard/live",
+        message: `Your battle challenge was ${status}.`,
+        title: `Battle Challenge ${status === "accepted" ? "Accepted" : "Declined"}`,
+        type: `battle_challenge_${status}`,
+        userId: challenge.challengerUserId,
+      });
+    }
+
+    if (
+      status === "accepted" &&
+      challenge.status !== "accepted" &&
+      challenge.opponentArtistUserId
+    ) {
+      const externalBattleId = `challenge:${challengeId}`;
+      const [existingBattle] = await db
+        .select({ id: battles.id })
+        .from(battles)
+        .where(eq(battles.externalBattleId, externalBattleId))
+        .limit(1);
+
+      if (!existingBattle) {
+        await db.insert(battles).values({
+          challengerArtistUserId: challenge.challengerUserId,
+          externalBattleId,
+          format: challenge.format,
+          genreId: challenge.genreId,
+          id: crypto.randomUUID(),
+          opponentArtistUserId: challenge.opponentArtistUserId,
+          startsAt: challenge.proposedDate ?? new Date(Date.now() + 86_400_000),
+          status: "scheduled",
+          title: "SoundKit Artist Battle",
+          visibility: "public",
+        });
+      }
+    }
 
     return c.json(
       { message: `Battle challenge ${status}.` },
@@ -724,6 +864,17 @@ app.openapi(
       return c.json(
         { message: "Choose an existing artist other than yourself." },
         HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const opponentEntitlements = await resolveEntitlements({
+      session: null,
+      user: { id: opponentProfile.userId },
+    });
+    if (!opponentEntitlements.canCreateLiveBattles) {
+      return c.json(
+        { message: "The selected artist needs Artist Premium to battle." },
+        HttpStatusCodes.FORBIDDEN
       );
     }
 
@@ -1099,6 +1250,7 @@ app.openapi(
         format: battles.format,
         genre: genres.name,
         id: battles.id,
+        startsAt: battles.startsAt,
         status: battles.status,
         title: battles.title,
         viewerCount: battles.viewerCount,
