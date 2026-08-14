@@ -174,6 +174,10 @@ function SettingsPage() {
         bio: String(form.get("bio") ?? ""),
         city: String(form.get("city") ?? ""),
         displayName: String(form.get("displayName") ?? ""),
+        mediaLayout:
+          String(form.get("mediaLayout") ?? "cards") === "list"
+            ? "list"
+            : "cards",
         links: {
           appleMusic: String(form.get("appleMusic") ?? ""),
           instagram: String(form.get("instagram") ?? ""),
@@ -403,6 +407,28 @@ function SettingsPage() {
                     placeholder="@channel or https://youtube.com/@..."
                   />
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Media Layout</CardTitle>
+                <CardDescription>
+                  Choose how tracks, projects, and videos appear in your
+                  dashboard and public profile.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor="media-layout">Default media view</Label>
+                <select
+                  className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  defaultValue={user?.mediaLayout ?? "cards"}
+                  id="media-layout"
+                  name="mediaLayout"
+                >
+                  <option value="cards">Cards</option>
+                  <option value="list">Compact list</option>
+                </select>
               </CardContent>
             </Card>
 

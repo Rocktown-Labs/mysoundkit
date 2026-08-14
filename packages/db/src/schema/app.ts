@@ -556,6 +556,7 @@ export const userProfiles = pgTable(
     displayName: text("display_name"),
     headerObjectKey: text("header_object_key"),
     headerUrl: text("header_url"),
+    mediaLayout: text("media_layout").default("cards").notNull(),
     onboardingCompletedAt: timestamp("onboarding_completed_at"),
     state: text("state"),
     updatedAt: timestamp("updated_at")

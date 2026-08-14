@@ -311,6 +311,7 @@ function ArtistOnboardingPage() {
   const [instagramHandle, setInstagramHandle] = useState("");
   const [proAffiliation, setProAffiliation] = useState("");
   const [proMemberId, setProMemberId] = useState("");
+  const [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards");
   const [selectedPlanCode, setSelectedPlanCode] = useState(
     "soundkit_premium_artist"
   );
@@ -655,6 +656,7 @@ function ArtistOnboardingPage() {
           avatarUrl: avatarUrl || undefined,
           city: city || "Los Angeles",
           instagramHandle: instagramHandle || undefined,
+          mediaLayout,
           primaryGenre: primaryGenre || "Hip-Hop",
           proAffiliation: proAffiliation || "None",
           proMemberId: proMemberId || undefined,
@@ -1302,6 +1304,23 @@ function ArtistOnboardingPage() {
                   <h3 className="font-bold text-lg mb-4">
                     {wizardText.planTitle}
                   </h3>
+                  <div className="mb-5 space-y-2">
+                    <Label htmlFor="artist-media-layout">Media layout</Label>
+                    <Select
+                      onValueChange={(value) =>
+                        setMediaLayout(value === "list" ? "list" : "cards")
+                      }
+                      value={mediaLayout}
+                    >
+                      <SelectTrigger id="artist-media-layout">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cards">Visual cards</SelectItem>
+                        <SelectItem value="list">Compact list</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="grid gap-4">
                     <button
                       type="button"

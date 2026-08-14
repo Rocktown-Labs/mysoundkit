@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added onboarding and account-setting media layout preferences, with card/compact-list rendering across artist track, project, video, dashboard, and public profile collections.
 - Added deduplicated in-app and transactional-email fan-out to pre-savers, artist followers, and profile followers when tracks, projects, and videos release or listening parties are scheduled.
 - Simplified listening parties to scheduled, non-empty album/project or fan-playlist rooms; scheduled Premium artist projects now create release parties automatically, while Premium fan sources and artist video/chat presence remain explicit.
 - Added public fan profiles, fan-to-fan follows, follower notifications, and account-aware My SoundKit profile/dashboard navigation.

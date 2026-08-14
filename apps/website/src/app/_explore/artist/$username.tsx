@@ -265,7 +265,13 @@ function ArtistProfilePage() {
 
         <TabsContent value="all" className="mt-6">
           {artistTracks.length > 0 ? (
-            <div className="flex flex-wrap gap-4">
+            <div
+              className={
+                artist.mediaLayout === "list"
+                  ? "flex flex-col gap-2"
+                  : "flex flex-wrap gap-4"
+              }
+            >
               {artistTracks.map((t) => (
                 <TrackCard
                   key={t.id}
@@ -287,7 +293,13 @@ function ArtistProfilePage() {
         </TabsContent>
         <TabsContent value="tracks" className="mt-6">
           {artistTracks.length > 0 ? (
-            <div className="flex flex-wrap gap-4">
+            <div
+              className={
+                artist.mediaLayout === "list"
+                  ? "flex flex-col gap-2"
+                  : "flex flex-wrap gap-4"
+              }
+            >
               {artistTracks.map((t) => (
                 <TrackCard
                   key={t.id}

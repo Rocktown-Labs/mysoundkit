@@ -269,6 +269,7 @@ export const userSummarySchema = z.object({
     })
     .optional(),
   onboardingCompletedAt: z.string().nullable().optional(),
+  mediaLayout: z.enum(["cards", "list"]).default("cards"),
   proAffiliation: z.string().nullable().optional(),
   proMemberId: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
@@ -359,6 +360,7 @@ export const profileUpdateBodySchema = z.object({
       youtube: z.string().optional(),
     })
     .optional(),
+  mediaLayout: z.enum(["cards", "list"]).optional(),
   proAffiliation: z.string().optional(),
   proMemberId: z.string().optional(),
   songwriterLegalName: z.string().optional(),
@@ -401,6 +403,7 @@ export const artistSummarySchema = z.object({
     })
     .optional(),
   location: z.string(),
+  mediaLayout: z.enum(["cards", "list"]).optional(),
   name: z.string(),
   projectCount: z.number().int().nonnegative().optional(),
   rank: z
@@ -1148,6 +1151,7 @@ export const onboardingArtistBodySchema = z
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
     instagramHandle: z.string().optional(),
+    mediaLayout: z.enum(["cards", "list"]).default("cards"),
     primaryGenre: z.string().min(1),
     proAffiliation: z.string().default("None"),
     proMemberId: z.string().optional(),
@@ -1186,6 +1190,7 @@ export const onboardingResponseSchema = z.object({
 export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
+  mediaLayout: z.enum(["cards", "list"]).default("cards"),
   selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan", "fan_family"]),
   state: z.string().min(1),
   username: usernameSchema,
