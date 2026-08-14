@@ -6,8 +6,12 @@ import {
   artistProfiles,
   conversationParticipants,
   conversations,
+  messageAttachments,
   messages,
+  projectCollaborators,
+  projects,
   trackCollaborators,
+  tracks,
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
@@ -34,9 +38,8 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
-
-const sampleFriends = [
+const app = new OpenAPIHono<AppEnv>(),
+  sampleFriends = [
   {
     avatarUrl: "/diverse-user-avatars.png",
     email: "alex@soundkit.app",
@@ -57,9 +60,8 @@ const sampleFriends = [
     role: "Artist",
     username: "sam",
   },
-];
-
-const toFriendRequestSummary = ({
+  ],
+  toFriendRequestSummary = ({
   createdAt,
   direction,
   displayName,
@@ -121,10 +123,10 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const { limit, q } = c.req.valid("query");
-    const term = `%${q.replaceAll("%", "\\%")}%`;
-    const db = createDb();
-    const rows = await db
+    const { limit, q } = c.req.valid("query"),
+      term = `%${q.replaceAll("%", "\\%")}%`,
+      db = createDb(),
+      rows = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         displayName: userProfiles.displayName,
@@ -191,8 +193,8 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+      rows = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         createdAt: artistFriendRequests.createdAt,
@@ -280,8 +282,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const username = body.username.trim().replace(/^@/u, "");
+    const body = c.req.valid("json"),
+      username = body.username.trim().replace(/^@/u, "");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -300,8 +302,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [recipient] = await db
+    const db = createDb(),
+      [recipient] = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         displayName: userProfiles.displayName,
@@ -309,7 +311,10 @@ app.openapi(
         username: userProfiles.username,
       })
       .from(userProfiles)
-      .innerJoin(artistProfiles, eq(artistProfiles.userId, userProfiles.userId))
+        .innerJoin(
+          artistProfiles,
+          eq(artistProfiles.userId, userProfiles.userId)
+        )
       .where(eq(userProfiles.username, username))
       .limit(1);
 
@@ -346,8 +351,8 @@ app.openapi(
           )
         )
       )
-      .limit(2);
-    const acceptedRequest = existingRequests.find(
+        .limit(2),
+      acceptedRequest = existingRequests.find(
       (existingRequest) => existingRequest.status === "accepted"
     );
 
@@ -471,8 +476,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const { requestId } = c.req.valid("param");
-    const { action } = c.req.valid("json");
+    const { requestId } = c.req.valid("param"),
+      { action } = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -492,17 +497,17 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const allowedUserClause =
+    const db = createDb(),
+      allowedUserClause =
       action === "cancel"
         ? eq(artistFriendRequests.requesterUserId, user.id)
-        : eq(artistFriendRequests.recipientUserId, user.id);
-    const nextStatus =
+          : eq(artistFriendRequests.recipientUserId, user.id),
+      nextStatus =
       action === "accept"
         ? ("accepted" as const)
-        : (action === "cancel"
+          : action === "cancel"
           ? ("canceled" as const)
-          : ("declined" as const));
+            : ("declined" as const);
     const [request] = await db
       .update(artistFriendRequests)
       .set({
@@ -540,8 +545,8 @@ app.openapi(
     const otherUserId =
       request.recipientUserId === user.id
         ? request.requesterUserId
-        : request.recipientUserId;
-    const [otherProfile] = await db
+          : request.recipientUserId,
+      [otherProfile] = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         displayName: userProfiles.displayName,
@@ -596,8 +601,8 @@ app.openapi(
       return c.json(sampleFriends, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [followRows, followerRows, friendRows, collaboratorRows] =
+    const db = createDb(),
+      [followRows, followerRows, friendRows, collaboratorRows] =
       await Promise.all([
         db
           .select({
@@ -685,9 +690,8 @@ app.openapi(
           )
           .orderBy(desc(trackCollaborators.createdAt))
           .limit(100),
-      ]);
-
-    const friends = new Map<string, z.infer<typeof friendSummarySchema>>();
+        ]),
+      friends = new Map<string, z.infer<typeof friendSummarySchema>>();
 
     for (const row of followRows) {
       friends.set(row.id, {
@@ -743,7 +747,7 @@ app.openapi(
     }
 
     friends.delete(user.id);
-    return c.json(Array.from(friends.values()), HttpStatusCodes.OK);
+    return c.json([...friends.values()], HttpStatusCodes.OK);
   }
 );
 
@@ -782,8 +786,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+      rows = await db
       .select({
         conversationType: conversations.conversationType,
         id: conversations.id,
@@ -797,10 +801,9 @@ app.openapi(
       )
       .where(eq(conversationParticipants.userId, user.id))
       .orderBy(desc(conversations.updatedAt))
-      .limit(50);
-
-    const conversationIds = rows.map((row) => row.id);
-    const otherParticipants =
+        .limit(50),
+      conversationIds = rows.map((row) => row.id),
+      otherParticipants =
       conversationIds.length > 0
         ? await db
             .select({
@@ -824,8 +827,8 @@ app.openapi(
                 ne(conversationParticipants.userId, user.id)
               )
             )
-        : [];
-    const participantByConversationId = new Map(
+          : [],
+      participantByConversationId = new Map(
       otherParticipants.map((participant) => [
         participant.conversationId,
         participant,
@@ -882,12 +885,12 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const conversationType =
+    const body = c.req.valid("json"),
+      conversationType =
       body.participantUserIds.length > 1
         ? ("group" as const)
-        : ("direct" as const);
-    const now = new Date();
+          : ("direct" as const),
+      now = new Date();
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -905,15 +908,13 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const conversationId = crypto.randomUUID();
-    const participantUserIds = [
-      ...new Set([user.id, ...body.participantUserIds]),
-    ];
-    const requestedParticipantUserIds = participantUserIds.filter(
+    const db = createDb(),
+      conversationId = crypto.randomUUID(),
+      participantUserIds = [...new Set([user.id, ...body.participantUserIds])],
+      requestedParticipantUserIds = participantUserIds.filter(
       (participantUserId) => participantUserId !== user.id
-    );
-    const [acceptedFriendRows, collaboratorRows] = await Promise.all([
+      ),
+      [acceptedFriendRows, collaboratorRows] = await Promise.all([
       requestedParticipantUserIds.length > 0
         ? db
             .select({
@@ -971,8 +972,8 @@ app.openapi(
               )
             )
         : [],
-    ]);
-    const allowedParticipantUserIds = new Set([
+      ]),
+      allowedParticipantUserIds = new Set([
       ...acceptedFriendRows.map((row) =>
         row.requesterUserId === user.id
           ? row.recipientUserId
@@ -1060,12 +1061,15 @@ app.openapi(
     }
 
     if (!isDatabaseConfigured()) {
-      return c.json(sampleMessages, HttpStatusCodes.OK);
+      return c.json(
+        sampleMessages.map((message) => ({ ...message, attachments: [] })),
+        HttpStatusCodes.OK
+      );
     }
 
-    const { conversationId } = c.req.valid("param");
-    const db = createDb();
-    const [membership] = await db
+    const { conversationId } = c.req.valid("param"),
+      db = createDb(),
+      [membership] = await db
       .select({ conversationId: conversationParticipants.conversationId })
       .from(conversationParticipants)
       .where(
@@ -1085,10 +1089,43 @@ app.openapi(
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.createdAt)
-      .limit(100);
+        .limit(100),
+      attachmentRows =
+        rows.length > 0
+          ? await db
+              .select()
+              .from(messageAttachments)
+              .where(
+                inArray(
+                  messageAttachments.messageId,
+                  rows.map((message) => message.id)
+                )
+              )
+          : [],
+      attachmentsByMessageId = new Map<
+        string,
+        (typeof attachmentRows)[number][]
+      >();
+    for (const attachment of attachmentRows) {
+      const current = attachmentsByMessageId.get(attachment.messageId) ?? [];
+      current.push(attachment);
+      attachmentsByMessageId.set(attachment.messageId, current);
+    }
 
     return c.json(
       rows.map((message) => ({
+        attachments: (attachmentsByMessageId.get(message.id) ?? []).map(
+          (attachment) => ({
+            displayName: attachment.displayName,
+            id: attachment.id,
+            mimeType: attachment.mimeType,
+            objectKey: attachment.objectKey,
+            sizeBytes: attachment.sizeBytes,
+            sourceProjectId: attachment.sourceProjectId,
+            sourceTrackId: attachment.sourceTrackId,
+            url: attachment.url,
+          })
+        ),
         body: message.body,
         createdAt: message.createdAt.toISOString(),
         id: message.id,
@@ -1129,12 +1166,22 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const { conversationId } = c.req.valid("param");
+    const body = c.req.valid("json"),
+      { conversationId } = c.req.valid("param");
 
     if (!isDatabaseConfigured()) {
       return c.json(
         {
+          attachments: body.attachments.map((attachment, index) => ({
+            displayName: attachment.displayName,
+            id: `attachment_${index}`,
+            mimeType: attachment.mimeType ?? null,
+            objectKey: attachment.objectKey ?? null,
+            sizeBytes: attachment.sizeBytes ?? null,
+            sourceProjectId: attachment.sourceProjectId ?? null,
+            sourceTrackId: attachment.sourceTrackId ?? null,
+            url: attachment.url,
+          })),
           body: body.body,
           createdAt: new Date().toISOString(),
           id: "msg_new",
@@ -1145,8 +1192,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [membership] = await db
+    const db = createDb(),
+      [membership] = await db
       .select({ conversationId: conversationParticipants.conversationId })
       .from(conversationParticipants)
       .where(
@@ -1169,16 +1216,167 @@ app.openapi(
         id: crypto.randomUUID(),
         senderUserId: user.id,
       })
-      .returning();
+        .returning(),
+      messageId = message?.id ?? crypto.randomUUID(),
+      attachments = body.attachments.map((attachment) => ({
+        displayName: attachment.displayName,
+        id: crypto.randomUUID(),
+        messageId,
+        mimeType: attachment.mimeType ?? null,
+        objectKey: attachment.objectKey ?? null,
+        sizeBytes: attachment.sizeBytes ?? null,
+        sourceProjectId: attachment.sourceProjectId ?? null,
+        sourceTrackId: attachment.sourceTrackId ?? null,
+        url: attachment.url,
+      }));
+    if (attachments.length > 0) {
+      await db.insert(messageAttachments).values(attachments);
+    }
 
     return c.json(
       {
+        attachments: attachments.map(
+          ({ messageId: _, ...attachment }) => attachment
+        ),
         body: message?.body ?? body.body,
         createdAt: (message?.createdAt ?? new Date()).toISOString(),
-        id: message?.id ?? crypto.randomUUID(),
+        id: messageId,
         senderId: message?.senderUserId ?? user.id,
         status: message?.status ?? ("sent" as const),
       },
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/conversations/{conversationId}/collaborations",
+    request: {
+      body: jsonContentRequired(
+        z.object({
+          kind: z.enum(["project", "track"]),
+          title: z.string().trim().min(1).max(160),
+        }),
+        "Collaboration workspace"
+      ),
+      params: z.object({ conversationId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        z.object({
+          href: z.string(),
+          id: z.string(),
+          kind: z.enum(["project", "track"]),
+        }),
+        "Collaboration created"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Messages"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { conversationId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      db = createDb(),
+      participants = await db
+        .select({ userId: conversationParticipants.userId })
+        .from(conversationParticipants)
+        .where(eq(conversationParticipants.conversationId, conversationId));
+    if (!participants.some((participant) => participant.userId === user.id)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    const collaboratorIds = participants
+        .map((participant) => participant.userId)
+        .filter((participantId) => participantId !== user.id),
+      workspaceId = crypto.randomUUID(),
+      href =
+        body.kind === "project"
+          ? `/dashboard/projects/${workspaceId}`
+          : `/dashboard/tracks/${workspaceId}`;
+
+    if (body.kind === "project") {
+      await db.insert(projects).values({
+        description: "Shared collaboration started from SoundKit Messages.",
+        id: workspaceId,
+        isPublic: false,
+        ownerUserId: user.id,
+        projectType: "single",
+        slug: `collaboration-${workspaceId}`,
+        status: "draft",
+        title: body.title,
+      });
+      if (collaboratorIds.length > 0) {
+        await db.insert(projectCollaborators).values(
+          collaboratorIds.map((collaboratorUserId) => ({
+            canDelete: false,
+            canEdit: true,
+            canUpload: true,
+            collaboratorRole: "artist" as const,
+            collaboratorUserId,
+            id: crypto.randomUUID(),
+            invitationStatus: "accepted" as const,
+            invitedByUserId: user.id,
+            projectId: workspaceId,
+          }))
+        );
+      }
+    } else {
+      await db.insert(tracks).values({
+        catalogItemType: "single",
+        id: workspaceId,
+        isPublic: false,
+        ownerUserId: user.id,
+        productionStatus: "demo",
+        releaseStrategy: "private",
+        slug: `collaboration-${workspaceId}`,
+        title: body.title,
+      });
+      if (collaboratorIds.length > 0) {
+        await db.insert(trackCollaborators).values(
+          collaboratorIds.map((collaboratorUserId) => ({
+            canDelete: false,
+            canEdit: true,
+            canUpload: true,
+            collaboratorRole: "artist" as const,
+            collaboratorUserId,
+            id: crypto.randomUUID(),
+            invitationStatus: "accepted" as const,
+            invitedByUserId: user.id,
+            trackId: workspaceId,
+          }))
+        );
+      }
+    }
+
+    await db.insert(messages).values({
+      body: `Started shared ${body.kind}: ${body.title} · ${href}`,
+      conversationId,
+      id: crypto.randomUUID(),
+      senderUserId: user.id,
+    });
+    for (const collaboratorId of collaboratorIds) {
+      await db.insert(userNotifications).values({
+        id: `chat_collaboration:${workspaceId}:${collaboratorId}`,
+        link: href,
+        message: `${user.name ?? "A collaborator"} started ${body.title} with you.`,
+        title: "New shared music workspace",
+        type: "collaboration_started",
+        userId: collaboratorId,
+      });
+    }
+
+    return c.json(
+      { href, id: workspaceId, kind: body.kind },
       HttpStatusCodes.CREATED
     );
   }

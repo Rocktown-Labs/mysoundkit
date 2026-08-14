@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added chat file and saved/purchased music attachments, attachment persistence, and one-click shared track/project workspaces with accepted collaborator permissions and notifications.
 - Replaced Admin Ads prompt-only controls with real zero-budget house campaign creation, creative uploads/previews, and active/paused controls; repaired artist campaign payloads, media uploads, wallet display, real creative library, and uploaded-track promotion selection.
 - Added onboarding and account-setting media layout preferences, with card/compact-list rendering across artist track, project, video, dashboard, and public profile collections.
 - Added deduplicated in-app and transactional-email fan-out to pre-savers, artist followers, and profile followers when tracks, projects, and videos release or listening parties are scheduled.

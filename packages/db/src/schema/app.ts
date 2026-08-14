@@ -1774,6 +1774,29 @@ export const messages = pgTable(
   (table) => [index("messages_conversation_id_idx").on(table.conversationId)]
 );
 
+export const messageAttachments = pgTable(
+  "message_attachments",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    displayName: text("display_name").notNull(),
+    id: text("id").primaryKey(),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    mimeType: text("mime_type"),
+    objectKey: text("object_key"),
+    sizeBytes: integer("size_bytes"),
+    sourceProjectId: text("source_project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    sourceTrackId: text("source_track_id").references(() => tracks.id, {
+      onDelete: "set null",
+    }),
+    url: text("url").notNull(),
+  },
+  (table) => [index("message_attachments_message_id_idx").on(table.messageId)]
+);
+
 export const battleProfiles = pgTable("battle_profiles", {
   totalDownloads: integer("total_downloads").default(0).notNull(),
   totalLosses: integer("total_losses").default(0).notNull(),

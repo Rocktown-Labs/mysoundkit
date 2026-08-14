@@ -1,7 +1,10 @@
+import { useUploadFiles } from "@better-upload/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   LoaderCircle,
+  FolderKanban,
   MessageSquare,
+  Paperclip,
   Plus,
   Search,
   Send,
@@ -22,12 +25,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
   useConversationMessagesQuery,
   useConversationsQuery,
   useCreateMessageMutation,
   useFriendsQuery,
+  useLibraryPurchasesQuery,
+  useLibrarySavedQuery,
   useStartConversationMutation,
 } from "@/lib/soundkit-api-hooks";
 import type {
@@ -49,15 +56,26 @@ const initials = (value: string) =>
     .toUpperCase();
 
 function MessagesPage() {
-  const conversationsQuery = useConversationsQuery();
-  const conversations = useMemo(
+  const conversationsQuery = useConversationsQuery(),
+    conversations = useMemo(
     () => conversationsQuery.data ?? [],
     [conversationsQuery.data]
-  );
-  const [selectedId, setSelectedId] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [composerText, setComposerText] = useState("");
-  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+    ),
+    [selectedId, setSelectedId] = useState(""),
+    [searchQuery, setSearchQuery] = useState(""),
+    [attachments, setAttachments] = useState<
+      {
+        displayName: string;
+        mimeType?: string;
+        objectKey?: string;
+        sizeBytes?: number;
+        sourceTrackId?: string;
+        url: string;
+      }[]
+    >([]),
+    [composerText, setComposerText] = useState(""),
+    [isCollaborationOpen, setIsCollaborationOpen] = useState(false),
+    [isNewChatOpen, setIsNewChatOpen] = useState(false);
 
   useEffect(() => {
     if (!selectedId && conversations[0]) {
@@ -67,24 +85,44 @@ function MessagesPage() {
 
   const selectedConversation = conversations.find(
     (conversation) => conversation.id === selectedId
-  );
-  const messagesQuery = useConversationMessagesQuery(selectedId);
-  const sendMessage = useCreateMessageMutation(selectedId);
-  const filteredConversations = conversations.filter((conversation) =>
+    ),
+    messagesQuery = useConversationMessagesQuery(selectedId),
+    sendMessage = useCreateMessageMutation(selectedId),
+    purchasesQuery = useLibraryPurchasesQuery(),
+    savedTracksQuery = useLibrarySavedQuery(),
+    { isPending: isUploading, upload } = useUploadFiles({
+      api: MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onUploadComplete: ({ files }) => {
+        setAttachments((current) => [
+          ...current,
+          ...files.map((file) => ({
+            displayName: file.raw.name,
+            mimeType: file.raw.type,
+            objectKey: file.objectInfo.key,
+            sizeBytes: file.raw.size,
+            url: `${MEDIA_BASE_URL}/${file.objectInfo.key}`,
+          })),
+        ]);
+      },
+    }),
+    filteredConversations = conversations.filter((conversation) =>
     conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const submitMessage = (event: FormEvent<HTMLFormElement>) => {
+    ),
+    submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!(selectedId && composerText.trim())) {
+      if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
       return;
     }
 
     sendMessage.mutate(
-      { body: composerText.trim() },
+        { attachments, body: composerText.trim() },
       {
-        onSuccess: () => setComposerText(""),
+          onSuccess: () => {
+            setAttachments([]);
+            setComposerText("");
+          },
       }
     );
   };
@@ -179,6 +217,14 @@ function MessagesPage() {
                     </Badge>
                   </div>
                 </div>
+                <Button
+                  onClick={() => setIsCollaborationOpen(true)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <FolderKanban className="mr-2 size-4" />
+                  Start Collaboration
+                </Button>
               </div>
 
               <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
@@ -190,7 +236,19 @@ function MessagesPage() {
                 {(messagesQuery.data ?? []).map((message) => (
                   <div className="flex justify-start" key={message.id}>
                     <div className="max-w-[75%] rounded-2xl rounded-bl-none border border-border/20 bg-muted/80 px-4 py-3 text-sm">
-                      <p>{message.body}</p>
+                      {message.body ? <p>{message.body}</p> : null}
+                      {message.attachments.map((attachment) => (
+                        <a
+                          className="mt-2 block rounded-lg border bg-background/60 p-2 text-xs hover:border-primary"
+                          href={attachment.url}
+                          key={attachment.id}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          <Paperclip className="mr-1 inline size-3" />
+                          {attachment.displayName}
+                        </a>
+                      ))}
                       <p className="mt-2 text-[10px] text-muted-foreground">
                         {new Date(message.createdAt).toLocaleString()}
                       </p>
@@ -213,6 +271,100 @@ function MessagesPage() {
                 className="border-t border-border/20 bg-white/[0.01] p-4"
                 onSubmit={submitMessage}
               >
+                {attachments.length > 0 ? (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {attachments.map((attachment) => (
+                      <Badge
+                        className="gap-1"
+                        key={attachment.url}
+                        variant="secondary"
+                      >
+                        {attachment.displayName}
+                        <button
+                          aria-label={`Remove ${attachment.displayName}`}
+                          onClick={() =>
+                            setAttachments((current) =>
+                              current.filter(
+                                (item) => item.url !== attachment.url
+                              )
+                            )
+                          }
+                          type="button"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
+                    <Paperclip className="size-3" />
+                    {isUploading ? "Uploading…" : "Attach file"}
+                    <input
+                      className="sr-only"
+                      disabled={isUploading}
+                      multiple
+                      onChange={(event) => {
+                        const files = [...(event.target.files ?? [])].slice(
+                          0,
+                          8
+                        );
+                        if (files.length > 0) {
+                          void upload(files);
+                        }
+                      }}
+                      type="file"
+                    />
+                  </label>
+                  <select
+                    aria-label="Attach saved or purchased music"
+                    className="h-7 rounded-md border bg-background px-2 text-xs"
+                    defaultValue=""
+                    onChange={(event) => {
+                      const track = [
+                        ...(savedTracksQuery.data ?? []),
+                        ...(purchasesQuery.data ?? [])
+                          .filter((item) => item.productType === "track")
+                          .map((item) => ({
+                            artist: item.artist,
+                            id: item.productId ?? item.id,
+                            title: item.title,
+                          })),
+                      ].find((item) => item.id === event.target.value);
+                      if (!track) {
+                        return;
+                      }
+                      setAttachments((current) => [
+                        ...current.filter(
+                          (item) => item.sourceTrackId !== track.id
+                        ),
+                        {
+                          displayName: `${track.title} by ${track.artist}`,
+                          sourceTrackId: track.id,
+                          url: `/tracks/${track.id}`,
+                        },
+                      ]);
+                      event.target.value = "";
+                    }}
+                  >
+                    <option value="">Attach saved or purchased music…</option>
+                    {[
+                      ...(savedTracksQuery.data ?? []),
+                      ...(purchasesQuery.data ?? [])
+                        .filter((item) => item.productType === "track")
+                        .map((item) => ({
+                          artist: item.artist,
+                          id: item.productId ?? item.id,
+                          title: item.title,
+                        })),
+                    ].map((track) => (
+                      <option key={track.id} value={track.id}>
+                        {track.title} · {track.artist}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex items-center gap-2 rounded-2xl border border-border/20 bg-muted/40 p-1.5 pl-3 backdrop-blur-xl transition-all focus-within:ring-1 focus-within:ring-primary/20">
                   <Input
                     className="h-10 border-none bg-transparent px-1 text-sm focus-visible:ring-0"
@@ -222,7 +374,11 @@ function MessagesPage() {
                   />
                   <Button
                     className="size-10 shrink-0 rounded-xl shadow-lg shadow-primary/20"
-                    disabled={!composerText.trim() || sendMessage.isPending}
+                    disabled={
+                      (!composerText.trim() && attachments.length === 0) ||
+                      sendMessage.isPending ||
+                      isUploading
+                    }
                     size="icon"
                     type="submit"
                   >
@@ -249,8 +405,92 @@ function MessagesPage() {
         </Card>
       </div>
 
+      <CollaborationDialog
+        conversationId={selectedId}
+        open={isCollaborationOpen}
+        onOpenChange={setIsCollaborationOpen}
+      />
       <NewChatDialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen} />
     </div>
+  );
+}
+
+function CollaborationDialog({
+  conversationId,
+  onOpenChange,
+  open,
+}: {
+  conversationId: string;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) {
+  const [kind, setKind] = useState<"project" | "track">("track"),
+    [title, setTitle] = useState(""),
+    [isCreating, setIsCreating] = useState(false),
+    createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setIsCreating(true);
+      try {
+        const response = await fetch(
+          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
+          {
+            body: JSON.stringify({ kind, title }),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        if (!response.ok) {
+          throw new Error("Could not start the collaboration.");
+        }
+        const result = (await response.json()) as { href: string };
+        window.location.assign(result.href);
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Start a Shared Music Workspace</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={createCollaboration}>
+          <div className="space-y-2">
+            <Label htmlFor="collaboration-title">Working title</Label>
+            <Input
+              id="collaboration-title"
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Untitled collaboration"
+              required
+              value={title}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="collaboration-kind">Workspace type</Label>
+            <select
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              id="collaboration-kind"
+              onChange={(event) =>
+                setKind(event.target.value === "project" ? "project" : "track")
+              }
+              value={kind}
+            >
+              <option value="track">Shared track</option>
+              <option value="project">Shared project</option>
+            </select>
+          </div>
+          <Button
+            className="w-full"
+            disabled={isCreating || !title.trim()}
+            type="submit"
+          >
+            {isCreating ? "Creating…" : "Create Shared Workspace"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -261,24 +501,23 @@ function NewChatDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const friendsQuery = useFriendsQuery();
-  const startConversation = useStartConversationMutation();
-  const [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]);
-  const [message, setMessage] = useState("");
-  const [search, setSearch] = useState("");
-  const friends = friendsQuery.data?.friends ?? [];
-  const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase();
-  const filteredFriends = friends.filter((friend) =>
+  const friendsQuery = useFriendsQuery(),
+    startConversation = useStartConversationMutation(),
+    [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]),
+    [message, setMessage] = useState(""),
+    [search, setSearch] = useState(""),
+    friends = friendsQuery.data?.friends ?? [],
+    normalizedSearch = search.trim().replace(/^@/, "").toLowerCase(),
+    filteredFriends = friends.filter((friend) =>
     [friend.name, friend.username, friend.email, friend.role]
       .filter(Boolean)
       .some((value) => value?.toLowerCase().includes(normalizedSearch))
-  );
-  const selectedIds = new Set(selectedFriends.map((friend) => friend.id));
-  const availableFriends = filteredFriends.filter(
+    ),
+    selectedIds = new Set(selectedFriends.map((friend) => friend.id)),
+    availableFriends = filteredFriends.filter(
     (friend) => !selectedIds.has(friend.id)
-  );
-
-  const startChat = (event: FormEvent<HTMLFormElement>) => {
+    ),
+    startChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (selectedFriends.length === 0 || !message.trim()) {

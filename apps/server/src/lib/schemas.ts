@@ -268,8 +268,8 @@ export const userSummarySchema = z.object({
       youtube: z.string().url().optional(),
     })
     .optional(),
-  onboardingCompletedAt: z.string().nullable().optional(),
   mediaLayout: z.enum(["cards", "list"]).default("cards"),
+  onboardingCompletedAt: z.string().nullable().optional(),
   proAffiliation: z.string().nullable().optional(),
   proMemberId: z.string().nullable().optional(),
   role: z.string().nullable().optional(),
@@ -423,8 +423,8 @@ export const publicExploreQuerySchema = z.object({
   genre: z.string().trim().max(80).default("all"),
   limit: z.coerce.number().int().positive().max(100).default(24),
   page: z.coerce.number().int().positive().default(1),
-  region: z.string().trim().max(80).default("us-arkansas"),
   q: z.string().trim().max(120).optional(),
+  region: z.string().trim().max(80).default("us-arkansas"),
   regionType: z.enum(["north-america", "global"]).default("north-america"),
   scope: z.enum(["dashboard", "public"]).default("dashboard"),
   sort: z.string().trim().max(80).default("rank-asc"),
@@ -936,7 +936,19 @@ export const conversationSummarySchema = z.object({
   updatedAt: z.string(),
 });
 
+export const messageAttachmentSchema = z.object({
+  displayName: z.string(),
+  id: z.string(),
+  mimeType: z.string().nullable(),
+  objectKey: z.string().nullable(),
+  sizeBytes: z.number().int().nullable(),
+  sourceProjectId: z.string().nullable(),
+  sourceTrackId: z.string().nullable(),
+  url: z.string(),
+});
+
 export const messageSchema = z.object({
+  attachments: messageAttachmentSchema.array().default([]),
   body: z.string(),
   createdAt: z.string(),
   id: z.string(),
@@ -1680,6 +1692,24 @@ export const createConversationBodySchema = z.object({
   title: z.string().optional(),
 });
 
-export const createMessageBodySchema = z.object({
-  body: z.string().min(1),
-});
+export const createMessageBodySchema = z
+  .object({
+    attachments: z
+      .array(
+        z.object({
+          displayName: z.string().min(1).max(180),
+          mimeType: z.string().optional(),
+          objectKey: z.string().optional(),
+          sizeBytes: z.number().int().nonnegative().optional(),
+          sourceProjectId: z.string().optional(),
+          sourceTrackId: z.string().optional(),
+          url: z.string().min(1),
+        })
+      )
+      .max(8)
+      .default([]),
+    body: z.string().default(""),
+  })
+  .refine((message) => message.body.trim() || message.attachments.length > 0, {
+    message: "Add a message or attachment.",
+  });
