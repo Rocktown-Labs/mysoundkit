@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added persistent Recently Played history to the web player, consumed completed queue entries, reliable single-track restart behavior, next-track metadata preloading, and a compact mobile player layout.
 - Added Accounts v2 Stripe Connect onboarding for Premium artists, a Career Payments workspace with embedded payment and payout management, post-Premium routing, destination Checkout readiness checks, and artist payment setup prompts.
 - Reworked admin Premium management around the two equal-price Fan and Artist Premium plans, including searchable multi-user grants, subscription visibility, welcome notifications and email, plus live Stripe promotion-code creation and redemption reporting.
 - Added real Cloudflare Stream playback to public creator stream rooms, persisted live-input IDs, live status polling, and host-controlled input shutdown.
