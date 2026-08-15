@@ -2,6 +2,8 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+  Bluetooth,
+  Cast,
   Check,
   ChevronDown,
   ChevronUp,
@@ -1053,6 +1055,70 @@ export function MusicPlayer() {
         });
       }
     },
+    requestDevicePermissions = useCallback(async () => {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia
+      ) {
+        toast({
+          description:
+            "Device scanning is not supported in this browser environment.",
+          variant: "destructive",
+        });
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        await enumerateAudioDevices();
+        toast({
+          description: "Bluetooth, AirPods, and speaker device names unlocked.",
+          title: "Audio Devices Discovered",
+        });
+      } catch {
+        toast({
+          description:
+            "Please allow audio device permission to identify named Bluetooth, AirPods, and external speakers.",
+          variant: "destructive",
+        });
+      }
+    }, [enumerateAudioDevices]),
+    triggerAirPlayOrSelect = useCallback(async () => {
+      const audio = audioRef.current as {
+        webkitShowPlaybackTargetPicker?: () => void;
+      } | null;
+      if (audio && typeof audio.webkitShowPlaybackTargetPicker === "function") {
+        audio.webkitShowPlaybackTargetPicker();
+        return;
+      }
+      if (
+        typeof navigator !== "undefined" &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (navigator.mediaDevices as any)?.selectAudioOutput
+      ) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const device = await (navigator.mediaDevices as any).selectAudioOutput();
+          if (device) {
+            await handleSwitchDevice({
+              active: true,
+              id: device.deviceId,
+              name: device.label || "External Audio Device",
+              type: "speaker",
+            });
+            await enumerateAudioDevices();
+          }
+        } catch {
+          // User dismissed selector
+        }
+        return;
+      }
+      await requestDevicePermissions();
+    }, [handleSwitchDevice, enumerateAudioDevices, requestDevicePermissions]),
     handleClose = () => {
       audioRef.current?.pause();
       sendPlaybackProgress({ ended: true });
@@ -1249,8 +1315,8 @@ export function MusicPlayer() {
             <p>Audio Output: {audioOutput.name}</p>
           </TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="end" className="w-64 p-1.5">
-          <div className="flex items-center justify-between px-2 py-1.5 border-b mb-1">
+        <DropdownMenuContent align="end" className="w-72 p-2">
+          <div className="flex items-center justify-between px-2 py-1.5 border-b mb-2">
             <span className="text-xs font-semibold text-foreground">
               Audio Output Devices
             </span>
@@ -1260,13 +1326,37 @@ export function MusicPlayer() {
               className="size-6"
               onClick={(e) => {
                 e.stopPropagation();
-                enumerateAudioDevices();
+                requestDevicePermissions();
               }}
-              title="Scan for Bluetooth & Audio Devices"
+              title="Scan / Unlock Bluetooth & AirPods Names"
             >
               <RefreshCw className="size-3" />
             </Button>
           </div>
+
+          <div className="space-y-1.5 mb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs h-8 border-dashed"
+              onClick={requestDevicePermissions}
+            >
+              <Bluetooth className="size-3.5 text-sky-400 shrink-0" />
+              Scan Bluetooth & AirPods
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs h-8 border-dashed"
+              onClick={triggerAirPlayOrSelect}
+            >
+              <Cast className="size-3.5 text-violet-400 shrink-0" />
+              AirPlay & HomePods / Network
+            </Button>
+          </div>
+
+          <DropdownMenuSeparator className="my-1" />
+
           <div className="max-h-48 overflow-y-auto space-y-1">
             {availableDevices.map((device) => {
               const isCurrent =
@@ -1297,8 +1387,7 @@ export function MusicPlayer() {
           </div>
           <DropdownMenuSeparator />
           <div className="px-2 py-1 text-[10px] text-muted-foreground">
-            Connect Bluetooth headphones or speakers in system settings to
-            select them here.
+            Connect Bluetooth headphones or speakers in system settings to select them here.
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -1712,7 +1801,10 @@ export function MusicPlayer() {
                     </TooltipContent>
                   </Tooltip>
 
-                  <div className="lg:hidden">{queueSheet}</div>
+                  <div className="flex items-center gap-1 lg:hidden">
+                    {deviceButton}
+                    {queueSheet}
+                  </div>
                 </div>
               </div>
 
@@ -1809,7 +1901,12 @@ export function MusicPlayer() {
 
   return (
     <TooltipProvider delayDuration={250}>
-      <audio ref={audioRef} preload="metadata">
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        // eslint-disable-next-line react/no-unknown-property
+        x-webkit-airplay="allow"
+      >
         <track kind="captions" />
       </audio>
       {playerUi}

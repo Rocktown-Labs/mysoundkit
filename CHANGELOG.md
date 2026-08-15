@@ -27,6 +27,8 @@
 
 ### Fixed
 
+- Fixed floating artist chat bar by redesigning it as a compact circular docked trigger button at the bottom-right corner when closed, docking cleanly above the audio player when music is active to prevent obstruction of playback controls, and adding generous tab/chat button padding.
+- Enhanced audio player device selector with Bluetooth/AirPods name permission unlocking (`getUserMedia` label resolution), AirPlay/HomePods network casting triggers (`webkitShowPlaybackTargetPicker` / `selectAudioOutput`), and added output device selection to the mobile player control bar.
 - Fixed explore route navigation headers across Top Songs, Projects, Music Videos, New Releases, and Live Battles by removing redundant `< Back` buttons and standardizing on clean icon-and-title headers.
 - Fixed floating artist chat bar to hide automatically when navigating to `/dashboard/messages`, and removed boilerplate `"Hey! Let's connect on SoundKit."` automated greeting when starting direct chats.
 - Fixed Career Analytics Top Cities and Listener Loyalty Segments to show clean empty states when no catalog plays exist, dynamically calculating real loyalty distribution percentages and local city metrics once streams are tracked.
