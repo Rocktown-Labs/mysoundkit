@@ -128,22 +128,23 @@ interface StripePriceOption {
 }
 
 const formatCurrency = (cents: number) =>
-  new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    style: "currency",
-  }).format(cents / 100),
-
- hasAdminRole = (role: string | null | undefined) =>
-  role
-    ?.split(",")
-    .map((value) => value.trim())
-    .includes("admin") ?? false;
+    new Intl.NumberFormat("en-US", {
+      currency: "USD",
+      style: "currency",
+    }).format(cents / 100),
+  hasAdminRole = (role: string | null | undefined) =>
+    role
+      ?.split(",")
+      .map((value) => value.trim())
+      .includes("admin") ?? false,
+  isUsableStripeId = (priceId: string | null) =>
+    Boolean(priceId && !priceId.startsWith("price_dev_"));
 
 function AdminDashboard() {
   const { data: session, isPending } = authClient.useSession(),
-   adminAccess = useAdminAccessQuery(Boolean(session?.user)),
-   isAdmin =
-    hasAdminRole(session?.user.role) || adminAccess.data?.isAdmin === true;
+    adminAccess = useAdminAccessQuery(Boolean(session?.user)),
+    isAdmin =
+      hasAdminRole(session?.user.role) || adminAccess.data?.isAdmin === true;
 
   if (isPending || (session?.user && adminAccess.isLoading)) {
     return <p className="text-sm text-muted-foreground">Loading admin...</p>;
@@ -208,7 +209,7 @@ function AdminDashboard() {
 
 function SettingsPanel() {
   const settingsQuery = useAdminSettingsQuery(),
-   updateSettings = useUpdateAdminSettingsMutation();
+    updateSettings = useUpdateAdminSettingsMutation();
 
   if (settingsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading settings...</p>;
@@ -284,90 +285,88 @@ function SettingsPanel() {
 
 function AdsPanel() {
   const campaignsQuery = useAdminAdCampaignsQuery(),
-   queryClient = useQueryClient(),
-   [clickthroughUrl, setClickthroughUrl] = useState(
-    "https://mysoundkit.com"
-  ),
-   [creativeFormat, setCreativeFormat] = useState<
-    "audio" | "image" | "video"
-  >("image"),
-   [creativeUrl, setCreativeUrl] = useState(""),
-   [name, setName] = useState(""),
-   [placement, setPlacement] = useState<
-    "audio_preroll" | "video_overlay" | "video_preroll"
-  >("video_overlay"),
-   [previewUrl, setPreviewUrl] = useState(""),
-   { isPending: isUploading, upload } = useUploadFiles({
-    api: MEDIA_UPLOAD_URL,
-    credentials: "include",
-    onUploadComplete: ({ files }) => {
-      const uploadedFile = files[0];
-      if (uploadedFile) {
-        setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
-      }
-    },
-  }),
-   createHouseAd = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`${API_V1_URL}/ads/admin/campaigns`, {
-        body: JSON.stringify({
-          clickthroughUrl,
-          creativeFormat,
-          creativeImageUrl:
-            creativeFormat === "image" ? creativeUrl : undefined,
-          creativeUrl,
-          name,
-          placement,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      if (!response.ok) {
-        throw new Error("Could not create house ad.");
-      }
-    },
-    onSuccess: async () => {
-      setName("");
-      setCreativeUrl("");
-      setPreviewUrl("");
-      await queryClient.invalidateQueries({
-        queryKey: ["ads", "admin", "campaigns"],
-      });
-      toast({
-        description: "The zero-budget house ad is now active.",
-        title: "House ad created",
-      });
-    },
-  }),
-   updateStatus = useMutation({
-    mutationFn: async ({
-      campaignId,
-      status,
-    }: {
-      campaignId: string;
-      status: "active" | "paused";
-    }) => {
-      const response = await fetch(
-        `${API_V1_URL}/ads/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
-        {
-          body: JSON.stringify({ status }),
+    queryClient = useQueryClient(),
+    [clickthroughUrl, setClickthroughUrl] = useState("https://mysoundkit.com"),
+    [creativeFormat, setCreativeFormat] = useState<"audio" | "image" | "video">(
+      "image"
+    ),
+    [creativeUrl, setCreativeUrl] = useState(""),
+    [name, setName] = useState(""),
+    [placement, setPlacement] = useState<
+      "audio_preroll" | "video_overlay" | "video_preroll"
+    >("video_overlay"),
+    [previewUrl, setPreviewUrl] = useState(""),
+    { isPending: isUploading, upload } = useUploadFiles({
+      api: MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onUploadComplete: ({ files }) => {
+        const uploadedFile = files[0];
+        if (uploadedFile) {
+          setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
+        }
+      },
+    }),
+    createHouseAd = useMutation({
+      mutationFn: async () => {
+        const response = await fetch(`${API_V1_URL}/ads/admin/campaigns`, {
+          body: JSON.stringify({
+            clickthroughUrl,
+            creativeFormat,
+            creativeImageUrl:
+              creativeFormat === "image" ? creativeUrl : undefined,
+            creativeUrl,
+            name,
+            placement,
+          }),
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          method: "PATCH",
+          method: "POST",
+        });
+        if (!response.ok) {
+          throw new Error("Could not create house ad.");
         }
-      );
-      if (!response.ok) {
-        throw new Error("Could not update campaign status.");
-      }
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["ads", "admin", "campaigns"],
-      });
-    },
-  }),
-   campaigns = campaignsQuery.data ?? [];
+      },
+      onSuccess: async () => {
+        setName("");
+        setCreativeUrl("");
+        setPreviewUrl("");
+        await queryClient.invalidateQueries({
+          queryKey: ["ads", "admin", "campaigns"],
+        });
+        toast({
+          description: "The zero-budget house ad is now active.",
+          title: "House ad created",
+        });
+      },
+    }),
+    updateStatus = useMutation({
+      mutationFn: async ({
+        campaignId,
+        status,
+      }: {
+        campaignId: string;
+        status: "active" | "paused";
+      }) => {
+        const response = await fetch(
+          `${API_V1_URL}/ads/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
+          {
+            body: JSON.stringify({ status }),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "PATCH",
+          }
+        );
+        if (!response.ok) {
+          throw new Error("Could not update campaign status.");
+        }
+      },
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: ["ads", "admin", "campaigns"],
+        });
+      },
+    }),
+    campaigns = campaignsQuery.data ?? [];
 
   if (campaignsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading ads...</p>;
@@ -498,22 +497,24 @@ function AdsPanel() {
             </Button>
           </div>
           <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border bg-background">
-            {previewUrl ? creativeFormat === "audio" ? (
-              <audio className="w-full px-4" controls src={previewUrl} />
-            ) : creativeFormat === "video" ? (
-              <video
-                className="aspect-video w-full object-cover"
-                controls
-                src={previewUrl}
-              />
-            ) : (
-              <AppImage
-                alt="House ad preview"
-                className="h-full w-full object-contain"
-                height={300}
-                src={previewUrl}
-                width={500}
-              />
+            {previewUrl ? (
+              creativeFormat === "audio" ? (
+                <audio className="w-full px-4" controls src={previewUrl} />
+              ) : creativeFormat === "video" ? (
+                <video
+                  className="aspect-video w-full object-cover"
+                  controls
+                  src={previewUrl}
+                />
+              ) : (
+                <AppImage
+                  alt="House ad preview"
+                  className="h-full w-full object-contain"
+                  height={300}
+                  src={previewUrl}
+                  width={500}
+                />
+              )
             ) : (
               <p className="text-muted-foreground text-sm">Creative preview</p>
             )}
@@ -594,11 +595,11 @@ function AdsPanel() {
 
 function OverviewPanel() {
   const { data, error, isLoading } = useAdminOverviewQuery(),
-   backfillDurations = useBackfillTrackDurationsMutation(),
-   [backfillRunId, setBackfillRunId] = useState<string | null>(null),
-   [backfillActive, setBackfillActive] = useState(false),
-   completionHandledRef = useRef(false),
-   backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
+    backfillDurations = useBackfillTrackDurationsMutation(),
+    [backfillRunId, setBackfillRunId] = useState<string | null>(null),
+    [backfillActive, setBackfillActive] = useState(false),
+    completionHandledRef = useRef(false),
+    backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
 
   useEffect(() => {
     if (
@@ -610,7 +611,7 @@ function OverviewPanel() {
     }
 
     const { done, failed, processing, queued } = backfillStatus.data,
-     inFlight = processing + queued;
+      inFlight = processing + queued;
 
     if (inFlight > 0) {
       return;
@@ -850,100 +851,102 @@ function MetricRow({
 
 function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
   const queryClient = useQueryClient(),
-   [searchInput, setSearchInput] = useState(""),
-   [search, setSearch] = useState(""),
-   [pendingAction, setPendingAction] = useState<PendingAction>(null),
-   usersQuery = useQuery({
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (search) {
-        params.set("q", search);
-      }
-      const response = await fetch(
-        `${API_V1_URL}/admin/finance/payments/users?${params.toString()}`,
-        { credentials: "include" }
-      );
-      if (!response.ok) {
-        throw new Error("Unable to load users.");
-      }
-      return (await response.json()) as { users: AdminUserSummary[] };
-    },
-    queryKey: ["admin", "users", search],
-  }),
-   actionMutation = useMutation({
-    mutationFn: async (
-      action:
-        | Exclude<PendingAction, null>
-        | {
-            action: "role" | "unban" | "impersonate";
-            userId: string;
-            role?: "admin" | "user";
+    [searchInput, setSearchInput] = useState(""),
+    [search, setSearch] = useState(""),
+    [pendingAction, setPendingAction] = useState<PendingAction>(null),
+    usersQuery = useQuery({
+      queryFn: async () => {
+        const params = new URLSearchParams();
+        if (search) {
+          params.set("q", search);
+        }
+        const response = await fetch(
+          `${API_V1_URL}/admin/finance/payments/users?${params.toString()}`,
+          { credentials: "include" }
+        );
+        if (!response.ok) {
+          throw new Error("Unable to load users.");
+        }
+        return (await response.json()) as { users: AdminUserSummary[] };
+      },
+      queryKey: ["admin", "users", search],
+    }),
+    actionMutation = useMutation({
+      mutationFn: async (
+        action:
+          | Exclude<PendingAction, null>
+          | {
+              action: "role" | "unban" | "impersonate";
+              userId: string;
+              role?: "admin" | "user";
+            }
+      ) => {
+        if (action.action === "ban") {
+          const result = await authClient.admin.banUser({
+            banReason: "Administrative action",
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
           }
-    ) => {
-      if (action.action === "ban") {
-        const result = await authClient.admin.banUser({
-          banReason: "Administrative action",
-          userId: action.userId,
-        });
-        if (result.error) {
-          throw new Error(result.error.message);
+        } else if (action.action === "unban") {
+          const result = await authClient.admin.unbanUser({
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
+        } else if (action.action === "revoke") {
+          const result = await authClient.admin.revokeUserSessions({
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
+        } else if (action.action === "role") {
+          const result = await authClient.admin.setRole({
+            role: action.role ?? "user",
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
+        } else {
+          const result = await authClient.admin.impersonateUser({
+            userId: action.userId,
+          });
+          if (result.error) {
+            throw new Error(result.error.message);
+          }
         }
-      } else if (action.action === "unban") {
-        const result = await authClient.admin.unbanUser({
-          userId: action.userId,
+      },
+      onError: (mutationError) => {
+        toast({
+          description: mutationError.message,
+          title: "Admin action failed",
+          variant: "destructive",
         });
-        if (result.error) {
-          throw new Error(result.error.message);
+      },
+      onSuccess: async (_data, action) => {
+        if (action.action === "impersonate") {
+          window.location.assign("/dashboard");
+          return;
         }
-      } else if (action.action === "revoke") {
-        const result = await authClient.admin.revokeUserSessions({
-          userId: action.userId,
+
+        await queryClient.invalidateQueries({ queryKey: ["admin"] });
+        toast({
+          description: "The user account was updated.",
+          title: "Updated",
         });
-        if (result.error) {
-          throw new Error(result.error.message);
-        }
-      } else if (action.action === "role") {
-        const result = await authClient.admin.setRole({
-          role: action.role ?? "user",
-          userId: action.userId,
-        });
-        if (result.error) {
-          throw new Error(result.error.message);
-        }
-      } else {
-        const result = await authClient.admin.impersonateUser({
-          userId: action.userId,
-        });
-        if (result.error) {
-          throw new Error(result.error.message);
-        }
-      }
-    },
-    onError: (mutationError) => {
-      toast({
-        description: mutationError.message,
-        title: "Admin action failed",
-        variant: "destructive",
-      });
-    },
-    onSuccess: async (_data, action) => {
-      if (action.action === "impersonate") {
-        window.location.assign("/dashboard");
+      },
+    }),
+    confirmAction = () => {
+      if (!pendingAction) {
         return;
       }
-
-      await queryClient.invalidateQueries({ queryKey: ["admin"] });
-      toast({ description: "The user account was updated.", title: "Updated" });
-    },
-  }),
-
-   confirmAction = () => {
-    if (!pendingAction) {
-      return;
-    }
-    actionMutation.mutate(pendingAction);
-    setPendingAction(null);
-  };
+      actionMutation.mutate(pendingAction);
+      setPendingAction(null);
+    };
 
   return (
     <div className="space-y-4">
@@ -984,7 +987,7 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
           <TableBody>
             {usersQuery.data?.users.map((user) => {
               const isSelf = user.id === currentUserId,
-               isUserAdmin = hasAdminRole(user.role);
+                isUserAdmin = hasAdminRole(user.role);
 
               return (
                 <TableRow key={user.id}>
@@ -1156,7 +1159,7 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 
 function PaymentsPanel() {
   const paymentsQuery = useAdminPaymentsQuery(),
-   syncMutation = useSyncStripePlansMutation();
+    syncMutation = useSyncStripePlansMutation();
 
   if (paymentsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading payments...</p>;
@@ -1167,55 +1170,67 @@ function PaymentsPanel() {
   }
 
   const { data } = paymentsQuery,
-   missingCheckoutEnv = data.plans.filter(
-    (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
-  ),
-   configuredPlanCount = data.plans.filter(
-    (plan) => plan.stripeMonthlyPriceId
-  ).length,
-   paymentMetrics = [
-    {
-      label: "Gross revenue",
-      supporting: "All successful transactions",
-      value: formatCurrency(data.totals.grossRevenueCents),
-    },
-    {
-      label: "Platform fees",
-      supporting: "SoundKit retained fees",
-      value: formatCurrency(data.totals.platformFeeCents),
-    },
-    {
-      label: "Transactions",
-      supporting: "Successful payments",
-      value: data.totals.successfulTransactions.toLocaleString(),
-    },
-    {
-      label: "Checkout plans",
-      supporting: `${configuredPlanCount} Stripe-linked plans`,
-      value: `${data.configuredCheckoutPlans}/${data.planCount}`,
-    },
-  ],
-
-   handleSync = () => {
-    syncMutation.mutate(
-      {},
+    missingCheckoutEnv = data.plans.filter(
+      (plan) =>
+        !(
+          isUsableStripeId(plan.envMonthlyPriceId) ||
+          isUsableStripeId(plan.stripeMonthlyPriceId)
+        )
+    ),
+    configuredPlanCount = data.plans.filter((plan) =>
+      isUsableStripeId(plan.stripeMonthlyPriceId)
+    ).length,
+    paymentMetrics = [
       {
-        onError: (error) => {
-          toast({
-            description: error.message,
-            title: "Stripe sync failed",
-            variant: "destructive",
-          });
-        },
-        onSuccess: (result) => {
-          toast({
-            description: `${result.results.length} plan rows were checked.`,
-            title: "Stripe sync complete",
-          });
-        },
-      }
-    );
-  };
+        label: "Gross revenue",
+        supporting: "All successful transactions",
+        value: formatCurrency(data.totals.grossRevenueCents),
+      },
+      {
+        label: "Platform fees",
+        supporting: "SoundKit retained fees",
+        value: formatCurrency(data.totals.platformFeeCents),
+      },
+      {
+        label: "Transactions",
+        supporting: "Successful payments",
+        value: data.totals.successfulTransactions.toLocaleString(),
+      },
+      {
+        label: "Checkout plans",
+        supporting: `${configuredPlanCount} Stripe-linked plans`,
+        value: `${data.configuredCheckoutPlans}/${data.planCount}`,
+      },
+    ],
+    handleSync = () => {
+      syncMutation.mutate(
+        {},
+        {
+          onError: (error) => {
+            toast({
+              description: error.message,
+              title: "Stripe sync failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: (result) => {
+            const createdCount = result.results.filter(
+                (r) => r.status === "created"
+              ).length,
+              matchedCount = result.results.filter(
+                (r) => r.status === "matched"
+              ).length;
+            toast({
+              description:
+                createdCount > 0
+                  ? `${createdCount} subscription plan${createdCount === 1 ? "" : "s"} created & synced to Stripe.`
+                  : `${matchedCount} subscription plan${matchedCount === 1 ? "" : "s"} checked & up to date.`,
+              title: "Stripe Catalog Synced",
+            });
+          },
+        }
+      );
+    };
 
   return (
     <div className="space-y-5">
@@ -1240,8 +1255,8 @@ function PaymentsPanel() {
               <CardDescription className="mt-1 text-xs">
                 {data.stripeConfigured
                   ? missingCheckoutEnv.length > 0
-                    ? `${missingCheckoutEnv.length} plan needs deployed checkout environment variables.`
-                    : "Stripe setup is live and all linked checkout plans are ready."
+                    ? `${missingCheckoutEnv.length} plan has no Stripe price linked to checkout yet.`
+                    : "Stripe setup is live and all linked checkout plans are ready from synced Stripe IDs."
                   : "Add STRIPE_SECRET_KEY before syncing or importing price IDs."}
               </CardDescription>
             </div>
@@ -1286,11 +1301,12 @@ function PaymentsPanel() {
         <Alert className="border-amber-500/30 bg-amber-500/5">
           <TriangleAlert className="size-4 text-amber-500" />
           <AlertTitle className="text-amber-500 font-semibold">
-            Checkout Env Vars Need Updating
+            {missingCheckoutEnv.length} Plan Lacks a Checkout Price
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Synced DB price IDs are visible here. Copy the matching monthly and
-            annual IDs into the listed env keys before testing paid checkout.
+            Run Sync Products &amp; Prices to auto-create Stripe products and
+            prices and wire them into checkout, or enter matching price IDs
+            below.
           </AlertDescription>
         </Alert>
       )}
@@ -1309,157 +1325,158 @@ function PaymentsPanel() {
 
 function CouponsManagerCard() {
   const queryClient = useQueryClient(),
-   syncPlansMutation = useSyncStripePlansMutation(),
-   [isDialogOpen, setIsDialogOpen] = useState(false),
-   [name, setName] = useState(""),
-   [code, setCode] = useState(""),
-   [percentOff, setPercentOff] = useState("17"),
-   duration = "forever" as const,
-   [maxRedemptions, setMaxRedemptions] = useState(""),
-
-   {
-    data: couponsData,
-    error: couponsError,
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryFn: async () => {
-      const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? "Failed to load coupons");
-      }
-      return (await res.json()) as {
-        coupons: {
-          active: boolean;
-          code: string;
-          coupon: {
-            amount_off?: number | null;
-            currency?: string | null;
-            duration: string;
-            id: string;
-            name?: string | null;
-            percent_off?: number | null;
+    syncPlansMutation = useSyncStripePlansMutation(),
+    [isDialogOpen, setIsDialogOpen] = useState(false),
+    [name, setName] = useState(""),
+    [code, setCode] = useState(""),
+    [percentOff, setPercentOff] = useState("17"),
+    duration = "forever" as const,
+    [maxRedemptions, setMaxRedemptions] = useState(""),
+    {
+      data: couponsData,
+      error: couponsError,
+      isLoading,
+      refetch,
+    } = useQuery({
+      queryFn: async () => {
+        const res = await fetch(
+          `${API_V1_URL}/admin/finance/payments/coupons`,
+          {
+            credentials: "include",
+          }
+        );
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            message?: string;
           };
-          id: string;
-          max_redemptions?: number | null;
-          times_redeemed: number;
-        }[];
-        message?: string;
-        stripeConfigured?: boolean;
-      };
-    },
-    queryKey: ["admin", "stripe-coupons"],
-  }),
-
-   coupons = couponsData?.coupons ?? [],
-
-   handleCreateCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!(name.trim() && code.trim())) {
-      toast({
-        description: "Add both a coupon name and customer-facing promo code.",
-        title: "Coupon details required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const payload = {
-      code: code.trim().toUpperCase(),
-      duration,
-      maxRedemptions: maxRedemptions ? Number(maxRedemptions) : undefined,
-      name: name.trim(),
-      percentOff: Number(percentOff) || 17,
-    };
-
-    try {
-      const res = await fetch(`${API_V1_URL}/admin/finance/payments/coupons`, {
-        body: JSON.stringify(payload),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? "Failed to create coupon");
-      }
-
-      setIsDialogOpen(false);
-      setName("");
-      setCode("");
-      setMaxRedemptions("");
-      refetch();
-      toast({
-        description: `Stripe coupon created and ready for checkout.`,
-        title: "Coupon Created",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Could not create coupon. Please try again.",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleDeleteCoupon = async (couponId: string) => {
-    try {
-      const res = await fetch(
-        `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
-        {
-          credentials: "include",
-          method: "DELETE",
+          throw new Error(body.message ?? "Failed to load coupons");
         }
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
+        return (await res.json()) as {
+          coupons: {
+            active: boolean;
+            code: string;
+            coupon: {
+              amount_off?: number | null;
+              currency?: string | null;
+              duration: string;
+              id: string;
+              name?: string | null;
+              percent_off?: number | null;
+            };
+            id: string;
+            max_redemptions?: number | null;
+            times_redeemed: number;
+          }[];
           message?: string;
+          stripeConfigured?: boolean;
         };
-        throw new Error(body.message ?? "Failed to delete coupon");
+      },
+      queryKey: ["admin", "stripe-coupons"],
+    }),
+    coupons = couponsData?.coupons ?? [],
+    handleCreateCoupon = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!(name.trim() && code.trim())) {
+        toast({
+          description: "Add both a coupon name and customer-facing promo code.",
+          title: "Coupon details required",
+          variant: "destructive",
+        });
+        return;
       }
-      refetch();
-      toast({
-        description: `Coupon ${couponId} archived.`,
-        title: "Coupon Deleted",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Could not delete coupon.",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  },
 
-   handleSyncStripe = async () => {
-    try {
-      await syncPlansMutation.mutateAsync({});
-      await refetch();
-      queryClient.invalidateQueries({ queryKey: ["admin", "payments"] });
-      toast({
-        description: "Synced pricing catalog and coupons with Stripe.",
-        title: "Sync Successful",
-      });
-    } catch {
-      toast({
-        description: "Could not sync with Stripe API.",
-        title: "Sync Error",
-        variant: "destructive",
-      });
-    }
-  };
+      const payload = {
+        code: code.trim().toUpperCase(),
+        duration,
+        maxRedemptions: maxRedemptions ? Number(maxRedemptions) : undefined,
+        name: name.trim(),
+        percentOff: Number(percentOff) || 17,
+      };
+
+      try {
+        const res = await fetch(
+          `${API_V1_URL}/admin/finance/payments/coupons`,
+          {
+            body: JSON.stringify(payload),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            message?: string;
+          };
+          throw new Error(body.message ?? "Failed to create coupon");
+        }
+
+        setIsDialogOpen(false);
+        setName("");
+        setCode("");
+        setMaxRedemptions("");
+        refetch();
+        toast({
+          description: `Stripe coupon created and ready for checkout.`,
+          title: "Coupon Created",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not create coupon. Please try again.",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
+    },
+    handleDeleteCoupon = async (couponId: string) => {
+      try {
+        const res = await fetch(
+          `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
+          {
+            credentials: "include",
+            method: "DELETE",
+          }
+        );
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            message?: string;
+          };
+          throw new Error(body.message ?? "Failed to delete coupon");
+        }
+        refetch();
+        toast({
+          description: `Coupon ${couponId} archived.`,
+          title: "Coupon Deleted",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Could not delete coupon.",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
+    },
+    handleSyncStripe = async () => {
+      try {
+        await syncPlansMutation.mutateAsync({});
+        await refetch();
+        queryClient.invalidateQueries({ queryKey: ["admin", "payments"] });
+        toast({
+          description: "Synced pricing catalog and coupons with Stripe.",
+          title: "Sync Successful",
+        });
+      } catch {
+        toast({
+          description: "Could not sync with Stripe API.",
+          title: "Sync Error",
+          variant: "destructive",
+        });
+      }
+    };
 
   return (
     <Card>
@@ -1659,61 +1676,61 @@ function CouponsManagerCard() {
 
 function PremiumGrantCard() {
   const queryClient = useQueryClient(),
-   [planCode, setPlanCode] = useState("soundkit_premium_artist"),
-   [search, setSearch] = useState(""),
-   [selectedUserIds, setSelectedUserIds] = useState<string[]>([]),
-   usersQuery = useQuery({
-    enabled: search.trim().length >= 2,
-    queryFn: async () => {
-      const response = await fetch(
-        `${API_V1_URL}/admin/finance/payments/users?q=${encodeURIComponent(search.trim())}`,
-        { credentials: "include" }
-      );
-      if (!response.ok) {
-        throw new Error("Unable to search users.");
-      }
-      return (await response.json()) as { users: AdminUserSummary[] };
-    },
-    queryKey: ["admin", "premium-user-search", search.trim()],
-  }),
-   grantMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(
-        `${API_V1_URL}/admin/finance/payments/grant-premium`,
-        {
-          body: JSON.stringify({ planCode, userIds: selectedUserIds }),
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
+    [planCode, setPlanCode] = useState("soundkit_premium_artist"),
+    [search, setSearch] = useState(""),
+    [selectedUserIds, setSelectedUserIds] = useState<string[]>([]),
+    usersQuery = useQuery({
+      enabled: search.trim().length >= 2,
+      queryFn: async () => {
+        const response = await fetch(
+          `${API_V1_URL}/admin/finance/payments/users?q=${encodeURIComponent(search.trim())}`,
+          { credentials: "include" }
+        );
+        if (!response.ok) {
+          throw new Error("Unable to search users.");
         }
-      ),
-       body = (await response.json().catch(() => ({}))) as {
-        grantedCount?: number;
-        message?: string;
-      };
-      if (!response.ok) {
-        throw new Error(body.message ?? "Unable to grant Premium.");
-      }
-      return body;
-    },
-    onError: (error) => {
-      toast({
-        description: error.message,
-        title: "Premium grant failed",
-        variant: "destructive",
-      });
-    },
-    onSuccess: async (result) => {
-      setSearch("");
-      setSelectedUserIds([]);
-      await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
-      toast({
-        description: `${result.grantedCount ?? 0} user account${result.grantedCount === 1 ? "" : "s"} updated. Email and in-app notifications were sent.`,
-        title: "Premium granted",
-      });
-    },
-  }),
-   searchResults = usersQuery.data?.users ?? [];
+        return (await response.json()) as { users: AdminUserSummary[] };
+      },
+      queryKey: ["admin", "premium-user-search", search.trim()],
+    }),
+    grantMutation = useMutation({
+      mutationFn: async () => {
+        const response = await fetch(
+            `${API_V1_URL}/admin/finance/payments/grant-premium`,
+            {
+              body: JSON.stringify({ planCode, userIds: selectedUserIds }),
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              method: "POST",
+            }
+          ),
+          body = (await response.json().catch(() => ({}))) as {
+            grantedCount?: number;
+            message?: string;
+          };
+        if (!response.ok) {
+          throw new Error(body.message ?? "Unable to grant Premium.");
+        }
+        return body;
+      },
+      onError: (error) => {
+        toast({
+          description: error.message,
+          title: "Premium grant failed",
+          variant: "destructive",
+        });
+      },
+      onSuccess: async (result) => {
+        setSearch("");
+        setSelectedUserIds([]);
+        await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+        toast({
+          description: `${result.grantedCount ?? 0} user account${result.grantedCount === 1 ? "" : "s"} updated. Email and in-app notifications were sent.`,
+          title: "Premium granted",
+        });
+      },
+    }),
+    searchResults = usersQuery.data?.users ?? [];
 
   return (
     <Card>
@@ -1890,53 +1907,54 @@ function PaymentPlanCard({
   stripePrices: StripePriceOption[];
 }>) {
   const importMutation = useImportStripePlanMutation(),
-   suggestedMonthly =
-    stripePrices.find(
-      (price) => price.planCode === plan.code && price.interval === "month"
-    )?.id ?? "",
-   suggestedAnnual =
-    stripePrices.find(
-      (price) => price.planCode === plan.code && price.interval === "year"
-    )?.id ?? "",
-   [monthlyPriceId, setMonthlyPriceId] = useState(
-    plan.stripeMonthlyPriceId ?? suggestedMonthly
-  ),
-   [annualPriceId, setAnnualPriceId] = useState(
-    plan.stripeAnnualPriceId ?? suggestedAnnual
-  ),
-   monthlyCheckoutReady =
-    Boolean(plan.stripeMonthlyPriceId) &&
-    plan.stripeMonthlyPriceId === plan.envMonthlyPriceId,
-   annualCheckoutReady =
-    !plan.annualPriceCents ||
-    (Boolean(plan.stripeAnnualPriceId) &&
-      plan.stripeAnnualPriceId === plan.envAnnualPriceId),
-   checkoutReady = monthlyCheckoutReady && annualCheckoutReady,
-
-   handleImport = () => {
-    importMutation.mutate(
-      {
-        annualPriceId: annualPriceId.trim() || undefined,
-        code: plan.code,
-        monthlyPriceId: monthlyPriceId.trim() || undefined,
-      },
-      {
-        onError: (error) => {
-          toast({
-            description: error.message,
-            title: "Import failed",
-            variant: "destructive",
-          });
+    suggestedMonthly =
+      stripePrices.find(
+        (price) => price.planCode === plan.code && price.interval === "month"
+      )?.id ?? "",
+    suggestedAnnual =
+      stripePrices.find(
+        (price) => price.planCode === plan.code && price.interval === "year"
+      )?.id ?? "",
+    [monthlyPriceId, setMonthlyPriceId] = useState(
+      plan.stripeMonthlyPriceId ?? suggestedMonthly
+    ),
+    [annualPriceId, setAnnualPriceId] = useState(
+      plan.stripeAnnualPriceId ?? suggestedAnnual
+    ),
+    annualCheckoutReady =
+      !plan.annualPriceCents ||
+      isUsableStripeId(plan.envAnnualPriceId) ||
+      isUsableStripeId(plan.stripeAnnualPriceId),
+    annualEnvReady = Boolean(plan.envAnnualPriceId),
+    checkoutReady = monthlyCheckoutReady && annualCheckoutReady,
+    monthlyCheckoutReady =
+      isUsableStripeId(plan.envMonthlyPriceId) ||
+      isUsableStripeId(plan.stripeMonthlyPriceId),
+    monthlyEnvReady = Boolean(plan.envMonthlyPriceId),
+    handleImport = () => {
+      importMutation.mutate(
+        {
+          annualPriceId: annualPriceId.trim() || undefined,
+          code: plan.code,
+          monthlyPriceId: monthlyPriceId.trim() || undefined,
         },
-        onSuccess: () => {
-          toast({
-            description: `${plan.name} is linked to Stripe price IDs.`,
-            title: "Plan updated",
-          });
-        },
-      }
-    );
-  };
+        {
+          onError: (error) => {
+            toast({
+              description: error.message,
+              title: "Import failed",
+              variant: "destructive",
+            });
+          },
+          onSuccess: () => {
+            toast({
+              description: `${plan.name} is linked to Stripe price IDs.`,
+              title: "Plan updated",
+            });
+          },
+        }
+      );
+    };
 
   return (
     <div className="flex flex-col justify-between rounded-xl border bg-card/60 p-4 shadow-sm transition-all hover:border-border/80">
@@ -2032,19 +2050,19 @@ function PaymentPlanCard({
           ) : null}
         </div>
 
-        {/* Required Environment Keys */}
+        {/* Optional Deploy-Time Env Keys */}
         <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
           <p className="font-semibold text-[11px] text-muted-foreground tracking-wider uppercase">
-            Required Environment Variables
+            Environment Variables (optional)
           </p>
           <EnvKeyLine
-            isReady={monthlyCheckoutReady}
+            isReady={monthlyEnvReady}
             label="Monthly Env Key"
             value={plan.envMonthlyKey ?? "not required"}
           />
           {plan.envAnnualKey ? (
             <EnvKeyLine
-              isReady={annualCheckoutReady}
+              isReady={annualEnvReady}
               label="Annual Env Key"
               value={plan.envAnnualKey}
             />
@@ -2061,18 +2079,19 @@ function EnvKeyLine({
   value,
 }: Readonly<{ isReady: boolean; label: string; value: string }>) {
   const [copied, setCopied] = useState(false),
-
-   handleCopy = async () => {
-    if (!value || value === "not required") {return;}
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast({ description: `${label} copied to clipboard.` });
-    } catch {
-      // ignore
-    }
-  };
+    handleCopy = async () => {
+      if (!value || value === "not required") {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        toast({ description: `${label} copied to clipboard.` });
+      } catch {
+        // ignore
+      }
+    };
 
   return (
     <div className="flex min-w-0 items-start justify-between gap-2 rounded-md bg-background/60 p-2 text-xs transition-colors hover:bg-background/90">

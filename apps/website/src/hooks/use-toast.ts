@@ -1,12 +1,10 @@
-"use client";
-
-// Inspired by react-hot-toast library
 import * as React from "react";
+import { toast as sonnerToast } from "sonner";
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
 const TOAST_LIMIT = 1,
- TOAST_REMOVE_DELAY = 1_000_000;
+  TOAST_REMOVE_DELAY = 1_000_000;
 
 type ToasterToast = ToastProps & {
   id: string;
@@ -54,22 +52,21 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>(),
+  addToRemoveQueue = (toastId: string) => {
+    if (toastTimeouts.has(toastId)) {
+      return;
+    }
 
- addToRemoveQueue = (toastId: string) => {
-  if (toastTimeouts.has(toastId)) {
-    return;
-  }
+    const timeout = setTimeout(() => {
+      toastTimeouts.delete(toastId);
+      dispatch({
+        toastId,
+        type: "REMOVE_TOAST",
+      });
+    }, TOAST_REMOVE_DELAY);
 
-  const timeout = setTimeout(() => {
-    toastTimeouts.delete(toastId);
-    dispatch({
-      toastId,
-      type: "REMOVE_TOAST",
-    });
-  }, TOAST_REMOVE_DELAY);
-
-  toastTimeouts.set(toastId, timeout);
-};
+    toastTimeouts.set(toastId, timeout);
+  };
 
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
@@ -135,22 +132,36 @@ let memoryState: State = { toasts: [] };
 
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action);
-  listeners.forEach((listener) => {
+  for (const listener of listeners) {
     listener(memoryState);
-  });
+  }
 }
 
 type Toast = Omit<ToasterToast, "id">;
 
 function toast({ ...props }: Toast) {
   const id = genId(),
+    update = (props: ToasterToast) =>
+      dispatch({
+        toast: { ...props, id },
+        type: "UPDATE_TOAST",
+      }),
+    dismiss = () => {
+      sonnerToast.dismiss(id);
+      dispatch({ toastId: id, type: "DISMISS_TOAST" });
+    };
 
-   update = (props: ToasterToast) =>
-    dispatch({
-      toast: { ...props, id },
-      type: "UPDATE_TOAST",
-    }),
-   dismiss = () => dispatch({ toastId: id, type: "DISMISS_TOAST" });
+  if (props.variant === "destructive") {
+    sonnerToast.error(props.title ? String(props.title) : "Error", {
+      description: props.description ? String(props.description) : undefined,
+      id,
+    });
+  } else if (props.title || props.description) {
+    sonnerToast.success(props.title ? String(props.title) : "Success", {
+      description: props.description ? String(props.description) : undefined,
+      id,
+    });
+  }
 
   dispatch({
     toast: {

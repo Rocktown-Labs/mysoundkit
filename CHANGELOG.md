@@ -23,9 +23,17 @@
 - Reworked admin Premium management around the two equal-price Fan and Artist Premium plans, including searchable multi-user grants, subscription visibility, welcome notifications and email, plus live Stripe promotion-code creation and redemption reporting.
 - Added real Cloudflare Stream playback to public creator stream rooms, persisted live-input IDs, live status polling, and host-controlled input shutdown.
 
+- Added automated Stripe product and recurring price creation upon catalog sync in Admin Payments (`POST /v1/admin/finance/payments/sync-plans`), auto-matching existing products/prices and provisioning sandbox catalog IDs in development mode.
 - Added a RealtimeKit presets setup script (`packages/infra/realtimekit-presets.ts`) that creates or updates the eight SoundKit presets (battle lobby/artist/voter, party host/listener, stream host/viewer) via the Cloudflare API using Alchemy credentials, with `--dry-run` and `--delete` modes, strict app selection, and checked mutation responses.
 
 ### Fixed
+
+- Fixed global toast notifications across all admin and dashboard actions (including Premium user grants and Stripe catalog sync) by bridging `use-toast` callers directly into the active Sonner toast provider.
+- Fixed `/dashboard/messages` Friends Online bar by defining `onlineFriends` and `isUserOnline` in `MessagesPage` and removing unused lucide imports.
+- Fixed the `use-toast` adapters at `@/hooks/use-toast` and `@/components/ui/use-toast` to share a single ID generator and Sonner store, so notifications from either import path no longer replace or dismiss each other.
+- Wired synced catalog Stripe IDs into the Better Auth checkout plan source, so checkout works from the catalog immediately after a catalog sync without deploying environment price IDs; deployed env price IDs still take precedence, and dev-sandbox `price_dev_*` placeholders never satisfy checkout.
+- Fixed Stripe catalog sync so dev-sandbox `price_dev_*` placeholders never overwrite genuine Stripe IDs and are auto-discarded once a live `STRIPE_SECRET_KEY` is present, reused recurring prices must be USD, and the admin catalog reflects real checkout readiness (env-provided or synced catalog IDs).
+- Fixed Stripe catalog sync results to report plans whose Stripe IDs were unchanged as `matched` (checked & up to date) instead of claiming every plan was newly created.
 
 - Fixed floating artist chat bar by redesigning it as a compact circular docked trigger button at the bottom-right corner when closed, docking cleanly above the audio player when music is active to prevent obstruction of playback controls, and adding generous tab/chat button padding.
 - Enhanced audio player device selector with Bluetooth/AirPods name permission unlocking (`getUserMedia` label resolution), AirPlay/HomePods network casting triggers (`webkitShowPlaybackTargetPicker` / `selectAudioOutput`), and added output device selection to the mobile player control bar.
