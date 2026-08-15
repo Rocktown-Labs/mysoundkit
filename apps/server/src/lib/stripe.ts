@@ -165,10 +165,11 @@ export const createStripeRecurringPrice = ({
   const params = new URLSearchParams();
   appendValue(params, "currency", currency);
   appendValue(params, "lookup_key", `${code}_${interval}`);
-  appendValue(params, "metadata[soundkit_plan_code]", code);
   appendValue(params, "metadata[soundkit_interval]", interval);
+  appendValue(params, "metadata[soundkit_plan_code]", code);
   appendValue(params, "product", productId);
   appendValue(params, "recurring[interval]", interval);
+  appendValue(params, "transfer_lookup_key", true);
   appendValue(params, "unit_amount", amountCents);
 
   return stripeRequest<StripePriceSummary>({
