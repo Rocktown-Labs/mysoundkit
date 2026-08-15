@@ -1209,13 +1209,16 @@ function PaymentsPanel() {
           },
           onSuccess: (result) => {
             const createdCount = result.results.filter(
-              (r) => r.status === "created"
-            ).length;
+                (r) => r.status === "created"
+              ).length,
+              matchedCount = result.results.filter(
+                (r) => r.status === "matched"
+              ).length;
             toast({
               description:
                 createdCount > 0
                   ? `${createdCount} subscription plan${createdCount === 1 ? "" : "s"} created & synced to Stripe.`
-                  : `${result.results.length} subscription plans checked & up to date.`,
+                  : `${matchedCount} subscription plan${matchedCount === 1 ? "" : "s"} checked & up to date.`,
               title: "Stripe Catalog Synced",
             });
           },

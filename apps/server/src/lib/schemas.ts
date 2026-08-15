@@ -237,7 +237,7 @@ export const adminSyncStripePlansResponseSchema = z.object({
       code: z.string(),
       monthlyPriceId: z.string().nullable(),
       productId: z.string().nullable(),
-      status: z.enum(["created", "skipped"]),
+      status: z.enum(["created", "matched", "skipped"]),
     })
     .array(),
 });

@@ -29,6 +29,10 @@
 ### Fixed
 
 - Fixed global toast notifications across all admin and dashboard actions (including Premium user grants and Stripe catalog sync) by bridging `use-toast` callers directly into the active Sonner toast provider.
+- Fixed `/dashboard/messages` Friends Online bar by defining `onlineFriends` and `isUserOnline` in `MessagesPage` and removing unused lucide imports.
+- Fixed the `use-toast` adapters at `@/hooks/use-toast` and `@/components/ui/use-toast` to share a single ID generator and Sonner store, so notifications from either import path no longer replace or dismiss each other.
+- Fixed Stripe catalog sync so the admin catalog no longer reports plans as checkout-ready from database-only updates (env price IDs must be configured for checkout); dev-sandbox `price_dev_*` placeholders never overwrite genuine Stripe IDs and are auto-discarded once a live `STRIPE_SECRET_KEY` is present; and reused recurring prices must be USD.
+- Fixed Stripe catalog sync results to report plans whose Stripe IDs were unchanged as `matched` (checked & up to date) instead of claiming every plan was newly created.
 
 - Fixed floating artist chat bar by redesigning it as a compact circular docked trigger button at the bottom-right corner when closed, docking cleanly above the audio player when music is active to prevent obstruction of playback controls, and adding generous tab/chat button padding.
 - Enhanced audio player device selector with Bluetooth/AirPods name permission unlocking (`getUserMedia` label resolution), AirPlay/HomePods network casting triggers (`webkitShowPlaybackTargetPicker` / `selectAudioOutput`), and added output device selection to the mobile player control bar.

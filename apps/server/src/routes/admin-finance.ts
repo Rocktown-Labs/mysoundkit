@@ -40,6 +40,8 @@ import type { AppEnv } from "@/lib/types";
 const app = new OpenAPIHono<AppEnv>(),
   getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  isDevPlaceholderPriceId = (priceId: string | null | undefined) =>
+    Boolean(priceId?.startsWith("price_dev_")),
   planEnvKeys: Record<
     string,
     { annual: string | null; monthly: string | null }
@@ -156,11 +158,11 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
       code: plan.code,
       envAnnualKey: envKeys.annual,
       envAnnualPriceId: envKeys.annual
-        ? getEnvValue(envKeys.annual) || plan.stripeAnnualPriceId
+        ? getEnvValue(envKeys.annual)
         : plan.stripeAnnualPriceId,
       envMonthlyKey: envKeys.monthly,
       envMonthlyPriceId: envKeys.monthly
-        ? getEnvValue(envKeys.monthly) || plan.stripeMonthlyPriceId
+        ? getEnvValue(envKeys.monthly)
         : plan.stripeMonthlyPriceId,
       isActive: plan.isActive,
       maxSeats: plan.maxSeats,
@@ -220,8 +222,12 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
     monthlyPriceId: string | null;
   }) => {
     const [monthlyPrice, annualPrice] = await Promise.all([
-      monthlyPriceId ? retrieveStripePrice(monthlyPriceId) : null,
-      annualPriceId ? retrieveStripePrice(annualPriceId) : null,
+      monthlyPriceId && !isDevPlaceholderPriceId(monthlyPriceId)
+        ? retrieveStripePrice(monthlyPriceId)
+        : null,
+      annualPriceId && !isDevPlaceholderPriceId(annualPriceId)
+        ? retrieveStripePrice(annualPriceId)
+        : null,
     ]);
 
     return {
@@ -251,11 +257,17 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
     if (!hasStripe) {
       return {
         annualPriceId: plan.annualPriceCents
-          ? `price_dev_${plan.code}_annual`
+          ? annualPriceId || `price_dev_${plan.code}_annual`
           : null,
+        created: Boolean(
+          (plan.annualPriceCents &&
+            annualPriceId !== plan.stripeAnnualPriceId) ||
+          (plan.monthlyPriceCents > 0 &&
+            monthlyPriceId !== plan.stripeMonthlyPriceId)
+        ),
         monthlyPriceId:
           plan.monthlyPriceCents > 0
-            ? `price_dev_${plan.code}_monthly`
+            ? monthlyPriceId || `price_dev_${plan.code}_monthly`
             : null,
         productId: `prod_dev_${plan.code}`,
       };
@@ -285,6 +297,7 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
                 ? p.product === product.id
                 : p.product.id === product.id) &&
               p.recurring?.interval === "month" &&
+              p.currency === "usd" &&
               p.unit_amount === plan.monthlyPriceCents
           );
 
@@ -309,6 +322,7 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
                 ? p.product === product.id
                 : p.product.id === product.id) &&
               p.recurring?.interval === "year" &&
+              p.currency === "usd" &&
               p.unit_amount === plan.annualPriceCents
           );
 
@@ -329,7 +343,16 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
       console.error("Stripe live sync failed", error);
     }
 
-    return { annualPriceId, monthlyPriceId, productId };
+    return {
+      annualPriceId,
+      created: Boolean(
+        (plan.annualPriceCents && annualPriceId !== plan.stripeAnnualPriceId) ||
+        (plan.monthlyPriceCents > 0 &&
+          monthlyPriceId !== plan.stripeMonthlyPriceId)
+      ),
+      monthlyPriceId,
+      productId,
+    };
   },
   loadPaymentOverview = async () => {
     await ensureDefaultPlansSeeded();
@@ -400,7 +423,7 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
 
     return {
       configuredCheckoutPlans: serializedPlans.filter(
-        (plan) => plan.stripeMonthlyPriceId || plan.envMonthlyPriceId
+        (plan) => plan.envMonthlyPriceId
       ).length,
       planCount: plans.length,
       plans: serializedPlans,
@@ -678,7 +701,7 @@ app.openapi(
       results = [];
 
     for (const plan of plans) {
-      const { annualPriceId, monthlyPriceId, productId } =
+      const { annualPriceId, created, monthlyPriceId, productId } =
         await resolvePlanStripeIds({
           hasStripe,
           plan,
@@ -710,7 +733,7 @@ app.openapi(
         code: plan.code,
         monthlyPriceId,
         productId,
-        status: "created" as const,
+        status: created ? ("created" as const) : ("matched" as const),
       });
     }
 
