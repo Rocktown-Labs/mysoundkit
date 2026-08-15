@@ -4,138 +4,133 @@ import { SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
 const API_ORIGIN = "http://soundkit.test",
+  jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+    },
+    method,
+  }),
+  fetchJson = async <T>(path: string, init?: RequestInit) => {
+    const response = await SELF.fetch(`${API_ORIGIN}${path}`, init),
+      body = (await response.json()) as T;
 
- jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
-  body: JSON.stringify(body),
-  headers: {
-    "content-type": "application/json",
+    return { body, response };
   },
-  method,
-}),
-
- fetchJson = async <T>(path: string, init?: RequestInit) => {
-  const response = await SELF.fetch(`${API_ORIGIN}${path}`, init),
-   body = (await response.json()) as T;
-
-  return { body, response };
-},
-
- publicReadCases = [
-  ["/v1/artists", "array"],
-  ["/v1/artists/luna-eclipse", "object"],
-  ["/v1/tracks", "array"],
-  ["/v1/tracks/track_midnight_vibes", "object"],
-  ["/v1/tracks/track_midnight_vibes/lyrics", "nullable"],
-  ["/v1/projects", "array"],
-  ["/v1/projects/project_after_dark", "object"],
-  ["/v1/videos", "array"],
-  ["/v1/videos/video_midnight_vibes_mv", "object"],
-  ["/v1/playlists", "array"],
-  ["/v1/playlists/playlist_after_hours", "object"],
-  ["/v1/battles", "array"],
-  ["/v1/battles/battle_west_coast_showdown", "object"],
-  ["/v1/library/recent", "array"],
-  ["/v1/library/saved", "array"],
-  ["/v1/library/watched", "array"],
-  ["/v1/library/playlists", "array"],
-  ["/v1/library/purchases", "array"],
-  ["/v1/social/posts/post_1/comments", "array"],
-  ["/v1/analytics/overview", "object"],
-] as const,
-
- expectedOpenApiOperations = [
-  ["get", "/v1/analytics/overview"],
-  ["get", "/v1/artists"],
-  ["get", "/v1/artists/{username}"],
-  ["get", "/v1/battles"],
-  ["post", "/v1/battles/challenge"],
-  ["post", "/v1/battles/eligibility"],
-  ["get", "/v1/battles/{battleId}"],
-  ["get", "/v1/admin/finance/summary"],
-  ["post", "/v1/admin/tracks/backfill-durations"],
-  ["get", "/v1/admin/tracks/backfill-durations/status"],
-  ["get", "/v1/admin/settings"],
-  ["patch", "/v1/admin/settings"],
-  ["post", "/v1/billing/checkout"],
-  ["get", "/v1/billing/plans"],
-  ["get", "/v1/billing/subscription"],
-  ["delete", "/v1/cart"],
-  ["get", "/v1/cart"],
-  ["post", "/v1/cart/claim"],
-  ["post", "/v1/cart/items"],
-  ["delete", "/v1/cart/items/{cartItemId}"],
-  ["patch", "/v1/cart/items/{cartItemId}"],
-  ["post", "/v1/community-billing/checkout"],
-  ["get", "/v1/communities"],
-  ["post", "/v1/communities"],
-  ["get", "/v1/communities/{communityId}/analytics"],
-  ["get", "/v1/communities/{communityId}/members"],
-  ["delete", "/v1/communities/{communityId}/members/{userId}"],
-  ["patch", "/v1/communities/{communityId}/members/{userId}"],
-  ["get", "/v1/communities/{communityId}/messages"],
-  ["post", "/v1/communities/{communityId}/messages"],
-  ["get", "/v1/communities/{communityId}/posts"],
-  ["post", "/v1/communities/{communityId}/posts"],
-  ["get", "/v1/discover/home"],
-  ["get", "/v1/library/overview"],
-  ["get", "/v1/library/playlists"],
-  ["get", "/v1/library/purchases"],
-  ["get", "/v1/library/recent"],
-  ["get", "/v1/library/saved"],
-  ["get", "/v1/library/watched"],
-  ["get", "/v1/me"],
-  ["get", "/v1/me/entitlements"],
-  ["patch", "/v1/me/profile"],
-  ["get", "/v1/me/workspaces"],
-  ["get", "/v1/messages/conversations"],
-  ["get", "/v1/messages/friends"],
-  ["post", "/v1/messages/conversations"],
-  ["get", "/v1/messages/conversations/{conversationId}/messages"],
-  ["post", "/v1/messages/conversations/{conversationId}/messages"],
-  ["post", "/v1/onboarding/artist"],
-  ["post", "/v1/onboarding/fan"],
-  ["get", "/v1/onboarding/username-availability"],
-  ["get", "/v1/playlists"],
-  ["post", "/v1/playlists"],
-  ["post", "/v1/payments/checkout"],
-  ["post", "/v1/payments/tips"],
-  ["get", "/v1/playlists/{playlistId}"],
-  ["get", "/v1/projects"],
-  ["post", "/v1/projects"],
-  ["delete", "/v1/projects/{projectId}"],
-  ["get", "/v1/projects/{projectId}"],
-  ["patch", "/v1/projects/{projectId}"],
-  ["post", "/v1/seller/account-link"],
-  ["get", "/v1/seller/status"],
-  ["get", "/v1/social/posts/{postId}/comments"],
-  ["post", "/v1/social/posts/{postId}/comments"],
-  ["post", "/v1/social/posts/{postId}/likes"],
-  ["get", "/v1/tracks"],
-  ["post", "/v1/tracks"],
-  ["post", "/v1/tracks/{trackId}/assets"],
-  ["post", "/v1/tracks/{trackId}/playback-sessions"],
-  ["post", "/v1/tracks/{trackId}/playback-sessions/{sessionId}/end"],
-  ["post", "/v1/tracks/{trackId}/playback-sessions/{sessionId}/progress"],
-  ["delete", "/v1/tracks/{trackId}"],
-  ["get", "/v1/tracks/{trackId}"],
-  ["patch", "/v1/tracks/{trackId}"],
-  ["get", "/v1/tracks/{trackId}/lyrics"],
-  ["post", "/v1/tracks/{trackId}/lyrics"],
-  ["post", "/v1/tracks/{trackId}/lyrics/suggestions"],
-  ["patch", "/v1/tracks/{trackId}/lyrics/{lyricsId}"],
-  ["post", "/v1/tracks/{trackId}/process"],
-  ["get", "/v1/uploads"],
-  ["get", "/v1/videos"],
-  ["post", "/v1/videos"],
-  ["post", "/v1/videos/direct-upload"],
-  ["get", "/v1/videos/{videoId}"],
-  ["post", "/v1/videos/{videoId}/playback-sessions"],
-  ["post", "/v1/webhooks/battle-service"],
-  ["post", "/v1/webhooks/mux"],
-  ["post", "/v1/webhooks/stemsplit"],
-  ["post", "/v1/webhooks/stripe"],
-  ["post", "/v1/webhooks/stripe-commerce"],
-] as const;
+  publicReadCases = [
+    ["/v1/artists", "array"],
+    ["/v1/artists/luna-eclipse", "object"],
+    ["/v1/tracks", "array"],
+    ["/v1/tracks/track_midnight_vibes", "object"],
+    ["/v1/tracks/track_midnight_vibes/lyrics", "nullable"],
+    ["/v1/projects", "array"],
+    ["/v1/projects/project_after_dark", "object"],
+    ["/v1/videos", "array"],
+    ["/v1/videos/video_midnight_vibes_mv", "object"],
+    ["/v1/playlists", "array"],
+    ["/v1/playlists/playlist_after_hours", "object"],
+    ["/v1/battles", "array"],
+    ["/v1/battles/battle_west_coast_showdown", "object"],
+    ["/v1/library/recent", "array"],
+    ["/v1/library/saved", "array"],
+    ["/v1/library/watched", "array"],
+    ["/v1/library/playlists", "array"],
+    ["/v1/library/purchases", "array"],
+    ["/v1/social/posts/post_1/comments", "array"],
+    ["/v1/analytics/overview", "object"],
+  ] as const,
+  expectedOpenApiOperations = [
+    ["get", "/v1/analytics/overview"],
+    ["get", "/v1/artists"],
+    ["get", "/v1/artists/{username}"],
+    ["get", "/v1/battles"],
+    ["post", "/v1/battles/challenge"],
+    ["post", "/v1/battles/eligibility"],
+    ["get", "/v1/battles/{battleId}"],
+    ["get", "/v1/admin/finance/summary"],
+    ["post", "/v1/admin/tracks/backfill-durations"],
+    ["get", "/v1/admin/tracks/backfill-durations/status"],
+    ["get", "/v1/admin/settings"],
+    ["patch", "/v1/admin/settings"],
+    ["post", "/v1/billing/checkout"],
+    ["get", "/v1/billing/plans"],
+    ["get", "/v1/billing/subscription"],
+    ["delete", "/v1/cart"],
+    ["get", "/v1/cart"],
+    ["post", "/v1/cart/claim"],
+    ["post", "/v1/cart/items"],
+    ["delete", "/v1/cart/items/{cartItemId}"],
+    ["patch", "/v1/cart/items/{cartItemId}"],
+    ["post", "/v1/community-billing/checkout"],
+    ["get", "/v1/communities"],
+    ["post", "/v1/communities"],
+    ["get", "/v1/communities/{communityId}/analytics"],
+    ["get", "/v1/communities/{communityId}/members"],
+    ["delete", "/v1/communities/{communityId}/members/{userId}"],
+    ["patch", "/v1/communities/{communityId}/members/{userId}"],
+    ["get", "/v1/communities/{communityId}/messages"],
+    ["post", "/v1/communities/{communityId}/messages"],
+    ["get", "/v1/communities/{communityId}/posts"],
+    ["post", "/v1/communities/{communityId}/posts"],
+    ["get", "/v1/discover/home"],
+    ["get", "/v1/library/overview"],
+    ["get", "/v1/library/playlists"],
+    ["get", "/v1/library/purchases"],
+    ["get", "/v1/library/recent"],
+    ["get", "/v1/library/saved"],
+    ["get", "/v1/library/watched"],
+    ["get", "/v1/me"],
+    ["get", "/v1/me/entitlements"],
+    ["patch", "/v1/me/profile"],
+    ["get", "/v1/me/workspaces"],
+    ["get", "/v1/messages/conversations"],
+    ["get", "/v1/messages/friends"],
+    ["post", "/v1/messages/conversations"],
+    ["get", "/v1/messages/conversations/{conversationId}/messages"],
+    ["post", "/v1/messages/conversations/{conversationId}/messages"],
+    ["post", "/v1/onboarding/artist"],
+    ["post", "/v1/onboarding/fan"],
+    ["get", "/v1/onboarding/username-availability"],
+    ["get", "/v1/playlists"],
+    ["post", "/v1/playlists"],
+    ["post", "/v1/payments/checkout"],
+    ["post", "/v1/payments/tips"],
+    ["get", "/v1/playlists/{playlistId}"],
+    ["get", "/v1/projects"],
+    ["post", "/v1/projects"],
+    ["delete", "/v1/projects/{projectId}"],
+    ["get", "/v1/projects/{projectId}"],
+    ["patch", "/v1/projects/{projectId}"],
+    ["post", "/v1/seller/account-link"],
+    ["get", "/v1/seller/status"],
+    ["get", "/v1/social/posts/{postId}/comments"],
+    ["post", "/v1/social/posts/{postId}/comments"],
+    ["post", "/v1/social/posts/{postId}/likes"],
+    ["get", "/v1/tracks"],
+    ["post", "/v1/tracks"],
+    ["post", "/v1/tracks/{trackId}/assets"],
+    ["post", "/v1/tracks/{trackId}/playback-sessions"],
+    ["post", "/v1/tracks/{trackId}/playback-sessions/{sessionId}/end"],
+    ["post", "/v1/tracks/{trackId}/playback-sessions/{sessionId}/progress"],
+    ["delete", "/v1/tracks/{trackId}"],
+    ["get", "/v1/tracks/{trackId}"],
+    ["patch", "/v1/tracks/{trackId}"],
+    ["get", "/v1/tracks/{trackId}/lyrics"],
+    ["post", "/v1/tracks/{trackId}/lyrics"],
+    ["post", "/v1/tracks/{trackId}/lyrics/suggestions"],
+    ["patch", "/v1/tracks/{trackId}/lyrics/{lyricsId}"],
+    ["post", "/v1/tracks/{trackId}/process"],
+    ["get", "/v1/uploads"],
+    ["get", "/v1/videos"],
+    ["post", "/v1/videos"],
+    ["post", "/v1/videos/direct-upload"],
+    ["get", "/v1/videos/{videoId}"],
+    ["post", "/v1/videos/{videoId}/playback-sessions"],
+    ["post", "/v1/webhooks/battle-service"],
+    ["post", "/v1/webhooks/mux"],
+    ["post", "/v1/webhooks/stemsplit"],
+    ["post", "/v1/webhooks/stripe-commerce"],
+  ] as const;
 
 describe("SoundKit API HTTP contracts", () => {
   it("propagates request IDs through the structured logging middleware", async () => {
@@ -232,18 +227,15 @@ describe("SoundKit API HTTP contracts", () => {
       expect(response.status).toBe(200);
 
       const entries = logSpy.mock.calls
-        .map(([line]) => {
-          try {
-            return JSON.parse(String(line)) as Record<string, unknown>;
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean),
-
-       requestEntry = entries.find(
-        (entry) => entry?.requestId === "rid_log"
-      );
+          .map(([line]) => {
+            try {
+              return JSON.parse(String(line)) as Record<string, unknown>;
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean),
+        requestEntry = entries.find((entry) => entry?.requestId === "rid_log");
 
       expect(requestEntry).toEqual(
         expect.objectContaining({
@@ -673,17 +665,13 @@ describe("SoundKit provider endpoint configuration", () => {
   });
 
   it("keeps inert webhook acknowledgements available", async () => {
-    const [stripeResult, battleResult] = await Promise.all([
-      fetchJson<{ message: string }>("/v1/webhooks/stripe", {
+    const battleResult = await fetchJson<{ message: string }>(
+      "/v1/webhooks/battle-service",
+      {
         method: "POST",
-      }),
-      fetchJson<{ message: string }>("/v1/webhooks/battle-service", {
-        method: "POST",
-      }),
-    ]);
+      }
+    );
 
-    expect(stripeResult.response.status).toBe(200);
-    expect(stripeResult.body.message).toBe("Stripe webhook accepted");
     expect(battleResult.response.status).toBe(200);
     expect(battleResult.body.message).toBe("Battle service webhook accepted");
   });

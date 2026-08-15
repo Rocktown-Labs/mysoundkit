@@ -206,7 +206,7 @@ Uploads are wired for Better Upload, but require storage env configuration befor
 ### Webhooks
 
 - `POST /v1/webhooks/mux`
-- `POST /v1/webhooks/stripe`
+- `POST /v1/webhooks/stripe-commerce`
 - `POST /v1/webhooks/battle-service`
 
 ## Current Status
