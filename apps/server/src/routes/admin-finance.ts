@@ -38,22 +38,21 @@ import type { StripePriceSummary, StripeProductSummary } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
- getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
-
- planEnvKeys: Record<
-  string,
-  { annual: string | null; monthly: string | null }
-> = {
-  soundkit_premium_artist: {
-    annual: "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID",
-    monthly: "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID",
-  },
-  soundkit_premium_fan: {
-    annual: "STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID",
-    monthly: "STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID",
-  },
-};
+  getEnvValue = (key: string) =>
+    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  planEnvKeys: Record<
+    string,
+    { annual: string | null; monthly: string | null }
+  > = {
+    soundkit_premium_artist: {
+      annual: "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID",
+      monthly: "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID",
+    },
+    soundkit_premium_fan: {
+      annual: "STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID",
+      monthly: "STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID",
+    },
+  };
 
 interface DefaultPlanItem {
   annualPriceCents: number;
@@ -69,79 +68,75 @@ interface DefaultPlanItem {
 }
 
 const DEFAULT_PLANS: DefaultPlanItem[] = [
-  {
-    annualPriceCents: 22_899,
-    audience: "artist",
-    code: "soundkit_premium_artist",
-    entitlements: {
-      canCreateLiveBattles: true,
-      canHostLiveStreams: true,
+    {
+      annualPriceCents: 22_899,
+      audience: "artist",
+      code: "soundkit_premium_artist",
+      entitlements: {
+        canCreateLiveBattles: true,
+        canHostLiveStreams: true,
+      },
+      isActive: true,
+      monthlyPriceCents: 2299,
+      name: "SoundKit Premium Artist",
+      stripeAnnualPriceId: "",
+      stripeMonthlyPriceId: "",
     },
-    isActive: true,
-    monthlyPriceCents: 2299,
-    name: "SoundKit Premium Artist",
-    stripeAnnualPriceId: "",
-    stripeMonthlyPriceId: "",
-  },
-  {
-    annualPriceCents: 22_899,
-    audience: "fan",
-    code: "soundkit_premium_fan",
-    entitlements: {
-      accessExclusiveLiveBattles: true,
-      listeningPartiesUnlimited: true,
-      voteInBattleRounds: true,
+    {
+      annualPriceCents: 22_899,
+      audience: "fan",
+      code: "soundkit_premium_fan",
+      entitlements: {
+        accessExclusiveLiveBattles: true,
+        listeningPartiesUnlimited: true,
+        voteInBattleRounds: true,
+      },
+      isActive: true,
+      monthlyPriceCents: 2299,
+      name: "SoundKit Premium Fan",
+      stripeAnnualPriceId: "",
+      stripeMonthlyPriceId: "",
     },
-    isActive: true,
-    monthlyPriceCents: 2299,
-    name: "SoundKit Premium Fan",
-    stripeAnnualPriceId: "",
-    stripeMonthlyPriceId: "",
-  },
-],
-
- ensureDefaultPlansSeeded = async () => {
-  if (!isDatabaseConfigured()) {
-    return;
-  }
-  const db = createDb();
-  await db
-    .delete(planCatalog)
-    .where(inArray(planCatalog.code, ["artist_team", "fan_family"]));
-  for (const plan of DEFAULT_PLANS) {
+  ],
+  ensureDefaultPlansSeeded = async () => {
+    if (!isDatabaseConfigured()) {
+      return;
+    }
+    const db = createDb();
     await db
-      .insert(planCatalog)
-      .values(plan)
-      .onConflictDoUpdate({
-        set: {
-          annualPriceCents: plan.annualPriceCents,
-          entitlements: plan.entitlements,
-          isActive: true,
-          monthlyPriceCents: plan.monthlyPriceCents,
-          name: plan.name,
-        },
-        target: planCatalog.code,
-      });
-  }
-},
-
- productIdFromPrice = (price: StripePriceSummary) =>
-  typeof price.product === "string" ? price.product : price.product.id,
-
- productNameFromPrice = (price: StripePriceSummary) =>
-  typeof price.product === "string" ? "Stripe product" : price.product.name,
-
- serializeStripePrice = (price: StripePriceSummary) => ({
-  active: price.active,
-  currency: price.currency.toUpperCase(),
-  id: price.id,
-  interval: price.recurring?.interval ?? null,
-  lookupKey: price.lookup_key ?? null,
-  planCode: price.metadata?.soundkit_plan_code ?? null,
-  productId: productIdFromPrice(price),
-  productName: productNameFromPrice(price),
-  unitAmount: price.unit_amount ?? null,
-});
+      .delete(planCatalog)
+      .where(inArray(planCatalog.code, ["artist_team", "fan_family"]));
+    for (const plan of DEFAULT_PLANS) {
+      await db
+        .insert(planCatalog)
+        .values(plan)
+        .onConflictDoUpdate({
+          set: {
+            annualPriceCents: plan.annualPriceCents,
+            entitlements: plan.entitlements,
+            isActive: true,
+            monthlyPriceCents: plan.monthlyPriceCents,
+            name: plan.name,
+          },
+          target: planCatalog.code,
+        });
+    }
+  },
+  productIdFromPrice = (price: StripePriceSummary) =>
+    typeof price.product === "string" ? price.product : price.product.id,
+  productNameFromPrice = (price: StripePriceSummary) =>
+    typeof price.product === "string" ? "Stripe product" : price.product.name,
+  serializeStripePrice = (price: StripePriceSummary) => ({
+    active: price.active,
+    currency: price.currency.toUpperCase(),
+    id: price.id,
+    interval: price.recurring?.interval ?? null,
+    lookupKey: price.lookup_key ?? null,
+    planCode: price.metadata?.soundkit_plan_code ?? null,
+    productId: productIdFromPrice(price),
+    productName: productNameFromPrice(price),
+    unitAmount: price.unit_amount ?? null,
+  });
 
 export interface StripePriceOption {
   currency: string;
@@ -153,182 +148,275 @@ export interface StripePriceOption {
 }
 
 const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
-  const envKeys = planEnvKeys[plan.code] ?? { annual: null, monthly: null };
+    const envKeys = planEnvKeys[plan.code] ?? { annual: null, monthly: null };
 
-  return {
-    annualPriceCents: plan.annualPriceCents,
-    audience: plan.audience,
-    code: plan.code,
-    envAnnualKey: envKeys.annual,
-    envAnnualPriceId: envKeys.annual
-      ? getEnvValue(envKeys.annual) || plan.stripeAnnualPriceId
-      : plan.stripeAnnualPriceId,
-    envMonthlyKey: envKeys.monthly,
-    envMonthlyPriceId: envKeys.monthly
-      ? getEnvValue(envKeys.monthly) || plan.stripeMonthlyPriceId
-      : plan.stripeMonthlyPriceId,
-    isActive: plan.isActive,
-    maxSeats: plan.maxSeats,
-    monthlyPriceCents: plan.monthlyPriceCents,
-    name: plan.name,
-    stripeAnnualPriceId: plan.stripeAnnualPriceId,
-    stripeMonthlyPriceId: plan.stripeMonthlyPriceId,
-  };
-},
+    return {
+      annualPriceCents: plan.annualPriceCents,
+      audience: plan.audience,
+      code: plan.code,
+      envAnnualKey: envKeys.annual,
+      envAnnualPriceId: envKeys.annual
+        ? getEnvValue(envKeys.annual) || plan.stripeAnnualPriceId
+        : plan.stripeAnnualPriceId,
+      envMonthlyKey: envKeys.monthly,
+      envMonthlyPriceId: envKeys.monthly
+        ? getEnvValue(envKeys.monthly) || plan.stripeMonthlyPriceId
+        : plan.stripeMonthlyPriceId,
+      isActive: plan.isActive,
+      maxSeats: plan.maxSeats,
+      monthlyPriceCents: plan.monthlyPriceCents,
+      name: plan.name,
+      stripeAnnualPriceId: plan.stripeAnnualPriceId,
+      stripeMonthlyPriceId: plan.stripeMonthlyPriceId,
+    };
+  },
+  findProductForPlan = (
+    products: StripeProductSummary[],
+    plan: typeof planCatalog.$inferSelect
+  ) =>
+    products.find(
+      (product) => product.metadata?.soundkit_plan_code === plan.code
+    ) ??
+    products.find((product) =>
+      product.name.trim().toLowerCase().includes(plan.name.trim().toLowerCase())
+    ),
+  validateStripePriceImport = async ({
+    annualPriceId,
+    monthlyPriceId,
+  }: {
+    annualPriceId: string | null;
+    monthlyPriceId: string | null;
+  }) => {
+    if (!(monthlyPriceId || annualPriceId)) {
+      return "Add at least one Stripe price ID.";
+    }
 
- findProductForPlan = (
-  products: StripeProductSummary[],
-  plan: typeof planCatalog.$inferSelect
-) =>
-  products.find(
-    (product) => product.metadata?.soundkit_plan_code === plan.code
-  ) ??
-  products.find((product) =>
-    product.name.trim().toLowerCase().includes(plan.name.trim().toLowerCase())
-  ),
+    if (getEnvValue("STRIPE_SECRET_KEY")) {
+      const [monthlyPrice, annualPrice] = await Promise.all([
+        monthlyPriceId ? retrieveStripePrice(monthlyPriceId) : null,
+        annualPriceId ? retrieveStripePrice(annualPriceId) : null,
+      ]);
 
- validateStripePriceImport = async ({
-  annualPriceId,
-  monthlyPriceId,
-}: {
-  annualPriceId: string | null;
-  monthlyPriceId: string | null;
-}) => {
-  if (!(monthlyPriceId || annualPriceId)) {
-    return "Add at least one Stripe price ID.";
-  }
+      if (monthlyPriceId && monthlyPrice?.recurring?.interval !== "month") {
+        return "The monthly Stripe price ID must be a monthly price.";
+      }
 
-  if (getEnvValue("STRIPE_SECRET_KEY")) {
+      if (annualPriceId && annualPrice?.recurring?.interval !== "year") {
+        return "The annual Stripe price ID must be a yearly price.";
+      }
+    }
+
+    return null;
+  },
+  discardMismatchedPriceIds = async ({
+    annualPriceCents,
+    annualPriceId,
+    monthlyPriceCents,
+    monthlyPriceId,
+  }: {
+    annualPriceCents: number | null;
+    annualPriceId: string | null;
+    monthlyPriceCents: number;
+    monthlyPriceId: string | null;
+  }) => {
     const [monthlyPrice, annualPrice] = await Promise.all([
       monthlyPriceId ? retrieveStripePrice(monthlyPriceId) : null,
       annualPriceId ? retrieveStripePrice(annualPriceId) : null,
     ]);
 
-    if (monthlyPriceId && monthlyPrice?.recurring?.interval !== "month") {
-      return "The monthly Stripe price ID must be a monthly price.";
-    }
-
-    if (annualPriceId && annualPrice?.recurring?.interval !== "year") {
-      return "The annual Stripe price ID must be a yearly price.";
-    }
-  }
-
-  return null;
-},
-
- discardMismatchedPriceIds = async ({
-  annualPriceCents,
-  annualPriceId,
-  monthlyPriceCents,
-  monthlyPriceId,
-}: {
-  annualPriceCents: number | null;
-  annualPriceId: string | null;
-  monthlyPriceCents: number;
-  monthlyPriceId: string | null;
-}) => {
-  const [monthlyPrice, annualPrice] = await Promise.all([
-    monthlyPriceId ? retrieveStripePrice(monthlyPriceId) : null,
-    annualPriceId ? retrieveStripePrice(annualPriceId) : null,
-  ]);
-
-  return {
-    annualPriceId:
-      annualPriceCents && annualPrice?.unit_amount === annualPriceCents
-        ? annualPriceId
-        : null,
-    monthlyPriceId:
-      monthlyPrice?.unit_amount === monthlyPriceCents ? monthlyPriceId : null,
-  };
-},
-
- loadPaymentOverview = async () => {
-  await ensureDefaultPlansSeeded();
-
-  if (!isDatabaseConfigured()) {
     return {
-      configuredCheckoutPlans: 0,
-      planCount: 0,
-      plans: [],
-      recentTransactions: [],
-      stripeConfigured: Boolean(getEnvValue("STRIPE_SECRET_KEY")),
-      stripePrices: [],
+      annualPriceId:
+        annualPriceCents && annualPrice?.unit_amount === annualPriceCents
+          ? annualPriceId
+          : null,
+      monthlyPriceId:
+        monthlyPrice?.unit_amount === monthlyPriceCents ? monthlyPriceId : null,
+    };
+  },
+  resolvePlanStripeIds = async ({
+    hasStripe,
+    plan,
+    products,
+    stripePrices,
+  }: {
+    hasStripe: boolean;
+    plan: typeof planCatalog.$inferSelect;
+    products: StripeProductSummary[];
+    stripePrices: StripePriceSummary[];
+  }) => {
+    let monthlyPriceId = plan.stripeMonthlyPriceId,
+      annualPriceId = plan.stripeAnnualPriceId,
+      productId: string | null = null;
+
+    if (!hasStripe) {
+      return {
+        annualPriceId: plan.annualPriceCents
+          ? `price_dev_${plan.code}_annual`
+          : null,
+        monthlyPriceId:
+          plan.monthlyPriceCents > 0
+            ? `price_dev_${plan.code}_monthly`
+            : null,
+        productId: `prod_dev_${plan.code}`,
+      };
+    }
+
+    try {
+      ({ annualPriceId, monthlyPriceId } = await discardMismatchedPriceIds({
+        annualPriceCents: plan.annualPriceCents,
+        annualPriceId,
+        monthlyPriceCents: plan.monthlyPriceCents,
+        monthlyPriceId,
+      }));
+
+      const existingProduct = findProductForPlan(products, plan),
+        product =
+          existingProduct ??
+          (await createStripeProduct({ code: plan.code, name: plan.name }));
+
+      if (product) {
+        productId = product.id;
+
+        if (!monthlyPriceId && plan.monthlyPriceCents > 0) {
+          const matchedMonthly = stripePrices.find(
+            (p) =>
+              p.active &&
+              (typeof p.product === "string"
+                ? p.product === product.id
+                : p.product.id === product.id) &&
+              p.recurring?.interval === "month" &&
+              p.unit_amount === plan.monthlyPriceCents
+          );
+
+          if (matchedMonthly) {
+            monthlyPriceId = matchedMonthly.id;
+          } else {
+            const createdPrice = await createStripeRecurringPrice({
+              amountCents: plan.monthlyPriceCents,
+              code: plan.code,
+              interval: "month",
+              productId: product.id,
+            });
+            monthlyPriceId = createdPrice?.id ?? null;
+          }
+        }
+
+        if (!annualPriceId && plan.annualPriceCents) {
+          const matchedAnnual = stripePrices.find(
+            (p) =>
+              p.active &&
+              (typeof p.product === "string"
+                ? p.product === product.id
+                : p.product.id === product.id) &&
+              p.recurring?.interval === "year" &&
+              p.unit_amount === plan.annualPriceCents
+          );
+
+          if (matchedAnnual) {
+            annualPriceId = matchedAnnual.id;
+          } else {
+            const createdPrice = await createStripeRecurringPrice({
+              amountCents: plan.annualPriceCents,
+              code: plan.code,
+              interval: "year",
+              productId: product.id,
+            });
+            annualPriceId = createdPrice?.id ?? null;
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Stripe live sync failed", error);
+    }
+
+    return { annualPriceId, monthlyPriceId, productId };
+  },
+  loadPaymentOverview = async () => {
+    await ensureDefaultPlansSeeded();
+
+    if (!isDatabaseConfigured()) {
+      return {
+        configuredCheckoutPlans: 0,
+        planCount: 0,
+        plans: [],
+        recentTransactions: [],
+        stripeConfigured: Boolean(getEnvValue("STRIPE_SECRET_KEY")),
+        stripePrices: [],
+        totals: {
+          grossRevenueCents: 0,
+          platformFeeCents: 0,
+          successfulTransactions: 0,
+        },
+      };
+    }
+
+    const db = createDb(),
+      [
+        plans,
+        [transactionSummary],
+        [feeSummary],
+        recentTransactions,
+        stripePrices,
+      ] = await Promise.all([
+        db
+          .select()
+          .from(planCatalog)
+          .where(
+            inArray(
+              planCatalog.code,
+              DEFAULT_PLANS.map((plan) => plan.code)
+            )
+          )
+          .orderBy(planCatalog.audience, planCatalog.code),
+        db
+          .select({
+            amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+            count: sql<number>`count(*)`,
+          })
+          .from(transactions)
+          .where(eq(transactions.status, "succeeded")),
+        db
+          .select({
+            amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
+          })
+          .from(platformFees),
+        db
+          .select({
+            amountCents: transactions.amountCents,
+            createdAt: transactions.createdAt,
+            currency: transactions.currency,
+            id: transactions.id,
+            platformFeeCents: transactions.platformFeeCents,
+            status: transactions.status,
+            transactionType: transactions.transactionType,
+          })
+          .from(transactions)
+          .orderBy(desc(transactions.createdAt))
+          .limit(12),
+        listStripePrices().catch(() => null),
+      ]),
+      serializedPlans = plans.map(serializePlan),
+      priceList = stripePrices?.data?.map(serializeStripePrice) ?? [];
+
+    return {
+      configuredCheckoutPlans: serializedPlans.filter(
+        (plan) => plan.stripeMonthlyPriceId || plan.envMonthlyPriceId
+      ).length,
+      planCount: plans.length,
+      plans: serializedPlans,
+      recentTransactions: recentTransactions.map((transaction) => ({
+        ...transaction,
+        createdAt: transaction.createdAt.toISOString(),
+      })),
+      stripeConfigured: true,
+      stripePrices: priceList,
       totals: {
-        grossRevenueCents: 0,
-        platformFeeCents: 0,
-        successfulTransactions: 0,
+        grossRevenueCents: Number(transactionSummary?.amountCents ?? 0),
+        platformFeeCents: Number(feeSummary?.amountCents ?? 0),
+        successfulTransactions: Number(transactionSummary?.count ?? 0),
       },
     };
-  }
-
-  const db = createDb(),
-   [
-    plans,
-    [transactionSummary],
-    [feeSummary],
-    recentTransactions,
-    stripePrices,
-  ] = await Promise.all([
-    db
-      .select()
-      .from(planCatalog)
-      .where(
-        inArray(
-          planCatalog.code,
-          DEFAULT_PLANS.map((plan) => plan.code)
-        )
-      )
-      .orderBy(planCatalog.audience, planCatalog.code),
-    db
-      .select({
-        amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
-        count: sql<number>`count(*)`,
-      })
-      .from(transactions)
-      .where(eq(transactions.status, "succeeded")),
-    db
-      .select({
-        amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
-      })
-      .from(platformFees),
-    db
-      .select({
-        amountCents: transactions.amountCents,
-        createdAt: transactions.createdAt,
-        currency: transactions.currency,
-        id: transactions.id,
-        platformFeeCents: transactions.platformFeeCents,
-        status: transactions.status,
-        transactionType: transactions.transactionType,
-      })
-      .from(transactions)
-      .orderBy(desc(transactions.createdAt))
-      .limit(12),
-    listStripePrices().catch(() => null),
-  ]),
-   serializedPlans = plans.map(serializePlan),
-
-   priceList = stripePrices?.data?.map(serializeStripePrice) ?? [];
-
-  return {
-    configuredCheckoutPlans: serializedPlans.filter(
-      (plan) => plan.stripeMonthlyPriceId || plan.envMonthlyPriceId
-    ).length,
-    planCount: plans.length,
-    plans: serializedPlans,
-    recentTransactions: recentTransactions.map((transaction) => ({
-      ...transaction,
-      createdAt: transaction.createdAt.toISOString(),
-    })),
-    stripeConfigured: true,
-    stripePrices: priceList,
-    totals: {
-      grossRevenueCents: Number(transactionSummary?.amountCents ?? 0),
-      platformFeeCents: Number(feeSummary?.amountCents ?? 0),
-      successfulTransactions: Number(transactionSummary?.count ?? 0),
-    },
   };
-};
 
 app.get("/payments/users", async (c) => {
   if (!isAdminUser(c.get("user"))) {
@@ -373,51 +461,51 @@ app.get("/payments/users", async (c) => {
   }
 
   const query = c.req.query("q")?.trim() ?? "",
-   searchTerm = `%${query}%`,
-   db = createDb(),
-   users = await db
-    .select({
-      accountType: userProfiles.accountType,
-      banned: user.banned,
-      createdAt: user.createdAt,
-      email: user.email,
-      id: user.id,
-      name: user.name,
-      role: user.role,
-      username: userProfiles.username,
-    })
-    .from(user)
-    .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
-    .where(
-      query
-        ? or(
-            ilike(user.email, searchTerm),
-            ilike(user.name, searchTerm),
-            ilike(userProfiles.username, searchTerm)
+    searchTerm = `%${query}%`,
+    db = createDb(),
+    users = await db
+      .select({
+        accountType: userProfiles.accountType,
+        banned: user.banned,
+        createdAt: user.createdAt,
+        email: user.email,
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        username: userProfiles.username,
+      })
+      .from(user)
+      .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+      .where(
+        query
+          ? or(
+              ilike(user.email, searchTerm),
+              ilike(user.name, searchTerm),
+              ilike(userProfiles.username, searchTerm)
+            )
+          : undefined
+      )
+      .orderBy(desc(user.createdAt))
+      .limit(100),
+    userIds = users.map((item) => item.id),
+    activeSubscriptions = userIds.length
+      ? await db
+          .select({
+            plan: subscription.plan,
+            referenceId: subscription.referenceId,
+            status: subscription.status,
+          })
+          .from(subscription)
+          .where(
+            and(
+              inArray(subscription.referenceId, userIds),
+              inArray(subscription.status, ["active", "trialing"])
+            )
           )
-        : undefined
-    )
-    .orderBy(desc(user.createdAt))
-    .limit(100),
-   userIds = users.map((item) => item.id),
-   activeSubscriptions = userIds.length
-    ? await db
-        .select({
-          plan: subscription.plan,
-          referenceId: subscription.referenceId,
-          status: subscription.status,
-        })
-        .from(subscription)
-        .where(
-          and(
-            inArray(subscription.referenceId, userIds),
-            inArray(subscription.status, ["active", "trialing"])
-          )
-        )
-    : [],
-   premiumByUser = new Map(
-    activeSubscriptions.map((item) => [item.referenceId, item])
-  );
+      : [],
+    premiumByUser = new Map(
+      activeSubscriptions.map((item) => [item.referenceId, item])
+    );
 
   return c.json(
     {
@@ -468,18 +556,18 @@ app.openapi(
     }
 
     const db = createDb(),
-     [transactionSummary] = await db
-      .select({
-        amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
-        count: sql<number>`count(*)`,
-      })
-      .from(transactions)
-      .where(eq(transactions.status, "succeeded")),
-     [feeSummary] = await db
-      .select({
-        amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
-      })
-      .from(platformFees);
+      [transactionSummary] = await db
+        .select({
+          amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+          count: sql<number>`count(*)`,
+        })
+        .from(transactions)
+        .where(eq(transactions.status, "succeeded")),
+      [feeSummary] = await db
+        .select({
+          amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
+        })
+        .from(platformFees);
 
     return c.json(
       {
@@ -564,78 +652,39 @@ app.openapi(
       );
     }
 
-    if (!getEnvValue("STRIPE_SECRET_KEY")) {
-      return c.json(
-        {
-          message: "STRIPE_SECRET_KEY is required to sync Stripe plans.",
-          results: [],
-        },
-        HttpStatusCodes.OK
-      );
-    }
-
     const body = (await c.req.json().catch(() => ({}))) as {
-      planCodes?: string[];
-    },
-     db = createDb(),
-     plans =
-      body.planCodes && body.planCodes.length > 0
-        ? await db
-            .select()
-            .from(planCatalog)
-            .where(inArray(planCatalog.code, body.planCodes))
-        : await db
-            .select()
-            .from(planCatalog)
-            .where(eq(planCatalog.isActive, true)),
-
-     productList = await listStripeProducts().catch(() => null),
-     products = productList?.data ?? [],
-     results = [];
+        planCodes?: string[];
+      },
+      db = createDb(),
+      plans =
+        body.planCodes && body.planCodes.length > 0
+          ? await db
+              .select()
+              .from(planCatalog)
+              .where(inArray(planCatalog.code, body.planCodes))
+          : await db
+              .select()
+              .from(planCatalog)
+              .where(eq(planCatalog.isActive, true)),
+      hasStripe = Boolean(getEnvValue("STRIPE_SECRET_KEY")),
+      [productList, priceList] = hasStripe
+        ? await Promise.all([
+            listStripeProducts().catch(() => null),
+            listStripePrices().catch(() => null),
+          ])
+        : [null, null],
+      products = productList?.data ?? [],
+      stripePrices = priceList?.data ?? [],
+      results = [];
 
     for (const plan of plans) {
-      let monthlyPriceId = plan.stripeMonthlyPriceId,
-       annualPriceId = plan.stripeAnnualPriceId,
-       productId = null;
-
-      try {
-        ({ annualPriceId, monthlyPriceId } = await discardMismatchedPriceIds({
-          annualPriceCents: plan.annualPriceCents,
-          annualPriceId,
-          monthlyPriceCents: plan.monthlyPriceCents,
-          monthlyPriceId,
-        }));
-
-        const existingProduct = findProductForPlan(products, plan),
-         product =
-          existingProduct ??
-          (await createStripeProduct({ code: plan.code, name: plan.name }));
-
-        if (product) {
-          productId = product.id;
-          if (!monthlyPriceId && plan.monthlyPriceCents > 0) {
-            const price = await createStripeRecurringPrice({
-              amountCents: plan.monthlyPriceCents,
-              code: plan.code,
-              interval: "month",
-              productId: product.id,
-            });
-            monthlyPriceId = price?.id ?? null;
-          }
-
-          if (!annualPriceId && plan.annualPriceCents) {
-            const price = await createStripeRecurringPrice({
-              amountCents: plan.annualPriceCents,
-              code: plan.code,
-              interval: "year",
-              productId: product.id,
-            });
-            annualPriceId = price?.id ?? null;
-          }
-        }
-      } catch (error) {
-        console.error("Stripe live sync failed", error);
-      }
+      const { annualPriceId, monthlyPriceId, productId } =
+        await resolvePlanStripeIds({
+          hasStripe,
+          plan,
+          products,
+          stripePrices,
+        });
 
       if (!(monthlyPriceId || annualPriceId)) {
         results.push({
@@ -707,13 +756,12 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     monthlyPriceId = body.monthlyPriceId?.trim() || null,
-     annualPriceId = body.annualPriceId?.trim() || null,
-
-     validationMessage = await validateStripePriceImport({
-      annualPriceId,
-      monthlyPriceId,
-    });
+      monthlyPriceId = body.monthlyPriceId?.trim() || null,
+      annualPriceId = body.annualPriceId?.trim() || null,
+      validationMessage = await validateStripePriceImport({
+        annualPriceId,
+        monthlyPriceId,
+      });
 
     if (validationMessage) {
       return c.json(
@@ -946,14 +994,14 @@ app.post("/payments/grant-premium", async (c) => {
   }
 
   const body = (await c.req.json().catch(() => ({}))) as {
-    planCode?: string;
-    userIds?: string[];
-  },
-   premiumPlanCodes = [
-    "soundkit_premium_artist",
-    "soundkit_premium_fan",
-  ] as const,
-   planCode = body.planCode?.trim() || "soundkit_premium_artist";
+      planCode?: string;
+      userIds?: string[];
+    },
+    premiumPlanCodes = [
+      "soundkit_premium_artist",
+      "soundkit_premium_fan",
+    ] as const,
+    planCode = body.planCode?.trim() || "soundkit_premium_artist";
   if (
     !premiumPlanCodes.includes(planCode as (typeof premiumPlanCodes)[number])
   ) {
@@ -972,16 +1020,16 @@ app.post("/payments/grant-premium", async (c) => {
 
   await ensureDefaultPlansSeeded();
   const db = createDb(),
-   targets = await db
-    .select({
-      accountType: userProfiles.accountType,
-      email: user.email,
-      id: user.id,
-      name: user.name,
-    })
-    .from(user)
-    .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
-    .where(inArray(user.id, userIds));
+    targets = await db
+      .select({
+        accountType: userProfiles.accountType,
+        email: user.email,
+        id: user.id,
+        name: user.name,
+      })
+      .from(user)
+      .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+      .where(inArray(user.id, userIds));
   if (targets.length !== userIds.length) {
     return c.json(
       { message: "One or more selected users could not be found." },
@@ -990,12 +1038,15 @@ app.post("/payments/grant-premium", async (c) => {
   }
 
   const [plan] = await db
-    .select({ entitlements: planCatalog.entitlements, name: planCatalog.name })
-    .from(planCatalog)
-    .where(eq(planCatalog.code, planCode))
-    .limit(1),
-   now = new Date(),
-   periodEnd = new Date(now);
+      .select({
+        entitlements: planCatalog.entitlements,
+        name: planCatalog.name,
+      })
+      .from(planCatalog)
+      .where(eq(planCatalog.code, planCode))
+      .limit(1),
+    now = new Date(),
+    periodEnd = new Date(now);
   periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
   for (const target of targets) {
@@ -1009,16 +1060,16 @@ app.post("/payments/grant-premium", async (c) => {
         )
       );
     const [existing] = await db
-      .select({ id: subscription.id })
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, target.id),
-          eq(subscription.plan, planCode)
+        .select({ id: subscription.id })
+        .from(subscription)
+        .where(
+          and(
+            eq(subscription.referenceId, target.id),
+            eq(subscription.plan, planCode)
+          )
         )
-      )
-      .limit(1),
-     subscriptionId = existing?.id ?? crypto.randomUUID();
+        .limit(1),
+      subscriptionId = existing?.id ?? crypto.randomUUID();
     await (existing
       ? db
           .update(subscription)

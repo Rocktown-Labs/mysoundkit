@@ -23,9 +23,12 @@
 - Reworked admin Premium management around the two equal-price Fan and Artist Premium plans, including searchable multi-user grants, subscription visibility, welcome notifications and email, plus live Stripe promotion-code creation and redemption reporting.
 - Added real Cloudflare Stream playback to public creator stream rooms, persisted live-input IDs, live status polling, and host-controlled input shutdown.
 
+- Added automated Stripe product and recurring price creation upon catalog sync in Admin Payments (`POST /v1/admin/finance/payments/sync-plans`), auto-matching existing products/prices and provisioning sandbox catalog IDs in development mode.
 - Added a RealtimeKit presets setup script (`packages/infra/realtimekit-presets.ts`) that creates or updates the eight SoundKit presets (battle lobby/artist/voter, party host/listener, stream host/viewer) via the Cloudflare API using Alchemy credentials, with `--dry-run` and `--delete` modes, strict app selection, and checked mutation responses.
 
 ### Fixed
+
+- Fixed global toast notifications across all admin and dashboard actions (including Premium user grants and Stripe catalog sync) by bridging `use-toast` callers directly into the active Sonner toast provider.
 
 - Fixed floating artist chat bar by redesigning it as a compact circular docked trigger button at the bottom-right corner when closed, docking cleanly above the audio player when music is active to prevent obstruction of playback controls, and adding generous tab/chat button padding.
 - Enhanced audio player device selector with Bluetooth/AirPods name permission unlocking (`getUserMedia` label resolution), AirPlay/HomePods network casting triggers (`webkitShowPlaybackTargetPicker` / `selectAudioOutput`), and added output device selection to the mobile player control bar.
