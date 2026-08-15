@@ -14,15 +14,15 @@ export interface DurationBackfillQueueMessage {
   trackId: string;
 }
 
-const DURATION_BACKFILL_JOB_TYPE = "track_duration_backfill";
+const DURATION_BACKFILL_JOB_TYPE = "track_duration_backfill",
 
-const getMediaBucket = () =>
-  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null;
+ getMediaBucket = () =>
+  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
 
-const getRetryDelaySeconds = (attempts: number) =>
-  Math.min(15 * 2 ** Math.max(0, attempts - 1), 60 * 60);
+ getRetryDelaySeconds = (attempts: number) =>
+  Math.min(15 * 2 ** Math.max(0, attempts - 1), 60 * 60),
 
-const getErrorMessage = (error: unknown) =>
+ getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 export const readAudioDurationMs = async (blob: Blob) => {
@@ -30,15 +30,15 @@ export const readAudioDurationMs = async (blob: Blob) => {
     ALL_FORMATS,
     BlobSource,
     Input: MediaInput,
-  } = await import("mediabunny");
-  const input = new MediaInput({
+  } = await import("mediabunny"),
+   input = new MediaInput({
     formats: ALL_FORMATS,
     source: new BlobSource(blob),
   });
 
   try {
-    const metadataDuration = await input.getDurationFromMetadata();
-    const durationSeconds =
+    const metadataDuration = await input.getDurationFromMetadata(),
+     durationSeconds =
       metadataDuration ??
       (await input.computeDuration(undefined, { skipLiveWait: true }));
 
@@ -73,17 +73,17 @@ export const readR2AudioDurationMs = async (objectKey: string) => {
 };
 
 const genericGeneratedImagePattern =
-  /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu;
+  /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu,
 
-const fileNameFromObjectKey = (objectKey: string | null) =>
-  objectKey?.split("/").pop()?.split(/[?#]/u).at(0)?.trim() ?? "";
+ fileNameFromObjectKey = (objectKey: string | null) =>
+  objectKey?.split("/").pop()?.split(/[?#]/u).at(0)?.trim() ?? "",
 
-const isGenericCoverArtFileName = (fileName: string) => {
+ isGenericCoverArtFileName = (fileName: string) => {
   const stem = fileName.trim().replace(/\.[^.]+$/u, "");
   return genericGeneratedImagePattern.test(stem);
-};
+},
 
-const toCoverArtFileName = (title: string) => {
+ toCoverArtFileName = (title: string) => {
   const stem = title
     .trim()
     .toLowerCase()
@@ -91,9 +91,9 @@ const toCoverArtFileName = (title: string) => {
     .replaceAll(/^-|-$/gu, "");
 
   return `${stem || "track"}.png`;
-};
+},
 
-const normalizeTrackCoverArtFileNames = async ({
+ normalizeTrackCoverArtFileNames = async ({
   db,
   limit,
   trackIds,
@@ -107,9 +107,9 @@ const normalizeTrackCoverArtFileNames = async ({
     trackIds && trackIds.length > 0
       ? inArray(trackAssets.trackId, trackIds)
       : undefined,
-  ].filter((clause): clause is SQL => clause !== undefined);
+  ].filter((clause): clause is SQL => clause !== undefined),
 
-  const coverRows = await db
+   coverRows = await db
     .select({
       id: trackAssets.id,
       metadata: trackAssets.metadata,
@@ -127,8 +127,8 @@ const normalizeTrackCoverArtFileNames = async ({
     const metadata =
       row.metadata && typeof row.metadata === "object"
         ? (row.metadata as Record<string, unknown>)
-        : {};
-    const originalFileName =
+        : {},
+     originalFileName =
       typeof metadata.originalFileName === "string"
         ? metadata.originalFileName
         : fileNameFromObjectKey(row.objectKey);
@@ -164,9 +164,9 @@ export const backfillMissingTrackDurations = async ({
     return { failed: 0, renamedCoverArt: 0, scanned: 0, updated: 0 };
   }
 
-  const db = createDb();
-  const normalizedLimit = Math.max(1, Math.min(limit, 100));
-  const whereClauses: SQL[] = [
+  const db = createDb(),
+   normalizedLimit = Math.max(1, Math.min(limit, 100)),
+   whereClauses: SQL[] = [
     eq(trackAssets.assetKind, "master"),
     eq(trackAssets.storageProvider, "r2"),
     isNotNull(trackAssets.objectKey),
@@ -174,8 +174,8 @@ export const backfillMissingTrackDurations = async ({
     trackIds && trackIds.length > 0
       ? inArray(trackAssets.trackId, trackIds)
       : undefined,
-  ].filter((clause): clause is SQL => clause !== undefined);
-  const rows = await db
+  ].filter((clause): clause is SQL => clause !== undefined),
+   rows = await db
     .select({
       id: trackAssets.id,
       objectKey: trackAssets.objectKey,
@@ -184,8 +184,8 @@ export const backfillMissingTrackDurations = async ({
     .where(and(...whereClauses))
     .limit(normalizedLimit);
 
-  let failed = 0;
-  let updated = 0;
+  let failed = 0,
+   updated = 0;
 
   for (const row of rows) {
     if (!row.objectKey) {
@@ -274,8 +274,8 @@ export const enqueueTrackDurationBackfills = async ({
     return { enqueued: 0, runId, scanned: 0 };
   }
 
-  const db = createDb();
-  const rows = await findUnbackfilledMasterRows({ db, limit, trackIds });
+  const db = createDb(),
+   rows = await findUnbackfilledMasterRows({ db, limit, trackIds });
 
   let enqueued = 0;
 
@@ -346,8 +346,8 @@ const processDurationBackfill = async ({
     return { processed: false, retryable: true };
   }
 
-  const db = createDb();
-  const [job] = await db
+  const db = createDb(),
+   [job] = await db
     .select()
     .from(workflowJobs)
     .where(
@@ -465,8 +465,8 @@ export const loadTrackDurationBackfillStatus = async (runId: string) => {
     return { done: 0, failed: 0, items: [], processing: 0, queued: 0, runId };
   }
 
-  const db = createDb();
-  const rows = await db
+  const db = createDb(),
+   rows = await db
     .select({
       durationMs: trackAssets.durationMs,
       error: workflowJobs.error,
@@ -478,25 +478,29 @@ export const loadTrackDurationBackfillStatus = async (runId: string) => {
     .from(workflowJobs)
     .innerJoin(trackAssets, eq(trackAssets.id, workflowJobs.targetId))
     .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
-    .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE));
+    .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)),
 
-  const runRows = rows.filter((row) => {
-    const {input} = row;
+   runRows = rows.filter((row) => {
+    const { input } = row;
     return (
       input !== null &&
       typeof input === "object" &&
       "runId" in input &&
       input.runId === runId
     );
-  });
-  const summary = { done: 0, failed: 0, processing: 0, queued: 0 };
+  }),
+   summary = { done: 0, failed: 0, processing: 0, queued: 0 };
 
   for (const row of runRows) {
-    if (row.status === "completed") {summary.done += 1;}
-    else if (row.status === "failed") {summary.failed += 1;}
-    else if (row.status === "running" || row.status === "waiting")
-      {summary.processing += 1;}
-    else {summary.queued += 1;}
+    if (row.status === "completed") {
+      summary.done += 1;
+    } else if (row.status === "failed") {
+      summary.failed += 1;
+    } else if (row.status === "running" || row.status === "waiting") {
+      summary.processing += 1;
+    } else {
+      summary.queued += 1;
+    }
   }
 
   return {

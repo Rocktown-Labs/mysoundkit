@@ -4,15 +4,15 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Dialog = DialogPrimitive.Root;
+const Dialog = DialogPrimitive.Root,
 
-const DialogTrigger = DialogPrimitive.Trigger;
+ DialogTrigger = DialogPrimitive.Trigger,
 
-const DialogPortal = DialogPrimitive.Portal;
+ DialogPortal = DialogPrimitive.Portal,
 
-const DialogClose = DialogPrimitive.Close;
+ DialogClose = DialogPrimitive.Close,
 
-const DialogOverlay = React.forwardRef<
+ DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (

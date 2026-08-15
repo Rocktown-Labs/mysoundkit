@@ -26,17 +26,17 @@ export const Route = createFileRoute("/dashboard/open-verses/new")({
 });
 
 function NewOpenVersePage() {
-  const router = useRouter();
-  const tracksQuery = useTracksQuery();
-  const createMutation = useCreateOpenVerseMutation();
-  const [trackId, setTrackId] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [slotStartsAtMs, setSlotStartsAtMs] = useState("");
-  const [slotEndsAtMs, setSlotEndsAtMs] = useState("");
-  const selectedTrack = tracksQuery.data?.find((track) => track.id === trackId);
+  const router = useRouter(),
+   tracksQuery = useTracksQuery(),
+   createMutation = useCreateOpenVerseMutation(),
+   [trackId, setTrackId] = useState(""),
+   [title, setTitle] = useState(""),
+   [description, setDescription] = useState(""),
+   [slotStartsAtMs, setSlotStartsAtMs] = useState(""),
+   [slotEndsAtMs, setSlotEndsAtMs] = useState(""),
+   selectedTrack = tracksQuery.data?.find((track) => track.id === trackId),
 
-  const publishOpenVerse = (event: FormEvent<HTMLFormElement>) => {
+   publishOpenVerse = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     createMutation.mutate(

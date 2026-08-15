@@ -14,13 +14,13 @@ import {
   soundkitServerJson,
 } from "@/lib/soundkit-client";
 
-const currentCookie = () => getRequestHeader("cookie") ?? null;
-const currentClient = () => createSoundKitServerClient(currentCookie());
+const currentCookie = () => getRequestHeader("cookie") ?? null,
+ currentClient = () => createSoundKitServerClient(currentCookie()),
 
-const rpcTypeClient = createSoundKitServerClient(null);
-const meGet = rpcTypeClient.v1.me.index.$get;
-const tracksGet = rpcTypeClient.v1.tracks.index.$get;
-const trackGet = rpcTypeClient.v1.tracks[":trackId"].$get;
+ rpcTypeClient = createSoundKitServerClient(null),
+ meGet = rpcTypeClient.v1.me.index.$get,
+ tracksGet = rpcTypeClient.v1.tracks.index.$get,
+ trackGet = rpcTypeClient.v1.tracks[":trackId"].$get;
 
 type MeResponse = InferResponseType<typeof meGet, 200>;
 const accountTypeSchema = z.enum(["artist", "fan"]);

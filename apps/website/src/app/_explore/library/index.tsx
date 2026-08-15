@@ -91,8 +91,8 @@ function LibraryPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {libraryCategories.map((category) => {
-          const Icon = category.icon;
-          const count =
+          const Icon = category.icon,
+           count =
             category.countKey && overview
               ? (overview[category.countKey] ?? 0)
               : null;

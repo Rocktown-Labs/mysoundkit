@@ -39,14 +39,14 @@ export const Route = createFileRoute("/_explore/library/settings")({
 });
 
 function AccountSettingsPage() {
-  const { data: me, isLoading } = useMeQuery();
-  const updateProfile = useUpdateMeProfileMutation();
-  const checkout = useBillingCheckoutMutation();
-  const [city, setCity] = useState("");
-  const [checkoutMessage, setCheckoutMessage] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards");
-  const [stateValue, setStateValue] = useState("");
+  const { data: me, isLoading } = useMeQuery(),
+   updateProfile = useUpdateMeProfileMutation(),
+   checkout = useBillingCheckoutMutation(),
+   [city, setCity] = useState(""),
+   [checkoutMessage, setCheckoutMessage] = useState(""),
+   [displayName, setDisplayName] = useState(""),
+   [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
+   [stateValue, setStateValue] = useState("");
 
   useEffect(() => {
     if (!me?.user) {
@@ -59,24 +59,24 @@ function AccountSettingsPage() {
     setStateValue(me.user.state ?? "");
   }, [me]);
 
-  const isSignedIn = Boolean(me?.user);
-  const saveProfile = () => {
+  const isSignedIn = Boolean(me?.user),
+   saveProfile = () => {
     updateProfile.mutate({
       city,
       displayName,
       mediaLayout,
       state: stateValue,
     });
-  };
-  const startPremiumCheckout = async () => {
+  },
+   startPremiumCheckout = async () => {
     if (!me?.user) {
       return;
     }
 
     try {
       setCheckoutMessage("");
-      const { origin } = window.location;
-      const response = await checkout.mutateAsync({
+      const { origin } = window.location,
+       response = await checkout.mutateAsync({
         cancelUrl: `${origin}/library/settings`,
         planCode: premiumPlanCodeForAccount(me.user.accountType),
         successUrl: `${origin}${premiumSuccessPathForAccount(

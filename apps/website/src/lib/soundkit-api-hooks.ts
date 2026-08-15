@@ -8,111 +8,111 @@ import type { InferRequestType, InferResponseType } from "hono/client";
 
 import { API_V1_URL, SoundKitApiError, apiClient, rpcJson } from "./api";
 
-const meGet = apiClient.v1.me.index.$get;
-const meProfilePatch = apiClient.v1.me.profile.$patch;
-const meNotificationSettingsGet = apiClient.v1.me["notification-settings"].$get;
-const meNotificationSettingsPatch =
-  apiClient.v1.me["notification-settings"].$patch;
-const meEntitlementsGet = apiClient.v1.me.entitlements.$get;
-const billingCheckoutPost = apiClient.v1.billing.checkout.$post;
-const adminAccessGet = apiClient.v1.admin.access.$get;
-const adminSettingsGet = apiClient.v1.admin.settings.$get;
-const adminSettingsPatch = apiClient.v1.admin.settings.$patch;
-const adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get;
-const adminImportStripePlanPost =
-  apiClient.v1.admin.finance.payments["import-plan"].$post;
-const adminOverviewGet = apiClient.v1.admin.overview.$get;
-const adminBackfillTrackDurationsPost =
-  apiClient.v1.admin.tracks["backfill-durations"].$post;
-const adminBackfillTrackDurationsStatusGet =
-  apiClient.v1.admin.tracks["backfill-durations"].status.$get;
-const adminSyncStripePlansPost =
-  apiClient.v1.admin.finance.payments["sync-plans"].$post;
-const artistOnboardingPost = apiClient.v1.onboarding.artist.$post;
-const artistsGet = apiClient.v1.artists.index.$get;
-const artistGet = apiClient.v1.artists[":username"].$get;
-const fanOnboardingPost = apiClient.v1.onboarding.fan.$post;
-const discoverHomeGet = apiClient.v1.discover.home.$get;
-const genresGet = apiClient.v1.discover.genres.$get;
-const searchGet = apiClient.v1.search.$get;
-const tracksGet = apiClient.v1.tracks.index.$get;
-const tracksPost = apiClient.v1.tracks.index.$post;
-const trackGet = apiClient.v1.tracks[":trackId"].$get;
-const trackPatch = apiClient.v1.tracks[":trackId"].$patch;
-const trackDelete = apiClient.v1.tracks[":trackId"].$delete;
-const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
-const trackSettlePost = apiClient.v1.tracks[":trackId"].settle.$post;
-const trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post;
-const trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post;
-const trackLyricsReviewPatch =
-  apiClient.v1.tracks[":trackId"].lyrics[":lyricsId"].$patch;
-const projectsGet = apiClient.v1.projects.index.$get;
-const publicProjectsGet = apiClient.v1.projects.public.$get;
-const publicProjectGet = apiClient.v1.projects.public[":projectId"].$get;
-const projectsPost = apiClient.v1.projects.index.$post;
-const projectGet = apiClient.v1.projects[":projectId"].$get;
-const projectPatch = apiClient.v1.projects[":projectId"].$patch;
-const listeningPartyPost = apiClient.v1["listening-parties"].index.$post;
-const listeningPartiesGet = apiClient.v1["listening-parties"].index.$get;
-const battlesGet = apiClient.v1.battles.index.$get;
-const battleChallengesGet = apiClient.v1.battles.challenges.index.$get;
-const battleChallengePost = apiClient.v1.battles.challenge.$post;
-const battleChallengePatch =
-  apiClient.v1.battles.challenges[":challengeId"].$patch;
-const liveExperiencesGet = apiClient.v1.live.experiences.public.$get;
-const liveExperiencePost = apiClient.v1.live.experiences.index.$post;
-const liveExperienceJoinPost =
-  apiClient.v1.live.experiences[":experienceId"].join.$post;
-const liveExperienceBattleBotPost =
-  apiClient.v1.live.experiences[":experienceId"].battlebot.$post;
-const liveExperienceSessionLockCheckPost =
-  apiClient.v1.live.experiences[":experienceId"]["session-locks"].check.$post;
-const libraryOverviewGet = apiClient.v1.library.overview.$get;
-const libraryPlaylistsGet = apiClient.v1.library.playlists.$get;
-const libraryPurchasesGet = apiClient.v1.library.purchases.$get;
-const libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get;
-const libraryRecentGet = apiClient.v1.library.recent.$get;
-const librarySavedGet = apiClient.v1.library.saved.$get;
-const librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post;
-const librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete;
-const libraryPlaylistsPost = apiClient.v1.library.playlists.$post;
-const libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete;
-const libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get;
-const libraryPlaylistTracksPost =
-  apiClient.v1.library.playlists[":id"].tracks.$post;
-const libraryPlaylistTrackDelete =
-  apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete;
-const libraryWatchedGet = apiClient.v1.library.watched.$get;
-const friendsGet = apiClient.v1.messages.friends.$get;
-const friendRequestsGet = apiClient.v1.messages["friend-requests"].$get;
-const friendRequestsPost = apiClient.v1.messages["friend-requests"].$post;
-const friendRequestPatch =
-  apiClient.v1.messages["friend-requests"][":requestId"].$patch;
-const peopleSearchGet = apiClient.v1.messages.people.$get;
-const conversationsGet = apiClient.v1.messages.conversations.$get;
-const conversationsPost = apiClient.v1.messages.conversations.$post;
-const conversationMessagesGet =
-  apiClient.v1.messages.conversations[":conversationId"].messages.$get;
-const conversationMessagesPost =
-  apiClient.v1.messages.conversations[":conversationId"].messages.$post;
-const openVersesGet = apiClient.v1["open-verses"].index.$get;
-const openVersesPost = apiClient.v1["open-verses"].index.$post;
-const openVerseGet = apiClient.v1["open-verses"][":listingId"].$get;
-const openVerseSubmissionPost =
-  apiClient.v1["open-verses"][":listingId"].submissions.$post;
-const videosGet = apiClient.v1.videos.index.$get;
-const videosPost = apiClient.v1.videos.index.$post;
-const videoGet = apiClient.v1.videos[":videoId"].$get;
-const videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get;
-const videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post;
-const videoDelete = apiClient.v1.videos[":videoId"].$delete;
-const notificationsGet = apiClient.v1.notifications.index.$get;
-const notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post;
-const trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post;
-const artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post;
-const sellerStatusGet = apiClient.v1.seller.status.$get;
-const battleStatsGet = apiClient.v1.battles.stats.$get;
-const trackBattleHistoryGet =
+const meGet = apiClient.v1.me.index.$get,
+ meProfilePatch = apiClient.v1.me.profile.$patch,
+ meNotificationSettingsGet = apiClient.v1.me["notification-settings"].$get,
+ meNotificationSettingsPatch =
+  apiClient.v1.me["notification-settings"].$patch,
+ meEntitlementsGet = apiClient.v1.me.entitlements.$get,
+ billingCheckoutPost = apiClient.v1.billing.checkout.$post,
+ adminAccessGet = apiClient.v1.admin.access.$get,
+ adminSettingsGet = apiClient.v1.admin.settings.$get,
+ adminSettingsPatch = apiClient.v1.admin.settings.$patch,
+ adminFinancePaymentsGet = apiClient.v1.admin.finance.payments.$get,
+ adminImportStripePlanPost =
+  apiClient.v1.admin.finance.payments["import-plan"].$post,
+ adminOverviewGet = apiClient.v1.admin.overview.$get,
+ adminBackfillTrackDurationsPost =
+  apiClient.v1.admin.tracks["backfill-durations"].$post,
+ adminBackfillTrackDurationsStatusGet =
+  apiClient.v1.admin.tracks["backfill-durations"].status.$get,
+ adminSyncStripePlansPost =
+  apiClient.v1.admin.finance.payments["sync-plans"].$post,
+ artistOnboardingPost = apiClient.v1.onboarding.artist.$post,
+ artistsGet = apiClient.v1.artists.index.$get,
+ artistGet = apiClient.v1.artists[":username"].$get,
+ fanOnboardingPost = apiClient.v1.onboarding.fan.$post,
+ discoverHomeGet = apiClient.v1.discover.home.$get,
+ genresGet = apiClient.v1.discover.genres.$get,
+ searchGet = apiClient.v1.search.$get,
+ tracksGet = apiClient.v1.tracks.index.$get,
+ tracksPost = apiClient.v1.tracks.index.$post,
+ trackGet = apiClient.v1.tracks[":trackId"].$get,
+ trackPatch = apiClient.v1.tracks[":trackId"].$patch,
+ trackDelete = apiClient.v1.tracks[":trackId"].$delete,
+ trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
+ trackSettlePost = apiClient.v1.tracks[":trackId"].settle.$post,
+ trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post,
+ trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post,
+ trackLyricsReviewPatch =
+  apiClient.v1.tracks[":trackId"].lyrics[":lyricsId"].$patch,
+ projectsGet = apiClient.v1.projects.index.$get,
+ publicProjectsGet = apiClient.v1.projects.public.$get,
+ publicProjectGet = apiClient.v1.projects.public[":projectId"].$get,
+ projectsPost = apiClient.v1.projects.index.$post,
+ projectGet = apiClient.v1.projects[":projectId"].$get,
+ projectPatch = apiClient.v1.projects[":projectId"].$patch,
+ listeningPartyPost = apiClient.v1["listening-parties"].index.$post,
+ listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
+ battlesGet = apiClient.v1.battles.index.$get,
+ battleChallengesGet = apiClient.v1.battles.challenges.index.$get,
+ battleChallengePost = apiClient.v1.battles.challenge.$post,
+ battleChallengePatch =
+  apiClient.v1.battles.challenges[":challengeId"].$patch,
+ liveExperiencesGet = apiClient.v1.live.experiences.public.$get,
+ liveExperiencePost = apiClient.v1.live.experiences.index.$post,
+ liveExperienceJoinPost =
+  apiClient.v1.live.experiences[":experienceId"].join.$post,
+ liveExperienceBattleBotPost =
+  apiClient.v1.live.experiences[":experienceId"].battlebot.$post,
+ liveExperienceSessionLockCheckPost =
+  apiClient.v1.live.experiences[":experienceId"]["session-locks"].check.$post,
+ libraryOverviewGet = apiClient.v1.library.overview.$get,
+ libraryPlaylistsGet = apiClient.v1.library.playlists.$get,
+ libraryPurchasesGet = apiClient.v1.library.purchases.$get,
+ libraryPurchaseGet = apiClient.v1.library.purchases[":purchaseId"].$get,
+ libraryRecentGet = apiClient.v1.library.recent.$get,
+ librarySavedGet = apiClient.v1.library.saved.$get,
+ librarySaveTrackPost = apiClient.v1.library.saved[":trackId"].$post,
+ librarySaveTrackDelete = apiClient.v1.library.saved[":trackId"].$delete,
+ libraryPlaylistsPost = apiClient.v1.library.playlists.$post,
+ libraryPlaylistDelete = apiClient.v1.library.playlists[":id"].$delete,
+ libraryPlaylistGet = apiClient.v1.library.playlists[":id"].$get,
+ libraryPlaylistTracksPost =
+  apiClient.v1.library.playlists[":id"].tracks.$post,
+ libraryPlaylistTrackDelete =
+  apiClient.v1.library.playlists[":id"].tracks[":trackId"].$delete,
+ libraryWatchedGet = apiClient.v1.library.watched.$get,
+ friendsGet = apiClient.v1.messages.friends.$get,
+ friendRequestsGet = apiClient.v1.messages["friend-requests"].$get,
+ friendRequestsPost = apiClient.v1.messages["friend-requests"].$post,
+ friendRequestPatch =
+  apiClient.v1.messages["friend-requests"][":requestId"].$patch,
+ peopleSearchGet = apiClient.v1.messages.people.$get,
+ conversationsGet = apiClient.v1.messages.conversations.$get,
+ conversationsPost = apiClient.v1.messages.conversations.$post,
+ conversationMessagesGet =
+  apiClient.v1.messages.conversations[":conversationId"].messages.$get,
+ conversationMessagesPost =
+  apiClient.v1.messages.conversations[":conversationId"].messages.$post,
+ openVersesGet = apiClient.v1["open-verses"].index.$get,
+ openVersesPost = apiClient.v1["open-verses"].index.$post,
+ openVerseGet = apiClient.v1["open-verses"][":listingId"].$get,
+ openVerseSubmissionPost =
+  apiClient.v1["open-verses"][":listingId"].submissions.$post,
+ videosGet = apiClient.v1.videos.index.$get,
+ videosPost = apiClient.v1.videos.index.$post,
+ videoGet = apiClient.v1.videos[":videoId"].$get,
+ videoCommentsGet = apiClient.v1.videos[":videoId"].comments.$get,
+ videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post,
+ videoDelete = apiClient.v1.videos[":videoId"].$delete,
+ notificationsGet = apiClient.v1.notifications.index.$get,
+ notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
+ trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
+ artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
+ sellerStatusGet = apiClient.v1.seller.status.$get,
+ battleStatsGet = apiClient.v1.battles.stats.$get,
+ trackBattleHistoryGet =
   apiClient.v1.battles["track-history"][":trackId"].$get;
 
 type ArtistOnboardingBody = InferRequestType<
@@ -737,17 +737,19 @@ export const useStartConversationMutation = () => {
       message,
     }: {
       conversation: CreateConversationBody;
-      message: CreateMessageBody;
+      message?: CreateMessageBody;
     }): Promise<ConversationSummary> => {
       const createdConversation = await rpcJson(
         await conversationsPost({ json: conversation })
       );
-      await rpcJson(
-        await conversationMessagesPost({
-          json: message,
-          param: { conversationId: createdConversation.id },
-        })
-      );
+      if (message?.body && message.body.trim()) {
+        await rpcJson(
+          await conversationMessagesPost({
+            json: message,
+            param: { conversationId: createdConversation.id },
+          })
+        );
+      }
       return createdConversation;
     },
     onSuccess: () =>

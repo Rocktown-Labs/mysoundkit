@@ -7,7 +7,7 @@ export default function FriendRequestEmail() {
 
   return (
     <TransactionalNotificationEmail
-      actionUrl={`${assetBaseUrl}/dashboard/collaborators`}
+      actionUrl={`${assetBaseUrl}/dashboard/collaborators?tab=requests`}
       assetBaseUrl={assetBaseUrl}
       body="Jordan sent you an artist friend request on SoundKit. Accept it to add them to your friends list and start messaging when you are ready."
       ctaLabel="Review request"

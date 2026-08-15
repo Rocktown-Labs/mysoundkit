@@ -3,9 +3,9 @@ import { env } from "@soundkit/env/server";
 import { LEGACY_TEAM_PLAN_SEATS, PREMIUM_INCLUDED_SEATS } from "./plan-limits";
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
 
-const getFirstEnvValue = (...keys: string[]) => {
+ getFirstEnvValue = (...keys: string[]) => {
   for (const key of keys) {
     const value = getEnvValue(key);
 

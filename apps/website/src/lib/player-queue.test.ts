@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlayerTrack } from "../components/audio-player-provider";
-import {
-  completeQueuedTrack,
-  shouldRestartCurrentTrack,
-} from "./player-queue";
+import { completeQueuedTrack, shouldRestartCurrentTrack } from "./player-queue";
 
 const track = (id: string): PlayerTrack => ({
   artist: `Artist ${id}`,
@@ -18,13 +15,17 @@ describe("player queue", () => {
     const currentTrack = track("one");
 
     expect(
-      completeQueuedTrack({ currentTrack, queue: [currentTrack], repeatMode: "off" })
+      completeQueuedTrack({
+        currentTrack,
+        queue: [currentTrack],
+        repeatMode: "off",
+      })
     ).toEqual({ nextTrack: null, queue: [], restartCurrent: false });
   });
 
   it("advances to the next track and consumes the completed track", () => {
-    const first = track("one");
-    const second = track("two");
+    const first = track("one"),
+     second = track("two");
 
     expect(
       completeQueuedTrack({
@@ -36,8 +37,8 @@ describe("player queue", () => {
   });
 
   it("stops after the final queued track when repeat is off", () => {
-    const first = track("one");
-    const second = track("two");
+    const first = track("one"),
+     second = track("two");
 
     expect(
       completeQueuedTrack({
@@ -49,8 +50,8 @@ describe("player queue", () => {
   });
 
   it("rotates completed tracks when repeat all is enabled", () => {
-    const first = track("one");
-    const second = track("two");
+    const first = track("one"),
+     second = track("two");
 
     expect(
       completeQueuedTrack({

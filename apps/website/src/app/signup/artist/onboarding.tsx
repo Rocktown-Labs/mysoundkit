@@ -66,11 +66,11 @@ interface LocationSuggestion {
   stateCode: string;
 }
 
-const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/u;
-const RESERVED_USERNAMES = new Set(["soundkit"]);
-const ARTIST_PREMIUM_PLAN_DESCRIPTION =
-  "Live hosting, selling, rewards, analytics, and up to 3 workspace seats";
-const wizardText = {
+const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/u,
+ RESERVED_USERNAMES = new Set(["soundkit"]),
+ ARTIST_PREMIUM_PLAN_DESCRIPTION =
+  "Live hosting, selling, rewards, analytics, and up to 3 workspace seats",
+ wizardText = {
   addAnother: "+ Add Another",
   appleMusicLabel: "Apple Music URL",
   artistTeamDescription: "Artist Premium workspace for up to 5 seats",
@@ -142,8 +142,8 @@ const wizardText = {
   usernameSubtitle: "This is how fans will find you",
   usernameTitle: "Choose Your Username",
   youtubeLabel: "YouTube Channel URL",
-} as const;
-const US_STATES_BY_NAME: Record<string, string> = {
+} as const,
+ US_STATES_BY_NAME: Record<string, string> = {
   alabama: "AL",
   alaska: "AK",
   arizona: "AZ",
@@ -194,11 +194,11 @@ const US_STATES_BY_NAME: Record<string, string> = {
   "west virginia": "WV",
   wisconsin: "WI",
   wyoming: "WY",
-};
-const US_STATE_CODES = new Set(Object.values(US_STATES_BY_NAME));
-const normalizeUsername = (value: string) =>
-  value.trim().replace(/^@/u, "").toLowerCase();
-const parseManualLocation = (value: string) => {
+},
+ US_STATE_CODES = new Set(Object.values(US_STATES_BY_NAME)),
+ normalizeUsername = (value: string) =>
+  value.trim().replace(/^@/u, "").toLowerCase(),
+ parseManualLocation = (value: string) => {
   const [cityPart, statePart] = value
     .split(",")
     .map((part) => part.trim())
@@ -208,8 +208,8 @@ const parseManualLocation = (value: string) => {
     return null;
   }
 
-  const normalizedState = statePart.toLowerCase();
-  const stateCode =
+  const normalizedState = statePart.toLowerCase(),
+   stateCode =
     US_STATES_BY_NAME[normalizedState] ?? statePart.toUpperCase();
 
   if (!US_STATE_CODES.has(stateCode)) {
@@ -220,8 +220,8 @@ const parseManualLocation = (value: string) => {
     city: cityPart,
     stateCode,
   };
-};
-const getAddressStateCode = (address: RadarAutocompleteAddress) => {
+},
+ getAddressStateCode = (address: RadarAutocompleteAddress) => {
   const rawStateCode = address.stateCode?.toUpperCase();
 
   if (rawStateCode && US_STATE_CODES.has(rawStateCode)) {
@@ -231,22 +231,22 @@ const getAddressStateCode = (address: RadarAutocompleteAddress) => {
   const normalizedState = address.state?.toLowerCase();
 
   return normalizedState ? US_STATES_BY_NAME[normalizedState] : undefined;
-};
-const getAddressCity = (address: RadarAutocompleteAddress) =>
-  address.city ?? address.placeLabel ?? address.addressLabel;
-const locationLabel = (address: RadarAutocompleteAddress) => {
-  const city = getAddressCity(address);
-  const state = getAddressStateCode(address) ?? address.state;
+},
+ getAddressCity = (address: RadarAutocompleteAddress) =>
+  address.city ?? address.placeLabel ?? address.addressLabel,
+ locationLabel = (address: RadarAutocompleteAddress) => {
+  const city = getAddressCity(address),
+   state = getAddressStateCode(address) ?? address.state;
 
   return [city, state].filter(Boolean).join(", ");
-};
-const toLocationSuggestion = (
+},
+ toLocationSuggestion = (
   address: RadarAutocompleteAddress
 ): LocationSuggestion | null => {
-  const city = getAddressCity(address);
-  const stateCode = getAddressStateCode(address);
-  const state = address.state ?? stateCode;
-  const countryCode = address.countryCode?.toUpperCase();
+  const city = getAddressCity(address),
+   stateCode = getAddressStateCode(address),
+   state = address.state ?? stateCode,
+   countryCode = address.countryCode?.toUpperCase();
 
   if (!(city && state && stateCode && countryCode === "US")) {
     return null;
@@ -262,15 +262,15 @@ const toLocationSuggestion = (
     state,
     stateCode,
   };
-};
-const usernameStatusClassName = (status: UsernameStatus) => {
+},
+ usernameStatusClassName = (status: UsernameStatus) => {
   if (status === "available") {
     return "text-emerald-400";
   }
 
   return status === "checking" ? "text-muted-foreground" : "text-destructive";
-};
-const locationStatusClassName = (status: LocationStatus) => {
+},
+ locationStatusClassName = (status: LocationStatus) => {
   if (status === "selected") {
     return "text-emerald-400";
   }
@@ -288,52 +288,52 @@ export const Route = createFileRoute("/signup/artist/onboarding")({
 });
 
 function ArtistOnboardingPage() {
-  const posthog = usePostHog();
-  const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [avatarObjectKey, setAvatarObjectKey] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [roles, setRoles] = useState<ArtistRole[]>(["musician"]);
-  const [username, setUsername] = useState("");
-  const [usernameMessage, setUsernameMessage] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
-  const [city, setCity] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [stateValue, setStateValue] = useState("");
-  const [locationQuery, setLocationQuery] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<
+  const posthog = usePostHog(),
+   router = useRouter(),
+   [step, setStep] = useState(1),
+   [avatarObjectKey, setAvatarObjectKey] = useState(""),
+   [avatarUrl, setAvatarUrl] = useState(""),
+   [roles, setRoles] = useState<ArtistRole[]>(["musician"]),
+   [username, setUsername] = useState(""),
+   [usernameMessage, setUsernameMessage] = useState(""),
+   [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle"),
+   [city, setCity] = useState(""),
+   [errorMessage, setErrorMessage] = useState<string | null>(null),
+   [isSubmitting, setIsSubmitting] = useState(false),
+   [stateValue, setStateValue] = useState(""),
+   [locationQuery, setLocationQuery] = useState(""),
+   [locationSuggestions, setLocationSuggestions] = useState<
     LocationSuggestion[]
-  >([]);
-  const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
-  const [primaryGenre, setPrimaryGenre] = useState("");
-  const [appleMusicUrl, setAppleMusicUrl] = useState("");
-  const [instagramHandle, setInstagramHandle] = useState("");
-  const [proAffiliation, setProAffiliation] = useState("");
-  const [proMemberId, setProMemberId] = useState("");
-  const [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards");
-  const [selectedPlanCode, setSelectedPlanCode] = useState(
+  >([]),
+   [locationStatus, setLocationStatus] = useState<LocationStatus>("idle"),
+   [primaryGenre, setPrimaryGenre] = useState(""),
+   [appleMusicUrl, setAppleMusicUrl] = useState(""),
+   [instagramHandle, setInstagramHandle] = useState(""),
+   [proAffiliation, setProAffiliation] = useState(""),
+   [proMemberId, setProMemberId] = useState(""),
+   [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
+   [selectedPlanCode, setSelectedPlanCode] = useState(
     "soundkit_premium_artist"
-  );
-  const [songwriterLegalName, setSongwriterLegalName] = useState("");
-  const [spotifyUrl, setSpotifyUrl] = useState("");
-  const [tiktokHandle, setTiktokHandle] = useState("");
-  const [twitterHandle, setTwitterHandle] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [isDraftReady, setIsDraftReady] = useState(false);
-  const radarInitializedRef = useRef(false);
-  const selectedLocationQueryRef = useRef("");
-  const usernameRequestIdRef = useRef(0);
-  const locationRequestIdRef = useRef(0);
-  const totalSteps = 8;
+  ),
+   [songwriterLegalName, setSongwriterLegalName] = useState(""),
+   [spotifyUrl, setSpotifyUrl] = useState(""),
+   [tiktokHandle, setTiktokHandle] = useState(""),
+   [twitterHandle, setTwitterHandle] = useState(""),
+   [youtubeUrl, setYoutubeUrl] = useState(""),
+   [isDraftReady, setIsDraftReady] = useState(false),
+   radarInitializedRef = useRef(false),
+   selectedLocationQueryRef = useRef(""),
+   usernameRequestIdRef = useRef(0),
+   locationRequestIdRef = useRef(0),
+   totalSteps = 8,
 
-  const progress = (step / totalSteps) * 100;
-  const normalizedUsername = normalizeUsername(username);
-  const canContinueFromUsername = usernameStatus === "available";
-  const canContinueFromLocation =
-    locationStatus === "selected" || locationStatus === "manual_ready";
+   progress = (step / totalSteps) * 100,
+   normalizedUsername = normalizeUsername(username),
+   canContinueFromUsername = usernameStatus === "available",
+   canContinueFromLocation =
+    locationStatus === "selected" || locationStatus === "manual_ready",
 
-  const ensureRadarInitialized = () => {
+   ensureRadarInitialized = () => {
     if (radarInitializedRef.current) {
       return true;
     }
@@ -346,9 +346,9 @@ function ArtistOnboardingPage() {
     RadarClient.initialize(env.VITE_RADAR_PUBLISHABLE_KEY);
     radarInitializedRef.current = true;
     return true;
-  };
+  },
 
-  const checkUsername = useAsyncDebouncedCallback(
+   checkUsername = useAsyncDebouncedCallback(
     async (value: string, requestId: number) => {
       let response: Response;
       try {
@@ -392,9 +392,9 @@ function ArtistOnboardingPage() {
       setUsernameMessage(payload.message ?? "That username is not available.");
     },
     { wait: 400 }
-  );
+  ),
 
-  const searchLocations = useAsyncDebouncedCallback(
+   searchLocations = useAsyncDebouncedCallback(
     async (query: string, requestId: number) => {
       if (!ensureRadarInitialized()) {
         return;
@@ -554,8 +554,8 @@ function ArtistOnboardingPage() {
   ]);
 
   useEffect(() => {
-    const query = locationQuery.trim();
-    const requestId = locationRequestIdRef.current + 1;
+    const query = locationQuery.trim(),
+     requestId = locationRequestIdRef.current + 1;
     locationRequestIdRef.current = requestId;
 
     if (!query) {
@@ -608,27 +608,27 @@ function ArtistOnboardingPage() {
 
       return [...currentRoles, role];
     });
-  };
-  const updateUsername = (value: string) => {
+  },
+   updateUsername = (value: string) => {
     setUsername(value.replaceAll(/\s+/gu, ""));
-  };
-  const selectLocation = (suggestion: LocationSuggestion) => {
+  },
+   selectLocation = (suggestion: LocationSuggestion) => {
     selectedLocationQueryRef.current = suggestion.label;
     setCity(suggestion.city);
     setStateValue(suggestion.stateCode);
     setLocationQuery(suggestion.label);
     setLocationSuggestions([]);
     setLocationStatus("selected");
-  };
-  const continueFromUsername = () => {
+  },
+   continueFromUsername = () => {
     if (canContinueFromUsername) {
       setStep(3);
       return;
     }
 
     setUsernameMessage("Choose an available username before continuing.");
-  };
-  const continueFromLocation = () => {
+  },
+   continueFromLocation = () => {
     const manualLocation = parseManualLocation(locationQuery);
     if (manualLocation && locationStatus === "manual_ready") {
       setCity(manualLocation.city);
@@ -643,8 +643,8 @@ function ArtistOnboardingPage() {
     }
 
     setLocationStatus(locationQuery ? "empty" : "idle");
-  };
-  const completeOnboarding = async () => {
+  },
+   completeOnboarding = async () => {
     setErrorMessage(null);
     setIsSubmitting(true);
 
@@ -676,9 +676,9 @@ function ArtistOnboardingPage() {
           "Content-Type": "application/json",
         },
         method: "POST",
-      });
+      }),
 
-      const payload = (await response.json().catch(() => null)) as {
+       payload = (await response.json().catch(() => null)) as {
         checkoutUrl?: string | null;
         message?: string;
       } | null;

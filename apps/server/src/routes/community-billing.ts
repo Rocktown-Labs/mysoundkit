@@ -16,13 +16,13 @@ import { calculateFeeCents, COMMUNITY_PLATFORM_FEE_BPS } from "@/lib/fees";
 import { createConnectedSubscriptionCheckout } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
-const checkoutBodySchema = z.object({
+const app = new OpenAPIHono<AppEnv>(),
+ checkoutBodySchema = z.object({
   cancelUrl: z.url(),
   communityId: z.string(),
   successUrl: z.url(),
-});
-const responseSchema = z.object({
+}),
+ responseSchema = z.object({
   checkoutUrl: z.string().url().nullable(),
   setupRequired: z.boolean(),
 });
@@ -61,9 +61,9 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [community] = await db
+    const body = c.req.valid("json"),
+     db = createDb(),
+     [community] = await db
       .select()
       .from(communities)
       .where(eq(communities.id, body.communityId))
@@ -94,9 +94,9 @@ app.openapi(
       );
     }
 
-    const subscriptionId = crypto.randomUUID();
-    const transactionId = crypto.randomUUID();
-    const feeCents = calculateFeeCents({
+    const subscriptionId = crypto.randomUUID(),
+     transactionId = crypto.randomUUID(),
+     feeCents = calculateFeeCents({
       amountCents: community.monthlyPriceCents,
       basisPoints: COMMUNITY_PLATFORM_FEE_BPS,
     });

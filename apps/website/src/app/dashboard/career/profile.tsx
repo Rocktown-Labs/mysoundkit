@@ -28,16 +28,16 @@ export const Route = createFileRoute("/dashboard/career/profile")({
 });
 
 function ProfilePage() {
-  const meQuery = useMeQuery();
-  const tracksQuery = useTracksQuery();
-  const projectsQuery = useProjectsQuery();
-  const videosQuery = useVideosQuery();
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
-  const user = meQuery.data?.user;
-  const tracks = tracksQuery.data ?? [];
-  const projects = projectsQuery.data ?? [];
-  const videos = videosQuery.data ?? [];
-  const playableTracks = tracks
+  const meQuery = useMeQuery(),
+   tracksQuery = useTracksQuery(),
+   projectsQuery = useProjectsQuery(),
+   videosQuery = useVideosQuery(),
+   { setCurrentTrack, setQueue } = useAudioPlayer(),
+   user = meQuery.data?.user,
+   tracks = tracksQuery.data ?? [],
+   projects = projectsQuery.data ?? [],
+   videos = videosQuery.data ?? [],
+   playableTracks = tracks
     .filter((track) => Boolean(track.playbackUrl))
     .map((track) => ({
       artist: track.artistName,
@@ -49,9 +49,9 @@ function ProfilePage() {
       src: track.playbackUrl ?? "",
       title: track.title,
       trackHref: `/dashboard/tracks/${track.id}`,
-    }));
+    })),
 
-  const playTrack = (track: TrackSummary) => {
+   playTrack = (track: TrackSummary) => {
     const playableTrack = playableTracks.find((entry) => entry.id === track.id);
 
     if (!playableTrack) {
@@ -60,16 +60,16 @@ function ProfilePage() {
 
     setQueue(playableTracks);
     setCurrentTrack(playableTrack);
-  };
+  },
 
-  const displayName = user?.displayName ?? "Artist";
-  const initials = displayName
+   displayName = user?.displayName ?? "Artist",
+   initials = displayName
     .split(" ")
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase();
-  const location = [user?.city, user?.state].filter(Boolean).join(", ");
+    .toUpperCase(),
+   location = [user?.city, user?.state].filter(Boolean).join(", ");
 
   return (
     <div className="space-y-6">

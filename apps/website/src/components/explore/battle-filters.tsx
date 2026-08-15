@@ -62,9 +62,9 @@ const northAmericaLocations = [
   { label: "Wyoming, US", value: "us-wyoming" },
   { label: "Canada", value: "canada" },
   { label: "Mexico", value: "mexico" },
-];
+],
 
-const globalLocations = [
+ globalLocations = [
   { label: "All Global", value: "all" },
   { label: "Africa", value: "africa" },
   { label: "Asia", value: "asia" },

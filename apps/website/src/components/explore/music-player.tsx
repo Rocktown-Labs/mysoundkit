@@ -2,14 +2,20 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+  Bluetooth,
+  Cast,
+  Check,
   ChevronDown,
   ChevronUp,
+  Headphones,
   Laptop2,
   ListMusic,
   Maximize2,
   Minimize2,
   Pause,
   Play,
+  Radio,
+  RefreshCw,
   Repeat,
   Shuffle,
   SkipBack,
@@ -51,6 +57,12 @@ import {
 } from "@/components/ui/sheet";
 import { SIDEBAR_STATE_CHANGE_EVENT } from "@/components/ui/sidebar";
 import { Slider } from "@/components/ui/slider";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import {
@@ -58,24 +70,13 @@ import {
   shouldRestartCurrentTrack,
 } from "@/lib/player-queue";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 interface Device {
   active: boolean;
   id: string;
   name: string;
-  type: "computer" | "phone" | "speaker";
-}
-
-interface AudioOutputDeviceInfo {
-  deviceId: string;
-  kind: string;
-  label: string;
-}
-
-interface AudioOutputMediaDevices extends MediaDevices {
-  selectAudioOutput?: (options?: {
-    deviceId?: string;
-  }) => Promise<AudioOutputDeviceInfo>;
+  type: "computer" | "phone" | "speaker" | "bluetooth" | "headphones";
 }
 
 interface SinkAudioElement extends HTMLAudioElement {
@@ -97,39 +98,38 @@ interface ServedAudioAd {
   title: string;
 }
 
-const playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1",
- sidebarStateCookieName = "sidebar_state",
- guestDailyPlaybackLimitSeconds = 300,
-
- demoPlaybackQueue = [
-  {
-    artist: "Luna Eclipse",
-    artistHref: "/artist/luna-eclipse",
-    cover: "/summer-music-album-cover.png",
-    id: "track_summer_nights",
-    src: "/demo-audio/fantasy26.wav",
-    title: "Fantasy 26",
-    trackHref: "/tracks/track_summer_nights",
-  },
-  {
-    artist: "Luna Eclipse",
-    artistHref: "/artist/luna-eclipse",
-    cover: "/summer-music-album-cover.png",
-    id: "track_midnight_vibes",
-    src: "/demo-audio/dumbledore.wav",
-    title: "DUMBLEDORE",
-    trackHref: "/tracks/track_midnight_vibes",
-  },
-  {
-    artist: "Neon Pulse",
-    artistHref: "/artist/neon-pulse",
-    cover: "/hip-hop-album-cover.png",
-    id: "track_electric_dreams",
-    src: "/demo-audio/long-way-26.wav",
-    title: "Long Way 26",
-    trackHref: "/tracks/track_electric_dreams",
-  },
-] as const;
+const guestDailyPlaybackLimitSeconds = 300,
+  playerRuntimeStorageKey = "soundkit.audio-player-runtime.v1",
+  sidebarStateCookieName = "sidebar_state",
+  demoPlaybackQueue = [
+    {
+      artist: "Luna Eclipse",
+      artistHref: "/artist/luna-eclipse",
+      cover: "/summer-music-album-cover.png",
+      id: "track_summer_nights",
+      src: "/demo-audio/fantasy26.wav",
+      title: "Fantasy 26",
+      trackHref: "/tracks/track_summer_nights",
+    },
+    {
+      artist: "Luna Eclipse",
+      artistHref: "/artist/luna-eclipse",
+      cover: "/summer-music-album-cover.png",
+      id: "track_midnight_vibes",
+      src: "/demo-audio/dumbledore.wav",
+      title: "DUMBLEDORE",
+      trackHref: "/tracks/track_midnight_vibes",
+    },
+    {
+      artist: "Neon Pulse",
+      artistHref: "/artist/neon-pulse",
+      cover: "/hip-hop-album-cover.png",
+      id: "track_electric_dreams",
+      src: "/demo-audio/long-way-26.wav",
+      title: "Long Way 26",
+      trackHref: "/tracks/track_electric_dreams",
+    },
+  ] as const;
 
 function PlayerRouteLink({
   children,
@@ -141,13 +141,11 @@ function PlayerRouteLink({
   href: string | null | undefined;
 }) {
   const artistMatch = href?.match(/^\/artist\/(?<username>[^/]+)$/u),
-   trackMatch = href?.match(/^\/tracks\/(?<id>[^/]+)$/u),
-   regionTrackMatch = href?.match(
-    /^\/tracks\/(?<regionSlug>[^/]+)\/(?<slug>[^/]+)$/u
-  ),
-   dashboardTrackMatch = href?.match(
-    /^\/dashboard\/tracks\/(?<id>[^/]+)$/u
-  );
+    trackMatch = href?.match(/^\/tracks\/(?<id>[^/]+)$/u),
+    regionTrackMatch = href?.match(
+      /^\/tracks\/(?<regionSlug>[^/]+)\/(?<slug>[^/]+)$/u
+    ),
+    dashboardTrackMatch = href?.match(/^\/dashboard\/tracks\/(?<id>[^/]+)$/u);
 
   if (artistMatch?.groups?.username) {
     return (
@@ -204,98 +202,199 @@ function PlayerRouteLink({
 }
 
 const formatTime = (seconds: number) => {
-  if (!Number.isFinite(seconds)) {
-    return "0:00";
-  }
+    if (!Number.isFinite(seconds)) {
+      return "0:00";
+    }
 
-  const mins = Math.floor(seconds / 60),
-   secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-},
+    const mins = Math.floor(seconds / 60),
+      secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  },
+  getDeviceIcon = (type: Device["type"]) => {
+    if (type === "bluetooth") {
+      return <Radio className="size-4 text-sky-400" />;
+    }
 
- getDeviceIcon = (type: Device["type"]) => {
-  if (type === "phone") {
-    return <Smartphone className="size-4" />;
-  }
+    if (type === "headphones") {
+      return <Headphones className="size-4 text-violet-400" />;
+    }
 
-  if (type === "speaker") {
-    return <Speaker className="size-4" />;
-  }
+    if (type === "phone") {
+      return <Smartphone className="size-4" />;
+    }
 
-  return <Laptop2 className="size-4" />;
-},
+    if (type === "speaker") {
+      return <Speaker className="size-4 text-emerald-400" />;
+    }
 
- readSidebarIsExpanded = () => {
-  if (typeof document === "undefined") {
-    return true;
-  }
+    return <Laptop2 className="size-4" />;
+  },
+  readSidebarIsExpanded = () => {
+    if (typeof document === "undefined") {
+      return true;
+    }
 
-  const sidebarCookie = document.cookie
-    .split("; ")
-    .find((entry) => entry.startsWith(`${sidebarStateCookieName}=`));
+    const sidebarCookie = document.cookie
+      .split("; ")
+      .find((entry) => entry.startsWith(`${sidebarStateCookieName}=`));
 
-  return sidebarCookie ? sidebarCookie.endsWith("true") : true;
-};
+    return sidebarCookie ? sidebarCookie.endsWith("true") : true;
+  };
 
 export function MusicPlayer() {
   const {
-    currentTrack,
-    markRecentlyPlayed,
-    queue,
-    recentlyPlayed,
-    registerTogglePlay,
-    setCurrentTrack,
-    setIsPlaying: setContextIsPlaying,
-    setQueue,
-    setVisible,
-    visible,
-  } = useAudioPlayer(),
-   location = useLocation(),
-   hasSidebar =
-    location.pathname === "/" ||
-    location.pathname.startsWith("/dashboard") ||
-    location.pathname.startsWith("/tracks") ||
-    location.pathname.startsWith("/artist") ||
-    location.pathname.startsWith("/genres") ||
-    location.pathname.startsWith("/communities") ||
-    location.pathname.startsWith("/library") ||
-    location.pathname.startsWith("/live") ||
-    location.pathname.startsWith("/new-releases") ||
-    location.pathname.startsWith("/projects") ||
-    location.pathname.startsWith("/shop") ||
-    location.pathname.startsWith("/videos"),
-   audioRef = useRef<HTMLAudioElement>(null),
-   preloadedAudioRef = useRef<HTMLAudioElement | null>(null),
-   activeAdRef = useRef<ServedAudioAd | null>(null),
-   hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
-   pendingContentSrcRef = useRef<string | null>(null),
-   playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null),
-   prerollServedTrackRef = useRef<string | null>(null),
-   [audioOutput, setAudioOutput] = useState<Device>({
-    active: true,
-    id: "default",
-    name: "This Computer",
-    type: "computer",
-  }),
-   [sidebarExpanded, setSidebarExpanded] = useState(readSidebarIsExpanded),
-   [duration, setDuration] = useState(0),
-   [isMuted, setIsMuted] = useState(false),
-   [isPlaying, setIsPlayingState] = useState(false),
+      currentTrack,
+      markRecentlyPlayed,
+      queue,
+      recentlyPlayed,
+      registerTogglePlay,
+      setCurrentTrack,
+      setIsPlaying: setContextIsPlaying,
+      setQueue,
+      setVisible,
+      visible,
+    } = useAudioPlayer(),
+    location = useLocation(),
+    hasSidebar =
+      location.pathname === "/" ||
+      location.pathname.startsWith("/dashboard") ||
+      location.pathname.startsWith("/tracks") ||
+      location.pathname.startsWith("/artist") ||
+      location.pathname.startsWith("/genres") ||
+      location.pathname.startsWith("/communities") ||
+      location.pathname.startsWith("/library") ||
+      location.pathname.startsWith("/live") ||
+      location.pathname.startsWith("/new-releases") ||
+      location.pathname.startsWith("/projects") ||
+      location.pathname.startsWith("/shop") ||
+      location.pathname.startsWith("/videos"),
+    audioRef = useRef<HTMLAudioElement>(null),
+    preloadedAudioRef = useRef<HTMLAudioElement | null>(null),
+    activeAdRef = useRef<ServedAudioAd | null>(null),
+    hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
+    pendingContentSrcRef = useRef<string | null>(null),
+    playbackTelemetryRef = useRef<PlaybackTelemetrySession | null>(null),
+    prerollServedTrackRef = useRef<string | null>(null),
+    [audioOutput, setAudioOutput] = useState<Device>({
+      active: true,
+      id: "default",
+      name: "This Computer",
+      type: "computer",
+    }),
+    [availableDevices, setAvailableDevices] = useState<Device[]>([
+      {
+        active: true,
+        id: "default",
+        name: "This Computer / Default Output",
+        type: "computer",
+      },
+    ]),
+    [sidebarExpanded, setSidebarExpanded] = useState(readSidebarIsExpanded),
+    [duration, setDuration] = useState(0),
+    [isMuted, setIsMuted] = useState(false),
+    [isPlaying, setIsPlayingState] = useState(false),
+    setIsPlaying = useCallback(
+      (playing: boolean) => {
+        setIsPlayingState(playing);
+        setContextIsPlaying(playing);
+      },
+      [setContextIsPlaying]
+    ),
+    [isShuffled, setIsShuffled] = useState(false),
+    [isMiniPlayer, setIsMiniPlayer] = useState(false),
+    [progress, setProgress] = useState(0),
+    [queueOpen, setQueueOpen] = useState(false),
+    [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
+    [volume, setVolume] = useState(75),
+    [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null),
+    enumerateAudioDevices = useCallback(async () => {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.enumerateDevices
+      ) {
+        return;
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices(),
+          audioOutputs = devices.filter((d) => d.kind === "audiooutput");
 
-   setIsPlaying = useCallback(
-    (playing: boolean) => {
-      setIsPlayingState(playing);
-      setContextIsPlaying(playing);
-    },
-    [setContextIsPlaying]
-  ),
-   [isShuffled, setIsShuffled] = useState(false),
-   [isMiniPlayer, setIsMiniPlayer] = useState(false),
-   [progress, setProgress] = useState(0),
-   [queueOpen, setQueueOpen] = useState(false),
-   [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
-   [volume, setVolume] = useState(75),
-   [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null);
+        if (audioOutputs.length === 0) {
+          setAvailableDevices([
+            {
+              active: audioOutput.id === "default",
+              id: "default",
+              name: "This Computer / Default Output",
+              type: "computer",
+            },
+          ]);
+          return;
+        }
+
+        const mapped: Device[] = audioOutputs.map((d, index) => {
+          const label =
+              d.label ||
+              (index === 0
+                ? "This Computer / Default Output"
+                : `Audio Output ${index + 1}`),
+            lower = label.toLowerCase();
+          let type: Device["type"] = "speaker";
+          if (
+            lower.includes("bluetooth") ||
+            lower.includes("bt ") ||
+            lower.includes("airpods") ||
+            lower.includes("wireless")
+          ) {
+            type = "bluetooth";
+          } else if (
+            lower.includes("headphone") ||
+            lower.includes("headset") ||
+            lower.includes("earphone")
+          ) {
+            type = "headphones";
+          } else if (
+            lower.includes("built-in") ||
+            lower.includes("internal") ||
+            lower.includes("macbook") ||
+            lower.includes("laptop") ||
+            lower.includes("computer")
+          ) {
+            type = "computer";
+          }
+
+          return {
+            active:
+              d.deviceId === audioOutput.id ||
+              (d.deviceId === "" && audioOutput.id === "default"),
+            id: d.deviceId || "default",
+            name: label,
+            type,
+          };
+        });
+
+        setAvailableDevices(mapped);
+      } catch {
+        // Ignore enumeration failure
+      }
+    }, [audioOutput.id]);
+
+  useEffect(() => {
+    enumerateAudioDevices();
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.mediaDevices?.addEventListener
+    ) {
+      navigator.mediaDevices.addEventListener(
+        "devicechange",
+        enumerateAudioDevices
+      );
+      return () => {
+        navigator.mediaDevices.removeEventListener(
+          "devicechange",
+          enumerateAudioDevices
+        );
+      };
+    }
+  }, [enumerateAudioDevices]);
 
   useEffect(() => {
     const handleSidebarStateChange = (event: Event) => {
@@ -329,8 +428,8 @@ export function MusicPlayer() {
   });
 
   const meQuery = useMeQuery(),
-   isSignedIn = Boolean(meQuery.data),
-   [guestLimitReached, setGuestLimitReached] = useState(false);
+    isSignedIn = Boolean(meQuery.data),
+    [guestLimitReached, setGuestLimitReached] = useState(false);
 
   useEffect(() => {
     if (isSignedIn || !isPlaying || typeof window === "undefined") {
@@ -339,7 +438,7 @@ export function MusicPlayer() {
 
     const interval = setInterval(() => {
       const today = new Date().toISOString().slice(0, 10),
-       stored = window.localStorage.getItem("soundkit_guest_playback_v1");
+        stored = window.localStorage.getItem("soundkit_guest_playback_v1");
       let secondsPlayed = 0;
 
       if (stored) {
@@ -422,131 +521,128 @@ export function MusicPlayer() {
   }, [isMuted, repeatMode, volume]);
 
   const sendPlaybackProgress = ({
-    ended = false,
-    force = false,
-  }: { ended?: boolean; force?: boolean } = {}) => {
-    const audio = audioRef.current,
-     telemetry = playbackTelemetryRef.current;
+      ended = false,
+      force = false,
+    }: { ended?: boolean; force?: boolean } = {}) => {
+      const audio = audioRef.current,
+        telemetry = playbackTelemetryRef.current;
 
-    if (!(audio && telemetry)) {
-      return;
-    }
+      if (!(audio && telemetry)) {
+        return;
+      }
 
-    const playedSeconds = Math.max(0, Math.floor(audio.currentTime)),
-     durationSeconds = Math.ceil(audio.duration || duration || 0);
+      const playedSeconds = Math.max(0, Math.floor(audio.currentTime)),
+        durationSeconds = Math.ceil(audio.duration || duration || 0);
 
-    if (
-      !(
-        ended ||
-        (force && !telemetry.thresholdReported) ||
-        playedSeconds - telemetry.lastReportedSeconds >= 10
-      )
-    ) {
-      return;
-    }
+      if (
+        !(
+          ended ||
+          (force && !telemetry.thresholdReported) ||
+          playedSeconds - telemetry.lastReportedSeconds >= 10
+        )
+      ) {
+        return;
+      }
 
-    telemetry.lastReportedSeconds = playedSeconds;
-    telemetry.thresholdReported ||= force;
-    void fetch(
-      `${API_V1_URL}/tracks/${encodeURIComponent(
-        telemetry.trackId
-      )}/playback-sessions/${encodeURIComponent(telemetry.id)}/${
-        ended ? "end" : "progress"
-      }`,
-      {
-        body: JSON.stringify({
-          durationSeconds: durationSeconds > 0 ? durationSeconds : undefined,
-          ended,
-          isMuted: audio.muted || audio.volume === 0,
-          playedSeconds,
-        }),
+      telemetry.lastReportedSeconds = playedSeconds;
+      telemetry.thresholdReported ||= force;
+      void fetch(
+        `${API_V1_URL}/tracks/${encodeURIComponent(
+          telemetry.trackId
+        )}/playback-sessions/${encodeURIComponent(telemetry.id)}/${
+          ended ? "end" : "progress"
+        }`,
+        {
+          body: JSON.stringify({
+            durationSeconds: durationSeconds > 0 ? durationSeconds : undefined,
+            ended,
+            isMuted: audio.muted || audio.volume === 0,
+            playedSeconds,
+          }),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          keepalive: ended,
+          method: "POST",
+        }
+      ).catch(() => {});
+    },
+    sendAdEvent = (
+      campaignId: string,
+      eventType: "click" | "complete" | "impression"
+    ) => {
+      void fetch(`${API_V1_URL}/ads/event`, {
+        body: JSON.stringify({ campaignId, eventType }),
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
-        keepalive: ended,
+        keepalive: eventType !== "impression",
         method: "POST",
+      }).catch(() => {});
+    },
+    requestAudioPreroll = async () => {
+      const audio = audioRef.current;
+
+      if (
+        !(
+          audio &&
+          currentTrack &&
+          !isSignedIn &&
+          prerollServedTrackRef.current !== currentTrack.id
+        )
+      ) {
+        return false;
       }
-    ).catch(() => {});
-  },
 
-   sendAdEvent = (
-    campaignId: string,
-    eventType: "click" | "complete" | "impression"
-  ) => {
-    void fetch(`${API_V1_URL}/ads/event`, {
-      body: JSON.stringify({ campaignId, eventType }),
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      keepalive: eventType !== "impression",
-      method: "POST",
-    }).catch(() => {});
-  },
+      const response = await fetch(
+        `${API_V1_URL}/ads/serve?placement=audio_preroll&contentType=audio&trackId=${encodeURIComponent(
+          currentTrack.id
+        )}`,
+        { credentials: "include" }
+      );
 
-   requestAudioPreroll = async () => {
-    const audio = audioRef.current;
+      if (response.status === 204 || !response.ok) {
+        prerollServedTrackRef.current = currentTrack.id;
+        return false;
+      }
 
-    if (
-      !(
-        audio &&
-        currentTrack &&
-        !isSignedIn &&
-        prerollServedTrackRef.current !== currentTrack.id
-      )
-    ) {
-      return false;
-    }
+      const payload = (await response.json().catch(() => null)) as {
+        ad?: ServedAudioAd | null;
+        hasAd?: boolean;
+      } | null;
 
-    const response = await fetch(
-      `${API_V1_URL}/ads/serve?placement=audio_preroll&contentType=audio&trackId=${encodeURIComponent(
-        currentTrack.id
-      )}`,
-      { credentials: "include" }
-    );
+      if (!(payload?.hasAd && payload.ad?.mediaUrl)) {
+        prerollServedTrackRef.current = currentTrack.id;
+        return false;
+      }
 
-    if (response.status === 204 || !response.ok) {
       prerollServedTrackRef.current = currentTrack.id;
-      return false;
-    }
+      pendingContentSrcRef.current = currentTrack.src;
+      activeAdRef.current = payload.ad;
+      setActiveAd(payload.ad);
+      audio.src = payload.ad.mediaUrl;
+      audio.load();
+      await audio.play();
+      sendAdEvent(payload.ad.campaignId, "impression");
+      return true;
+    },
+    startContentPlayback = async () => {
+      const audio = audioRef.current;
 
-    const payload = (await response.json().catch(() => null)) as {
-      ad?: ServedAudioAd | null;
-      hasAd?: boolean;
-    } | null;
+      if (!(audio && currentTrack)) {
+        return;
+      }
 
-    if (!(payload?.hasAd && payload.ad?.mediaUrl)) {
-      prerollServedTrackRef.current = currentTrack.id;
-      return false;
-    }
+      if (await requestAudioPreroll()) {
+        setIsPlaying(true);
+        return;
+      }
 
-    prerollServedTrackRef.current = currentTrack.id;
-    pendingContentSrcRef.current = currentTrack.src;
-    activeAdRef.current = payload.ad;
-    setActiveAd(payload.ad);
-    audio.src = payload.ad.mediaUrl;
-    audio.load();
-    await audio.play();
-    sendAdEvent(payload.ad.campaignId, "impression");
-    return true;
-  },
-
-   startContentPlayback = async () => {
-    const audio = audioRef.current;
-
-    if (!(audio && currentTrack)) {
-      return;
-    }
-
-    if (await requestAudioPreroll()) {
+      await audio.play();
       setIsPlaying(true);
-      return;
-    }
-
-    await audio.play();
-    setIsPlaying(true);
-  };
+    };
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -619,9 +715,9 @@ export function MusicPlayer() {
     }
 
     const currentIndex = queue.findIndex(
-      (track) => track.id === currentTrack.id
-    ),
-     nextTrack = currentIndex !== -1 ? queue[currentIndex + 1] : queue[0];
+        (track) => track.id === currentTrack.id
+      ),
+      nextTrack = currentIndex === -1 ? queue[0] : queue[currentIndex + 1];
 
     if (!nextTrack || nextTrack.id === currentTrack.id) {
       preloadedAudioRef.current = null;
@@ -688,43 +784,43 @@ export function MusicPlayer() {
     }
 
     const handleLoadedMetadata = () => setDuration(audio.duration || 0),
-     handleTimeUpdate = () => {
-      if (activeAdRef.current) {
-        return;
-      }
+      handleTimeUpdate = () => {
+        if (activeAdRef.current) {
+          return;
+        }
 
-      if (audio.duration > 0) {
-        setProgress((audio.currentTime / audio.duration) * 100);
-        sendPlaybackProgress({
-          force: (audio.currentTime / audio.duration) * 100 >= 70,
-        });
-      }
-    },
-     handleEnded = () => {
-      const completedAd = activeAdRef.current,
-       pendingContentSrc = pendingContentSrcRef.current;
+        if (audio.duration > 0) {
+          setProgress((audio.currentTime / audio.duration) * 100);
+          sendPlaybackProgress({
+            force: (audio.currentTime / audio.duration) * 100 >= 70,
+          });
+        }
+      },
+      handleEnded = () => {
+        const completedAd = activeAdRef.current,
+          pendingContentSrc = pendingContentSrcRef.current;
 
-      if (completedAd && pendingContentSrc) {
-        sendAdEvent(completedAd.campaignId, "complete");
-        activeAdRef.current = null;
-        pendingContentSrcRef.current = null;
-        setActiveAd(null);
-        audio.src = pendingContentSrc;
-        audio.load();
-        void audio.play().catch(() => setIsPlaying(false));
-        return;
-      }
+        if (completedAd && pendingContentSrc) {
+          sendAdEvent(completedAd.campaignId, "complete");
+          activeAdRef.current = null;
+          pendingContentSrcRef.current = null;
+          setActiveAd(null);
+          audio.src = pendingContentSrc;
+          audio.load();
+          void audio.play().catch(() => setIsPlaying(false));
+          return;
+        }
 
-      sendPlaybackProgress({ ended: true });
+        sendPlaybackProgress({ ended: true });
 
-      if (repeatMode === "one") {
-        audio.currentTime = 0;
-        void audio.play().catch(() => setIsPlaying(false));
-        return;
-      }
+        if (repeatMode === "one") {
+          audio.currentTime = 0;
+          void audio.play().catch(() => setIsPlaying(false));
+          return;
+        }
 
-      handleNext(true);
-    };
+        handleNext(true);
+      };
 
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("timeupdate", handleTimeUpdate);
@@ -767,112 +863,109 @@ export function MusicPlayer() {
   }, [handlePlayPause, registerTogglePlay]);
 
   const handleNext = (completed = false) => {
-    if (!currentTrack) {
-      setIsPlaying(false);
-      return;
-    }
+      if (!currentTrack) {
+        setIsPlaying(false);
+        return;
+      }
 
-    const currentIndex = queue.findIndex(
-      (track) => track.id === currentTrack.id
-    );
+      const currentIndex = queue.findIndex(
+        (track) => track.id === currentTrack.id
+      );
 
-    if (completed) {
-      markRecentlyPlayed(currentTrack);
-      const completedState = completeQueuedTrack({
-        currentTrack,
-        queue,
-        repeatMode,
-      });
+      if (completed) {
+        markRecentlyPlayed(currentTrack);
+        const completedState = completeQueuedTrack({
+          currentTrack,
+          queue,
+          repeatMode,
+        });
 
-      if (completedState.restartCurrent) {
-        const audio = audioRef.current;
+        if (completedState.restartCurrent) {
+          const audio = audioRef.current;
+          if (audio) {
+            audio.currentTime = 0;
+            void audio.play().catch(() => setIsPlaying(false));
+          }
+          return;
+        }
+
+        setQueue(completedState.queue);
+        if (!completedState.nextTrack) {
+          setIsPlaying(false);
+          setCurrentTrack(null);
+          setVisible(false);
+          return;
+        }
+
+        setCurrentTrack(completedState.nextTrack);
+        return;
+      }
+
+      if (queue.length <= 1) {
+        return;
+      }
+
+      const nextIndex =
+        currentIndex === -1 ? 0 : (currentIndex + 1) % queue.length;
+      setCurrentTrack(queue[nextIndex] ?? currentTrack);
+    },
+    handlePrevious = () => {
+      const audio = audioRef.current;
+
+      if (!currentTrack) {
+        return;
+      }
+
+      const currentIndex = queue.findIndex(
+          (track) => track.id === currentTrack.id
+        ),
+        shouldRestart =
+          !audio ||
+          shouldRestartCurrentTrack({
+            currentIndex,
+            currentTime: audio.currentTime,
+            queueLength: queue.length,
+          });
+
+      if (shouldRestart) {
         if (audio) {
           audio.currentTime = 0;
-          void audio.play().catch(() => setIsPlaying(false));
+          setProgress(0);
+          if (!isPlaying) {
+            void startContentPlayback().catch(() => setIsPlaying(false));
+          }
         }
         return;
       }
 
-      setQueue(completedState.queue);
-      if (!completedState.nextTrack) {
-        setIsPlaying(false);
-        setCurrentTrack(null);
-        setVisible(false);
-        return;
+      setCurrentTrack(queue[currentIndex - 1] ?? currentTrack);
+    },
+    handleRepeatToggle = () => {
+      const modes: ("off" | "all" | "one")[] = ["off", "all", "one"],
+        currentIndex = modes.indexOf(repeatMode);
+      setRepeatMode(modes[(currentIndex + 1) % modes.length] ?? "off");
+    },
+    handleScrub = (value: number[]) => {
+      const nextProgress = value[0] ?? 0,
+        audio = audioRef.current;
+
+      setProgress(nextProgress);
+
+      if (audio?.duration) {
+        audio.currentTime = (nextProgress / 100) * audio.duration;
       }
-
-      setCurrentTrack(completedState.nextTrack);
-      return;
-    }
-
-    if (queue.length <= 1) {
-      return;
-    }
-
-    const nextIndex =
-      currentIndex === -1 ? 0 : (currentIndex + 1) % queue.length;
-    setCurrentTrack(queue[nextIndex] ?? currentTrack);
-  },
-
-   handlePrevious = () => {
-    const audio = audioRef.current;
-
-    if (!currentTrack) {
-      return;
-    }
-
-    const currentIndex = queue.findIndex(
-      (track) => track.id === currentTrack.id
-    ),
-     shouldRestart =
-      !audio ||
-      shouldRestartCurrentTrack({
-        currentIndex,
-        currentTime: audio.currentTime,
-        queueLength: queue.length,
-      });
-
-    if (shouldRestart) {
-      if (audio) {
-        audio.currentTime = 0;
-        setProgress(0);
-        if (!isPlaying) {
-          void startContentPlayback().catch(() => setIsPlaying(false));
-        }
-      }
-      return;
-    }
-
-    setCurrentTrack(queue[currentIndex - 1] ?? currentTrack);
-  },
-
-   handleRepeatToggle = () => {
-    const modes: ("off" | "all" | "one")[] = ["off", "all", "one"],
-     currentIndex = modes.indexOf(repeatMode);
-    setRepeatMode(modes[(currentIndex + 1) % modes.length] ?? "off");
-  },
-
-   handleScrub = (value: number[]) => {
-    const nextProgress = value[0] ?? 0,
-     audio = audioRef.current;
-
-    setProgress(nextProgress);
-
-    if (audio?.duration) {
-      audio.currentTime = (nextProgress / 100) * audio.duration;
-    }
-  };
+    };
 
   // Keyboard playback shortcuts with input guard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null,
-       isInput =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable);
+        isInput =
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable);
 
       if (isInput || !currentTrack) {
         return;
@@ -898,159 +991,283 @@ export function MusicPlayer() {
   }, [currentTrack]);
 
   const handleMoveQueueItemUp = (index: number) => {
-    if (index <= 0) {
-      return;
-    }
-    const nextQueue = [...queue],
-     item = nextQueue[index];
-    if (!item || !nextQueue[index - 1]) {
-      return;
-    }
-    nextQueue[index] = nextQueue[index - 1]!;
-    nextQueue[index - 1] = item;
-    setQueue(nextQueue);
-  },
-
-   handleMoveQueueItemDown = (index: number) => {
-    if (index >= queue.length - 1) {
-      return;
-    }
-    const nextQueue = [...queue],
-     item = nextQueue[index];
-    if (!item || !nextQueue[index + 1]) {
-      return;
-    }
-    nextQueue[index] = nextQueue[index + 1]!;
-    nextQueue[index + 1] = item;
-    setQueue(nextQueue);
-  },
-
-   handleRemoveQueueItem = (index: number) => {
-    setQueue(queue.filter((_, itemIndex) => itemIndex !== index));
-  },
-
-   handleClearQueue = () => {
-    setQueue([]);
-  },
-
-   handleReplayRecent = (track: (typeof recentlyPlayed)[number]) => {
-    setQueue([track, ...queue.filter((item) => item.id !== track.id)]);
-    setCurrentTrack({ ...track, autoplay: true });
-  },
-
-   handleSelectAudioOutput = async () => {
-    const mediaDevices = navigator.mediaDevices as
-      | AudioOutputMediaDevices
-      | undefined,
-     audio = audioRef.current as SinkAudioElement | null;
-
-    if (!mediaDevices?.selectAudioOutput || !audio?.setSinkId) {
-      toast({
-        description:
-          "Your browser does not support choosing speaker output from the web player yet.",
-        title: "Audio output unavailable",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const device = await mediaDevices.selectAudioOutput({
-        deviceId: audioOutput.id === "default" ? undefined : audioOutput.id,
-      });
-      await audio.setSinkId(device.deviceId);
-      setAudioOutput({
-        active: true,
-        id: device.deviceId,
-        name: device.label || "Selected audio output",
-        type: "speaker",
-      });
-      toast({
-        description: device.label || "Selected audio output",
-        title: "Audio output updated",
-      });
-    } catch (error) {
-      const errorName = error instanceof DOMException ? error.name : "";
-      if (errorName === "NotAllowedError") {
+      if (index <= 0) {
         return;
       }
+      const nextQueue = [...queue],
+        item = nextQueue[index];
+      if (!item || !nextQueue[index - 1]) {
+        return;
+      }
+      nextQueue[index] = nextQueue[index - 1]!;
+      nextQueue[index - 1] = item;
+      setQueue(nextQueue);
+    },
+    handleMoveQueueItemDown = (index: number) => {
+      if (index >= queue.length - 1) {
+        return;
+      }
+      const nextQueue = [...queue],
+        item = nextQueue[index];
+      if (!item || !nextQueue[index + 1]) {
+        return;
+      }
+      nextQueue[index] = nextQueue[index + 1]!;
+      nextQueue[index + 1] = item;
+      setQueue(nextQueue);
+    },
+    handleRemoveQueueItem = (index: number) => {
+      setQueue(queue.filter((_, itemIndex) => itemIndex !== index));
+    },
+    handleClearQueue = () => {
+      setQueue([]);
+    },
+    handleReplayRecent = (track: (typeof recentlyPlayed)[number]) => {
+      setQueue([track, ...queue.filter((item) => item.id !== track.id)]);
+      setCurrentTrack({ ...track, autoplay: true });
+    },
+    handleSwitchDevice = async (device: Device) => {
+      const audio = audioRef.current as SinkAudioElement | null;
+      try {
+        if (audio?.setSinkId && device.id !== "default") {
+          await audio.setSinkId(device.id);
+        } else if (audio?.setSinkId && device.id === "default") {
+          await audio.setSinkId("");
+        }
+        setAudioOutput({
+          active: true,
+          id: device.id,
+          name: device.name,
+          type: device.type,
+        });
+        toast({
+          description: `Playing on ${device.name}`,
+          title: "Audio output updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not switch audio output device.",
+          title: "Audio output failed",
+          variant: "destructive",
+        });
+      }
+    },
+    requestDevicePermissions = useCallback(async () => {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia
+      ) {
+        toast({
+          description:
+            "Device scanning is not supported in this browser environment.",
+          variant: "destructive",
+        });
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        await enumerateAudioDevices();
+        toast({
+          description: "Bluetooth, AirPods, and speaker device names unlocked.",
+          title: "Audio Devices Discovered",
+        });
+      } catch {
+        toast({
+          description:
+            "Please allow audio device permission to identify named Bluetooth, AirPods, and external speakers.",
+          variant: "destructive",
+        });
+      }
+    }, [enumerateAudioDevices]),
+    triggerAirPlayOrSelect = useCallback(async () => {
+      const audio = audioRef.current as {
+        webkitShowPlaybackTargetPicker?: () => void;
+      } | null;
+      if (audio && typeof audio.webkitShowPlaybackTargetPicker === "function") {
+        audio.webkitShowPlaybackTargetPicker();
+        return;
+      }
+      if (
+        typeof navigator !== "undefined" &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (navigator.mediaDevices as any)?.selectAudioOutput
+      ) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const device = await (
+            navigator.mediaDevices as any
+          ).selectAudioOutput();
+          if (device) {
+            await handleSwitchDevice({
+              active: true,
+              id: device.deviceId,
+              name: device.label || "External Audio Device",
+              type: "speaker",
+            });
+            await enumerateAudioDevices();
+          }
+        } catch {
+          // User dismissed selector
+        }
+        return;
+      }
+      await requestDevicePermissions();
+    }, [handleSwitchDevice, enumerateAudioDevices, requestDevicePermissions]),
+    handleClose = () => {
+      audioRef.current?.pause();
+      sendPlaybackProgress({ ended: true });
+      setIsPlaying(false);
+      setCurrentTrack(null);
+      setVisible(false);
+    },
+    queueSheet = (
+      <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild={true}>
+            <SheetTrigger asChild={true}>
+              <Button
+                aria-label={`Open queue with ${queue.length} ${queue.length === 1 ? "track" : "tracks"}`}
+                className="relative size-8"
+                size="icon"
+                variant="ghost"
+              >
+                <ListMusic className="size-4" />
+                {queue.length > 0 && (
+                  <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                    {queue.length}
+                  </span>
+                )}
+              </Button>
+            </SheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Play Queue ({queue.length})</p>
+          </TooltipContent>
+        </Tooltip>
+        <SheetContent className="w-full sm:w-96" side="right">
+          <SheetHeader className="flex flex-row items-center justify-between gap-8 border-b pb-2 pr-8">
+            <SheetTitle className="font-semibold text-base">
+              Queue ({queue.length})
+            </SheetTitle>
+            <Button
+              className="h-7 text-muted-foreground text-xs hover:text-destructive"
+              onClick={handleClearQueue}
+              size="sm"
+              variant="ghost"
+            >
+              <Trash2 className="mr-1 size-3.5" />
+              Clear
+            </Button>
+          </SheetHeader>
+          <ScrollArea className="mt-4 h-[calc(100vh-8rem)] pr-2">
+            <div className="space-y-2">
+              {queue.map((track, index) => {
+                const isCurrent = track.id === currentTrack?.id;
+                return (
+                  <div
+                    className={`group relative flex items-center justify-between gap-3 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
+                      isCurrent
+                        ? "border border-primary/20 bg-accent"
+                        : "border border-transparent bg-card/40"
+                    }`}
+                    key={`${track.id}-${index}`}
+                  >
+                    <button
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                      onClick={() => setCurrentTrack(track)}
+                      type="button"
+                    >
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded bg-muted font-semibold text-muted-foreground text-xs">
+                        {isCurrent ? (
+                          <Play className="size-3.5 fill-primary text-primary" />
+                        ) : (
+                          index + 1
+                        )}
+                      </div>
+                      <AppImage
+                        alt={track.title}
+                        className="shrink-0 rounded"
+                        height={36}
+                        layout="fixed"
+                        src={track.cover || "/placeholder.svg"}
+                        width={36}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`truncate font-medium text-sm ${
+                            isCurrent ? "font-bold text-primary" : ""
+                          }`}
+                        >
+                          {track.title}
+                        </p>
+                        <p className="truncate text-muted-foreground text-xs">
+                          {track.artist}
+                        </p>
+                      </div>
+                    </button>
 
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Could not switch audio output.",
-        title: "Audio output failed",
-        variant: "destructive",
-      });
-    }
-  },
+                    <div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100">
+                      <Button
+                        aria-label="Move up"
+                        className="size-6 p-0"
+                        disabled={index === 0}
+                        onClick={() => handleMoveQueueItemUp(index)}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <ChevronUp className="size-3.5" />
+                      </Button>
+                      <Button
+                        aria-label="Move down"
+                        className="size-6 p-0"
+                        disabled={index === queue.length - 1}
+                        onClick={() => handleMoveQueueItemDown(index)}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <ChevronDown className="size-3.5" />
+                      </Button>
+                      <Button
+                        aria-label="Remove item"
+                        className="size-6 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRemoveQueueItem(index)}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {queue.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-4 text-center text-muted-foreground text-sm">
+                  Your queue is empty.
+                </p>
+              ) : null}
+            </div>
 
-   handleClose = () => {
-    audioRef.current?.pause();
-    sendPlaybackProgress({ ended: true });
-    setIsPlaying(false);
-    setCurrentTrack(null);
-    setVisible(false);
-  },
-
-   queueSheet = (
-    <Sheet onOpenChange={setQueueOpen} open={queueOpen}>
-      <SheetTrigger asChild={true}>
-        <Button
-          aria-label={`Open queue with ${queue.length} ${queue.length === 1 ? "track" : "tracks"}`}
-          className="relative size-8"
-          size="icon"
-          variant="ghost"
-        >
-          <ListMusic className="size-4" />
-          {queue.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-              {queue.length}
-            </span>
-          )}
-        </Button>
-      </SheetTrigger>
-      <SheetContent className="w-full sm:w-96" side="right">
-        <SheetHeader className="flex flex-row items-center justify-between gap-8 border-b pb-2 pr-8">
-          <SheetTitle className="font-semibold text-base">
-            Queue ({queue.length})
-          </SheetTitle>
-          <Button
-            className="h-7 text-muted-foreground text-xs hover:text-destructive"
-            onClick={handleClearQueue}
-            size="sm"
-            variant="ghost"
-          >
-            <Trash2 className="mr-1 size-3.5" />
-            Clear
-          </Button>
-        </SheetHeader>
-        <ScrollArea className="mt-4 h-[calc(100vh-8rem)] pr-2">
-          <div className="space-y-2">
-            {queue.map((track, index) => {
-              const isCurrent = track.id === currentTrack?.id;
-              return (
-                <div
-                  className={`group relative flex items-center justify-between gap-3 rounded-lg p-2 transition-colors hover:bg-accent/60 ${
-                    isCurrent
-                      ? "border border-primary/20 bg-accent"
-                      : "border border-transparent bg-card/40"
-                  }`}
-                  key={`${track.id}-${index}`}
-                >
+            <div className="mt-8 border-t pt-5">
+              <h3 className="font-semibold text-sm">Recently Played</h3>
+              <p className="mt-1 text-muted-foreground text-xs">
+                Completed tracks move here automatically.
+              </p>
+              <div className="mt-3 space-y-2">
+                {recentlyPlayed.map((track) => (
                   <button
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
-                    onClick={() => setCurrentTrack(track)}
+                    className="flex w-full items-center gap-3 rounded-lg border border-transparent bg-card/40 p-2 text-left transition-colors hover:border-primary/20 hover:bg-accent/60"
+                    key={`recent-${track.id}`}
+                    onClick={() => handleReplayRecent(track)}
                     type="button"
                   >
-                    <div className="flex size-7 shrink-0 items-center justify-center rounded bg-muted font-semibold text-muted-foreground text-xs">
-                      {isCurrent ? (
-                        <Play className="size-3.5 fill-primary text-primary" />
-                      ) : (
-                        index + 1
-                      )}
-                    </div>
                     <AppImage
                       alt={track.title}
                       className="shrink-0 rounded"
@@ -1059,172 +1276,186 @@ export function MusicPlayer() {
                       src={track.cover || "/placeholder.svg"}
                       width={36}
                     />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`truncate font-medium text-sm ${
-                          isCurrent ? "font-bold text-primary" : ""
-                        }`}
-                      >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-sm">
                         {track.title}
-                      </p>
-                      <p className="truncate text-muted-foreground text-xs">
+                      </span>
+                      <span className="block truncate text-muted-foreground text-xs">
                         {track.artist}
-                      </p>
-                    </div>
+                      </span>
+                    </span>
+                    <Play className="size-4 shrink-0" />
                   </button>
+                ))}
+                {recentlyPlayed.length === 0 ? (
+                  <p className="py-4 text-center text-muted-foreground text-sm">
+                    No completed tracks yet.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+    ),
+    deviceButton = (
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild={true}>
+            <DropdownMenuTrigger asChild={true}>
+              <Button
+                aria-label={`Choose audio output. Current: ${audioOutput.name}`}
+                className="size-8"
+                size="icon"
+                variant="ghost"
+              >
+                {getDeviceIcon(audioOutput.type)}
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Audio Output: {audioOutput.name}</p>
+          </TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" className="w-72 p-2">
+          <div className="flex items-center justify-between px-2 py-1.5 border-b mb-2">
+            <span className="text-xs font-semibold text-foreground">
+              Audio Output Devices
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                requestDevicePermissions();
+              }}
+              title="Scan / Unlock Bluetooth & AirPods Names"
+            >
+              <RefreshCw className="size-3" />
+            </Button>
+          </div>
 
-                  <div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100">
-                    <Button
-                      aria-label="Move up"
-                      className="size-6 p-0"
-                      disabled={index === 0}
-                      onClick={() => handleMoveQueueItemUp(index)}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <ChevronUp className="size-3.5" />
-                    </Button>
-                    <Button
-                      aria-label="Move down"
-                      className="size-6 p-0"
-                      disabled={index === queue.length - 1}
-                      onClick={() => handleMoveQueueItemDown(index)}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <ChevronDown className="size-3.5" />
-                    </Button>
-                    <Button
-                      aria-label="Remove item"
-                      className="size-6 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemoveQueueItem(index)}
-                      size="icon"
-                      variant="ghost"
-                    >
-                      <X className="size-3.5" />
-                    </Button>
+          <div className="space-y-1.5 mb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs h-8 border-dashed"
+              onClick={requestDevicePermissions}
+            >
+              <Bluetooth className="size-3.5 text-sky-400 shrink-0" />
+              Scan Bluetooth & AirPods
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start gap-2 text-xs h-8 border-dashed"
+              onClick={triggerAirPlayOrSelect}
+            >
+              <Cast className="size-3.5 text-violet-400 shrink-0" />
+              AirPlay & HomePods / Network
+            </Button>
+          </div>
+
+          <DropdownMenuSeparator className="my-1" />
+
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {availableDevices.map((device) => {
+              const isCurrent =
+                device.id === audioOutput.id ||
+                (device.id === "default" && audioOutput.id === "default");
+              return (
+                <button
+                  key={device.id}
+                  type="button"
+                  onClick={() => handleSwitchDevice(device)}
+                  className={cn(
+                    "flex items-center justify-between w-full p-2 rounded-md text-xs text-left transition-colors",
+                    isCurrent
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "hover:bg-muted/70 text-muted-foreground"
+                  )}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {getDeviceIcon(device.type)}
+                    <span className="truncate">{device.name}</span>
                   </div>
-                </div>
+                  {isCurrent && (
+                    <Check className="size-3.5 text-primary shrink-0 ml-1.5" />
+                  )}
+                </button>
               );
             })}
-            {queue.length === 0 ? (
-              <p className="rounded-lg border border-dashed p-4 text-center text-muted-foreground text-sm">
-                Your queue is empty.
-              </p>
-            ) : null}
           </div>
-
-          <div className="mt-8 border-t pt-5">
-            <h3 className="font-semibold text-sm">Recently Played</h3>
-            <p className="mt-1 text-muted-foreground text-xs">
-              Completed tracks move here automatically.
-            </p>
-            <div className="mt-3 space-y-2">
-              {recentlyPlayed.map((track) => (
-                <button
-                  className="flex w-full items-center gap-3 rounded-lg border border-transparent bg-card/40 p-2 text-left transition-colors hover:border-primary/20 hover:bg-accent/60"
-                  key={`recent-${track.id}`}
-                  onClick={() => handleReplayRecent(track)}
-                  type="button"
-                >
-                  <AppImage
-                    alt={track.title}
-                    className="shrink-0 rounded"
-                    height={36}
-                    layout="fixed"
-                    src={track.cover || "/placeholder.svg"}
-                    width={36}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-sm">
-                      {track.title}
-                    </span>
-                    <span className="block truncate text-muted-foreground text-xs">
-                      {track.artist}
-                    </span>
-                  </span>
-                  <Play className="size-4 shrink-0" />
-                </button>
-              ))}
-              {recentlyPlayed.length === 0 ? (
-                <p className="py-4 text-center text-muted-foreground text-sm">
-                  No completed tracks yet.
-                </p>
-              ) : null}
-            </div>
+          <DropdownMenuSeparator />
+          <div className="px-2 py-1 text-[10px] text-muted-foreground">
+            Connect Bluetooth headphones or speakers in system settings to
+            select them here.
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
-  ),
-
-   deviceButton = (
-    <Button
-      aria-label={`Choose audio output. Current output: ${audioOutput.name}`}
-      className="size-8"
-      onClick={handleSelectAudioOutput}
-      size="icon"
-      title={`Output: ${audioOutput.name}`}
-      variant="ghost"
-    >
-      {getDeviceIcon(audioOutput.type)}
-    </Button>
-  ),
-
-   volumeMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild={true}>
-        <Button
-          aria-label="Open Volume Controls"
-          className="size-8"
-          size="icon"
-          variant="ghost"
-        >
-          {isMuted || volume === 0 ? (
-            <VolumeX className="size-4" />
-          ) : (
-            <Volume2 className="size-4" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel>Volume</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <div
-          className="flex items-center gap-3 px-3 py-2"
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <Button
-            aria-label={isMuted ? "Unmute" : "Mute"}
-            className="size-7"
-            onClick={() => setIsMuted(!isMuted)}
-            size="icon"
-            variant="ghost"
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ),
+    volumeMenu = (
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild={true}>
+            <DropdownMenuTrigger asChild={true}>
+              <Button
+                aria-label="Open Volume Controls"
+                className="size-8"
+                size="icon"
+                variant="ghost"
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="size-4" />
+                ) : (
+                  <Volume2 className="size-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Volume & Mute</p>
+          </TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuLabel>Volume</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <div
+            className="flex items-center gap-3 px-3 py-2"
+            onPointerDown={(event) => event.stopPropagation()}
           >
-            {isMuted || volume === 0 ? (
-              <VolumeX className="size-4" />
-            ) : (
-              <Volume2 className="size-4" />
-            )}
-          </Button>
-          <Slider
-            className="flex-1"
-            max={100}
-            onValueChange={(value) => {
-              const nextVolume = value[0] ?? 0;
-              setVolume(nextVolume);
+            <Button
+              aria-label={isMuted ? "Unmute" : "Mute"}
+              className="size-7"
+              onClick={() => setIsMuted(!isMuted)}
+              size="icon"
+              variant="ghost"
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX className="size-4" />
+              ) : (
+                <Volume2 className="size-4" />
+              )}
+            </Button>
+            <Slider
+              className="flex-1"
+              max={100}
+              onValueChange={(value) => {
+                const nextVolume = value[0] ?? 0;
+                setVolume(nextVolume);
 
-              if (nextVolume > 0) {
-                setIsMuted(false);
-              }
-            }}
-            step={1}
-            value={[isMuted ? 0 : volume]}
-          />
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+                if (nextVolume > 0) {
+                  setIsMuted(false);
+                }
+              }}
+              step={1}
+              value={[isMuted ? 0 : volume]}
+            />
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
 
   let fullPlayerSidebarOffset = "";
   if (hasSidebar) {
@@ -1262,49 +1493,81 @@ export function MusicPlayer() {
           </PlayerRouteLink>
         </div>
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          <Button
-            aria-label="Play or Pause"
-            className="size-8 sm:size-7"
-            onClick={handlePlayPause}
-            size="icon"
-            variant="ghost"
-          >
-            {isPlaying ? (
-              <Pause className="size-3.5" />
-            ) : (
-              <Play className="size-3.5 fill-current" />
-            )}
-          </Button>
-          <Button
-            aria-label="Next track"
-            className="hidden size-7 sm:inline-flex"
-            onClick={() => handleNext()}
-            size="icon"
-            variant="ghost"
-          >
-            <SkipForward className="size-3.5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild={true}>
+              <Button
+                aria-label="Play or Pause"
+                className="size-8 sm:size-7"
+                onClick={handlePlayPause}
+                size="icon"
+                variant="ghost"
+              >
+                {isPlaying ? (
+                  <Pause className="size-3.5" />
+                ) : (
+                  <Play className="size-3.5 fill-current" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>{isPlaying ? "Pause (Space)" : "Play (Space)"}</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild={true}>
+              <Button
+                aria-label="Next track"
+                className="hidden size-7 sm:inline-flex"
+                onClick={() => handleNext()}
+                size="icon"
+                variant="ghost"
+              >
+                <SkipForward className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Next Track</p>
+            </TooltipContent>
+          </Tooltip>
+
           <div className="hidden min-[380px]:block">{queueSheet}</div>
           <div className="hidden sm:block">{deviceButton}</div>
           <div className="hidden sm:block">{volumeMenu}</div>
-          <Button
-            aria-label="Expand player"
-            className="size-8 sm:size-7"
-            onClick={() => setIsMiniPlayer(false)}
-            size="icon"
-            variant="ghost"
-          >
-            <Maximize2 className="size-3.5" />
-          </Button>
-          <Button
-            aria-label="Close player"
-            className="size-8 text-muted-foreground hover:text-destructive sm:size-7"
-            onClick={handleClose}
-            size="icon"
-            variant="ghost"
-          >
-            <X className="size-3.5" />
-          </Button>
+
+          <Tooltip>
+            <TooltipTrigger asChild={true}>
+              <Button
+                aria-label="Expand player"
+                className="size-8 sm:size-7"
+                onClick={() => setIsMiniPlayer(false)}
+                size="icon"
+                variant="ghost"
+              >
+                <Maximize2 className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Expand Player</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild={true}>
+              <Button
+                aria-label="Close player"
+                className="size-8 text-muted-foreground hover:text-destructive sm:size-7"
+                onClick={handleClose}
+                size="icon"
+                variant="ghost"
+              >
+                <X className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Close Player</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
     );
@@ -1314,24 +1577,39 @@ export function MusicPlayer() {
         className={`fixed right-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 z-40 border-t bg-background/95 backdrop-blur transition-[left,bottom] duration-200 supports-[backdrop-filter]:bg-background/80 lg:bottom-0 ${fullPlayerSidebarOffset}`}
       >
         <div className="absolute top-2 right-2 flex items-center gap-1">
-          <Button
-            aria-label="Minimize player"
-            className="size-6"
-            onClick={() => setIsMiniPlayer(true)}
-            size="icon"
-            variant="ghost"
-          >
-            <Minimize2 className="size-3.5" />
-          </Button>
-          <Button
-            aria-label="Close player"
-            className="size-6"
-            onClick={handleClose}
-            size="icon"
-            variant="ghost"
-          >
-            <X className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild={true}>
+              <Button
+                aria-label="Minimize player"
+                className="size-6"
+                onClick={() => setIsMiniPlayer(true)}
+                size="icon"
+                variant="ghost"
+              >
+                <Minimize2 className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Minimize Player</p>
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild={true}>
+              <Button
+                aria-label="Close player"
+                className="size-6"
+                onClick={handleClose}
+                size="icon"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Close Player</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="container mx-auto px-4 py-4">
@@ -1427,58 +1705,109 @@ export function MusicPlayer() {
                   key={`mobile-${activeAd?.campaignId ?? currentTrack.id}-${activeAd?.imageUrl ?? currentTrack.cover ?? "cover"}`}
                 />
                 <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-2 lg:flex-none">
-                  <Button
-                    className="size-8"
-                    onClick={() => setIsShuffled(!isShuffled)}
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <Shuffle
-                      className={`size-4 ${isShuffled ? "text-primary" : ""}`}
-                    />
-                  </Button>
-                  <Button
-                    className="size-8"
-                    onClick={handlePrevious}
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <SkipBack className="size-4" />
-                  </Button>
-                  <Button
-                    className="size-10"
-                    onClick={handlePlayPause}
-                    size="icon"
-                    variant="default"
-                  >
-                    {isPlaying ? (
-                      <Pause className="size-5" />
-                    ) : (
-                      <Play className="size-5" />
-                    )}
-                  </Button>
-                  <Button
-                    className="size-8"
-                    onClick={() => handleNext()}
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <SkipForward className="size-4" />
-                  </Button>
-                  <Button
-                    className="size-8"
-                    onClick={handleRepeatToggle}
-                    size="icon"
-                    variant="ghost"
-                  >
-                    <Repeat
-                      className={`size-4 ${repeatMode === "off" ? "" : "text-primary"}`}
-                    />
-                    {repeatMode === "one" && (
-                      <span className="absolute text-[10px] font-bold">1</span>
-                    )}
-                  </Button>
-                  <div className="lg:hidden">{queueSheet}</div>
+                  <Tooltip>
+                    <TooltipTrigger asChild={true}>
+                      <Button
+                        className="size-8"
+                        onClick={() => setIsShuffled(!isShuffled)}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <Shuffle
+                          className={`size-4 ${isShuffled ? "text-primary" : ""}`}
+                        />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Shuffle (S)</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild={true}>
+                      <Button
+                        className="size-8"
+                        onClick={handlePrevious}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <SkipBack className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Previous Track</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild={true}>
+                      <Button
+                        className="size-10"
+                        onClick={handlePlayPause}
+                        size="icon"
+                        variant="default"
+                      >
+                        {isPlaying ? (
+                          <Pause className="size-5" />
+                        ) : (
+                          <Play className="size-5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>{isPlaying ? "Pause (Space)" : "Play (Space)"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild={true}>
+                      <Button
+                        className="size-8"
+                        onClick={() => handleNext()}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <SkipForward className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Next Track</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild={true}>
+                      <Button
+                        className="size-8"
+                        onClick={handleRepeatToggle}
+                        size="icon"
+                        variant="ghost"
+                      >
+                        <Repeat
+                          className={`size-4 ${repeatMode === "off" ? "" : "text-primary"}`}
+                        />
+                        {repeatMode === "one" && (
+                          <span className="absolute text-[10px] font-bold">
+                            1
+                          </span>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>
+                        {repeatMode === "one"
+                          ? "Repeat: One"
+                          : (repeatMode === "all"
+                            ? "Repeat: All"
+                            : "Repeat: Off")}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <div className="flex items-center gap-1 lg:hidden">
+                    {deviceButton}
+                    {queueSheet}
+                  </div>
                 </div>
               </div>
 
@@ -1505,18 +1834,25 @@ export function MusicPlayer() {
               <div className="hidden lg:block">{deviceButton}</div>
 
               <div className="hidden items-center gap-2 lg:flex">
-                <Button
-                  className="size-8"
-                  onClick={() => setIsMuted(!isMuted)}
-                  size="icon"
-                  variant="ghost"
-                >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="size-4" />
-                  ) : (
-                    <Volume2 className="size-4" />
-                  )}
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild={true}>
+                    <Button
+                      className="size-8"
+                      onClick={() => setIsMuted(!isMuted)}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      {isMuted || volume === 0 ? (
+                        <VolumeX className="size-4" />
+                      ) : (
+                        <Volume2 className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>{isMuted || volume === 0 ? "Unmute" : "Mute"}</p>
+                  </TooltipContent>
+                </Tooltip>
                 <Slider
                   className="w-24"
                   max={100}
@@ -1567,11 +1903,16 @@ export function MusicPlayer() {
   }
 
   return (
-    <>
-      <audio ref={audioRef} preload="metadata">
+    <TooltipProvider delayDuration={250}>
+      <audio
+        ref={audioRef}
+        preload="metadata"
+        // eslint-disable-next-line react/no-unknown-property
+        x-webkit-airplay="allow"
+      >
         <track kind="captions" />
       </audio>
       {playerUi}
-    </>
+    </TooltipProvider>
   );
 }

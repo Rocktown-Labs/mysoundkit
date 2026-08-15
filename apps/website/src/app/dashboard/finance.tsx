@@ -16,8 +16,8 @@ interface SellerStatus {
 }
 
 function FinanceDashboard() {
-  const [message, setMessage] = useState<string | null>(null);
-  const [status, setStatus] = useState<SellerStatus | null>(null);
+  const [message, setMessage] = useState<string | null>(null),
+   [status, setStatus] = useState<SellerStatus | null>(null);
 
   useEffect(() => {
     const loadStatus = async () => {
@@ -43,8 +43,8 @@ function FinanceDashboard() {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "POST",
-    });
-    const payload = (await response.json()) as {
+    }),
+     payload = (await response.json()) as {
       accountLinkUrl?: string;
       message?: string;
     };

@@ -20,9 +20,9 @@ const sortOptions = [
   { label: "Oldest", value: "date-asc" },
   { label: "Title (A-Z)", value: "title-asc" },
   { label: "Title (Z-A)", value: "title-desc" },
-];
+],
 
-const projectTypeOptions = [
+ projectTypeOptions = [
   { label: "Albums", value: "album" },
   { label: "EPs", value: "ep" },
   { label: "Mixtapes", value: "mixtape" },
@@ -63,35 +63,35 @@ export const Route = createFileRoute("/_explore/projects/")({
 });
 
 function ExploreProjectsPage() {
-  const router = useRouter();
-  const navigate = Route.useNavigate();
-  const search = Route.useSearch();
+  const router = useRouter(),
+   navigate = Route.useNavigate(),
+   search = Route.useSearch(),
 
-  const savedRegionType =
+   savedRegionType =
     typeof window === "undefined"
       ? null
       : (localStorage.getItem("exploreRegionType") as
           | "global"
           | "north-america"
-          | null);
-  const savedRegion =
+          | null),
+   savedRegion =
     typeof window === "undefined"
       ? null
-      : localStorage.getItem("exploreRegion");
+      : localStorage.getItem("exploreRegion"),
 
-  const regionType = search.regionType ?? savedRegionType ?? "north-america";
-  const region = search.region ?? savedRegion ?? "us-arkansas";
-  const genre = search.genre ?? "all";
-  const sort = search.sort ?? "date-desc";
-  const forSale = search.forSale ?? false;
-  const q = search.q ?? "";
-  const { type } = search;
-  const view = search.view ?? "sections";
-  const isFilteredView = Boolean(type || forSale || q || genre !== "all");
+   regionType = search.regionType ?? savedRegionType ?? "north-america",
+   region = search.region ?? savedRegion ?? "us-arkansas",
+   genre = search.genre ?? "all",
+   sort = search.sort ?? "date-desc",
+   forSale = search.forSale ?? false,
+   q = search.q ?? "",
+   { type } = search,
+   view = search.view ?? "sections",
+   isFilteredView = Boolean(type || forSale || q || genre !== "all"),
 
-  const updateFilters = (next: ProjectFilterUpdate) => {
-    const nextRegionType = next.regionType ?? regionType;
-    const nextRegion = next.region ?? region;
+   updateFilters = (next: ProjectFilterUpdate) => {
+    const nextRegionType = next.regionType ?? regionType,
+     nextRegion = next.region ?? region;
 
     if (typeof window !== "undefined") {
       localStorage.setItem("exploreRegionType", nextRegionType);
@@ -112,9 +112,9 @@ function ExploreProjectsPage() {
         view: next.view ?? view,
       }),
     });
-  };
+  },
 
-  const { data: projects = [], isLoading } = usePublicProjectsQuery({
+   { data: projects = [], isLoading } = usePublicProjectsQuery({
     forSale: forSale || undefined,
     genre,
     limit: 48,
@@ -127,16 +127,6 @@ function ExploreProjectsPage() {
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
-      <Button
-        className="mb-4"
-        onClick={() => router.history.back()}
-        size="sm"
-        variant="ghost"
-      >
-        <ArrowLeft className="mr-2 size-4" />
-        Back
-      </Button>
-
       <div className="mb-8">
         <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
           <Disc className="size-6 text-primary md:size-8" />
@@ -213,35 +203,35 @@ function ExploreProjectsPage() {
       ) : null}
 
       {view !== "all" && !isFilteredView ? (
-      <ProjectRail
-        empty="No featured projects found for the selected filters."
-        genre={genre}
-        isLoading={isLoading}
-        projects={projects}
-        region={region}
-        regionType={regionType}
-        sort={sort}
-        title="Featured Projects"
-        type={type}
-        forSale={forSale}
-      />
+        <ProjectRail
+          empty="No featured projects found for the selected filters."
+          genre={genre}
+          isLoading={isLoading}
+          projects={projects}
+          region={region}
+          regionType={regionType}
+          sort={sort}
+          title="Featured Projects"
+          type={type}
+          forSale={forSale}
+        />
       ) : null}
 
       {view !== "all" && !isFilteredView ? (
-      <div className="flex flex-col gap-10">
-        {musicGenres.map((sectionGenre) => (
-          <ProjectGenreRail
-            forSale={forSale}
-            key={sectionGenre.value}
-            q={q}
-            region={region}
-            regionType={regionType}
-            sectionGenre={sectionGenre}
-            sort={sort}
-            type={type}
-          />
-        ))}
-      </div>
+        <div className="flex flex-col gap-10">
+          {musicGenres.map((sectionGenre) => (
+            <ProjectGenreRail
+              forSale={forSale}
+              key={sectionGenre.value}
+              q={q}
+              region={region}
+              regionType={regionType}
+              sectionGenre={sectionGenre}
+              sort={sort}
+              type={type}
+            />
+          ))}
+        </div>
       ) : null}
     </div>
   );

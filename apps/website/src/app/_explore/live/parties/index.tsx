@@ -58,14 +58,20 @@ function PartySummaryCard({ party }: { party: PartyCollectionItem }) {
           <div className="flex items-center justify-between gap-2">
             <Badge variant={isLive ? "destructive" : "secondary"}>
               {isLive ? (
-                <><Radio className="mr-1 size-3" />Live</>
+                <>
+                  <Radio className="mr-1 size-3" />
+                  Live
+                </>
               ) : (
                 "Scheduled"
               )}
             </Badge>
             <Badge variant="outline">
               {party.playbackMode === "artist_hosted" ? (
-                <><Mic className="mr-1 size-3" />Artist Hosted</>
+                <>
+                  <Mic className="mr-1 size-3" />
+                  Artist Hosted
+                </>
               ) : (
                 "Release Party"
               )}
@@ -88,26 +94,26 @@ function PartySummaryCard({ party }: { party: PartyCollectionItem }) {
 }
 
 function LivePartiesPage() {
-  const navigate = Route.useNavigate();
-  const search = Route.useSearch();
-  const { data: parties = [], isLoading } = useListeningPartiesQuery();
-  const genre = search.genre ?? "all";
-  const sort = search.sort ?? "starts-asc";
-  const status = search.status ?? "all";
-  const view = search.view ?? "sections";
-  const partyItems: PartyCollectionItem[] = parties.map((party) => ({
+  const navigate = Route.useNavigate(),
+   search = Route.useSearch(),
+   { data: parties = [], isLoading } = useListeningPartiesQuery(),
+   genre = search.genre ?? "all",
+   sort = search.sort ?? "starts-asc",
+   status = search.status ?? "all",
+   view = search.view ?? "sections",
+   partyItems: PartyCollectionItem[] = parties.map((party) => ({
     ...party,
     startsAt: party.scheduledStartAt,
     viewerCount: 0,
-  }));
-  const filteredParties = filterAndSortLiveItems({
+  })),
+   filteredParties = filterAndSortLiveItems({
     genre,
     items: partyItems,
     sort,
     status,
-  });
+  }),
 
-  const openCollection = (next: Partial<LivePartiesSearch>) => {
+   openCollection = (next: Partial<LivePartiesSearch>) => {
     void navigate({
       search: (previous) => ({ ...previous, ...next, view: "all" }),
     });

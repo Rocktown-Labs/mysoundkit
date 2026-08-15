@@ -1,6 +1,7 @@
 "use client";
 
 import { useUploadFiles } from "@better-upload/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { ImageIcon, LoaderCircle, Upload } from "lucide-react";
 import { useId, useState } from "react";
 import type { ChangeEvent } from "react";
@@ -8,7 +9,6 @@ import type { ChangeEvent } from "react";
 import { ImageCropperDialog } from "@/components/dashboard/image-cropper-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   API_V1_URL,
   MEDIA_BASE_URL,
@@ -27,14 +27,16 @@ export function ProfileMediaUpload({
   kind: "avatar" | "header";
   title: string;
 }) {
-  const inputId = useId();
-  const queryClient = useQueryClient();
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl ?? null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedObjectUrl, setSelectedObjectUrl] = useState("");
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const inputId = useId(),
+   queryClient = useQueryClient(),
+   [previewUrl, setPreviewUrl] = useState<string | null>(
+    currentUrl ?? null
+  ),
+   [selectedFile, setSelectedFile] = useState<File | null>(null),
+   [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
+   [statusMessage, setStatusMessage] = useState<string | null>(null),
 
-  const persistUploadedMedia = async ({
+   persistUploadedMedia = async ({
     objectKey,
     remoteUrl,
   }: {
@@ -59,9 +61,9 @@ export function ProfileMediaUpload({
           "Content-Type": "application/json",
         },
         method: "PATCH",
-      });
+      }),
 
-      const payload = (await response.json().catch(() => null)) as {
+       payload = (await response.json().catch(() => null)) as {
         message?: string;
       } | null;
 
@@ -76,16 +78,16 @@ export function ProfileMediaUpload({
         `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
       );
     }
-  };
+  },
 
-  const fileToDataUrl = (file: File): Promise<string> =>
+   fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
-    });
+    }),
 
-  const { averageProgress, isPending, upload } = useUploadFiles({
+   { averageProgress, isPending, upload } = useUploadFiles({
     api: PROFILE_MEDIA_UPLOAD_URL,
     credentials: "include",
     onError: async () => {
@@ -106,16 +108,16 @@ export function ProfileMediaUpload({
         return;
       }
 
-      const objectKey = file.objectInfo.key;
-      const remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
+      const objectKey = file.objectInfo.key,
+       remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
 
       setPreviewUrl(remoteUrl);
       void persistUploadedMedia({ objectKey, remoteUrl });
     },
     route: "profile-media",
-  });
+  }),
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+   handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -126,9 +128,9 @@ export function ProfileMediaUpload({
     setSelectedFile(file);
     setSelectedObjectUrl(URL.createObjectURL(file));
     setStatusMessage(null);
-  };
+  },
 
-  const uploadCroppedFile = async (
+   uploadCroppedFile = async (
     croppedFile: File,
     localPreviewUrl: string
   ) => {

@@ -23,8 +23,8 @@ export const REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL =
   "https://api.realtime.cloudflare.com/.well-known/webhooks.json";
 
 const base64UrlToBytes = (value: string) => {
-  const normalized = value.replaceAll("-", "+").replaceAll("_", "/");
-  const padded = normalized.padEnd(
+  const normalized = value.replaceAll("-", "+").replaceAll("_", "/"),
+   padded = normalized.padEnd(
     normalized.length + ((4 - (normalized.length % 4)) % 4),
     "="
   );
@@ -45,9 +45,9 @@ export const verifyRealtimeKitSignature = async ({
     .replaceAll("\\n", "")
     .replace("-----BEGIN PUBLIC KEY-----", "")
     .replace("-----END PUBLIC KEY-----", "")
-    .replaceAll(/\s+/gu, "");
+    .replaceAll(/\s+/gu, ""),
 
-  const publicKey = await crypto.subtle.importKey(
+   publicKey = await crypto.subtle.importKey(
     "spki",
     base64UrlToBytes(cleanPem),
     { hash: "SHA-256", name: "RSASSA-PKCS1-v1_5" },
@@ -66,8 +66,8 @@ export const verifyRealtimeKitSignature = async ({
 export const fetchRealtimeKitWebhookPublicKey = async (
   publicKeyUrl?: string
 ) => {
-  const url = publicKeyUrl || REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL;
-  const response = await fetch(url);
+  const url = publicKeyUrl || REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL,
+   response = await fetch(url);
 
   if (!response.ok) {
     return null;
@@ -118,12 +118,12 @@ export const loadLiveExperienceById = async (experienceId: string) => {
 const getMeetingObject = (payload: Record<string, unknown>) =>
   typeof payload.meeting === "object" && payload.meeting !== null
     ? (payload.meeting as Record<string, unknown>)
-    : null;
+    : null,
 
-const getString = (value: unknown) =>
-  typeof value === "string" && value.length > 0 ? value : null;
+ getString = (value: unknown) =>
+  typeof value === "string" && value.length > 0 ? value : null,
 
-const getMeetingId = (payload: Record<string, unknown>) => {
+ getMeetingId = (payload: Record<string, unknown>) => {
   const meeting = getMeetingObject(payload);
   return getString(meeting?.id) ?? getString(payload.meetingId);
 };
@@ -167,8 +167,8 @@ export const updateExperienceViewerCount = async ({
     return null;
   }
 
-  const db = createDb();
-  const [experience] = await db
+  const db = createDb(),
+   [experience] = await db
     .select({
       peakViewerCount: liveExperiences.peakViewerCount,
       viewerCount: liveExperiences.viewerCount,
@@ -184,10 +184,10 @@ export const updateExperienceViewerCount = async ({
   const viewerCount = Math.max(
     0,
     experience.viewerCount + (isJoining ? 1 : -1)
-  );
-  const peakViewerCount = Math.max(experience.peakViewerCount, viewerCount);
+  ),
+   peakViewerCount = Math.max(experience.peakViewerCount, viewerCount),
 
-  const [updated] = await db
+   [updated] = await db
     .update(liveExperiences)
     .set({
       peakViewerCount,
@@ -212,9 +212,9 @@ const getFollowerUserIds = async (artistUserId: string) => {
     .limit(500);
 
   return rows.map(({ followerUserId }) => followerUserId);
-};
+},
 
-const notificationTypeForKind = (kind: LiveExperienceKind) => {
+ notificationTypeForKind = (kind: LiveExperienceKind) => {
   if (kind === "battle") {
     return "live_battle";
   }
@@ -224,14 +224,14 @@ const notificationTypeForKind = (kind: LiveExperienceKind) => {
   }
 
   return "live_stream";
-};
+},
 
-const notificationHrefForKind = (
+ notificationHrefForKind = (
   kind: LiveExperienceKind,
   experienceId: string
-) => `/live/${kind === "party" ? "parties" : `${kind}s`}/${experienceId}`;
+) => `/live/${kind === "party" ? "parties" : `${kind}s`}/${experienceId}`,
 
-const insertNotificationsForUsers = async ({
+ insertNotificationsForUsers = async ({
   experienceId,
   kind,
   message,
@@ -250,9 +250,9 @@ const insertNotificationsForUsers = async ({
     return 0;
   }
 
-  const db = createDb();
-  const link = notificationHrefForKind(kind, experienceId);
-  const rows = recipientUserIds.map((userId) => ({
+  const db = createDb(),
+   link = notificationHrefForKind(kind, experienceId),
+   rows = recipientUserIds.map((userId) => ({
     id: `${type}:${experienceId}:${userId}`,
     link,
     message,
@@ -277,8 +277,8 @@ export const fanoutGoLiveNotifications = async ({
   kind: LiveExperienceKind;
   title: string;
 }) => {
-  const followerUserIds = await getFollowerUserIds(creatorUserId);
-  const href = notificationHrefForKind(kind, experienceId);
+  const followerUserIds = await getFollowerUserIds(creatorUserId),
+   href = notificationHrefForKind(kind, experienceId);
   let noun: string;
 
   if (kind === "battle") {
@@ -296,9 +296,9 @@ export const fanoutGoLiveNotifications = async ({
     recipientUserIds: followerUserIds,
     title: `${title} is live`,
     type: `${notificationTypeForKind(kind)}_live`,
-  });
+  }),
 
-  const premiumNotifications = await insertNotificationsForUsers({
+   premiumNotifications = await insertNotificationsForUsers({
     experienceId,
     kind,
     message: `${title} is live. Premium watchers get the full Must Watch room.`,
@@ -322,17 +322,17 @@ const getPremiumWatcherUserIds = async () => {
     return [];
   }
 
-  const db = createDb();
+  const db = createDb(),
 
-  const subscriptionRows = await db
+   subscriptionRows = await db
     .select({
       referenceId: subscription.referenceId,
     })
     .from(subscription)
     .where(inArray(subscription.status, [...ACTIVE_SUBSCRIPTION_STATUSES]))
-    .limit(1000);
+    .limit(1000),
 
-  const memberRows =
+   memberRows =
     subscriptionRows.length > 0
       ? await db
           .select({ userId: member.userId })
@@ -343,9 +343,9 @@ const getPremiumWatcherUserIds = async () => {
               subscriptionRows.map(({ referenceId }) => referenceId)
             )
           )
-      : [];
+      : [],
 
-  const userIds: string[] = [];
+   userIds: string[] = [];
 
   for (const row of subscriptionRows) {
     if (row.referenceId) {
@@ -388,8 +388,8 @@ export const applyRecordingStatusUpdate = async (
   const recording =
     typeof payload.recording === "object" && payload.recording !== null
       ? (payload.recording as RecordingStatusPayload)
-      : {};
-  const status = getString(recording.status) ?? null;
+      : {},
+   status = getString(recording.status) ?? null;
 
   if (status !== "UPLOADED") {
     await createDb()
@@ -404,10 +404,10 @@ export const applyRecordingStatusUpdate = async (
     return "processed" as const;
   }
 
-  const downloadUrl = getString(recording.downloadUrl);
-  const audioDownloadUrl = getString(recording.audioDownloadUrl);
-  const expiresAt = getString(recording.downloadUrlExpiry);
-  const [updated] = await createDb()
+  const downloadUrl = getString(recording.downloadUrl),
+   audioDownloadUrl = getString(recording.audioDownloadUrl),
+   expiresAt = getString(recording.downloadUrlExpiry),
+   [updated] = await createDb()
     .update(liveExperiences)
     .set({
       recordingAudioUrl: audioDownloadUrl ?? experience.recordingAudioUrl,
@@ -430,9 +430,9 @@ export const applyRecordingStatusUpdate = async (
   return "processed" as const;
 };
 
-const LIVE_RECORDING_PUBLISH_JOB_TYPE = "live_recording_publish";
-const LIVE_RECORDING_PUBLISH_DELAY_MS = 60 * 60 * 1000;
-const LIVE_RECORDING_RETRY_DELAY_MS = 5 * 60 * 1000;
+const LIVE_RECORDING_PUBLISH_JOB_TYPE = "live_recording_publish",
+ LIVE_RECORDING_PUBLISH_DELAY_MS = 60 * 60 * 1000,
+ LIVE_RECORDING_RETRY_DELAY_MS = 5 * 60 * 1000;
 
 export const scheduleLiveRecordingPublish = async ({
   experience,
@@ -447,8 +447,8 @@ export const scheduleLiveRecordingPublish = async ({
     return null;
   }
 
-  const db = createDb();
-  const [existing] = await db
+  const db = createDb(),
+   [existing] = await db
     .select({ id: workflowJobs.id })
     .from(workflowJobs)
     .where(
@@ -494,8 +494,8 @@ export const applyChatSyncedEvent = async (
     return "ignored" as const;
   }
 
-  const chatDownloadUrl = getString(payload.chatDownloadUrl);
-  const chatDownloadUrlExpiry = getString(payload.chatDownloadUrlExpiry);
+  const chatDownloadUrl = getString(payload.chatDownloadUrl),
+   chatDownloadUrlExpiry = getString(payload.chatDownloadUrlExpiry);
 
   if (!chatDownloadUrl) {
     return "ignored" as const;
@@ -636,8 +636,8 @@ export const updateArtistRecordsForBattle = async ({
     return { losses: 0, skipped: true, wins: 0 };
   }
 
-  const db = createDb();
-  const roundRows = await db
+  const db = createDb(),
+   roundRows = await db
     .select({
       trackOneId: battleRounds.trackOneId,
       trackTwoId: battleRounds.trackTwoId,
@@ -677,14 +677,14 @@ export const updateArtistRecordsForBattle = async ({
       ownerUserId: tracks.ownerUserId,
     })
     .from(tracks)
-    .where(inArray(tracks.id, trackIds));
+    .where(inArray(tracks.id, trackIds)),
 
-  const ownerByTrackId = new Map(
+   ownerByTrackId = new Map(
     trackRows.map((track) => [track.id, track.ownerUserId])
   );
 
-  let wins = 0;
-  let losses = 0;
+  let wins = 0,
+   losses = 0;
 
   const upsertBattleStats = async ({
     isWinner,
@@ -785,11 +785,11 @@ export const publishExperienceRecordingAsVideo = async ({
     return null;
   }
 
-  const db = createDb();
-  const videoId = `video_live_${experience.id}`;
-  const slug = `live-${experience.kind}-${experience.id.replaceAll("_", "-")}`;
+  const db = createDb(),
+   videoId = `video_live_${experience.id}`,
+   slug = `live-${experience.kind}-${experience.id.replaceAll("_", "-")}`,
 
-  const playbackUrl = await copyRecordingToPublicMedia({
+   playbackUrl = await copyRecordingToPublicMedia({
     experienceId: experience.id,
     sourceUrl: recordingUrl,
   });
@@ -823,15 +823,16 @@ export const publishExperienceRecordingAsVideo = async ({
 };
 
 const getRecordingMediaHelpers = () => ({
-  bucket:
-    (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+  bucket: (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
   publicUrl:
-    (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined }).MEDIA_PUBLIC_URL ??
-    (env as unknown as { VITE_MEDIA_URL?: string | undefined }).VITE_MEDIA_URL ??
+    (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined })
+      .MEDIA_PUBLIC_URL ??
+    (env as unknown as { VITE_MEDIA_URL?: string | undefined })
+      .VITE_MEDIA_URL ??
     "",
-});
+}),
 
-const copyRecordingToPublicMedia = async ({
+ copyRecordingToPublicMedia = async ({
   experienceId,
   sourceUrl,
 }: {
@@ -846,8 +847,8 @@ const copyRecordingToPublicMedia = async ({
 
   const extension = /\.(mp4|mov|webm|mkv|m4v)(?:$|[?#])/iu.test(sourceUrl)
     ? "mp4"
-    : "mp3";
-  const objectKey = `live-recordings/${experienceId}/recording.${extension}`;
+    : "mp3",
+   objectKey = `live-recordings/${experienceId}/recording.${extension}`;
 
   try {
     const response = await fetch(sourceUrl);
@@ -858,8 +859,7 @@ const copyRecordingToPublicMedia = async ({
 
     await bucket.put(objectKey, response.body, {
       httpMetadata: {
-        contentType:
-          extension === "mp4" ? "video/mp4" : "audio/mpeg",
+        contentType: extension === "mp4" ? "video/mp4" : "audio/mpeg",
       },
     });
 
@@ -880,8 +880,8 @@ export const publishDueLiveRecordings = async ({
     return { done: 0, failed: 0, skipped: true };
   }
 
-  const db = createDb();
-  const jobs = await db
+  const db = createDb(),
+   jobs = await db
     .select()
     .from(workflowJobs)
     .where(
@@ -893,12 +893,12 @@ export const publishDueLiveRecordings = async ({
     )
     .limit(Math.max(1, Math.min(limit, 50)));
 
-  let done = 0;
-  let failed = 0;
+  let done = 0,
+   failed = 0;
 
   for (const job of jobs) {
-    const input = (job.input ?? {}) as { recordingUrl?: string };
-    const experience = await loadLiveExperienceById(job.targetId);
+    const input = (job.input ?? {}) as { recordingUrl?: string },
+     experience = await loadLiveExperienceById(job.targetId);
 
     if (!experience || !input.recordingUrl) {
       await db
@@ -1039,8 +1039,8 @@ export const applyBattleBotAction = async ({
     };
   }
 
-  const db = createDb();
-  const [battle] = await db
+  const db = createDb(),
+   [battle] = await db
     .select({ id: battles.id, status: battles.status })
     .from(battles)
     .where(or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId)))
@@ -1066,11 +1066,11 @@ export const applyBattleBotAction = async ({
     })
     .from(battleRounds)
     .where(eq(battleRounds.battleId, battle.id))
-    .orderBy(asc(battleRounds.roundNumber));
+    .orderBy(asc(battleRounds.roundNumber)),
 
-  const activeRound =
-    roundRows.find((round) => round.status === "active") ?? null;
-  const upcomingRound =
+   activeRound =
+    roundRows.find((round) => round.status === "active") ?? null,
+   upcomingRound =
     roundRows.find((round) => round.status === "upcoming") ?? null;
 
   if (action === "open_lobby") {
@@ -1146,8 +1146,8 @@ export const applyBattleBotAction = async ({
 
       const nonVoters = participants
         .filter((participant) => !participant.voted)
-        .map(({ id }) => id);
-      const inLobby = participants
+        .map(({ id }) => id),
+       inLobby = participants
         .filter((participant) => participant.inLobby)
         .map(({ id }) => id);
 
@@ -1191,8 +1191,8 @@ export const applyBattleBotAction = async ({
 
   const inLobby = participants
     .filter((participant) => participant.inLobby)
-    .map(({ id }) => id);
-  const nonVoters = participants
+    .map(({ id }) => id),
+   nonVoters = participants
     .filter((participant) => !participant.voted)
     .map(({ id }) => id);
 

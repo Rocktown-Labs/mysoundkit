@@ -54,27 +54,27 @@ function Carousel({
       axis: orientation === "horizontal" ? "x" : "y",
     },
     plugins
-  );
-  const [canScrollPrev, setCanScrollPrev] = React.useState(false);
-  const [canScrollNext, setCanScrollNext] = React.useState(false);
+  ),
+   [canScrollPrev, setCanScrollPrev] = React.useState(false),
+   [canScrollNext, setCanScrollNext] = React.useState(false),
 
-  const onSelect = React.useCallback((api: CarouselApi) => {
+   onSelect = React.useCallback((api: CarouselApi) => {
     if (!api) {
       return;
     }
     setCanScrollPrev(api.canScrollPrev());
     setCanScrollNext(api.canScrollNext());
-  }, []);
+  }, []),
 
-  const scrollPrev = React.useCallback(() => {
+   scrollPrev = React.useCallback(() => {
     api?.scrollPrev();
-  }, [api]);
+  }, [api]),
 
-  const scrollNext = React.useCallback(() => {
+   scrollNext = React.useCallback(() => {
     api?.scrollNext();
-  }, [api]);
+  }, [api]),
 
-  const handleKeyDown = React.useCallback(
+   handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key === "ArrowLeft") {
         event.preventDefault();

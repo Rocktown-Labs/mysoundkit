@@ -21,8 +21,8 @@ const formatRelativeTime = (isoString: string | null | undefined) => {
   if (Number.isNaN(date.getTime())) {
     return "—";
   }
-  const diffMs = Date.now() - date.getTime();
-  const minutes = Math.round(diffMs / 60_000);
+  const diffMs = Date.now() - date.getTime(),
+   minutes = Math.round(diffMs / 60_000);
   if (minutes < 1) {
     return "just now";
   }
@@ -41,10 +41,10 @@ const formatRelativeTime = (isoString: string | null | undefined) => {
 };
 
 export function ProjectActivity({ projectId }: ProjectActivityProps) {
-  const projectQuery = useProjectQuery(projectId);
-  const project = projectQuery.data;
-  const tracks = project?.tracks ?? [];
-  const collaborators = Array.isArray(project?.collaborators)
+  const projectQuery = useProjectQuery(projectId),
+   project = projectQuery.data,
+   tracks = project?.tracks ?? [],
+   collaborators = Array.isArray(project?.collaborators)
     ? (project.collaborators ?? [])
     : [];
 
@@ -72,9 +72,9 @@ export function ProjectActivity({ projectId }: ProjectActivityProps) {
     draft: { icon: Edit, label: "Draft" },
     released: { icon: CheckCircle, label: "Released" },
     scheduled: { icon: CheckCircle, label: "Scheduled" },
-  };
+  },
 
-  const statusEntry =
+   statusEntry =
     project && project.status
       ? {
           action: `project is ${project.status}`,
@@ -85,9 +85,9 @@ export function ProjectActivity({ projectId }: ProjectActivityProps) {
           type: "status",
           user: "",
         }
-      : null;
+      : null,
 
-  const entries = [
+   entries = [
     ...(statusEntry ? [statusEntry] : []),
     ...(project
       ? [

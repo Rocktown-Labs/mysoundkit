@@ -16,9 +16,9 @@ const notificationSchema = z.object({
   read: z.boolean(),
   title: z.string(),
   type: z.string(),
-});
+}),
 
-const notificationsResponseSchema = z.object({
+ notificationsResponseSchema = z.object({
   items: z.array(notificationSchema),
   unreadCount: z.number(),
 });
@@ -58,15 +58,15 @@ app.openapi(
     }
 
     try {
-      const db = createDb();
-      const rows = await db
+      const db = createDb(),
+       rows = await db
         .select()
         .from(userNotifications)
         .where(eq(userNotifications.userId, user.id))
         .orderBy(desc(userNotifications.createdAt))
-        .limit(20);
+        .limit(20),
 
-      const items: NotificationItem[] = rows.map((r) => ({
+       items: NotificationItem[] = rows.map((r) => ({
         createdAt: r.createdAt.toISOString(),
         id: r.id,
         link: r.link ?? null,
@@ -74,9 +74,9 @@ app.openapi(
         read: r.read,
         title: r.title,
         type: r.type,
-      }));
+      })),
 
-      const unreadCount = items.filter((i) => !i.read).length;
+       unreadCount = items.filter((i) => !i.read).length;
 
       return c.json({ items, unreadCount }, HttpStatusCodes.OK);
     } catch {

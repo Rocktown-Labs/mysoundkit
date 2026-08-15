@@ -27,15 +27,15 @@ export function LiveRoomAccessGuard({
   children,
   roomTitle = "Live Room",
 }: LiveRoomAccessGuardProps) {
-  const { data: session, isPending: isAuthPending } = authClient.useSession();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const user = session?.user;
-  const isSignedIn = Boolean(user);
-  const isLoading =
-    isAuthPending || (isSignedIn && entitlementsQuery.isLoading);
+  const { data: session, isPending: isAuthPending } = authClient.useSession(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   user = session?.user,
+   isSignedIn = Boolean(user),
+   isLoading =
+    isAuthPending || (isSignedIn && entitlementsQuery.isLoading),
 
-  const entitlements = entitlementsQuery.data;
-  const isPremium = Boolean(
+   entitlements = entitlementsQuery.data,
+   isPremium = Boolean(
     entitlements?.isPremium ||
     entitlements?.canWatchCreatorStreams ||
     entitlements?.canCreateLiveBattles ||

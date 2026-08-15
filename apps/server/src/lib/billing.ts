@@ -63,8 +63,8 @@ export const createPlanCheckout = async ({
         successUrl: string;
       };
       headers: Headers;
-    }) => Promise<unknown>;
-    const result = await upgradeSubscription({
+    }) => Promise<unknown>,
+     result = await upgradeSubscription({
       body: {
         cancelUrl,
         customerType: "organization",
@@ -75,9 +75,9 @@ export const createPlanCheckout = async ({
         successUrl,
       },
       headers: request.headers,
-    });
+    }),
 
-    const url =
+     url =
       typeof result === "object" &&
       result !== null &&
       "url" in result &&
@@ -104,8 +104,8 @@ export const getPlanRows = async () => {
     return [];
   }
 
-  const db = createDb();
-  const rows = await db.select().from(planCatalog);
+  const db = createDb(),
+   rows = await db.select().from(planCatalog);
 
   if (rows.length === 0) {
     return [];
@@ -119,8 +119,8 @@ export const getPlanByCode = async (code: string) => {
     return null;
   }
 
-  const db = createDb();
-  const [plan] = await db
+  const db = createDb(),
+   [plan] = await db
     .select()
     .from(planCatalog)
     .where(eq(planCatalog.code, code))

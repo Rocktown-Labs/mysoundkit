@@ -1,8 +1,8 @@
 import { useColorScheme as useRNColorScheme } from "react-native";
 
 export function useColorScheme() {
-  const systemColorScheme = useRNColorScheme();
-  const colorScheme = systemColorScheme ?? "light";
+  const systemColorScheme = useRNColorScheme(),
+   colorScheme = systemColorScheme ?? "light";
 
   return {
     colorScheme: colorScheme as "light" | "dark",

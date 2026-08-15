@@ -32,24 +32,24 @@ const defaultRewardConfig = {
   playbackThresholdPercent: 70,
   playbackThresholdSeconds: 0,
   version: streamQualificationRuleVersion,
-};
+},
 
-const qualifyingAssetKinds = [
+ qualifyingAssetKinds = [
   "master",
   "tagged_mp3",
   "untagged_wav",
   "variant_audio",
   "instrumental",
-] as const;
+] as const,
 
-const financialCollaboratorRoles = [
+ financialCollaboratorRoles = [
   "artist",
   "producer",
   "vocalist",
   "songwriter",
-] as const;
-const activeSubscriptionStatuses = ["active", "trialing"] as const;
-const artistPremiumPlanCodes = ["soundkit_premium_artist", "artist_team"];
+] as const,
+ activeSubscriptionStatuses = ["active", "trialing"] as const,
+ artistPremiumPlanCodes = ["soundkit_premium_artist", "artist_team"];
 
 export interface PlaybackEntitlementSnapshot {
   activePlanCode: string | null;
@@ -90,15 +90,15 @@ export type PlaybackQualificationResult =
 const monthWindow = (date: Date) => {
   const startsAt = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
-  );
-  const endsAt = new Date(
+  ),
+   endsAt = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)
   );
 
   return { endsAt, startsAt };
-};
+},
 
-const getActiveRewardConfig = async (db: SoundKitDb) => {
+ getActiveRewardConfig = async (db: SoundKitDb) => {
   const [config] = await db
     .select({
       currency: rewardConfigurationVersions.currency,
@@ -117,9 +117,9 @@ const getActiveRewardConfig = async (db: SoundKitDb) => {
     .limit(1);
 
   return config ?? defaultRewardConfig;
-};
+},
 
-const getOrCreateAccountingPeriod = async ({
+ getOrCreateAccountingPeriod = async ({
   configurationVersionId,
   currency,
   db,
@@ -130,8 +130,8 @@ const getOrCreateAccountingPeriod = async ({
   db: SoundKitDb;
   now: Date;
 }) => {
-  const { endsAt, startsAt } = monthWindow(now);
-  const [existing] = await db
+  const { endsAt, startsAt } = monthWindow(now),
+   [existing] = await db
     .select({ id: accountingPeriods.id })
     .from(accountingPeriods)
     .where(
@@ -176,9 +176,9 @@ const getOrCreateAccountingPeriod = async ({
     .limit(1);
 
   return period?.id ?? id;
-};
+},
 
-const getPublicTrackWithPrimaryAsset = async ({
+ getPublicTrackWithPrimaryAsset = async ({
   db,
   trackId,
 }: {
@@ -235,9 +235,9 @@ const getPublicTrackWithPrimaryAsset = async ({
     assetId: asset?.id ?? null,
     durationMs: asset?.durationMs ?? null,
   };
-};
+},
 
-const listenerHasFinancialInterest = async ({
+ listenerHasFinancialInterest = async ({
   db,
   listenerUserId,
   organizationId,
@@ -317,9 +317,9 @@ const listenerHasFinancialInterest = async ({
     .limit(1);
 
   return Boolean(rightsholder);
-};
+},
 
-const updateRecentPlay = async ({
+ updateRecentPlay = async ({
   db,
   listenerUserId,
   now,
@@ -377,8 +377,8 @@ export const createTrackPlaybackSession = async ({
     return null;
   }
 
-  const now = new Date();
-  const id = crypto.randomUUID();
+  const now = new Date(),
+   id = crypto.randomUUID();
   await db.insert(playbackSessions).values({
     assetId: track.assetId,
     city: input.city,
@@ -421,8 +421,8 @@ export const recordPlaybackProgress = async ({
   db: SoundKitDb;
   input: PlaybackProgressInput;
 }) => {
-  const now = new Date();
-  const [session] = await db
+  const now = new Date(),
+   [session] = await db
     .select()
     .from(playbackSessions)
     .where(
@@ -477,8 +477,8 @@ export const recordPlaybackProgress = async ({
 
   const durationSeconds =
     input.durationSeconds ??
-    (track.durationMs ? Math.ceil(track.durationMs / 1000) : 0);
-  const config = await getActiveRewardConfig(db);
+    (track.durationMs ? Math.ceil(track.durationMs / 1000) : 0),
+   config = await getActiveRewardConfig(db);
 
   if (
     !hasReachedQualifiedPlayback({
@@ -505,8 +505,8 @@ export const recordPlaybackProgress = async ({
 
   const duplicateCutoff = new Date(
     now.getTime() - config.deduplicationWindowHours * 60 * 60 * 1000
-  );
-  const [recentQualified] = await db
+  ),
+   [recentQualified] = await db
     .select({ id: qualifiedStreams.id })
     .from(qualifiedStreams)
     .where(
@@ -528,9 +528,9 @@ export const recordPlaybackProgress = async ({
     currency: config.currency,
     db,
     now,
-  });
-  const qualifiedStreamId = crypto.randomUUID();
-  const windowKey = qualificationWindowKey({
+  }),
+   qualifiedStreamId = crypto.randomUUID(),
+   windowKey = qualificationWindowKey({
     deduplicationWindowHours: config.deduplicationWindowHours,
     occurredAt: now,
   });
@@ -609,9 +609,9 @@ export const recordLiveSessionTrackPlayback = async ({
   const results: {
     listenerUserId: string;
     result: PlaybackQualificationResult;
-  }[] = [];
+  }[] = [],
 
-  const sourceType =
+   sourceType =
     kind === "live_battle"
       ? "battle"
       : (kind === "live_stream"

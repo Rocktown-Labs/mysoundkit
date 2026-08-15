@@ -90,9 +90,9 @@ const uploadDirectVideo = async (
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     method: "POST",
-  });
+  }),
 
-  const createPayload = (await createResponse.json()) as {
+   createPayload = (await createResponse.json()) as {
     message?: string;
     uploadUrl?: string;
   };
@@ -105,9 +105,9 @@ const uploadDirectVideo = async (
     onProgress,
     uploadUrl: createPayload.uploadUrl,
   });
-};
+},
 
-const saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
+ saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
   const createResponse = await fetch(`${API_V1_URL}/videos`, {
     body: JSON.stringify({
       description: values.description || undefined,
@@ -122,8 +122,8 @@ const saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     method: "POST",
-  });
-  const createPayload = (await createResponse.json()) as {
+  }),
+   createPayload = (await createResponse.json()) as {
     message?: string;
   };
 
@@ -133,20 +133,20 @@ const saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
 };
 
 export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
-  const [step, setStep] = useState(1);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [previewData, setPreviewData] = useState<{
+  const [step, setStep] = useState(1),
+   [isUploading, setIsUploading] = useState(false),
+   [uploadProgress, setUploadProgress] = useState<number | null>(null),
+   [videoFile, setVideoFile] = useState<File | null>(null),
+   [previewData, setPreviewData] = useState<{
     muxPlaybackId?: string;
     externalPlaybackUrl?: string;
     title: string;
-  } | null>(null);
-  const { data: entitlements, isLoading: isEntitlementsLoading } =
-    useMeEntitlementsQuery();
-  const isPremium = entitlements?.isPremium ?? true;
+  } | null>(null),
+   { data: entitlements, isLoading: isEntitlementsLoading } =
+    useMeEntitlementsQuery(),
+   isPremium = entitlements?.isPremium ?? true,
 
-  const form = useForm<VideoFormValues>({
+   form = useForm<VideoFormValues>({
     defaultValues: {
       description: "",
       genre: "",
@@ -159,11 +159,11 @@ export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
       youtubeUrl: "",
     },
     resolver: zodResolver(videoFormSchema),
-  });
+  }),
 
-  const sourceType = form.watch("sourceType");
+   sourceType = form.watch("sourceType"),
 
-  const onSubmit = async (values: VideoFormValues) => {
+   onSubmit = async (values: VideoFormValues) => {
     if (values.sourceType === "upload" && !videoFile) {
       toast({
         description: "Please select a video file to upload.",

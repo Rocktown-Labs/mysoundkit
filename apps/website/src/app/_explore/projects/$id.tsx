@@ -12,15 +12,15 @@ import type { ProjectSeoData } from "@/lib/seo-data";
 export const Route = createFileRoute("/_explore/projects/$id")({
   component: ProjectDetailLayout,
   head: ({ loaderData, params }) => {
-    const project = loaderData as ProjectSeoData | null;
-    const titleText = project?.title ?? "Project";
-    const artistName = project?.artistName ?? "SoundKit artist";
-    const title = `Play ${titleText} by ${artistName} on SoundKit`;
-    const description = seoDescription(
+    const project = loaderData as ProjectSeoData | null,
+     titleText = project?.title ?? "Project",
+     artistName = project?.artistName ?? "SoundKit artist",
+     title = `Play ${titleText} by ${artistName} on SoundKit`,
+     description = seoDescription(
       project?.description,
       `Stream ${titleText}, a ${project?.projectType ?? "project"} by ${artistName}, on SoundKit.`
-    );
-    const head = createShareMeta({
+    ),
+     head = createShareMeta({
       canonicalPath: `/projects/${project?.id ?? params.id}`,
       description,
       imageUrl: project?.coverArtUrl,

@@ -14,23 +14,25 @@ import type { TrackSeoData } from "@/lib/seo-data";
 export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
   component: RegionSlugTrackPage,
   head: ({ loaderData, params }) => {
-    const track = loaderData as TrackSeoData | null;
-    const canonicalPath =
+    const track = loaderData as TrackSeoData | null,
+     canonicalPath =
       track?.regionSlug && track.slug
         ? `/tracks/${track.regionSlug}/${track.slug}`
-        : `/tracks/${params.regionSlug}/${params.slug}`;
-    const trackTitle = track?.title ?? "Track";
-    const artistName = track?.artist.name ?? "SoundKit artist";
-    const title = `Stream ${trackTitle} by ${artistName} on SoundKit`;
-    const artistUrl = absoluteSiteUrl(`/artist/${track?.artist.handle ?? "artist"}`);
-    const genre = track?.genre ? `${track.genre} track` : "track";
-    const descriptionFallback = `Play ${trackTitle} by ${artistName} on SoundKit.`;
-    const description = seoDescription(track?.description, descriptionFallback);
-    const ogDescription = seoOgDescription(
+        : `/tracks/${params.regionSlug}/${params.slug}`,
+     trackTitle = track?.title ?? "Track",
+     artistName = track?.artist.name ?? "SoundKit artist",
+     title = `Stream ${trackTitle} by ${artistName} on SoundKit`,
+     artistUrl = absoluteSiteUrl(
+      `/artist/${track?.artist.handle ?? "artist"}`
+    ),
+     genre = track?.genre ? `${track.genre} track` : "track",
+     descriptionFallback = `Play ${trackTitle} by ${artistName} on SoundKit.`,
+     description = seoDescription(track?.description, descriptionFallback),
+     ogDescription = seoOgDescription(
       track?.description,
       `Play ${trackTitle} by ${artistName} on SoundKit — a ${genre} you can stream right now.`
-    );
-    const head = createShareMeta({
+    ),
+     head = createShareMeta({
       canonicalPath,
       description,
       imageUrl: track?.coverArtUrl,
@@ -58,9 +60,9 @@ export const Route = createFileRoute("/_explore/tracks/$regionSlug/$slug")({
                   url: artistUrl,
                 },
                 duration:
-                  track.durationMs != null
-                    ? `PT${Math.round(track.durationMs / 1000)}S`
-                    : undefined,
+                  track.durationMs == null
+                    ? undefined
+                    : `PT${Math.round(track.durationMs / 1000)}S`,
                 image: seoImageUrl(track.coverArtUrl),
                 name: trackTitle,
                 url: absoluteSiteUrl(canonicalPath),

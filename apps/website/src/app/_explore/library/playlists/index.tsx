@@ -48,27 +48,27 @@ export const Route = createFileRoute("/_explore/library/playlists/")({
 });
 
 function PlaylistsPage() {
-  const navigate = useNavigate();
-  const router = useRouter();
-  const { toast } = useToast();
-  const [open, setOpen] = useState(false);
-  const [deleteCandidate, setDeleteCandidate] = useState<Playlist | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [playlistName, setPlaylistName] = useState("");
-  const [playlistDescription, setPlaylistDescription] = useState("");
-  const { data: me } = useMeQuery();
-  const { data: playlists = [], isLoading } = useLibraryPlaylistsQuery();
-  const createPlaylistMutation = useCreatePlaylistMutation();
-  const deletePlaylistMutation = useDeletePlaylistMutation();
-  const isSignedIn = Boolean(me?.user);
-  const tableData = playlists.map((playlist) => ({
+  const navigate = useNavigate(),
+   router = useRouter(),
+   { toast } = useToast(),
+   [open, setOpen] = useState(false),
+   [deleteCandidate, setDeleteCandidate] = useState<Playlist | null>(null),
+   [deleteConfirmation, setDeleteConfirmation] = useState(""),
+   [playlistName, setPlaylistName] = useState(""),
+   [playlistDescription, setPlaylistDescription] = useState(""),
+   { data: me } = useMeQuery(),
+   { data: playlists = [], isLoading } = useLibraryPlaylistsQuery(),
+   createPlaylistMutation = useCreatePlaylistMutation(),
+   deletePlaylistMutation = useDeletePlaylistMutation(),
+   isSignedIn = Boolean(me?.user),
+   tableData = playlists.map((playlist) => ({
     description: playlist.description ?? "No description",
     id: playlist.id,
     name: playlist.title,
     trackCount: playlist.trackCount,
-  }));
+  })),
 
-  const handleCreatePlaylist = async () => {
+   handleCreatePlaylist = async () => {
     if (!playlistName.trim()) {
       return;
     }
@@ -96,9 +96,9 @@ function PlaylistsPage() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleDeletePlaylist = useCallback(async () => {
+   handleDeletePlaylist = useCallback(async () => {
     if (!deleteCandidate) {
       return;
     }
@@ -119,9 +119,9 @@ function PlaylistsPage() {
         variant: "destructive",
       });
     }
-  }, [deleteCandidate, deletePlaylistMutation, router, toast]);
+  }, [deleteCandidate, deletePlaylistMutation, router, toast]),
 
-  const columns = useMemo(
+   columns = useMemo(
     () =>
       createPlaylistColumns({
         onDelete: (playlist) => setDeleteCandidate(playlist),

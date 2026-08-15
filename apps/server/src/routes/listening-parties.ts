@@ -31,9 +31,9 @@ import {
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const resolveGenreId = async (genreName?: string) => {
+ resolveGenreId = async (genreName?: string) => {
   if (!genreName) {
     return null;
   }
@@ -44,9 +44,9 @@ const resolveGenreId = async (genreName?: string) => {
     .where(eq(genres.name, genreName))
     .limit(1);
   return genre?.id ?? null;
-};
+},
 
-const mapParty = (
+ mapParty = (
   party: typeof listeningParties.$inferSelect & { genre?: string | null }
 ) => ({
   description: party.description,
@@ -137,14 +137,14 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [profile] = await db
+    const db = createDb(),
+     [profile] = await db
       .select({ accountType: userProfiles.accountType })
       .from(userProfiles)
       .where(eq(userProfiles.userId, user.id))
-      .limit(1);
-    const accountType = profile?.accountType ?? "fan";
-    const projectRows = await db
+      .limit(1),
+     accountType = profile?.accountType ?? "fan",
+     projectRows = await db
       .select({
         id: projects.id,
         ownerUserId: projects.ownerUserId,
@@ -157,8 +157,8 @@ app.openapi(
         accountType === "artist"
           ? eq(projects.ownerUserId, user.id)
           : eq(projects.isPublic, true)
-      );
-    const playlistRows =
+      ),
+     playlistRows =
       accountType === "fan"
         ? await db
             .select({ id: playlists.id, title: playlists.title })
@@ -231,9 +231,9 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const body = c.req.valid("json"),
+     session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
@@ -244,21 +244,21 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [profile] = await db
+    const db = createDb(),
+     [profile] = await db
       .select({ accountType: userProfiles.accountType })
       .from(userProfiles)
       .where(eq(userProfiles.userId, user.id))
-      .limit(1);
-    const accountType = profile?.accountType ?? "fan";
-    const [project] = body.projectId
+      .limit(1),
+     accountType = profile?.accountType ?? "fan",
+     [project] = body.projectId
       ? await db
           .select()
           .from(projects)
           .where(eq(projects.id, body.projectId))
           .limit(1)
-      : [];
-    const [playlist] = body.playlistId
+      : [],
+     [playlist] = body.playlistId
       ? await db
           .select()
           .from(playlists)
@@ -269,8 +269,8 @@ app.openapi(
             )
           )
           .limit(1)
-      : [];
-    const validProject =
+      : [],
+     validProject =
       project &&
       project.projectType !== "single" &&
       (accountType === "artist"
@@ -300,16 +300,16 @@ app.openapi(
     }
 
     const playbackMode =
-      accountType === "artist" ? "programmed_release" : "artist_hosted";
+      accountType === "artist" ? "programmed_release" : "artist_hosted",
 
-    const sessionForWorkspace = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+     sessionForWorkspace = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(sessionForWorkspace)
         ? sessionForWorkspace
         : null,
       user,
-    });
-    const [party] = await db
+    }),
+     [party] = await db
       .insert(listeningParties)
       .values({
         description: body.description ?? null,
@@ -339,8 +339,8 @@ app.openapi(
         .select({ userId: userFollows.followerUserId })
         .from(userFollows)
         .where(eq(userFollows.targetUserId, user.id)),
-    ]);
-    const followerIds = [
+    ]),
+     followerIds = [
       ...new Set([
         ...artistFollowers.map((entry) => entry.userId),
         ...profileFollowers.map((entry) => entry.userId),

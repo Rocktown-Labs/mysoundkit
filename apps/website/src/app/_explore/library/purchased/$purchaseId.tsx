@@ -55,11 +55,11 @@ const handleDownload = async ({
 };
 
 function PurchaseDetailPage() {
-  const { purchaseId } = Route.useParams();
-  const { data: session, isPending: isSessionPending } =
-    authClient.useSession();
-  const purchaseQuery = useLibraryPurchaseQuery(session ? purchaseId : "");
-  const redirectPath = `/library/purchased/${purchaseId}`;
+  const { purchaseId } = Route.useParams(),
+   { data: session, isPending: isSessionPending } =
+    authClient.useSession(),
+   purchaseQuery = useLibraryPurchaseQuery(session ? purchaseId : ""),
+   redirectPath = `/library/purchased/${purchaseId}`;
 
   if (isSessionPending) {
     return (

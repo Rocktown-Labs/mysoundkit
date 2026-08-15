@@ -10,9 +10,9 @@ export const absoluteSiteUrl = (pathOrUrl: string) => {
   return `${SITE_URL}${pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`}`;
 };
 
-const normalize = (value: string) => value.replaceAll(/\s+/gu, " ").trim();
+const normalize = (value: string) => value.replaceAll(/\s+/gu, " ").trim(),
 
-const truncateTo = (value: string, maxLength: number) =>
+ truncateTo = (value: string, maxLength: number) =>
   value.length > maxLength
     ? `${value.slice(0, maxLength - 1).trimEnd()}…`
     : value;
@@ -62,15 +62,15 @@ export const createShareMeta = ({
   title: string;
   type?: "music.album" | "music.song" | "profile" | "website";
 }) => {
-  const canonicalUrl = absoluteSiteUrl(canonicalPath);
-  const socialImage = seoImageUrl(imageUrl);
-  const sharedDescription = normalize(ogDescription || description);
-  const usesFallbackImage = !imageUrl || imageUrl === "/placeholder.svg";
+  const canonicalUrl = absoluteSiteUrl(canonicalPath),
+   socialImage = seoImageUrl(imageUrl),
+   sharedDescription = normalize(ogDescription || description),
+   usesFallbackImage = !imageUrl || imageUrl === "/placeholder.svg",
   // Only declare dimensions when the image is the known-good 1200x630 social
   // card. For user-uploaded art the dimensions are unknown server-side;
   // emitting wrong hints would break the LinkedIn/Facebook card more than
   // omitting them.
-  const imageDimensionMeta = usesFallbackImage
+   imageDimensionMeta = usesFallbackImage
     ? [
         { content: "1200", property: "og:image:width" },
         { content: "630", property: "og:image:height" },
@@ -96,14 +96,14 @@ export const createShareMeta = ({
       { content: socialImage, property: "og:image:secure_url" },
       ...imageDimensionMeta,
       { content: "en_US", property: "og:locale" },
-      ...(song?.durationMs != null
-        ? [
+      ...(song?.durationMs == null
+        ? []
+        : [
             {
               content: String(Math.round(song.durationMs / 1000)),
               property: "music:duration",
             },
-          ]
-        : []),
+          ]),
       ...(song?.musicianUrl
         ? [{ content: song.musicianUrl, property: "music:musician" }]
         : []),

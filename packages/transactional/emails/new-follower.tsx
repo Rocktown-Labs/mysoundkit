@@ -7,7 +7,7 @@ export default function NewFollowerEmail() {
 
   return (
     <TransactionalNotificationEmail
-      actionUrl={`${assetBaseUrl}/dashboard/collaborators`}
+      actionUrl={`${assetBaseUrl}/dashboard/collaborators?tab=following`}
       assetBaseUrl={assetBaseUrl}
       body="Jordan became a fan of your SoundKit profile. Open your collaborators dashboard to see the fan and keep building your audience."
       ctaLabel="View fan"

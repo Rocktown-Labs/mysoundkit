@@ -44,12 +44,12 @@ describe("RealtimeKit webhook signature verification", () => {
       },
       true,
       ["sign", "verify"]
-    )) as CryptoKeyPair;
-    const exported = await crypto.subtle.exportKey("spki", generated.publicKey);
-    const publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${Buffer.from(
+    )) as CryptoKeyPair,
+     exported = await crypto.subtle.exportKey("spki", generated.publicKey),
+     publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${Buffer.from(
       new Uint8Array(exported as ArrayBuffer)
-    ).toString("base64")}\n-----END PUBLIC KEY-----`;
-    const body = new TextEncoder().encode('{"event":"meeting.started"}');
+    ).toString("base64")}\n-----END PUBLIC KEY-----`,
+     body = new TextEncoder().encode('{"event":"meeting.started"}');
 
     await expect(
       verifyRealtimeKitSignature({

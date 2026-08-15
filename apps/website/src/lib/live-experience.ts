@@ -128,8 +128,8 @@ export const createRoundVoterSnapshot = ({
   lobbyParticipantIds: string[];
   roundId: string;
 }) => {
-  const lobbyIds = new Set(lobbyParticipantIds);
-  const uniqueActiveIds = new Set(activeParticipantIds);
+  const lobbyIds = new Set(lobbyParticipantIds),
+   uniqueActiveIds = new Set(activeParticipantIds);
 
   return [...uniqueActiveIds]
     .filter((userId) => !lobbyIds.has(userId))
@@ -170,17 +170,17 @@ export const resolveMandatoryVoteResults = ({
 };
 
 const isCreatorRole = (role: LiveSessionLock["role"]) =>
-  role === "host" || role === "participant";
+  role === "host" || role === "participant",
 
-const isActiveLock = (lock: LiveSessionLock, now: Date) => {
+ isActiveLock = (lock: LiveSessionLock, now: Date) => {
   if (lock.status === "ended" || lock.status === "expired") {
     return false;
   }
 
   return new Date(lock.expiresAt) > now;
-};
+},
 
-const windowsOverlap = (
+ windowsOverlap = (
   firstStart: Date,
   firstEnd: Date,
   secondStart: Date,
@@ -196,15 +196,15 @@ export const findLiveSessionConflict = ({
   now?: Date;
   requestedLock: LiveSessionLock;
 }) => {
-  const requestedStart = new Date(requestedLock.startsAt);
-  const requestedEnd = requestedLock.endsAt
+  const requestedStart = new Date(requestedLock.startsAt),
+   requestedEnd = requestedLock.endsAt
     ? new Date(requestedLock.endsAt)
     : new Date(requestedLock.expiresAt);
 
   return (
     existingLocks.find((lock) => {
-      const isSameUser = lock.userId === requestedLock.userId;
-      const isSameSession = lock.sessionId === requestedLock.sessionId;
+      const isSameUser = lock.userId === requestedLock.userId,
+       isSameSession = lock.sessionId === requestedLock.sessionId;
 
       if (!isSameUser || isSameSession) {
         return false;
@@ -218,8 +218,8 @@ export const findLiveSessionConflict = ({
         return false;
       }
 
-      const lockStart = new Date(lock.startsAt);
-      const lockEnd = lock.endsAt
+      const lockStart = new Date(lock.startsAt),
+       lockEnd = lock.endsAt
         ? new Date(lock.endsAt)
         : new Date(lock.expiresAt);
 

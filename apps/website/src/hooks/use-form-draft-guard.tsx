@@ -17,13 +17,13 @@ import {
 
 // File/Blob values cannot be serialized into a draft; drop them.
 const draftReplacer = (_key: string, value: unknown) =>
-  value instanceof File || value instanceof Blob ? undefined : value;
+  value instanceof File || value instanceof Blob ? undefined : value,
 
-const DIALOG_TITLE = "Leave without finishing?";
-const DIALOG_DESCRIPTION =
-  "You have unsaved changes. If you leave, this attempt and any temporary uploads will be discarded.";
-const DIALOG_CANCEL_LABEL = "Keep editing";
-const DIALOG_CONFIRM_LABEL = "Leave";
+ DIALOG_TITLE = "Leave without finishing?",
+ DIALOG_DESCRIPTION =
+  "You have unsaved changes. If you leave, this attempt and any temporary uploads will be discarded.",
+ DIALOG_CANCEL_LABEL = "Keep editing",
+ DIALOG_CONFIRM_LABEL = "Leave";
 
 interface UseFormDraftGuardOptions<TFieldValues extends FieldValues> {
   /** Extra dirty state not tracked by react-hook-form (e.g. selected files). */
@@ -54,14 +54,14 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
 }: UseFormDraftGuardOptions<TFieldValues> & {
   defaultValues?: TFieldValues;
 }) {
-  const [hasSavedDraft, setHasSavedDraft] = useState(false);
-  const formIsDirty = form.formState.isDirty;
-  const hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState);
-  const skipNextPersistenceRef = useRef(false);
-  const defaultValuesRef = useRef(defaultValues);
+  const [hasSavedDraft, setHasSavedDraft] = useState(false),
+   formIsDirty = form.formState.isDirty,
+   hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState),
+   skipNextPersistenceRef = useRef(false),
+   defaultValuesRef = useRef(defaultValues),
 
   // Keep latest dirty state readable from blocker callbacks.
-  const dirtyRef = useRef(hasUnsavedChanges);
+   dirtyRef = useRef(hasUnsavedChanges);
   dirtyRef.current = hasUnsavedChanges;
   const bypassRef = useRef(false);
 
@@ -113,22 +113,22 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     enableBeforeUnload: () => dirtyRef.current && !bypassRef.current,
     shouldBlockFn: () => dirtyRef.current && !bypassRef.current,
     withResolver: true,
-  });
+  }),
 
-  const allowNavigation = () => {
+   allowNavigation = () => {
     bypassRef.current = true;
-  };
+  },
 
-  const clearDraft = () => {
+   clearDraft = () => {
     try {
       window.localStorage.removeItem(storageKey);
       setHasSavedDraft(false);
     } catch {
       // Persistence is best-effort.
     }
-  };
+  },
 
-  const resetDraft = () => {
+   resetDraft = () => {
     skipNextPersistenceRef.current = true;
     clearDraft();
     if (defaultValues) {
@@ -139,18 +139,18 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
     queueMicrotask(() => {
       skipNextPersistenceRef.current = false;
     });
-  };
+  },
 
-  const discardAndProceed = async () => {
+   discardAndProceed = async () => {
     try {
       await onDiscard?.();
     } finally {
       clearDraft();
       proceed?.();
     }
-  };
+  },
 
-  const blockerDialog = (
+   blockerDialog = (
     <AlertDialog
       onOpenChange={(open) => {
         if (!open) {

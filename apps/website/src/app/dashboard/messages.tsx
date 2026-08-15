@@ -1,14 +1,19 @@
+"use client";
+
 import { useUploadFiles } from "@better-upload/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  LoaderCircle,
   FolderKanban,
+  LoaderCircle,
   MessageSquare,
   Paperclip,
   Plus,
   Search,
   Send,
+  Sparkles,
   Star,
+  UserCheck,
+  UserRoundPlus,
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
@@ -28,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { usePresence } from "@/lib/presence-context";
 import {
   useConversationMessagesQuery,
   useConversationsQuery,
@@ -35,6 +41,7 @@ import {
   useFriendsQuery,
   useLibraryPurchasesQuery,
   useLibrarySavedQuery,
+  usePeopleSearchQuery,
   useStartConversationMutation,
 } from "@/lib/soundkit-api-hooks";
 import type {
@@ -43,8 +50,23 @@ import type {
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
+interface MessagesSearch {
+  conversationId?: string;
+  friendId?: string;
+}
+
 export const Route = createFileRoute("/dashboard/messages")({
   component: MessagesPage,
+  validateSearch: (search: Record<string, unknown>): MessagesSearch => ({
+    conversationId:
+      typeof search.conversationId === "string" && search.conversationId
+        ? search.conversationId
+        : undefined,
+    friendId:
+      typeof search.friendId === "string" && search.friendId
+        ? search.friendId
+        : undefined,
+  }),
 });
 
 const initials = (value: string) =>
@@ -56,10 +78,27 @@ const initials = (value: string) =>
     .toUpperCase();
 
 function MessagesPage() {
-  const conversationsQuery = useConversationsQuery(),
+  const searchParams = Route.useSearch(),
+    conversationsQuery = useConversationsQuery(),
+    friendsQuery = useFriendsQuery(),
     conversations = useMemo(
-    () => conversationsQuery.data ?? [],
-    [conversationsQuery.data]
+      () =>
+        Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
+      [conversationsQuery.data]
+    ),
+    friends = useMemo(
+      () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+      [friendsQuery.data]
+    ),
+    // Messageable connections: mutual friends & track collaborators
+    messageableFriends = useMemo(
+      () =>
+        friends.filter(
+          (friend) =>
+            friend.relationship === "friend" ||
+            friend.relationship === "collaborator"
+        ),
+      [friends]
     ),
     [selectedId, setSelectedId] = useState(""),
     [searchQuery, setSearchQuery] = useState(""),
@@ -75,16 +114,51 @@ function MessagesPage() {
     >([]),
     [composerText, setComposerText] = useState(""),
     [isCollaborationOpen, setIsCollaborationOpen] = useState(false),
-    [isNewChatOpen, setIsNewChatOpen] = useState(false);
+    [isNewChatOpen, setIsNewChatOpen] = useState(false),
+    [targetFriendId, setTargetFriendId] = useState<string | undefined>();
 
+  // Handle URL search params (friendId or conversationId)
   useEffect(() => {
+    if (searchParams.conversationId) {
+      setSelectedId(searchParams.conversationId);
+      return;
+    }
+
+    if (searchParams.friendId) {
+      const targetFriend = friends.find((f) => f.id === searchParams.friendId),
+        // Check if conversation already exists with this friend
+        existing = conversations.find(
+          (c) =>
+            targetFriend &&
+            (c.title.toLowerCase().includes(targetFriend.name.toLowerCase()) ||
+              (targetFriend.username &&
+                c.title
+                  .toLowerCase()
+                  .includes(targetFriend.username.toLowerCase())))
+        );
+
+      if (existing) {
+        setSelectedId(existing.id);
+      } else {
+        setTargetFriendId(searchParams.friendId);
+        setIsNewChatOpen(true);
+      }
+      return;
+    }
+
     if (!selectedId && conversations[0]) {
       setSelectedId(conversations[0].id);
     }
-  }, [conversations, selectedId]);
+  }, [
+    conversations,
+    friends,
+    searchParams.conversationId,
+    searchParams.friendId,
+    selectedId,
+  ]);
 
   const selectedConversation = conversations.find(
-    (conversation) => conversation.id === selectedId
+      (conversation) => conversation.id === selectedId
     ),
     messagesQuery = useConversationMessagesQuery(selectedId),
     sendMessage = useCreateMessageMutation(selectedId),
@@ -107,25 +181,43 @@ function MessagesPage() {
       },
     }),
     filteredConversations = conversations.filter((conversation) =>
-    conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
+      conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
     ),
     submitMessage = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+      event.preventDefault();
 
       if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
-      return;
-    }
-
-    sendMessage.mutate(
-        { attachments, body: composerText.trim() },
-      {
-          onSuccess: () => {
-            setAttachments([]);
-            setComposerText("");
-          },
+        return;
       }
-    );
-  };
+
+      sendMessage.mutate(
+        {
+          attachments,
+          body: composerText.trim(),
+        },
+        {
+          onSuccess: () => {
+            setComposerText("");
+            setAttachments([]);
+          },
+        }
+      );
+    },
+    handleStartChatWithFriend = (friend: FriendSummary) => {
+      const existing = conversations.find(
+        (c) =>
+          c.title.toLowerCase().includes(friend.name.toLowerCase()) ||
+          (friend.username &&
+            c.title.toLowerCase().includes(friend.username.toLowerCase()))
+      );
+
+      if (existing) {
+        setSelectedId(existing.id);
+      } else {
+        setTargetFriendId(friend.id);
+        setIsNewChatOpen(true);
+      }
+    };
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
@@ -135,17 +227,20 @@ function MessagesPage() {
             Messages
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Chat with your collaborators
+            Chat with your friends and music collaborators
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            className="bg-card/40 border-border/40"
+            asChild
             size="sm"
             variant="outline"
+            className="bg-card/40 border-border/40"
           >
-            <Star className="mr-2 size-3.5" />
-            Starred
+            <Link to="/dashboard/collaborators">
+              <UserRoundPlus className="mr-2 size-3.5" />
+              Friends &amp; Collaborators
+            </Link>
           </Button>
           <Button
             className="shadow-lg shadow-primary/20"
@@ -159,18 +254,70 @@ function MessagesPage() {
       </div>
 
       <div className="flex flex-1 gap-4 overflow-hidden">
-        <Card className="flex h-full w-full flex-col overflow-hidden border-border/40 bg-card/40 backdrop-blur-md md:w-80">
-          <div className="border-b border-border/20 p-4">
+        {/* Conversations sidebar */}
+        <Card className="flex w-full flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96">
+          <div className="border-b border-border/20 p-3">
             <div className="relative">
-              <Search className="-translate-y-1/2 absolute left-3 top-1/2 size-4 text-muted-foreground" />
+              <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
               <Input
-                className="border-none bg-muted/30 pl-9 focus-visible:ring-1 focus-visible:ring-primary/30"
+                className="bg-muted/50 pl-8 text-xs"
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search chats..."
                 value={searchQuery}
               />
             </div>
           </div>
+
+          {/* Quick Active Friends & Collaborators Bar */}
+          {messageableFriends.length > 0 && (
+            <div className="border-b border-border/20 p-3 bg-muted/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Friends Online ({onlineFriends.length})
+                </span>
+                <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {onlineFriends.length} online
+                </span>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-1 custom-scrollbar">
+                {messageableFriends.map((friend) => {
+                  const isOnline = isUserOnline(friend.id);
+                  return (
+                    <button
+                      key={friend.id}
+                      className="flex flex-col items-center gap-1 shrink-0 group text-center focus:outline-none"
+                      onClick={() => handleStartChatWithFriend(friend)}
+                      type="button"
+                      title={`${friend.name} (${isOnline ? "Online" : "Offline"})`}
+                    >
+                      <div className="relative">
+                        <Avatar className="size-10 border-2 border-border/40 group-hover:border-primary/50 transition-all">
+                          <AvatarImage src={friend.avatarUrl ?? undefined} />
+                          <AvatarFallback className="text-[10px]">
+                            {initials(friend.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span
+                          className={cn(
+                            "absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-background shadow-sm transition-colors",
+                            isOnline
+                              ? "bg-emerald-500 animate-pulse shadow-emerald-500/30"
+                              : "bg-muted-foreground/30"
+                          )}
+                        />
+                      </div>
+                      <span className="text-[10px] truncate max-w-[54px] text-muted-foreground group-hover:text-foreground">
+                        {friend.name.split(" ")[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Conversations List */}
           <div className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-2">
             {conversationsQuery.isLoading && (
               <p className="p-4 text-sm text-muted-foreground">
@@ -183,7 +330,7 @@ function MessagesPage() {
                   <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
                   <p className="font-medium text-sm">No conversations</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Start a new chat with a friend or collaborator.
+                    Start a new chat with a friend or collaborator above.
                   </p>
                 </div>
               )}
@@ -198,25 +345,38 @@ function MessagesPage() {
           </div>
         </Card>
 
+        {/* Chat area */}
         <Card className="hidden flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:flex">
           {selectedConversation ? (
             <>
               <div className="flex items-center justify-between border-b border-border/20 bg-white/[0.02] p-4">
                 <div className="flex items-center gap-3">
-                  <Avatar className="size-10 border-2 border-border/40">
-                    <AvatarFallback>
-                      {initials(selectedConversation.title)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative">
+                    <Avatar className="size-10 border-2 border-border/40">
+                      <AvatarFallback>
+                        {initials(selectedConversation.title)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                  </div>
                   <div>
                     <h3 className="font-semibold text-sm leading-none">
                       {selectedConversation.title}
                     </h3>
-                    <Badge className="mt-2 capitalize" variant="secondary">
-                      {selectedConversation.conversationType}
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Badge
+                        className="capitalize text-[10px] px-1.5 py-0"
+                        variant="secondary"
+                      >
+                        {selectedConversation.conversationType}
+                      </Badge>
+                      <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
+                        Active now
+                      </span>
+                    </div>
                   </div>
                 </div>
+
                 <Button
                   onClick={() => setIsCollaborationOpen(true)}
                   size="sm"
@@ -235,9 +395,11 @@ function MessagesPage() {
                 )}
                 {(messagesQuery.data ?? []).map((message) => (
                   <div className="flex justify-start" key={message.id}>
-                    <div className="max-w-[75%] rounded-2xl rounded-bl-none border border-border/20 bg-muted/80 px-4 py-3 text-sm">
-                      {message.body ? <p>{message.body}</p> : null}
-                      {message.attachments.map((attachment) => (
+                    <div className="max-w-[75%] rounded-2xl rounded-bl-none border border-border/20 bg-muted/80 px-4 py-3 text-sm shadow-sm">
+                      {message.body ? (
+                        <p className="whitespace-pre-wrap">{message.body}</p>
+                      ) : null}
+                      {message.attachments?.map((attachment) => (
                         <a
                           className="mt-2 block rounded-lg border bg-background/60 p-2 text-xs hover:border-primary"
                           href={attachment.url}
@@ -250,7 +412,10 @@ function MessagesPage() {
                         </a>
                       ))}
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        {new Date(message.createdAt).toLocaleString()}
+                        {new Date(message.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                   </div>
@@ -261,7 +426,7 @@ function MessagesPage() {
                       <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
                       <p className="font-medium">No messages yet</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Send the first message to get this chat moving.
+                        Send the first message to start this chat.
                       </p>
                     </div>
                   )}
@@ -275,13 +440,14 @@ function MessagesPage() {
                   <div className="mb-2 flex flex-wrap gap-2">
                     {attachments.map((attachment) => (
                       <Badge
-                        className="gap-1"
+                        className="gap-1 text-xs"
                         key={attachment.url}
                         variant="secondary"
                       >
+                        <Paperclip className="size-3" />
                         {attachment.displayName}
                         <button
-                          aria-label={`Remove ${attachment.displayName}`}
+                          aria-label={`Remove attachment ${attachment.displayName}`}
                           onClick={() =>
                             setAttachments((current) =>
                               current.filter(
@@ -297,74 +463,6 @@ function MessagesPage() {
                     ))}
                   </div>
                 ) : null}
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
-                    <Paperclip className="size-3" />
-                    {isUploading ? "Uploading…" : "Attach file"}
-                    <input
-                      className="sr-only"
-                      disabled={isUploading}
-                      multiple
-                      onChange={(event) => {
-                        const files = [...(event.target.files ?? [])].slice(
-                          0,
-                          8
-                        );
-                        if (files.length > 0) {
-                          void upload(files);
-                        }
-                      }}
-                      type="file"
-                    />
-                  </label>
-                  <select
-                    aria-label="Attach saved or purchased music"
-                    className="h-7 rounded-md border bg-background px-2 text-xs"
-                    defaultValue=""
-                    onChange={(event) => {
-                      const track = [
-                        ...(savedTracksQuery.data ?? []),
-                        ...(purchasesQuery.data ?? [])
-                          .filter((item) => item.productType === "track")
-                          .map((item) => ({
-                            artist: item.artist,
-                            id: item.productId ?? item.id,
-                            title: item.title,
-                          })),
-                      ].find((item) => item.id === event.target.value);
-                      if (!track) {
-                        return;
-                      }
-                      setAttachments((current) => [
-                        ...current.filter(
-                          (item) => item.sourceTrackId !== track.id
-                        ),
-                        {
-                          displayName: `${track.title} by ${track.artist}`,
-                          sourceTrackId: track.id,
-                          url: `/tracks/${track.id}`,
-                        },
-                      ]);
-                      event.target.value = "";
-                    }}
-                  >
-                    <option value="">Attach saved or purchased music…</option>
-                    {[
-                      ...(savedTracksQuery.data ?? []),
-                      ...(purchasesQuery.data ?? [])
-                        .filter((item) => item.productType === "track")
-                        .map((item) => ({
-                          artist: item.artist,
-                          id: item.productId ?? item.id,
-                          title: item.title,
-                        })),
-                    ].map((track) => (
-                      <option key={track.id} value={track.id}>
-                        {track.title} · {track.artist}
-                      </option>
-                    ))}
-                  </select>
-                </div>
                 <div className="flex items-center gap-2 rounded-2xl border border-border/20 bg-muted/40 p-1.5 pl-3 backdrop-blur-xl transition-all focus-within:ring-1 focus-within:ring-primary/20">
                   <Input
                     className="h-10 border-none bg-transparent px-1 text-sm focus-visible:ring-0"
@@ -372,6 +470,23 @@ function MessagesPage() {
                     placeholder="Type your message..."
                     value={composerText}
                   />
+                  <label
+                    className="inline-flex size-10 cursor-pointer items-center justify-center rounded-xl text-muted-foreground hover:bg-muted"
+                    title="Upload file attachment"
+                  >
+                    <Paperclip className="size-4" />
+                    <input
+                      className="hidden"
+                      disabled={isUploading}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          upload([file]);
+                        }
+                      }}
+                      type="file"
+                    />
+                  </label>
                   <Button
                     className="size-10 shrink-0 rounded-xl shadow-lg shadow-primary/20"
                     disabled={
@@ -382,12 +497,57 @@ function MessagesPage() {
                     size="icon"
                     type="submit"
                   >
-                    {sendMessage.isPending ? (
+                    {sendMessage.isPending || isUploading ? (
                       <LoaderCircle className="size-4 animate-spin" />
                     ) : (
                       <Send className="size-4" />
                     )}
                   </Button>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <span>Attach music from library:</span>
+                  {(savedTracksQuery.data ?? []).slice(0, 3).map((track) => (
+                    <button
+                      className="underline hover:text-foreground"
+                      key={track.id}
+                      onClick={() =>
+                        setAttachments((current) => [
+                          ...current,
+                          {
+                            displayName: track.title,
+                            sourceTrackId: track.id,
+                            url: track.streamUrl,
+                          },
+                        ])
+                      }
+                      type="button"
+                    >
+                      +{track.title}
+                    </button>
+                  ))}
+                  {(purchasesQuery.data ?? []).slice(0, 2).map((purchase) =>
+                    purchase.track ? (
+                      <button
+                        className="underline hover:text-foreground"
+                        key={purchase.id}
+                        onClick={() =>
+                          setAttachments((current) => [
+                            ...current,
+                            {
+                              displayName:
+                                purchase.track?.title ?? "Purchased track",
+                              sourceTrackId: purchase.trackId ?? undefined,
+                              url: purchase.track?.audioMasterUrl ?? "",
+                            },
+                          ])
+                        }
+                        type="button"
+                      >
+                        +{purchase.track.title}
+                      </button>
+                    ) : null
+                  )}
                 </div>
               </form>
             </>
@@ -397,7 +557,8 @@ function MessagesPage() {
                 <MessageSquare className="mx-auto mb-3 size-10 text-muted-foreground/30" />
                 <p className="font-medium">Select or start a conversation</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Your real collaborator messages will appear here.
+                  Pick a friend from the left or click New Chat to start
+                  messaging.
                 </p>
               </div>
             </div>
@@ -410,7 +571,12 @@ function MessagesPage() {
         open={isCollaborationOpen}
         onOpenChange={setIsCollaborationOpen}
       />
-      <NewChatDialog open={isNewChatOpen} onOpenChange={setIsNewChatOpen} />
+      <NewChatDialog
+        initialFriendId={targetFriendId}
+        onOpenChange={setIsNewChatOpen}
+        onConversationCreated={(id) => setSelectedId(id)}
+        open={isNewChatOpen}
+      />
     </div>
   );
 }
@@ -495,9 +661,13 @@ function CollaborationDialog({
 }
 
 function NewChatDialog({
+  initialFriendId,
+  onConversationCreated,
   onOpenChange,
   open,
 }: {
+  initialFriendId?: string;
+  onConversationCreated?: (id: string) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
@@ -506,127 +676,280 @@ function NewChatDialog({
     [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]),
     [message, setMessage] = useState(""),
     [search, setSearch] = useState(""),
-    friends = friendsQuery.data?.friends ?? [],
-    normalizedSearch = search.trim().replace(/^@/, "").toLowerCase(),
-    filteredFriends = friends.filter((friend) =>
-    [friend.name, friend.username, friend.email, friend.role]
-      .filter(Boolean)
-      .some((value) => value?.toLowerCase().includes(normalizedSearch))
+    peopleSearchQuery = usePeopleSearchQuery(search),
+    friends = useMemo(
+      () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+      [friendsQuery.data]
     ),
-    selectedIds = new Set(selectedFriends.map((friend) => friend.id)),
-    availableFriends = filteredFriends.filter(
-    (friend) => !selectedIds.has(friend.id)
-    ),
-    startChat = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+    { isUserOnline } = usePresence();
 
-    if (selectedFriends.length === 0 || !message.trim()) {
-      return;
-    }
-
-    startConversation.mutate(
-      {
-        conversation: {
-          participantUserIds: selectedFriends.map((friend) => friend.id),
-          title: selectedFriends.map((friend) => friend.name).join(", "),
-        },
-        message: { body: message.trim() },
-      },
-      {
-        onSuccess: () => {
-          setMessage("");
-          setSearch("");
-          setSelectedFriends([]);
-          onOpenChange(false);
-        },
+  // Preselect initialFriendId when dialog opens
+  useEffect(() => {
+    if (open && initialFriendId && friends.length > 0) {
+      const match = friends.find((f) => f.id === initialFriendId);
+      if (match) {
+        setSelectedFriends((current) =>
+          current.some((f) => f.id === match.id) ? current : [...current, match]
+        );
       }
-    );
-  };
+    }
+  }, [open, initialFriendId, friends]);
+
+  const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase(),
+    // Combine local friends with database search results
+    allCandidates = useMemo(() => {
+      const candidatesMap = new Map<string, FriendSummary>();
+
+      // 1. Add all local friends/collaborators/following/fans
+      for (const friend of friends) {
+        candidatesMap.set(friend.id, friend);
+      }
+
+      // 2. Merge in database search results
+      if (Array.isArray(peopleSearchQuery.data)) {
+        for (const person of peopleSearchQuery.data) {
+          if (!candidatesMap.has(person.userId)) {
+            candidatesMap.set(person.userId, {
+              avatarUrl: person.avatarUrl,
+              email: person.email,
+              id: person.userId,
+              lastInteractionAt: null,
+              name: person.displayName,
+              relationship: "user",
+              role: person.stageName ? "Artist" : "User",
+              username: person.username,
+            });
+          }
+        }
+      }
+
+      return [...candidatesMap.values()];
+    }, [friends, peopleSearchQuery.data]),
+    selectedIds = useMemo(
+      () => new Set(selectedFriends.map((f) => f.id)),
+      [selectedFriends]
+    ),
+    // Filter candidates based on search query and exclude already selected
+    filteredCandidates = useMemo(
+      () =>
+        allCandidates
+          .filter((candidate) => !selectedIds.has(candidate.id))
+          .filter((candidate) => {
+            if (!normalizedSearch) {
+              return true;
+            }
+            return [
+              candidate.name,
+              candidate.username,
+              candidate.email,
+              candidate.role,
+            ]
+              .filter(Boolean)
+              .some((val) => val?.toLowerCase().includes(normalizedSearch));
+          }),
+      [allCandidates, selectedIds, normalizedSearch]
+    ),
+    isGroupChat = selectedFriends.length > 1,
+    startChat = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (selectedFriends.length === 0) {
+        return;
+      }
+
+      startConversation.mutate(
+        {
+          conversation: {
+            participantUserIds: selectedFriends.map((friend) => friend.id),
+            title: isGroupChat
+              ? selectedFriends.map((friend) => friend.name).join(", ")
+              : undefined,
+          },
+          message: message.trim() ? { body: message.trim() } : undefined,
+        },
+        {
+          onSuccess: (res) => {
+            setMessage("");
+            setSearch("");
+            setSelectedFriends([]);
+            onOpenChange(false);
+            if (res?.id && onConversationCreated) {
+              onConversationCreated(res.id);
+            }
+          },
+        }
+      );
+    };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New Chat</DialogTitle>
+          <DialogTitle className="flex items-center justify-between text-base">
+            <span>
+              {isGroupChat
+                ? `New Group Chat (${selectedFriends.length})`
+                : "New Chat"}
+            </span>
+            {isGroupChat && (
+              <Badge
+                variant="secondary"
+                className="text-xs bg-primary/20 text-primary"
+              >
+                Group Chat
+              </Badge>
+            )}
+          </DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={startChat}>
           <div className="space-y-2">
-            <Input
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search friends or collaborators"
-              value={search}
-            />
-            <div className="flex flex-wrap gap-2">
-              {selectedFriends.map((friend) => (
-                <Badge className="gap-1" key={friend.id} variant="secondary">
-                  {friend.name}
-                  <button
-                    aria-label={`Remove ${friend.name}`}
-                    onClick={() =>
-                      setSelectedFriends((current) =>
-                        current.filter((item) => item.id !== friend.id)
-                      )
-                    }
-                    type="button"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </Badge>
-              ))}
+            <div className="relative">
+              <Input
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by name, @username, or email..."
+                value={search}
+                className="pr-8"
+              />
+              {peopleSearchQuery.isFetching && (
+                <LoaderCircle className="absolute right-2.5 top-2.5 size-4 animate-spin text-muted-foreground" />
+              )}
             </div>
+
+            {selectedFriends.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-muted/30 border">
+                <span className="text-[11px] font-medium text-muted-foreground mr-1">
+                  To:
+                </span>
+                {selectedFriends.map((friend) => (
+                  <Badge
+                    className="gap-1 text-xs py-1"
+                    key={friend.id}
+                    variant="secondary"
+                  >
+                    {friend.name}
+                    <button
+                      aria-label={`Remove ${friend.name}`}
+                      onClick={() =>
+                        setSelectedFriends((current) =>
+                          current.filter((item) => item.id !== friend.id)
+                        )
+                      }
+                      type="button"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="max-h-44 space-y-2 overflow-y-auto rounded-lg border border-border/40 p-2">
-            {availableFriends.map((friend) => (
+          <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-border/40 p-2">
+            {filteredCandidates.map((candidate) => (
               <button
-                className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted"
-                key={friend.id}
+                className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted transition-colors group"
+                key={candidate.id}
                 onClick={() =>
-                  setSelectedFriends((current) => [...current, friend])
+                  setSelectedFriends((current) => [...current, candidate])
                 }
                 type="button"
               >
-                <Avatar className="size-8">
-                  <AvatarImage src={friend.avatarUrl ?? undefined} />
-                  <AvatarFallback>{initials(friend.name)}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{friend.name}</p>
+                <div className="relative">
+                  <Avatar className="size-8">
+                    <AvatarImage src={candidate.avatarUrl ?? undefined} />
+                    <AvatarFallback>{initials(candidate.name)}</AvatarFallback>
+                  </Avatar>
+                  <span
+                    className={cn(
+                      "absolute bottom-0 right-0 size-2 rounded-full ring-1 ring-background transition-colors",
+                      isUserOnline(candidate.id)
+                        ? "bg-emerald-500 shadow-sm"
+                        : "bg-muted-foreground/30"
+                    )}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium group-hover:text-primary transition-colors">
+                    {candidate.name}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {friend.username ? `@${friend.username}` : friend.email}
+                    {candidate.username
+                      ? `@${candidate.username}`
+                      : candidate.email}
                   </p>
                 </div>
+                {candidate.relationship === "collaborator" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-violet-400 border-violet-500/30"
+                  >
+                    Collaborator
+                  </Badge>
+                ) : candidate.relationship === "friend" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-emerald-400 border-emerald-500/30"
+                  >
+                    Friend
+                  </Badge>
+                ) : candidate.relationship === "following" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-sky-400 border-sky-500/30"
+                  >
+                    Following
+                  </Badge>
+                ) : candidate.relationship === "fan" ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-amber-400 border-amber-500/30"
+                  >
+                    Fan
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-muted-foreground"
+                  >
+                    {candidate.role ?? "User"}
+                  </Badge>
+                )}
               </button>
             ))}
-            {availableFriends.length === 0 && (
-              <p className="p-4 text-center text-sm text-muted-foreground">
-                No friends or collaborators match that search.
-              </p>
+            {filteredCandidates.length === 0 && (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                {search.trim().length > 0
+                  ? `No users found matching "${search}".`
+                  : (selectedFriends.length > 0
+                    ? "Type above to search and add more participants."
+                    : "Search users by name, username, or email to start a conversation.")}
+              </div>
             )}
           </div>
 
           <Textarea
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Write the first message"
+            placeholder="Type a message (optional)..."
             value={message}
+            className="min-h-[80px]"
           />
 
-          <div className="flex justify-between gap-3">
-            <Button asChild={true} type="button" variant="outline">
-              <Link to="/dashboard/collaborators">Add Friend</Link>
+          <div className="flex items-center justify-between gap-3">
+            <Button asChild={true} type="button" variant="outline" size="sm">
+              <Link to="/dashboard/collaborators">Manage Friends</Link>
             </Button>
             <Button
               disabled={
-                selectedFriends.length === 0 ||
-                !message.trim() ||
-                startConversation.isPending
+                selectedFriends.length === 0 || startConversation.isPending
               }
               type="submit"
             >
               {startConversation.isPending && (
                 <LoaderCircle className="mr-2 size-4 animate-spin" />
               )}
-              Start Chat
+              {isGroupChat
+                ? `Start Group Chat (${selectedFriends.length})`
+                : "Start Chat"}
             </Button>
           </div>
         </form>
@@ -658,11 +981,16 @@ function ConversationItem({
       {isSelected && (
         <div className="-left-1 absolute top-1/2 h-6 w-1.5 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
       )}
-      <Avatar className="size-11 border-2 border-border/10 transition-colors group-hover:border-primary/20">
-        <AvatarFallback className="bg-muted text-xs">
-          {initials(conversation.title)}
-        </AvatarFallback>
-      </Avatar>
+      <div className="relative">
+        <Avatar className="size-11 border-2 border-border/10 transition-colors group-hover:border-primary/20">
+          <AvatarFallback className="bg-muted text-xs">
+            {initials(conversation.title)}
+          </AvatarFallback>
+        </Avatar>
+        {conversation.unreadCount > 0 && (
+          <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-primary ring-2 ring-background shadow-sm" />
+        )}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-center justify-between">
           <p

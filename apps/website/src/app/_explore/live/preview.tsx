@@ -96,31 +96,31 @@ export function LivePreviewShowcase({
   defaultPerspective?: "viewer" | "artist";
   defaultTab?: "battle" | "challenge" | "stream" | "party";
 }) {
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<
+  const { toast } = useToast(),
+   [activeTab, setActiveTab] = useState<
     "battle" | "challenge" | "stream" | "party"
-  >(defaultTab);
-  const [perspective, setPerspective] = useState<"viewer" | "artist">(
+  >(defaultTab),
+   [perspective, setPerspective] = useState<"viewer" | "artist">(
     defaultPerspective
-  );
-  const [battlePhase, setBattlePhase] = useState<
+  ),
+   [battlePhase, setBattlePhase] = useState<
     "track_select" | "round_active" | "voting" | "grace_period"
-  >("round_active");
-  const [challengeSearch, setChallengeSearch] = useState("Kanye West");
-  const [challengeSchedule, setChallengeSchedule] = useState<
+  >("round_active"),
+   [challengeSearch, setChallengeSearch] = useState("Kanye West"),
+   [challengeSchedule, setChallengeSchedule] = useState<
     "asap" | "scheduled"
-  >("asap");
-  const [viewMode, setViewMode] = useState<"stage" | "lyrics" | "tracklist">(
+  >("asap"),
+   [viewMode, setViewMode] = useState<"stage" | "lyrics" | "tracklist">(
     "stage"
-  );
-  const [selectedVote, setSelectedVote] = useState<string | null>(null);
-  const [isSubmittingVote, setIsSubmittingVote] = useState(false);
-  const [obsConnected, setObsConnected] = useState(true);
-  const [artistCameraActive, setArtistCameraActive] = useState(true);
-  const [selectCountdown, setSelectCountdown] = useState(24);
+  ),
+   [selectedVote, setSelectedVote] = useState<string | null>(null),
+   [isSubmittingVote, setIsSubmittingVote] = useState(false),
+   [obsConnected, setObsConnected] = useState(true),
+   [artistCameraActive, setArtistCameraActive] = useState(true),
+   [selectCountdown, setSelectCountdown] = useState(24),
 
   // Pre-loaded Battle Kit tracks
-  const [battleKit, setBattleKit] = useState<BattleKitTrack[]>([
+   [battleKit, setBattleKit] = useState<BattleKitTrack[]>([
     {
       duration: "2:45",
       id: "bk-1",
@@ -145,12 +145,12 @@ export function LivePreviewShowcase({
       status: "available",
       title: "Tiebreaker: Final Knockout Beat",
     },
-  ]);
+  ]),
 
-  const [selectedTrackId, setSelectedTrackId] = useState("bk-2");
+   [selectedTrackId, setSelectedTrackId] = useState("bk-2"),
 
   // Timed synchronized lyrics
-  const lyrics: TimedLyricLine[] = [
+   lyrics: TimedLyricLine[] = [
     { text: "Yeah, stepping in the arena, battle lights on", time: "0:04" },
     {
       active: true,
@@ -166,9 +166,9 @@ export function LivePreviewShowcase({
       text: "No ghostwriters here, strictly master tracks playing live",
       time: "0:30",
     },
-  ];
+  ],
 
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+   [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: "1",
       sender: "MetroFlow",
@@ -187,8 +187,8 @@ export function LivePreviewShowcase({
       text: "🤖 Round 1 complete. 2-minute voting is now OPEN for active viewers!",
       time: "10:14",
     },
-  ]);
-  const [chatInput, setChatInput] = useState("");
+  ]),
+   [chatInput, setChatInput] = useState("");
 
   useEffect(() => {
     if (battlePhase === "track_select" && selectCountdown > 0) {
@@ -215,9 +215,9 @@ export function LivePreviewShowcase({
       },
     ]);
     setChatInput("");
-  };
+  },
 
-  const handleCastVote = (candidate: string) => {
+   handleCastVote = (candidate: string) => {
     if (perspective === "artist") {
       toast({
         description:
@@ -245,9 +245,9 @@ export function LivePreviewShowcase({
         title: "Vote Confirmed! 🗳️",
       });
     }, 300);
-  };
+  },
 
-  const handleConfirmTrackSelection = () => {
+   handleConfirmTrackSelection = () => {
     const chosen = battleKit.find((t) => t.id === selectedTrackId);
     if (!chosen) {
       return;
@@ -261,9 +261,9 @@ export function LivePreviewShowcase({
       description: `${chosen.title} is locked and ready for your turn.`,
       title: "Battle Track Locked 🔒",
     });
-  };
+  },
 
-  const copyToClipboard = (text: string, label: string) => {
+   copyToClipboard = (text: string, label: string) => {
     void navigator.clipboard
       .writeText(text)
       .then(() => {
@@ -273,9 +273,9 @@ export function LivePreviewShowcase({
         });
       })
       .catch(() => {});
-  };
+  },
 
-  const currentTrackObj =
+   currentTrackObj =
     battleKit.find((t) => t.id === selectedTrackId) || battleKit[1];
 
   return (
@@ -633,9 +633,9 @@ export function LivePreviewShowcase({
                             variant={
                               track.status === "played"
                                 ? "secondary"
-                                : track.status === "queued"
+                                : (track.status === "queued"
                                   ? "default"
-                                  : "outline"
+                                  : "outline")
                             }
                             className="text-[10px] uppercase font-bold"
                           >

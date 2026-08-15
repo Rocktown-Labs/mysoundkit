@@ -57,16 +57,16 @@ export function BattleCard({
   phaseEndsAt = null,
   isPremiumUser = false,
 }: BattleCardProps) {
-  const battleIsLive = isLive || live;
-  const timeLabel = endsIn ?? startsIn ?? views ?? "";
-  const totalVotes = track1.votes + track2.votes;
-  const track1Percentage =
-    totalVotes > 0 ? (track1.votes / totalVotes) * 100 : 0;
-  const track2Percentage =
-    totalVotes > 0 ? (track2.votes / totalVotes) * 100 : 0;
+  const battleIsLive = isLive || live,
+   timeLabel = endsIn ?? startsIn ?? views ?? "",
+   totalVotes = track1.votes + track2.votes,
+   track1Percentage =
+    totalVotes > 0 ? (track1.votes / totalVotes) * 100 : 0,
+   track2Percentage =
+    totalVotes > 0 ? (track2.votes / totalVotes) * 100 : 0,
 
-  const [roundProgress, setRoundProgress] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(0);
+   [roundProgress, setRoundProgress] = useState(0),
+   [timeRemaining, setTimeRemaining] = useState(0);
 
   useEffect(() => {
     if (!battleIsLive) {
@@ -83,8 +83,8 @@ export function BattleCard({
       const remainingSeconds = Math.max(
         0,
         Math.ceil((new Date(phaseEndsAt).getTime() - Date.now()) / 1000)
-      );
-      const phaseDuration = isVoting ? 60 : 180;
+      ),
+       phaseDuration = isVoting ? 60 : 180;
       setTimeRemaining(remainingSeconds);
       setRoundProgress(
         Math.min(
@@ -100,8 +100,8 @@ export function BattleCard({
     return () => clearInterval(interval);
   }, [battleIsLive, isVoting, phaseEndsAt]);
 
-  const canJoinNow = battleIsLive && joinMode === "watch_now";
-  const liveTimeLabel =
+  const canJoinNow = battleIsLive && joinMode === "watch_now",
+   liveTimeLabel =
     timeRemaining > 0
       ? `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60)
           .toString()

@@ -10,15 +10,15 @@ import { eq } from "drizzle-orm";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { enqueueTransactionalEmail } from "@/lib/email-delivery";
 
-const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`;
+const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
 
-const loadTrackForNotification = async (trackId: string) => {
+ loadTrackForNotification = async (trackId: string) => {
   if (!isDatabaseConfigured()) {
     return null;
   }
 
-  const db = createDb();
-  const [track] = await db
+  const db = createDb(),
+   [track] = await db
     .select({
       email: authUser.email,
       id: tracks.id,
@@ -32,9 +32,9 @@ const loadTrackForNotification = async (trackId: string) => {
     .limit(1);
 
   return track ?? null;
-};
+},
 
-const shouldSendTrackProcessingEmail = async (userId: string) => {
+ shouldSendTrackProcessingEmail = async (userId: string) => {
   if (!isDatabaseConfigured()) {
     return false;
   }

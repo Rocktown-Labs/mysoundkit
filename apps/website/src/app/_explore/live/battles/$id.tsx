@@ -30,9 +30,9 @@ export const Route = createFileRoute("/_explore/live/battles/$id")({
 });
 
 const voteTotal = (round: LiveBattleRound) =>
-  Object.values(round.voteTotals).reduce((sum, votes) => sum + votes, 0);
+  Object.values(round.voteTotals).reduce((sum, votes) => sum + votes, 0),
 
-const votePercent = (round: LiveBattleRound, artistId: string) => {
+ votePercent = (round: LiveBattleRound, artistId: string) => {
   const total = voteTotal(round);
   return total > 0
     ? Math.round(((round.voteTotals[artistId] ?? 0) / total) * 100)
@@ -80,15 +80,15 @@ function StageCard({
 }
 
 function BattlePage() {
-  const { id } = Route.useParams();
-  const router = useRouter();
-  const { chat, query, vote } = useLiveRoom(id);
-  const room = query.data;
-  const battle = room?.battle;
-  const currentRound = battle?.rounds.find(
+  const { id } = Route.useParams(),
+   router = useRouter(),
+   { chat, query, vote } = useLiveRoom(id),
+   room = query.data,
+   battle = room?.battle,
+   currentRound = battle?.rounds.find(
     (round) => round.id === battle.currentRoundId
-  );
-  const currentTrack = room?.tracklist.find(
+  ),
+   currentTrack = room?.tracklist.find(
     (track) => track.id === room.currentTrackId
   );
 

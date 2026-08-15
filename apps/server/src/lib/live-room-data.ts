@@ -64,37 +64,37 @@ export interface LiveRoomState {
   viewerCount: number;
 }
 
-const nowIso = () => new Date().toISOString();
+const nowIso = () => new Date().toISOString(),
 
-const lyrics = (lines: string[]): LiveRoomLyricsLine[] =>
+ lyrics = (lines: string[]): LiveRoomLyricsLine[] =>
   lines.map((text, index) => ({
     endMs: (index + 1) * 12_000,
     startMs: index * 12_000,
     text,
-  }));
+  })),
 
-const summerNightsLyrics = lyrics([
+ summerNightsLyrics = lyrics([
   "Sunset bleeding gold on the dashboard",
   "Windows down, we follow where the bass goes",
   "Every chorus feels like home returning",
   "Summer nights keep the whole room glowing",
-]);
+]),
 
-const midnightLyrics = lyrics([
+ midnightLyrics = lyrics([
   "Meet me where the city lights are softer",
   "I kept a melody tucked under my coat",
   "If the rhythm breaks, we rebuild it louder",
   "Midnight knows the words we never wrote",
-]);
+]),
 
-const neonLyrics = lyrics([
+ neonLyrics = lyrics([
   "Neon pulse and a wire full of thunder",
   "Your voice cuts through the static in my head",
   "Let the floor shake loose another memory",
   "We are bright enough to wake the dead",
-]);
+]),
 
-const makeTrack = (
+ makeTrack = (
   id: string,
   title: string,
   artistName: string,
@@ -375,9 +375,9 @@ const roomAliases: Record<string, string> = {
   "album-faceoff": "single-album-party",
   "party-1": "single-album-party",
   "stream-breakdown": "stream-1",
-};
+},
 
-const cloneRoom = (room: LiveRoomState): LiveRoomState => structuredClone(room);
+ cloneRoom = (room: LiveRoomState): LiveRoomState => structuredClone(room);
 
 export const findSampleLiveRoom = (roomId: string) => {
   const resolvedRoomId = roomAliases[roomId] ?? roomId;

@@ -40,58 +40,58 @@ import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
   sampleFriends = [
-  {
-    avatarUrl: "/diverse-user-avatars.png",
-    email: "alex@soundkit.app",
-    id: "sample-alex",
-    lastInteractionAt: new Date().toISOString(),
-    name: "Alex Johnson",
-    relationship: "collaborator" as const,
-    role: "Producer",
-    username: "alex",
-  },
-  {
-    avatarUrl: "/diverse-user-avatars.png",
-    email: "sam@soundkit.app",
-    id: "sample-sam",
-    lastInteractionAt: new Date().toISOString(),
-    name: "Sam Rivera",
-    relationship: "friend" as const,
-    role: "Artist",
-    username: "sam",
-  },
+    {
+      avatarUrl: "/diverse-user-avatars.png",
+      email: "alex@soundkit.app",
+      id: "sample-alex",
+      lastInteractionAt: new Date().toISOString(),
+      name: "Alex Johnson",
+      relationship: "collaborator" as const,
+      role: "Producer",
+      username: "alex",
+    },
+    {
+      avatarUrl: "/diverse-user-avatars.png",
+      email: "sam@soundkit.app",
+      id: "sample-sam",
+      lastInteractionAt: new Date().toISOString(),
+      name: "Sam Rivera",
+      relationship: "friend" as const,
+      role: "Artist",
+      username: "sam",
+    },
   ],
   toFriendRequestSummary = ({
-  createdAt,
-  direction,
-  displayName,
-  message,
-  requestId,
-  status,
-  userId,
-  username,
-  avatarUrl,
-}: {
-  avatarUrl: string | null;
-  createdAt: Date;
-  direction: "incoming" | "outgoing";
-  displayName: string | null;
-  message: string | null;
-  requestId: string;
-  status: "accepted" | "canceled" | "declined" | "pending";
-  userId: string;
-  username: string | null;
-}) => ({
-  avatarUrl,
-  createdAt: createdAt.toISOString(),
-  direction,
-  displayName: displayName ?? username ?? "SoundKit Artist",
-  id: requestId,
-  message,
-  status,
-  userId,
-  username,
-});
+    createdAt,
+    direction,
+    displayName,
+    message,
+    requestId,
+    status,
+    userId,
+    username,
+    avatarUrl,
+  }: {
+    avatarUrl: string | null;
+    createdAt: Date;
+    direction: "incoming" | "outgoing";
+    displayName: string | null;
+    message: string | null;
+    requestId: string;
+    status: "accepted" | "canceled" | "declined" | "pending";
+    userId: string;
+    username: string | null;
+  }) => ({
+    avatarUrl,
+    createdAt: createdAt.toISOString(),
+    direction,
+    displayName: displayName ?? username ?? "SoundKit Artist",
+    id: requestId,
+    message,
+    status,
+    userId,
+    username,
+  });
 
 app.openapi(
   createRoute({
@@ -127,39 +127,48 @@ app.openapi(
       term = `%${q.replaceAll("%", "\\%")}%`,
       db = createDb(),
       rows = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        displayName: userProfiles.displayName,
-        email: authUser.email,
-        name: authUser.name,
-        stageName: artistProfiles.stageName,
-        userId: authUser.id,
-        username: userProfiles.username,
-      })
-      .from(authUser)
-      .innerJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-      .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
-      .where(
-        or(
-          ilike(userProfiles.displayName, term),
-          ilike(userProfiles.username, term),
-          ilike(authUser.name, term),
-          ilike(artistProfiles.stageName, term),
-          ilike(authUser.email, term)
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          email: authUser.email,
+          name: authUser.name,
+          stageName: artistProfiles.stageName,
+          userId: authUser.id,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
+        .where(
+          and(
+            ne(authUser.id, user.id),
+            or(
+              ilike(userProfiles.displayName, term),
+              ilike(userProfiles.username, term),
+              ilike(authUser.name, term),
+              ilike(artistProfiles.stageName, term),
+              ilike(authUser.email, term)
+            )
+          )
         )
-      )
-      .orderBy(sql`coalesce(${userProfiles.displayName}, ${authUser.name})`)
-      .limit(limit);
+        .orderBy(
+          sql`coalesce(${userProfiles.displayName}, ${artistProfiles.stageName}, ${authUser.name}, ${authUser.email})`
+        )
+        .limit(limit);
 
     return c.json(
       rows.map((row) => ({
         avatarUrl: row.avatarUrl,
         displayName:
-          row.displayName ?? row.stageName ?? row.name ?? row.username,
+          row.displayName ??
+          row.stageName ??
+          row.name ??
+          row.username ??
+          "SoundKit User",
         email: row.email,
         stageName: row.stageName,
         userId: row.userId,
-        username: row.username,
+        username: row.username ?? row.email?.split("@")[0] ?? "user",
       })),
       HttpStatusCodes.OK
     );
@@ -195,33 +204,36 @@ app.openapi(
 
     const db = createDb(),
       rows = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        createdAt: artistFriendRequests.createdAt,
-        displayName: userProfiles.displayName,
-        message: artistFriendRequests.message,
-        recipientUserId: artistFriendRequests.recipientUserId,
-        requestId: artistFriendRequests.id,
-        requesterUserId: artistFriendRequests.requesterUserId,
-        status: artistFriendRequests.status,
-        username: userProfiles.username,
-      })
-      .from(artistFriendRequests)
-      .innerJoin(
-        userProfiles,
-        eq(
-          userProfiles.userId,
-          sql`case when ${artistFriendRequests.requesterUserId} = ${user.id} then ${artistFriendRequests.recipientUserId} else ${artistFriendRequests.requesterUserId} end`
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          createdAt: artistFriendRequests.createdAt,
+          displayName: userProfiles.displayName,
+          email: authUser.email,
+          message: artistFriendRequests.message,
+          name: authUser.name,
+          recipientUserId: artistFriendRequests.recipientUserId,
+          requestId: artistFriendRequests.id,
+          requesterUserId: artistFriendRequests.requesterUserId,
+          status: artistFriendRequests.status,
+          username: userProfiles.username,
+        })
+        .from(artistFriendRequests)
+        .innerJoin(
+          authUser,
+          eq(
+            authUser.id,
+            sql`case when ${artistFriendRequests.requesterUserId} = ${user.id} then ${artistFriendRequests.recipientUserId} else ${artistFriendRequests.requesterUserId} end`
+          )
         )
-      )
-      .where(
-        or(
-          eq(artistFriendRequests.requesterUserId, user.id),
-          eq(artistFriendRequests.recipientUserId, user.id)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(
+          or(
+            eq(artistFriendRequests.requesterUserId, user.id),
+            eq(artistFriendRequests.recipientUserId, user.id)
+          )
         )
-      )
-      .orderBy(desc(artistFriendRequests.createdAt))
-      .limit(100);
+        .orderBy(desc(artistFriendRequests.createdAt))
+        .limit(100);
 
     return c.json(
       rows.map((row) =>
@@ -229,7 +241,8 @@ app.openapi(
           avatarUrl: row.avatarUrl,
           createdAt: row.createdAt,
           direction: row.recipientUserId === user.id ? "incoming" : "outgoing",
-          displayName: row.displayName,
+          displayName:
+            row.displayName ?? row.name ?? row.username ?? "SoundKit Artist",
           message: row.message,
           requestId: row.requestId,
           status: row.status,
@@ -304,19 +317,19 @@ app.openapi(
 
     const db = createDb(),
       [recipient] = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        displayName: userProfiles.displayName,
-        userId: userProfiles.userId,
-        username: userProfiles.username,
-      })
-      .from(userProfiles)
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          userId: userProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
         .innerJoin(
           artistProfiles,
           eq(artistProfiles.userId, userProfiles.userId)
         )
-      .where(eq(userProfiles.username, username))
-      .limit(1);
+        .where(eq(userProfiles.username, username))
+        .limit(1);
 
     if (!recipient) {
       return c.json(
@@ -333,28 +346,28 @@ app.openapi(
     }
 
     const existingRequests = await db
-      .select({
-        recipientUserId: artistFriendRequests.recipientUserId,
-        requesterUserId: artistFriendRequests.requesterUserId,
-        status: artistFriendRequests.status,
-      })
-      .from(artistFriendRequests)
-      .where(
-        or(
-          and(
-            eq(artistFriendRequests.requesterUserId, user.id),
-            eq(artistFriendRequests.recipientUserId, recipient.userId)
-          ),
-          and(
-            eq(artistFriendRequests.requesterUserId, recipient.userId),
-            eq(artistFriendRequests.recipientUserId, user.id)
+        .select({
+          recipientUserId: artistFriendRequests.recipientUserId,
+          requesterUserId: artistFriendRequests.requesterUserId,
+          status: artistFriendRequests.status,
+        })
+        .from(artistFriendRequests)
+        .where(
+          or(
+            and(
+              eq(artistFriendRequests.requesterUserId, user.id),
+              eq(artistFriendRequests.recipientUserId, recipient.userId)
+            ),
+            and(
+              eq(artistFriendRequests.requesterUserId, recipient.userId),
+              eq(artistFriendRequests.recipientUserId, user.id)
+            )
           )
         )
-      )
         .limit(2),
       acceptedRequest = existingRequests.find(
-      (existingRequest) => existingRequest.status === "accepted"
-    );
+        (existingRequest) => existingRequest.status === "accepted"
+      );
 
     if (acceptedRequest) {
       return c.json(
@@ -411,7 +424,7 @@ app.openapi(
 
     await db.insert(userNotifications).values({
       id: crypto.randomUUID(),
-      link: "/dashboard/collaborators",
+      link: "/dashboard/collaborators?tab=requests",
       message: `${user.name ?? "An artist"} sent you a friend request.`,
       title: "New Friend Request",
       type: "artist_friend_request",
@@ -458,6 +471,10 @@ app.openapi(
         friendRequestSummarySchema,
         "Artist friend request updated"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        z.object({ message: z.string() }),
+        "Invalid friend request action"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         z.object({ message: z.string() }),
         "Friend request not found"
@@ -498,76 +515,122 @@ app.openapi(
     }
 
     const db = createDb(),
-      allowedUserClause =
-      action === "cancel"
-        ? eq(artistFriendRequests.requesterUserId, user.id)
-          : eq(artistFriendRequests.recipientUserId, user.id),
-      nextStatus =
-      action === "accept"
-        ? ("accepted" as const)
-          : action === "cancel"
-          ? ("canceled" as const)
-            : ("declined" as const);
-    const [request] = await db
-      .update(artistFriendRequests)
-      .set({
-        respondedAt: new Date(),
-        status: nextStatus,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(artistFriendRequests.id, requestId),
-          allowedUserClause,
-          eq(artistFriendRequests.status, "pending")
-        )
-      )
-      .returning();
+      [existingRequest] = await db
+        .select()
+        .from(artistFriendRequests)
+        .where(eq(artistFriendRequests.id, requestId))
+        .limit(1);
 
-    if (!request) {
+    if (!existingRequest) {
       return c.json(
         { message: "Friend request not found." },
         HttpStatusCodes.NOT_FOUND
       );
     }
 
-    if (nextStatus === "accepted") {
+    const isRequester = existingRequest.requesterUserId === user.id,
+      isRecipient = existingRequest.recipientUserId === user.id;
+
+    if (!isRequester && !isRecipient) {
+      return c.json(
+        {
+          message: "You are not authorized to respond to this friend request.",
+        },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    if (action === "cancel" && !isRequester) {
+      return c.json(
+        { message: "Only the sender can cancel a friend request." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if ((action === "accept" || action === "decline") && !isRecipient) {
+      return c.json(
+        {
+          message: "Only the recipient can accept or decline a friend request.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const nextStatus =
+      action === "accept"
+        ? ("accepted" as const)
+        : (action === "cancel"
+          ? ("canceled" as const)
+          : ("declined" as const));
+
+    let updatedRequest = existingRequest;
+
+    if (existingRequest.status === "pending") {
+      const [updated] = await db
+        .update(artistFriendRequests)
+        .set({
+          respondedAt: new Date(),
+          status: nextStatus,
+          updatedAt: new Date(),
+        })
+        .where(eq(artistFriendRequests.id, requestId))
+        .returning();
+
+      if (updated) {
+        updatedRequest = updated;
+      }
+    } else if (existingRequest.status !== nextStatus) {
+      return c.json(
+        {
+          message: `Friend request has already been ${existingRequest.status}.`,
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (nextStatus === "accepted" && existingRequest.status === "pending") {
       await db.insert(userNotifications).values({
         id: crypto.randomUUID(),
-        link: "/dashboard/messages",
+        link: `/dashboard/messages?friendId=${user.id}`,
         message: `${user.name ?? "An artist"} accepted your friend request. You can start a chat now.`,
         title: "Friend Request Accepted",
         type: "artist_friend_accepted",
-        userId: request.requesterUserId,
+        userId: updatedRequest.requesterUserId,
       });
     }
 
     const otherUserId =
-      request.recipientUserId === user.id
-        ? request.requesterUserId
-          : request.recipientUserId,
-      [otherProfile] = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        displayName: userProfiles.displayName,
-        username: userProfiles.username,
-      })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, otherUserId))
-      .limit(1);
+        updatedRequest.recipientUserId === user.id
+          ? updatedRequest.requesterUserId
+          : updatedRequest.recipientUserId,
+      [otherUser] = await db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          name: authUser.name,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(eq(authUser.id, otherUserId))
+        .limit(1);
 
     return c.json(
       toFriendRequestSummary({
-        avatarUrl: otherProfile?.avatarUrl ?? null,
-        createdAt: request.createdAt,
+        avatarUrl: otherUser?.avatarUrl ?? null,
+        createdAt: updatedRequest.createdAt,
         direction:
-          request.recipientUserId === user.id ? "incoming" : "outgoing",
-        displayName: otherProfile?.displayName ?? null,
-        message: request.message,
-        requestId: request.id,
-        status: request.status,
+          updatedRequest.recipientUserId === user.id ? "incoming" : "outgoing",
+        displayName:
+          otherUser?.displayName ??
+          otherUser?.name ??
+          otherUser?.username ??
+          null,
+        message: updatedRequest.message,
+        requestId: updatedRequest.id,
+        status: updatedRequest.status,
         userId: otherUserId,
-        username: otherProfile?.username ?? null,
+        username: otherUser?.username ?? null,
       }),
       HttpStatusCodes.OK
     );
@@ -603,93 +666,93 @@ app.openapi(
 
     const db = createDb(),
       [followRows, followerRows, friendRows, collaboratorRows] =
-      await Promise.all([
-        db
-          .select({
-            avatarUrl: userProfiles.avatarUrl,
-            displayName: userProfiles.displayName,
-            email: authUser.email,
-            id: authUser.id,
-            name: authUser.name,
-            username: userProfiles.username,
-          })
-          .from(artistFollows)
-          .innerJoin(authUser, eq(authUser.id, artistFollows.artistUserId))
-          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-          .where(eq(artistFollows.followerUserId, user.id))
-          .limit(100),
-        db
-          .select({
-            avatarUrl: userProfiles.avatarUrl,
-            displayName: userProfiles.displayName,
-            email: authUser.email,
-            id: authUser.id,
-            name: authUser.name,
-            username: userProfiles.username,
-          })
-          .from(artistFollows)
-          .innerJoin(authUser, eq(authUser.id, artistFollows.followerUserId))
-          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-          .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
-          .where(
-            and(
-              eq(artistFollows.artistUserId, user.id),
-              sql`${artistProfiles.userId} is null`
-            )
-          )
-          .limit(100),
-        db
-          .select({
-            avatarUrl: userProfiles.avatarUrl,
-            displayName: userProfiles.displayName,
-            email: authUser.email,
-            id: authUser.id,
-            name: authUser.name,
-            requestCreatedAt: artistFriendRequests.createdAt,
-            username: userProfiles.username,
-          })
-          .from(artistFriendRequests)
-          .innerJoin(
-            authUser,
-            eq(
-              authUser.id,
-              sql`case when ${artistFriendRequests.requesterUserId} = ${user.id} then ${artistFriendRequests.recipientUserId} else ${artistFriendRequests.requesterUserId} end`
-            )
-          )
-          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-          .where(
-            and(
-              eq(artistFriendRequests.status, "accepted"),
-              or(
-                eq(artistFriendRequests.requesterUserId, user.id),
-                eq(artistFriendRequests.recipientUserId, user.id)
+        await Promise.all([
+          db
+            .select({
+              avatarUrl: userProfiles.avatarUrl,
+              displayName: userProfiles.displayName,
+              email: authUser.email,
+              id: authUser.id,
+              name: authUser.name,
+              username: userProfiles.username,
+            })
+            .from(artistFollows)
+            .innerJoin(authUser, eq(authUser.id, artistFollows.artistUserId))
+            .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+            .where(eq(artistFollows.followerUserId, user.id))
+            .limit(100),
+          db
+            .select({
+              avatarUrl: userProfiles.avatarUrl,
+              displayName: userProfiles.displayName,
+              email: authUser.email,
+              id: authUser.id,
+              name: authUser.name,
+              username: userProfiles.username,
+            })
+            .from(artistFollows)
+            .innerJoin(authUser, eq(authUser.id, artistFollows.followerUserId))
+            .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+            .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
+            .where(
+              and(
+                eq(artistFollows.artistUserId, user.id),
+                sql`${artistProfiles.userId} is null`
               )
             )
-          )
-          .limit(100),
-        db
-          .select({
-            avatarUrl: userProfiles.avatarUrl,
-            collaboratorUserId: trackCollaborators.collaboratorUserId,
-            createdAt: trackCollaborators.createdAt,
-            displayName: userProfiles.displayName,
-            email: trackCollaborators.inviteEmail,
-            role: trackCollaborators.collaboratorRole,
-            username: userProfiles.username,
-          })
-          .from(trackCollaborators)
-          .leftJoin(
-            userProfiles,
-            eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
-          )
-          .where(
-            or(
-              eq(trackCollaborators.invitedByUserId, user.id),
-              eq(trackCollaborators.collaboratorUserId, user.id)
+            .limit(100),
+          db
+            .select({
+              avatarUrl: userProfiles.avatarUrl,
+              displayName: userProfiles.displayName,
+              email: authUser.email,
+              id: authUser.id,
+              name: authUser.name,
+              requestCreatedAt: artistFriendRequests.createdAt,
+              username: userProfiles.username,
+            })
+            .from(artistFriendRequests)
+            .innerJoin(
+              authUser,
+              eq(
+                authUser.id,
+                sql`case when ${artistFriendRequests.requesterUserId} = ${user.id} then ${artistFriendRequests.recipientUserId} else ${artistFriendRequests.requesterUserId} end`
+              )
             )
-          )
-          .orderBy(desc(trackCollaborators.createdAt))
-          .limit(100),
+            .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+            .where(
+              and(
+                eq(artistFriendRequests.status, "accepted"),
+                or(
+                  eq(artistFriendRequests.requesterUserId, user.id),
+                  eq(artistFriendRequests.recipientUserId, user.id)
+                )
+              )
+            )
+            .limit(100),
+          db
+            .select({
+              avatarUrl: userProfiles.avatarUrl,
+              collaboratorUserId: trackCollaborators.collaboratorUserId,
+              createdAt: trackCollaborators.createdAt,
+              displayName: userProfiles.displayName,
+              email: trackCollaborators.inviteEmail,
+              role: trackCollaborators.collaboratorRole,
+              username: userProfiles.username,
+            })
+            .from(trackCollaborators)
+            .leftJoin(
+              userProfiles,
+              eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
+            )
+            .where(
+              or(
+                eq(trackCollaborators.invitedByUserId, user.id),
+                eq(trackCollaborators.collaboratorUserId, user.id)
+              )
+            )
+            .orderBy(desc(trackCollaborators.createdAt))
+            .limit(100),
         ]),
       friends = new Map<string, z.infer<typeof friendSummarySchema>>();
 
@@ -788,52 +851,52 @@ app.openapi(
 
     const db = createDb(),
       rows = await db
-      .select({
-        conversationType: conversations.conversationType,
-        id: conversations.id,
-        title: conversations.title,
-        updatedAt: conversations.updatedAt,
-      })
-      .from(conversationParticipants)
-      .innerJoin(
-        conversations,
-        eq(conversations.id, conversationParticipants.conversationId)
-      )
-      .where(eq(conversationParticipants.userId, user.id))
-      .orderBy(desc(conversations.updatedAt))
+        .select({
+          conversationType: conversations.conversationType,
+          id: conversations.id,
+          title: conversations.title,
+          updatedAt: conversations.updatedAt,
+        })
+        .from(conversationParticipants)
+        .innerJoin(
+          conversations,
+          eq(conversations.id, conversationParticipants.conversationId)
+        )
+        .where(eq(conversationParticipants.userId, user.id))
+        .orderBy(desc(conversations.updatedAt))
         .limit(50),
       conversationIds = rows.map((row) => row.id),
       otherParticipants =
-      conversationIds.length > 0
-        ? await db
-            .select({
-              avatarUrl: userProfiles.avatarUrl,
-              conversationId: conversationParticipants.conversationId,
-              displayName: userProfiles.displayName,
-              userId: userProfiles.userId,
-              username: userProfiles.username,
-            })
-            .from(conversationParticipants)
-            .innerJoin(
-              userProfiles,
-              eq(userProfiles.userId, conversationParticipants.userId)
-            )
-            .where(
-              and(
-                inArray(
-                  conversationParticipants.conversationId,
-                  conversationIds
-                ),
-                ne(conversationParticipants.userId, user.id)
+        conversationIds.length > 0
+          ? await db
+              .select({
+                avatarUrl: userProfiles.avatarUrl,
+                conversationId: conversationParticipants.conversationId,
+                displayName: userProfiles.displayName,
+                userId: userProfiles.userId,
+                username: userProfiles.username,
+              })
+              .from(conversationParticipants)
+              .innerJoin(
+                userProfiles,
+                eq(userProfiles.userId, conversationParticipants.userId)
               )
-            )
+              .where(
+                and(
+                  inArray(
+                    conversationParticipants.conversationId,
+                    conversationIds
+                  ),
+                  ne(conversationParticipants.userId, user.id)
+                )
+              )
           : [],
       participantByConversationId = new Map(
-      otherParticipants.map((participant) => [
-        participant.conversationId,
-        participant,
-      ])
-    );
+        otherParticipants.map((participant) => [
+          participant.conversationId,
+          participant,
+        ])
+      );
 
     return c.json(
       rows.map((row) => {
@@ -887,8 +950,8 @@ app.openapi(
 
     const body = c.req.valid("json"),
       conversationType =
-      body.participantUserIds.length > 1
-        ? ("group" as const)
+        body.participantUserIds.length > 1
+          ? ("group" as const)
           : ("direct" as const),
       now = new Date();
 
@@ -912,80 +975,80 @@ app.openapi(
       conversationId = crypto.randomUUID(),
       participantUserIds = [...new Set([user.id, ...body.participantUserIds])],
       requestedParticipantUserIds = participantUserIds.filter(
-      (participantUserId) => participantUserId !== user.id
+        (participantUserId) => participantUserId !== user.id
       ),
       [acceptedFriendRows, collaboratorRows] = await Promise.all([
-      requestedParticipantUserIds.length > 0
-        ? db
-            .select({
-              recipientUserId: artistFriendRequests.recipientUserId,
-              requesterUserId: artistFriendRequests.requesterUserId,
-            })
-            .from(artistFriendRequests)
-            .where(
-              and(
-                eq(artistFriendRequests.status, "accepted"),
-                or(
-                  and(
-                    eq(artistFriendRequests.requesterUserId, user.id),
-                    inArray(
-                      artistFriendRequests.recipientUserId,
-                      requestedParticipantUserIds
-                    )
-                  ),
-                  and(
-                    eq(artistFriendRequests.recipientUserId, user.id),
-                    inArray(
-                      artistFriendRequests.requesterUserId,
-                      requestedParticipantUserIds
-                    )
-                  )
-                )
-              )
-            )
-        : [],
-      requestedParticipantUserIds.length > 0
-        ? db
-            .select({
-              collaboratorUserId: trackCollaborators.collaboratorUserId,
-              invitedByUserId: trackCollaborators.invitedByUserId,
-            })
-            .from(trackCollaborators)
-            .where(
-              and(
-                or(
-                  and(
-                    eq(trackCollaborators.invitedByUserId, user.id),
-                    inArray(
-                      trackCollaborators.collaboratorUserId,
-                      requestedParticipantUserIds
-                    )
-                  ),
-                  and(
-                    eq(trackCollaborators.collaboratorUserId, user.id),
-                    inArray(
-                      trackCollaborators.invitedByUserId,
-                      requestedParticipantUserIds
+        requestedParticipantUserIds.length > 0
+          ? db
+              .select({
+                recipientUserId: artistFriendRequests.recipientUserId,
+                requesterUserId: artistFriendRequests.requesterUserId,
+              })
+              .from(artistFriendRequests)
+              .where(
+                and(
+                  eq(artistFriendRequests.status, "accepted"),
+                  or(
+                    and(
+                      eq(artistFriendRequests.requesterUserId, user.id),
+                      inArray(
+                        artistFriendRequests.recipientUserId,
+                        requestedParticipantUserIds
+                      )
+                    ),
+                    and(
+                      eq(artistFriendRequests.recipientUserId, user.id),
+                      inArray(
+                        artistFriendRequests.requesterUserId,
+                        requestedParticipantUserIds
+                      )
                     )
                   )
                 )
               )
-            )
-        : [],
+          : [],
+        requestedParticipantUserIds.length > 0
+          ? db
+              .select({
+                collaboratorUserId: trackCollaborators.collaboratorUserId,
+                invitedByUserId: trackCollaborators.invitedByUserId,
+              })
+              .from(trackCollaborators)
+              .where(
+                and(
+                  or(
+                    and(
+                      eq(trackCollaborators.invitedByUserId, user.id),
+                      inArray(
+                        trackCollaborators.collaboratorUserId,
+                        requestedParticipantUserIds
+                      )
+                    ),
+                    and(
+                      eq(trackCollaborators.collaboratorUserId, user.id),
+                      inArray(
+                        trackCollaborators.invitedByUserId,
+                        requestedParticipantUserIds
+                      )
+                    )
+                  )
+                )
+              )
+          : [],
       ]),
       allowedParticipantUserIds = new Set([
-      ...acceptedFriendRows.map((row) =>
-        row.requesterUserId === user.id
-          ? row.recipientUserId
-          : row.requesterUserId
-      ),
-      ...collaboratorRows
-        .flatMap((row) => [row.collaboratorUserId, row.invitedByUserId])
-        .filter(
-          (participantUserId): participantUserId is string =>
-            Boolean(participantUserId) && participantUserId !== user.id
+        ...acceptedFriendRows.map((row) =>
+          row.requesterUserId === user.id
+            ? row.recipientUserId
+            : row.requesterUserId
         ),
-    ]);
+        ...collaboratorRows
+          .flatMap((row) => [row.collaboratorUserId, row.invitedByUserId])
+          .filter(
+            (participantUserId): participantUserId is string =>
+              Boolean(participantUserId) && participantUserId !== user.id
+          ),
+      ]);
 
     if (
       requestedParticipantUserIds.some(
@@ -1070,25 +1133,25 @@ app.openapi(
     const { conversationId } = c.req.valid("param"),
       db = createDb(),
       [membership] = await db
-      .select({ conversationId: conversationParticipants.conversationId })
-      .from(conversationParticipants)
-      .where(
-        and(
-          eq(conversationParticipants.conversationId, conversationId),
-          eq(conversationParticipants.userId, user.id)
+        .select({ conversationId: conversationParticipants.conversationId })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            eq(conversationParticipants.userId, user.id)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
     if (!membership) {
       return c.json([], HttpStatusCodes.OK);
     }
 
     const rows = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.conversationId, conversationId))
-      .orderBy(messages.createdAt)
+        .select()
+        .from(messages)
+        .where(eq(messages.conversationId, conversationId))
+        .orderBy(messages.createdAt)
         .limit(100),
       attachmentRows =
         rows.length > 0
@@ -1194,28 +1257,28 @@ app.openapi(
 
     const db = createDb(),
       [membership] = await db
-      .select({ conversationId: conversationParticipants.conversationId })
-      .from(conversationParticipants)
-      .where(
-        and(
-          eq(conversationParticipants.conversationId, conversationId),
-          eq(conversationParticipants.userId, user.id)
+        .select({ conversationId: conversationParticipants.conversationId })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            eq(conversationParticipants.userId, user.id)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
     if (!membership) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
     const [message] = await db
-      .insert(messages)
-      .values({
-        body: body.body,
-        conversationId,
-        id: crypto.randomUUID(),
-        senderUserId: user.id,
-      })
+        .insert(messages)
+        .values({
+          body: body.body,
+          conversationId,
+          id: crypto.randomUUID(),
+          senderUserId: user.id,
+        })
         .returning(),
       messageId = message?.id ?? crypto.randomUUID(),
       attachments = body.attachments.map((attachment) => ({

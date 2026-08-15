@@ -30,9 +30,9 @@ const watchedItemLabel = (type: WatchedItem["type"]) => {
   }
 
   return type;
-};
+},
 
-const watchedItemIcon = (type: WatchedItem["type"]) => {
+ watchedItemIcon = (type: WatchedItem["type"]) => {
   if (type === "battle") {
     return Sword;
   }
@@ -65,13 +65,13 @@ export const columns: ColumnDef<WatchedItem>[] = [
   {
     accessorKey: "title",
     cell: ({ row }) => {
-      const Icon = watchedItemIcon(row.original.type);
-      const title = row.getValue<string>("title");
-      const item = row.original;
-      const linkClassName =
-        "font-medium hover:text-primary transition-colors line-clamp-1";
+      const Icon = watchedItemIcon(row.original.type),
+       title = row.getValue<string>("title"),
+       item = row.original,
+       linkClassName =
+        "font-medium hover:text-primary transition-colors line-clamp-1",
 
-      const titleLink =
+       titleLink =
         item.type === "battle" ? (
           <Link
             to="/live/battles/$id"

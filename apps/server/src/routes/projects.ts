@@ -21,6 +21,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   buildProjectDetail,
   buildProjectSummary,
@@ -30,7 +31,6 @@ import {
   notifyCollaboratorInviteEmail,
   notifyLiveEventScheduledEmail,
 } from "@/lib/email-events";
-import { indexSearchEntity } from "@/lib/audio-processing";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -64,10 +64,13 @@ app.post("/:projectId/pre-save", async (c) => {
   }
   const projectId = c.req.param("projectId");
   if (isDatabaseConfigured()) {
-    await createDb().insert(projectPreSaves).values({
-      projectId,
-      userId: user.id,
-    }).onConflictDoNothing();
+    await createDb()
+      .insert(projectPreSaves)
+      .values({
+        projectId,
+        userId: user.id,
+      })
+      .onConflictDoNothing();
   }
   return c.json({ isPreSaved: true, projectId }, 200);
 });
@@ -96,16 +99,16 @@ const projectOrderBy = (sort?: string) => {
   }
 
   return desc(projects.updatedAt);
-};
+},
 
-const projectMatchesExploreFilters = (
+ projectMatchesExploreFilters = (
   project: ProjectSummary,
   query: PublicProjectExploreQuery
 ) => {
-  const genreSlug = genreSlugFromExploreFilter(query.genre);
-  const state = stateFromExploreRegion(query);
-  const regionSlug = state ? `us-${state.abbreviation.toLowerCase()}` : null;
-  const q = query.q?.toLowerCase();
+  const genreSlug = genreSlugFromExploreFilter(query.genre),
+   state = stateFromExploreRegion(query),
+   regionSlug = state ? `us-${state.abbreviation.toLowerCase()}` : null,
+   q = query.q?.toLowerCase();
 
   if (
     genreSlug &&
@@ -128,23 +131,23 @@ const projectMatchesExploreFilters = (
   }
 
   return true;
-};
+},
 
-const getUploadBucketName = () =>
+ getUploadBucketName = () =>
   (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
-  null;
+  null,
 
-const getUploadPublicBaseUrl = () =>
+ getUploadPublicBaseUrl = () =>
   (
     (env as unknown as { MEDIA_PUBLIC_URL?: string }).MEDIA_PUBLIC_URL ??
     (env as unknown as { VITE_MEDIA_URL?: string }).VITE_MEDIA_URL ??
     ""
-  ).replace(/\/+$/u, "");
+  ).replace(/\/+$/u, ""),
 
-const ensureGenreId = async (genreName: string) => {
-  const db = createDb();
-  const genreSlug = canonicalGenreSlug(genreName);
-  const [genreRow] = await db
+ ensureGenreId = async (genreName: string) => {
+  const db = createDb(),
+   genreSlug = canonicalGenreSlug(genreName),
+   [genreRow] = await db
     .select({ id: genres.id })
     .from(genres)
     .where(eq(genres.slug, genreSlug))
@@ -183,8 +186,8 @@ app.openapi(
       return c.json(sampleProjects, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const organizationId = isAuthenticatedUser(user)
+    const db = createDb(),
+     organizationId = isAuthenticatedUser(user)
       ? await resolveActiveOrganizationId({
           session: isAuthenticatedSession(c.get("session"))
             ? c.get("session")
@@ -205,8 +208,8 @@ app.openapi(
       .from(projects)
       .where(projectVisibilityWhere)
       .orderBy(desc(projects.updatedAt))
-      .limit(100);
-    const summaries = [];
+      .limit(100),
+     summaries = [];
 
     for (const row of rows) {
       summaries.push(await buildProjectSummary(row));
@@ -275,8 +278,8 @@ app.openapi(
       .from(projects)
       .where(and(...publicProjectConditions))
       .orderBy(projectOrderBy(query.sort))
-      .limit(100);
-    const summaries = [];
+      .limit(100),
+     summaries = [];
 
     for (const row of rows) {
       const summary = await buildProjectSummary(row);
@@ -415,23 +418,23 @@ app.openapi(
     }
 
     try {
-      const session = c.get("session");
-      const organizationId = await resolveActiveOrganizationId({
+      const session = c.get("session"),
+       organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user,
-      });
-      const db = createDb();
-      const projectId = crypto.randomUUID();
-      const now = new Date();
-      const hasNewTracks = body.newTracks.length > 0;
-      const projectGenreId = body.genre
+      }),
+       db = createDb(),
+       projectId = crypto.randomUUID(),
+       now = new Date(),
+       hasNewTracks = body.newTracks.length > 0,
+       projectGenreId = body.genre
         ? await ensureGenreId(body.genre)
         : (body.newTracks[0]?.genre
           ? await ensureGenreId(body.newTracks[0].genre)
           : null);
       const projectStatus =
-        body.status ?? (body.releaseDate ? "scheduled" : "draft");
-      const [project] = await db
+        body.status ?? (body.releaseDate ? "scheduled" : "draft"),
+       [project] = await db
         .insert(projects)
         .values({
           createdAt: now,
@@ -460,15 +463,17 @@ app.openapi(
         entityId: projectId,
         entityType: "project",
         organizationId,
-        text: [body.title, body.description, body.genre].filter(Boolean).join("\n"),
+        text: [body.title, body.description, body.genre]
+          .filter(Boolean)
+          .join("\n"),
       });
 
-      const existingTrackIds = body.trackIds;
-      const newTrackIds = [];
+      const existingTrackIds = body.trackIds,
+       newTrackIds = [];
 
       for (const newTrack of body.newTracks) {
-        const trackId = crypto.randomUUID();
-        const genreId = await ensureGenreId(newTrack.genre);
+        const trackId = crypto.randomUUID(),
+         genreId = await ensureGenreId(newTrack.genre);
         await db.insert(tracks).values({
           catalogItemType: "single",
           downloadsAllowed: newTrack.downloadsAllowed,
@@ -653,8 +658,8 @@ app.openapi(
                 .select({ userId: userFollows.followerUserId })
                 .from(userFollows)
                 .where(eq(userFollows.targetUserId, user.id)),
-            ]);
-            const followerIds = [
+            ]),
+             followerIds = [
               ...new Set([
                 ...artistFollowers.map((entry) => entry.userId),
                 ...profileFollowers.map((entry) => entry.userId),
@@ -754,21 +759,21 @@ app.openapi(
       );
     }
 
-    const { projectId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const { projectId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const releaseDatePatch =
+    }),
+     db = createDb(),
+     releaseDatePatch =
       "releaseDate" in body
         ? {
             releaseDate: body.releaseDate ? new Date(body.releaseDate) : null,
           }
-        : {};
-    const statusPatch = body.status ? { status: body.status } : {};
+        : {},
+     statusPatch = body.status ? { status: body.status } : {};
     let exclusiveUntil: Date | null | undefined;
     if (body.exclusiveUntil === "") {
       exclusiveUntil = null;
@@ -786,8 +791,8 @@ app.openapi(
         : (body.priceCents !== undefined
           ? { priceCents: body.priceCents }
           : {})),
-    };
-    const [project] = await db
+    },
+     [project] = await db
       .update(projects)
       .set({
         description: body.description,
@@ -875,15 +880,15 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const { projectId } = c.req.valid("param");
-    const { trackIds } = c.req.valid("json");
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const { projectId } = c.req.valid("param"),
+     { trackIds } = c.req.valid("json"),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [project] = await db
+    }),
+     db = createDb(),
+     [project] = await db
       .select()
       .from(projects)
       .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
@@ -899,10 +904,10 @@ app.openapi(
     const attachedTracks = await db
       .select({ trackId: projectTracks.trackId })
       .from(projectTracks)
-      .where(eq(projectTracks.projectId, projectId));
-    const attachedIds = new Set(attachedTracks.map((entry) => entry.trackId));
-    const requestedIds = new Set(trackIds);
-    const matchesProject =
+      .where(eq(projectTracks.projectId, projectId)),
+     attachedIds = new Set(attachedTracks.map((entry) => entry.trackId)),
+     requestedIds = new Set(trackIds),
+     matchesProject =
       trackIds.length === attachedIds.size &&
       attachedIds.size === requestedIds.size &&
       trackIds.every((trackId) => attachedIds.has(trackId));
@@ -962,13 +967,13 @@ app.openapi(
       return c.json({ message: "Project deleted." }, HttpStatusCodes.OK);
     }
 
-    const { projectId } = c.req.valid("param");
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const { projectId } = c.req.valid("param"),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
+    }),
+     db = createDb();
 
     await db
       .delete(projects)
@@ -1000,8 +1005,8 @@ app.openapi(
     tags: ["Projects"],
   }),
   async (c) => {
-    const { projectId } = c.req.valid("param");
-    const user = c.get("user");
+    const { projectId } = c.req.valid("param"),
+     user = c.get("user");
 
     if (!isDatabaseConfigured()) {
       const project =
@@ -1030,9 +1035,9 @@ app.openapi(
             : null,
           user,
         })
-      : null;
-    const db = createDb();
-    const [project] = await db
+      : null,
+     db = createDb(),
+     [project] = await db
       .select()
       .from(projects)
       .where(eq(projects.id, projectId))

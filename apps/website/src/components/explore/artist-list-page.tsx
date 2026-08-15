@@ -11,11 +11,11 @@ const sortOptions = [
   { label: "Rank (Low to High)", value: "rank-desc" },
   { label: "Name (A-Z)", value: "name-asc" },
   { label: "Name (Z-A)", value: "name-desc" },
-];
+],
 
-const pageSize = 24;
+ pageSize = 24,
 
-const formatFollowers = (followers: number) => {
+ formatFollowers = (followers: number) => {
   if (followers >= 1000) {
     return `${Math.round(followers / 1000)}K`;
   }
@@ -36,12 +36,12 @@ export function ArtistListPage({
 }) {
   const [regionType, setRegionType] = useState<"north-america" | "global">(
     "north-america"
-  );
-  const [region, setRegion] = useState("us-arkansas");
-  const [genre, setGenre] = useState("all");
-  const [sort, setSort] = useState("rank-asc");
-  const [page, setPage] = useState(1);
-  const { data: artists = [], isLoading } = useArtistsQuery({
+  ),
+   [region, setRegion] = useState("us-arkansas"),
+   [genre, setGenre] = useState("all"),
+   [sort, setSort] = useState("rank-asc"),
+   [page, setPage] = useState(1),
+   { data: artists = [], isLoading } = useArtistsQuery({
     category,
     genre,
     limit: String(pageSize),

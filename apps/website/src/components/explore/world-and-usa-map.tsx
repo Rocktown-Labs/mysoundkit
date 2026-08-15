@@ -16,8 +16,8 @@ import {
 
 export { mapScopes, type MapScope } from "../../lib/map-scopes";
 
-const usGeoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json";
-const worldGeoUrl =
+const usGeoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json",
+ worldGeoUrl =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 interface WorldAndUSAMapProps {
@@ -35,18 +35,18 @@ export function WorldAndUSAMap({
   selectedRegion,
   selectedRegions,
 }: WorldAndUSAMapProps) {
-  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null),
 
-  const scopeConfig = mapScopes.find((s) => s.id === mapScope) ?? mapScopes[0];
+   scopeConfig = mapScopes.find((s) => s.id === mapScope) ?? mapScopes[0],
 
-  const isUSScope = mapScope === "north-america";
-  const geoUrl = isUSScope ? usGeoUrl : worldGeoUrl;
+   isUSScope = mapScope === "north-america",
+   geoUrl = isUSScope ? usGeoUrl : worldGeoUrl,
 
-  const displayRegion =
+   displayRegion =
     hoveredRegion ||
     selectedRegion ||
-    (selectedRegions?.length ? `${selectedRegions.length} selected` : null);
-  const selectedRegionSet = new Set(
+    (selectedRegions?.length ? `${selectedRegions.length} selected` : null),
+   selectedRegionSet = new Set(
     (selectedRegions ?? []).map((region) => region.toLowerCase())
   );
 
@@ -136,8 +136,8 @@ export function WorldAndUSAMap({
                   return null;
                 }
 
-                const normalizedName = name.toLowerCase();
-                const isSelected =
+                const normalizedName = name.toLowerCase(),
+                 isSelected =
                   selectedRegion?.toLowerCase() === normalizedName ||
                   selectedRegionSet.has(normalizedName);
                 return (

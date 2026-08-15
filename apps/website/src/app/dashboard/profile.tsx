@@ -49,10 +49,10 @@ const fetchPosts = async ({ pageParam = 0 }) => {
 };
 
 function DashboardProfilePage() {
-  const { ref, inView } = useInView();
-  const meQuery = useMeQuery();
-  const profile = meQuery.data?.user;
-  const user = {
+  const { ref, inView } = useInView(),
+   meQuery = useMeQuery(),
+   profile = meQuery.data?.user,
+   user = {
     avatar: profile?.avatarUrl ?? "/diverse-user-avatars.png",
     battleRecord: "0",
     bio: profile?.bio ?? "No public bio yet.",
@@ -82,9 +82,9 @@ function DashboardProfilePage() {
     tracks: 0,
     username: profile?.username ?? "profile",
     verified: false,
-  };
+  },
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+   { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
       getNextPageParam: (lastPage, allPages) => allPages.length,
       initialPageParam: 0,

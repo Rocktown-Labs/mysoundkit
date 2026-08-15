@@ -45,8 +45,8 @@ function ChartContainer({
     typeof RechartsPrimitive.ResponsiveContainer
   >["children"];
 }) {
-  const uniqueId = React.useId();
-  const chartId = `chart-${id || uniqueId.replaceAll(":", "")}`;
+  const uniqueId = React.useId(),
+   chartId = `chart-${id || uniqueId.replaceAll(":", "")}`;
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -99,9 +99,9 @@ ${colorConfig
       }}
     />
   );
-};
+},
 
-const ChartTooltip = RechartsPrimitive.Tooltip;
+ ChartTooltip = RechartsPrimitive.Tooltip;
 
 function ChartTooltipContent({
   active,
@@ -125,17 +125,17 @@ function ChartTooltipContent({
     nameKey?: string;
     labelKey?: string;
   }) {
-  const { config } = useChart();
+  const { config } = useChart(),
 
-  const tooltipLabel = React.useMemo(() => {
+   tooltipLabel = React.useMemo(() => {
     if (hideLabel || !payload?.length) {
       return null;
     }
 
-    const [item] = payload;
-    const key = `${labelKey || item?.dataKey || item?.name || "value"}`;
-    const itemConfig = getPayloadConfigFromPayload(config, item, key);
-    const value =
+    const [item] = payload,
+     key = `${labelKey || item?.dataKey || item?.name || "value"}`,
+     itemConfig = getPayloadConfigFromPayload(config, item, key),
+     value =
       !labelKey && typeof label === "string"
         ? config[label as keyof typeof config]?.label || label
         : itemConfig?.label;
@@ -179,9 +179,9 @@ function ChartTooltipContent({
       {nestLabel ? null : tooltipLabel}
       <div className="grid gap-1.5">
         {payload.map((item, index) => {
-          const key = `${nameKey || item.name || item.dataKey || "value"}`;
-          const itemConfig = getPayloadConfigFromPayload(config, item, key);
-          const indicatorColor = color || item.payload.fill || item.color;
+          const key = `${nameKey || item.name || item.dataKey || "value"}`,
+           itemConfig = getPayloadConfigFromPayload(config, item, key),
+           indicatorColor = color || item.payload.fill || item.color;
 
           return (
             <div
@@ -275,8 +275,8 @@ function ChartLegendContent({
       )}
     >
       {payload.map((item) => {
-        const key = `${nameKey || item.dataKey || "value"}`;
-        const itemConfig = getPayloadConfigFromPayload(config, item, key);
+        const key = `${nameKey || item.dataKey || "value"}`,
+         itemConfig = getPayloadConfigFromPayload(config, item, key);
 
         return (
           <div

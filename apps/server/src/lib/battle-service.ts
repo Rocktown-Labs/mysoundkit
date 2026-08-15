@@ -12,10 +12,10 @@ import {
   notifyBattleResultsEmailsForBattle,
 } from "@/lib/email-events";
 
-const reminderLookaheadMs = 30 * 60 * 1000;
-const liveTransitionLookbackMs = 15 * 60 * 1000;
-const resultsLookbackMs = 7 * 24 * 60 * 60 * 1000;
-const sweepLimit = 100;
+const reminderLookaheadMs = 30 * 60 * 1000,
+ liveTransitionLookbackMs = 15 * 60 * 1000,
+ resultsLookbackMs = 7 * 24 * 60 * 60 * 1000,
+ sweepLimit = 100;
 
 type BattleServiceStatus = "ignored" | "processed";
 
@@ -23,21 +23,21 @@ const reminderEventTypes = new Set([
   "battle.reminder",
   "battle.starts_soon",
   "battle.starting_soon",
-]);
+]),
 
-const liveEventTypes = new Set([
+ liveEventTypes = new Set([
   "battle.live",
   "battle.started",
   "battle.start",
-]);
+]),
 
-const resultsEventTypes = new Set([
+ resultsEventTypes = new Set([
   "battle.completed",
   "battle.results",
   "battle.results_ready",
-]);
+]),
 
-const loadBattle = async (battleId: string) => {
+ loadBattle = async (battleId: string) => {
   const [battle] = await createDb()
     .select({
       challengerArtistUserId: battles.challengerArtistUserId,
@@ -53,9 +53,9 @@ const loadBattle = async (battleId: string) => {
     .limit(1);
 
   return battle ?? null;
-};
+},
 
-const getBattleRecipientUserIds = (battle: {
+ getBattleRecipientUserIds = (battle: {
   challengerArtistUserId: null | string;
   opponentArtistUserId: null | string;
 }) => [
@@ -64,9 +64,9 @@ const getBattleRecipientUserIds = (battle: {
       (userId): userId is string => Boolean(userId)
     )
   ),
-];
+],
 
-const insertBattleNotifications = async ({
+ insertBattleNotifications = async ({
   battleId,
   eventId,
   link = "/dashboard/live",
@@ -99,9 +99,9 @@ const insertBattleNotifications = async ({
   await createDb().insert(userNotifications).values(rows).onConflictDoNothing();
 
   return rows.length;
-};
+},
 
-const getResultsSummary = (payload: Record<string, unknown>) => {
+ getResultsSummary = (payload: Record<string, unknown>) => {
   const direct =
     typeof payload.resultsSummary === "string" ? payload.resultsSummary : null;
 
@@ -119,9 +119,9 @@ const getResultsSummary = (payload: Record<string, unknown>) => {
   }
 
   return typeof payload.summary === "string" ? payload.summary : null;
-};
+},
 
-const applyBattleServiceEvent = async ({
+ applyBattleServiceEvent = async ({
   battleId,
   emailQueue,
   eventId,
@@ -223,8 +223,8 @@ export const processBattleServiceEvent = async ({
     return { skipped: false, status: "ignored" as const };
   }
 
-  const db = createDb();
-  const [existingEvent] = await db
+  const db = createDb(),
+   [existingEvent] = await db
     .select({
       id: webhookEvents.id,
       status: webhookEvents.status,
@@ -304,11 +304,11 @@ export const runBattleServiceSweep = async ({
     };
   }
 
-  const db = createDb();
-  const reminderHorizon = new Date(now.getTime() + reminderLookaheadMs);
-  const liveFloor = new Date(now.getTime() - liveTransitionLookbackMs);
-  const resultsFloor = new Date(now.getTime() - resultsLookbackMs);
-  const [reminderBattles, liveBattles, resultBattles] = await Promise.all([
+  const db = createDb(),
+   reminderHorizon = new Date(now.getTime() + reminderLookaheadMs),
+   liveFloor = new Date(now.getTime() - liveTransitionLookbackMs),
+   resultsFloor = new Date(now.getTime() - resultsLookbackMs),
+   [reminderBattles, liveBattles, resultBattles] = await Promise.all([
     db
       .select({
         id: battles.id,
@@ -353,13 +353,13 @@ export const runBattleServiceSweep = async ({
       .limit(sweepLimit),
   ]);
 
-  let reminders = 0;
-  let live = 0;
-  let results = 0;
+  let reminders = 0,
+   live = 0,
+   results = 0;
 
   for (const battle of reminderBattles) {
-    const startsAt = battle.startsAt?.toISOString() ?? "unknown";
-    const outcome = await processBattleServiceEvent({
+    const startsAt = battle.startsAt?.toISOString() ?? "unknown",
+     outcome = await processBattleServiceEvent({
       battleId: battle.id,
       emailQueue,
       eventId: `scheduler:battle.reminder:${battle.id}:${startsAt}`,
@@ -378,8 +378,8 @@ export const runBattleServiceSweep = async ({
   }
 
   for (const battle of liveBattles) {
-    const startsAt = battle.startsAt?.toISOString() ?? "unknown";
-    const outcome = await processBattleServiceEvent({
+    const startsAt = battle.startsAt?.toISOString() ?? "unknown",
+     outcome = await processBattleServiceEvent({
       battleId: battle.id,
       emailQueue,
       eventId: `scheduler:battle.live:${battle.id}:${startsAt}`,
@@ -398,8 +398,8 @@ export const runBattleServiceSweep = async ({
   }
 
   for (const battle of resultBattles) {
-    const endedAt = battle.endedAt?.toISOString() ?? "unknown";
-    const outcome = await processBattleServiceEvent({
+    const endedAt = battle.endedAt?.toISOString() ?? "unknown",
+     outcome = await processBattleServiceEvent({
       battleId: battle.id,
       emailQueue,
       eventId: `scheduler:battle.results_ready:${battle.id}:${endedAt}`,

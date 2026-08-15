@@ -23,7 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { musicGenres } from "@/lib/music-genres";
-import { useTracksQuery, type TrackSummary } from "@/lib/soundkit-api-hooks";
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 interface ShopSearch {
   genre?: string;
@@ -44,14 +45,14 @@ export const Route = createFileRoute("/_explore/shop")({
 const PAGE_SIZE = 20;
 
 function ShopPage() {
-  const search = Route.useSearch();
-  const activeGenre = search.genre ?? "all";
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
+  const search = Route.useSearch(),
+   activeGenre = search.genre ?? "all",
+   [viewMode, setViewMode] = useState<"grid" | "list">(
     search.view ?? "grid"
-  );
-  const [currentPage, setCurrentPage] = useState(1);
+  ),
+   [currentPage, setCurrentPage] = useState(1),
 
-  const { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
+   { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
     forSale: true,
     genre: activeGenre,
     limit: 100,
@@ -59,20 +60,20 @@ function ShopPage() {
     regionType: "north-america",
     scope: "public",
     sort: "plays-desc",
-  });
+  }),
 
   // Ensure we filter for purchasability if backend flags it
-  const shopTracks = rawTracks.filter(
+   shopTracks = rawTracks.filter(
     (t) => t.isPurchasable ?? t.isForSale ?? true
-  );
+  ),
 
-  const totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1;
-  const paginatedTracks = shopTracks.slice(
+   totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1,
+   paginatedTracks = shopTracks.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
-  );
+  ),
 
-  const activeGenreLabel =
+   activeGenreLabel =
     musicGenres.find((g) => g.value === activeGenre)?.label ?? "All Genres";
 
   return (
@@ -86,7 +87,8 @@ function ShopPage() {
               SoundKit Store
             </h1>
             <p className="mt-1 max-w-2xl text-muted-foreground text-sm md:text-base">
-              Buy beats, stems, and commercial licenses directly from verified SoundKit creators.
+              Buy beats, stems, and commercial licenses directly from verified
+              SoundKit creators.
             </p>
           </div>
           <Button asChild variant="outline">
@@ -156,10 +158,13 @@ function ShopPage() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="font-bold text-xl md:text-2xl">
-              {activeGenre === "all" ? "Featured Purchasable Songs" : `${activeGenreLabel} Catalog`}
+              {activeGenre === "all"
+                ? "Featured Purchasable Songs"
+                : `${activeGenreLabel} Catalog`}
             </h2>
             <p className="text-xs md:text-sm text-muted-foreground">
-              Showing {shopTracks.length} purchasable release{shopTracks.length === 1 ? "" : "s"}
+              Showing {shopTracks.length} purchasable release
+              {shopTracks.length === 1 ? "" : "s"}
             </p>
           </div>
 
@@ -181,7 +186,9 @@ function ShopPage() {
                 size="sm"
                 variant="outline"
                 disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
               >
                 <ChevronRight className="size-4" />
               </Button>
@@ -236,7 +243,9 @@ function ShopPage() {
                       </TableCell>
                       <TableCell>{track.artistName}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{track.genre ?? "Single"}</Badge>
+                        <Badge variant="secondary">
+                          {track.genre ?? "Single"}
+                        </Badge>
                       </TableCell>
                       <TableCell>{track.plays.toLocaleString()}</TableCell>
                       <TableCell className="font-semibold text-primary">
@@ -333,7 +342,11 @@ function ShopPage() {
       {activeGenre === "all" && (
         <div className="flex flex-col gap-10">
           {musicGenres.map((genre) => (
-            <GenreShopRail key={genre.value} genre={genre} viewMode={viewMode} />
+            <GenreShopRail
+              key={genre.value}
+              genre={genre}
+              viewMode={viewMode}
+            />
           ))}
         </div>
       )}
@@ -359,7 +372,12 @@ function ShopTrackCard({ track }: { track: TrackSummary }) {
         <span className="text-xs font-semibold text-primary">
           {track.priceLabel ?? "$1.99"}
         </span>
-        <Button asChild size="xs" variant="secondary" className="h-6 text-[10px] px-2">
+        <Button
+          asChild
+          size="xs"
+          variant="secondary"
+          className="h-6 text-[10px] px-2"
+        >
           <Link
             params={
               track.regionSlug && track.slug
@@ -395,9 +413,9 @@ function GenreShopRail({
     regionType: "north-america",
     scope: "public",
     sort: "plays-desc",
-  });
+  }),
 
-  const shopTracks = tracks.filter(
+   shopTracks = tracks.filter(
     (t) => t.isPurchasable ?? t.isForSale ?? true
   );
 
@@ -435,9 +453,12 @@ function ShopEmptyState({ genreLabel }: { genreLabel: string }) {
   return (
     <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
       <ShoppingBag className="mx-auto size-10 mb-3 opacity-50" />
-      <h3 className="font-semibold text-foreground text-base">No purchasable tracks found</h3>
+      <h3 className="font-semibold text-foreground text-base">
+        No purchasable tracks found
+      </h3>
       <p className="mt-1 text-sm">
-        No tracks in {genreLabel} are listed for sale yet. Check back soon as creators release new beats.
+        No tracks in {genreLabel} are listed for sale yet. Check back soon as
+        creators release new beats.
       </p>
     </div>
   );

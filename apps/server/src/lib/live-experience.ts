@@ -69,8 +69,8 @@ export interface CloudflareRealtimeKitConfig {
   appId?: string;
 }
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
-const ROUND_LOBBY_PRESET = "soundkit-battle-lobby-text";
+const ONE_HOUR_MS = 60 * 60 * 1000,
+ ROUND_LOBBY_PRESET = "soundkit-battle-lobby-text";
 
 export const hasRealtimeKitConfig = ({
   accountId,
@@ -125,17 +125,17 @@ export const findLiveSessionConflict = ({
   candidateStartsAt: string;
   locks: LiveSessionLockInput[];
 }): LiveSessionConflict | null => {
-  const candidateStart = new Date(candidateStartsAt).getTime();
-  const candidateEnd = candidateEndsAt
+  const candidateStart = new Date(candidateStartsAt).getTime(),
+   candidateEnd = candidateEndsAt
     ? new Date(candidateEndsAt).getTime()
     : candidateStart + ONE_HOUR_MS;
 
   for (const lock of locks) {
-    const lockStart = new Date(lock.startsAt).getTime();
-    const lockEnd = lock.endsAt
+    const lockStart = new Date(lock.startsAt).getTime(),
+     lockEnd = lock.endsAt
       ? new Date(lock.endsAt).getTime()
-      : lockStart + ONE_HOUR_MS;
-    const overlaps = candidateStart < lockEnd && lockStart < candidateEnd;
+      : lockStart + ONE_HOUR_MS,
+     overlaps = candidateStart < lockEnd && lockStart < candidateEnd;
 
     if (overlaps && lock.status !== "scheduled") {
       return {
@@ -156,8 +156,8 @@ export const createRoundVoterSnapshot = (
 ): RoundVoterSnapshot => {
   const eligibleUserIds = participants
     .filter((participant) => !participant.inLobby)
-    .map((participant) => participant.id);
-  const missingVoteUserIds = participants
+    .map((participant) => participant.id),
+   missingVoteUserIds = participants
     .filter((participant) => !(participant.inLobby || participant.voted))
     .map((participant) => participant.id);
 
@@ -241,8 +241,8 @@ export const createMockParticipantToken = ({
     kind,
     phase,
     role,
-  });
-  const participantId = `participant_${user.id}`;
+  }),
+   participantId = `participant_${user.id}`;
 
   return {
     authToken: `mock_rtk_${meetingId}_${participantId}_${presetName}`,

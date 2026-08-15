@@ -18,9 +18,9 @@ import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
-import { publishDueTrackReleases } from "@/lib/release-notifications";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
+import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
@@ -50,6 +50,7 @@ import onboardingRoutes from "@/routes/onboarding";
 import openVersesRoutes from "@/routes/open-verses";
 import paymentsRoutes from "@/routes/payments";
 import playlistsRoutes from "@/routes/playlists";
+import presenceRoutes from "@/routes/presence";
 import projectsRoutes from "@/routes/projects";
 import searchRoutes from "@/routes/search";
 import sellerRoutes from "@/routes/seller";
@@ -62,52 +63,49 @@ import stripeWebhookRoutes from "@/routes/webhooks-stripe";
 
 export { TrackProcessingWorkflow } from "@/workflows/track-processing";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
+export { PresenceDurableObject } from "@/durable-objects/presence";
 
 const app = new OpenAPIHono<AppEnv>({
-  defaultHook,
-});
+    defaultHook,
+  }),
+  hasEnvValue = (key: string) =>
+    Boolean((env as unknown as Record<string, unknown>)[key]),
+  allowedCorsOriginPatterns = [
+    /^https:\/\/([a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
+    /^https:\/\/[a-z0-9-]+\.pages\.dev$/u,
+    /^https:\/\/([a-z0-9-]+\.)*workers\.dev$/u,
+    /^https:\/\/([a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
+  ],
+  isAllowedCorsOrigin = (origin: string) =>
+    origin === env.CORS_ORIGIN ||
+    origin === env.BETTER_AUTH_URL ||
+    allowedCorsOriginPatterns.some((pattern) => pattern.test(origin)),
+  checkDatabaseHealth = async () => {
+    if (!isDatabaseConfigured()) {
+      return "not_configured" as const;
+    }
 
-const hasEnvValue = (key: string) =>
-  Boolean((env as unknown as Record<string, unknown>)[key]);
+    try {
+      await withRetry(
+        "database health check",
+        () => createDb().execute(sql`select 1`),
+        {
+          maxRetries: 1,
+          timeoutMs: 2500,
+        }
+      );
 
-const allowedCorsOriginPatterns = [
-  /^https:\/\/([a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
-  /^https:\/\/[a-z0-9-]+\.pages\.dev$/u,
-  /^https:\/\/([a-z0-9-]+\.)*workers\.dev$/u,
-  /^https:\/\/([a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
-];
+      return "connected" as const;
+    } catch (error) {
+      logWarn({
+        check: "database",
+        error: error instanceof Error ? error.message : String(error),
+        status: "unhealthy",
+      });
 
-const isAllowedCorsOrigin = (origin: string) =>
-  origin === env.CORS_ORIGIN ||
-  origin === env.BETTER_AUTH_URL ||
-  allowedCorsOriginPatterns.some((pattern) => pattern.test(origin));
-
-const checkDatabaseHealth = async () => {
-  if (!isDatabaseConfigured()) {
-    return "not_configured" as const;
-  }
-
-  try {
-    await withRetry(
-      "database health check",
-      () => createDb().execute(sql`select 1`),
-      {
-        maxRetries: 1,
-        timeoutMs: 2500,
-      }
-    );
-
-    return "connected" as const;
-  } catch (error) {
-    logWarn({
-      check: "database",
-      error: error instanceof Error ? error.message : String(error),
-      status: "unhealthy",
-    });
-
-    return "unhealthy" as const;
-  }
-};
+      return "unhealthy" as const;
+    }
+  };
 
 app.use(
   sentry(app, (workerEnv) => ({
@@ -199,6 +197,7 @@ app
   .route("/v1/live", liveRoutes)
   .route("/v1/playlists", playlistsRoutes)
   .route("/v1/social", socialRoutes)
+  .route("/v1/presence", presenceRoutes)
   .route("/v1/messages", messagesRoutes)
   .route("/v1/notifications", notificationsRoutes)
   .route("/v1/open-verses", openVersesRoutes)

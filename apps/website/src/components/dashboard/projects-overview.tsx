@@ -28,8 +28,8 @@ import type { ProjectSummary } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 const relativeDate = (value: string) => {
-  const diffMs = Date.now() - new Date(value).getTime();
-  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
+  const diffMs = Date.now() - new Date(value).getTime(),
+   diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
 
   if (diffDays === 0) {
     return "Today";
@@ -97,8 +97,8 @@ export function ProjectsOverview({
           {recentProjects.map((project) => {
             const trackLabel = `${project.trackCount} ${
               project.trackCount === 1 ? "track" : "tracks"
-            }`;
-            const durationLabel =
+            }`,
+             durationLabel =
               "duration" in project && typeof project.duration === "string"
                 ? project.duration
                 : null;

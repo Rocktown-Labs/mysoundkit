@@ -11,12 +11,12 @@ export const Route = createFileRoute("/_explore/new-releases")({
 });
 
 function NewReleasesPage() {
-  const router = useRouter();
-  const searchParams = new URLSearchParams(
+  const router = useRouter(),
+   searchParams = new URLSearchParams(
     typeof window === "undefined" ? "" : window.location.search
-  );
-  const location = searchParams.get("location") || "All Locations";
-  const { data: tracks = [] } = useTracksQuery(undefined, {
+  ),
+   location = searchParams.get("location") || "All Locations",
+   { data: tracks = [] } = useTracksQuery(undefined, {
     limit: 24,
     scope: "public",
     sort: "title-desc",
@@ -24,16 +24,6 @@ function NewReleasesPage() {
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.history.back()}
-        className="mb-4"
-      >
-        <ArrowLeft className="size-4 mr-2" />
-        Back
-      </Button>
-
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 flex items-center gap-2">
           <Flame className="size-6 md:size-8 text-primary" />

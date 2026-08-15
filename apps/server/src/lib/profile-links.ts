@@ -22,19 +22,19 @@ export interface NormalizedProfileLink {
   url: string;
 }
 
-const stripAt = (value: string) => value.replace(/^@+/u, "");
+const stripAt = (value: string) => value.replace(/^@+/u, ""),
 
-const stripTrailingSlash = (value: string) => value.replace(/\/+$/u, "");
+ stripTrailingSlash = (value: string) => value.replace(/\/+$/u, ""),
 
-const normalizedUrl = (value: string) => {
+ normalizedUrl = (value: string) => {
   if (/^https?:\/\//iu.test(value)) {
     return stripTrailingSlash(value);
   }
 
   return null;
-};
+},
 
-const platformUrlForHandle = (
+ platformUrlForHandle = (
   platform: ProfileLinkPlatform,
   handle: string
 ) => {
@@ -75,12 +75,12 @@ const platformUrlForHandle = (
       return null;
     }
   }
-};
+},
 
-const handleFromUrl = (url: string) => {
+ handleFromUrl = (url: string) => {
   try {
-    const parsed = new URL(url);
-    const path = parsed.pathname.split("/").findLast((part) => part.length > 0);
+    const parsed = new URL(url),
+     path = parsed.pathname.split("/").findLast((part) => part.length > 0);
     return path ? stripAt(decodeURIComponent(path)) : null;
   } catch {
     return null;
@@ -97,8 +97,8 @@ export const normalizeProfileLink = ({
     return null;
   }
 
-  const inputUrl = normalizedUrl(input);
-  const url = inputUrl ?? platformUrlForHandle(platform, input);
+  const inputUrl = normalizedUrl(input),
+   url = inputUrl ?? platformUrlForHandle(platform, input);
 
   if (!url) {
     return null;

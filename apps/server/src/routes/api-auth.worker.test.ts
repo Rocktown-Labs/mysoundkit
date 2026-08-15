@@ -3,20 +3,20 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-const API_ORIGIN = "http://soundkit.test";
-const AUTHENTICATION_REQUIRED = {
+const API_ORIGIN = "http://soundkit.test",
+ AUTHENTICATION_REQUIRED = {
   message: "Authentication is required.",
-};
+},
 
-const jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
+ jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
   body: JSON.stringify(body),
   headers: {
     "content-type": "application/json",
   },
   method,
-});
+}),
 
-const protectedRequests: {
+ protectedRequests: {
   init?: RequestInit;
   label: string;
   path: string;
@@ -325,8 +325,8 @@ describe("SoundKit API authentication boundaries", () => {
   it.each(protectedRequests)(
     "rejects anonymous access to $label",
     async ({ init, path }) => {
-      const response = await SELF.fetch(`${API_ORIGIN}${path}`, init);
-      const body = (await response.json()) as { message: string };
+      const response = await SELF.fetch(`${API_ORIGIN}${path}`, init),
+       body = (await response.json()) as { message: string };
 
       expect(response.status).toBe(401);
       expect(body).toEqual(AUTHENTICATION_REQUIRED);
@@ -338,8 +338,8 @@ describe("SoundKit API authentication boundaries", () => {
       headers: {
         cookie: "better-auth.session_token=not-a-real-session",
       },
-    });
-    const body = (await response.json()) as { message: string };
+    }),
+     body = (await response.json()) as { message: string };
 
     expect(response.status).toBe(401);
     expect(body).toEqual(AUTHENTICATION_REQUIRED);
@@ -360,8 +360,8 @@ describe("SoundKit API authentication boundaries", () => {
     ],
     ["private member list", "/v1/communities/community_1/members", undefined],
   ])("rejects anonymous access to %s", async (_label, path, init) => {
-    const response = await SELF.fetch(`${API_ORIGIN}${path}`, init);
-    const body = (await response.json()) as { message: string };
+    const response = await SELF.fetch(`${API_ORIGIN}${path}`, init),
+     body = (await response.json()) as { message: string };
 
     expect(response.status).toBe(403);
     expect(body.message).toContain("active community membership");

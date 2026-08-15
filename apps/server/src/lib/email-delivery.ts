@@ -42,12 +42,12 @@ const absoluteUrl = (pathOrUrl: string) => {
   }
 
   return `${getPublicSiteUrl().replace(/\/$/u, "")}/${pathOrUrl.replace(/^\//u, "")}`;
-};
+},
 
-const getRetryDelaySeconds = (attempts: number) =>
-  Math.min(30 * 2 ** Math.max(0, attempts - 1), 60 * 60);
+ getRetryDelaySeconds = (attempts: number) =>
+  Math.min(30 * 2 ** Math.max(0, attempts - 1), 60 * 60),
 
-const getErrorMessage = (error: unknown) =>
+ getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 export const enqueueTransactionalEmail = async ({
@@ -64,8 +64,8 @@ export const enqueueTransactionalEmail = async ({
     return { enqueued: false, reason: "email_delivery_unavailable" as const };
   }
 
-  const db = createDb();
-  const [delivery] = await db
+  const db = createDb(),
+   [delivery] = await db
     .insert(emailDeliveries)
     .values({
       id: crypto.randomUUID(),
@@ -97,9 +97,7 @@ export const enqueueTransactionalEmail = async ({
         .update(emailDeliveries)
         .set({
           error: message,
-          nextAttemptAt: new Date(
-            Date.now() + getRetryDelaySeconds(1) * 1000
-          ),
+          nextAttemptAt: new Date(Date.now() + getRetryDelaySeconds(1) * 1000),
           status: "failed",
         })
         .where(eq(emailDeliveries.id, delivery.id));
@@ -139,16 +137,13 @@ export const retryDueEmailDeliveries = async ({
     return { requeued: 0 };
   }
 
-  const db = createDb();
-  const retryIsDue = or(
+  const db = createDb(),
+   retryIsDue = or(
     isNull(emailDeliveries.nextAttemptAt),
     lte(emailDeliveries.nextAttemptAt, new Date())
-  );
-  const failedAndDue = and(
-    eq(emailDeliveries.status, "failed"),
-    retryIsDue
-  );
-  const dueDeliveries = await db
+  ),
+   failedAndDue = and(eq(emailDeliveries.status, "failed"), retryIsDue),
+   dueDeliveries = await db
     .select({ id: emailDeliveries.id })
     .from(emailDeliveries)
     .where(failedAndDue)
@@ -182,8 +177,8 @@ export const deliverTransactionalEmail = async ({
     return { delivered: false, retryable: true };
   }
 
-  const db = createDb();
-  const [delivery] = await db
+  const db = createDb(),
+   [delivery] = await db
     .select()
     .from(emailDeliveries)
     .where(eq(emailDeliveries.id, deliveryId))
@@ -226,8 +221,8 @@ export const deliverTransactionalEmail = async ({
       subject?: string;
       trackId?: string;
       trackTitle?: string;
-    };
-    const result = await sendTransactionalEmail({
+    },
+     result = await sendTransactionalEmail({
       idempotencyKey: delivery.idempotencyKey,
       payload,
       recipientEmail: delivery.recipientEmail,

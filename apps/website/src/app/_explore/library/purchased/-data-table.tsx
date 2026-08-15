@@ -41,15 +41,15 @@ export function DataTable<TData extends { id: string }, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
-  const navigate = useNavigate();
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+  const navigate = useNavigate(),
+   [sorting, setSorting] = React.useState<SortingState>([]),
+   [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  ),
+   [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({}),
 
-  const table = useReactTable({
+   table = useReactTable({
     columns,
     data,
     getCoreRowModel: getCoreRowModel(),

@@ -22,9 +22,9 @@ export function LiveChatPanel({
   messages,
   onSend,
 }: LiveChatPanelProps) {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(""),
 
-  const send = () => {
+   send = () => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage) {
       return;

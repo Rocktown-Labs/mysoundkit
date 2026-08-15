@@ -25,25 +25,25 @@ interface Recipient {
 }
 
 const collaborationFooter =
-  "You are receiving this because collaboration emails are turned on for your SoundKit account.";
-const salesFooter =
-  "You are receiving this because sales emails are turned on for your SoundKit account.";
-const accountFooter =
-  "You are receiving this because this email is about billing or account access.";
-const followerFooter =
-  "You are receiving this because follower emails are turned on for your SoundKit account.";
+  "You are receiving this because collaboration emails are turned on for your SoundKit account.",
+ salesFooter =
+  "You are receiving this because sales emails are turned on for your SoundKit account.",
+ accountFooter =
+  "You are receiving this because this email is about billing or account access.",
+ followerFooter =
+  "You are receiving this because follower emails are turned on for your SoundKit account.",
 
-const formatBattleFormat = (format: string) => format.replaceAll("_", " ");
+ formatBattleFormat = (format: string) => format.replaceAll("_", " "),
 
-const formatMoney = (amountCents: number | null | undefined) =>
+ formatMoney = (amountCents: number | null | undefined) =>
   typeof amountCents === "number"
     ? new Intl.NumberFormat("en-US", {
         currency: "USD",
         style: "currency",
       }).format(amountCents / 100)
-    : "the order total";
+    : "the order total",
 
-const getUserRecipient = async (userId: string): Promise<Recipient | null> => {
+ getUserRecipient = async (userId: string): Promise<Recipient | null> => {
   if (!isDatabaseConfigured()) {
     return null;
   }
@@ -65,9 +65,9 @@ const getUserRecipient = async (userId: string): Promise<Recipient | null> => {
         userId: recipient.userId,
       }
     : null;
-};
+},
 
-const shouldSendEmail = async ({
+ shouldSendEmail = async ({
   preference,
   userId,
 }: {
@@ -97,9 +97,9 @@ const shouldSendEmail = async ({
   }
 
   return settings?.emailCollaborations ?? true;
-};
+},
 
-const enqueueForRecipient = async ({
+ enqueueForRecipient = async ({
   actionPath,
   body,
   ctaLabel,
@@ -160,9 +160,9 @@ const enqueueForRecipient = async ({
     template,
     userId: recipient.userId,
   });
-};
+},
 
-const notifyBattleRecipients = async ({
+ notifyBattleRecipients = async ({
   battleId,
   idempotencyPrefix,
   queue,
@@ -193,8 +193,8 @@ const notifyBattleRecipients = async ({
   const recipientUserIds = [
     battle.challengerArtistUserId,
     battle.opponentArtistUserId,
-  ].filter((userId): userId is string => Boolean(userId));
-  const deliveries = [];
+  ].filter((userId): userId is string => Boolean(userId)),
+   deliveries = [];
 
   for (const recipientUserId of recipientUserIds) {
     deliveries.push(
@@ -440,8 +440,8 @@ export const notifyOpenVerseAcceptedEmail = async ({
     .from(openVerseListings)
     .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
     .where(eq(openVerseListings.id, listingId))
-    .limit(1);
-  const recipient = await getUserRecipient(submitterUserId);
+    .limit(1),
+   recipient = await getUserRecipient(submitterUserId);
 
   if (!(listing && recipient)) {
     return { enqueued: false, reason: "recipient_not_found" as const };
@@ -471,8 +471,8 @@ export const notifyPurchaseEmails = async ({
   orderId: string;
   queue?: Queue<EmailDeliveryQueueMessage> | null;
 }) => {
-  const db = createDb();
-  const [order] = await db
+  const db = createDb(),
+   [order] = await db
     .select()
     .from(orders)
     .where(eq(orders.id, orderId))
@@ -486,21 +486,21 @@ export const notifyPurchaseEmails = async ({
     getUserRecipient(order.buyerUserId),
     order.sellerUserId ? getUserRecipient(order.sellerUserId) : null,
     db.select().from(orderItems).where(eq(orderItems.orderId, order.id)),
-  ]);
-  const itemTitle = items[0]?.titleSnapshot ?? "your purchase";
-  const itemSummary =
-    items.length > 1 ? `${itemTitle} and ${items.length - 1} more` : itemTitle;
-  const amount = formatMoney(order.totalCents);
-  const firstPurchase = await db
+  ]),
+   itemTitle = items[0]?.titleSnapshot ?? "your purchase",
+   itemSummary =
+    items.length > 1 ? `${itemTitle} and ${items.length - 1} more` : itemTitle,
+   amount = formatMoney(order.totalCents),
+   firstPurchase = await db
     .select({ id: purchases.id })
     .from(purchases)
     .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
     .where(eq(orderItems.orderId, order.id))
-    .limit(1);
-  const purchasePath = firstPurchase[0]?.id
+    .limit(1),
+   purchasePath = firstPurchase[0]?.id
     ? `/library/purchased/${firstPurchase[0].id}`
-    : "/library/purchased";
-  const deliveries = [];
+    : "/library/purchased",
+   deliveries = [];
 
   if (buyer) {
     deliveries.push(
@@ -685,9 +685,9 @@ export const notifyLiveEventScheduledEmail = async ({
   const actionPath =
     eventType === "party"
       ? `/live/parties/${eventId}`
-      : eventType === "stream"
+      : (eventType === "stream"
         ? `/live/streams/${eventId}`
-        : `/live/battles/${eventId}`;
+        : `/live/battles/${eventId}`);
   return enqueueForRecipient({
     actionPath,
     body: `${hostName} scheduled ${eventTitle}. Open SoundKit to view the event time and join when it starts.`,
@@ -728,9 +728,9 @@ export const notifyArtistReleaseEmail = async ({
   const contentPath =
     contentType === "project"
       ? `/projects/${contentId}`
-      : contentType === "video"
+      : (contentType === "video"
         ? `/videos/${contentId}`
-        : `/tracks/${contentId}`;
+        : `/tracks/${contentId}`);
   return enqueueForRecipient({
     actionPath: contentPath,
     body: `${artistName} just released ${contentType === "project" ? "a project" : `a ${contentType}`}: ${contentTitle}. Listen or watch it now on SoundKit.`,
@@ -773,7 +773,7 @@ export const notifyFollowerEmail = async ({
     actionPath:
       followerUsername && !isFan
         ? `/artist/${followerUsername}`
-        : "/dashboard/collaborators",
+        : "/dashboard/collaborators?tab=following",
     body: isFan
       ? `${followerName} became a fan of your SoundKit profile. Open your collaborators dashboard to see the fan and keep building your audience.`
       : `${followerName} started following your SoundKit profile. Open their artist page to see what they are building.`,
@@ -813,7 +813,7 @@ export const notifyFriendRequestEmail = async ({
   }
 
   return enqueueForRecipient({
-    actionPath: "/dashboard/collaborators",
+    actionPath: "/dashboard/collaborators?tab=requests",
     body: `${requesterName} sent you an artist friend request on SoundKit. Accept it to add them to your friends list and start messaging when you are ready.`,
     ctaLabel: "Review request",
     eyebrow: "Friend request",

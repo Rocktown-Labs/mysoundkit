@@ -62,28 +62,28 @@ interface KanbanTask {
 }
 
 function CareerCalendarPage() {
-  const { toast } = useToast();
-  const projectsQuery = useProjectsQuery();
-  const tracksQuery = useTracksQuery();
-  const partiesQuery = useListeningPartiesQuery();
+  const { toast } = useToast(),
+   projectsQuery = useProjectsQuery(),
+   tracksQuery = useTracksQuery(),
+   partiesQuery = useListeningPartiesQuery(),
 
-  const [activeTab, setActiveTab] = useState<"calendar" | "kanban">("calendar");
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskCol, setNewTaskCol] = useState<
+   [activeTab, setActiveTab] = useState<"calendar" | "kanban">("calendar"),
+   [selectedMonth, setSelectedMonth] = useState(new Date()),
+   [newTaskTitle, setNewTaskTitle] = useState(""),
+   [newTaskCol, setNewTaskCol] = useState<
     "todo" | "in_progress" | "scheduled" | "released"
-  >("todo");
-  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  >("todo"),
+   [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false),
 
-  const projects = useMemo(
+   projects = useMemo(
     () => projectsQuery.data ?? [],
     [projectsQuery.data]
-  );
-  const tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]);
-  const parties = useMemo(() => partiesQuery.data ?? [], [partiesQuery.data]);
+  ),
+   tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]),
+   parties = useMemo(() => partiesQuery.data ?? [], [partiesQuery.data]),
 
   // Initial Kanban State derived from Projects + Tracks + Custom tasks
-  const [customTasks, setCustomTasks] = useState<KanbanTask[]>([
+   [customTasks, setCustomTasks] = useState<KanbanTask[]>([
     {
       category: "promo",
       column: "in_progress",
@@ -105,18 +105,18 @@ function CareerCalendarPage() {
       id: "k-3",
       title: "Send Post-Battle Summary Email to Fans",
     },
-  ]);
+  ]),
 
-  const allKanbanTasks: KanbanTask[] = useMemo(() => {
+   allKanbanTasks: KanbanTask[] = useMemo(() => {
     const projectTasks: KanbanTask[] = projects.map((p) => ({
       category: "project",
       column: p.releaseDate ? "scheduled" : "in_progress",
       date: p.releaseDate,
       id: `proj-${p.id}`,
       title: `Project Release: ${p.title}`,
-    }));
+    })),
 
-    const trackTasks: KanbanTask[] = tracks.map((t) => ({
+     trackTasks: KanbanTask[] = tracks.map((t) => ({
       category: "track",
       column: t.isPurchasable ? "released" : "in_progress",
       id: `track-${t.id}`,
@@ -124,9 +124,9 @@ function CareerCalendarPage() {
     }));
 
     return [...projectTasks, ...trackTasks, ...customTasks];
-  }, [projects, tracks, customTasks]);
+  }, [projects, tracks, customTasks]),
 
-  const moveTask = (
+   moveTask = (
     taskId: string,
     newCol: "todo" | "in_progress" | "scheduled" | "released"
   ) => {
@@ -139,9 +139,9 @@ function CareerCalendarPage() {
       description: `Task updated to ${newCol.replace("_", " ").toUpperCase()}`,
       title: "Kanban Updated",
     });
-  };
+  },
 
-  const handleCreateTask = (e: React.FormEvent) => {
+   handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) {
       return;
@@ -163,15 +163,15 @@ function CareerCalendarPage() {
       description: "Added promotional milestone to your release Kanban board.",
       title: "Task Created 🎯",
     });
-  };
+  },
 
   // Calendar Math
-  const year = selectedMonth.getFullYear();
-  const month = selectedMonth.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(year, month, 1).getDay();
+   year = selectedMonth.getFullYear(),
+   month = selectedMonth.getMonth(),
+   daysInMonth = new Date(year, month + 1, 0).getDate(),
+   firstDayOfWeek = new Date(year, month, 1).getDay(),
 
-  const calendarDays = useMemo(() => {
+   calendarDays = useMemo(() => {
     const days: {
       dateStr: string;
       dayNum: number;
@@ -181,8 +181,8 @@ function CareerCalendarPage() {
       days.push({ dateStr: "", dayNum: 0, isCurrentMonth: false });
     }
     for (let d = 1; d <= daysInMonth; d++) {
-      const pad = (num: number) => String(num).padStart(2, "0");
-      const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
+      const pad = (num: number) => String(num).padStart(2, "0"),
+       dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
       days.push({ dateStr, dayNum: d, isCurrentMonth: true });
     }
     return days;
@@ -330,11 +330,11 @@ function CareerCalendarPage() {
 
                   const matchedProjects = projects.filter(
                     (p) => p.releaseDate === cd.dateStr
-                  );
-                  const matchedParties = parties.filter((p) =>
+                  ),
+                   matchedParties = parties.filter((p) =>
                     p.scheduledStartAt.startsWith(cd.dateStr)
-                  );
-                  const isToday =
+                  ),
+                   isToday =
                     cd.dateStr === new Date().toISOString().slice(0, 10);
 
                   return (

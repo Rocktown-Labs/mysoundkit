@@ -4,8 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Ban,
+  Check,
   CheckCircle2,
   CircleDollarSign,
+  Copy,
   Disc3,
   Globe2,
   Megaphone,
@@ -77,6 +79,7 @@ import {
   useTrackDurationBackfillStatusQuery,
   useUpdateAdminSettingsMutation,
 } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/admin")({
   component: AdminDashboard,
@@ -128,18 +131,18 @@ const formatCurrency = (cents: number) =>
   new Intl.NumberFormat("en-US", {
     currency: "USD",
     style: "currency",
-  }).format(cents / 100);
+  }).format(cents / 100),
 
-const hasAdminRole = (role: string | null | undefined) =>
+ hasAdminRole = (role: string | null | undefined) =>
   role
     ?.split(",")
     .map((value) => value.trim())
     .includes("admin") ?? false;
 
 function AdminDashboard() {
-  const { data: session, isPending } = authClient.useSession();
-  const adminAccess = useAdminAccessQuery(Boolean(session?.user));
-  const isAdmin =
+  const { data: session, isPending } = authClient.useSession(),
+   adminAccess = useAdminAccessQuery(Boolean(session?.user)),
+   isAdmin =
     hasAdminRole(session?.user.role) || adminAccess.data?.isAdmin === true;
 
   if (isPending || (session?.user && adminAccess.isLoading)) {
@@ -204,8 +207,8 @@ function AdminDashboard() {
 }
 
 function SettingsPanel() {
-  const settingsQuery = useAdminSettingsQuery();
-  const updateSettings = useUpdateAdminSettingsMutation();
+  const settingsQuery = useAdminSettingsQuery(),
+   updateSettings = useUpdateAdminSettingsMutation();
 
   if (settingsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading settings...</p>;
@@ -280,17 +283,21 @@ function SettingsPanel() {
 }
 
 function AdsPanel() {
-  const campaignsQuery = useAdminAdCampaignsQuery();
-  const queryClient = useQueryClient();
-  const [clickthroughUrl, setClickthroughUrl] = useState("https://mysoundkit.com");
-  const [creativeFormat, setCreativeFormat] = useState<"audio" | "image" | "video">("image");
-  const [creativeUrl, setCreativeUrl] = useState("");
-  const [name, setName] = useState("");
-  const [placement, setPlacement] = useState<
+  const campaignsQuery = useAdminAdCampaignsQuery(),
+   queryClient = useQueryClient(),
+   [clickthroughUrl, setClickthroughUrl] = useState(
+    "https://mysoundkit.com"
+  ),
+   [creativeFormat, setCreativeFormat] = useState<
+    "audio" | "image" | "video"
+  >("image"),
+   [creativeUrl, setCreativeUrl] = useState(""),
+   [name, setName] = useState(""),
+   [placement, setPlacement] = useState<
     "audio_preroll" | "video_overlay" | "video_preroll"
-  >("video_overlay");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const { isPending: isUploading, upload } = useUploadFiles({
+  >("video_overlay"),
+   [previewUrl, setPreviewUrl] = useState(""),
+   { isPending: isUploading, upload } = useUploadFiles({
     api: MEDIA_UPLOAD_URL,
     credentials: "include",
     onUploadComplete: ({ files }) => {
@@ -299,14 +306,15 @@ function AdsPanel() {
         setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
       }
     },
-  });
-  const createHouseAd = useMutation({
+  }),
+   createHouseAd = useMutation({
     mutationFn: async () => {
       const response = await fetch(`${API_V1_URL}/ads/admin/campaigns`, {
         body: JSON.stringify({
           clickthroughUrl,
           creativeFormat,
-          creativeImageUrl: creativeFormat === "image" ? creativeUrl : undefined,
+          creativeImageUrl:
+            creativeFormat === "image" ? creativeUrl : undefined,
           creativeUrl,
           name,
           placement,
@@ -323,12 +331,23 @@ function AdsPanel() {
       setName("");
       setCreativeUrl("");
       setPreviewUrl("");
-      await queryClient.invalidateQueries({ queryKey: ["ads", "admin", "campaigns"] });
-      toast({ description: "The zero-budget house ad is now active.", title: "House ad created" });
+      await queryClient.invalidateQueries({
+        queryKey: ["ads", "admin", "campaigns"],
+      });
+      toast({
+        description: "The zero-budget house ad is now active.",
+        title: "House ad created",
+      });
     },
-  });
-  const updateStatus = useMutation({
-    mutationFn: async ({ campaignId, status }: { campaignId: string; status: "active" | "paused" }) => {
+  }),
+   updateStatus = useMutation({
+    mutationFn: async ({
+      campaignId,
+      status,
+    }: {
+      campaignId: string;
+      status: "active" | "paused";
+    }) => {
       const response = await fetch(
         `${API_V1_URL}/ads/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
         {
@@ -343,10 +362,12 @@ function AdsPanel() {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["ads", "admin", "campaigns"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["ads", "admin", "campaigns"],
+      });
     },
-  });
-  const campaigns = campaignsQuery.data ?? [];
+  }),
+   campaigns = campaignsQuery.data ?? [];
 
   if (campaignsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading ads...</p>;
@@ -441,7 +462,8 @@ function AdsPanel() {
                   : 100 * 1024 * 1024;
                 if (file.size > maxBytes) {
                   toast({
-                    description: "Images must be under 10 MB; audio and video must be under 100 MB.",
+                    description:
+                      "Images must be under 10 MB; audio and video must be under 100 MB.",
                     title: "Creative too large",
                     variant: "destructive",
                   });
@@ -476,12 +498,14 @@ function AdsPanel() {
             </Button>
           </div>
           <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border bg-background">
-            {!previewUrl ? (
-              <p className="text-muted-foreground text-sm">Creative preview</p>
-            ) : creativeFormat === "audio" ? (
+            {previewUrl ? creativeFormat === "audio" ? (
               <audio className="w-full px-4" controls src={previewUrl} />
             ) : creativeFormat === "video" ? (
-              <video className="aspect-video w-full object-cover" controls src={previewUrl} />
+              <video
+                className="aspect-video w-full object-cover"
+                controls
+                src={previewUrl}
+              />
             ) : (
               <AppImage
                 alt="House ad preview"
@@ -490,6 +514,8 @@ function AdsPanel() {
                 src={previewUrl}
                 width={500}
               />
+            ) : (
+              <p className="text-muted-foreground text-sm">Creative preview</p>
             )}
           </div>
         </div>
@@ -567,12 +593,12 @@ function AdsPanel() {
 }
 
 function OverviewPanel() {
-  const { data, error, isLoading } = useAdminOverviewQuery();
-  const backfillDurations = useBackfillTrackDurationsMutation();
-  const [backfillRunId, setBackfillRunId] = useState<string | null>(null);
-  const [backfillActive, setBackfillActive] = useState(false);
-  const completionHandledRef = useRef(false);
-  const backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
+  const { data, error, isLoading } = useAdminOverviewQuery(),
+   backfillDurations = useBackfillTrackDurationsMutation(),
+   [backfillRunId, setBackfillRunId] = useState<string | null>(null),
+   [backfillActive, setBackfillActive] = useState(false),
+   completionHandledRef = useRef(false),
+   backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
 
   useEffect(() => {
     if (
@@ -583,8 +609,8 @@ function OverviewPanel() {
       return;
     }
 
-    const { done, failed, processing, queued } = backfillStatus.data;
-    const inFlight = processing + queued;
+    const { done, failed, processing, queued } = backfillStatus.data,
+     inFlight = processing + queued;
 
     if (inFlight > 0) {
       return;
@@ -823,11 +849,11 @@ function MetricRow({
 }
 
 function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
-  const queryClient = useQueryClient();
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
-  const usersQuery = useQuery({
+  const queryClient = useQueryClient(),
+   [searchInput, setSearchInput] = useState(""),
+   [search, setSearch] = useState(""),
+   [pendingAction, setPendingAction] = useState<PendingAction>(null),
+   usersQuery = useQuery({
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search) {
@@ -843,8 +869,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
       return (await response.json()) as { users: AdminUserSummary[] };
     },
     queryKey: ["admin", "users", search],
-  });
-  const actionMutation = useMutation({
+  }),
+   actionMutation = useMutation({
     mutationFn: async (
       action:
         | Exclude<PendingAction, null>
@@ -909,9 +935,9 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
       await queryClient.invalidateQueries({ queryKey: ["admin"] });
       toast({ description: "The user account was updated.", title: "Updated" });
     },
-  });
+  }),
 
-  const confirmAction = () => {
+   confirmAction = () => {
     if (!pendingAction) {
       return;
     }
@@ -957,8 +983,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
           </TableHeader>
           <TableBody>
             {usersQuery.data?.users.map((user) => {
-              const isSelf = user.id === currentUserId;
-              const isUserAdmin = hasAdminRole(user.role);
+              const isSelf = user.id === currentUserId,
+               isUserAdmin = hasAdminRole(user.role);
 
               return (
                 <TableRow key={user.id}>
@@ -1129,8 +1155,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 }
 
 function PaymentsPanel() {
-  const paymentsQuery = useAdminPaymentsQuery();
-  const syncMutation = useSyncStripePlansMutation();
+  const paymentsQuery = useAdminPaymentsQuery(),
+   syncMutation = useSyncStripePlansMutation();
 
   if (paymentsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading payments...</p>;
@@ -1140,14 +1166,14 @@ function PaymentsPanel() {
     return <p className="text-sm text-destructive">Unable to load payments.</p>;
   }
 
-  const { data } = paymentsQuery;
-  const missingCheckoutEnv = data.plans.filter(
+  const { data } = paymentsQuery,
+   missingCheckoutEnv = data.plans.filter(
     (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
-  );
-  const configuredPlanCount = data.plans.filter(
+  ),
+   configuredPlanCount = data.plans.filter(
     (plan) => plan.stripeMonthlyPriceId
-  ).length;
-  const paymentMetrics = [
+  ).length,
+   paymentMetrics = [
     {
       label: "Gross revenue",
       supporting: "All successful transactions",
@@ -1168,9 +1194,9 @@ function PaymentsPanel() {
       supporting: `${configuredPlanCount} Stripe-linked plans`,
       value: `${data.configuredCheckoutPlans}/${data.planCount}`,
     },
-  ];
+  ],
 
-  const handleSync = () => {
+   handleSync = () => {
     syncMutation.mutate(
       {},
       {
@@ -1193,86 +1219,76 @@ function PaymentsPanel() {
 
   return (
     <div className="space-y-5">
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <CircleDollarSign className="size-4 text-primary" />
-                  Payments Health
+      <Card className="border-primary/20 bg-primary/5 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <CircleDollarSign className="size-5 text-primary shrink-0" />
+                <CardTitle className="text-base font-bold">
+                  Payments &amp; Stripe Health
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  Stripe setup, checkout readiness, and Premium grants.
-                </CardDescription>
+                <Badge
+                  className="shrink-0 text-xs font-semibold"
+                  variant={data.stripeConfigured ? "secondary" : "destructive"}
+                >
+                  {data.stripeConfigured
+                    ? "Stripe Connected"
+                    : "Stripe Missing"}
+                </Badge>
               </div>
-              <Badge
-                className="shrink-0"
-                variant={data.stripeConfigured ? "secondary" : "destructive"}
-              >
-                {data.stripeConfigured ? "Stripe Connected" : "Stripe Missing"}
-              </Badge>
+              <CardDescription className="mt-1 text-xs">
+                {data.stripeConfigured
+                  ? missingCheckoutEnv.length > 0
+                    ? `${missingCheckoutEnv.length} plan needs deployed checkout environment variables.`
+                    : "Stripe setup is live and all linked checkout plans are ready."
+                  : "Add STRIPE_SECRET_KEY before syncing or importing price IDs."}
+              </CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Button
+              className="shrink-0 font-medium shadow-sm"
+              disabled={syncMutation.isPending}
+              onClick={handleSync}
+              size="sm"
+            >
+              <RefreshCw
+                className={`mr-2 size-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`}
+              />
+              {syncMutation.isPending
+                ? "Syncing Stripe…"
+                : "Sync Products & Prices"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {paymentMetrics.map((metric) => (
               <div
-                className="rounded-md border bg-background/70 p-3"
+                className="rounded-lg border bg-background/80 p-3.5 shadow-sm transition-colors"
                 key={metric.label}
               >
                 <p className="text-xs font-medium text-muted-foreground">
                   {metric.label}
                 </p>
-                <p className="mt-2 font-semibold text-2xl tabular-nums">
+                <p className="mt-1.5 font-bold text-xl sm:text-2xl tabular-nums tracking-tight">
                   {metric.value}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 truncate text-[11px] text-muted-foreground">
                   {metric.supporting}
                 </p>
               </div>
             ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Next Action</CardTitle>
-            <CardDescription>
-              Use Stripe as the source for the two SoundKit Premium products and
-              prices.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              className="w-full justify-center"
-              disabled={syncMutation.isPending}
-              onClick={handleSync}
-            >
-              <RefreshCw
-                className={`size-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
-              />
-              {syncMutation.isPending ? "Syncing…" : "Sync Products & Prices"}
-            </Button>
-            <div className="rounded-md border p-3 text-xs text-muted-foreground">
-              {data.stripeConfigured ? (
-                <p>
-                  {missingCheckoutEnv.length > 0
-                    ? `${missingCheckoutEnv.length} plan needs deployed checkout env vars.`
-                    : "All linked checkout plans are ready."}
-                </p>
-              ) : (
-                <p>Add `STRIPE_SECRET_KEY` before syncing or importing IDs.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+          </div>
+        </CardContent>
+      </Card>
 
       {missingCheckoutEnv.length > 0 && (
-        <Alert>
-          <TriangleAlert className="size-4" />
-          <AlertTitle>Checkout Env Vars Need Updating</AlertTitle>
-          <AlertDescription>
+        <Alert className="border-amber-500/30 bg-amber-500/5">
+          <TriangleAlert className="size-4 text-amber-500" />
+          <AlertTitle className="text-amber-500 font-semibold">
+            Checkout Env Vars Need Updating
+          </AlertTitle>
+          <AlertDescription className="text-xs text-muted-foreground">
             Synced DB price IDs are visible here. Copy the matching monthly and
             annual IDs into the listed env keys before testing paid checkout.
           </AlertDescription>
@@ -1283,7 +1299,7 @@ function PaymentsPanel() {
 
       <PremiumGrantCard />
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <RecentTransactions transactions={data.recentTransactions} />
         <StripeCatalog prices={data.stripePrices} />
       </section>
@@ -1292,16 +1308,16 @@ function PaymentsPanel() {
 }
 
 function CouponsManagerCard() {
-  const queryClient = useQueryClient();
-  const syncPlansMutation = useSyncStripePlansMutation();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [percentOff, setPercentOff] = useState("17");
-  const duration = "forever" as const;
-  const [maxRedemptions, setMaxRedemptions] = useState("");
+  const queryClient = useQueryClient(),
+   syncPlansMutation = useSyncStripePlansMutation(),
+   [isDialogOpen, setIsDialogOpen] = useState(false),
+   [name, setName] = useState(""),
+   [code, setCode] = useState(""),
+   [percentOff, setPercentOff] = useState("17"),
+   duration = "forever" as const,
+   [maxRedemptions, setMaxRedemptions] = useState(""),
 
-  const {
+   {
     data: couponsData,
     error: couponsError,
     isLoading,
@@ -1338,11 +1354,11 @@ function CouponsManagerCard() {
       };
     },
     queryKey: ["admin", "stripe-coupons"],
-  });
+  }),
 
-  const coupons = couponsData?.coupons ?? [];
+   coupons = couponsData?.coupons ?? [],
 
-  const handleCreateCoupon = async (e: React.FormEvent) => {
+   handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!(name.trim() && code.trim())) {
       toast({
@@ -1395,9 +1411,9 @@ function CouponsManagerCard() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleDeleteCoupon = async (couponId: string) => {
+   handleDeleteCoupon = async (couponId: string) => {
     try {
       const res = await fetch(
         `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
@@ -1425,9 +1441,9 @@ function CouponsManagerCard() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleSyncStripe = async () => {
+   handleSyncStripe = async () => {
     try {
       await syncPlansMutation.mutateAsync({});
       await refetch();
@@ -1642,11 +1658,11 @@ function CouponsManagerCard() {
 }
 
 function PremiumGrantCard() {
-  const queryClient = useQueryClient();
-  const [planCode, setPlanCode] = useState("soundkit_premium_artist");
-  const [search, setSearch] = useState("");
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const usersQuery = useQuery({
+  const queryClient = useQueryClient(),
+   [planCode, setPlanCode] = useState("soundkit_premium_artist"),
+   [search, setSearch] = useState(""),
+   [selectedUserIds, setSelectedUserIds] = useState<string[]>([]),
+   usersQuery = useQuery({
     enabled: search.trim().length >= 2,
     queryFn: async () => {
       const response = await fetch(
@@ -1659,8 +1675,8 @@ function PremiumGrantCard() {
       return (await response.json()) as { users: AdminUserSummary[] };
     },
     queryKey: ["admin", "premium-user-search", search.trim()],
-  });
-  const grantMutation = useMutation({
+  }),
+   grantMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(
         `${API_V1_URL}/admin/finance/payments/grant-premium`,
@@ -1670,8 +1686,8 @@ function PremiumGrantCard() {
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }
-      );
-      const body = (await response.json().catch(() => ({}))) as {
+      ),
+       body = (await response.json().catch(() => ({}))) as {
         grantedCount?: number;
         message?: string;
       };
@@ -1696,8 +1712,8 @@ function PremiumGrantCard() {
         title: "Premium granted",
       });
     },
-  });
-  const searchResults = usersQuery.data?.users ?? [];
+  }),
+   searchResults = usersQuery.data?.users ?? [];
 
   return (
     <Card>
@@ -1836,79 +1852,68 @@ function PaymentPlanCatalog({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Subscription Catalog</CardTitle>
-            <CardDescription>
-              Link SoundKit plan rows to Stripe prices and checkout env keys.
+            <CardTitle className="text-base font-bold">
+              Subscription Catalog
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Link SoundKit plan rows to Stripe prices and checkout environment
+              keys.
             </CardDescription>
           </div>
-          <Badge variant="outline">{plans.length} Plans</Badge>
+          <Badge className="font-semibold" variant="outline">
+            {plans.length} Plans
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-[220px]">Plan</TableHead>
-                <TableHead className="min-w-[130px]">Pricing</TableHead>
-                <TableHead className="min-w-[150px]">Checkout Status</TableHead>
-                <TableHead className="min-w-[360px]">
-                  Stripe Price IDs
-                </TableHead>
-                <TableHead className="min-w-[280px]">Env Keys</TableHead>
-                <TableHead className="w-[120px] text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {plans.map((plan) => (
-                <PaymentPlanRow
-                  key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
-                  plan={plan}
-                  stripePrices={stripePrices}
-                />
-              ))}
-            </TableBody>
-          </Table>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          {plans.map((plan) => (
+            <PaymentPlanCard
+              key={`${plan.code}:${plan.stripeMonthlyPriceId}:${plan.stripeAnnualPriceId}`}
+              plan={plan}
+              stripePrices={stripePrices}
+            />
+          ))}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function PaymentPlanRow({
+function PaymentPlanCard({
   plan,
   stripePrices,
 }: Readonly<{
   plan: AdminPaymentPlan;
   stripePrices: StripePriceOption[];
 }>) {
-  const importMutation = useImportStripePlanMutation();
-  const suggestedMonthly =
+  const importMutation = useImportStripePlanMutation(),
+   suggestedMonthly =
     stripePrices.find(
       (price) => price.planCode === plan.code && price.interval === "month"
-    )?.id ?? "";
-  const suggestedAnnual =
+    )?.id ?? "",
+   suggestedAnnual =
     stripePrices.find(
       (price) => price.planCode === plan.code && price.interval === "year"
-    )?.id ?? "";
-  const [monthlyPriceId, setMonthlyPriceId] = useState(
+    )?.id ?? "",
+   [monthlyPriceId, setMonthlyPriceId] = useState(
     plan.stripeMonthlyPriceId ?? suggestedMonthly
-  );
-  const [annualPriceId, setAnnualPriceId] = useState(
+  ),
+   [annualPriceId, setAnnualPriceId] = useState(
     plan.stripeAnnualPriceId ?? suggestedAnnual
-  );
-  const monthlyCheckoutReady =
+  ),
+   monthlyCheckoutReady =
     Boolean(plan.stripeMonthlyPriceId) &&
-    plan.stripeMonthlyPriceId === plan.envMonthlyPriceId;
-  const annualCheckoutReady =
+    plan.stripeMonthlyPriceId === plan.envMonthlyPriceId,
+   annualCheckoutReady =
     !plan.annualPriceCents ||
     (Boolean(plan.stripeAnnualPriceId) &&
-      plan.stripeAnnualPriceId === plan.envAnnualPriceId);
-  const checkoutReady = monthlyCheckoutReady && annualCheckoutReady;
+      plan.stripeAnnualPriceId === plan.envAnnualPriceId),
+   checkoutReady = monthlyCheckoutReady && annualCheckoutReady,
 
-  const handleImport = () => {
+   handleImport = () => {
     importMutation.mutate(
       {
         annualPriceId: annualPriceId.trim() || undefined,
@@ -1934,97 +1939,119 @@ function PaymentPlanRow({
   };
 
   return (
-    <TableRow className="align-top">
-      <TableCell>
-        <div className="min-w-0">
-          <p className="font-semibold">{plan.name}</p>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {plan.code}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <Badge variant="outline">{plan.audience}</Badge>
-            <Badge variant={plan.isActive ? "secondary" : "outline"}>
-              {plan.isActive ? "Active" : "Inactive"}
+    <div className="flex flex-col justify-between rounded-xl border bg-card/60 p-4 shadow-sm transition-all hover:border-border/80">
+      <div className="space-y-4">
+        {/* Card Header */}
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
+          <div className="min-w-0">
+            <h4 className="font-bold text-sm tracking-tight text-foreground">
+              {plan.name}
+            </h4>
+            <p className="font-mono text-xs text-muted-foreground truncate">
+              {plan.code}
+            </p>
+            <div className="mt-2 flex items-center gap-1.5">
+              <Badge className="text-[11px] capitalize" variant="outline">
+                {plan.audience}
+              </Badge>
+              <Badge
+                className="text-[11px]"
+                variant={plan.isActive ? "secondary" : "outline"}
+              >
+                {plan.isActive ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge
+              className={cn(
+                "text-xs font-semibold",
+                checkoutReady
+                  ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+              )}
+              variant="outline"
+            >
+              {checkoutReady ? "Ready" : "Needs Setup"}
             </Badge>
+            <Button
+              className="h-8 gap-1.5 text-xs font-medium"
+              disabled={importMutation.isPending}
+              onClick={handleImport}
+              size="sm"
+              variant="outline"
+            >
+              <UploadCloud className="size-3.5" />
+              {importMutation.isPending ? "Saving…" : "Save IDs"}
+            </Button>
           </div>
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="space-y-1 text-sm">
-          <p>
-            <span className="text-muted-foreground">Monthly</span>{" "}
-            <span className="font-medium tabular-nums">
+
+        {/* Pricing Summary */}
+        <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/30 p-2.5 text-xs">
+          <div>
+            <span className="block text-[11px] text-muted-foreground">
+              Monthly Price
+            </span>
+            <span className="font-bold text-foreground text-sm tabular-nums">
               {formatCurrency(plan.monthlyPriceCents)}
             </span>
-          </p>
-          <p>
-            <span className="text-muted-foreground">Annual</span>{" "}
-            <span className="font-medium tabular-nums">
+            <span className="text-[11px] text-muted-foreground"> / mo</span>
+          </div>
+          <div>
+            <span className="block text-[11px] text-muted-foreground">
+              Annual Price
+            </span>
+            <span className="font-bold text-foreground text-sm tabular-nums">
               {plan.annualPriceCents
                 ? formatCurrency(plan.annualPriceCents)
-                : "-"}
+                : "—"}
             </span>
-          </p>
+            {plan.annualPriceCents ? (
+              <span className="text-[11px] text-muted-foreground"> / yr</span>
+            ) : null}
+          </div>
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="space-y-2">
-          <Badge variant={checkoutReady ? "secondary" : "outline"}>
-            {checkoutReady ? "Ready" : "Needs Setup"}
-          </Badge>
-          {!checkoutReady && (
-            <p className="max-w-[150px] text-xs text-muted-foreground">
-              Import Stripe IDs, then deploy matching env keys.
-            </p>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        <div className="grid gap-2">
+
+        {/* Stripe Price IDs Input Form */}
+        <div className="space-y-3">
           <PriceIdField
             id={`${plan.code}-monthly`}
-            label="Monthly Price ID"
+            label="Monthly Stripe Price ID"
             onChange={setMonthlyPriceId}
             value={monthlyPriceId}
           />
-          {plan.annualPriceCents && (
+          {plan.annualPriceCents ? (
             <PriceIdField
               id={`${plan.code}-annual`}
-              label="Annual Price ID"
+              label="Annual Stripe Price ID"
               onChange={setAnnualPriceId}
               value={annualPriceId}
             />
-          )}
+          ) : null}
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="space-y-2 rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+
+        {/* Required Environment Keys */}
+        <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
+          <p className="font-semibold text-[11px] text-muted-foreground tracking-wider uppercase">
+            Required Environment Variables
+          </p>
           <EnvKeyLine
             isReady={monthlyCheckoutReady}
-            label="Monthly"
+            label="Monthly Env Key"
             value={plan.envMonthlyKey ?? "not required"}
           />
-          {plan.envAnnualKey && (
+          {plan.envAnnualKey ? (
             <EnvKeyLine
               isReady={annualCheckoutReady}
-              label="Annual"
+              label="Annual Env Key"
               value={plan.envAnnualKey}
             />
-          )}
+          ) : null}
         </div>
-      </TableCell>
-      <TableCell className="text-right">
-        <Button
-          disabled={importMutation.isPending}
-          onClick={handleImport}
-          size="sm"
-          variant="outline"
-        >
-          <UploadCloud className="size-4" />
-          {importMutation.isPending ? "Saving…" : "Import"}
-        </Button>
-      </TableCell>
-    </TableRow>
+      </div>
+    </div>
   );
 }
 
@@ -2033,17 +2060,51 @@ function EnvKeyLine({
   label,
   value,
 }: Readonly<{ isReady: boolean; label: string; value: string }>) {
+  const [copied, setCopied] = useState(false),
+
+   handleCopy = async () => {
+    if (!value || value === "not required") {return;}
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ description: `${label} copied to clipboard.` });
+    } catch {
+      // ignore
+    }
+  };
+
   return (
-    <div className="flex min-w-0 items-start gap-2">
-      {isReady ? (
-        <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
-      ) : (
-        <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
-      )}
-      <div className="min-w-0">
-        <p className="font-medium text-foreground">{label}</p>
-        <p className="break-all font-mono">{value}</p>
+    <div className="flex min-w-0 items-start justify-between gap-2 rounded-md bg-background/60 p-2 text-xs transition-colors hover:bg-background/90">
+      <div className="flex min-w-0 items-start gap-2">
+        {isReady ? (
+          <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
+        ) : (
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
+        )}
+        <div className="min-w-0">
+          <p className="font-medium text-[11px] text-foreground">{label}</p>
+          <p className="break-all font-mono text-[11px] text-muted-foreground">
+            {value}
+          </p>
+        </div>
       </div>
+      {value && value !== "not required" ? (
+        <Button
+          className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={handleCopy}
+          size="icon"
+          title="Copy env var name"
+          type="button"
+          variant="ghost"
+        >
+          {copied ? (
+            <Check className="size-3 text-emerald-400" />
+          ) : (
+            <Copy className="size-3" />
+          )}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -2061,7 +2122,7 @@ function PriceIdField({
 }>) {
   return (
     <div className="grid gap-1.5">
-      <Label className="text-xs" htmlFor={id}>
+      <Label className="font-medium text-xs text-foreground/90" htmlFor={id}>
         {label}
       </Label>
       <Input
@@ -2094,8 +2155,10 @@ function RecentTransactions({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Recent transactions</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-base font-bold">
+          Recent transactions
+        </CardTitle>
+        <CardDescription className="text-xs">
           Latest successful payments and platform fees.
         </CardDescription>
       </CardHeader>
@@ -2105,8 +2168,8 @@ function RecentTransactions({
             No transactions yet.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto rounded-md border">
+            <Table className="min-w-[440px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
@@ -2118,14 +2181,16 @@ function RecentTransactions({
               <TableBody>
                 {transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell>{transaction.transactionType}</TableCell>
+                    <TableCell className="font-medium capitalize">
+                      {transaction.transactionType}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">{transaction.status}</Badge>
                     </TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className="tabular-nums font-semibold">
                       {formatCurrency(transaction.amountCents)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
                       {new Intl.DateTimeFormat("en-US", {
                         day: "numeric",
                         month: "short",
@@ -2147,8 +2212,8 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Stripe prices</CardTitle>
-        <CardDescription>
+        <CardTitle className="text-base font-bold">Stripe prices</CardTitle>
+        <CardDescription className="text-xs">
           Active Stripe price objects detected during sync.
         </CardDescription>
       </CardHeader>
@@ -2164,19 +2229,19 @@ function StripeCatalog({ prices }: Readonly<{ prices: StripePriceOption[] }>) {
               key={price.id}
             >
               <div className="min-w-0">
-                <p className="font-medium">{price.productName}</p>
+                <p className="font-medium text-sm">{price.productName}</p>
                 <p className="break-all font-mono text-xs text-muted-foreground">
                   {price.id}
                 </p>
               </div>
               <div className="shrink-0 text-right text-sm">
-                <p className="tabular-nums">
+                <p className="font-semibold tabular-nums">
                   {typeof price.unitAmount === "number"
                     ? formatCurrency(price.unitAmount)
                     : "-"}
                 </p>
                 <p className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                  <CheckCircle2 className="size-3" />
+                  <CheckCircle2 className="size-3 text-emerald-500" />
                   {price.interval ?? "one-time"}
                 </p>
               </div>

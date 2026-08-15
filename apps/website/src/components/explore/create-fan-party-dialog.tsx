@@ -2,14 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  Check,
-  Copy,
-  Headphones,
-  Plus,
-  Radio,
-  Users,
-} from "lucide-react";
+import { Check, Copy, Headphones, Plus, Radio, Users } from "lucide-react";
 import React, { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -43,19 +36,19 @@ interface CreateFanPartyDialogProps {
   children?: React.ReactNode;
 }
 
-const padDateTimePart = (value: number) => value.toString().padStart(2, "0");
+const padDateTimePart = (value: number) => value.toString().padStart(2, "0"),
 
-const toLocalDateTimeInputValue = (date: Date) =>
+ toLocalDateTimeInputValue = (date: Date) =>
   `${date.getFullYear()}-${padDateTimePart(date.getMonth() + 1)}-${padDateTimePart(date.getDate())}T${padDateTimePart(date.getHours())}:${padDateTimePart(date.getMinutes())}`;
 
 export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
-  const { data: session } = authClient.useSession();
-  const user = session?.user;
-  const isAuthenticated = Boolean(user);
+  const { data: session } = authClient.useSession(),
+   user = session?.user,
+   isAuthenticated = Boolean(user),
 
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const createParty = useCreateListeningPartyMutation();
-  const sourcesQuery = useQuery({
+   entitlementsQuery = useMeEntitlementsQuery(),
+   createParty = useCreateListeningPartyMutation(),
+   sourcesQuery = useQuery({
     enabled: isAuthenticated,
     queryFn: async () => {
       const response = await fetch(`${API_V1_URL}/listening-parties/sources`, {
@@ -71,19 +64,19 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
       };
     },
     queryKey: ["listening-party-sources"],
-  });
+  }),
 
-  const [open, setOpen] = useState(false);
-  const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [title, setTitle] = useState("");
-  const [scheduledStartAt, setScheduledStartAt] = useState("");
+   [open, setOpen] = useState(false),
+   [createdRoomId, setCreatedRoomId] = useState<string | null>(null),
+   [copied, setCopied] = useState(false),
+   [selectedProjectId, setSelectedProjectId] = useState<string>(""),
+   [title, setTitle] = useState(""),
+   [scheduledStartAt, setScheduledStartAt] = useState(""),
 
-  const projects = sourcesQuery.data?.projects ?? [];
-  const playlists = sourcesQuery.data?.playlists ?? [];
+   projects = sourcesQuery.data?.projects ?? [],
+   playlists = sourcesQuery.data?.playlists ?? [],
 
-  const handleCreate = (e: React.FormEvent) => {
+   handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedProjectId) {
@@ -96,8 +89,8 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
       return;
     }
 
-    const startAt = new Date(scheduledStartAt).toISOString();
-    const [sourceType, sourceId] = selectedProjectId.split(":", 2);
+    const startAt = new Date(scheduledStartAt).toISOString(),
+     [sourceType, sourceId] = selectedProjectId.split(":", 2);
 
     createParty.mutate(
       {
@@ -120,9 +113,9 @@ export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
         },
       }
     );
-  };
+  },
 
-  const copyShareLink = () => {
+   copyShareLink = () => {
     if (!createdRoomId) {
       return;
     }

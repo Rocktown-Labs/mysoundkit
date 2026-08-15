@@ -21,9 +21,9 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const subscriptionSummarySchema = z.object({
+ subscriptionSummarySchema = z.object({
   activePlanCode: z.string().nullable(),
   entitlements: entitlementSummarySchema,
   status: z.string().nullable(),
@@ -95,14 +95,14 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const referenceId =
+    const body = c.req.valid("json"),
+     session = c.get("session"),
+     referenceId =
       body.referenceId ??
       (isAuthenticatedSession(session)
         ? (session.activeOrganizationId ?? user.id)
-        : user.id);
-    const checkout = await checkoutForPlan({
+        : user.id),
+     checkout = await checkoutForPlan({
       cancelUrl: body.cancelUrl,
       planCode: body.planCode,
       referenceId,
@@ -138,8 +138,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });

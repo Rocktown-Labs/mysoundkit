@@ -13,19 +13,19 @@ import type { VideoSeoData } from "@/lib/seo-data";
 export const Route = createFileRoute("/_explore/videos/$regionSlug/$slug")({
   component: RegionSlugVideoPage,
   head: ({ loaderData, params }) => {
-    const video = loaderData as VideoSeoData | null;
-    const canonicalPath =
+    const video = loaderData as VideoSeoData | null,
+     canonicalPath =
       video?.regionSlug && video.slug
         ? `/videos/${video.regionSlug}/${video.slug}`
-        : `/videos/${params.regionSlug}/${params.slug}`;
-    const videoTitle = video?.title ?? "Video";
-    const creatorName = video?.creatorName ?? "SoundKit creator";
-    const title = `Watch ${videoTitle} by ${creatorName} on SoundKit`;
-    const description = seoDescription(
+        : `/videos/${params.regionSlug}/${params.slug}`,
+     videoTitle = video?.title ?? "Video",
+     creatorName = video?.creatorName ?? "SoundKit creator",
+     title = `Watch ${videoTitle} by ${creatorName} on SoundKit`,
+     description = seoDescription(
       video?.description,
       `Watch ${videoTitle} by ${creatorName} on SoundKit.`
-    );
-    const head = createShareMeta({
+    ),
+     head = createShareMeta({
       canonicalPath,
       description,
       imageUrl: video?.thumbnailUrl,

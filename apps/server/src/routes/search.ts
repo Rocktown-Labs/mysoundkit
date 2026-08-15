@@ -13,8 +13,8 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
-import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { searchSemanticEntities } from "@/lib/audio-processing";
+import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { sampleArtists, sampleProjects, sampleTracks } from "@/lib/sample-data";
 import {
@@ -26,10 +26,13 @@ import type { AppEnv } from "@/lib/types";
 const app = new OpenAPIHono<AppEnv>();
 
 app.get("/semantic", async (c) => {
-  const q = c.req.query("q")?.trim() ?? "";
-  const limit = Number(c.req.query("limit") ?? 12);
+  const q = c.req.query("q")?.trim() ?? "",
+   limit = Number(c.req.query("limit") ?? 12);
   return c.json(
-    await searchSemanticEntities({ limit: Number.isFinite(limit) ? limit : 12, text: q }),
+    await searchSemanticEntities({
+      limit: Number.isFinite(limit) ? limit : 12,
+      text: q,
+    }),
     HttpStatusCodes.OK
   );
 });
@@ -38,19 +41,19 @@ const normalizeState = (state: string | undefined) => {
   const value = state?.trim();
 
   return value || null;
-};
+},
 
-const likeTerm = (value: string) => `%${value.replaceAll("%", "\\%")}%`;
+ likeTerm = (value: string) => `%${value.replaceAll("%", "\\%")}%`,
 
-const locationLabel = ({
+ locationLabel = ({
   city,
   state,
 }: {
   city: string | null;
   state: string | null;
-}) => [city, state].filter(Boolean).join(", ");
+}) => [city, state].filter(Boolean).join(", "),
 
-const sampleSearch = ({
+ sampleSearch = ({
   limit,
   q,
   state,
@@ -61,11 +64,11 @@ const sampleSearch = ({
   state?: string | undefined;
   type: "all" | "artists" | "tracks" | "projects";
 }) => {
-  const needle = q.toLowerCase();
-  const stateNeedle = state?.toLowerCase();
-  const matchesText = (values: string[]) =>
-    !needle || values.some((value) => value.toLowerCase().includes(needle));
-  const matchesState = (location: string) =>
+  const needle = q.toLowerCase(),
+   stateNeedle = state?.toLowerCase(),
+   matchesText = (values: string[]) =>
+    !needle || values.some((value) => value.toLowerCase().includes(needle)),
+   matchesState = (location: string) =>
     !stateNeedle || location.toLowerCase().includes(stateNeedle);
 
   return {
@@ -125,11 +128,11 @@ app.openapi(
     tags: ["Search"],
   }),
   async (c) => {
-    const query = c.req.valid("query");
-    const q = query.q.trim();
-    const state = normalizeState(query.state);
-    const term = likeTerm(q);
-    const stateTerm = state ? likeTerm(state) : null;
+    const query = c.req.valid("query"),
+     q = query.q.trim(),
+     state = normalizeState(query.state),
+     term = likeTerm(q),
+     stateTerm = state ? likeTerm(state) : null;
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -138,12 +141,12 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const searchArtists = query.type === "all" || query.type === "artists";
-    const searchTracks = query.type === "all" || query.type === "tracks";
-    const searchProjects = query.type === "all" || query.type === "projects";
+    const db = createDb(),
+     searchArtists = query.type === "all" || query.type === "artists",
+     searchTracks = query.type === "all" || query.type === "tracks",
+     searchProjects = query.type === "all" || query.type === "projects",
 
-    const [artistRows, trackRows, projectRows] = await Promise.all([
+     [artistRows, trackRows, projectRows] = await Promise.all([
       searchArtists
         ? db
             .select({
@@ -251,9 +254,9 @@ app.openapi(
             .orderBy(desc(projects.updatedAt))
             .limit(query.limit)
         : [],
-    ]);
+    ]),
 
-    const trackSummaries = [];
+     trackSummaries = [];
 
     for (const row of trackRows) {
       trackSummaries.push(await buildTrackSummary(row.tracks));

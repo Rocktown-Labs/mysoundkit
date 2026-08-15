@@ -24,26 +24,26 @@ import { refreshSellerAccount } from "@/lib/seller";
 import { createDestinationCheckout } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
-const checkoutResponseSchema = z.object({
+const app = new OpenAPIHono<AppEnv>(),
+ checkoutResponseSchema = z.object({
   checkoutUrl: z.string().url().nullable(),
   setupRequired: z.boolean(),
   transactionId: z.string().nullable(),
-});
-const checkoutBodySchema = z.object({
+}),
+ checkoutBodySchema = z.object({
   cancelUrl: z.url(),
   successUrl: z.url(),
-});
-const tipBodySchema = checkoutBodySchema.extend({
+}),
+ tipBodySchema = checkoutBodySchema.extend({
   amountCents: z.number().int().min(100).max(100_000),
   artistUserId: z.string(),
   message: z.string().max(500).optional(),
-});
+}),
 
-const getEnabledSeller = async (userId: string) => {
+ getEnabledSeller = async (userId: string) => {
   await refreshSellerAccount({ organizationId: null, userId });
-  const db = createDb();
-  const [seller] = await db
+  const db = createDb(),
+   [seller] = await db
     .select()
     .from(sellerAccounts)
     .where(
@@ -95,13 +95,13 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [cart] = await db
+    const db = createDb(),
+     [cart] = await db
       .select()
       .from(carts)
       .where(eq(carts.userId, user.id))
-      .limit(1);
-    const items = cart
+      .limit(1),
+     items = cart
       ? await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id))
       : [];
 
@@ -132,13 +132,13 @@ app.openapi(
     const amountCents = items.reduce(
       (sum, item) => sum + item.priceCentsSnapshot * item.quantity,
       0
-    );
-    const platformFeeCents = calculateFeeCents({
+    ),
+     platformFeeCents = calculateFeeCents({
       amountCents,
       basisPoints: PRODUCT_PLATFORM_FEE_BPS,
-    });
-    const transactionId = crypto.randomUUID();
-    const orderId = crypto.randomUUID();
+    }),
+     transactionId = crypto.randomUUID(),
+     orderId = crypto.randomUUID();
 
     await db.insert(transactions).values({
       amountCents,
@@ -179,8 +179,8 @@ app.openapi(
       }))
     );
 
-    const body = c.req.valid("json");
-    const checkout = await createDestinationCheckout({
+    const body = c.req.valid("json"),
+     checkout = await createDestinationCheckout({
       applicationFeeCents: platformFeeCents,
       cancelUrl: body.cancelUrl,
       connectedAccountId: seller.stripeAccountId,
@@ -249,8 +249,8 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const seller = await getEnabledSeller(body.artistUserId);
+    const body = c.req.valid("json"),
+     seller = await getEnabledSeller(body.artistUserId);
 
     if (!seller) {
       return c.json(
@@ -259,12 +259,12 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const platformFeeCents = calculateFeeCents({
+    const db = createDb(),
+     platformFeeCents = calculateFeeCents({
       amountCents: body.amountCents,
       basisPoints: TIP_PLATFORM_FEE_BPS,
-    });
-    const transactionId = crypto.randomUUID();
+    }),
+     transactionId = crypto.randomUUID();
 
     await db.insert(transactions).values({
       amountCents: body.amountCents,

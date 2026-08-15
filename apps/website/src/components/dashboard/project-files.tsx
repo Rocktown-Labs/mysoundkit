@@ -14,7 +14,6 @@ import { useState } from "react";
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
 import {
   Card,
   CardContent,
@@ -22,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { toast } from "@/components/ui/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import { useProjectQuery } from "@/lib/soundkit-api-hooks";
 
@@ -37,11 +37,11 @@ const formatBytes = (sizeBytes: number | null | undefined) => {
     return `${(sizeBytes / 1024).toFixed(1)} KB`;
   }
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-};
+},
 
-const assetKindLabel = (assetKind: string) => assetKind.replaceAll("_", " ");
+ assetKindLabel = (assetKind: string) => assetKind.replaceAll("_", " "),
 
-const assetKindIcon = (assetKind: string) => {
+ assetKindIcon = (assetKind: string) => {
   if (assetKind === "cover_art") {
     return ImageIcon;
   }
@@ -52,14 +52,14 @@ const assetKindIcon = (assetKind: string) => {
 };
 
 export function ProjectFiles({ projectId }: ProjectFilesProps) {
-  const projectQuery = useProjectQuery(projectId);
-  const [isReordering, setIsReordering] = useState(false);
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
-  const project = projectQuery.data;
-  const tracks = project?.tracks ?? [];
-  const assets = project?.assets ?? [];
+  const projectQuery = useProjectQuery(projectId),
+   [isReordering, setIsReordering] = useState(false),
+   { setCurrentTrack, setQueue } = useAudioPlayer(),
+   project = projectQuery.data,
+   tracks = project?.tracks ?? [],
+   assets = project?.assets ?? [],
 
-  const handlePlayTrack = (track: (typeof tracks)[number]) => {
+   handlePlayTrack = (track: (typeof tracks)[number]) => {
     if (!track.playbackUrl) {
       return;
     }
@@ -76,19 +76,19 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
     };
     setQueue([playerTrack]);
     setCurrentTrack(playerTrack);
-  };
+  },
 
-  const playableTracks = tracks.filter((track) => Boolean(track.playbackUrl));
+   playableTracks = tracks.filter((track) => Boolean(track.playbackUrl)),
 
-  const handleMoveTrack = async (index: number, direction: -1 | 1) => {
+   handleMoveTrack = async (index: number, direction: -1 | 1) => {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= tracks.length) {
       return;
     }
 
-    const orderedTrackIds = tracks.map((track) => track.id);
-    const currentId = orderedTrackIds[index];
-    const targetId = orderedTrackIds[targetIndex];
+    const orderedTrackIds = tracks.map((track) => track.id),
+     currentId = orderedTrackIds[index],
+     targetId = orderedTrackIds[targetIndex];
     if (!(currentId && targetId)) {
       return;
     }
@@ -120,9 +120,9 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
     } finally {
       setIsReordering(false);
     }
-  };
+  },
 
-  const handlePlayAll = () => {
+   handlePlayAll = () => {
     if (playableTracks.length === 0) {
       return;
     }
@@ -187,8 +187,8 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
         ) : (
           <>
             {tracks.map((track, index) => {
-              const hasAudio = Boolean(track.playbackUrl);
-              const IconComponent = hasAudio ? FileAudio : File;
+              const hasAudio = Boolean(track.playbackUrl),
+               IconComponent = hasAudio ? FileAudio : File;
               return (
                 <div
                   key={track.id}
@@ -235,9 +235,7 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
                         </Button>
                         <Button
                           aria-label={`Move ${track.title} down`}
-                          disabled={
-                            isReordering || index === tracks.length - 1
-                          }
+                          disabled={isReordering || index === tracks.length - 1}
                           onClick={() => handleMoveTrack(index, 1)}
                           size="sm"
                           variant="ghost"
@@ -264,8 +262,8 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
             })}
 
             {assets.map((asset) => {
-              const IconComponent = assetKindIcon(asset.assetKind);
-              const name =
+              const IconComponent = assetKindIcon(asset.assetKind),
+               name =
                 asset.objectKey?.split("/").pop() ??
                 assetKindLabel(asset.assetKind);
               return (

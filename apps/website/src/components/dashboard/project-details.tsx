@@ -24,7 +24,10 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
-import { useProjectQuery, useUpdateProjectMutation } from "@/lib/soundkit-api-hooks";
+import {
+  useProjectQuery,
+  useUpdateProjectMutation,
+} from "@/lib/soundkit-api-hooks";
 
 interface ProjectDetailsProps {
   projectId: string;
@@ -54,9 +57,9 @@ const STATUS_META: Record<
     icon: Clock,
     label: "Scheduled",
   },
-};
+},
 
-const formatDate = (value: string | null | undefined) => {
+ formatDate = (value: string | null | undefined) => {
   if (!value) {
     return "—";
   }
@@ -68,9 +71,9 @@ const formatDate = (value: string | null | undefined) => {
 };
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
-  const projectQuery = useProjectQuery(projectId);
-  const updateProjectMutation = useUpdateProjectMutation(projectId);
-  const project = projectQuery.data;
+  const projectQuery = useProjectQuery(projectId),
+   updateProjectMutation = useUpdateProjectMutation(projectId),
+   project = projectQuery.data;
 
   if (projectQuery.isLoading) {
     return (
@@ -103,19 +106,19 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
       className: "bg-muted/50 text-muted-foreground border-border/40",
       icon: Clock,
       label: project.status,
-    };
-  const StatusIcon = statusMeta.icon;
-  const primaryGenre =
-    project.tracks.find((track) => track.genre)?.genre ?? "—";
-  const coverArt =
+    },
+   StatusIcon = statusMeta.icon,
+   primaryGenre =
+    project.tracks.find((track) => track.genre)?.genre ?? "—",
+   coverArt =
     project.coverArtUrl && project.coverArtUrl.length > 0
       ? project.coverArtUrl
-      : null;
-  const collaborators = Array.isArray(project.collaborators)
+      : null,
+   collaborators = Array.isArray(project.collaborators)
     ? project.collaborators
-    : [];
+    : [],
 
-  const handleReleaseNow = async () => {
+   handleReleaseNow = async () => {
     try {
       await updateProjectMutation.mutateAsync({
         isPublic: true,
@@ -134,9 +137,9 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleShare = () => {
+   handleShare = () => {
     const shareUrl =
       typeof window === "undefined"
         ? `/projects/${project.id}`

@@ -32,18 +32,18 @@ export function LiveExperienceAuthGuard({
   requiredEntitlement = "isPremium",
 }: LiveExperienceAuthGuardProps) {
   const { data: session, isPending: isSessionLoading } =
-    authClient.useSession();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const user = session?.user;
-  const entitlements = entitlementsQuery.data;
+    authClient.useSession(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   user = session?.user,
+   entitlements = entitlementsQuery.data;
 
   // While loading session, show children or fallback
   if (isSessionLoading || entitlementsQuery.isLoading) {
     return <>{children}</>;
   }
 
-  const isAuthenticated = Boolean(user);
-  const hasEntitlement = Boolean(
+  const isAuthenticated = Boolean(user),
+   hasEntitlement = Boolean(
     entitlements && requiredEntitlement in entitlements
       ? entitlements[requiredEntitlement]
       : entitlements?.isPremium

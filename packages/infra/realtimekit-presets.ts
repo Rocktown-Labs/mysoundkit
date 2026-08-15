@@ -19,27 +19,27 @@
 
 import { createCloudflareApi } from "alchemy/cloudflare";
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const deleteMode = args.includes("--delete");
+const args = new Set(process.argv.slice(2)),
+ dryRun = args.has("--dry-run"),
+ deleteMode = args.has("--delete"),
 
-const mediaConfig = {
+ mediaConfig = {
   audio: { enable_high_bitrate: true, enable_stereo: true },
   screenshare: { frame_rate: 15, quality: "hd" },
   video: { frame_rate: 30, quality: "hd", simulcast: true },
-};
+},
 
-const uiConfig = {
+ uiConfig = {
   design_tokens: {
     border_radius: "rounded",
     border_width: "thin",
     colors: {
       background: {
+        "1000": "#000000",
         "600": "#171717",
         "700": "#101010",
         "800": "#0a0a0a",
         "900": "#050505",
-        "1000": "#000000",
       },
       brand: {
         "300": "#fda4af",
@@ -58,9 +58,9 @@ const uiConfig = {
     spacing_base: 4,
     theme: "dark",
   },
-};
+},
 
-const basePermissions = {
+ basePermissions = {
   accept_waiting_requests: false,
   can_accept_production_requests: false,
   can_change_participant_permissions: false,
@@ -105,28 +105,28 @@ const basePermissions = {
   polls: { can_create: false, can_view: false, can_vote: false },
   recorder_type: "NONE",
   show_participant_list: true,
-};
+},
 
-const viewerPermissions = {
+ viewerPermissions = {
   ...basePermissions,
   can_edit_display_name: true,
-};
+},
 
-const textOnlyConfig = {
+ textOnlyConfig = {
   max_screenshare_count: 0,
   max_video_streams: { desktop: 0, mobile: 0 },
   media: mediaConfig,
   view_type: "GROUP_CALL",
-};
+},
 
-const hostConfig = {
+ hostConfig = {
   max_screenshare_count: 1,
   max_video_streams: { desktop: 1, mobile: 1 },
   media: mediaConfig,
   view_type: "GROUP_CALL",
-};
+},
 
-const hostPermissions = {
+ hostPermissions = {
   ...basePermissions,
   accept_waiting_requests: true,
   can_edit_display_name: true,
@@ -145,12 +145,12 @@ const hostPermissions = {
   },
   pin_participant: true,
   recorder_type: "RECORDER",
-};
+},
 
-const presets = [
+ presets = [
   {
-    name: "soundkit-battle-lobby-text",
     config: textOnlyConfig,
+    name: "soundkit-battle-lobby-text",
     permissions: {
       ...viewerPermissions,
       accept_waiting_requests: true,
@@ -158,16 +158,16 @@ const presets = [
     },
   },
   {
-    name: "soundkit-battle-artist-live",
     config: hostConfig,
+    name: "soundkit-battle-artist-live",
     permissions: {
       ...hostPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-battle-artist-muted",
     config: textOnlyConfig,
+    name: "soundkit-battle-artist-muted",
     permissions: {
       ...hostPermissions,
       media: {
@@ -179,8 +179,8 @@ const presets = [
     },
   },
   {
-    name: "soundkit-battle-voter",
     config: textOnlyConfig,
+    name: "soundkit-battle-voter",
     permissions: {
       ...viewerPermissions,
       polls: { can_create: false, can_view: true, can_vote: true },
@@ -188,40 +188,40 @@ const presets = [
     },
   },
   {
+    config: hostConfig,
     name: "soundkit-party-host",
-    config: hostConfig,
     permissions: {
       ...hostPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
+    config: textOnlyConfig,
     name: "soundkit-party-listener",
-    config: textOnlyConfig,
     permissions: {
       ...viewerPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-stream-host",
     config: hostConfig,
+    name: "soundkit-stream-host",
     permissions: {
       ...hostPermissions,
       waiting_room_type: "SKIP",
     },
   },
   {
-    name: "soundkit-stream-viewer",
     config: textOnlyConfig,
+    name: "soundkit-stream-viewer",
     permissions: {
       ...viewerPermissions,
       waiting_room_type: "SKIP",
     },
   },
-];
+],
 
-const readResponse = async (response, label) => {
+ readResponse = async (response, label) => {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -233,18 +233,18 @@ const readResponse = async (response, label) => {
   }
 
   return data.data ?? data.result ?? data;
-};
+},
 
-const main = async () => {
-  const api = await createCloudflareApi();
-  const apps = await readResponse(
+ main = async () => {
+  const api = await createCloudflareApi(),
+   apps = await readResponse(
     await api.get(`/accounts/${api.accountId}/realtime/kit/apps`),
     "Listing RealtimeKit apps"
-  );
+  ),
 
-  const appList = Array.isArray(apps) ? apps : (apps.apps ?? []);
-  const targetAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID;
-  const match = targetAppId
+   appList = Array.isArray(apps) ? apps : (apps.apps ?? []),
+   targetAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID,
+   match = targetAppId
     ? appList.find((app) => app.id === targetAppId)
     : appList.find((app) => app.name?.toLowerCase().includes("soundkit"));
 
@@ -258,12 +258,12 @@ const main = async () => {
 
   console.log(`Using RealtimeKit app "${match.name}" (${match.id})`);
 
-  const baseUrl = `/accounts/${api.accountId}/realtime/kit/${match.id}/presets`;
-  const existing = await readResponse(
+  const baseUrl = `/accounts/${api.accountId}/realtime/kit/${match.id}/presets`,
+   existing = await readResponse(
     await api.get(baseUrl),
     "Listing RealtimeKit presets"
-  );
-  const byName = new Map(
+  ),
+   byName = new Map(
     (Array.isArray(existing) ? existing : []).map((preset) => [
       preset.name,
       preset.id,

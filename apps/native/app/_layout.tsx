@@ -16,8 +16,8 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
   colors: NAV_THEME.light,
-};
-const DARK_THEME: Theme = {
+},
+ DARK_THEME: Theme = {
   ...DarkTheme,
   colors: NAV_THEME.dark,
 };

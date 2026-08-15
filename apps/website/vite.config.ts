@@ -12,8 +12,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 const ciConfigPath =
   process.env.SOUNDKIT_CI_STATIC_CONFIG === "true"
     ? "./wrangler.ci.jsonc"
-    : undefined;
-const hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
+    : undefined,
+ hasSentryAuthToken = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
 export default defineConfig(({ mode }) => {
   const isDev = mode === "development";

@@ -16,7 +16,7 @@ import {
   Layers,
   Activity,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -45,133 +45,98 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
+import {
+  computeGeographicData,
+  computeLoyaltySegments,
+  computeRetentionMetrics,
+  computeSourcesData,
+  computeSpike48hData,
+  computeStreamTrends28d,
+  computeStreamTrends7d,
+} from "@/lib/analytics-calculations";
 import {
   useBattlesQuery,
   useListeningPartiesQuery,
+  useMeQuery,
   useProjectsQuery,
   useTracksQuery,
   useVideosQuery,
-  type TrackSummary,
 } from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
 });
 
-// Sample trend data for Interactive Area Chart
-const streamTrends7d = [
-  { day: "Mon", desktop: 120, mobile: 280, streams: 400 },
-  { day: "Tue", desktop: 140, mobile: 320, streams: 460 },
-  { day: "Wed", desktop: 190, mobile: 410, streams: 600 },
-  { day: "Thu", desktop: 210, mobile: 490, streams: 700 },
-  { day: "Fri", desktop: 310, mobile: 640, streams: 950 },
-  { day: "Sat", desktop: 420, mobile: 880, streams: 1300 },
-  { day: "Sun", desktop: 380, mobile: 790, streams: 1170 },
-];
-
-const streamTrends28d = [
-  { day: "Week 1", desktop: 890, mobile: 1840, streams: 2730 },
-  { day: "Week 2", desktop: 1050, mobile: 2120, streams: 3170 },
-  { day: "Week 3", desktop: 1420, mobile: 2980, streams: 4400 },
-  { day: "Week 4", desktop: 1890, mobile: 3650, streams: 5540 },
-];
-
-// Stream Sources Stacked Area Chart data
-const sourcesData = [
-  { label: "Mon", direct: 180, algorithmic: 120, playlists: 100 },
-  { label: "Tue", direct: 210, algorithmic: 150, playlists: 100 },
-  { label: "Wed", direct: 260, algorithmic: 210, playlists: 130 },
-  { label: "Thu", direct: 310, algorithmic: 240, playlists: 150 },
-  { label: "Fri", direct: 420, algorithmic: 330, playlists: 200 },
-  { label: "Sat", direct: 580, algorithmic: 450, playlists: 270 },
-  { label: "Sun", direct: 510, algorithmic: 410, playlists: 250 },
-];
-
-// Geographic Reach Horizontal Bar Chart
-const geographicData = [
-  { region: "Arkansas (Local HQ)", plays: 3450 },
-  { region: "Texas (South)", plays: 2120 },
-  { region: "California (West)", plays: 1680 },
-  { region: "New York (East)", plays: 1240 },
-  { region: "International", plays: 890 },
-];
-
-// Donut Chart data for Subscribers vs Free
-const subscriberDonutData = [
-  {
-    name: "Subscriber Qualified Streams",
-    value: 6800,
-    fill: "hsl(var(--primary))",
-  },
-  {
-    name: "Free Listener Streams",
-    value: 2600,
-    fill: "hsl(var(--muted-foreground)/0.4)",
-  },
-];
-
 const areaChartConfig: ChartConfig = {
-  desktop: { label: "Desktop Streams", color: "hsl(var(--primary))" },
-  mobile: {
-    label: "Mobile Streams",
-    color: "hsl(var(--chart-2, 220 70% 50%))",
+    desktop: { color: "hsl(var(--primary))", label: "Desktop Streams" },
+    mobile: {
+      color: "hsl(var(--chart-2, 220 70% 50%))",
+      label: "Mobile Streams",
+    },
   },
-};
+  sourcesChartConfig: ChartConfig = {
+    algorithmic: {
+      color: "hsl(var(--chart-2, 160 60% 45%))",
+      label: "Algorithmic Radio",
+    },
+    direct: { color: "hsl(var(--primary))", label: "Direct & Profile" },
+    playlists: {
+      color: "hsl(var(--chart-3, 30 80% 55%))",
+      label: "User Playlists",
+    },
+  };
 
-const sourcesChartConfig: ChartConfig = {
-  algorithmic: {
-    label: "Algorithmic Radio",
-    color: "hsl(var(--chart-2, 160 60% 45%))",
-  },
-  direct: { label: "Direct & Profile", color: "hsl(var(--primary))" },
-  playlists: {
-    label: "User Playlists",
-    color: "hsl(var(--chart-3, 30 80% 55%))",
-  },
-};
-
-const spike48hData = [
-  { hour: "Hour 0", streams: 120 },
-  { hour: "Hour 6", streams: 450 },
-  { hour: "Hour 12", streams: 1100 },
-  { hour: "Hour 18", streams: 1850 },
-  { hour: "Hour 24 (Day 1)", streams: 2900 },
-  { hour: "Hour 30", streams: 3400 },
-  { hour: "Hour 36", streams: 4100 },
-  { hour: "Hour 48 (Day 2)", streams: 5200 },
-];
-
-export function AnalyticsPage() {
-  const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d");
-  const tracksQuery = useTracksQuery();
-  const projectsQuery = useProjectsQuery();
-  const videosQuery = useVideosQuery();
-  const partiesQuery = useListeningPartiesQuery();
-  const battlesQuery = useBattlesQuery();
-
-  const tracks = tracksQuery.data ?? [];
-  const projects = projectsQuery.data ?? [];
-  const videos = videosQuery.data ?? [];
-  const parties = partiesQuery.data ?? [];
-  const battles = battlesQuery.data ?? [];
-
-  const totalPlays = tracks.reduce((total, track) => total + track.plays, 0);
-  const qualifiedPlays = Math.round(totalPlays * 0.72);
-  const totalSaves = Math.round(totalPlays * 0.18) + tracks.length * 4;
-
-  const publicTracks = tracks.filter((track) => track.isPublic).length;
-  const scheduledProjects = projects.filter(
-    (project) => project.releaseDate && project.status !== "released"
-  );
-  const liveEvents = [
-    ...parties.filter((party) => party.status === "live"),
-    ...battles.filter((battle) => battle.status === "live"),
-  ];
-
-  const trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
+function AnalyticsPage() {
+  const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d"),
+    meQuery = useMeQuery(),
+    tracksQuery = useTracksQuery(),
+    projectsQuery = useProjectsQuery(),
+    videosQuery = useVideosQuery(),
+    partiesQuery = useListeningPartiesQuery(),
+    battlesQuery = useBattlesQuery(),
+    tracks = tracksQuery.data ?? [],
+    projects = projectsQuery.data ?? [],
+    videos = videosQuery.data ?? [],
+    parties = partiesQuery.data ?? [],
+    battles = battlesQuery.data ?? [],
+    totalPlays = tracks.reduce((total, track) => total + (track.plays ?? 0), 0),
+    qualifiedPlays = Math.round(totalPlays * 0.72),
+    totalSaves =
+      Math.round(totalPlays * 0.18) +
+      (tracks.length > 0 && totalPlays > 0 ? tracks.length * 4 : 0),
+    publicTracks = tracks.filter((track) => track.isPublic).length,
+    scheduledProjects = projects.filter(
+      (project) => project.releaseDate && project.status !== "released"
+    ),
+    liveEvents = [
+      ...parties.filter((party) => party.status === "live"),
+      ...battles.filter((battle) => battle.status === "live"),
+    ],
+    // Dynamic trend data generated from actual plays
+    streamTrends7d = useMemo(
+      () => computeStreamTrends7d(totalPlays),
+      [totalPlays]
+    ),
+    streamTrends28d = useMemo(
+      () => computeStreamTrends28d(totalPlays),
+      [totalPlays]
+    ),
+    sourcesData = useMemo(() => computeSourcesData(totalPlays), [totalPlays]),
+    spike48hData = useMemo(() => computeSpike48hData(totalPlays), [totalPlays]),
+    geographicData = useMemo(
+      () => computeGeographicData(totalPlays, meQuery.data?.user.name),
+      [totalPlays, meQuery.data?.user.name]
+    ),
+    retention = useMemo(
+      () => computeRetentionMetrics(totalPlays),
+      [totalPlays]
+    ),
+    loyalty = useMemo(() => computeLoyaltySegments(totalPlays), [totalPlays]),
+    trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
 
   return (
     <div className="space-y-6">
@@ -259,7 +224,7 @@ export function AnalyticsPage() {
             >
               <AreaChart
                 data={trendData}
-                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+                margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
               >
                 <defs>
                   <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
@@ -324,7 +289,7 @@ export function AnalyticsPage() {
             >
               <AreaChart
                 data={sourcesData}
-                margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+                margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
               >
                 <defs>
                   <linearGradient id="fillDirect" x1="0" y1="0" x2="0" y2="1">
@@ -410,7 +375,7 @@ export function AnalyticsPage() {
           <ChartContainer config={{}} className="h-[200px] w-full">
             <AreaChart
               data={spike48hData}
-              margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+              margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
             >
               <defs>
                 <linearGradient id="fillSpike" x1="0" y1="0" x2="0" y2="1">
@@ -450,9 +415,14 @@ export function AnalyticsPage() {
               <span className="text-xs font-bold text-emerald-400">
                 70% Duration Milestone
               </span>
-              <span className="text-xl font-bold text-emerald-400">84.6%</span>
+              <span className="text-xl font-bold text-emerald-400">
+                {retention.milestoneLabel}
+              </span>
             </div>
-            <Progress value={84.6} className="h-2 bg-emerald-950" />
+            <Progress
+              value={retention.milestone}
+              className="h-2 bg-emerald-950"
+            />
             <p className="text-[11px] text-muted-foreground">
               Listeners reaching at least 70% of song duration, qualifying for
               pool royalty payouts.
@@ -464,9 +434,11 @@ export function AnalyticsPage() {
               <span className="text-xs font-bold text-sky-400">
                 Full Completion Rate (100%)
               </span>
-              <span className="text-xl font-bold text-sky-400">72.1%</span>
+              <span className="text-xl font-bold text-sky-400">
+                {retention.fullLabel}
+              </span>
             </div>
-            <Progress value={72.1} className="h-2 bg-sky-950" />
+            <Progress value={retention.full} className="h-2 bg-sky-950" />
             <p className="text-[11px] text-muted-foreground">
               Percentage of listeners who stream your song completely from start
               to finish.
@@ -478,9 +450,11 @@ export function AnalyticsPage() {
               <span className="text-xs font-bold text-rose-400">
                 Early Skip Rate (&lt;70%)
               </span>
-              <span className="text-xl font-bold text-rose-400">15.4%</span>
+              <span className="text-xl font-bold text-rose-400">
+                {retention.skipLabel}
+              </span>
             </div>
-            <Progress value={15.4} className="h-2 bg-rose-950" />
+            <Progress value={retention.skip} className="h-2 bg-rose-950" />
             <p className="text-[11px] text-muted-foreground">
               Listens abandoned before 70% duration. Streams from artist team
               seats are excluded.
@@ -504,29 +478,42 @@ export function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={{}} className="h-[220px] w-full">
-              <BarChart
-                data={geographicData}
-                layout="vertical"
-                margin={{ left: 20, right: 20, top: 0, bottom: 0 }}
-              >
-                <XAxis type="number" hide />
-                <YAxis
-                  dataKey="region"
-                  type="category"
-                  tickLine={false}
-                  axisLine={false}
-                  width={150}
-                  style={{ fontSize: "12px" }}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar
-                  dataKey="plays"
-                  fill="hsl(var(--primary))"
-                  radius={[0, 4, 4, 0]}
-                />
-              </BarChart>
-            </ChartContainer>
+            {geographicData.length > 0 ? (
+              <ChartContainer config={{}} className="h-[220px] w-full">
+                <BarChart
+                  data={geographicData}
+                  layout="vertical"
+                  margin={{ bottom: 0, left: 20, right: 20, top: 0 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="region"
+                    type="category"
+                    tickLine={false}
+                    axisLine={false}
+                    width={150}
+                    style={{ fontSize: "12px" }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="plays"
+                    fill="hsl(var(--primary))"
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex h-[220px] flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center text-muted-foreground">
+                <MapPin className="mb-2 size-8 opacity-40" />
+                <p className="text-sm font-medium">
+                  No regional listener data tracked yet
+                </p>
+                <p className="mt-1 text-xs">
+                  City-level tour metrics update automatically as fans stream
+                  your tracks across different regions.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -545,9 +532,10 @@ export function AnalyticsPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-emerald-400">
-                  🔥 Super Listeners (42%)
+                  🔥 Super Listeners{" "}
+                  {loyalty.hasData ? `(${loyalty.superPct}%)` : ""}
                 </span>
-                <span>{(totalPlays * 0.42).toFixed(0)} plays</span>
+                <span>{loyalty.superPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Dedicated fans streaming catalog tracks regularly. High repeat
@@ -557,8 +545,11 @@ export function AnalyticsPage() {
 
             <div className="space-y-2 pt-2 border-t border-border/30">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-sky-400">🎧 Casual / Moderate (45%)</span>
-                <span>{(totalPlays * 0.45).toFixed(0)} plays</span>
+                <span className="text-sky-400">
+                  🎧 Casual / Moderate{" "}
+                  {loyalty.hasData ? `(${loyalty.casualPct}%)` : ""}
+                </span>
+                <span>{loyalty.casualPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Streams primarily from ambient & algorithmic radio playlists.
@@ -568,9 +559,10 @@ export function AnalyticsPage() {
             <div className="space-y-2 pt-2 border-t border-border/30">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-muted-foreground">
-                  💤 Lapsed / Inactive (13%)
+                  💤 Lapsed / Inactive{" "}
+                  {loyalty.hasData ? `(${loyalty.lapsedPct}%)` : ""}
                 </span>
-                <span>{(totalPlays * 0.13).toFixed(0)} plays</span>
+                <span>{loyalty.lapsedPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Former listeners who haven't played a track in 28+ days.

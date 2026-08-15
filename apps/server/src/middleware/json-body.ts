@@ -7,8 +7,8 @@ import type { AppEnv } from "@/lib/types";
 const JSON_BODY_METHODS = new Set(["PATCH", "POST", "PUT"]);
 
 export const jsonBodyMiddleware = createMiddleware<AppEnv>(async (c, next) => {
-  const contentType = c.req.header("content-type")?.toLowerCase() ?? "";
-  const hasJsonBody =
+  const contentType = c.req.header("content-type")?.toLowerCase() ?? "",
+   hasJsonBody =
     JSON_BODY_METHODS.has(c.req.method) &&
     contentType.includes("application/json");
 

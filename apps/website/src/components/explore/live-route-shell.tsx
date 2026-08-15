@@ -15,9 +15,9 @@ interface LiveHeroConfig {
 }
 
 const liveHeroImage =
-  "/images/excited-audience-watching-confetti-fireworks-having-fun-music-festival-night-copy-space.jpg";
+  "/images/excited-audience-watching-confetti-fireworks-having-fun-music-festival-night-copy-space.jpg",
 
-const isMainLiveIndexPage = (pathname: string): boolean => {
+ isMainLiveIndexPage = (pathname: string): boolean => {
   const normalized = pathname.replace(/\/$/, "");
   return (
     normalized === "/live" ||
@@ -25,9 +25,9 @@ const isMainLiveIndexPage = (pathname: string): boolean => {
     normalized === "/live/parties" ||
     normalized === "/live/streams"
   );
-};
+},
 
-const getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
+ getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
   if (pathname.startsWith("/live/parties")) {
     return {
       badgeIcon: Headphones,
@@ -70,24 +70,24 @@ const getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
 export function LiveRouteShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
-  });
+  }),
 
-  const { data: session } = authClient.useSession();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const entitlements = entitlementsQuery.data;
+   { data: session } = authClient.useSession(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   entitlements = entitlementsQuery.data,
 
-  const showHeroHeader = isMainLiveIndexPage(pathname);
-  const hero = getLiveHeroConfig(pathname);
+   showHeroHeader = isMainLiveIndexPage(pathname),
+   hero = getLiveHeroConfig(pathname),
 
-  const isPremiumArtist = Boolean(
+   isPremiumArtist = Boolean(
     entitlements?.canCreateLiveBattles || entitlements?.canHostLiveStreams
-  );
-  const isPremium = Boolean(
+  ),
+   isPremium = Boolean(
     entitlements?.isPremium ||
     entitlements?.canWatchCreatorStreams ||
     isPremiumArtist
-  );
-  const isPremiumFan = isPremium && !isPremiumArtist;
+  ),
+   isPremiumFan = isPremium && !isPremiumArtist;
 
   return (
     <section className="min-h-screen bg-background pb-20 md:pb-8">

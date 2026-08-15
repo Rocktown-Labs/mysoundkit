@@ -3,11 +3,11 @@ import path from "node:path";
 
 import ts from "typescript";
 
-const rootDir = process.cwd();
-const sourceDir = path.join(rootDir, "apps/website/src");
-const ignoredFiles = new Set([path.join(sourceDir, "routeTree.gen.ts")]);
-const sourceExtensions = new Set([".ts", ".tsx"]);
-const reactHooks = new Set([
+const rootDir = process.cwd(),
+ sourceDir = path.join(rootDir, "apps/website/src"),
+ ignoredFiles = new Set([path.join(sourceDir, "routeTree.gen.ts")]),
+ sourceExtensions = new Set([".ts", ".tsx"]),
+ reactHooks = new Set([
   "useActionState",
   "useCallback",
   "useContext",
@@ -26,18 +26,18 @@ const reactHooks = new Set([
   "useState",
   "useSyncExternalStore",
   "useTransition",
-]);
+]),
 
-const formatLocation = (sourceFile, node) => {
-  const position = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-  const relativePath = path.relative(rootDir, sourceFile.fileName);
+ formatLocation = (sourceFile, node) => {
+  const position = sourceFile.getLineAndCharacterOfPosition(node.getStart()),
+   relativePath = path.relative(rootDir, sourceFile.fileName);
 
   return `${relativePath}:${position.line + 1}:${position.character + 1}`;
-};
+},
 
-const collectFiles = async (dir) => {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files = [];
+ collectFiles = async (dir) => {
+  const entries = await readdir(dir, { withFileTypes: true }),
+   files = [];
 
   for (const entry of entries) {
     const entryPath = path.join(dir, entry.name);
@@ -53,9 +53,9 @@ const collectFiles = async (dir) => {
   }
 
   return files;
-};
+},
 
-const getReactNamedImports = (sourceFile) => {
+ getReactNamedImports = (sourceFile) => {
   const imports = new Set();
 
   for (const statement of sourceFile.statements) {
@@ -79,21 +79,21 @@ const getReactNamedImports = (sourceFile) => {
   }
 
   return imports;
-};
+},
 
-const checkFile = async (filePath) => {
-  const source = await readFile(filePath, "utf-8");
-  const sourceFile = ts.createSourceFile(
+ checkFile = async (filePath) => {
+  const source = await readFile(filePath, "utf-8"),
+   sourceFile = ts.createSourceFile(
     filePath,
     source,
     ts.ScriptTarget.Latest,
     true,
     filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-  );
-  const reactNamedImports = getReactNamedImports(sourceFile);
-  const missingImports = [];
+  ),
+   reactNamedImports = getReactNamedImports(sourceFile),
+   missingImports = [],
 
-  const visit = (node) => {
+   visit = (node) => {
     if (
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
@@ -112,22 +112,22 @@ const checkFile = async (filePath) => {
   visit(sourceFile);
 
   return missingImports;
-};
+},
 
-const main = async () => {
+ main = async () => {
   try {
     await access(sourceDir);
   } catch {
     throw new Error(`Website source directory not found: ${sourceDir}`);
   }
 
-  const checkedFiles = await collectFiles(sourceDir);
-  const fileResults = await Promise.all(
+  const checkedFiles = await collectFiles(sourceDir),
+   fileResults = await Promise.all(
     checkedFiles
       .filter((filePath) => !ignoredFiles.has(filePath))
       .map(checkFile)
-  );
-  const failures = fileResults.flat();
+  ),
+   failures = fileResults.flat();
 
   if (failures.length > 0) {
     console.error("React hook import check failed:");

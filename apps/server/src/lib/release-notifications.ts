@@ -13,8 +13,8 @@ import {
 } from "@soundkit/db/schema/app";
 import { and, eq, isNotNull, lte } from "drizzle-orm";
 
-import { notifyArtistReleaseEmail } from "@/lib/email-events";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import { notifyArtistReleaseEmail } from "@/lib/email-events";
 
 const loadReleaseAudience = async ({
   ownerUserId,
@@ -23,8 +23,8 @@ const loadReleaseAudience = async ({
   ownerUserId: string;
   preSavedUserIds: string[];
 }) => {
-  const db = createDb();
-  const [artistFollowers, profileFollowers] = await Promise.all([
+  const db = createDb(),
+   [artistFollowers, profileFollowers] = await Promise.all([
     db
       .select({ userId: artistFollows.followerUserId })
       .from(artistFollows)
@@ -49,11 +49,11 @@ export const publishDueTrackReleases = async ({
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
 } = {}) => {
   if (!isDatabaseConfigured()) {
-    return { published: 0, notified: 0 };
+    return { notified: 0, published: 0 };
   }
 
-  const db = createDb();
-  const dueTracks = await db
+  const db = createDb(),
+   dueTracks = await db
     .select({
       artistName: userProfiles.displayName,
       id: tracks.id,
@@ -81,8 +81,8 @@ export const publishDueTrackReleases = async ({
     const preSavers = await db
       .select({ userId: trackPreSaves.userId })
       .from(trackPreSaves)
-      .where(eq(trackPreSaves.trackId, track.id));
-    const subscriberIds = await loadReleaseAudience({
+      .where(eq(trackPreSaves.trackId, track.id)),
+     subscriberIds = await loadReleaseAudience({
       ownerUserId: track.ownerUserId,
       preSavedUserIds: preSavers.map((entry) => entry.userId),
     });
@@ -138,8 +138,8 @@ export const publishDueTrackReleases = async ({
     const preSavers = await db
       .select({ userId: projectPreSaves.userId })
       .from(projectPreSaves)
-      .where(eq(projectPreSaves.projectId, project.id));
-    const subscriberIds = await loadReleaseAudience({
+      .where(eq(projectPreSaves.projectId, project.id)),
+     subscriberIds = await loadReleaseAudience({
       ownerUserId: project.ownerUserId,
       preSavedUserIds: preSavers.map((entry) => entry.userId),
     });
@@ -179,7 +179,13 @@ export const publishDueTrackReleases = async ({
     })
     .from(videos)
     .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
-    .where(and(isNotNull(videos.releaseAt), lte(videos.releaseAt, new Date()), eq(videos.isPublic, false)));
+    .where(
+      and(
+        isNotNull(videos.releaseAt),
+        lte(videos.releaseAt, new Date()),
+        eq(videos.isPublic, false)
+      )
+    );
   for (const video of dueVideos) {
     await db
       .update(videos)
@@ -188,8 +194,8 @@ export const publishDueTrackReleases = async ({
     const preSavers = await db
       .select({ userId: videoPreSaves.userId })
       .from(videoPreSaves)
-      .where(eq(videoPreSaves.videoId, video.id));
-    const subscriberIds = await loadReleaseAudience({
+      .where(eq(videoPreSaves.videoId, video.id)),
+     subscriberIds = await loadReleaseAudience({
       ownerUserId: video.ownerUserId,
       preSavedUserIds: preSavers.map((entry) => entry.userId),
     });
@@ -220,5 +226,8 @@ export const publishDueTrackReleases = async ({
     }
   }
 
-  return { notified, published: dueTracks.length + dueProjects.length + dueVideos.length };
+  return {
+    notified,
+    published: dueTracks.length + dueProjects.length + dueVideos.length,
+  };
 };

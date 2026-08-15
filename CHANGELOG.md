@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added default sleek pitch-black header banner (`/soundkit-default-banner.svg`, 1500x500 standard dimension, 3:1 ratio) with centered SoundKit logo across profile shells and public artist pages.
+- Added global `FloatingChatBar` provider for authenticated artists with dynamic clearance above the mobile audio player (`bottom-28 sm:bottom-6`), quick Friends/Chats tab switcher, and 1-click conversation starter.
+- Added audio output device selector in `MusicPlayer` with real-time Bluetooth, headphones, and speaker enumeration (`navigator.mediaDevices.enumerateDevices` + `devicechange` events) and active output indicator.
+- Added desktop accessibility tooltips across all music player controls (mini-player & full player).
 - Added chat file and saved/purchased music attachments, attachment persistence, and one-click shared track/project workspaces with accepted collaborator permissions and notifications.
 - Replaced Admin Ads prompt-only controls with real zero-budget house campaign creation, creative uploads/previews, and active/paused controls; repaired artist campaign payloads, media uploads, wallet display, real creative library, and uploaded-track promotion selection.
 - Added onboarding and account-setting media layout preferences, with card/compact-list rendering across artist track, project, video, dashboard, and public profile collections.
@@ -23,6 +27,17 @@
 
 ### Fixed
 
+- Fixed floating artist chat bar by redesigning it as a compact circular docked trigger button at the bottom-right corner when closed, docking cleanly above the audio player when music is active to prevent obstruction of playback controls, and adding generous tab/chat button padding.
+- Enhanced audio player device selector with Bluetooth/AirPods name permission unlocking (`getUserMedia` label resolution), AirPlay/HomePods network casting triggers (`webkitShowPlaybackTargetPicker` / `selectAudioOutput`), and added output device selection to the mobile player control bar.
+- Fixed explore route navigation headers across Top Songs, Projects, Music Videos, New Releases, and Live Battles by removing redundant `< Back` buttons and standardizing on clean icon-and-title headers.
+- Fixed floating artist chat bar to hide automatically when navigating to `/dashboard/messages`, and removed boilerplate `"Hey! Let's connect on SoundKit."` automated greeting when starting direct chats.
+- Fixed Career Analytics Top Cities and Listener Loyalty Segments to show clean empty states when no catalog plays exist, dynamically calculating real loyalty distribution percentages and local city metrics once streams are tracked.
+- Fixed database user search and friend relationship awareness in `/dashboard/messages` New Chat modal, enabling multi-participant group chats, relationship badges, and server-side profile search.
+- Replaced mock dummy trend data in `/dashboard/career/analytics` with dynamic stream trends, source distributions, 48h release curves, and granular duration retention calculated from the user's real track plays and catalog.
+- Overhauled the Admin Payments dashboard tab with a fully responsive layout: consolidated Payments Health and Stripe actions into a unified header card, replaced overflowing HTML tables in the Subscription Catalog with responsive plan cards, resolved overlapping price ID input labels, and added copy-to-clipboard helpers for environment variable keys.
+- Fixed friend request acceptance and decline handling (`PATCH /v1/messages/friend-requests/:requestId`) to gracefully handle existing states, prevent 404s on pending requests, and ensure proper notification dispatch.
+- Added URL-synchronized tabs (`?tab=all|collaborators|friends|requests|following`) to `/dashboard/collaborators` with separate views and counters for Track Collaborators, Mutual Artist Friends, Incoming/Sent Requests, and Followers.
+- Fixed friends data parsing in `/dashboard/messages` New Chat modal and added active online presence bar with 1-click direct messaging from the collaborators workspace (`?friendId=...`).
 - Kept unfunded artist ad campaigns out of serving, enabled global house-ad matching, stopped non-repeat queues at the final track, made failed release-email queueing retryable, used local party scheduling minimums, and rejected duplicate project reorder IDs.
 - Fixed the listening-party dashboard SSR crash, refreshed live-surface E2E expectations, and restored admin user fixtures for static browser tests.
 - Fixed Tracks Featured View All navigation so Back returns to the originating Tracks sections instead of a previously visited Projects route.
@@ -30,6 +45,7 @@
 - Fixed preview-deployment downloads for media stored in the canonical production bucket while preserving authenticated first-play and purchase access rules.
 - Standardized newly created track download defaults across standalone and project-created tracks: authenticated users must play once before downloading, while free tracks are not purchase-gated.
 - Fixed RealtimeKit preset provisioning by sending the complete required config, permissions, and UI payloads.
+- Fixed webhook registration to auto-discover the SoundKit RealtimeKit app when the optional app ID variable is not configured.
 - Added a manual GitHub Action for registering or removing the RealtimeKit webhook, and corrected webhook updates to use the RealtimeKit PATCH API.
 - Added production and suffixed-preview queue routing for duration backfills, plus focused coverage for queue-name classification.
 - Added track and project listening-access fields for the monetization model: free/public listening or Premium/purchased-only listening with optional exclusivity expiration.

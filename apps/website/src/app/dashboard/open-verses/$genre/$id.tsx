@@ -45,24 +45,24 @@ const formatSlot = ({
 };
 
 function OpenVerseDetailPage() {
-  const { id } = Route.useParams();
-  const query = useOpenVerseQuery(id);
-  const submitMutation = useSubmitOpenVerseMutation(id);
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
-  const [assetId, setAssetId] = useState("");
-  const [message, setMessage] = useState("");
-  const [acceptedSubId, setAcceptedSubId] = useState<string | null>(null);
-  const listing = query.data;
+  const { id } = Route.useParams(),
+   query = useOpenVerseQuery(id),
+   submitMutation = useSubmitOpenVerseMutation(id),
+   { setCurrentTrack, setQueue } = useAudioPlayer(),
+   [assetId, setAssetId] = useState(""),
+   [message, setMessage] = useState(""),
+   [acceptedSubId, setAcceptedSubId] = useState<string | null>(null),
+   listing = query.data,
 
-  const handleAcceptSubmission = (subId: string, artistName: string) => {
+   handleAcceptSubmission = (subId: string, artistName: string) => {
     setAcceptedSubId(subId);
     toast({
       description: `${artistName} has been added to official track credits & royalty splits.`,
       title: "Contender Accepted!",
     });
-  };
+  },
 
-  const playListing = () => {
+   playListing = () => {
     if (!listing?.playbackUrl) {
       return;
     }
@@ -81,9 +81,9 @@ function OpenVerseDetailPage() {
 
     setQueue([playerTrack]);
     setCurrentTrack(playerTrack);
-  };
+  },
 
-  const submitVerse = (event: FormEvent<HTMLFormElement>) => {
+   submitVerse = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     submitMutation.mutate({
       assetId: assetId.trim() || undefined,

@@ -16,18 +16,18 @@ import {
 import { API_V1_URL } from "@/lib/api";
 
 export function CartDrawer() {
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const {
+  const [checkoutError, setCheckoutError] = useState<string | null>(null),
+   [isCheckingOut, setIsCheckingOut] = useState(false),
+   {
     cart,
     clearCart,
     isCartOpen,
     removeItem,
     setIsCartOpen,
     updateQuantity,
-  } = useCart();
+  } = useCart(),
 
-  const startCheckout = async () => {
+   startCheckout = async () => {
     setCheckoutError(null);
     setIsCheckingOut(true);
 
@@ -40,8 +40,8 @@ export function CartDrawer() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         method: "POST",
-      });
-      const payload = (await response.json()) as {
+      }),
+       payload = (await response.json()) as {
         checkoutUrl?: string | null;
         message?: string;
       };

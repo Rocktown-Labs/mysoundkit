@@ -4,6 +4,7 @@ import {
   orderItems,
   orders,
   purchases,
+  sellerAccounts,
   userNotifications,
 } from "@soundkit/db/schema/app";
 import {
@@ -35,22 +36,106 @@ import type { AppEnv } from "@/lib/types";
 const app = new OpenAPIHono<AppEnv>();
 
 interface StripeObject {
+  account?: string;
   amount?: number;
+  capabilities?: Record<string, string>;
+  charges_enabled?: boolean;
   charge?: string;
+  configuration?: {
+    recipient?: {
+      capabilities?: {
+        stripe_balance?: {
+          stripe_transfers?: {
+            status?: string;
+          };
+        };
+      };
+    };
+  };
   current_period_end?: number;
   customer?: string;
+  details_submitted?: boolean;
   id?: string;
   metadata?: Record<string, string>;
   payment_intent?: string;
+  payouts_enabled?: boolean;
+  requirements?: {
+    currently_due?: string[];
+    entries?: { field?: string }[];
+    eventually_due?: string[];
+    past_due?: string[];
+  };
   status?: string;
   subscription?: string;
 }
 
 interface StripeEvent {
+  account?: string;
   data?: { object?: StripeObject };
   id?: string;
   type?: string;
 }
+
+const processConnectAccountEvent = async ({
+    accountId,
+    eventType,
+    object,
+  }: {
+    accountId: string;
+    eventType: string;
+    object: StripeObject;
+  }) => {
+    const db = createDb();
+
+    if (eventType === "account.application.deauthorized") {
+      await db
+        .update(sellerAccounts)
+        .set({
+          chargesEnabled: false,
+          detailsSubmitted: false,
+          onboardingStatus: "not_started",
+          payoutsEnabled: false,
+          requirementsDue: [],
+        })
+        .where(eq(sellerAccounts.stripeAccountId, accountId));
+      return;
+    }
+
+    const v2TransferStatus =
+        object.configuration?.recipient?.capabilities?.stripe_balance
+          ?.stripe_transfers?.status,
+      chargesEnabled =
+        object.charges_enabled ?? (v2TransferStatus === "active"),
+      payoutsEnabled =
+        object.payouts_enabled ?? (v2TransferStatus === "active"),
+      detailsSubmitted =
+        object.details_submitted ??
+        (chargesEnabled || (object.requirements?.currently_due?.length === 0)),
+      requirementsDue = [
+        ...(object.requirements?.currently_due ?? []),
+        ...(object.requirements?.past_due ?? []),
+        ...(object.requirements?.entries?.map((entry) => entry.field).filter(Boolean) ?? []),
+      ] as string[],
+      onboardingStatus =
+        chargesEnabled && payoutsEnabled
+          ? ("enabled" as const)
+          : requirementsDue.length > 0
+            ? ("restricted" as const)
+            : detailsSubmitted
+              ? ("pending" as const)
+              : ("not_started" as const);
+
+    await db
+      .update(sellerAccounts)
+      .set({
+        chargesEnabled,
+        detailsSubmitted,
+        onboardingStatus,
+        payoutsEnabled,
+        requirementsDue,
+      })
+      .where(eq(sellerAccounts.stripeAccountId, accountId));
+  };
 
 const processCommunitySubscription = async ({
     eventType,
@@ -230,6 +315,27 @@ const processCommunitySubscription = async ({
       console.info(
         `Stripe webhook coupon event received: ${eventType} (${object.id})`
       );
+      return;
+    }
+
+    const connectAccountId =
+      event.account ??
+      (eventType.startsWith("account.") || eventType.startsWith("capability.")
+        ? object.id
+        : undefined);
+
+    if (
+      connectAccountId &&
+      (eventType === "account.updated" ||
+        eventType === "account.application.authorized" ||
+        eventType === "account.application.deauthorized" ||
+        eventType === "capability.updated")
+    ) {
+      await processConnectAccountEvent({
+        accountId: connectAccountId,
+        eventType,
+        object,
+      });
       return;
     }
 

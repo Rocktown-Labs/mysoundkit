@@ -35,13 +35,13 @@ app.openapi(
       return c.json(sampleAnalyticsOverview, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const userTracks = await db
+    const db = createDb(),
+     userTracks = await db
       .select({ id: tracks.id })
       .from(tracks)
-      .where(eq(tracks.ownerUserId, user.id));
+      .where(eq(tracks.ownerUserId, user.id)),
 
-    const trackIds = userTracks.map((t) => t.id);
+     trackIds = userTracks.map((t) => t.id);
 
     let totalPlays = 0;
     if (trackIds.length > 0) {

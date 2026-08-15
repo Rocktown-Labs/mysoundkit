@@ -5,16 +5,16 @@ import type { AppEnv } from "@/lib/types";
 
 type LogLevel = "error" | "info" | "warn";
 
-const REQUEST_ID_HEADER = "x-request-id";
+const REQUEST_ID_HEADER = "x-request-id",
 
-const writeLog = (level: LogLevel, payload: Record<string, unknown>) => {
+ writeLog = (level: LogLevel, payload: Record<string, unknown>) => {
   const entry = {
     level,
     service: "soundkit-api",
     timestamp: new Date().toISOString(),
     ...payload,
-  };
-  const line = JSON.stringify(entry);
+  },
+   line = JSON.stringify(entry);
 
   if (level === "error") {
     console.error(line);
@@ -40,8 +40,8 @@ export const logError = (payload: Record<string, unknown>) =>
 
 export const structuredLoggingMiddleware = createMiddleware<AppEnv>(
   async (c, next) => {
-    const startedAt = Date.now();
-    const requestId = c.req.header(REQUEST_ID_HEADER) ?? crypto.randomUUID();
+    const startedAt = Date.now(),
+     requestId = c.req.header(REQUEST_ID_HEADER) ?? crypto.randomUUID();
     c.set("requestId", requestId);
     c.header(REQUEST_ID_HEADER, requestId);
 

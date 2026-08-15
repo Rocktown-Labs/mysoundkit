@@ -21,8 +21,8 @@ interface ActivityItem {
 }
 
 const relativeDate = (value: string) => {
-  const diffMs = Date.now() - new Date(value).getTime();
-  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
+  const diffMs = Date.now() - new Date(value).getTime(),
+   diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
 
   if (diffDays === 0) {
     return "Today";

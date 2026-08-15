@@ -23,8 +23,8 @@ export const Route = createFileRoute("/_explore/projects/$id/")({
 });
 
 function PublicProjectDetailPage() {
-  const { id } = Route.useParams();
-  const { data: project, isLoading } = usePublicProjectQuery(id);
+  const { id } = Route.useParams(),
+   { data: project, isLoading } = usePublicProjectQuery(id);
 
   if (isLoading) {
     return (

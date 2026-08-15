@@ -74,15 +74,15 @@ const EMPTY_CART: Cart = {
   items: [],
   subtotalCents: 0,
   totalCents: 0,
-};
+},
 
-const LOCAL_CART_STORAGE_KEY = "soundkit:cart:v1";
+ LOCAL_CART_STORAGE_KEY = "soundkit:cart:v1",
 
-const CartContext = createContext<CartContextValue | null>(null);
+ CartContext = createContext<CartContextValue | null>(null),
 
-const calculateCart = (items: CartItem[]): Cart => {
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotalCents = items.reduce(
+ calculateCart = (items: CartItem[]): Cart => {
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0),
+   subtotalCents = items.reduce(
     (sum, item) => sum + item.priceCents * item.quantity,
     0
   );
@@ -95,9 +95,9 @@ const calculateCart = (items: CartItem[]): Cart => {
     subtotalCents,
     totalCents: subtotalCents,
   };
-};
+},
 
-const generateUUID = (): string => {
+ generateUUID = (): string => {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
@@ -131,9 +131,9 @@ const generateUUID = (): string => {
   }
 
   return `cart_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-};
+},
 
-const readLocalCart = () => {
+ readLocalCart = () => {
   if (typeof window === "undefined") {
     return EMPTY_CART;
   }
@@ -150,9 +150,9 @@ const readLocalCart = () => {
   } catch {
     return EMPTY_CART;
   }
-};
+},
 
-const writeLocalCart = (items: CartItem[]) => {
+ writeLocalCart = (items: CartItem[]) => {
   if (typeof window === "undefined") {
     return;
   }
@@ -162,9 +162,9 @@ const writeLocalCart = (items: CartItem[]) => {
   } catch {
     // Ignore storage restrictions in Safari Private mode
   }
-};
+},
 
-const requestCart = async (path = "", init?: RequestInit) => {
+ requestCart = async (path = "", init?: RequestInit) => {
   const response = await fetch(`${API_V1_URL}/cart${path}`, {
     credentials: "include",
     ...init,
@@ -179,9 +179,9 @@ const requestCart = async (path = "", init?: RequestInit) => {
   }
 
   return (await response.json()) as Cart;
-};
+},
 
-const buildLocalCartItem = (input: AddCartItemInput): CartItem => {
+ buildLocalCartItem = (input: AddCartItemInput): CartItem => {
   const productId = input.trackId ?? input.projectId ?? generateUUID();
 
   return {
@@ -203,10 +203,10 @@ const buildLocalCartItem = (input: AddCartItemInput): CartItem => {
 };
 
 export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const posthog = usePostHog();
-  const [cart, setCart] = useState<Cart>(EMPTY_CART);
-  const [isApiCartActive, setIsApiCartActive] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const posthog = usePostHog(),
+   [cart, setCart] = useState<Cart>(EMPTY_CART),
+   [isApiCartActive, setIsApiCartActive] = useState(false),
+   [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
     const localCart = readLocalCart();
@@ -261,9 +261,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const setLocalItems = useCallback((items: CartItem[]) => {
     writeLocalCart(items);
     setCart(calculateCart(items));
-  }, []);
+  }, []),
 
-  const addItem = useCallback(
+   addItem = useCallback(
     async (input: AddCartItemInput) => {
       if (isApiCartActive || cart.items.length === 0) {
         try {
@@ -293,8 +293,8 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
         }
       }
 
-      const nextItem = buildLocalCartItem(input);
-      const existingItem = cart.items.find(
+      const nextItem = buildLocalCartItem(input),
+       existingItem = cart.items.find(
         (item) =>
           item.productType === nextItem.productType &&
           item.productId === nextItem.productId &&
@@ -327,9 +327,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       });
     },
     [cart.items, isApiCartActive, posthog, setLocalItems]
-  );
+  ),
 
-  const updateQuantity = useCallback(
+   updateQuantity = useCallback(
     async (cartItemId: string, quantity: number) => {
       if (quantity < 1) {
         return;
@@ -355,9 +355,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       );
     },
     [cart.items, isApiCartActive, setLocalItems]
-  );
+  ),
 
-  const removeItem = useCallback(
+   removeItem = useCallback(
     async (cartItemId: string) => {
       if (isApiCartActive) {
         try {
@@ -383,9 +383,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
       }
     },
     [cart.items, isApiCartActive, posthog, setLocalItems]
-  );
+  ),
 
-  const clearCart = useCallback(async () => {
+   clearCart = useCallback(async () => {
     if (isApiCartActive) {
       try {
         const apiCart = await requestCart("", { method: "DELETE" });
@@ -398,9 +398,9 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
 
     posthog.capture("cart_cleared", { item_count: cart.items.length });
     setLocalItems([]);
-  }, [cart.items.length, isApiCartActive, posthog, setLocalItems]);
+  }, [cart.items.length, isApiCartActive, posthog, setLocalItems]),
 
-  const value = useMemo(
+   value = useMemo(
     () => ({
       addItem,
       cart,

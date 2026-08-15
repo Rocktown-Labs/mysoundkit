@@ -19,18 +19,18 @@ interface LiveRoomSocketMessage {
   type?: "chat" | "vote";
 }
 
-const STATE_STORAGE_KEY = "live-room-state";
-const MAX_CHAT_MESSAGES = 80;
-const voteVotersKey = (roundId: string) => `vote-voters:${roundId}`;
+const STATE_STORAGE_KEY = "live-room-state",
+ MAX_CHAT_MESSAGES = 80,
+ voteVotersKey = (roundId: string) => `vote-voters:${roundId}`,
 
-const jsonResponse = (body: unknown, status = 200) =>
+ jsonResponse = (body: unknown, status = 200) =>
   Response.json(body, {
     status,
-  });
+  }),
 
-const notFoundResponse = () => jsonResponse({ message: "Not found" }, 404);
+ notFoundResponse = () => jsonResponse({ message: "Not found" }, 404),
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+ isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 export class LiveRoomDurableObject extends DurableObject {
@@ -59,8 +59,8 @@ export class LiveRoomDurableObject extends DurableObject {
       }
 
       const storedState =
-        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY);
-      const shouldReplaceStoredState =
+        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY),
+       shouldReplaceStoredState =
         !storedState ||
         storedState.id !== body.id ||
         storedState.kind !== body.kind ||
@@ -76,14 +76,14 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     if (request.method === "POST" && url.pathname === "/chat") {
-      const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody;
-      const room = await this.addChatMessage(body);
+      const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody,
+       room = await this.addChatMessage(body);
       return jsonResponse(room, 201);
     }
 
     if (request.method === "POST" && url.pathname === "/vote") {
-      const body = (await request.json().catch(() => ({}))) as LiveRoomVoteBody;
-      const result = await this.recordVote(body);
+      const body = (await request.json().catch(() => ({}))) as LiveRoomVoteBody,
+       result = await this.recordVote(body);
 
       return jsonResponse(result.body, result.status);
     }
@@ -139,8 +139,8 @@ export class LiveRoomDurableObject extends DurableObject {
   }
 
   private async addChatMessage(body: LiveRoomChatBody) {
-    const room = await this.getState();
-    const message = body.message?.trim();
+    const room = await this.getState(),
+     message = body.message?.trim();
 
     if (!message) {
       return room;
@@ -151,9 +151,9 @@ export class LiveRoomDurableObject extends DurableObject {
       message,
       sentAt: new Date().toISOString(),
       userName: body.userName?.trim() || "Listener",
-    };
+    },
 
-    const nextRoom = {
+     nextRoom = {
       ...room,
       chat: [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
     };
@@ -201,8 +201,8 @@ export class LiveRoomDurableObject extends DurableObject {
       };
     }
 
-    const votersKey = voteVotersKey(round.id);
-    const voters = await this.ctx.storage.get<string[]>(votersKey);
+    const votersKey = voteVotersKey(round.id),
+     voters = await this.ctx.storage.get<string[]>(votersKey);
 
     if (voters?.includes(body.voterId)) {
       return {
@@ -227,9 +227,9 @@ export class LiveRoomDurableObject extends DurableObject {
           [artist.id]: currentVotes + 1,
         },
       };
-    });
+    }),
 
-    const nextRoom = {
+     nextRoom = {
       ...room,
       battle: {
         ...room.battle,
@@ -248,8 +248,8 @@ export class LiveRoomDurableObject extends DurableObject {
       return jsonResponse({ message: "Expected WebSocket upgrade." }, 426);
     }
 
-    const pair = new WebSocketPair();
-    const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
+    const pair = new WebSocketPair(),
+     [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     server.serializeAttachment({ connectedAt: Date.now() });
     this.ctx.acceptWebSocket(server);
     void this.sendInitialState(server);

@@ -40,9 +40,9 @@ import {
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>();
-const featuredBattleLimit = 6;
-const battleTotalRoundsByFormat = {
+const app = new OpenAPIHono<AppEnv>(),
+ featuredBattleLimit = 6,
+ battleTotalRoundsByFormat = {
   best_of_3: 3,
   best_of_5: 5,
   best_of_7: 7,
@@ -86,22 +86,22 @@ const objectUrlFromMetadata = (metadata: unknown) => {
 
   const { url } = metadata as { url?: unknown };
   return typeof url === "string" ? url : null;
-};
+},
 
-const selectCurrentRound = (rounds: BattleFeedRound[]) =>
+ selectCurrentRound = (rounds: BattleFeedRound[]) =>
   rounds.find((round) => round.status === "active") ??
   rounds.find((round) => round.status === "upcoming") ??
   rounds.at(-1) ??
-  null;
+  null,
 
-const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
+ enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
   if (battleRows.length === 0) {
     return [];
   }
 
-  const db = createDb();
-  const battleIds = battleRows.map((battle) => battle.id);
-  const roundRows = await db
+  const db = createDb(),
+   battleIds = battleRows.map((battle) => battle.id),
+   roundRows = await db
     .select({
       battleId: battleRounds.battleId,
       id: battleRounds.id,
@@ -116,8 +116,8 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
     })
     .from(battleRounds)
     .where(inArray(battleRounds.battleId, battleIds))
-    .orderBy(asc(battleRounds.roundNumber));
-  const roundsByBattleId = new Map<string, BattleFeedRound[]>();
+    .orderBy(asc(battleRounds.roundNumber)),
+   roundsByBattleId = new Map<string, BattleFeedRound[]>();
 
   for (const round of roundRows) {
     const rounds = roundsByBattleId.get(round.battleId) ?? [];
@@ -131,8 +131,8 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
         .flatMap((round) => [round.trackOneId, round.trackTwoId])
         .filter((trackId): trackId is string => Boolean(trackId))
     ),
-  ];
-  const trackById = new Map<string, BattleFeedTrack>();
+  ],
+   trackById = new Map<string, BattleFeedTrack>();
 
   if (trackIds.length > 0) {
     const [trackRows, coverRows] = await Promise.all([
@@ -157,8 +157,8 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
             eq(trackAssets.assetKind, "cover_art")
           )
         ),
-    ]);
-    const coverByTrackId = new Map(
+    ]),
+     coverByTrackId = new Map(
       coverRows.map((asset) => [
         asset.trackId,
         objectUrlFromMetadata(asset.metadata),
@@ -176,9 +176,9 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
   }
 
   return battleRows.map((battle) => {
-    const rounds = roundsByBattleId.get(battle.id) ?? [];
-    const currentRound = selectCurrentRound(rounds);
-    const roundTracks = currentRound
+    const rounds = roundsByBattleId.get(battle.id) ?? [],
+     currentRound = selectCurrentRound(rounds),
+     roundTracks = currentRound
       ? [
           currentRound.trackOneId
             ? {
@@ -203,7 +203,6 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
 
     return {
       ...battle,
-      startsAt: battle.startsAt?.toISOString() ?? null,
       joinMode:
         battle.status === "live" && currentRound?.status === "active"
           ? ("waiting_room" as const)
@@ -219,12 +218,13 @@ const enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
             total: battleTotalRoundsByFormat[battle.format],
           }
         : null,
+      startsAt: battle.startsAt?.toISOString() ?? null,
       tracks: roundTracks,
     };
   });
-};
+},
 
-const rankFeaturedBattles = (
+ rankFeaturedBattles = (
   battleRows: Awaited<ReturnType<typeof enrichBattleFeedRows>>
 ) => {
   const featuredIds = new Map(
@@ -262,8 +262,8 @@ app.openapi(
       return c.json(sampleBattles, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         format: battles.format,
         genre: genres.name,
@@ -276,9 +276,9 @@ app.openapi(
       })
       .from(battles)
       .leftJoin(genres, eq(genres.id, battles.genreId))
-      .orderBy(desc(battles.viewerCount));
+      .orderBy(desc(battles.viewerCount)),
 
-    const enrichedRows = await enrichBattleFeedRows(
+     enrichedRows = await enrichBattleFeedRows(
       rows.map((row) => ({
         ...row,
         genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
@@ -335,9 +335,9 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const db = createDb(),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
@@ -376,10 +376,10 @@ app.openapi(
             eq(trackLyrics.status, "approved")
           )
         ),
-    ]);
+    ]),
 
-    const ownedTrackIds = new Set(ownedTracks.map((track) => track.id));
-    const approvedLyricsByTrackId = new Map<
+     ownedTrackIds = new Set(ownedTracks.map((track) => track.id)),
+     approvedLyricsByTrackId = new Map<
       string,
       { id: string; timedLines: typeof trackLyrics.$inferSelect.timedLines }
     >();
@@ -403,8 +403,8 @@ app.openapi(
         };
       }
 
-      const approvedLyrics = approvedLyricsByTrackId.get(trackId);
-      const hasSynchronizedLyrics =
+      const approvedLyrics = approvedLyricsByTrackId.get(trackId),
+       hasSynchronizedLyrics =
         (approvedLyrics?.timedLines?.length ?? 0) > 0;
 
       return {
@@ -464,9 +464,9 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const { genre, q } = c.req.valid("query");
-    const searchPattern = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
-    const candidates = await createDb()
+    const { genre, q } = c.req.valid("query"),
+     searchPattern = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+     candidates = await createDb()
       .select({
         genre: genres.slug,
         name: userProfiles.displayName,
@@ -488,9 +488,9 @@ app.openapi(
           genre ? eq(genres.slug, canonicalGenreSlug(genre)) : undefined
         )
       )
-      .limit(12);
+      .limit(12),
 
-    const eligibleCandidates = await Promise.all(
+     eligibleCandidates = await Promise.all(
       candidates
         .filter((candidate) => candidate.userId !== user.id)
         .map(async (candidate) => ({
@@ -507,8 +507,8 @@ app.openapi(
         .filter(({ candidate, entitlements }) =>
           Boolean(
             entitlements.canCreateLiveBattles &&
-              candidate.name &&
-              candidate.username
+            candidate.name &&
+            candidate.username
           )
         )
         .map(({ candidate }) => ({
@@ -548,8 +548,8 @@ app.openapi(
       return c.json({ incoming: [], outgoing: [] }, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         challengerUserId: battleChallenges.challengerUserId,
         createdAt: battleChallenges.createdAt,
@@ -571,16 +571,16 @@ app.openapi(
           eq(battleChallenges.opponentArtistUserId, user.id)
         )
       )
-      .orderBy(desc(battleChallenges.createdAt));
+      .orderBy(desc(battleChallenges.createdAt)),
 
-    const profileIds = [
+     profileIds = [
       ...new Set(
         rows
           .flatMap((row) => [row.challengerUserId, row.opponentArtistUserId])
           .filter((id): id is string => Boolean(id))
       ),
-    ];
-    const profiles =
+    ],
+     profiles =
       profileIds.length > 0
         ? await db
             .select({
@@ -589,12 +589,12 @@ app.openapi(
             })
             .from(userProfiles)
             .where(inArray(userProfiles.userId, profileIds))
-        : [];
-    const usernameByUserId = new Map(
+        : [],
+     usernameByUserId = new Map(
       profiles.map((profile) => [profile.userId, profile.username])
-    );
+    ),
 
-    const challenges = rows.map((row) => {
+     challenges = rows.map((row) => {
       const direction =
         row.opponentArtistUserId === user.id
           ? ("incoming" as const)
@@ -676,10 +676,10 @@ app.openapi(
       );
     }
 
-    const { challengeId } = c.req.valid("param");
-    const { status } = c.req.valid("json");
-    const db = createDb();
-    const [challenge] = await db
+    const { challengeId } = c.req.valid("param"),
+     { status } = c.req.valid("json"),
+     db = createDb(),
+     [challenge] = await db
       .select({
         challengerUserId: battleChallenges.challengerUserId,
         format: battleChallenges.format,
@@ -690,9 +690,9 @@ app.openapi(
       })
       .from(battleChallenges)
       .where(eq(battleChallenges.id, challengeId))
-      .limit(1);
+      .limit(1),
 
-    const canUpdate =
+     canUpdate =
       challenge &&
       (challenge.opponentArtistUserId === user.id ||
         (status === "canceled" && challenge.challengerUserId === user.id));
@@ -725,8 +725,8 @@ app.openapi(
       challenge.status !== "accepted" &&
       challenge.opponentArtistUserId
     ) {
-      const externalBattleId = `challenge:${challengeId}`;
-      const [existingBattle] = await db
+      const externalBattleId = `challenge:${challengeId}`,
+       [existingBattle] = await db
         .select({ id: battles.id })
         .from(battles)
         .where(eq(battles.externalBattleId, externalBattleId))
@@ -796,8 +796,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
@@ -811,8 +811,8 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const opponentUsername = body.opponentUsername.trim().replace(/^@/u, "");
+    const body = c.req.valid("json"),
+     opponentUsername = body.opponentUsername.trim().replace(/^@/u, "");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -821,19 +821,19 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const organizationId = await resolveActiveOrganizationId({
+    const db = createDb(),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
+    }),
 
-    const genreSlug = canonicalGenreSlug(body.genre);
-    const [genreRow] = await db
+     genreSlug = canonicalGenreSlug(body.genre),
+     [genreRow] = await db
       .select({ id: genres.id })
       .from(genres)
       .where(eq(genres.slug, genreSlug))
-      .limit(1);
-    const genreId = genreRow?.id ?? crypto.randomUUID();
+      .limit(1),
+     genreId = genreRow?.id ?? crypto.randomUUID();
 
     if (!genreRow) {
       await db.insert(genres).values({
@@ -890,13 +890,13 @@ app.openapi(
 
     const parsedProposedDate = body.proposedDate
       ? new Date(body.proposedDate)
-      : null;
-    const proposedDate =
+      : null,
+     proposedDate =
       parsedProposedDate && !Number.isNaN(parsedProposedDate.getTime())
         ? parsedProposedDate
-        : null;
+        : null,
 
-    const challengeId = crypto.randomUUID();
+     challengeId = crypto.randomUUID();
     await db.insert(battleChallenges).values({
       challengerOrganizationId: organizationId,
       challengerUserId: user.id,
@@ -915,8 +915,8 @@ app.openapi(
       .select({ username: userProfiles.username })
       .from(userProfiles)
       .where(eq(userProfiles.userId, user.id))
-      .limit(1);
-    const challengerUsername =
+      .limit(1),
+     challengerUsername =
       challengerProfile?.username ?? user.name ?? "artist";
 
     await db.insert(userNotifications).values({
@@ -981,8 +981,8 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         downloads: battleStats.downloads,
         losses: battleStats.losses,
@@ -1003,9 +1003,9 @@ app.openapi(
           trackName: tracks.title,
         })
         .from(tracks)
-        .where(eq(tracks.ownerUserId, user.id));
+        .where(eq(tracks.ownerUserId, user.id)),
 
-      const generatedStats = userTracks.map((t) => ({
+       generatedStats = userTracks.map((t) => ({
         downloads: 0,
         losses: 0,
         purchases: 0,
@@ -1100,9 +1100,9 @@ app.openapi(
       );
     }
 
-    const db = createDb();
+    const db = createDb(),
 
-    const [trackRow] = await db
+     [trackRow] = await db
       .select({ title: tracks.title })
       .from(tracks)
       .where(eq(tracks.id, trackId))
@@ -1122,17 +1122,17 @@ app.openapi(
       })
       .from(battleStats)
       .where(eq(battleStats.trackId, trackId))
-      .limit(1);
+      .limit(1),
 
-    const stats = statsRow || {
+     stats = statsRow || {
       downloads: 0,
       losses: 0,
       purchases: 0,
       saves: 0,
       wins: 0,
-    };
+    },
 
-    const rounds = await db
+     rounds = await db
       .select({
         battleId: battleRounds.battleId,
         battleTitle: battles.title,
@@ -1155,9 +1155,9 @@ app.openapi(
           eq(battleRounds.trackTwoId, trackId)
         )
       )
-      .orderBy(desc(battleRounds.createdAt));
+      .orderBy(desc(battleRounds.createdAt)),
 
-    const opponentIds = rounds
+     opponentIds = rounds
       .map((r) => (r.trackOneId === trackId ? r.trackTwoId : r.trackOneId))
       .filter((id): id is string => id !== null);
 
@@ -1171,13 +1171,13 @@ app.openapi(
     }
 
     const history = rounds.map((r) => {
-      const isTrackOne = r.trackOneId === trackId;
-      const opponentTrackId = isTrackOne ? r.trackTwoId : r.trackOneId;
-      const opponentTrackName = opponentTrackId
+      const isTrackOne = r.trackOneId === trackId,
+       opponentTrackId = isTrackOne ? r.trackTwoId : r.trackOneId,
+       opponentTrackName = opponentTrackId
         ? opponentsMap.get(opponentTrackId) || "Unknown Track"
-        : "No Opponent";
-      const votesFor = isTrackOne ? r.trackOneVotes : r.trackTwoVotes;
-      const votesAgainst = isTrackOne ? r.trackTwoVotes : r.trackOneVotes;
+        : "No Opponent",
+       votesFor = isTrackOne ? r.trackOneVotes : r.trackTwoVotes,
+       votesAgainst = isTrackOne ? r.trackTwoVotes : r.trackOneVotes;
 
       return {
         battleId: r.battleId,
@@ -1244,8 +1244,8 @@ app.openapi(
       return c.json(battle, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [row] = await db
+    const db = createDb(),
+     [row] = await db
       .select({
         format: battles.format,
         genre: genres.name,
@@ -1267,9 +1267,9 @@ app.openapi(
           ...row,
           genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
         },
-      ]);
+      ]),
 
-      const battle = enrichedRow
+       battle = enrichedRow
         ? rankFeaturedBattles([enrichedRow])[0]
         : undefined;
 

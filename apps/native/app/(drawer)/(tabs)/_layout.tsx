@@ -5,8 +5,8 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function TabLayout() {
-  const { isDarkColorScheme } = useColorScheme();
-  const theme = isDarkColorScheme ? NAV_THEME.dark : NAV_THEME.light;
+  const { isDarkColorScheme } = useColorScheme(),
+   theme = isDarkColorScheme ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
     <Tabs

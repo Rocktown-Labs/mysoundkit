@@ -34,37 +34,37 @@ export const Route = createFileRoute("/_explore/library/playlists/$id/")({
 });
 
 function PlaylistDetailPage() {
-  const { id } = Route.useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const [addSongOpen, setAddSongOpen] = useState(false);
-  const [locallyAddedTrackIds, setLocallyAddedTrackIds] = useState<string[]>(
+  const { id } = Route.useParams(),
+   router = useRouter(),
+   { toast } = useToast(),
+   [addSongOpen, setAddSongOpen] = useState(false),
+   [locallyAddedTrackIds, setLocallyAddedTrackIds] = useState<string[]>(
     []
-  );
-  const [removingTrackId, setRemovingTrackId] = useState<string>();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("search");
+  ),
+   [removingTrackId, setRemovingTrackId] = useState<string>(),
+   [searchQuery, setSearchQuery] = useState(""),
+   [activeTab, setActiveTab] = useState("search"),
 
-  const { data: playlistData, isLoading } = usePlaylistQuery(id);
-  const { data: publicTracks = [] } = useTracksQuery();
-  const { data: savedTracks = [] } = useLibrarySavedQuery();
-  const { data: recentPlays = [] } = useLibraryRecentQuery();
-  const { data: watchedHistory = [] } = useLibraryWatchedQuery();
+   { data: playlistData, isLoading } = usePlaylistQuery(id),
+   { data: publicTracks = [] } = useTracksQuery(),
+   { data: savedTracks = [] } = useLibrarySavedQuery(),
+   { data: recentPlays = [] } = useLibraryRecentQuery(),
+   { data: watchedHistory = [] } = useLibraryWatchedQuery(),
 
-  const addTrackMutation = useAddPlaylistTrackMutation();
-  const removeTrackMutation = useRemovePlaylistTrackMutation();
+   addTrackMutation = useAddPlaylistTrackMutation(),
+   removeTrackMutation = useRemovePlaylistTrackMutation(),
 
-  const playlist = playlistData?.playlist;
-  const currentTracks = useMemo(
+   playlist = playlistData?.playlist,
+   currentTracks = useMemo(
     () => playlistData?.tracks ?? [],
     [playlistData?.tracks]
-  );
-  const currentTrackIds = useMemo(
+  ),
+   currentTrackIds = useMemo(
     () => new Set(currentTracks.map((track) => track.id)),
     [currentTracks]
-  );
+  ),
 
-  const handleAddSong = async (track: { id: string; title: string }) => {
+   handleAddSong = async (track: { id: string; title: string }) => {
     if (
       currentTrackIds.has(track.id) ||
       locallyAddedTrackIds.includes(track.id)
@@ -93,9 +93,9 @@ function PlaylistDetailPage() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleRemoveSong = useCallback(
+   handleRemoveSong = useCallback(
     async (track: PlaylistTrack) => {
       setRemovingTrackId(track.id);
       try {
@@ -122,45 +122,45 @@ function PlaylistDetailPage() {
       }
     },
     [id, removeTrackMutation, router, toast]
-  );
+  ),
 
-  const filteredSearchTracks = publicTracks.filter(
+   filteredSearchTracks = publicTracks.filter(
     (t) =>
       t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.artistName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ),
 
-  const formattedSavedTracks = savedTracks.map((t) => ({
+   formattedSavedTracks = savedTracks.map((t) => ({
     artist: t.artist,
     cover: t.cover,
     id: t.id,
     title: t.title,
-  }));
+  })),
 
-  const formattedRecentTracks = recentPlays.map((r) => ({
+   formattedRecentTracks = recentPlays.map((r) => ({
     artist: r.artist,
     cover: r.cover,
     id: r.id,
     title: r.title,
-  }));
+  })),
 
-  const formattedWatchedTracks = watchedHistory.map((w) => ({
+   formattedWatchedTracks = watchedHistory.map((w) => ({
     artist: w.creator,
     cover: w.thumbnail ?? "/placeholder.svg",
     id: w.id,
     title: w.title,
-  }));
+  })),
 
-  const columns = useMemo(
+   columns = useMemo(
     () =>
       createPlaylistTrackColumns({
         onRemove: handleRemoveSong,
         removingTrackId,
       }),
     [handleRemoveSong, removingTrackId]
-  );
+  ),
 
-  const renderTrackSelectorList = (
+   renderTrackSelectorList = (
     list: { artist: string; cover: string; id: string; title: string }[]
   ) => (
     <ScrollArea className="h-[280px] rounded-md border p-4">

@@ -26,21 +26,21 @@ const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
   head: ({ loaderData, params }) => {
-    const artist = loaderData;
-    const artistName = artist?.name ?? `@${params.username}`;
-    const canonicalPath = `/artist/${artist?.username ?? params.username}`;
-    const title = `Check out ${artistName} on SoundKit`;
-    const description = seoDescription(
-      artist?.bio,
-      `Listen to tracks, watch videos, and follow ${artistName} on SoundKit.`
-    );
-    const head = createShareMeta({
-      canonicalPath,
-      description,
-      imageUrl: artist?.coverImageUrl ?? artist?.avatarUrl,
-      title,
-      type: "profile",
-    });
+    const artist = loaderData,
+      artistName = artist?.name ?? `@${params.username}`,
+      canonicalPath = `/artist/${artist?.username ?? params.username}`,
+      title = `Check out ${artistName} on SoundKit`,
+      description = seoDescription(
+        artist?.bio,
+        `Listen to tracks, watch videos, and follow ${artistName} on SoundKit.`
+      ),
+      head = createShareMeta({
+        canonicalPath,
+        description,
+        imageUrl: artist?.coverImageUrl ?? artist?.avatarUrl,
+        title,
+        type: "profile",
+      });
 
     return {
       ...head,
@@ -68,67 +68,65 @@ export const Route = createFileRoute("/_explore/artist/$username")({
 });
 
 const formatCount = (value?: number) => {
-  if (!value) {
-    return "0";
-  }
+    if (!value) {
+      return "0";
+    }
 
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
+    if (value >= 1_000_000) {
+      return `${(value / 1_000_000).toFixed(1)}M`;
+    }
 
-  if (value >= 1000) {
-    return `${Math.round(value / 1000)}K`;
-  }
+    if (value >= 1000) {
+      return `${Math.round(value / 1000)}K`;
+    }
 
-  return value.toLocaleString();
-};
-
-const formatJoinedDate = (joinedAt?: string) => {
-  if (!joinedAt) {
-    return "SoundKit";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    month: "short",
-    year: "numeric",
-  }).format(new Date(joinedAt));
-};
-
-const artistToProfileUser = (
-  artist: ArtistSummary,
-  trackCountOverride?: number,
-  totalPlaysOverride?: number
-) => ({
-  avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
-  battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
-  battleRecord: artist.battleCount ? `${artist.battleCount}-0` : "0-0",
-  bio:
-    artist.bio ??
-    `${artist.genre} artist${artist.location ? ` from ${artist.location}` : ""}.`,
-  coverImage: artist.coverImageUrl ?? "/hip-hop-battle-stage.jpg",
-  followers: formatCount(artist.followers),
-  following: "0",
-  genre: artist.genre,
-  joinedDate: formatJoinedDate(artist.joinedAt),
-  links: {
-    appleMusic: artist.links?.apple,
-    instagram: artist.links?.instagram,
-    personalSite: artist.links?.personalSite,
-    soundcloud: artist.links?.soundcloud,
-    spotify: artist.links?.spotify,
-    tiktok: artist.links?.tiktok,
-    twitter: artist.links?.twitter,
-    youtube: artist.links?.youtube,
+    return value.toLocaleString();
   },
-  location: artist.location || artist.state || "SoundKit",
-  monthlyListeners: formatCount(
-    totalPlaysOverride ?? artist.weeklyPlays ?? 0
-  ),
-  name: artist.name,
-  tracks: trackCountOverride ?? artist.trackCount ?? 0,
-  username: artist.username,
-  verified: artist.verified,
-});
+  formatJoinedDate = (joinedAt?: string) => {
+    if (!joinedAt) {
+      return "SoundKit";
+    }
+
+    return new Intl.DateTimeFormat("en", {
+      month: "short",
+      year: "numeric",
+    }).format(new Date(joinedAt));
+  },
+  artistToProfileUser = (
+    artist: ArtistSummary,
+    trackCountOverride?: number,
+    totalPlaysOverride?: number
+  ) => ({
+    avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
+    battleRank: artist.battleCount ? `#${artist.battleCount}` : "#NR",
+    battleRecord: artist.battleCount ? `${artist.battleCount}-0` : "0-0",
+    bio:
+      artist.bio ??
+      `${artist.genre} artist${artist.location ? ` from ${artist.location}` : ""}.`,
+    coverImage: artist.coverImageUrl ?? "/soundkit-default-banner.svg",
+    followers: formatCount(artist.followers),
+    following: "0",
+    genre: artist.genre,
+    joinedDate: formatJoinedDate(artist.joinedAt),
+    links: {
+      appleMusic: artist.links?.apple,
+      instagram: artist.links?.instagram,
+      personalSite: artist.links?.personalSite,
+      soundcloud: artist.links?.soundcloud,
+      spotify: artist.links?.spotify,
+      tiktok: artist.links?.tiktok,
+      twitter: artist.links?.twitter,
+      youtube: artist.links?.youtube,
+    },
+    location: artist.location || artist.state || "SoundKit",
+    monthlyListeners: formatCount(
+      totalPlaysOverride ?? artist.weeklyPlays ?? 0
+    ),
+    name: artist.name,
+    tracks: trackCountOverride ?? artist.trackCount ?? 0,
+    username: artist.username,
+    verified: artist.verified,
+  });
 
 function EmptyArtistTab({
   label,
@@ -149,10 +147,10 @@ function EmptyArtistTab({
 }
 
 function ArtistProfilePage() {
-  const { username } = Route.useParams();
-  const artistQuery = useArtistQuery(username);
-  const meQuery = useMeQuery();
-  const [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
+  const { username } = Route.useParams(),
+    artistQuery = useArtistQuery(username),
+    meQuery = useMeQuery(),
+    [activeTab, setActiveTab] = useState<ArtistProfileTab>("all");
 
   useEffect(() => {
     const hashTab = window.location.hash.replace("#", "");
@@ -162,19 +160,17 @@ function ArtistProfilePage() {
     }
   }, []);
 
-  const currentUser = meQuery.data?.user;
-  const artist = artistQuery.data;
-
-  const isOwner = Boolean(
-    artist &&
-    currentUser &&
-    (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
-      currentUser.id === artist.id)
-  );
-
-  const tracksQuery = useTracksQuery(undefined, {
-    scope: isOwner ? "dashboard" : "public",
-  });
+  const currentUser = meQuery.data?.user,
+    artist = artistQuery.data,
+    isOwner = Boolean(
+      artist &&
+      currentUser &&
+      (currentUser.username?.toLowerCase() === artist.username.toLowerCase() ||
+        currentUser.id === artist.id)
+    ),
+    tracksQuery = useTracksQuery(undefined, {
+      scope: isOwner ? "dashboard" : "public",
+    });
 
   if (artistQuery.isLoading) {
     return (
@@ -195,18 +191,14 @@ function ArtistProfilePage() {
     );
   }
 
-  const allTracks = tracksQuery.data ?? [];
-  const artistTracks = allTracks.filter(
-    (t) =>
-      t.artistUsername?.toLowerCase() === artist.username.toLowerCase() ||
-      t.artistName?.toLowerCase() === artist.name.toLowerCase() ||
-      isOwner
-  );
-
-  const totalArtistPlays = artistTracks.reduce(
-    (sum, t) => sum + (t.plays || 0),
-    0
-  );
+  const allTracks = tracksQuery.data ?? [],
+    artistTracks = allTracks.filter(
+      (t) =>
+        t.artistUsername?.toLowerCase() === artist.username.toLowerCase() ||
+        t.artistName?.toLowerCase() === artist.name.toLowerCase() ||
+        isOwner
+    ),
+    totalArtistPlays = artistTracks.reduce((sum, t) => sum + (t.plays || 0), 0);
 
   return (
     <ProfileShell

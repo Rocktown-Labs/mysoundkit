@@ -19,13 +19,13 @@ import {
 } from "@/lib/soundkit-api-hooks";
 
 export function VideoDetailPage({ lookupId }: { lookupId: string }) {
-  const id = lookupId;
-  const router = useRouter();
-  const { data: video, isPending: isVideoPending } = useVideoQuery(id);
-  const { data: comments, isPending: isCommentsPending } =
-    useVideoCommentsQuery(id);
-  const { data: videoList } = useVideosQuery({ limit: 12 });
-  const { data: session } = authClient.useSession();
+  const id = lookupId,
+   router = useRouter(),
+   { data: video, isPending: isVideoPending } = useVideoQuery(id),
+   { data: comments, isPending: isCommentsPending } =
+    useVideoCommentsQuery(id),
+   { data: videoList } = useVideosQuery({ limit: 12 }),
+   { data: session } = authClient.useSession();
 
   if (isVideoPending || !video) {
     return (
@@ -223,10 +223,10 @@ function CommentSection({
   sessionUserId: string | null;
   videoId: string;
 }) {
-  const [draft, setDraft] = useState("");
-  const createComment = useCreateVideoCommentMutation();
+  const [draft, setDraft] = useState(""),
+   createComment = useCreateVideoCommentMutation(),
 
-  const submit = async (event: React.FormEvent) => {
+   submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const body = draft.trim();
     if (!body) {

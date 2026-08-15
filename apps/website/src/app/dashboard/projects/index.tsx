@@ -56,25 +56,25 @@ const getStatusClassName = (status: string) => {
 };
 
 function ProjectsPage() {
-  const { data: projects = [], error, isLoading } = useProjectsQuery();
-  const deleteProjectMutation = useDeleteProjectMutation();
-  const meQuery = useMeQuery();
-  const [deleteCandidate, setDeleteCandidate] = useState<{
+  const { data: projects = [], error, isLoading } = useProjectsQuery(),
+   deleteProjectMutation = useDeleteProjectMutation(),
+   meQuery = useMeQuery(),
+   [deleteCandidate, setDeleteCandidate] = useState<{
     id: string;
     title: string;
-  } | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const releasedCount = projects.filter(
+  } | null>(null),
+   [deleteConfirmation, setDeleteConfirmation] = useState(""),
+   releasedCount = projects.filter(
     (project) => project.status === "released"
-  ).length;
-  const activeCount = projects.filter((project) =>
+  ).length,
+   activeCount = projects.filter((project) =>
     ["draft", "scheduled"].includes(project.status)
-  ).length;
-  const collaboratorCount = projects.reduce(
+  ).length,
+   collaboratorCount = projects.reduce(
     (total, project) => total + project.collaboratorCount,
     0
-  );
-  const projectStats = [
+  ),
+   projectStats = [
     {
       description: "Albums, EPs and Singles",
       icon: FolderOpen,

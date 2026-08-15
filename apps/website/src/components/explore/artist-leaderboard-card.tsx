@@ -43,9 +43,9 @@ export function ArtistLeaderboardCard({
         return <Trophy className="size-3 text-amber-500" />;
       }
     }
-  };
+  },
 
-  const getStatLabel = (artist: LeaderboardArtist) => {
+   getStatLabel = (artist: LeaderboardArtist) => {
     switch (type) {
       case "rising": {
         return `${artist.stats.plays} plays this week`;

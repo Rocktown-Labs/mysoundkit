@@ -22,13 +22,13 @@ export function ArtistAvatarUpload({
   avatarUrl: string;
   onUploaded: (avatar: UploadedAvatar) => void;
 }) {
-  const inputId = useId();
-  const [localPreviewUrl, setLocalPreviewUrl] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedObjectUrl, setSelectedObjectUrl] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
+  const inputId = useId(),
+   [localPreviewUrl, setLocalPreviewUrl] = useState(""),
+   [selectedFile, setSelectedFile] = useState<File | null>(null),
+   [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
+   [statusMessage, setStatusMessage] = useState(""),
 
-  const { averageProgress, isPending, upload } = useUploadFiles({
+   { averageProgress, isPending, upload } = useUploadFiles({
     api: PROFILE_MEDIA_UPLOAD_URL,
     credentials: "include",
     onError: (uploadError) => {
@@ -46,17 +46,17 @@ export function ArtistAvatarUpload({
         return;
       }
 
-      const objectKey = file.objectInfo.key;
-      const url = `${MEDIA_BASE_URL}/${objectKey}`;
+      const objectKey = file.objectInfo.key,
+       url = `${MEDIA_BASE_URL}/${objectKey}`;
 
       onUploaded({ objectKey, url });
       setLocalPreviewUrl("");
       setStatusMessage("Profile picture uploaded.");
     },
     route: "profile-media",
-  });
+  }),
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+   handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -66,9 +66,9 @@ export function ArtistAvatarUpload({
 
     setSelectedFile(file);
     setSelectedObjectUrl(URL.createObjectURL(file));
-  };
+  },
 
-  const uploadCroppedFile = async (file: File, previewUrl: string) => {
+   uploadCroppedFile = async (file: File, previewUrl: string) => {
     setLocalPreviewUrl(previewUrl);
     setSelectedFile(null);
     setSelectedObjectUrl("");

@@ -14,9 +14,9 @@ import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { logInfo, logWarn } from "@/middleware/structured-logging";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const uploadConfigKeys = [
+ uploadConfigKeys = [
   "UPLOAD_BUCKET_NAME",
   "CLOUDFLARE_ACCOUNT_ID",
   "CLOUDFLARE_ACCESS_KEY_ID",
@@ -29,9 +29,9 @@ const getEnvValue = (key: UploadConfigKey | "CLOUDFLARE_R2_JURISDICTION") => {
   const value = (env as unknown as Record<string, unknown>)[key];
 
   return typeof value === "string" && value.length > 0 ? value : null;
-};
+},
 
-const getUploadJurisdiction = (): "eu" | "fedramp" | undefined => {
+ getUploadJurisdiction = (): "eu" | "fedramp" | undefined => {
   const jurisdiction = getEnvValue("CLOUDFLARE_R2_JURISDICTION");
 
   if (jurisdiction === "eu" || jurisdiction === "fedramp") {
@@ -39,14 +39,14 @@ const getUploadJurisdiction = (): "eu" | "fedramp" | undefined => {
   }
 
   return undefined;
-};
+},
 
-const getUploadConfig = () => {
-  const bucketName = getEnvValue("UPLOAD_BUCKET_NAME");
-  const accountId = getEnvValue("CLOUDFLARE_ACCOUNT_ID");
-  const accessKeyId = getEnvValue("CLOUDFLARE_ACCESS_KEY_ID");
-  const secretAccessKey = getEnvValue("CLOUDFLARE_SECRET_ACCESS_KEY");
-  const missing: UploadConfigKey[] = [];
+ getUploadConfig = () => {
+  const bucketName = getEnvValue("UPLOAD_BUCKET_NAME"),
+   accountId = getEnvValue("CLOUDFLARE_ACCOUNT_ID"),
+   accessKeyId = getEnvValue("CLOUDFLARE_ACCESS_KEY_ID"),
+   secretAccessKey = getEnvValue("CLOUDFLARE_SECRET_ACCESS_KEY"),
+   missing: UploadConfigKey[] = [];
 
   if (!bucketName) {
     missing.push("UPLOAD_BUCKET_NAME");
@@ -73,14 +73,14 @@ const getUploadConfig = () => {
     ready: true as const,
     secretAccessKey,
   };
-};
+},
 
-const uploadConfigMessage = (missing: readonly UploadConfigKey[]) =>
+ uploadConfigMessage = (missing: readonly UploadConfigKey[]) =>
   `Upload storage credentials are not configured yet. Missing: ${missing.join(
     ", "
-  )}.`;
+  )}.`,
 
-const createObjectKey = ({
+ createObjectKey = ({
   fileName,
   prefix,
   userId,
@@ -92,9 +92,9 @@ const createObjectKey = ({
   const sanitizedName = fileName.replaceAll(/\s+/gu, "-");
 
   return `${prefix}/${userId}/${Date.now()}-${sanitizedName}`;
-};
+},
 
-const requireUploadUser = async (request: Request) => {
+ requireUploadUser = async (request: Request) => {
   const session = await createAuth().api.getSession({
     headers: request.headers,
   });
@@ -104,17 +104,17 @@ const requireUploadUser = async (request: Request) => {
   }
 
   return session.user.id;
-};
+},
 
-const requireArtistUploadUser = async (request: Request) => {
+ requireArtistUploadUser = async (request: Request) => {
   const userId = await requireUploadUser(request);
 
   if (!isDatabaseConfigured()) {
     return userId;
   }
 
-  const db = createDb();
-  const [profile] = await db
+  const db = createDb(),
+   [profile] = await db
     .select({ accountType: userProfiles.accountType })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
@@ -127,9 +127,9 @@ const requireArtistUploadUser = async (request: Request) => {
   }
 
   return userId;
-};
+},
 
-const createUploadRouter = (): Router | null => {
+ createUploadRouter = (): Router | null => {
   const uploadConfig = getUploadConfig();
 
   if (!uploadConfig.ready) {

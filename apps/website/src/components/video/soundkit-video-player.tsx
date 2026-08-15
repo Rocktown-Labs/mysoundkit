@@ -10,9 +10,9 @@ const YOUTUBE_PATTERNS = [
   /youtu\.be\/([A-Za-z0-9_-]{6,})/,
   /youtube\.com\/watch\?v=([A-Za-z0-9_-]{6,})/,
   /youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/,
-] as const;
+] as const,
 
-const getYouTubeEmbedUrl = (url: string) => {
+ getYouTubeEmbedUrl = (url: string) => {
   for (const pattern of YOUTUBE_PATTERNS) {
     const match = url.match(pattern);
 

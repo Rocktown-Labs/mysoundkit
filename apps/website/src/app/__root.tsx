@@ -26,8 +26,8 @@ import appCss from "./globals.css?url";
 export type RouterAppContext = Record<string, never>;
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
-  const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
-  const app = (
+  const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN,
+   app = (
     <AppProviders>
       {children}
       <Scripts />
@@ -220,7 +220,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       { content: SITE_TITLE, name: "twitter:title" },
       { content: SITE_DESCRIPTION, name: "twitter:description" },
       { content: SOCIAL_IMAGE_URL, name: "twitter:image" },
-      { content: `${SITE_NAME} social preview artwork`, name: "twitter:image:alt" },
+      {
+        content: `${SITE_NAME} social preview artwork`,
+        name: "twitter:image:alt",
+      },
     ],
     scripts: [
       {

@@ -9,9 +9,9 @@ export const Route = createFileRoute("/dashboard/projects/$id/edit")({
 });
 
 function EditProjectPage() {
-  const { id } = Route.useParams();
-  const projectQuery = useProjectQuery(id);
-  const project = projectQuery.data;
+  const { id } = Route.useParams(),
+   projectQuery = useProjectQuery(id),
+   project = projectQuery.data;
 
   if (projectQuery.isLoading) {
     return (

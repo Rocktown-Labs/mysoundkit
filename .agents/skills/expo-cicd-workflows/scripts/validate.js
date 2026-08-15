@@ -13,8 +13,8 @@ import { fetchCached } from "./fetch.js";
 const SCHEMA_URL = "https://api.expo.dev/v2/workflows/schema";
 
 async function fetchSchema() {
-  const data = await fetchCached(SCHEMA_URL);
-  const body = JSON.parse(data);
+  const data = await fetchCached(SCHEMA_URL),
+   body = JSON.parse(data);
   return body.data;
 }
 
@@ -45,16 +45,16 @@ async function validateFile(validator, filePath) {
 function formatErrors(errors) {
   return errors
     .map((error) => {
-      const path = error.instancePath || "(root)";
-      const allowed = error.params?.allowedValues?.join(", ");
+      const path = error.instancePath || "(root)",
+       allowed = error.params?.allowedValues?.join(", ");
       return `  ${path}: ${error.message}${allowed ? ` (allowed: ${allowed})` : ""}`;
     })
     .join("\n");
 }
 
 if (import.meta.main) {
-  const args = process.argv.slice(2);
-  const files = args.filter((a) => !a.startsWith("-"));
+  const args = process.argv.slice(2),
+   files = args.filter((a) => !a.startsWith("-"));
 
   if (files.length === 0 || args.includes("--help") || args.includes("-h")) {
     console.log(`Usage: validate <workflow.yml> [workflow2.yml ...]
@@ -63,14 +63,14 @@ Validates EAS workflow YAML files against the official schema.`);
     process.exit(files.length === 0 ? 1 : 0);
   }
 
-  const schema = await fetchSchema();
-  const validator = createValidator(schema);
+  const schema = await fetchSchema(),
+   validator = createValidator(schema);
 
   let hasErrors = false;
 
   for (const file of files) {
-    const filePath = resolve(process.cwd(), file);
-    const result = await validateFile(validator, filePath);
+    const filePath = resolve(process.cwd(), file),
+     result = await validateFile(validator, filePath);
 
     if (result.valid) {
       console.log(`✓ ${file}`);
