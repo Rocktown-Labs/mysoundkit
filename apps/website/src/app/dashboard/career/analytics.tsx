@@ -89,7 +89,7 @@ const areaChartConfig: ChartConfig = {
   },
 };
 
-export function AnalyticsPage() {
+function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d"),
    tracksQuery = useTracksQuery(),
    projectsQuery = useProjectsQuery(),
@@ -136,7 +136,7 @@ export function AnalyticsPage() {
     () => computeGeographicData(totalPlays),
     [totalPlays]
   ),
-   retention = useMemo(() => computeRetentionMetrics(totalPlays), [totalPlays]);,
+   retention = useMemo(() => computeRetentionMetrics(totalPlays), [totalPlays]),
 
    trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
 
