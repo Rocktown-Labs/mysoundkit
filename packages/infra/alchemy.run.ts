@@ -178,6 +178,10 @@ const SITE_HOST = isProduction
     className: "LiveRoomDurableObject",
     sqlite: true,
   }),
+  presence = DurableObjectNamespace("presence", {
+    className: "PresenceDurableObject",
+    sqlite: true,
+  }),
   trackDurationBackfillDeadLetterQueue = await Queue(
     "track-duration-backfill-dlq",
     {
@@ -285,6 +289,7 @@ export const server = await Worker("server", {
     ),
     HYPERDRIVE: hyperdrive,
     LIVE_ROOMS: liveRooms,
+    PRESENCE: presence,
     MEDIA_BUCKET: media,
     MEDIA_CANONICAL_URL: "https://media.mysoundkit.com",
     MEDIA_PUBLIC_URL: MEDIA_URL,

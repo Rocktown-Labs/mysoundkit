@@ -24,6 +24,7 @@ export interface AppVariables {
 export interface AppEnv {
   Bindings: {
     LIVE_ROOMS?: DurableObjectNamespace;
+    PRESENCE?: DurableObjectNamespace;
     MEDIA_BUCKET?: R2Bucket;
     RECORDINGS_ACCESS_KEY_ID?: string;
     RECORDINGS_BUCKET?: R2Bucket;

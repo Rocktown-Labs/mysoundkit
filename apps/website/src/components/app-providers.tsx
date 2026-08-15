@@ -11,6 +11,7 @@ import { MusicPlayer } from "@/components/explore/music-player";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { PresenceProvider } from "@/lib/presence-context";
 
 const AppDevtools = import.meta.env.DEV
   ? lazy(async () => {
@@ -36,11 +37,13 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
         enableSystem={false}
       >
         <KeyboardShortcutsProvider>
-          <AudioPlayerProvider>
-            <CartProvider>{children}</CartProvider>
-            <MusicPlayer />
-            <FloatingChatBar />
-          </AudioPlayerProvider>
+          <PresenceProvider>
+            <AudioPlayerProvider>
+              <CartProvider>{children}</CartProvider>
+              <MusicPlayer />
+              <FloatingChatBar />
+            </AudioPlayerProvider>
+          </PresenceProvider>
         </KeyboardShortcutsProvider>
         <Toaster />
         {AppDevtools ? (

@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { usePresence } from "@/lib/presence-context";
 import {
   useConversationMessagesQuery,
   useConversationsQuery,
@@ -243,10 +244,7 @@ function MessagesPage() {
           </Button>
           <Button
             className="shadow-lg shadow-primary/20"
-            onClick={() => {
-              setTargetFriendId(undefined);
-              setIsNewChatOpen(true);
-            }}
+            onClick={() => setIsNewChatOpen(true)}
             size="sm"
           >
             <Plus className="mr-2 size-3.5" />
@@ -256,13 +254,13 @@ function MessagesPage() {
       </div>
 
       <div className="flex flex-1 gap-4 overflow-hidden">
-        <Card className="flex h-full w-full flex-col overflow-hidden border-border/40 bg-card/40 backdrop-blur-md md:w-80 shrink-0">
-          {/* Search bar */}
+        {/* Conversations sidebar */}
+        <Card className="flex w-full flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96">
           <div className="border-b border-border/20 p-3">
             <div className="relative">
-              <Search className="-translate-y-1/2 absolute left-3 top-1/2 size-4 text-muted-foreground" />
+              <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
               <Input
-                className="border-none bg-muted/30 pl-9 text-xs focus-visible:ring-1 focus-visible:ring-primary/30"
+                className="bg-muted/50 pl-8 text-xs"
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search chats..."
                 value={searchQuery}
@@ -275,36 +273,46 @@ function MessagesPage() {
             <div className="border-b border-border/20 p-3 bg-muted/10">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Friends Online
+                  Friends Online ({onlineFriends.length})
                 </span>
                 <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-medium">
                   <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {messageableFriends.length} active
+                  {onlineFriends.length} online
                 </span>
               </div>
               <div className="flex gap-2.5 overflow-x-auto pb-1 custom-scrollbar">
-                {messageableFriends.map((friend) => (
-                  <button
-                    key={friend.id}
-                    className="flex flex-col items-center gap-1 shrink-0 group text-center focus:outline-none"
-                    onClick={() => handleStartChatWithFriend(friend)}
-                    type="button"
-                    title={`Chat with ${friend.name}`}
-                  >
-                    <div className="relative">
-                      <Avatar className="size-10 border-2 border-border/40 group-hover:border-primary/50 transition-all">
-                        <AvatarImage src={friend.avatarUrl ?? undefined} />
-                        <AvatarFallback className="text-[10px]">
-                          {initials(friend.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background shadow-sm" />
-                    </div>
-                    <span className="text-[10px] truncate max-w-[54px] text-muted-foreground group-hover:text-foreground">
-                      {friend.name.split(" ")[0]}
-                    </span>
-                  </button>
-                ))}
+                {messageableFriends.map((friend) => {
+                  const isOnline = isUserOnline(friend.id);
+                  return (
+                    <button
+                      key={friend.id}
+                      className="flex flex-col items-center gap-1 shrink-0 group text-center focus:outline-none"
+                      onClick={() => handleStartChatWithFriend(friend)}
+                      type="button"
+                      title={`${friend.name} (${isOnline ? "Online" : "Offline"})`}
+                    >
+                      <div className="relative">
+                        <Avatar className="size-10 border-2 border-border/40 group-hover:border-primary/50 transition-all">
+                          <AvatarImage src={friend.avatarUrl ?? undefined} />
+                          <AvatarFallback className="text-[10px]">
+                            {initials(friend.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span
+                          className={cn(
+                            "absolute bottom-0 right-0 size-2.5 rounded-full ring-2 ring-background shadow-sm transition-colors",
+                            isOnline
+                              ? "bg-emerald-500 animate-pulse shadow-emerald-500/30"
+                              : "bg-muted-foreground/30"
+                          )}
+                        />
+                      </div>
+                      <span className="text-[10px] truncate max-w-[54px] text-muted-foreground group-hover:text-foreground">
+                        {friend.name.split(" ")[0]}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -672,7 +680,8 @@ function NewChatDialog({
     friends = useMemo(
       () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
       [friendsQuery.data]
-    );
+    ),
+    { isUserOnline } = usePresence();
 
   // Preselect initialFriendId when dialog opens
   useEffect(() => {
@@ -726,7 +735,9 @@ function NewChatDialog({
         allCandidates
           .filter((candidate) => !selectedIds.has(candidate.id))
           .filter((candidate) => {
-            if (!normalizedSearch) {return true;}
+            if (!normalizedSearch) {
+              return true;
+            }
             return [
               candidate.name,
               candidate.username,
@@ -848,7 +859,14 @@ function NewChatDialog({
                     <AvatarImage src={candidate.avatarUrl ?? undefined} />
                     <AvatarFallback>{initials(candidate.name)}</AvatarFallback>
                   </Avatar>
-                  <span className="absolute bottom-0 right-0 size-2 rounded-full bg-emerald-500 ring-1 ring-background" />
+                  <span
+                    className={cn(
+                      "absolute bottom-0 right-0 size-2 rounded-full ring-1 ring-background transition-colors",
+                      isUserOnline(candidate.id)
+                        ? "bg-emerald-500 shadow-sm"
+                        : "bg-muted-foreground/30"
+                    )}
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium group-hover:text-primary transition-colors">
@@ -969,7 +987,9 @@ function ConversationItem({
             {initials(conversation.title)}
           </AvatarFallback>
         </Avatar>
-        <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+        {conversation.unreadCount > 0 && (
+          <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-primary ring-2 ring-background shadow-sm" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-center justify-between">

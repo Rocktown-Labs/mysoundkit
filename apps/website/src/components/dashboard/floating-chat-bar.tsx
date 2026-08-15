@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
+import { usePresence } from "@/lib/presence-context";
 import {
   useConversationMessagesQuery,
   useConversationsQuery,
@@ -51,6 +52,7 @@ export function FloatingChatBar() {
     conversationsQuery = useConversationsQuery(isArtist),
     friendsQuery = useFriendsQuery(),
     startConversation = useStartConversationMutation(),
+    { isUserOnline } = usePresence(),
     conversations = conversationsQuery.data ?? [],
     friends = useMemo(
       () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
@@ -214,7 +216,14 @@ export function FloatingChatBar() {
                               {friend.name.charAt(0)}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="absolute bottom-0 right-0 size-2 rounded-full bg-emerald-500 ring-1 ring-background" />
+                          <span
+                            className={cn(
+                              "absolute bottom-0 right-0 size-2 rounded-full ring-1 ring-background transition-colors",
+                              isUserOnline(friend.id)
+                                ? "bg-emerald-500 shadow-sm animate-pulse"
+                                : "bg-muted-foreground/30"
+                            )}
+                          />
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium truncate">
@@ -254,9 +263,7 @@ export function FloatingChatBar() {
                       <button
                         key={conversation.id}
                         type="button"
-                        onClick={() =>
-                          setActiveConversationId(conversation.id)
-                        }
+                        onClick={() => setActiveConversationId(conversation.id)}
                         className={cn(
                           "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs shrink-0 transition",
                           isSelected
@@ -334,7 +341,9 @@ export function FloatingChatBar() {
                         type="submit"
                         size="icon"
                         className="size-9 shrink-0"
-                        disabled={createMessage.isPending || !messageInput.trim()}
+                        disabled={
+                          createMessage.isPending || !messageInput.trim()
+                        }
                       >
                         <Send className="size-3.5" />
                       </Button>

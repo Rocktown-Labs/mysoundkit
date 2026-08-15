@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
+import { usePresence } from "@/lib/presence-context";
 import {
   useCreateFriendRequestMutation,
   useFriendRequestsQuery,
@@ -49,6 +50,7 @@ import {
   useSearchQuery,
 } from "@/lib/soundkit-api-hooks";
 import type { FriendSummary } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 type CollaboratorsTab =
   | "all"
@@ -136,25 +138,24 @@ function ArtistSearchResultRow({
   artist: { genre?: string; id: string; name: string; username: string };
 }) {
   const friendRequestMutation = useCreateFriendRequestMutation(),
-   [isPending, setIsPending] = useState(false),
-
-   handleAdd = async () => {
-    try {
-      await friendRequestMutation.mutateAsync({ username: artist.username });
-      setIsPending(true);
-      toast({
-        description: `Friend request sent to @${artist.username}. Pending acceptance.`,
-        title: "Friend request sent",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Failed to send request",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  };
+    [isPending, setIsPending] = useState(false),
+    handleAdd = async () => {
+      try {
+        await friendRequestMutation.mutateAsync({ username: artist.username });
+        setIsPending(true);
+        toast({
+          description: `Friend request sent to @${artist.username}. Pending acceptance.`,
+          title: "Friend request sent",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Failed to send request",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
+    };
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 p-3">
@@ -194,6 +195,9 @@ function ArtistSearchResultRow({
 }
 
 function PersonCard({ person }: { person: FriendSummary }) {
+  const { isUserOnline } = usePresence(),
+    online = isUserOnline(person.id);
+
   return (
     <Card
       className="border-border/40 bg-card/40 transition-all hover:border-border/60 hover:bg-card/60"
@@ -214,10 +218,15 @@ function PersonCard({ person }: { person: FriendSummary }) {
                     .toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              {(person.relationship === "friend" ||
-                person.relationship === "collaborator") && (
-                <span className="absolute bottom-0 right-0 size-3 rounded-full bg-emerald-500 ring-2 ring-background" />
-              )}
+              <span
+                className={cn(
+                  "absolute bottom-0 right-0 size-3 rounded-full ring-2 ring-background transition-colors",
+                  online
+                    ? "bg-emerald-500 shadow-sm animate-pulse"
+                    : "bg-muted-foreground/30"
+                )}
+                title={online ? "Online now" : "Offline"}
+              />
             </div>
             <div className="min-w-0">
               <p className="truncate font-semibold">{person.name}</p>
@@ -262,167 +271,152 @@ function PersonCard({ person }: { person: FriendSummary }) {
 
 function FriendsPage() {
   const searchParams = Route.useSearch(),
-   navigate = Route.useNavigate(),
-   activeTab: CollaboratorsTab = searchParams.tab ?? "all",
+    navigate = Route.useNavigate(),
+    activeTab: CollaboratorsTab = searchParams.tab ?? "all",
+    [search, setSearch] = useState(""),
+    [isAddModalOpen, setIsAddModalOpen] = useState(false),
+    [newFriendHandle, setNewFriendHandle] = useState(""),
+    friendsQuery = useFriendsQuery(),
+    friendRequestsQuery = useFriendRequestsQuery(),
+    createFriendRequestMutation = useCreateFriendRequestMutation(),
+    respondFriendRequestMutation = useRespondFriendRequestMutation(),
+    allConnections = useMemo(
+      () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+      [friendsQuery.data]
+    ),
+    friendRequests = useMemo(
+      () =>
+        Array.isArray(friendRequestsQuery.data) ? friendRequestsQuery.data : [],
+      [friendRequestsQuery.data]
+    ),
+    meQuery = useMeQuery(),
+    currentUserId = meQuery.data?.user?.id,
+    normalizedSearch = search.trim().replace(/^@/u, ""),
+    peopleSearchQuery = useSearchQuery({
+      limit: "8",
+      q: normalizedSearch,
+      type: "artists",
+    }),
+    searchedArtists = peopleSearchQuery.data?.artists ?? [],
+    // Filter self out and search needle
+    filteredConnections = useMemo(() => {
+      const needle = normalizedSearch.toLowerCase();
 
-   [search, setSearch] = useState(""),
-   [isAddModalOpen, setIsAddModalOpen] = useState(false),
-   [newFriendHandle, setNewFriendHandle] = useState(""),
+      return allConnections.filter((person) => {
+        if (person.id === currentUserId) {
+          return false;
+        }
+        if (!needle) {
+          return true;
+        }
 
-   friendsQuery = useFriendsQuery(),
-   friendRequestsQuery = useFriendRequestsQuery(),
-   createFriendRequestMutation = useCreateFriendRequestMutation(),
-   respondFriendRequestMutation = useRespondFriendRequestMutation(),
-
-   allConnections = useMemo(
-    () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
-    [friendsQuery.data]
-  ),
-   friendRequests = useMemo(
-    () =>
-      Array.isArray(friendRequestsQuery.data) ? friendRequestsQuery.data : [],
-    [friendRequestsQuery.data]
-  ),
-
-   meQuery = useMeQuery(),
-   currentUserId = meQuery.data?.user?.id,
-
-   normalizedSearch = search.trim().replace(/^@/u, ""),
-
-   peopleSearchQuery = useSearchQuery({
-    limit: "8",
-    q: normalizedSearch,
-    type: "artists",
-  }),
-
-   searchedArtists = peopleSearchQuery.data?.artists ?? [],
-
-  // Filter self out and search needle
-   filteredConnections = useMemo(() => {
-    const needle = normalizedSearch.toLowerCase();
-
-    return allConnections.filter((person) => {
-      if (person.id === currentUserId) {
-        return false;
+        return [person.name, person.email, person.username, person.role]
+          .filter(Boolean)
+          .some((value) => value?.toLowerCase().includes(needle));
+      });
+    }, [allConnections, currentUserId, normalizedSearch]),
+    collaborators = useMemo(
+      () =>
+        filteredConnections.filter(
+          (person) => person.relationship === "collaborator"
+        ),
+      [filteredConnections]
+    ),
+    mutualFriends = useMemo(
+      () =>
+        filteredConnections.filter(
+          (person) => person.relationship === "friend"
+        ),
+      [filteredConnections]
+    ),
+    followingAndFans = useMemo(
+      () =>
+        filteredConnections.filter(
+          (person) =>
+            person.relationship === "following" || person.relationship === "fan"
+        ),
+      [filteredConnections]
+    ),
+    pendingIncomingRequests = useMemo(
+      () =>
+        friendRequests.filter(
+          (request) =>
+            request.status === "pending" && request.direction === "incoming"
+        ),
+      [friendRequests]
+    ),
+    pendingOutgoingRequests = useMemo(
+      () =>
+        friendRequests.filter(
+          (request) =>
+            request.status === "pending" && request.direction === "outgoing"
+        ),
+      [friendRequests]
+    ),
+    totalPendingCount =
+      pendingIncomingRequests.length + pendingOutgoingRequests.length,
+    handleTabChange = (newTab: string) => {
+      void navigate({
+        search: {
+          tab: newTab as CollaboratorsTab,
+        },
+      });
+    },
+    handleManualAddFriend = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const handle = newFriendHandle.trim().replace(/^@/u, "");
+      if (!handle) {
+        return;
       }
-      if (!needle) {
-        return true;
+
+      try {
+        await createFriendRequestMutation.mutateAsync({ username: handle });
+        toast({
+          description: `Sent friend request to @${handle}.`,
+          title: "Friend request sent",
+        });
+        setNewFriendHandle("");
+        setIsAddModalOpen(false);
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to send friend request.",
+          title: "Error",
+          variant: "destructive",
+        });
       }
-
-      return [person.name, person.email, person.username, person.role]
-        .filter(Boolean)
-        .some((value) => value?.toLowerCase().includes(needle));
-    });
-  }, [allConnections, currentUserId, normalizedSearch]),
-
-   collaborators = useMemo(
-    () =>
-      filteredConnections.filter(
-        (person) => person.relationship === "collaborator"
-      ),
-    [filteredConnections]
-  ),
-
-   mutualFriends = useMemo(
-    () =>
-      filteredConnections.filter((person) => person.relationship === "friend"),
-    [filteredConnections]
-  ),
-
-   followingAndFans = useMemo(
-    () =>
-      filteredConnections.filter(
-        (person) =>
-          person.relationship === "following" || person.relationship === "fan"
-      ),
-    [filteredConnections]
-  ),
-
-   pendingIncomingRequests = useMemo(
-    () =>
-      friendRequests.filter(
-        (request) =>
-          request.status === "pending" && request.direction === "incoming"
-      ),
-    [friendRequests]
-  ),
-
-   pendingOutgoingRequests = useMemo(
-    () =>
-      friendRequests.filter(
-        (request) =>
-          request.status === "pending" && request.direction === "outgoing"
-      ),
-    [friendRequests]
-  ),
-
-   totalPendingCount =
-    pendingIncomingRequests.length + pendingOutgoingRequests.length,
-
-   handleTabChange = (newTab: string) => {
-    void navigate({
-      search: {
-        tab: newTab as CollaboratorsTab,
-      },
-    });
-  },
-
-   handleManualAddFriend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const handle = newFriendHandle.trim().replace(/^@/u, "");
-    if (!handle) {
-      return;
-    }
-
-    try {
-      await createFriendRequestMutation.mutateAsync({ username: handle });
-      toast({
-        description: `Sent friend request to @${handle}.`,
-        title: "Friend request sent",
-      });
-      setNewFriendHandle("");
-      setIsAddModalOpen(false);
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Unable to send friend request.",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  },
-
-   respondToRequest = async ({
-    action,
-    requestId,
-  }: {
-    action: "accept" | "cancel" | "decline";
-    requestId: string;
-  }) => {
-    try {
-      await respondFriendRequestMutation.mutateAsync({ action, requestId });
-      toast({
-        description:
-          action === "accept"
-            ? "Friend request accepted. You can now chat and collaborate."
-            : (action === "cancel"
-              ? "Friend request canceled."
-              : "Friend request declined."),
-        title: action === "accept" ? "Friend Added" : "Request Updated",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Could not update friend request.",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  };
+    },
+    respondToRequest = async ({
+      action,
+      requestId,
+    }: {
+      action: "accept" | "cancel" | "decline";
+      requestId: string;
+    }) => {
+      try {
+        await respondFriendRequestMutation.mutateAsync({ action, requestId });
+        toast({
+          description:
+            action === "accept"
+              ? "Friend request accepted. You can now chat and collaborate."
+              : (action === "cancel"
+                ? "Friend request canceled."
+                : "Friend request declined."),
+          title: action === "accept" ? "Friend Added" : "Request Updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not update friend request.",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
+    };
 
   return (
     <div className="space-y-6">

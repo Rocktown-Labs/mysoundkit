@@ -1102,7 +1102,9 @@ export function MusicPlayer() {
       ) {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const device = await (navigator.mediaDevices as any).selectAudioOutput();
+          const device = await (
+            navigator.mediaDevices as any
+          ).selectAudioOutput();
           if (device) {
             await handleSwitchDevice({
               active: true,
@@ -1387,7 +1389,8 @@ export function MusicPlayer() {
           </div>
           <DropdownMenuSeparator />
           <div className="px-2 py-1 text-[10px] text-muted-foreground">
-            Connect Bluetooth headphones or speakers in system settings to select them here.
+            Connect Bluetooth headphones or speakers in system settings to
+            select them here.
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
