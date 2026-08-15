@@ -136,7 +136,9 @@ const formatCurrency = (cents: number) =>
     role
       ?.split(",")
       .map((value) => value.trim())
-      .includes("admin") ?? false;
+      .includes("admin") ?? false,
+  isUsableStripeId = (priceId: string | null) =>
+    Boolean(priceId && !priceId.startsWith("price_dev_"));
 
 function AdminDashboard() {
   const { data: session, isPending } = authClient.useSession(),
@@ -1169,10 +1171,14 @@ function PaymentsPanel() {
 
   const { data } = paymentsQuery,
     missingCheckoutEnv = data.plans.filter(
-      (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
+      (plan) =>
+        !(
+          isUsableStripeId(plan.envMonthlyPriceId) ||
+          isUsableStripeId(plan.stripeMonthlyPriceId)
+        )
     ),
-    configuredPlanCount = data.plans.filter(
-      (plan) => plan.stripeMonthlyPriceId
+    configuredPlanCount = data.plans.filter((plan) =>
+      isUsableStripeId(plan.stripeMonthlyPriceId)
     ).length,
     paymentMetrics = [
       {
@@ -1249,8 +1255,8 @@ function PaymentsPanel() {
               <CardDescription className="mt-1 text-xs">
                 {data.stripeConfigured
                   ? missingCheckoutEnv.length > 0
-                    ? `${missingCheckoutEnv.length} plan needs deployed checkout environment variables.`
-                    : "Stripe setup is live and all linked checkout plans are ready."
+                    ? `${missingCheckoutEnv.length} plan has no Stripe price linked to checkout yet.`
+                    : "Stripe setup is live and all linked checkout plans are ready from synced Stripe IDs."
                   : "Add STRIPE_SECRET_KEY before syncing or importing price IDs."}
               </CardDescription>
             </div>
@@ -1295,11 +1301,12 @@ function PaymentsPanel() {
         <Alert className="border-amber-500/30 bg-amber-500/5">
           <TriangleAlert className="size-4 text-amber-500" />
           <AlertTitle className="text-amber-500 font-semibold">
-            Checkout Env Vars Need Updating
+            {missingCheckoutEnv.length} Plan Lacks a Checkout Price
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Synced DB price IDs are visible here. Copy the matching monthly and
-            annual IDs into the listed env keys before testing paid checkout.
+            Run Sync Products &amp; Prices to auto-create Stripe products and
+            prices and wire them into checkout, or enter matching price IDs
+            below.
           </AlertDescription>
         </Alert>
       )}
@@ -1914,14 +1921,16 @@ function PaymentPlanCard({
     [annualPriceId, setAnnualPriceId] = useState(
       plan.stripeAnnualPriceId ?? suggestedAnnual
     ),
-    monthlyCheckoutReady =
-      Boolean(plan.stripeMonthlyPriceId) &&
-      plan.stripeMonthlyPriceId === plan.envMonthlyPriceId,
     annualCheckoutReady =
       !plan.annualPriceCents ||
-      (Boolean(plan.stripeAnnualPriceId) &&
-        plan.stripeAnnualPriceId === plan.envAnnualPriceId),
+      isUsableStripeId(plan.envAnnualPriceId) ||
+      isUsableStripeId(plan.stripeAnnualPriceId),
+    annualEnvReady = Boolean(plan.envAnnualPriceId),
     checkoutReady = monthlyCheckoutReady && annualCheckoutReady,
+    monthlyCheckoutReady =
+      isUsableStripeId(plan.envMonthlyPriceId) ||
+      isUsableStripeId(plan.stripeMonthlyPriceId),
+    monthlyEnvReady = Boolean(plan.envMonthlyPriceId),
     handleImport = () => {
       importMutation.mutate(
         {
@@ -2041,19 +2050,19 @@ function PaymentPlanCard({
           ) : null}
         </div>
 
-        {/* Required Environment Keys */}
+        {/* Optional Deploy-Time Env Keys */}
         <div className="space-y-2 rounded-lg border bg-muted/20 p-3 text-xs">
           <p className="font-semibold text-[11px] text-muted-foreground tracking-wider uppercase">
-            Required Environment Variables
+            Environment Variables (optional)
           </p>
           <EnvKeyLine
-            isReady={monthlyCheckoutReady}
+            isReady={monthlyEnvReady}
             label="Monthly Env Key"
             value={plan.envMonthlyKey ?? "not required"}
           />
           {plan.envAnnualKey ? (
             <EnvKeyLine
-              isReady={annualCheckoutReady}
+              isReady={annualEnvReady}
               label="Annual Env Key"
               value={plan.envAnnualKey}
             />

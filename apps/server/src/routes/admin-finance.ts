@@ -42,6 +42,8 @@ const app = new OpenAPIHono<AppEnv>(),
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
   isDevPlaceholderPriceId = (priceId: string | null | undefined) =>
     Boolean(priceId?.startsWith("price_dev_")),
+  isUsableStripePriceId = (priceId: string | null | undefined) =>
+    Boolean(priceId && !priceId.startsWith("price_dev_")),
   planEnvKeys: Record<
     string,
     { annual: string | null; monthly: string | null }
@@ -423,7 +425,9 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
 
     return {
       configuredCheckoutPlans: serializedPlans.filter(
-        (plan) => plan.envMonthlyPriceId
+        (plan) =>
+          isUsableStripePriceId(plan.envMonthlyPriceId) ||
+          isUsableStripePriceId(plan.stripeMonthlyPriceId)
       ).length,
       planCount: plans.length,
       plans: serializedPlans,
