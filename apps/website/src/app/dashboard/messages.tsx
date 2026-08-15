@@ -10,9 +10,6 @@ import {
   Plus,
   Search,
   Send,
-  Sparkles,
-  Star,
-  UserCheck,
   UserRoundPlus,
   X,
 } from "lucide-react";
@@ -79,6 +76,7 @@ const initials = (value: string) =>
 
 function MessagesPage() {
   const searchParams = Route.useSearch(),
+    { isUserOnline } = usePresence(),
     conversationsQuery = useConversationsQuery(),
     friendsQuery = useFriendsQuery(),
     conversations = useMemo(
@@ -99,6 +97,10 @@ function MessagesPage() {
             friend.relationship === "collaborator"
         ),
       [friends]
+    ),
+    onlineFriends = useMemo(
+      () => messageableFriends.filter((f) => isUserOnline(f.id)),
+      [isUserOnline, messageableFriends]
     ),
     [selectedId, setSelectedId] = useState(""),
     [searchQuery, setSearchQuery] = useState(""),
