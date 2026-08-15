@@ -20,9 +20,9 @@ export class TrackProcessingWorkflow extends WorkflowEntrypoint<
   ) {
     const emailQueue = (
       this.env as { EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage> }
-    ).EMAIL_DELIVERY_QUEUE;
+    ).EMAIL_DELIVERY_QUEUE,
 
-    const submittedJob = await step.do("submit stemsplit job", () =>
+     submittedJob = await step.do("submit stemsplit job", () =>
       processTrackAudio(event.payload)
     );
 

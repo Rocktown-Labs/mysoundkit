@@ -56,7 +56,9 @@ function StreamCard({ stream }: { stream: PublicStream }) {
       <Card className="h-full border-border/50 bg-card/60 transition-colors hover:border-primary/60">
         <CardContent className="space-y-4 p-4">
           <div className="flex items-center justify-between gap-2">
-            <Badge variant={stream.status === "live" ? "destructive" : "secondary"}>
+            <Badge
+              variant={stream.status === "live" ? "destructive" : "secondary"}
+            >
               {stream.status === "live" ? "Live" : "Scheduled"}
             </Badge>
             <Badge variant="outline">{stream.source.toUpperCase()}</Badge>
@@ -78,30 +80,30 @@ function StreamCard({ stream }: { stream: PublicStream }) {
 }
 
 function LiveStreamsPage() {
-  const navigate = Route.useNavigate();
-  const search = Route.useSearch();
-  const { data: streams = [], isLoading } =
-    usePublicLiveExperiencesQuery("stream");
-  const meQuery = useMeQuery();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const genre = search.genre ?? "all";
-  const sort = search.sort ?? "starts-asc";
-  const status = search.status ?? "all";
-  const view = search.view ?? "sections";
-  const publicStreams = (streams as PublicStream[]).filter(
+  const navigate = Route.useNavigate(),
+   search = Route.useSearch(),
+   { data: streams = [], isLoading } =
+    usePublicLiveExperiencesQuery("stream"),
+   meQuery = useMeQuery(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   genre = search.genre ?? "all",
+   sort = search.sort ?? "starts-asc",
+   status = search.status ?? "all",
+   view = search.view ?? "sections",
+   publicStreams = (streams as PublicStream[]).filter(
     (stream) => stream.kind === "stream"
-  );
-  const filteredStreams = filterAndSortLiveItems({
+  ),
+   filteredStreams = filterAndSortLiveItems({
     genre,
     items: publicStreams,
     sort,
     status,
-  });
-  const canCreateStream =
+  }),
+   canCreateStream =
     meQuery.data?.user.accountType === "artist" &&
-    Boolean(entitlementsQuery.data?.isPremium);
+    Boolean(entitlementsQuery.data?.isPremium),
 
-  const openCollection = (next: Partial<LiveStreamsSearch>) => {
+   openCollection = (next: Partial<LiveStreamsSearch>) => {
     void navigate({
       search: (previous) => ({ ...previous, ...next, view: "all" }),
     });
@@ -167,7 +169,9 @@ function LiveStreamsPage() {
           </ExploreCollectionSection>
           <ExploreCollectionSection
             empty="No upcoming streams are scheduled."
-            items={publicStreams.filter((stream) => stream.status === "scheduled")}
+            items={publicStreams.filter(
+              (stream) => stream.status === "scheduled"
+            )}
             onViewAll={() => openCollection({ status: "scheduled" })}
             title="Upcoming"
           >

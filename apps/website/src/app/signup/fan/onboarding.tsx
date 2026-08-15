@@ -28,24 +28,24 @@ export const Route = createFileRoute("/signup/fan/onboarding")({
 });
 
 function FanOnboardingPage() {
-  const posthog = usePostHog();
-  const router = useRouter();
-  const [city, setCity] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards");
-  const [selectedPlanCode, setSelectedPlanCode] = useState(
+  const posthog = usePostHog(),
+   router = useRouter(),
+   [city, setCity] = useState(""),
+   [errorMessage, setErrorMessage] = useState<string | null>(null),
+   [isSubmitting, setIsSubmitting] = useState(false),
+   [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
+   [selectedPlanCode, setSelectedPlanCode] = useState(
     "soundkit_premium_fan"
-  );
-  const [stateValue, setStateValue] = useState("");
-  const [step, setStep] = useState(1);
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [username, setUsername] = useState("");
-  const totalSteps = 4;
+  ),
+   [stateValue, setStateValue] = useState(""),
+   [step, setStep] = useState(1),
+   [selectedGenres, setSelectedGenres] = useState<string[]>([]),
+   [username, setUsername] = useState(""),
+   totalSteps = 4,
 
-  const progress = (step / totalSteps) * 100;
+   progress = (step / totalSteps) * 100,
 
-  const genres = [
+   genres = [
     "Hip-Hop",
     "R&B/Soul",
     "Pop",
@@ -60,15 +60,15 @@ function FanOnboardingPage() {
     "Indie",
     "Metal",
     "Spoken Word",
-  ];
+  ],
 
-  const toggleGenre = (genre: string) => {
+   toggleGenre = (genre: string) => {
     setSelectedGenres((prev) =>
       prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
     );
-  };
+  },
 
-  const completeOnboarding = async (planCode = selectedPlanCode) => {
+   completeOnboarding = async (planCode = selectedPlanCode) => {
     setErrorMessage(null);
     setIsSubmitting(true);
 
@@ -87,9 +87,9 @@ function FanOnboardingPage() {
           "Content-Type": "application/json",
         },
         method: "POST",
-      });
+      }),
 
-      const payload = (await response.json().catch(() => null)) as {
+       payload = (await response.json().catch(() => null)) as {
         checkoutUrl?: string | null;
         message?: string;
       } | null;

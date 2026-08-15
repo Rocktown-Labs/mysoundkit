@@ -515,11 +515,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     [existingRequest] = await db
-      .select()
-      .from(artistFriendRequests)
-      .where(eq(artistFriendRequests.id, requestId))
-      .limit(1);
+      [existingRequest] = await db
+        .select()
+        .from(artistFriendRequests)
+        .where(eq(artistFriendRequests.id, requestId))
+        .limit(1);
 
     if (!existingRequest) {
       return c.json(
@@ -529,7 +529,7 @@ app.openapi(
     }
 
     const isRequester = existingRequest.requesterUserId === user.id,
-     isRecipient = existingRequest.recipientUserId === user.id;
+      isRecipient = existingRequest.recipientUserId === user.id;
 
     if (!isRequester && !isRecipient) {
       return c.json(
@@ -600,21 +600,20 @@ app.openapi(
     }
 
     const otherUserId =
-      updatedRequest.recipientUserId === user.id
-        ? updatedRequest.requesterUserId
-        : updatedRequest.recipientUserId,
-
-     [otherUser] = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        displayName: userProfiles.displayName,
-        name: authUser.name,
-        username: userProfiles.username,
-      })
-      .from(authUser)
-      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-      .where(eq(authUser.id, otherUserId))
-      .limit(1);
+        updatedRequest.recipientUserId === user.id
+          ? updatedRequest.requesterUserId
+          : updatedRequest.recipientUserId,
+      [otherUser] = await db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          name: authUser.name,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .where(eq(authUser.id, otherUserId))
+        .limit(1);
 
     return c.json(
       toFriendRequestSummary({

@@ -30,10 +30,10 @@ export const Route = createFileRoute("/_explore/live/streams/$id")({
 });
 
 function StreamDetailPage() {
-  const { id } = Route.useParams();
-  const { chat, query } = useLiveRoom(id);
-  const room = query.data;
-  const experienceQuery = useQuery({
+  const { id } = Route.useParams(),
+   { chat, query } = useLiveRoom(id),
+   room = query.data,
+   experienceQuery = useQuery({
     queryFn: async () => {
       const response = await fetch(
         `${API_V1_URL}/live/experiences/${encodeURIComponent(id)}`,
@@ -52,10 +52,10 @@ function StreamDetailPage() {
       };
     },
     queryKey: ["live-experience", id],
-    refetchInterval: 5_000,
-  });
-  const experience = experienceQuery.data;
-  const currentTrack = room?.tracklist.find(
+    refetchInterval: 5000,
+  }),
+   experience = experienceQuery.data,
+   currentTrack = room?.tracklist.find(
     (track) => track.id === room.currentTrackId
   );
 

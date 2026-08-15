@@ -6,15 +6,15 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Sheet = SheetPrimitive.Root;
+const Sheet = SheetPrimitive.Root,
 
-const SheetTrigger = SheetPrimitive.Trigger;
+ SheetTrigger = SheetPrimitive.Trigger,
 
-const SheetClose = SheetPrimitive.Close;
+ SheetClose = SheetPrimitive.Close,
 
-const SheetPortal = SheetPrimitive.Portal;
+ SheetPortal = SheetPrimitive.Portal,
 
-const SheetOverlay = React.forwardRef<
+ SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
 >(({ className, ...props }, ref) => (

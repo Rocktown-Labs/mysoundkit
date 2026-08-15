@@ -16,30 +16,30 @@ import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const adPlacementSchema = z.enum([
+ adPlacementSchema = z.enum([
   "audio_preroll",
   "video_preroll",
   "video_overlay",
-]);
-const adCreativeFormatSchema = z.enum(["audio", "video", "image"]);
-const adBillingTypeSchema = z.enum(["upfront_recurring", "prepaid_wallet"]);
-const adTargetTypeSchema = z.enum(["state", "country"]);
-const adCampaignStatusSchema = z.enum([
+]),
+ adCreativeFormatSchema = z.enum(["audio", "video", "image"]),
+ adBillingTypeSchema = z.enum(["upfront_recurring", "prepaid_wallet"]),
+ adTargetTypeSchema = z.enum(["state", "country"]),
+ adCampaignStatusSchema = z.enum([
   "draft",
   "active",
   "paused",
   "exhausted_for_today",
   "expired",
-]);
+]),
 
-const adTargetSchema = z.object({
+ adTargetSchema = z.object({
   targetCode: z.string(),
   targetType: adTargetTypeSchema,
-});
+}),
 
-const createCampaignBodySchema = z.object({
+ createCampaignBodySchema = z.object({
   billingType: adBillingTypeSchema.default("prepaid_wallet"),
   clickthroughUrl: z.url(),
   creativeFormat: adCreativeFormatSchema.default("audio"),
@@ -52,18 +52,18 @@ const createCampaignBodySchema = z.object({
   placement: adPlacementSchema.default("audio_preroll"),
   startDate: z.string().datetime().optional(),
   targets: adTargetSchema.array().min(1).max(80),
-});
+}),
 
-const houseCampaignBodySchema = z.object({
+ houseCampaignBodySchema = z.object({
   clickthroughUrl: z.url(),
   creativeFormat: adCreativeFormatSchema,
   creativeImageUrl: z.url().optional(),
   creativeUrl: z.url(),
   name: z.string().trim().min(1).max(120),
   placement: adPlacementSchema,
-});
+}),
 
-const adCampaignSchema = z.object({
+ adCampaignSchema = z.object({
   billingType: adBillingTypeSchema,
   clickthroughUrl: z.string(),
   creativeFormat: adCreativeFormatSchema,
@@ -86,21 +86,21 @@ const adCampaignSchema = z.object({
   startDate: z.string(),
   status: adCampaignStatusSchema,
   targets: adTargetSchema.array(),
-});
+}),
 
-const walletSchema = z.object({
+ walletSchema = z.object({
   balanceCents: z.number().int(),
   currency: z.string(),
-});
+}),
 
-const serveAdQuerySchema = z.object({
+ serveAdQuerySchema = z.object({
   contentType: z.enum(["audio", "video"]).default("audio"),
   placement: adPlacementSchema.default("audio_preroll"),
   trackId: z.string().optional(),
   videoId: z.string().optional(),
-});
+}),
 
-const servedAdSchema = z.object({
+ servedAdSchema = z.object({
   ad: z
     .object({
       campaignId: z.string(),
@@ -119,25 +119,25 @@ const servedAdSchema = z.object({
     .nullable(),
   hasAd: z.boolean(),
   reason: z.string().optional(),
-});
+}),
 
-const adEventBodySchema = z.object({
+ adEventBodySchema = z.object({
   campaignId: z.string(),
   eventType: z.enum(["impression", "click", "complete"]),
-});
+}),
 
-const todayKey = () => new Date().toISOString().slice(0, 10);
+ todayKey = () => new Date().toISOString().slice(0, 10),
 
-const normalizeTargetCode = (value: string | null | undefined) =>
-  value?.trim().toUpperCase() ?? "";
+ normalizeTargetCode = (value: string | null | undefined) =>
+  value?.trim().toUpperCase() ?? "",
 
-const requestTargets = (headers: Headers) => {
+ requestTargets = (headers: Headers) => {
   const country = normalizeTargetCode(
     headers.get("cf-ipcountry") ??
       headers.get("x-vercel-ip-country") ??
       headers.get("x-country-code")
-  );
-  const region = normalizeTargetCode(
+  ),
+   region = normalizeTargetCode(
     headers.get("cf-region-code") ??
       headers.get("x-vercel-ip-country-region") ??
       headers.get("x-region-code")
@@ -148,9 +148,9 @@ const requestTargets = (headers: Headers) => {
     region ? `US-${region.replace(/^US-/u, "")}` : "",
     country,
   ].filter(Boolean);
-};
+},
 
-const computeMetrics = ({
+ computeMetrics = ({
   clicks,
   impressions,
   spendCents,
@@ -166,11 +166,11 @@ const computeMetrics = ({
   ctrPercent: impressions > 0 ? (clicks / impressions) * 100 : 0,
   impressions,
   spendCents,
-});
+}),
 
-const serializeCampaign = async (campaign: typeof adCampaigns.$inferSelect) => {
-  const db = createDb();
-  const [targets, metricsRows] = await Promise.all([
+ serializeCampaign = async (campaign: typeof adCampaigns.$inferSelect) => {
+  const db = createDb(),
+   [targets, metricsRows] = await Promise.all([
     db
       .select()
       .from(adCampaignTargets)
@@ -179,8 +179,8 @@ const serializeCampaign = async (campaign: typeof adCampaigns.$inferSelect) => {
       .select()
       .from(adMetricDaily)
       .where(eq(adMetricDaily.campaignId, campaign.id)),
-  ]);
-  const totals = metricsRows.reduce(
+  ]),
+   totals = metricsRows.reduce(
     (acc, row) => ({
       clicks: acc.clicks + row.clicksCount,
       impressions: acc.impressions + row.impressionsCount,
@@ -331,9 +331,9 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [campaign] = await db
+    const body = c.req.valid("json"),
+     db = createDb(),
+     [campaign] = await db
       .insert(adCampaigns)
       .values({
         advertiserId: user.id,
@@ -398,9 +398,9 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [campaign] = await db
+    const body = c.req.valid("json"),
+     db = createDb(),
+     [campaign] = await db
       .insert(adCampaigns)
       .values({
         advertiserId: user?.id ?? "soundkit",
@@ -470,9 +470,9 @@ app.openapi(
         HttpStatusCodes.FORBIDDEN
       );
     }
-    const { campaignId } = c.req.valid("param");
-    const { status } = c.req.valid("json");
-    const [campaign] = await createDb()
+    const { campaignId } = c.req.valid("param"),
+     { status } = c.req.valid("json"),
+     [campaign] = await createDb()
       .update(adCampaigns)
       .set({ status, updatedAt: new Date() })
       .where(eq(adCampaigns.id, campaignId))
@@ -548,17 +548,17 @@ app.openapi(
       return c.body(null, HttpStatusCodes.NO_CONTENT);
     }
 
-    const query = c.req.valid("query");
-    const targets = requestTargets(c.req.raw.headers);
+    const query = c.req.valid("query"),
+     targets = requestTargets(c.req.raw.headers);
 
     if (targets.length === 0) {
       return c.body(null, HttpStatusCodes.NO_CONTENT);
     }
 
-    const db = createDb();
-    const today = todayKey();
-    const now = new Date();
-    const candidates = await db
+    const db = createDb(),
+     today = todayKey(),
+     now = new Date(),
+     candidates = await db
       .select({
         campaign: adCampaigns,
         metrics: adMetricDaily,
@@ -587,13 +587,13 @@ app.openapi(
           inArray(adCampaignTargets.targetCode, targets)
         )
       )
-      .limit(20);
+      .limit(20),
 
-    const qualified = candidates.filter(
+     qualified = candidates.filter(
       ({ campaign, metrics }) =>
         (metrics?.impressionsCount ?? 0) < campaign.dailyImpressionCap
-    );
-    const selected = qualified[0]?.campaign;
+    ),
+     selected = qualified[0]?.campaign;
 
     if (!selected) {
       return c.body(null, HttpStatusCodes.NO_CONTENT);
@@ -642,10 +642,10 @@ app.openapi(
       return c.json({ message: "Ad event accepted." }, HttpStatusCodes.OK);
     }
 
-    const body = c.req.valid("json");
-    const today = todayKey();
-    const impressionDelta = body.eventType === "impression" ? 1 : 0;
-    const clickDelta = body.eventType === "click" ? 1 : 0;
+    const body = c.req.valid("json"),
+     today = todayKey(),
+     impressionDelta = body.eventType === "impression" ? 1 : 0,
+     clickDelta = body.eventType === "click" ? 1 : 0;
 
     await createDb()
       .insert(adMetricDaily)

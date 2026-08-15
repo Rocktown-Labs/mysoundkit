@@ -61,19 +61,19 @@ export function InviteMemberDialog({
   seatsUsed,
   totalSeats,
 }: InviteMemberDialogProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const isAtLimit = seatsUsed >= totalSeats;
+  const [isSubmitting, setIsSubmitting] = useState(false),
+   isAtLimit = seatsUsed >= totalSeats,
 
-  const form = useForm<InviteFormValues>({
+   form = useForm<InviteFormValues>({
     defaultValues: {
       email: "",
       message: "",
       role: "manager",
     },
     resolver: zodResolver(inviteFormSchema),
-  });
+  }),
 
-  const onSubmit = async (values: InviteFormValues) => {
+   onSubmit = async (values: InviteFormValues) => {
     setIsSubmitting(true);
     try {
       // Simulate API call to @apps/server

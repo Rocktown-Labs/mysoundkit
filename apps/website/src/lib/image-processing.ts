@@ -13,15 +13,15 @@ export const optimizeCoverImageFile = async (
   }
 
   try {
-    const bitmap = await createImageBitmap(file);
-    const { height, width } = bitmap;
-    const shouldDownscale = width > maxDimension || height > maxDimension;
-    const outputWidth = shouldDownscale
+    const bitmap = await createImageBitmap(file),
+     { height, width } = bitmap,
+     shouldDownscale = width > maxDimension || height > maxDimension,
+     outputWidth = shouldDownscale
       ? Math.round(
           width > height ? maxDimension : maxDimension * (width / height)
         )
-      : width;
-    const outputHeight = shouldDownscale
+      : width,
+     outputHeight = shouldDownscale
       ? Math.round(
           height > width ? maxDimension : maxDimension * (height / width)
         )
@@ -49,11 +49,11 @@ export const optimizeCoverImageFile = async (
     bitmap.close();
 
     const hasTransparency =
-      file.type === "image/png" || file.type === "image/webp";
-    const outputType = hasTransparency ? "image/webp" : "image/jpeg";
-    const extension = hasTransparency ? "webp" : "jpg";
-    const baseName = file.name.replace(/\.[^.]+$/u, "");
-    const blob = await new Promise<Blob | null>((resolve) =>
+      file.type === "image/png" || file.type === "image/webp",
+     outputType = hasTransparency ? "image/webp" : "image/jpeg",
+     extension = hasTransparency ? "webp" : "jpg",
+     baseName = file.name.replace(/\.[^.]+$/u, ""),
+     blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, outputType, 0.85)
     );
 

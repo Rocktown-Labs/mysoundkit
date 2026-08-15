@@ -44,23 +44,23 @@ export const Route = createFileRoute("/dashboard/videos/")({
 });
 
 function DashboardVideosPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [pendingDeleteVideo, setPendingDeleteVideo] =
-    useState<VideoSummary | null>(null);
-  const videosQuery = useVideosQuery();
-  const meQuery = useMeQuery();
-  const deleteVideoMutation = useDeleteVideoMutation();
-  const videos = videosQuery.data ?? [];
-  const verifiedUploads = videos.filter(
+  const [searchQuery, setSearchQuery] = useState(""),
+   [pendingDeleteVideo, setPendingDeleteVideo] =
+    useState<VideoSummary | null>(null),
+   videosQuery = useVideosQuery(),
+   meQuery = useMeQuery(),
+   deleteVideoMutation = useDeleteVideoMutation(),
+   videos = videosQuery.data ?? [],
+   verifiedUploads = videos.filter(
     (video) => video.sourceProvider === "mux"
-  ).length;
-  const externalSources = videos.filter(
+  ).length,
+   externalSources = videos.filter(
     (video) => video.sourceProvider === "external"
-  ).length;
-  const processingVideos = videos.filter((video) =>
+  ).length,
+   processingVideos = videos.filter((video) =>
     ["pending", "processing", "uploading"].includes(video.status)
-  ).length;
-  const videoStatusVariant = (status: string) => {
+  ).length,
+   videoStatusVariant = (status: string) => {
     if (status === "ready") {
       return "default";
     }
@@ -70,9 +70,9 @@ function DashboardVideosPage() {
     }
 
     return "secondary";
-  };
+  },
 
-  const videoStats = [
+   videoStats = [
     {
       description: "Hosted directly on SoundKit via Mux",
       icon: ShieldCheck,
@@ -97,9 +97,9 @@ function DashboardVideosPage() {
       title: "Total Videos",
       value: String(videos.length),
     },
-  ];
+  ],
 
-  const filteredVideos = videos.filter(
+   filteredVideos = videos.filter(
     (video) =>
       video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       video.videoKind.toLowerCase().includes(searchQuery.toLowerCase())

@@ -69,9 +69,9 @@ export interface LiveRoomState {
   viewerCount: number;
 }
 
-const liveRoomKey = (roomId: string) => ["live-room", roomId] as const;
+const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
 
-const fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
+ fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
   const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
     credentials: "include",
   });
@@ -81,9 +81,9 @@ const fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
   }
 
   return response.json() as Promise<LiveRoomState>;
-};
+},
 
-const postLiveRoom = async (
+ postLiveRoom = async (
   roomId: string,
   path: "chat" | "vote",
   body: unknown
@@ -105,17 +105,17 @@ const postLiveRoom = async (
   }
 
   return response.json() as Promise<LiveRoomState>;
-};
+},
 
-const wsUrlForRoom = (roomId: string) => {
+ wsUrlForRoom = (roomId: string) => {
   const url = new URL(`${API_BASE_URL}/v1/live/rooms/${roomId}/ws`);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
 };
 
 export const useLiveRoom = (roomId: string) => {
-  const queryClient = useQueryClient();
-  const query = useQuery({
+  const queryClient = useQueryClient(),
+   query = useQuery({
     queryFn: () => fetchLiveRoom(roomId),
     queryKey: liveRoomKey(roomId),
     refetchInterval: 30_000,
@@ -146,9 +146,9 @@ export const useLiveRoom = (roomId: string) => {
     mutationFn: (body: { message: string; userName?: string }) =>
       postLiveRoom(roomId, "chat", body),
     onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
-  });
+  }),
 
-  const voteMutation = useMutation({
+   voteMutation = useMutation({
     mutationFn: (body: {
       artistId: string;
       roundId: string;

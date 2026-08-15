@@ -91,9 +91,9 @@ const statusCodeFromError = (error: unknown) => {
   }
 
   return HttpStatusCodes.INTERNAL_SERVER_ERROR;
-};
+},
 
-const codeFromStatus = (status: number): ErrorCode => {
+ codeFromStatus = (status: number): ErrorCode => {
   if (status === HttpStatusCodes.BAD_REQUEST) {
     return "bad_request";
   }
@@ -136,8 +136,8 @@ export const errorPayload = ({
   error: unknown;
   requestId: string;
 }) => {
-  const status = statusCodeFromError(error);
-  const code = isAppError(error) ? error.code : codeFromStatus(status);
+  const status = statusCodeFromError(error),
+   code = isAppError(error) ? error.code : codeFromStatus(status);
   let message = "Something went wrong. Please try again.";
 
   if (isAppError(error) && error.expose) {
@@ -154,8 +154,8 @@ export const errorPayload = ({
 };
 
 export const jsonError = (c: Context<AppEnv>, error: unknown) => {
-  const status = statusCodeFromError(error);
-  const payload = errorPayload({
+  const status = statusCodeFromError(error),
+   payload = errorPayload({
     error,
     requestId: c.get("requestId"),
   });

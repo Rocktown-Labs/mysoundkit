@@ -9,9 +9,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { CONFIGURED_PAID_PLAN_CODES } from "./plan-codes";
 import type { AppEnv, AuthenticatedSession, AuthenticatedUser } from "./types";
 
-const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]),
 
-const ENTITLEMENT_KEYS = {
+ ENTITLEMENT_KEYS = {
   canCreateLiveBattles: [
     "can_create_live_battles",
     "live_battles:create",
@@ -31,9 +31,9 @@ const ENTITLEMENT_KEYS = {
   ] as const,
   canWatchVod: ["can_watch_vod", "vod:view"] as const,
   isPremium: ["is_premium", "premium_access"] as const,
-} as const;
+} as const,
 
-const parseBoolean = (value: string | null | undefined): boolean | null => {
+ parseBoolean = (value: string | null | undefined): boolean | null => {
   if (!value) {
     return null;
   }
@@ -49,13 +49,13 @@ const parseBoolean = (value: string | null | undefined): boolean | null => {
   }
 
   return null;
-};
+},
 
-const uniq = <T>(values: T[]) => [...new Set(values)];
-const isString = (value: string | null): value is string =>
-  typeof value === "string";
+ uniq = <T>(values: T[]) => [...new Set(values)],
+ isString = (value: string | null): value is string =>
+  typeof value === "string",
 
-const entitlementValue = (
+ entitlementValue = (
   entitlements: Map<string, string>,
   keys: readonly string[]
 ): boolean | null => {
@@ -100,15 +100,15 @@ const defaultEntitlements = (): EntitlementSnapshot => ({
   isPremium: false,
   referenceId: null,
   status: null,
-});
+}),
 
-const compareReferencePriority = (
+ compareReferencePriority = (
   candidateReferenceIds: string[],
   left: string,
   right: string
 ) => {
-  const leftIndex = candidateReferenceIds.indexOf(left);
-  const rightIndex = candidateReferenceIds.indexOf(right);
+  const leftIndex = candidateReferenceIds.indexOf(left),
+   rightIndex = candidateReferenceIds.indexOf(right);
 
   if (leftIndex === rightIndex) {
     return 0;
@@ -123,9 +123,9 @@ const compareReferencePriority = (
   }
 
   return leftIndex - rightIndex;
-};
+},
 
-const statusPriority = (status: string) => {
+ statusPriority = (status: string) => {
   if (status === "active") {
     return 0;
   }
@@ -135,9 +135,9 @@ const statusPriority = (status: string) => {
   }
 
   return 2;
-};
+},
 
-const compareStatusPriority = (left: string, right: string) =>
+ compareStatusPriority = (left: string, right: string) =>
   statusPriority(left) - statusPriority(right);
 
 // The resolver intentionally combines workspace, subscription, catalog, and override precedence.
@@ -153,15 +153,15 @@ export const resolveEntitlements = async ({
     return defaultEntitlements();
   }
 
-  const db = createDb();
-  const memberships = await db
+  const db = createDb(),
+   memberships = await db
     .select({
       organizationId: member.organizationId,
     })
     .from(member)
-    .where(eq(member.userId, user.id));
+    .where(eq(member.userId, user.id)),
 
-  const candidateReferenceIds = uniq(
+   candidateReferenceIds = uniq(
     [
       session?.activeOrganizationId ?? null,
       user.id,
@@ -190,9 +190,9 @@ export const resolveEntitlements = async ({
         inArray(subscription.referenceId, candidateReferenceIds),
         inArray(subscription.status, [...ACTIVE_SUBSCRIPTION_STATUSES])
       )
-    );
+    ),
 
-  const [activeSubscription] = subscriptions.toSorted((left, right) => {
+   [activeSubscription] = subscriptions.toSorted((left, right) => {
     const referencePriority = compareReferencePriority(
       candidateReferenceIds,
       left.referenceId,
@@ -221,51 +221,51 @@ export const resolveEntitlements = async ({
         subscriptionEntitlements.subscriptionId,
         activeSubscription.subscriptionId
       )
-    );
+    ),
 
-  const entitlementMap = new Map(
+   entitlementMap = new Map(
     entitlementRows.map(({ key, value }) => [key, value] as const)
-  );
+  ),
 
-  const paidPlan =
+   paidPlan =
     CONFIGURED_PAID_PLAN_CODES.has(activeSubscription.plan) ||
     (activeSubscription.monthlyPriceCents !== null &&
-      activeSubscription.monthlyPriceCents > 0);
-  const artistPlan =
+      activeSubscription.monthlyPriceCents > 0),
+   artistPlan =
     activeSubscription.audience === "artist" ||
-    activeSubscription.plan.startsWith("artist_");
-  const catalogEntitlements = new Map(
+    activeSubscription.plan.startsWith("artist_"),
+   catalogEntitlements = new Map(
     Object.entries(activeSubscription.planEntitlements ?? {}).map(
       ([key, value]) => [key, String(value)] as const
     )
-  );
-  const resolveValue = (keys: readonly string[]) =>
+  ),
+   resolveValue = (keys: readonly string[]) =>
     entitlementValue(entitlementMap, keys) ??
-    entitlementValue(catalogEntitlements, keys);
+    entitlementValue(catalogEntitlements, keys),
 
-  const canViewLiveBattles =
-    resolveValue(ENTITLEMENT_KEYS.canViewLiveBattles) ?? paidPlan;
-  const canVoteLiveBattles =
-    resolveValue(ENTITLEMENT_KEYS.canVoteLiveBattles) ?? canViewLiveBattles;
-  const canHostLiveStreams =
+   canViewLiveBattles =
+    resolveValue(ENTITLEMENT_KEYS.canViewLiveBattles) ?? paidPlan,
+   canVoteLiveBattles =
+    resolveValue(ENTITLEMENT_KEYS.canVoteLiveBattles) ?? canViewLiveBattles,
+   canHostLiveStreams =
     resolveValue(ENTITLEMENT_KEYS.canHostLiveStreams) ??
-    (artistPlan && paidPlan);
-  const canCreateLiveBattles =
+    (artistPlan && paidPlan),
+   canCreateLiveBattles =
     resolveValue(ENTITLEMENT_KEYS.canCreateLiveBattles) ??
-    (artistPlan && paidPlan);
-  const canWatchCreatorStreams =
-    resolveValue(ENTITLEMENT_KEYS.canWatchCreatorStreams) ?? paidPlan;
-  const canWatchVod = resolveValue(ENTITLEMENT_KEYS.canWatchVod) ?? paidPlan;
-  const canSellProducts =
-    resolveValue(ENTITLEMENT_KEYS.canSellProducts) ?? (artistPlan && paidPlan);
-  const canReceivePayouts =
+    (artistPlan && paidPlan),
+   canWatchCreatorStreams =
+    resolveValue(ENTITLEMENT_KEYS.canWatchCreatorStreams) ?? paidPlan,
+   canWatchVod = resolveValue(ENTITLEMENT_KEYS.canWatchVod) ?? paidPlan,
+   canSellProducts =
+    resolveValue(ENTITLEMENT_KEYS.canSellProducts) ?? (artistPlan && paidPlan),
+   canReceivePayouts =
     resolveValue(ENTITLEMENT_KEYS.canReceivePayouts) ??
-    (artistPlan && paidPlan);
-  const canOperatePaidCommunity =
+    (artistPlan && paidPlan),
+   canOperatePaidCommunity =
     resolveValue(ENTITLEMENT_KEYS.canOperatePaidCommunity) ??
-    (artistPlan && paidPlan);
-  const isPremiumOverride = resolveValue(ENTITLEMENT_KEYS.isPremium);
-  const isPremium =
+    (artistPlan && paidPlan),
+   isPremiumOverride = resolveValue(ENTITLEMENT_KEYS.isPremium),
+   isPremium =
     isPremiumOverride ??
     (paidPlan ||
       canHostLiveStreams ||

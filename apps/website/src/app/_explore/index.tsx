@@ -61,67 +61,67 @@ function ExplorePage() {
 function LocalExplorePage({
   startsWithAppWideTotals,
 }: Readonly<{ startsWithAppWideTotals: boolean }>) {
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-  const [mapScope, setMapScope] = useState<MapScope>("global");
-  const [userLocation, setUserLocation] = useState<string | null>(null);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-  const [locationPromptState, setLocationPromptState] = useState<
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null),
+   [mapScope, setMapScope] = useState<MapScope>("global"),
+   [userLocation, setUserLocation] = useState<string | null>(null),
+   [isLoadingLocation, setIsLoadingLocation] = useState(false),
+   [locationPromptState, setLocationPromptState] = useState<
     "idle" | "prompting" | "granted" | "denied" | "unsupported"
-  >("idle");
+  >("idle"),
 
-  const activeRegion =
+   activeRegion =
     selectedRegion ??
     (mapScope === "global"
       ? "Global"
-      : (mapScopes.find((s) => s.id === mapScope)?.label ?? "SoundKit"));
-  const isGlobalView = selectedRegion === null && mapScope === "global";
+      : (mapScopes.find((s) => s.id === mapScope)?.label ?? "SoundKit")),
+   isGlobalView = selectedRegion === null && mapScope === "global",
 
-  const regionSlug = selectedRegion
+   regionSlug = selectedRegion
     ? selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")
-    : mapScope;
-  const exploreRegionType = mapScope === "global" ? "global" : "north-america";
-  const regionSearch = `regionType=${exploreRegionType}&region=${regionSlug}`;
-  const battlesHref = `/live?${regionSearch}`;
-  const tracksHref = `/tracks?${regionSearch}`;
-  const releasesHref = `/tracks?${regionSearch}&sort=date-desc`;
-  const artistsHref = `/artist?${regionSearch}`;
-  const videosHref = `/videos?${regionSearch}`;
-  const projectsHref = `/projects?${regionSearch}`;
-  const publicExploreQuery = {
+    : mapScope,
+   exploreRegionType = mapScope === "global" ? "global" : "north-america",
+   regionSearch = `regionType=${exploreRegionType}&region=${regionSlug}`,
+   battlesHref = `/live?${regionSearch}`,
+   tracksHref = `/tracks?${regionSearch}`,
+   releasesHref = `/tracks?${regionSearch}&sort=date-desc`,
+   artistsHref = `/artist?${regionSearch}`,
+   videosHref = `/videos?${regionSearch}`,
+   projectsHref = `/projects?${regionSearch}`,
+   publicExploreQuery = {
     limit: 12,
     region: regionSlug,
     regionType: exploreRegionType,
     scope: "public",
-  } as const;
-  const { data: topTracks = [], isLoading: isLoadingTopTracks } =
+  } as const,
+   { data: topTracks = [], isLoading: isLoadingTopTracks } =
     useTracksQuery(undefined, {
       ...publicExploreQuery,
       sort: "plays-desc",
-    });
-  const { data: newTracks = [], isLoading: isLoadingNewTracks } =
+    }),
+   { data: newTracks = [], isLoading: isLoadingNewTracks } =
     useTracksQuery(undefined, {
       ...publicExploreQuery,
       sort: "date-desc",
-    });
-  const { data: videos = [], isLoading: isLoadingVideos } =
-    useVideosQuery(publicExploreQuery);
-  const { data: projects = [], isLoading: isLoadingProjects } =
+    }),
+   { data: videos = [], isLoading: isLoadingVideos } =
+    useVideosQuery(publicExploreQuery),
+   { data: projects = [], isLoading: isLoadingProjects } =
     usePublicProjectsQuery({
       limit: 12,
       region: regionSlug,
       regionType: exploreRegionType,
       sort: "date-desc",
-    });
-  const { data: artists = [], isLoading: isLoadingArtists } = useArtistsQuery({
+    }),
+   { data: artists = [], isLoading: isLoadingArtists } = useArtistsQuery({
     category: "top",
     limit: 10,
     region: regionSlug,
     regionType: exploreRegionType,
     sort: "rank-asc",
-  });
-  const { data: battles = [], isLoading: isLoadingBattles } = useBattlesQuery();
+  }),
+   { data: battles = [], isLoading: isLoadingBattles } = useBattlesQuery(),
 
-  const requestLocation = () => {
+   requestLocation = () => {
     setIsLoadingLocation(true);
 
     try {
@@ -141,9 +141,9 @@ function LocalExplorePage({
           try {
             const response = await fetch(
               `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-            );
-            const data = await response.json();
-            const detectedState =
+            ),
+             data = await response.json(),
+             detectedState =
               data.principalSubdivision || data.countryName || "California";
             setUserLocation(detectedState);
             setSelectedRegion(detectedState);
@@ -527,9 +527,9 @@ const formatCompactCount = (value?: number | null) => {
   }
 
   return value.toLocaleString();
-};
+},
 
-const toLeaderboardArtist = (
+ toLeaderboardArtist = (
   artist: ArtistSummary,
   index: number,
   activeRegion: string
@@ -548,9 +548,9 @@ const toLeaderboardArtist = (
     plays: formatCompactCount(artist.weeklyPlays),
   },
   verified: artist.verified,
-});
+}),
 
-const chunkArtists = (artists: ArtistSummary[], activeRegion: string) => {
+ chunkArtists = (artists: ArtistSummary[], activeRegion: string) => {
   const leaderboardArtists = artists.map((artist, index) =>
     toLeaderboardArtist(artist, index, activeRegion)
   );
@@ -559,9 +559,9 @@ const chunkArtists = (artists: ArtistSummary[], activeRegion: string) => {
     leaderboardArtists.slice(0, 5),
     leaderboardArtists.slice(5, 10),
   ].filter((group) => group.length > 0);
-};
+},
 
-const toExploreVideo = (video: VideoSummary) => ({
+ toExploreVideo = (video: VideoSummary) => ({
   creator: {
     name: video.creatorName ?? "SoundKit creator",
     slug: video.creatorUsername ?? "artist",

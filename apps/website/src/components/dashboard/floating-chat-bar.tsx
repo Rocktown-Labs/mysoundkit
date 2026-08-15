@@ -1,3 +1,4 @@
+import { useRouterState } from "@tanstack/react-router";
 import { X, MessageCircle, Send, Users, UserPlus, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
@@ -21,125 +22,120 @@ import type { FriendSummary } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 const FALLBACK_AVATAR = "/diverse-user-avatars.png",
+  formatMessageTime = (createdAt: string) => {
+    const date = new Date(createdAt);
 
- formatMessageTime = (createdAt: string) => {
-  const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
 
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-};
+    return date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
 
 export function FloatingChatBar() {
   const [activeConversationId, setActiveConversationId] = useState(""),
-   [isOpen, setIsOpen] = useState(false),
-   [tab, setTab] = useState<"chats" | "friends">("chats"),
-   [messageInput, setMessageInput] = useState(""),
-   { currentTrack } = useAudioPlayer(),
-   meQuery = useMeQuery(),
-   isArtist =
-    meQuery.data?.user.accountType === "artist" ||
-    meQuery.data?.user.role === "admin",
+    [isOpen, setIsOpen] = useState(false),
+    [tab, setTab] = useState<"chats" | "friends">("chats"),
+    [messageInput, setMessageInput] = useState(""),
+    { currentTrack } = useAudioPlayer(),
+    pathname = useRouterState({
+      select: (state) => state.location.pathname,
+    }),
+    meQuery = useMeQuery(),
+    isArtist =
+      meQuery.data?.user.accountType === "artist" ||
+      meQuery.data?.user.role === "admin",
+    conversationsQuery = useConversationsQuery(isArtist),
+    friendsQuery = useFriendsQuery(),
+    startConversation = useStartConversationMutation(),
+    conversations = conversationsQuery.data ?? [],
+    friends = useMemo(
+      () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+      [friendsQuery.data]
+    ),
+    activeConversation =
+      conversations.find(({ id }) => id === activeConversationId) ??
+      conversations[0] ??
+      null,
+    conversationId = activeConversation?.id ?? "",
+    messagesQuery = useConversationMessagesQuery(conversationId),
+    createMessage = useCreateMessageMutation(conversationId);
 
-   conversationsQuery = useConversationsQuery(isArtist),
-   friendsQuery = useFriendsQuery(),
-   startConversation = useStartConversationMutation(),
-
-   conversations = conversationsQuery.data ?? [],
-   friends = useMemo(
-    () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
-    [friendsQuery.data]
-  ),
-
-   activeConversation =
-    conversations.find(({ id }) => id === activeConversationId) ??
-    conversations[0] ??
-    null,
-   conversationId = activeConversation?.id ?? "",
-   messagesQuery = useConversationMessagesQuery(conversationId),
-   createMessage = useCreateMessageMutation(conversationId);
-
-  if (!isArtist) {
+  if (!isArtist || pathname.startsWith("/dashboard/messages")) {
     return null;
   }
 
   const messages = messagesQuery.data ?? [],
-   totalUnread = conversations.reduce(
-    (total, conversation) => total + conversation.unreadCount,
-    0
-  ),
+    totalUnread = conversations.reduce(
+      (total, conversation) => total + conversation.unreadCount,
+      0
+    ),
+    handleSendMessage = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const body = messageInput.trim();
 
-   handleSendMessage = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const body = messageInput.trim();
-
-    if (!body || !conversationId || createMessage.isPending) {
-      return;
-    }
-
-    createMessage.mutate(
-      { body },
-      {
-        onError: () =>
-          toast({
-            description: "Could not send your message. Please try again.",
-            title: "Message failed",
-            variant: "destructive",
-          }),
-        onSuccess: () => setMessageInput(""),
+      if (!body || !conversationId || createMessage.isPending) {
+        return;
       }
-    );
-  },
 
-   handleStartFriendChat = (friend: FriendSummary) => {
-    // Check if conversation already exists
-    const existing = conversations.find(
-      (c) =>
-        c.participantName === friend.name ||
-        c.participantUsername === friend.username
-    );
+      createMessage.mutate(
+        { body },
+        {
+          onError: () =>
+            toast({
+              description: "Could not send your message. Please try again.",
+              title: "Message failed",
+              variant: "destructive",
+            }),
+          onSuccess: () => setMessageInput(""),
+        }
+      );
+    },
+    handleStartFriendChat = (friend: FriendSummary) => {
+      // Check if conversation already exists
+      const existing = conversations.find(
+        (c) =>
+          c.participantName === friend.name ||
+          c.participantUsername === friend.username
+      );
 
-    if (existing) {
-      setActiveConversationId(existing.id);
-      setTab("chats");
-      return;
-    }
-
-    startConversation.mutate(
-      {
-        conversation: {
-          participantUserIds: [friend.id],
-          title: friend.name,
-        },
-        message: { body: "Hey! Let's connect on SoundKit." },
-      },
-      {
-        onError: () => {
-          toast({
-            description: "Could not start chat. Please try again.",
-            variant: "destructive",
-          });
-        },
-        onSuccess: (res) => {
-          if (res?.id) {
-            setActiveConversationId(res.id);
-          }
-          setTab("chats");
-          toast({ description: `Chat started with ${friend.name}` });
-        },
+      if (existing) {
+        setActiveConversationId(existing.id);
+        setTab("chats");
+        return;
       }
-    );
-  },
 
-  // Position dynamically: if audio player is active on mobile, lift above it
-   bottomPositionClass = currentTrack
-    ? "bottom-28 sm:bottom-6"
-    : "bottom-20 sm:bottom-6";
+      startConversation.mutate(
+        {
+          conversation: {
+            participantUserIds: [friend.id],
+            title: friend.name,
+          },
+        },
+        {
+          onError: () => {
+            toast({
+              description: "Could not start chat. Please try again.",
+              variant: "destructive",
+            });
+          },
+          onSuccess: (res) => {
+            if (res?.id) {
+              setActiveConversationId(res.id);
+            }
+            setTab("chats");
+            toast({ description: `Chat started with ${friend.name}` });
+          },
+        }
+      );
+    },
+    // Position dynamically: if audio player is active on mobile, lift above it
+    bottomPositionClass = currentTrack
+      ? "bottom-28 sm:bottom-6"
+      : "bottom-20 sm:bottom-6";
 
   return (
     <div

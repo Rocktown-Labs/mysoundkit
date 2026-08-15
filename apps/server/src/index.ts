@@ -18,9 +18,9 @@ import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
-import { publishDueTrackReleases } from "@/lib/release-notifications";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
+import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
 import { jsonBodyMiddleware } from "@/middleware/json-body";
@@ -65,24 +65,24 @@ export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 
 const app = new OpenAPIHono<AppEnv>({
   defaultHook,
-});
+}),
 
-const hasEnvValue = (key: string) =>
-  Boolean((env as unknown as Record<string, unknown>)[key]);
+ hasEnvValue = (key: string) =>
+  Boolean((env as unknown as Record<string, unknown>)[key]),
 
-const allowedCorsOriginPatterns = [
+ allowedCorsOriginPatterns = [
   /^https:\/\/([a-z0-9-]+\.)*mysoundkit\.pages\.dev$/u,
   /^https:\/\/[a-z0-9-]+\.pages\.dev$/u,
   /^https:\/\/([a-z0-9-]+\.)*workers\.dev$/u,
   /^https:\/\/([a-z0-9-]+\.)*rocktown-labs\.workers\.dev$/u,
-];
+],
 
-const isAllowedCorsOrigin = (origin: string) =>
+ isAllowedCorsOrigin = (origin: string) =>
   origin === env.CORS_ORIGIN ||
   origin === env.BETTER_AUTH_URL ||
-  allowedCorsOriginPatterns.some((pattern) => pattern.test(origin));
+  allowedCorsOriginPatterns.some((pattern) => pattern.test(origin)),
 
-const checkDatabaseHealth = async () => {
+ checkDatabaseHealth = async () => {
   if (!isDatabaseConfigured()) {
     return "not_configured" as const;
   }

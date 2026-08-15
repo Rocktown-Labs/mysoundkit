@@ -22,23 +22,23 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const followResponseSchema = z.object({
+ followResponseSchema = z.object({
   followed: z.boolean(),
   followerCount: z.number().int().nonnegative(),
-});
-const usernameParamSchema = z.object({ username: z.string() });
-const postIdParamSchema = z.object({ postId: z.string() });
-const unauthorizedResponse = jsonContent(
+}),
+ usernameParamSchema = z.object({ username: z.string() }),
+ postIdParamSchema = z.object({ postId: z.string() }),
+ unauthorizedResponse = jsonContent(
   messageResponseSchema,
   "Authentication required"
-);
-const notFoundResponse = jsonContent(messageResponseSchema, "Artist not found");
-const commentListResponse = jsonContent(commentSchema.array(), "Post comments");
-const commentCreatedResponse = jsonContent(commentSchema, "Comment created");
-const likeAppliedResponse = jsonContent(messageResponseSchema, "Like applied");
-const publicProfileSchema = z.object({
+),
+ notFoundResponse = jsonContent(messageResponseSchema, "Artist not found"),
+ commentListResponse = jsonContent(commentSchema.array(), "Post comments"),
+ commentCreatedResponse = jsonContent(commentSchema, "Comment created"),
+ likeAppliedResponse = jsonContent(messageResponseSchema, "Like applied"),
+ publicProfileSchema = z.object({
   accountType: z.enum(["artist", "fan"]),
   avatarUrl: z.string().nullable(),
   bio: z.string().nullable(),
@@ -78,9 +78,9 @@ app.openapi(
       );
     }
 
-    const { username } = c.req.valid("param");
-    const db = createDb();
-    const [profile] = await db
+    const { username } = c.req.valid("param"),
+     db = createDb(),
+     [profile] = await db
       .select({
         accountType: userProfiles.accountType,
         avatarUrl: userProfiles.avatarUrl,
@@ -114,7 +114,8 @@ app.openapi(
         bio: profile.bio,
         displayName: profile.displayName,
         followerCount: followerSummary?.count ?? 0,
-        location: [profile.city, profile.state].filter(Boolean).join(", ") || null,
+        location:
+          [profile.city, profile.state].filter(Boolean).join(", ") || null,
         username: profile.username,
       },
       HttpStatusCodes.OK
@@ -143,9 +144,9 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const { username } = c.req.valid("param");
-    const db = createDb();
-    const [target] = await db
+    const { username } = c.req.valid("param"),
+     db = createDb(),
+     [target] = await db
       .select({ userId: userProfiles.userId })
       .from(userProfiles)
       .where(eq(userProfiles.username, username))
@@ -214,8 +215,8 @@ app.openapi(
       return c.json({ followed: true, followerCount: 1 }, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [artist] = await db
+    const db = createDb(),
+     [artist] = await db
       .select({
         displayName: userProfiles.displayName,
         followerCount: artistProfiles.followerCount,
@@ -267,11 +268,11 @@ app.openapi(
           eq(artistProfiles.userId, userProfiles.userId)
         )
         .where(eq(userProfiles.userId, user.id))
-        .limit(1);
+        .limit(1),
 
-      const isFan = !followerArtistProfile?.userId;
-      const title = isFan ? "New Fan" : "New Artist Follower";
-      const message = isFan
+       isFan = !followerArtistProfile?.userId,
+       title = isFan ? "New Fan" : "New Artist Follower",
+       message = isFan
         ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
         : `${user.name ?? "An artist"} followed your profile.`;
 

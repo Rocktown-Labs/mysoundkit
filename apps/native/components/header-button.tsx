@@ -8,8 +8,8 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 export const HeaderButton = forwardRef<View, { onPress?: () => void }>(
   ({ onPress }, ref) => {
-    const { colorScheme } = useColorScheme();
-    const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+    const { colorScheme } = useColorScheme(),
+     theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
     return (
       <Pressable

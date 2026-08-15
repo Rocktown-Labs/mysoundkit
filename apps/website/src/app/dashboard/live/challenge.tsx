@@ -55,14 +55,14 @@ const battleKits = [
 ];
 
 function ChallengePage() {
-  const { opponent } = Route.useSearch();
-  const [searchQuery, setSearchQuery] = useState(opponent);
-  const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
-  const createChallenge = useCreateBattleChallengeMutation();
-  const genresQuery = useGenresQuery();
-  const battleConfig = liveExperienceConfigs.battle;
+  const { opponent } = Route.useSearch(),
+   [searchQuery, setSearchQuery] = useState(opponent),
+   [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
+   createChallenge = useCreateBattleChallengeMutation(),
+   genresQuery = useGenresQuery(),
+   battleConfig = liveExperienceConfigs.battle,
 
-  const genres =
+   genres =
     genresQuery.data && genresQuery.data.length > 0
       ? genresQuery.data.map((genre) => ({
           label: genre.name,
@@ -75,12 +75,12 @@ function ChallengePage() {
           { label: "Pop", value: "pop" },
           { label: "Trap", value: "trap" },
           { label: "Afrobeats", value: "afrobeats" },
-        ];
+        ],
 
-  const submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
+   submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const opponentUsername =
+    const form = new FormData(event.currentTarget),
+     opponentUsername =
       searchQuery.trim() || String(form.get("opponentUsername") ?? "").trim();
 
     if (!opponentUsername) {
@@ -92,9 +92,9 @@ function ChallengePage() {
       return;
     }
 
-    const proposedDateValue = String(form.get("proposedDate") ?? "");
-    const proposedTimeValue = String(form.get("proposedTime") ?? "");
-    const proposedDateTime =
+    const proposedDateValue = String(form.get("proposedDate") ?? ""),
+     proposedTimeValue = String(form.get("proposedTime") ?? ""),
+     proposedDateTime =
       scheduleMode === "scheduled" && proposedDateValue && proposedTimeValue
         ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
         : null;

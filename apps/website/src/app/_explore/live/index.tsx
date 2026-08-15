@@ -55,7 +55,12 @@ const kindLabel = (kind: LiveHubItem["kind"]) => {
 };
 
 function LiveHubCard({ item }: { item: LiveHubItem }) {
-  const Icon = item.kind === "battle" ? Swords : item.kind === "party" ? Headphones : Radio;
+  const Icon =
+    item.kind === "battle"
+      ? Swords
+      : (item.kind === "party"
+        ? Headphones
+        : Radio);
 
   return (
     <Link
@@ -66,7 +71,9 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
       <Card className="h-full border-border/50 bg-card/60 transition-colors hover:border-primary/60">
         <CardContent className="space-y-4 p-4">
           <div className="flex items-center justify-between gap-2">
-            <Badge variant={item.status === "live" ? "destructive" : "secondary"}>
+            <Badge
+              variant={item.status === "live" ? "destructive" : "secondary"}
+            >
               {item.status === "live" ? "Live" : "Upcoming"}
             </Badge>
             <Badge className="gap-1" variant="outline">
@@ -96,18 +103,20 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
 }
 
 function LiveHubPage() {
-  const navigate = Route.useNavigate();
-  const search = Route.useSearch();
-  const battlesQuery = useBattlesQuery();
-  const partiesQuery = useListeningPartiesQuery();
-  const streamsQuery = usePublicLiveExperiencesQuery("stream");
-  const genre = search.genre ?? "all";
-  const sort = search.sort ?? "starts-asc";
-  const status = search.status ?? "all";
-  const view = search.view ?? "sections";
+  const navigate = Route.useNavigate(),
+   search = Route.useSearch(),
+   battlesQuery = useBattlesQuery(),
+   partiesQuery = useListeningPartiesQuery(),
+   streamsQuery = usePublicLiveExperiencesQuery("stream"),
+   genre = search.genre ?? "all",
+   sort = search.sort ?? "starts-asc",
+   status = search.status ?? "all",
+   view = search.view ?? "sections",
 
-  const battleItems: LiveHubItem[] = (battlesQuery.data ?? [])
-    .filter((battle) => battle.status === "live" || battle.status === "scheduled")
+   battleItems: LiveHubItem[] = (battlesQuery.data ?? [])
+    .filter(
+      (battle) => battle.status === "live" || battle.status === "scheduled"
+    )
     .map((battle) => ({
       genre: battle.genre,
       href: "/live/battles/$id",
@@ -117,8 +126,8 @@ function LiveHubPage() {
       status: battle.status,
       title: battle.title,
       viewerCount: battle.viewerCount,
-    }));
-  const partyItems: LiveHubItem[] = (partiesQuery.data ?? []).map((party) => ({
+    })),
+   partyItems: LiveHubItem[] = (partiesQuery.data ?? []).map((party) => ({
     genre: party.genre ?? null,
     href: "/live/parties/$id",
     id: party.liveRoomId ?? party.id,
@@ -127,8 +136,8 @@ function LiveHubPage() {
     status: party.status,
     title: party.title,
     viewerCount: 0,
-  }));
-  const streamItems: LiveHubItem[] = (streamsQuery.data ?? [])
+  })),
+   streamItems: LiveHubItem[] = (streamsQuery.data ?? [])
     .filter((stream) => stream.kind === "stream")
     .map((stream) => ({
       genre: stream.genre ?? null,
@@ -139,18 +148,18 @@ function LiveHubPage() {
       status: stream.status,
       title: stream.title,
       viewerCount: stream.viewerCount,
-    }));
-  const allItems = [...battleItems, ...partyItems, ...streamItems];
-  const filteredItems = filterAndSortLiveItems({
+    })),
+   allItems = [...battleItems, ...partyItems, ...streamItems],
+   filteredItems = filterAndSortLiveItems({
     genre,
     items: allItems,
     sort,
     status,
-  });
-  const isLoading =
-    battlesQuery.isLoading || partiesQuery.isLoading || streamsQuery.isLoading;
+  }),
+   isLoading =
+    battlesQuery.isLoading || partiesQuery.isLoading || streamsQuery.isLoading,
 
-  const openCollection = (next: Partial<LiveHubSearch>) => {
+   openCollection = (next: Partial<LiveHubSearch>) => {
     void navigate({
       search: (previous) => ({ ...previous, ...next, view: "all" }),
     });
@@ -164,7 +173,8 @@ function LiveHubPage() {
           Live on SoundKit
         </h1>
         <p className="mt-2 max-w-3xl text-muted-foreground">
-          Real battles, listening parties, and creator streams from the SoundKit community.
+          Real battles, listening parties, and creator streams from the SoundKit
+          community.
         </p>
       </section>
 
@@ -214,7 +224,9 @@ function LiveHubPage() {
           {musicGenres.map((sectionGenre) => (
             <ExploreCollectionSection
               empty={`No ${sectionGenre.label} live experiences yet.`}
-              items={allItems.filter((item) => item.genre === sectionGenre.value)}
+              items={allItems.filter(
+                (item) => item.genre === sectionGenre.value
+              )}
               key={sectionGenre.value}
               onViewAll={() => openCollection({ genre: sectionGenre.value })}
               title={sectionGenre.label}

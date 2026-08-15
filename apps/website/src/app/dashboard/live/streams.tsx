@@ -87,41 +87,41 @@ function readSavedStream() {
 }
 
 function DashboardLiveStreamsPage() {
-  const genresQuery = useGenresQuery();
-  const videosQuery = useVideosQuery();
-  const createLiveExperience = useCreateLiveExperienceMutation();
-  const videos = videosQuery.data ?? [];
-  const liveRecordings = videos.filter(
+  const genresQuery = useGenresQuery(),
+   videosQuery = useVideosQuery(),
+   createLiveExperience = useCreateLiveExperienceMutation(),
+   videos = videosQuery.data ?? [],
+   liveRecordings = videos.filter(
     (video) => video.videoKind === "live_recording"
-  );
-  const processingVideos = videos.filter(
+  ),
+   processingVideos = videos.filter(
     (video) => video.status === "processing"
-  );
-  const streamConfig = liveExperienceConfigs.stream;
+  ),
+   streamConfig = liveExperienceConfigs.stream,
 
-  const [setupStep, setSetupStep] = useState<SetupStep>("details");
-  const [streamTitle, setStreamTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const genreOptions =
+   [setupStep, setSetupStep] = useState<SetupStep>("details"),
+   [streamTitle, setStreamTitle] = useState(""),
+   [description, setDescription] = useState(""),
+   genreOptions =
     genresQuery.data && genresQuery.data.length > 0
       ? genresQuery.data.map((genre) => genre.name)
-      : musicGenres.map((genre) => genre.label);
-  const [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap");
-  const [visibility, setVisibility] = useState("Public");
-  const [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap");
-  const [source, setSource] = useState<StreamSource>("obs");
-  const [activeStream, setActiveStream] = useState<ActiveStream | null>(() => {
+      : musicGenres.map((genre) => genre.label),
+   [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap"),
+   [visibility, setVisibility] = useState("Public"),
+   [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
+   [source, setSource] = useState<StreamSource>("obs"),
+   [activeStream, setActiveStream] = useState<ActiveStream | null>(() => {
     const saved = readSavedStream();
     return saved?.experienceId ? saved : null;
-  });
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showStreamKey, setShowStreamKey] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+  }),
+   [isRefreshing, setIsRefreshing] = useState(false),
+   [showStreamKey, setShowStreamKey] = useState(false),
+   [copiedField, setCopiedField] = useState<string | null>(null),
 
-  const canCreate = streamTitle.trim().length > 0;
-  const isCreatingStream = createLiveExperience.isPending;
+   canCreate = streamTitle.trim().length > 0,
+   isCreatingStream = createLiveExperience.isPending,
 
-  const handleStartStream = async () => {
+   handleStartStream = async () => {
     try {
       const created = await createLiveExperience.mutateAsync({
         description,
@@ -134,9 +134,9 @@ function DashboardLiveStreamsPage() {
           | "private"
           | "public"
           | "unlisted",
-      });
+      }),
 
-      const stream =
+       stream =
         created.streamInput ??
         ({
           experienceId: created.experience.id,
@@ -159,9 +159,9 @@ function DashboardLiveStreamsPage() {
           | "srtUrl"
           | "status"
           | "title"
-        >);
+        >),
 
-      const nextStream: ActiveStream = {
+       nextStream: ActiveStream = {
         ...stream,
         description,
         experienceId: created.experience.id,
@@ -193,9 +193,9 @@ function DashboardLiveStreamsPage() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleRefreshStream = async () => {
+   handleRefreshStream = async () => {
     if (!activeStream) {
       return;
     }
@@ -207,8 +207,8 @@ function DashboardLiveStreamsPage() {
         param: { streamId: activeStream.id },
       });
       if (res.ok) {
-        const stream = await res.json();
-        const updated = { ...activeStream, status: stream.status };
+        const stream = await res.json(),
+         updated = { ...activeStream, status: stream.status };
         setActiveStream(updated);
         localStorage.setItem(
           "soundkit_active_creator_stream",
@@ -224,9 +224,9 @@ function DashboardLiveStreamsPage() {
     } finally {
       setIsRefreshing(false);
     }
-  };
+  },
 
-  const activeStreamId = activeStream?.id;
+   activeStreamId = activeStream?.id;
 
   useEffect(() => {
     if (!(activeStreamId && source === "obs")) {
@@ -259,7 +259,7 @@ function DashboardLiveStreamsPage() {
       })().catch(() => {
         // Status polling is best effort; the manual refresh remains available.
       });
-    }, 5_000);
+    }, 5000);
 
     return () => window.clearInterval(refreshTimer);
   }, [activeStreamId, source]);
@@ -291,9 +291,9 @@ function DashboardLiveStreamsPage() {
       description: "Live broadcast input cleared.",
       title: "Stream Ended",
     });
-  };
+  },
 
-  const copyToClipboard = async (text: string, field: string) => {
+   copyToClipboard = async (text: string, field: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedField(field);
@@ -689,7 +689,9 @@ function ControlRoom({
             ) : (
               <>
                 <Radio className="size-10 text-primary animate-pulse" />
-                <h2 className="mt-4 font-semibold text-xl">Control Room Online</h2>
+                <h2 className="mt-4 font-semibold text-xl">
+                  Control Room Online
+                </h2>
                 <p className="mt-2 max-w-md px-6 text-sm text-white/70">
                   Connect OBS to begin the broadcast. Stream playback will
                   appear here when Cloudflare provides a playback URL.

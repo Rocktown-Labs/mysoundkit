@@ -47,9 +47,9 @@ describe("live battle orchestration", () => {
       activeParticipantIds: ["fan-1", "fan-2"],
       lobbyParticipantIds: [],
       roundId: "round-1",
-    });
+    }),
 
-    const resolved = resolveMandatoryVoteResults({
+     resolved = resolveMandatoryVoteResults({
       now: "2026-07-22T15:03:00.000Z",
       snapshot,
       votedUserIds: ["fan-2"],
@@ -106,8 +106,8 @@ describe("live session locks", () => {
     const expiredLock: LiveSessionLock = {
       ...baseLock,
       expiresAt: "2026-07-22T14:55:00.000Z",
-    };
-    const conflict = findLiveSessionConflict({
+    },
+     conflict = findLiveSessionConflict({
       existingLocks: [expiredLock],
       now: new Date("2026-07-22T15:30:00.000Z"),
       requestedLock: {

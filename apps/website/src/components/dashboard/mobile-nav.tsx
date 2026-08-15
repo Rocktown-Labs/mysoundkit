@@ -210,9 +210,9 @@ const sectionRoutes: Record<
       },
     ],
   },
-};
+},
 
-const createRoutes: DashboardMobileRoute[] = [
+ createRoutes: DashboardMobileRoute[] = [
   {
     description: "Upload a song and its cover artwork",
     icon: Music,
@@ -243,9 +243,9 @@ const createRoutes: DashboardMobileRoute[] = [
     name: "Explore Home",
     to: "/",
   },
-];
+],
 
-const isSectionActive = (pathname: string, section: DashboardMobileSection) => {
+ isSectionActive = (pathname: string, section: DashboardMobileSection) => {
   if (section === "music") {
     return [
       "/dashboard/tracks",
@@ -312,12 +312,12 @@ function RouteList({
 }
 
 export function MobileNav() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [createOpen, setCreateOpen] = useState(false);
-  const [sectionOpen, setSectionOpen] = useState<DashboardMobileSection | null>(
+  const pathname = useRouterState({ select: (s) => s.location.pathname }),
+   [createOpen, setCreateOpen] = useState(false),
+   [sectionOpen, setSectionOpen] = useState<DashboardMobileSection | null>(
     null
-  );
-  const activeSection = sectionOpen ? sectionRoutes[sectionOpen] : null;
+  ),
+   activeSection = sectionOpen ? sectionRoutes[sectionOpen] : null;
 
   return (
     <nav className="fixed right-0 bottom-0 left-0 z-50 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
@@ -336,8 +336,8 @@ export function MobileNav() {
         </Link>
 
         {(["music", "career"] as const).map((section) => {
-          const Icon = sectionRoutes[section].icon;
-          const active = isSectionActive(pathname, section);
+          const Icon = sectionRoutes[section].icon,
+           active = isSectionActive(pathname, section);
           return (
             <button
               key={section}

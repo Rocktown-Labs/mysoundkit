@@ -33,12 +33,12 @@ export function DataTable<TData, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+  const [sorting, setSorting] = React.useState<SortingState>([]),
+   [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
-  );
+  ),
 
-  const table = useReactTable({
+   table = useReactTable({
     columns,
     data,
     getCoreRowModel: getCoreRowModel(),

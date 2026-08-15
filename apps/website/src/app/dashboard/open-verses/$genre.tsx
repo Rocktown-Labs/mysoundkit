@@ -20,9 +20,9 @@ const titleFromSlug = (slug: string) =>
     .join(" ");
 
 function OpenVerseListItem({ listing }: { listing: OpenVerseListing }) {
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const { setCurrentTrack, setQueue } = useAudioPlayer(),
 
-  const playListing = () => {
+   playListing = () => {
     if (!listing.playbackUrl) {
       return;
     }
@@ -88,10 +88,10 @@ function OpenVerseListItem({ listing }: { listing: OpenVerseListing }) {
 }
 
 function OpenVerseGenrePage() {
-  const { genre } = Route.useParams();
-  const query = useOpenVersesInfiniteQuery({ genre, limit: "20" });
-  const listings = query.data?.pages.flatMap((page) => page.items) ?? [];
-  const { inView, ref } = useInView({ rootMargin: "320px" });
+  const { genre } = Route.useParams(),
+   query = useOpenVersesInfiniteQuery({ genre, limit: "20" }),
+   listings = query.data?.pages.flatMap((page) => page.items) ?? [],
+   { inView, ref } = useInView({ rootMargin: "320px" });
 
   useEffect(() => {
     if (inView && query.hasNextPage && !query.isFetchingNextPage) {

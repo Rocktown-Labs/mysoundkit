@@ -14,42 +14,35 @@ import { Stripe } from "stripe";
 import { createStripePlans } from "./plans";
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  hostFromUrl = (value: string) => {
+    try {
+      return new URL(value).host;
+    } catch {
+      return "";
+    }
+  },
+  uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))],
+  getAdminEmails = () =>
+    getEnvValue("ADMIN_EMAILS")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  getPublicSiteUrl = () =>
+    getEnvValue("SOUNDKIT_PUBLIC_URL") ||
+    getEnvValue("CORS_ORIGIN") ||
+    "https://mysoundkit.com",
+  getEmailFrom = () =>
+    getEnvValue("SOUNDKIT_EMAIL_FROM") ||
+    "SoundKit <noreply@news.mysoundkit.com>",
+  getResendApiKey = () => getEnvValue("RESEND_API_KEY"),
+  absoluteSiteUrl = (pathOrUrl: string) => {
+    if (/^https?:\/\//u.test(pathOrUrl)) {
+      return pathOrUrl;
+    }
 
- hostFromUrl = (value: string) => {
-  try {
-    return new URL(value).host;
-  } catch {
-    return "";
-  }
-},
-
- uniqueValues = (values: string[]) => [...new Set(values.filter(Boolean))],
-
- getAdminEmails = () =>
-  getEnvValue("ADMIN_EMAILS")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean),
-
- getPublicSiteUrl = () =>
-  getEnvValue("SOUNDKIT_PUBLIC_URL") ||
-  getEnvValue("CORS_ORIGIN") ||
-  "https://mysoundkit.com",
-
- getEmailFrom = () =>
-  getEnvValue("SOUNDKIT_EMAIL_FROM") ||
-  "SoundKit <noreply@news.mysoundkit.com>",
-
- getResendApiKey = () => getEnvValue("RESEND_API_KEY"),
-
- absoluteSiteUrl = (pathOrUrl: string) => {
-  if (/^https?:\/\//u.test(pathOrUrl)) {
-    return pathOrUrl;
-  }
-
-  return `${getPublicSiteUrl().replace(/\/$/u, "")}/${pathOrUrl.replace(/^\//u, "")}`;
-};
+    return `${getPublicSiteUrl().replace(/\/$/u, "")}/${pathOrUrl.replace(/^\//u, "")}`;
+  };
 
 interface AuthEmailLink {
   description?: string;
@@ -65,391 +58,386 @@ interface AuthSubscriptionRow {
 }
 
 const sendAuthNotificationEmail = async ({
-  actionUrl,
-  body,
-  ctaLabel,
-  email,
-  eyebrow,
-  footerNote,
-  heading,
-  idempotencyKey,
-  links,
-  previewText,
-  recipientName,
-  subject,
-  tag,
-}: {
-  actionUrl: string;
-  body: string;
-  ctaLabel: string;
-  email: string;
-  eyebrow: string;
-  footerNote: string;
-  heading: string;
-  idempotencyKey: string;
-  links?: AuthEmailLink[];
-  previewText: string;
-  recipientName: string;
-  subject: string;
-  tag: string;
-}) => {
-  const apiKey = getResendApiKey();
-
-  if (!apiKey) {
-    console.info(`${subject} for ${email}: ${actionUrl}`);
-    return;
-  }
-
-  const publicSiteUrl = getPublicSiteUrl(),
-   [{ renderTransactionalNotificationEmail }, { Resend }] =
-    await Promise.all([import("@soundkit/transactional"), import("resend")]),
-   { html, text } = await renderTransactionalNotificationEmail({
     actionUrl,
-    assetBaseUrl: publicSiteUrl,
     body,
     ctaLabel,
+    email,
     eyebrow,
     footerNote,
     heading,
+    idempotencyKey,
     links,
     previewText,
     recipientName,
     subject,
-  }),
-   resend = new Resend(apiKey),
-   { error } = await resend.emails.send(
-    {
-      from: getEmailFrom(),
-      html,
-      subject,
-      tags: [{ name: "email_type", value: tag }],
-      text,
-      to: [email],
-    },
-    { idempotencyKey }
-  );
+    tag,
+  }: {
+    actionUrl: string;
+    body: string;
+    ctaLabel: string;
+    email: string;
+    eyebrow: string;
+    footerNote: string;
+    heading: string;
+    idempotencyKey: string;
+    links?: AuthEmailLink[];
+    previewText: string;
+    recipientName: string;
+    subject: string;
+    tag: string;
+  }) => {
+    const apiKey = getResendApiKey();
 
-  if (error) {
-    console.warn("Auth email failed", {
+    if (!apiKey) {
+      console.info(`${subject} for ${email}: ${actionUrl}`);
+      return;
+    }
+
+    const publicSiteUrl = getPublicSiteUrl(),
+      [{ renderTransactionalNotificationEmail }, { Resend }] =
+        await Promise.all([
+          import("@soundkit/transactional"),
+          import("resend"),
+        ]),
+      { html, text } = await renderTransactionalNotificationEmail({
+        actionUrl,
+        assetBaseUrl: publicSiteUrl,
+        body,
+        ctaLabel,
+        eyebrow,
+        footerNote,
+        heading,
+        links,
+        previewText,
+        recipientName,
+        subject,
+      }),
+      resend = new Resend(apiKey),
+      { error } = await resend.emails.send(
+        {
+          from: getEmailFrom(),
+          html,
+          subject,
+          tags: [{ name: "email_type", value: tag }],
+          text,
+          to: [email],
+        },
+        { idempotencyKey }
+      );
+
+    if (error) {
+      console.warn("Auth email failed", {
+        email,
+        error: error.message,
+        tag,
+      });
+    }
+  },
+  sendOrganizationInviteEmail = ({
+    email,
+    id,
+    inviterName,
+    organizationName,
+  }: {
+    email: string;
+    id: string;
+    inviterName?: string | null;
+    organizationName?: string | null;
+  }) =>
+    sendAuthNotificationEmail({
+      actionUrl: `${env.BETTER_AUTH_URL.replace(/\/$/u, "")}/invite/${id}`,
+      body: `${inviterName ?? "Someone"} invited you to join ${organizationName ?? "their SoundKit workspace"}. Accept the invite to manage music, releases, and team activity together.`,
+      ctaLabel: "Accept invite",
       email,
-      error: error.message,
-      tag,
-    });
-  }
-},
-
- sendOrganizationInviteEmail = ({
-  email,
-  id,
-  inviterName,
-  organizationName,
-}: {
-  email: string;
-  id: string;
-  inviterName?: string | null;
-  organizationName?: string | null;
-}) =>
-  sendAuthNotificationEmail({
-    actionUrl: `${env.BETTER_AUTH_URL.replace(/\/$/u, "")}/invite/${id}`,
-    body: `${inviterName ?? "Someone"} invited you to join ${organizationName ?? "their SoundKit workspace"}. Accept the invite to manage music, releases, and team activity together.`,
-    ctaLabel: "Accept invite",
+      eyebrow: "Workspace invite",
+      footerNote:
+        "You are receiving this because someone invited this email address to a SoundKit workspace.",
+      heading: "You are invited to SoundKit",
+      idempotencyKey: `org-invite/${id}`,
+      previewText: `${inviterName ?? "Someone"} invited you to join ${organizationName ?? "SoundKit"}.`,
+      recipientName: "there",
+      subject: `Invite to ${organizationName ?? "SoundKit"}`,
+      tag: "org_invite",
+    }),
+  sendWelcomeEmail = ({
     email,
-    eyebrow: "Workspace invite",
-    footerNote:
-      "You are receiving this because someone invited this email address to a SoundKit workspace.",
-    heading: "You are invited to SoundKit",
-    idempotencyKey: `org-invite/${id}`,
-    previewText: `${inviterName ?? "Someone"} invited you to join ${organizationName ?? "SoundKit"}.`,
-    recipientName: "there",
-    subject: `Invite to ${organizationName ?? "SoundKit"}`,
-    tag: "org_invite",
-  }),
-
- sendWelcomeEmail = ({
-  email,
-  name,
-  userId,
-}: {
-  email: string;
-  name?: string | null;
-  userId: string;
-}) =>
-  sendAuthNotificationEmail({
-    actionUrl: absoluteSiteUrl("/dashboard/tracks/new"),
-    body: "Your SoundKit account is ready. Start by adding the music, videos, and collaboration opportunities you want people to hear, watch, or join.",
-    ctaLabel: "Upload your first track",
+    name,
+    userId,
+  }: {
+    email: string;
+    name?: string | null;
+    userId: string;
+  }) =>
+    sendAuthNotificationEmail({
+      actionUrl: absoluteSiteUrl("/dashboard/tracks/new"),
+      body: "Your SoundKit account is ready. Start by adding the music, videos, and collaboration opportunities you want people to hear, watch, or join.",
+      ctaLabel: "Upload your first track",
+      email,
+      eyebrow: "Welcome",
+      footerNote:
+        "You are receiving this because you created a SoundKit account.",
+      heading: "Welcome to SoundKit",
+      idempotencyKey: `welcome/${userId}`,
+      links: [
+        {
+          description:
+            "Add audio, cover art, credits, and release details in one place.",
+          href: absoluteSiteUrl("/dashboard/tracks/new"),
+          label: "Upload your first track",
+        },
+        {
+          description:
+            "Group multiple songs, assets, and notes into a release workspace.",
+          href: absoluteSiteUrl("/dashboard/projects/new"),
+          label: "Create a project",
+        },
+        {
+          description:
+            "Share visuals, performances, or music videos with your audience.",
+          href: absoluteSiteUrl("/dashboard/videos/new"),
+          label: "Upload a video",
+        },
+        {
+          description:
+            "Find hooks, verses, and collaboration openings from other artists.",
+          href: absoluteSiteUrl("/dashboard/open-verses"),
+          label: "Browse open verses",
+        },
+      ],
+      previewText:
+        "Your SoundKit account is ready. Start with your first track.",
+      recipientName: name ?? "there",
+      subject: "Welcome to SoundKit",
+      tag: "welcome",
+    }),
+  sendPremiumWelcomeEmail = ({
     email,
-    eyebrow: "Welcome",
-    footerNote:
-      "You are receiving this because you created a SoundKit account.",
-    heading: "Welcome to SoundKit",
-    idempotencyKey: `welcome/${userId}`,
-    links: [
-      {
-        description:
-          "Add audio, cover art, credits, and release details in one place.",
-        href: absoluteSiteUrl("/dashboard/tracks/new"),
-        label: "Upload your first track",
-      },
-      {
-        description:
-          "Group multiple songs, assets, and notes into a release workspace.",
-        href: absoluteSiteUrl("/dashboard/projects/new"),
-        label: "Create a project",
-      },
-      {
-        description:
-          "Share visuals, performances, or music videos with your audience.",
-        href: absoluteSiteUrl("/dashboard/videos/new"),
-        label: "Upload a video",
-      },
-      {
-        description:
-          "Find hooks, verses, and collaboration openings from other artists.",
-        href: absoluteSiteUrl("/dashboard/open-verses"),
-        label: "Browse open verses",
-      },
-    ],
-    previewText: "Your SoundKit account is ready. Start with your first track.",
-    recipientName: name ?? "there",
-    subject: "Welcome to SoundKit",
-    tag: "welcome",
-  }),
-
- sendPremiumWelcomeEmail = ({
-  email,
-  name,
-  plan,
-  subscriptionId,
-}: {
-  email: string;
-  name?: string | null;
-  plan: string;
-  subscriptionId: string;
-}) => {
-  const isArtistPremium = plan === "soundkit_premium_artist";
-  return sendAuthNotificationEmail({
-    actionUrl: absoluteSiteUrl(
-      isArtistPremium ? "/dashboard/career/payments" : "/"
-    ),
-    body: isArtistPremium
-      ? "Your premium access is active. Set up artist payments with Stripe so fans can purchase your releases and send tips."
-      : "Your premium access is active. Head back to SoundKit to explore full listening, video, and live experiences.",
-    ctaLabel: isArtistPremium ? "Set up artist payments" : "Explore SoundKit",
+    name,
+    plan,
+    subscriptionId,
+  }: {
+    email: string;
+    name?: string | null;
+    plan: string;
+    subscriptionId: string;
+  }) => {
+    const isArtistPremium = plan === "soundkit_premium_artist";
+    return sendAuthNotificationEmail({
+      actionUrl: absoluteSiteUrl(
+        isArtistPremium ? "/dashboard/career/payments" : "/"
+      ),
+      body: isArtistPremium
+        ? "Your premium access is active. Set up artist payments with Stripe so fans can purchase your releases and send tips."
+        : "Your premium access is active. Head back to SoundKit to explore full listening, video, and live experiences.",
+      ctaLabel: isArtistPremium ? "Set up artist payments" : "Explore SoundKit",
+      email,
+      eyebrow: "Premium active",
+      footerNote:
+        "You are receiving this because SoundKit Premium is active on your account.",
+      heading: "Welcome to SoundKit Premium",
+      idempotencyKey: `welcome-premium/${subscriptionId}`,
+      links: isArtistPremium
+        ? [
+            {
+              description:
+                "Complete Stripe verification so fans can purchase your music and send tips.",
+              href: absoluteSiteUrl("/dashboard/career/payments"),
+              label: "Set up artist payments",
+            },
+            {
+              description:
+                "Add audio, cover art, credits, and release details in one place.",
+              href: absoluteSiteUrl("/dashboard/tracks/new"),
+              label: "Upload a track",
+            },
+          ]
+        : [],
+      previewText: "Your SoundKit Premium access is active.",
+      recipientName: name ?? "there",
+      subject: "Welcome to SoundKit Premium",
+      tag: "welcome_premium",
+    });
+  },
+  sendPasswordResetEmail = ({
     email,
-    eyebrow: "Premium active",
-    footerNote:
-      "You are receiving this because SoundKit Premium is active on your account.",
-    heading: "Welcome to SoundKit Premium",
-    idempotencyKey: `welcome-premium/${subscriptionId}`,
-    links: isArtistPremium
-      ? [
-          {
-            description:
-              "Complete Stripe verification so fans can purchase your music and send tips.",
-            href: absoluteSiteUrl("/dashboard/career/payments"),
-            label: "Set up artist payments",
-          },
-          {
-            description:
-              "Add audio, cover art, credits, and release details in one place.",
-            href: absoluteSiteUrl("/dashboard/tracks/new"),
-            label: "Upload a track",
-          },
-        ]
-      : [],
-    previewText: "Your SoundKit Premium access is active.",
-    recipientName: name ?? "there",
-    subject: "Welcome to SoundKit Premium",
-    tag: "welcome_premium",
-  });
-},
-
- sendPasswordResetEmail = ({
-  email,
-  name,
-  url,
-}: {
-  email: string;
-  name?: string | null;
-  url: string;
-}) =>
-  sendAuthNotificationEmail({
-    actionUrl: url,
-    body: "We received a request to reset your SoundKit password. Use the secure link below to choose a new one.",
-    ctaLabel: "Reset password",
+    name,
+    url,
+  }: {
+    email: string;
+    name?: string | null;
+    url: string;
+  }) =>
+    sendAuthNotificationEmail({
+      actionUrl: url,
+      body: "We received a request to reset your SoundKit password. Use the secure link below to choose a new one.",
+      ctaLabel: "Reset password",
+      email,
+      eyebrow: "Account security",
+      footerNote:
+        "If you did not request this, you can ignore this email and your password will stay the same.",
+      heading: "Reset your SoundKit password",
+      idempotencyKey: `password-reset/${email}/${url}`,
+      previewText: "Use this secure link to reset your SoundKit password.",
+      recipientName: name ?? "there",
+      subject: "Reset your SoundKit password",
+      tag: "password_reset",
+    }),
+  sendEmailVerificationEmail = ({
     email,
-    eyebrow: "Account security",
-    footerNote:
-      "If you did not request this, you can ignore this email and your password will stay the same.",
-    heading: "Reset your SoundKit password",
-    idempotencyKey: `password-reset/${email}/${url}`,
-    previewText: "Use this secure link to reset your SoundKit password.",
-    recipientName: name ?? "there",
-    subject: "Reset your SoundKit password",
-    tag: "password_reset",
-  }),
+    name,
+    url,
+  }: {
+    email: string;
+    name?: string | null;
+    url: string;
+  }) =>
+    sendAuthNotificationEmail({
+      actionUrl: url,
+      body: "Confirm this email address so SoundKit can keep your account secure and send the account updates you ask for.",
+      ctaLabel: "Verify email",
+      email,
+      eyebrow: "Verify email",
+      footerNote:
+        "You are receiving this because this email address was used for a SoundKit account.",
+      heading: "Verify your SoundKit email",
+      idempotencyKey: `email-verification/${email}/${url}`,
+      previewText: "Confirm your SoundKit email address.",
+      recipientName: name ?? "there",
+      subject: "Verify your SoundKit email",
+      tag: "email_verification",
+    }),
+  isPremiumPlan = (plan: string | null | undefined) =>
+    Boolean(plan?.startsWith("soundkit_premium_")),
+  addPremiumNotification = async ({
+    plan,
+    subscriptionId,
+    userId,
+  }: {
+    plan: string;
+    subscriptionId: string;
+    userId: string;
+  }) => {
+    const isArtistPremium = plan === "soundkit_premium_artist";
+    await createDb()
+      .insert(userNotifications)
+      .values({
+        id: `premium_active:${subscriptionId}:${userId}`,
+        link: isArtistPremium ? "/dashboard/career/payments" : "/",
+        message: isArtistPremium
+          ? "Welcome to SoundKit Premium. Set up Stripe payments to start earning."
+          : "Welcome to SoundKit Premium. Your Premium listening access is active.",
+        title: "Welcome to SoundKit Premium",
+        type: "premium_active",
+        userId,
+      })
+      .onConflictDoNothing();
+  },
+  sendPremiumWelcomeForSubscription = async ({
+    id,
+    plan,
+    referenceId,
+    status,
+  }: AuthSubscriptionRow) => {
+    if (!(id && referenceId && isPremiumPlan(plan))) {
+      return;
+    }
+    const premiumPlan = plan ?? "";
 
- sendEmailVerificationEmail = ({
-  email,
-  name,
-  url,
-}: {
-  email: string;
-  name?: string | null;
-  url: string;
-}) =>
-  sendAuthNotificationEmail({
-    actionUrl: url,
-    body: "Confirm this email address so SoundKit can keep your account secure and send the account updates you ask for.",
-    ctaLabel: "Verify email",
-    email,
-    eyebrow: "Verify email",
-    footerNote:
-      "You are receiving this because this email address was used for a SoundKit account.",
-    heading: "Verify your SoundKit email",
-    idempotencyKey: `email-verification/${email}/${url}`,
-    previewText: "Confirm your SoundKit email address.",
-    recipientName: name ?? "there",
-    subject: "Verify your SoundKit email",
-    tag: "email_verification",
-  }),
+    if (!(status === "active" || status === "trialing")) {
+      return;
+    }
 
- isPremiumPlan = (plan: string | null | undefined) =>
-  Boolean(plan?.startsWith("soundkit_premium_")),
+    const [directUser] = await createDb()
+      .select({
+        email: schema.user.email,
+        name: schema.user.name,
+      })
+      .from(schema.user)
+      .where(eq(schema.user.id, referenceId))
+      .limit(1);
 
- addPremiumNotification = async ({
-  plan,
-  subscriptionId,
-  userId,
-}: {
-  plan: string;
-  subscriptionId: string;
-  userId: string;
-}) => {
-  const isArtistPremium = plan === "soundkit_premium_artist";
-  await createDb()
-    .insert(userNotifications)
-    .values({
-      id: `premium_active:${subscriptionId}:${userId}`,
-      link: isArtistPremium ? "/dashboard/career/payments" : "/",
-      message: isArtistPremium
-        ? "Welcome to SoundKit Premium. Set up Stripe payments to start earning."
-        : "Welcome to SoundKit Premium. Your Premium listening access is active.",
-      title: "Welcome to SoundKit Premium",
-      type: "premium_active",
-      userId,
-    })
-    .onConflictDoNothing();
-},
+    if (directUser) {
+      await addPremiumNotification({
+        plan: premiumPlan,
+        subscriptionId: id,
+        userId: referenceId,
+      });
+      await sendPremiumWelcomeEmail({
+        email: directUser.email,
+        name: directUser.name,
+        plan: premiumPlan,
+        subscriptionId: id,
+      });
+      return;
+    }
 
- sendPremiumWelcomeForSubscription = async ({
-  id,
-  plan,
-  referenceId,
-  status,
-}: AuthSubscriptionRow) => {
-  if (!(id && referenceId && isPremiumPlan(plan))) {
-    return;
-  }
-  const premiumPlan = plan ?? "";
+    const [owner] = await createDb()
+      .select({
+        email: schema.user.email,
+        id: schema.user.id,
+        name: schema.user.name,
+      })
+      .from(member)
+      .innerJoin(schema.user, eq(schema.user.id, member.userId))
+      .where(
+        and(eq(member.organizationId, referenceId), eq(member.role, "owner"))
+      )
+      .limit(1);
 
-  if (!(status === "active" || status === "trialing")) {
-    return;
-  }
+    if (owner) {
+      await addPremiumNotification({
+        plan: premiumPlan,
+        subscriptionId: id,
+        userId: owner.id,
+      });
+      await sendPremiumWelcomeEmail({
+        email: owner.email,
+        name: owner.name,
+        plan: premiumPlan,
+        subscriptionId: id,
+      });
+    }
+  },
+  createStripeClient = () => {
+    const secretKey = getEnvValue("STRIPE_SECRET_KEY");
 
-  const [directUser] = await createDb()
-    .select({
-      email: schema.user.email,
-      name: schema.user.name,
-    })
-    .from(schema.user)
-    .where(eq(schema.user.id, referenceId))
-    .limit(1);
+    if (!secretKey) {
+      return null;
+    }
 
-  if (directUser) {
-    await addPremiumNotification({
-      plan: premiumPlan,
-      subscriptionId: id,
-      userId: referenceId,
+    return new Stripe(secretKey, {
+      apiVersion: "2026-02-25.clover",
     });
-    await sendPremiumWelcomeEmail({
-      email: directUser.email,
-      name: directUser.name,
-      plan: premiumPlan,
-      subscriptionId: id,
-    });
-    return;
-  }
-
-  const [owner] = await createDb()
-    .select({
-      email: schema.user.email,
-      id: schema.user.id,
-      name: schema.user.name,
-    })
-    .from(member)
-    .innerJoin(schema.user, eq(schema.user.id, member.userId))
-    .where(
-      and(eq(member.organizationId, referenceId), eq(member.role, "owner"))
-    )
-    .limit(1);
-
-  if (owner) {
-    await addPremiumNotification({
-      plan: premiumPlan,
-      subscriptionId: id,
-      userId: owner.id,
-    });
-    await sendPremiumWelcomeEmail({
-      email: owner.email,
-      name: owner.name,
-      plan: premiumPlan,
-      subscriptionId: id,
-    });
-  }
-},
-
- createStripeClient = () => {
-  const secretKey = getEnvValue("STRIPE_SECRET_KEY");
-
-  if (!secretKey) {
-    return null;
-  }
-
-  return new Stripe(secretKey, {
-    apiVersion: "2026-02-25.clover",
-  });
-};
+  };
 
 export const createAuth = () => {
   const db = createDb(),
-   authHost = hostFromUrl(env.BETTER_AUTH_URL),
-   siteHost = hostFromUrl(env.CORS_ORIGIN),
-   isLocalAuthUrl =
-    env.BETTER_AUTH_URL.includes("localhost") ||
-    env.BETTER_AUTH_URL.includes("127.0.0.1"),
-   isDevelopment =
-    globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
-   stripeClient = createStripeClient(),
-   stripeWebhookSecret = getEnvValue("STRIPE_WEBHOOK_SECRET"),
-   allowedAuthHosts = uniqueValues([
-    authHost,
-    siteHost,
-    "mysoundkit.com",
-    "www.mysoundkit.com",
-    "*.mysoundkit.pages.dev",
-    "*.pages.dev",
-    "*.workers.dev",
-    "*.rocktown-labs.workers.dev",
-  ]),
-   dynamicBaseURL = isDevelopment
-    ? env.BETTER_AUTH_URL
-    : {
-        allowedHosts: allowedAuthHosts,
-        fallback: env.BETTER_AUTH_URL,
-        protocol: "https" as const,
-      };
+    authHost = hostFromUrl(env.BETTER_AUTH_URL),
+    siteHost = hostFromUrl(env.CORS_ORIGIN),
+    isLocalAuthUrl =
+      env.BETTER_AUTH_URL.includes("localhost") ||
+      env.BETTER_AUTH_URL.includes("127.0.0.1"),
+    isDevelopment =
+      globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
+    stripeClient = createStripeClient(),
+    stripeWebhookSecret = getEnvValue("STRIPE_WEBHOOK_SECRET"),
+    allowedAuthHosts = uniqueValues([
+      authHost,
+      siteHost,
+      "mysoundkit.com",
+      "www.mysoundkit.com",
+      "*.mysoundkit.pages.dev",
+      "*.pages.dev",
+      "*.workers.dev",
+      "*.rocktown-labs.workers.dev",
+    ]),
+    dynamicBaseURL = isDevelopment
+      ? env.BETTER_AUTH_URL
+      : {
+          allowedHosts: allowedAuthHosts,
+          fallback: env.BETTER_AUTH_URL,
+          protocol: "https" as const,
+        };
 
   return betterAuth({
     advanced: {

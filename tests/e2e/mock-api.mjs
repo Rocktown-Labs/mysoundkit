@@ -9,9 +9,9 @@ const json = (response, status, body, origin) => {
     "content-type": "application/json",
   });
   response.end(JSON.stringify(body));
-};
+},
 
-const mockUser = (session) => {
+ mockUser = (session) => {
   if (session === "admin") {
     return {
       accountType: "artist",
@@ -53,13 +53,13 @@ const mockUser = (session) => {
   }
 
   return null;
-};
+},
 
-const liveRoom = (roomId) => {
-  const isBattle = roomId.includes("battle");
-  const isStream = roomId.includes("stream");
-  let kind = "party";
-  let title = "Single Album Spotlight";
+ liveRoom = (roomId) => {
+  const isBattle = roomId.includes("battle"),
+   isStream = roomId.includes("stream");
+  let kind = "party",
+   title = "Single Album Spotlight";
 
   if (isBattle) {
     kind = "battle";
@@ -155,15 +155,15 @@ const liveRoom = (roomId) => {
     tracklist: [track],
     viewerCount: 512,
   };
-};
+},
 
-const platformSettings = {
+ platformSettings = {
   defaultExploreRegion: "us-arkansas",
   defaultExploreRegionType: "north-america",
   useGlobalExploreHome: true,
-};
+},
 
-const mockTracks = [
+ mockTracks = [
   {
     artistName: "Luna Eclipse",
     artistUsername: "luna-eclipse",
@@ -178,9 +178,9 @@ const mockTracks = [
     priceCents: 299,
     title: "Summer Nights",
   },
-];
+],
 
-const mockArtists = [
+ mockArtists = [
   {
     avatarUrl: "/diverse-user-avatars.png",
     battleCount: 12,
@@ -209,9 +209,9 @@ const mockArtists = [
     verified: true,
     weeklyPlays: 1_800_000,
   },
-];
+],
 
-const mockVideos = [
+ mockVideos = [
   {
     creatorName: "Luna Eclipse",
     creatorUsername: "luna-eclipse",
@@ -227,9 +227,9 @@ const mockVideos = [
     videoKind: "music_video",
     viewCount: "42K",
   },
-];
+],
 
-const mockBattles = [
+ mockBattles = [
   {
     featuredRank: 1,
     format: "best_of_5",
@@ -285,8 +285,8 @@ export const createMockApiServer = async ({
       return;
     }
 
-    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
-    const session = request.headers.cookie
+    const url = new URL(request.url ?? "/", `http://${host}:${port}`),
+     session = request.headers.cookie
       ?.split(";")
       .map((cookie) => cookie.trim())
       .find((cookie) => cookie.startsWith("soundkit_test_session="))
@@ -549,8 +549,8 @@ export const createMockApiServer = async ({
     if (url.pathname === "/v1/onboarding/username-availability") {
       const username = (url.searchParams.get("username") ?? "")
         .trim()
-        .toLowerCase();
-      const reserved = username === "soundkit";
+        .toLowerCase(),
+       reserved = username === "soundkit";
 
       json(
         response,

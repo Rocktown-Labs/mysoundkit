@@ -74,9 +74,9 @@ const SUPPORTED_GENRES = [
   "R&B/Soul",
   "Rock",
   "Spoken Word",
-] as const;
+] as const,
 
-const videoFormSchema = z.object({
+ videoFormSchema = z.object({
   description: z.string().optional(),
   genre: z.string().min(1, "Genre is required"),
   playbackPolicy: z.literal("public").default("public"),
@@ -332,20 +332,20 @@ function LinkHistoryDropdown({
 }
 
 function NewVideoPage() {
-  const router = useRouter();
-  const [step, setStep] = useState("identity");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [historySearch, setHistorySearch] = useState("");
-  const { data: entitlements, isLoading: isEntitlementsLoading } =
-    useMeEntitlementsQuery();
-  const projectsQuery = useProjectsQuery();
-  const tracksQuery = useTracksQuery(undefined, { scope: "dashboard" });
-  const genresQuery = useGenresQuery();
-  const isPremium = entitlements?.isPremium ?? true;
+  const router = useRouter(),
+   [step, setStep] = useState("identity"),
+   [isSubmitting, setIsSubmitting] = useState(false),
+   [uploadProgress, setUploadProgress] = useState<number | null>(null),
+   [videoFile, setVideoFile] = useState<File | null>(null),
+   [historySearch, setHistorySearch] = useState(""),
+   { data: entitlements, isLoading: isEntitlementsLoading } =
+    useMeEntitlementsQuery(),
+   projectsQuery = useProjectsQuery(),
+   tracksQuery = useTracksQuery(undefined, { scope: "dashboard" }),
+   genresQuery = useGenresQuery(),
+   isPremium = entitlements?.isPremium ?? true,
 
-  const form = useForm<VideoFormValues>({
+   form = useForm<VideoFormValues>({
     defaultValues: {
       description: "",
       genre: "",
@@ -360,9 +360,9 @@ function NewVideoPage() {
       youtubeUrl: "",
     },
     resolver: zodResolver(videoFormSchema),
-  });
+  }),
 
-  const availableGenres = Array.isArray(genresQuery.data)
+   availableGenres = Array.isArray(genresQuery.data)
     ? genresQuery.data
         .map((genre) =>
           typeof genre === "string"
@@ -372,9 +372,9 @@ function NewVideoPage() {
               : null)
         )
         .filter((genre): genre is string => Boolean(genre))
-    : [...SUPPORTED_GENRES];
+    : [...SUPPORTED_GENRES],
 
-  const { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
+   { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
     additionalDirtyState: Boolean(videoFile),
     defaultValues: {
       description: "",
@@ -391,9 +391,9 @@ function NewVideoPage() {
     },
     form,
     storageKey: "soundkit:new-video-draft",
-  });
+  }),
 
-  const filteredHistory = useMemo(() => {
+   filteredHistory = useMemo(() => {
     const query = historySearch.toLowerCase();
     if (!query) {
       return null;
@@ -406,9 +406,9 @@ function NewVideoPage() {
         track.title.toLowerCase().includes(query)
       ),
     };
-  }, [historySearch, projectsQuery.data, tracksQuery.data]);
+  }, [historySearch, projectsQuery.data, tracksQuery.data]),
 
-  const onFileSelected = (file: File | null) => {
+   onFileSelected = (file: File | null) => {
     if (!file) {
       setVideoFile(null);
       return;
@@ -426,9 +426,9 @@ function NewVideoPage() {
     }
 
     setVideoFile(file);
-  };
+  },
 
-  const onSubmit = async (values: VideoFormValues) => {
+   onSubmit = async (values: VideoFormValues) => {
     if (values.sourceType === "upload" && !videoFile) {
       toast({
         description: "Please select a video file to upload.",
@@ -469,8 +469,8 @@ function NewVideoPage() {
             headers: { "Content-Type": "application/json" },
             method: "POST",
           }
-        );
-        const createPayload = (await createResponse.json()) as {
+        ),
+         createPayload = (await createResponse.json()) as {
           message?: string;
           uploadUrl?: string;
         };
@@ -504,8 +504,8 @@ function NewVideoPage() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           method: "POST",
-        });
-        const payload = (await createResponse.json()) as { message?: string };
+        }),
+         payload = (await createResponse.json()) as { message?: string };
 
         if (!createResponse.ok) {
           throw new Error(payload.message ?? "Failed to save external video.");
@@ -528,9 +528,9 @@ function NewVideoPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  },
 
-  const selectFromHistory = (
+   selectFromHistory = (
     type: "track" | "project",
     id: string,
     name: string

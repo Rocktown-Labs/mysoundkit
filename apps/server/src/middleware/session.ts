@@ -9,8 +9,8 @@ import type { AppEnv } from "@/lib/types";
 
 export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   try {
-    const auth = createAuth();
-    const session = await auth.api.getSession({
+    const auth = createAuth(),
+     session = await auth.api.getSession({
       headers: c.req.raw.headers,
     });
 

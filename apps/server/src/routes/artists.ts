@@ -22,9 +22,9 @@ import { sampleArtists } from "@/lib/sample-data";
 import { artistRankingQuerySchema, artistSummarySchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const locationLabel = ({
+ locationLabel = ({
   city,
   state,
 }: {
@@ -49,9 +49,9 @@ export const capitalizeWords = (input?: string | null) => {
     .join(" ");
 };
 
-const artistMomentumRank = sql<number>`count(${tracks.id})::int`;
+const artistMomentumRank = sql<number>`count(${tracks.id})::int`,
 
-const artistOrderBy = (query: {
+ artistOrderBy = (query: {
   category?: "rising" | "new" | "top";
   sort?: string;
 }) => {
@@ -94,10 +94,10 @@ app.openapi(
     tags: ["Artists"],
   }),
   async (c) => {
-    const query = c.req.valid("query");
-    const limit = query.limit ?? 24;
-    const page = query.page ?? 1;
-    const offset = (page - 1) * limit;
+    const query = c.req.valid("query"),
+     limit = query.limit ?? 24,
+     page = query.page ?? 1,
+     offset = (page - 1) * limit;
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -115,10 +115,10 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const genreSlug = genreSlugFromExploreFilter(query.genre);
-    const state = stateFromExploreRegion(query);
-    const publicArtistConditions = [
+    const db = createDb(),
+     genreSlug = genreSlugFromExploreFilter(query.genre),
+     state = stateFromExploreRegion(query),
+     publicArtistConditions = [
       eq(artistProfiles.publicProfileEnabled, true),
     ];
 
@@ -136,8 +136,8 @@ app.openapi(
       );
     }
 
-    const order = artistOrderBy(query);
-    const rows = await db
+    const order = artistOrderBy(query),
+     rows = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         city: userProfiles.city,
@@ -177,12 +177,12 @@ app.openapi(
 
     return c.json(
       rows.map((artist, index) => {
-        const rawName = artist.stageName ?? artist.displayName ?? artist.name;
-        const name = capitalizeWords(rawName);
-        const genre = canonicalGenreName(artist.genre ?? "Hip Hop");
-        const hasActivity =
-          Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0;
-        const rank = hasActivity ? index + offset + 1 : null;
+        const rawName = artist.stageName ?? artist.displayName ?? artist.name,
+         name = capitalizeWords(rawName),
+         genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
+         hasActivity =
+          Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0,
+         rank = hasActivity ? index + offset + 1 : null;
 
         return {
           avatarUrl: artist.avatarUrl,
@@ -226,8 +226,8 @@ app.openapi(
     const { username } = c.req.valid("param");
 
     if (isDatabaseConfigured()) {
-      const db = createDb();
-      const [artist] = await db
+      const db = createDb(),
+       [artist] = await db
         .select({
           avatarUrl: userProfiles.avatarUrl,
           battleCount: artistProfiles.battleCount,
@@ -262,8 +262,8 @@ app.openapi(
             url: profileLinks.url,
           })
           .from(profileLinks)
-          .where(eq(profileLinks.userId, artist.id));
-        const platformLinks = Object.fromEntries(
+          .where(eq(profileLinks.userId, artist.id)),
+         platformLinks = Object.fromEntries(
           links.map((link) => [
             link.platform === "apple_music"
               ? "apple"
@@ -272,30 +272,30 @@ app.openapi(
                 : link.platform),
             link.url,
           ])
-        );
+        ),
 
-        const rawName = artist.stageName ?? artist.displayName ?? artist.name;
-        const name = capitalizeWords(rawName);
-        const genre = canonicalGenreName(artist.genre ?? "Hip Hop");
-        const hasActivity =
+         rawName = artist.stageName ?? artist.displayName ?? artist.name,
+         name = capitalizeWords(rawName),
+         genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
+         hasActivity =
           Number(artist.trackCount) > 0 ||
           Number(artist.followerCount) > 0 ||
-          Number(artist.battleCount) > 0;
-        const rank = hasActivity
+          Number(artist.battleCount) > 0,
+         rank = hasActivity
           ? (artist.battleCount
             ? `#${artist.battleCount}`
             : "#1")
-          : null;
+          : null,
 
-        const [playsRow] = await db
+         [playsRow] = await db
           .select({
             totalPlays: sql<number>`count(${playbackSessions.id})::int`,
           })
           .from(playbackSessions)
           .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
-          .where(eq(tracks.ownerUserId, artist.id));
+          .where(eq(tracks.ownerUserId, artist.id)),
 
-        const totalPlays = playsRow?.totalPlays ?? 0;
+         totalPlays = playsRow?.totalPlays ?? 0;
 
         return c.json(
           {

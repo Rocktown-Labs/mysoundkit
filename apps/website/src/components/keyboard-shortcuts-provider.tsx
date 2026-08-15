@@ -115,15 +115,15 @@ const KeyboardShortcutsContext =
 export function KeyboardShortcutsProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const router = useRouter();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const router = useRouter(),
+   [isSearchOpen, setIsSearchOpen] = useState(false),
+   [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   // Global keydown handler with input guard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput =
+      const target = e.target as HTMLElement | null,
+       isInput =
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
@@ -159,9 +159,9 @@ export function KeyboardShortcutsProvider({
       void router.navigate({ to: path });
     },
     [router]
-  );
+  ),
 
-  const value = useMemo(
+   value = useMemo(
     () => ({
       isSearchOpen,
       isShortcutsOpen,

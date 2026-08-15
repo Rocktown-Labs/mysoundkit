@@ -28,9 +28,9 @@ import {
 import { messageResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const getMuxWebhookClient = () => {
+ getMuxWebhookClient = () => {
   if (!env.MUX_TOKEN_ID || !env.MUX_TOKEN_SECRET || !env.MUX_WEBHOOK_SECRET) {
     return null;
   }
@@ -40,9 +40,9 @@ const getMuxWebhookClient = () => {
     tokenSecret: env.MUX_TOKEN_SECRET,
     webhookSecret: env.MUX_WEBHOOK_SECRET,
   });
-};
+},
 
-const getMuxEventId = (event: unknown) => {
+ getMuxEventId = (event: unknown) => {
   if (
     typeof event === "object" &&
     event !== null &&
@@ -53,9 +53,9 @@ const getMuxEventId = (event: unknown) => {
   }
 
   return null;
-};
+},
 
-const getMuxEventType = (event: unknown) => {
+ getMuxEventType = (event: unknown) => {
   if (
     typeof event === "object" &&
     event !== null &&
@@ -66,9 +66,9 @@ const getMuxEventType = (event: unknown) => {
   }
 
   return "unknown";
-};
+},
 
-const getEventData = (event: unknown) => {
+ getEventData = (event: unknown) => {
   if (
     typeof event === "object" &&
     event !== null &&
@@ -80,12 +80,12 @@ const getEventData = (event: unknown) => {
   }
 
   return null;
-};
+},
 
-const getStringValue = (value: unknown) =>
-  typeof value === "string" && value.length > 0 ? value : null;
+ getStringValue = (value: unknown) =>
+  typeof value === "string" && value.length > 0 ? value : null,
 
-const getResendEventId = (event: unknown) => {
+ getResendEventId = (event: unknown) => {
   if (
     typeof event === "object" &&
     event !== null &&
@@ -96,9 +96,9 @@ const getResendEventId = (event: unknown) => {
   }
 
   return null;
-};
+},
 
-const getResendEventType = (event: unknown) => {
+ getResendEventType = (event: unknown) => {
   if (
     typeof event === "object" &&
     event !== null &&
@@ -109,9 +109,9 @@ const getResendEventType = (event: unknown) => {
   }
 
   return "unknown";
-};
+},
 
-const getResendEmailId = (event: unknown) => {
+ getResendEmailId = (event: unknown) => {
   const data = getEventData(event);
 
   if (!data) {
@@ -131,9 +131,9 @@ const getResendEmailId = (event: unknown) => {
       : null;
 
   return nestedEmail ? getStringValue(nestedEmail.id) : null;
-};
+},
 
-const getNestedStringValue = (
+ getNestedStringValue = (
   payload: Record<string, unknown>,
   keys: string[]
 ) => {
@@ -160,33 +160,33 @@ const getNestedStringValue = (
   }
 
   return null;
-};
+},
 
-const getBattleServiceEventType = (payload: Record<string, unknown>) =>
-  getNestedStringValue(payload, ["type", "event", "eventType"]) ?? "unknown";
+ getBattleServiceEventType = (payload: Record<string, unknown>) =>
+  getNestedStringValue(payload, ["type", "event", "eventType"]) ?? "unknown",
 
-const getBattleServiceBattleId = (payload: Record<string, unknown>) =>
+ getBattleServiceBattleId = (payload: Record<string, unknown>) =>
   getNestedStringValue(payload, [
     "battleId",
     "battle_id",
     "externalBattleId",
     "external_battle_id",
-  ]);
+  ]),
 
-const getBattleServiceEventId = (payload: Record<string, unknown>) => {
+ getBattleServiceEventId = (payload: Record<string, unknown>) => {
   const eventId = getNestedStringValue(payload, ["id", "eventId", "event_id"]);
 
   if (eventId) {
     return eventId;
   }
 
-  const eventType = getBattleServiceEventType(payload);
-  const battleId = getBattleServiceBattleId(payload);
+  const eventType = getBattleServiceEventType(payload),
+   battleId = getBattleServiceBattleId(payload);
 
   return battleId ? `${eventType}:${battleId}` : null;
-};
+},
 
-const applyResendDeliveryEvent = async ({
+ applyResendDeliveryEvent = async ({
   eventType,
   providerMessageId,
 }: {
@@ -198,8 +198,8 @@ const applyResendDeliveryEvent = async ({
   }
 
   const isDelivered =
-    eventType === "email.sent" || eventType === "email.delivered";
-  const isFailed =
+    eventType === "email.sent" || eventType === "email.delivered",
+   isFailed =
     eventType === "email.bounced" || eventType === "email.complained";
 
   if (!(isDelivered || isFailed)) {
@@ -214,15 +214,15 @@ const applyResendDeliveryEvent = async ({
       updatedAt: new Date(),
     })
     .where(eq(emailDeliveries.providerMessageId, providerMessageId));
-};
+},
 
-const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+ getEnvValue = (key: string) =>
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
 
-const bytesToHex = (bytes: Uint8Array) =>
-  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+ bytesToHex = (bytes: Uint8Array) =>
+  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
 
-const verifyStemSplitSignature = async ({
+ verifyStemSplitSignature = async ({
   rawBody,
   signature,
 }: {
@@ -235,24 +235,24 @@ const verifyStemSplitSignature = async ({
     return false;
   }
 
-  const signatureHex = signature.replace(/^sha256=/u, "");
-  const key = await crypto.subtle.importKey(
+  const signatureHex = signature.replace(/^sha256=/u, ""),
+   key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
     { hash: "SHA-256", name: "HMAC" },
     false,
     ["sign"]
-  );
-  const digest = await crypto.subtle.sign(
+  ),
+   digest = await crypto.subtle.sign(
     "HMAC",
     key,
     new TextEncoder().encode(rawBody)
   );
 
   return bytesToHex(new Uint8Array(digest)) === signatureHex;
-};
+},
 
-const getPlaybackId = (value: unknown) => {
+ getPlaybackId = (value: unknown) => {
   if (!Array.isArray(value) || value.length === 0) {
     return null;
   }
@@ -269,16 +269,16 @@ const getPlaybackId = (value: unknown) => {
   }
 
   return null;
-};
+},
 
-const updateVideoFromMuxEvent = async (event: unknown) => {
+ updateVideoFromMuxEvent = async (event: unknown) => {
   if (!isDatabaseConfigured()) {
     return "ignored" as const;
   }
 
-  const db = createDb();
-  const eventData = getEventData(event);
-  const eventType = getMuxEventType(event);
+  const db = createDb(),
+   eventData = getEventData(event),
+   eventType = getMuxEventType(event);
 
   if (!eventData) {
     return "ignored" as const;
@@ -288,11 +288,11 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
     getStringValue(eventData.asset_id) ??
     (eventType.startsWith("video.asset.")
       ? getStringValue(eventData.id)
-      : null);
-  const uploadId = eventType.startsWith("video.upload.")
+      : null),
+   uploadId = eventType.startsWith("video.upload.")
     ? getStringValue(eventData.id)
-    : null;
-  const passthrough =
+    : null,
+   passthrough =
     getStringValue(eventData.passthrough) ??
     getStringValue(
       typeof eventData.new_asset_settings === "object" &&
@@ -300,14 +300,14 @@ const updateVideoFromMuxEvent = async (event: unknown) => {
         "passthrough" in eventData.new_asset_settings
         ? eventData.new_asset_settings.passthrough
         : null
-    );
+    ),
 
-  const candidateClauses = [
+   candidateClauses = [
     passthrough ? eq(videos.muxPassthrough, passthrough) : null,
     uploadId ? eq(videos.muxUploadId, uploadId) : null,
     assetId ? eq(videos.muxAssetId, assetId) : null,
-  ] as const;
-  const clauses = candidateClauses.filter(
+  ] as const,
+   clauses = candidateClauses.filter(
     (clause): clause is Exclude<(typeof candidateClauses)[number], null> =>
       clause !== null
   );
@@ -557,16 +557,16 @@ app.openapi(
       );
     }
 
-    const eventType = getMuxEventType(event);
-    const externalEventId = getMuxEventId(event);
-    const payload = JSON.parse(rawBody) as Record<string, unknown>;
+    const eventType = getMuxEventType(event),
+     externalEventId = getMuxEventId(event),
+     payload = JSON.parse(rawBody) as Record<string, unknown>;
 
     if (!isDatabaseConfigured()) {
       return c.json({ message: "Mux webhook accepted." }, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [existingEvent] = externalEventId
+    const db = createDb(),
+     [existingEvent] = externalEventId
       ? await db
           .select({
             id: webhookEvents.id,
@@ -654,14 +654,14 @@ const getStemSplitEventId = (payload: Record<string, unknown>) => {
     return eventId;
   }
 
-  const data = getEventData(payload);
-  const jobId = data ? getStringValue(data.jobId) : null;
-  const event = getStringValue(payload.event);
+  const data = getEventData(payload),
+   jobId = data ? getStringValue(data.jobId) : null,
+   event = getStringValue(payload.event);
 
   return jobId && event ? `${event}:${jobId}` : null;
-};
+},
 
-const handleStemSplitWebhookPayload = async ({
+ handleStemSplitWebhookPayload = async ({
   emailQueue,
   payload,
 }: {
@@ -672,16 +672,16 @@ const handleStemSplitWebhookPayload = async ({
     return "ignored" as const;
   }
 
-  const event = getStringValue(payload.event);
-  const data = getEventData(payload);
-  const jobId = data ? getStringValue(data.jobId) : null;
+  const event = getStringValue(payload.event),
+   data = getEventData(payload),
+   jobId = data ? getStringValue(data.jobId) : null;
 
   if (!event || !data || !jobId) {
     return "ignored" as const;
   }
 
-  const db = createDb();
-  const [stemJob] = await db
+  const db = createDb(),
+   [stemJob] = await db
     .select()
     .from(trackStemJobs)
     .where(eq(trackStemJobs.stemsplitJobId, jobId))
@@ -761,9 +761,9 @@ app.openapi(
       );
     }
 
-    const rawBody = await c.req.raw.text();
-    const signature = c.req.raw.headers.get("X-Webhook-Signature");
-    const verified = await verifyStemSplitSignature({ rawBody, signature });
+    const rawBody = await c.req.raw.text(),
+     signature = c.req.raw.headers.get("X-Webhook-Signature"),
+     verified = await verifyStemSplitSignature({ rawBody, signature });
 
     if (!verified) {
       return c.json(
@@ -772,8 +772,8 @@ app.openapi(
       );
     }
 
-    const payload = JSON.parse(rawBody) as Record<string, unknown>;
-    const externalEventId = getStemSplitEventId(payload);
+    const payload = JSON.parse(rawBody) as Record<string, unknown>,
+     externalEventId = getStemSplitEventId(payload);
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -782,8 +782,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [existingEvent] = externalEventId
+    const db = createDb(),
+     [existingEvent] = externalEventId
       ? await db
           .select({
             id: webhookEvents.id,
@@ -804,8 +804,8 @@ app.openapi(
       );
     }
 
-    const eventRowId = crypto.randomUUID();
-    const eventType = getStringValue(payload.event) ?? "unknown";
+    const eventRowId = crypto.randomUUID(),
+     eventType = getStringValue(payload.event) ?? "unknown";
 
     await db.insert(webhookEvents).values({
       eventType,
@@ -872,8 +872,8 @@ app.openapi(
         );
       }
 
-      const externalEventId = getResendEventId(event);
-      const eventType = getResendEventType(event);
+      const externalEventId = getResendEventId(event),
+       eventType = getResendEventType(event);
 
       if (!(isDatabaseConfigured() && externalEventId)) {
         return c.json(
@@ -882,8 +882,8 @@ app.openapi(
         );
       }
 
-      const db = createDb();
-      const [existingEvent] = await db
+      const db = createDb(),
+       [existingEvent] = await db
         .select({ id: webhookEvents.id })
         .from(webhookEvents)
         .where(
@@ -942,11 +942,11 @@ app.openapi(
     tags: ["Webhooks"],
   }),
   async (c) => {
-    const rawBody = await c.req.raw.text();
-    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>;
-    const externalEventId = getBattleServiceEventId(payload);
-    const eventType = getBattleServiceEventType(payload);
-    const battleId = getBattleServiceBattleId(payload);
+    const rawBody = await c.req.raw.text(),
+     payload = JSON.parse(rawBody || "{}") as Record<string, unknown>,
+     externalEventId = getBattleServiceEventId(payload),
+     eventType = getBattleServiceEventType(payload),
+     battleId = getBattleServiceBattleId(payload);
 
     if (!(externalEventId && battleId)) {
       return c.json(
@@ -999,8 +999,8 @@ app.openapi(
     tags: ["Webhooks"],
   }),
   async (c) => {
-    const rawBody = await c.req.raw.text();
-    const signature = c.req.header("rtk-signature");
+    const rawBody = await c.req.raw.text(),
+     signature = c.req.header("rtk-signature");
 
     if (!signature) {
       return c.json(
@@ -1033,9 +1033,9 @@ app.openapi(
       );
     }
 
-    const externalEventId = c.req.header("rtk-uuid");
-    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>;
-    const eventType = isRealtimeKitWebhookEvent(payload)
+    const externalEventId = c.req.header("rtk-uuid"),
+     payload = JSON.parse(rawBody || "{}") as Record<string, unknown>,
+     eventType = isRealtimeKitWebhookEvent(payload)
       ? payload.event
       : "unknown";
 

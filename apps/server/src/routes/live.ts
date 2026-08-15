@@ -19,6 +19,7 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { canonicalGenreSlug } from "@/lib/genre-catalog";
 import {
   allowsMockRealtime,
   buildNotificationFanout,
@@ -56,11 +57,10 @@ import {
   joinLiveExperienceBodySchema,
   liveSessionLockCheckBodySchema,
 } from "@/lib/schemas";
-import { canonicalGenreSlug } from "@/lib/genre-catalog";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
-const app = new Hono<AppEnv>();
-const databaseUnavailableMessage = {
+const app = new Hono<AppEnv>(),
+ databaseUnavailableMessage = {
   message: "Database is not configured.",
 };
 
@@ -69,9 +69,9 @@ app.get("/experiences/public", async (c) => {
     return c.json([], HttpStatusCodes.OK);
   }
 
-  const kind = c.req.query("kind");
-  const db = createDb();
-  const conditions = [
+  const kind = c.req.query("kind"),
+   db = createDb(),
+   conditions = [
     eq(liveExperiences.visibility, "public"),
     or(
       eq(liveExperiences.status, "live"),
@@ -82,8 +82,8 @@ app.get("/experiences/public", async (c) => {
       : undefined,
   ].filter((condition): condition is NonNullable<typeof condition> =>
     Boolean(condition)
-  );
-  const experiences = await db
+  ),
+   experiences = await db
     .select({
       endsAt: liveExperiences.endsAt,
       genre: liveExperiences.genre,
@@ -157,9 +157,9 @@ interface CloudflareStreamResponse {
 
 const badRequest = (message: string) => ({
   message,
-});
+}),
 
-const streamInputFromCloudflareResponse = (
+ streamInputFromCloudflareResponse = (
   data: CloudflareStreamResponse,
   title?: string
 ) => {
@@ -179,9 +179,9 @@ const streamInputFromCloudflareResponse = (
     status: result.status ?? "idle",
     ...(title ? { title } : {}),
   };
-};
+},
 
-const createMockStreamInput = (title: string) => ({
+ createMockStreamInput = (title: string) => ({
   id: `mock_live_input_${crypto.randomUUID()}`,
   playbackUrl: "",
   rtmpsKey: `mock_${crypto.randomUUID()}`,
@@ -190,19 +190,19 @@ const createMockStreamInput = (title: string) => ({
   srtUrl: "srt://live.cloudflare.com:443/live",
   status: "idle",
   title,
-});
+}),
 
-const cloudflareStreamSetupRequired = {
+ cloudflareStreamSetupRequired = {
   message:
     "Cloudflare Stream live inputs are not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN.",
-};
+},
 
-const readResponseSnippet = async (response: Response) => {
+ readResponseSnippet = async (response: Response) => {
   const text = await response.text().catch(() => "");
   return text.slice(0, 500);
-};
+},
 
-const logCloudflareApiFailure = ({
+ logCloudflareApiFailure = ({
   body,
   label,
   response,
@@ -216,18 +216,17 @@ const logCloudflareApiFailure = ({
     status: response.status,
     statusText: response.statusText,
   });
-};
+},
 
-const createCloudflareStreamInput = async ({
+ createCloudflareStreamInput = async ({
   env,
   title,
 }: {
   env: AppEnv["Bindings"];
   title: string;
 }) => {
-  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken =
-    env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID,
+   apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
 
   if (!(accountId && apiToken)) {
     return null;
@@ -259,17 +258,17 @@ const createCloudflareStreamInput = async ({
 
   const data = (await response.json()) as CloudflareStreamResponse;
   return streamInputFromCloudflareResponse(data, title);
-};
+},
 
-const syncCloudflareStreamStatus = async ({
+ syncCloudflareStreamStatus = async ({
   env,
   experience,
 }: {
   env: AppEnv["Bindings"];
   experience: typeof liveExperiences.$inferSelect;
 }) => {
-  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
+  const accountId = env.CLOUDFLARE_ACCOUNT_ID,
+   apiToken = env.CLOUDFLARE_STREAM_API_TOKEN ?? env.CLOUDFLARE_API_TOKEN;
   if (!(accountId && apiToken && experience.streamInputId)) {
     return experience;
   }
@@ -282,16 +281,17 @@ const syncCloudflareStreamStatus = async ({
     return experience;
   }
 
-  const payload = (await response.json()) as CloudflareStreamResponse;
-  const inputStatus = payload.result?.status;
-  const connected = inputStatus === "connected" || inputStatus === "reconnected";
-  const disconnected =
+  const payload = (await response.json()) as CloudflareStreamResponse,
+   inputStatus = payload.result?.status,
+   connected =
+    inputStatus === "connected" || inputStatus === "reconnected",
+   disconnected =
     inputStatus === "client_disconnect" ||
     inputStatus === "ttl_exceeded" ||
     inputStatus === "failed_to_connect" ||
     inputStatus === "failed_to_reconnect";
-  let status = experience.status;
-  let endsAt = experience.endsAt;
+  let {status} = experience;
+  let {endsAt} = experience;
 
   if (connected) {
     status = "live";
@@ -311,9 +311,9 @@ const syncCloudflareStreamStatus = async ({
     .where(eq(liveExperiences.id, experience.id))
     .returning();
   return updatedExperience ?? experience;
-};
+},
 
-const liveKindFromExperienceId = (experienceId: string): LiveExperienceKind => {
+ liveKindFromExperienceId = (experienceId: string): LiveExperienceKind => {
   if (experienceId.includes("_party_")) {
     return "party";
   }
@@ -323,17 +323,17 @@ const liveKindFromExperienceId = (experienceId: string): LiveExperienceKind => {
   }
 
   return "battle";
-};
+},
 
-const defaultSourceForKind = (kind: LiveExperienceKind) => {
+ defaultSourceForKind = (kind: LiveExperienceKind) => {
   if (kind === "party") {
     return "playlist";
   }
 
   return "browser";
-};
+},
 
-const nextBattlePhaseForAction = ({
+ nextBattlePhaseForAction = ({
   action,
   phase,
 }: {
@@ -345,21 +345,21 @@ const nextBattlePhaseForAction = ({
   }
 
   return phase ?? "between_rounds";
-};
+},
 
-const realtimeKitConfig = (env: AppEnv["Bindings"]) => ({
+ realtimeKitConfig = (env: AppEnv["Bindings"]) => ({
   accountId: env.CLOUDFLARE_ACCOUNT_ID,
   allowMockRealtime: env.SOUNDKIT_ALLOW_MOCK_REALTIME,
   apiToken: env.CLOUDFLARE_API_TOKEN,
   appId: env.CLOUDFLARE_REALTIMEKIT_APP_ID,
-});
+}),
 
-const realtimeSetupRequired = {
+ realtimeSetupRequired = {
   message:
     "Cloudflare RealtimeKit is not configured. Set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, and CLOUDFLARE_REALTIMEKIT_APP_ID.",
-};
+},
 
-const createRealtimeMeeting = async ({
+ createRealtimeMeeting = async ({
   env,
   kind,
   title,
@@ -393,9 +393,9 @@ const createRealtimeMeeting = async ({
       );
 
       if (response.ok) {
-        const data = (await response.json()) as CloudflareMeetingResponse;
-        const meeting = data.result ?? data.data ?? data;
-        const meetingId = meeting?.id;
+        const data = (await response.json()) as CloudflareMeetingResponse,
+         meeting = data.result ?? data.data ?? data,
+         meetingId = meeting?.id;
 
         if (meetingId) {
           return {
@@ -425,9 +425,9 @@ const createRealtimeMeeting = async ({
   }
 
   throw new Error(realtimeSetupRequired.message);
-};
+},
 
-const createRealtimeParticipant = async ({
+ createRealtimeParticipant = async ({
   env,
   kind,
   meetingId,
@@ -442,8 +442,8 @@ const createRealtimeParticipant = async ({
   role: LiveParticipantRole;
   user: AuthenticatedUser;
 }): Promise<RealtimeParticipantToken> => {
-  const config = realtimeKitConfig(env);
-  const presetName = resolveRealtimePreset({ kind, phase, role });
+  const config = realtimeKitConfig(env),
+   presetName = resolveRealtimePreset({ kind, phase, role });
 
   if (
     hasRealtimeKitConfig(config) &&
@@ -473,10 +473,10 @@ const createRealtimeParticipant = async ({
       );
 
       if (response.ok) {
-        const data = (await response.json()) as CloudflareParticipantResponse;
-        const participant = data.result ?? data.data ?? data;
-        const authToken = participant?.token;
-        const participantId = participant?.id;
+        const data = (await response.json()) as CloudflareParticipantResponse,
+         participant = data.result ?? data.data ?? data,
+         authToken = participant?.token,
+         participantId = participant?.id;
 
         if (authToken && participantId) {
           return {
@@ -517,9 +517,9 @@ const createRealtimeParticipant = async ({
   }
 
   throw new Error(realtimeSetupRequired.message);
-};
+},
 
-const createRequiredStreamInput = async ({
+ createRequiredStreamInput = async ({
   body,
   env,
 }: {
@@ -548,9 +548,9 @@ const createRequiredStreamInput = async ({
   }
 
   return null;
-};
+},
 
-const createMeetingForExperience = async ({
+ createMeetingForExperience = async ({
   body,
   env,
   streamInput,
@@ -576,15 +576,15 @@ const createMeetingForExperience = async ({
     console.error("Unable to create live experience meeting", error);
     return null;
   }
-};
+},
 
-const resolveMeetingIdForExperience = async (experienceId: string) => {
+ resolveMeetingIdForExperience = async (experienceId: string) => {
   const experience = await loadLiveExperienceById(experienceId);
 
   return experience?.meetingId ?? experienceId;
-};
+},
 
-const isArtistUser = async (userId: string) => {
+ isArtistUser = async (userId: string) => {
   if (!isDatabaseConfigured()) {
     return false;
   }
@@ -596,9 +596,9 @@ const isArtistUser = async (userId: string) => {
     .limit(1);
 
   return profile?.accountType === "artist";
-};
+},
 
-const isPartyHostingAllowed = async ({
+ isPartyHostingAllowed = async ({
   session,
   user,
 }: {
@@ -615,9 +615,9 @@ const isPartyHostingAllowed = async ({
   }
 
   return isArtistUser(user.id);
-};
+},
 
-const persistLiveExperience = async ({
+ persistLiveExperience = async ({
   body,
   createdByUserId,
   experienceId,
@@ -659,9 +659,9 @@ const persistLiveExperience = async ({
     .onConflictDoNothing();
 
   return result;
-};
+},
 
-const durableRequest = (
+ durableRequest = (
   c: { env: AppEnv["Bindings"] },
   roomId: string,
   path: string,
@@ -671,27 +671,27 @@ const durableRequest = (
     return null;
   }
 
-  const id = c.env.LIVE_ROOMS.idFromName(roomId);
-  const stub = c.env.LIVE_ROOMS.get(id);
-  const headers = new Headers(init?.headers);
+  const id = c.env.LIVE_ROOMS.idFromName(roomId),
+   stub = c.env.LIVE_ROOMS.get(id),
+   headers = new Headers(init?.headers);
   headers.set("x-soundkit-live-room-id", roomId);
 
   return stub.fetch(`https://live-room.soundkit.internal${path}`, {
     ...init,
     headers,
   });
-};
+},
 
-const objectUrlFromMetadata = (metadata: unknown) => {
+ objectUrlFromMetadata = (metadata: unknown) => {
   if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
     return null;
   }
 
   const { url } = metadata as { url?: unknown };
   return typeof url === "string" ? url : null;
-};
+},
 
-const liveRoomTrackFromRow = ({
+ liveRoomTrackFromRow = ({
   artistName,
   coverArtUrl,
   status,
@@ -711,9 +711,9 @@ const liveRoomTrackFromRow = ({
   lyrics: [],
   status,
   title,
-});
+}),
 
-const liveRoundStatusFromDb = (
+ liveRoundStatusFromDb = (
   status: "active" | "completed" | "upcoming"
 ): LiveBattleRound["status"] => {
   if (status === "completed") {
@@ -725,9 +725,9 @@ const liveRoundStatusFromDb = (
   }
 
   return "queued";
-};
+},
 
-const trackStatusForRound = ({
+ trackStatusForRound = ({
   isFirstTrack,
   roundStatus,
 }: {
@@ -743,9 +743,9 @@ const trackStatusForRound = ({
   }
 
   return "queued";
-};
+},
 
-const selectCurrentRound = <
+ selectCurrentRound = <
   T extends {
     roundNumber: number;
     status: "active" | "completed" | "upcoming";
@@ -756,17 +756,17 @@ const selectCurrentRound = <
   rounds.find((round) => round.status === "active") ??
   rounds.find((round) => round.status === "upcoming") ??
   rounds.at(-1) ??
-  null;
+  null,
 
-const buildBattleRoomSnapshot = async (
+ buildBattleRoomSnapshot = async (
   roomId: string
 ): Promise<LiveRoomState | null> => {
   if (!isDatabaseConfigured()) {
     return null;
   }
 
-  const db = createDb();
-  const [battle] = await db
+  const db = createDb(),
+   [battle] = await db
     .select({
       challengerArtistUserId: battles.challengerArtistUserId,
       createdAt: battles.createdAt,
@@ -798,22 +798,22 @@ const buildBattleRoomSnapshot = async (
     })
     .from(battleRounds)
     .where(eq(battleRounds.battleId, battle.id))
-    .orderBy(asc(battleRounds.roundNumber));
-  const trackIds = [
+    .orderBy(asc(battleRounds.roundNumber)),
+   trackIds = [
     ...new Set(
       roundRows
         .flatMap((round) => [round.trackOneId, round.trackTwoId])
         .filter((trackId): trackId is string => Boolean(trackId))
     ),
-  ];
-  const profileIds = [
+  ],
+   profileIds = [
     ...new Set(
       [battle.challengerArtistUserId, battle.opponentArtistUserId].filter(
         (userId): userId is string => Boolean(userId)
       )
     ),
-  ];
-  const [trackRows, coverRows, profileRows] = await Promise.all([
+  ],
+   [trackRows, coverRows, profileRows] = await Promise.all([
     trackIds.length > 0
       ? db
           .select({
@@ -850,14 +850,14 @@ const buildBattleRoomSnapshot = async (
           .from(userProfiles)
           .where(inArray(userProfiles.userId, profileIds))
       : [],
-  ]);
-  const coverByTrackId = new Map(
+  ]),
+   coverByTrackId = new Map(
     coverRows.map((asset) => [
       asset.trackId,
       objectUrlFromMetadata(asset.metadata),
     ])
-  );
-  const trackById = new Map(
+  ),
+   trackById = new Map(
     trackRows.map((track) => [
       track.id,
       {
@@ -867,16 +867,16 @@ const buildBattleRoomSnapshot = async (
         title: track.title,
       },
     ])
-  );
-  const profileByUserId = new Map(
+  ),
+   profileByUserId = new Map(
     profileRows.map((profile) => [profile.userId, profile])
-  );
-  const currentRound = selectCurrentRound(roundRows);
-  const fallbackArtistIds = [
+  ),
+   currentRound = selectCurrentRound(roundRows),
+   fallbackArtistIds = [
     battle.challengerArtistUserId ?? "artist-one",
     battle.opponentArtistUserId ?? "artist-two",
-  ] as const;
-  const liveArtists: [LiveRoomArtist, LiveRoomArtist] = [
+  ] as const,
+   liveArtists: [LiveRoomArtist, LiveRoomArtist] = [
     {
       avatarUrl: profileByUserId.get(fallbackArtistIds[0])?.avatarUrl ?? "",
       id: fallbackArtistIds[0],
@@ -909,10 +909,10 @@ const buildBattleRoomSnapshot = async (
       stagePosition: "right",
       verified: false,
     },
-  ];
-  const liveRounds = roundRows.flatMap((round): LiveBattleRound[] => {
-    const trackOne = round.trackOneId ? trackById.get(round.trackOneId) : null;
-    const trackTwo = round.trackTwoId ? trackById.get(round.trackTwoId) : null;
+  ],
+   liveRounds = roundRows.flatMap((round): LiveBattleRound[] => {
+    const trackOne = round.trackOneId ? trackById.get(round.trackOneId) : null,
+     trackTwo = round.trackTwoId ? trackById.get(round.trackTwoId) : null;
 
     if (!(round.trackOneId && trackOne && round.trackTwoId && trackTwo)) {
       return [];
@@ -953,12 +953,12 @@ const buildBattleRoomSnapshot = async (
           : null,
       },
     ];
-  });
-  const currentLiveRound =
+  }),
+   currentLiveRound =
     liveRounds.find((round) => round.id === currentRound?.id) ??
     liveRounds[0] ??
-    null;
-  const tracklist = currentLiveRound
+    null,
+   tracklist = currentLiveRound
     ? [currentLiveRound.artistATrack, currentLiveRound.artistBTrack]
     : [];
 
@@ -988,9 +988,9 @@ const buildBattleRoomSnapshot = async (
     tracklist,
     viewerCount: battle.viewerCount,
   };
-};
+},
 
-const seedDurableRoom = async ({
+ seedDurableRoom = async ({
   c,
   room,
   roomId,
@@ -1022,9 +1022,9 @@ app.post("/experiences", async (c) => {
     );
   }
 
-  const body = parseResult.data;
-  const startsAt = body.scheduledStartAt ?? new Date().toISOString();
-  const canHostParty = await isPartyHostingAllowed({
+  const body = parseResult.data,
+   startsAt = body.scheduledStartAt ?? new Date().toISOString(),
+   canHostParty = await isPartyHostingAllowed({
     session: c.get("session"),
     user,
   });
@@ -1060,8 +1060,8 @@ app.post("/experiences", async (c) => {
     return c.json(realtimeSetupRequired, HttpStatusCodes.SERVICE_UNAVAILABLE);
   }
 
-  const experienceId = `live_${body.kind}_${crypto.randomUUID()}`;
-  const roomHref = `/live/${
+  const experienceId = `live_${body.kind}_${crypto.randomUUID()}`,
+   roomHref = `/live/${
     body.kind === "party" ? "parties" : `${body.kind}s`
   }/${experienceId}`;
 
@@ -1151,7 +1151,10 @@ app.get("/experiences/:experienceId", async (c) => {
   );
 
   if (!storedExperience) {
-    return c.json({ message: "Live experience not found." }, HttpStatusCodes.NOT_FOUND);
+    return c.json(
+      { message: "Live experience not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
   }
 
   const experience =
@@ -1165,17 +1168,22 @@ app.get("/experiences/:experienceId", async (c) => {
   if (experience.visibility === "private") {
     const user = c.get("user");
     if (!isAuthenticatedUser(user) || user.id !== experience.createdByUserId) {
-      return c.json({ message: "This live experience is private." }, HttpStatusCodes.FORBIDDEN);
+      return c.json(
+        { message: "This live experience is private." },
+        HttpStatusCodes.FORBIDDEN
+      );
     }
   }
 
-  const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE;
-  const streamBaseUrl =
+  const customerCode = c.env.CLOUDFLARE_STREAM_CUSTOMER_CODE,
+   streamBaseUrl =
     experience.streamInputId && customerCode
       ? `https://customer-${customerCode}.cloudflarestream.com/${experience.streamInputId}`
-      : null;
-  const playbackUrl = streamBaseUrl ? `${streamBaseUrl}/manifest/video.m3u8` : null;
-  const playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
+      : null,
+   playbackUrl = streamBaseUrl
+    ? `${streamBaseUrl}/manifest/video.m3u8`
+    : null,
+   playerUrl = streamBaseUrl ? `${streamBaseUrl}/iframe` : null;
 
   return c.json(
     {
@@ -1212,9 +1220,9 @@ app.post("/experiences/:experienceId/join", async (c) => {
     );
   }
 
-  const experienceId = c.req.param("experienceId");
-  const kind = liveKindFromExperienceId(experienceId);
-  const meetingId = await resolveMeetingIdForExperience(experienceId);
+  const experienceId = c.req.param("experienceId"),
+   kind = liveKindFromExperienceId(experienceId),
+   meetingId = await resolveMeetingIdForExperience(experienceId);
   let participant: RealtimeParticipantToken;
 
   try {
@@ -1285,10 +1293,10 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
     );
   }
 
-  const experienceId = c.req.param("experienceId");
-  const experience = await loadLiveExperienceById(experienceId);
-  const battleId = experience?.battleId ?? experienceId;
-  const result = await applyBattleBotAction({
+  const experienceId = c.req.param("experienceId"),
+   experience = await loadLiveExperienceById(experienceId),
+   battleId = experience?.battleId ?? experienceId,
+   result = await applyBattleBotAction({
     action: parseResult.data.action,
     battleId,
     participants: parseResult.data.participants,
@@ -1316,8 +1324,8 @@ app.post("/experiences/:experienceId/battlebot", async (c) => {
 });
 
 app.get("/rooms/:roomId", async (c) => {
-  const roomId = c.req.param("roomId");
-  const battleRoom = await buildBattleRoomSnapshot(roomId);
+  const roomId = c.req.param("roomId"),
+   battleRoom = await buildBattleRoomSnapshot(roomId);
 
   if (battleRoom) {
     const seedResponse = await seedDurableRoom({ c, room: battleRoom, roomId });
@@ -1341,8 +1349,8 @@ app.get("/rooms/:roomId", async (c) => {
 });
 
 app.get("/rooms/:roomId/ws", async (c) => {
-  const roomId = c.req.param("roomId");
-  const response = await durableRequest(c, roomId, "/ws", {
+  const roomId = c.req.param("roomId"),
+   response = await durableRequest(c, roomId, "/ws", {
     headers: c.req.raw.headers,
     method: "GET",
   });
@@ -1358,12 +1366,12 @@ app.get("/rooms/:roomId/ws", async (c) => {
 });
 
 app.post("/rooms/:roomId/chat", async (c) => {
-  const roomId = c.req.param("roomId");
-  const body = (await c.req.json().catch(() => ({}))) as {
+  const roomId = c.req.param("roomId"),
+   body = (await c.req.json().catch(() => ({}))) as {
     message?: string;
     userName?: string;
-  };
-  const response = await durableRequest(c, roomId, "/chat", {
+  },
+   response = await durableRequest(c, roomId, "/chat", {
     body: JSON.stringify(body),
     headers: { "content-type": "application/json" },
     method: "POST",
@@ -1381,8 +1389,8 @@ app.post("/rooms/:roomId/chat", async (c) => {
 });
 
 app.post("/rooms/:roomId/vote", async (c) => {
-  const roomId = c.req.param("roomId");
-  const response = await durableRequest(c, roomId, "/vote", {
+  const roomId = c.req.param("roomId"),
+   response = await durableRequest(c, roomId, "/vote", {
     body: JSON.stringify(await c.req.json().catch(() => ({}))),
     headers: { "content-type": "application/json" },
     method: "POST",
@@ -1407,11 +1415,11 @@ app.post("/cloudflare-stream", async (c) => {
     return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
   }
 
-  const body = (await c.req.json().catch(() => ({}))) as { title?: string };
-  const title = body.title || "Live Stream";
+  const body = (await c.req.json().catch(() => ({}))) as { title?: string },
+   title = body.title || "Live Stream",
 
-  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken =
+   accountId = c.env.CLOUDFLARE_ACCOUNT_ID,
+   apiToken =
     c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (accountId && apiToken) {
@@ -1457,16 +1465,22 @@ app.delete("/cloudflare-stream/:streamId", async (c) => {
   }
 
   if (!isDatabaseConfigured()) {
-    return c.json(databaseUnavailableMessage, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    return c.json(
+      databaseUnavailableMessage,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
-  const streamId = c.req.param("streamId");
-  const experience = await loadOwnedStreamExperience(streamId, user.id);
+  const streamId = c.req.param("streamId"),
+   experience = await loadOwnedStreamExperience(streamId, user.id);
   if (!experience) {
-    return c.json({ message: "Stream input not found." }, HttpStatusCodes.NOT_FOUND);
+    return c.json(
+      { message: "Stream input not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
   }
-  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken =
+  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID,
+   apiToken =
     c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (!(accountId && apiToken)) {
@@ -1500,7 +1514,10 @@ app.delete("/cloudflare-stream/:streamId", async (c) => {
     );
   }
 
-  return c.json({ message: "Cloudflare Stream input stopped." }, HttpStatusCodes.OK);
+  return c.json(
+    { message: "Cloudflare Stream input stopped." },
+    HttpStatusCodes.OK
+  );
 });
 
 app.get("/cloudflare-stream/:streamId", async (c) => {
@@ -1510,16 +1527,22 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
   }
 
   if (!isDatabaseConfigured()) {
-    return c.json(databaseUnavailableMessage, HttpStatusCodes.SERVICE_UNAVAILABLE);
+    return c.json(
+      databaseUnavailableMessage,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
   }
 
-  const streamId = c.req.param("streamId");
-  const experience = await loadOwnedStreamExperience(streamId, user.id);
+  const streamId = c.req.param("streamId"),
+   experience = await loadOwnedStreamExperience(streamId, user.id);
   if (!experience) {
-    return c.json({ message: "Stream input not found." }, HttpStatusCodes.NOT_FOUND);
+    return c.json(
+      { message: "Stream input not found." },
+      HttpStatusCodes.NOT_FOUND
+    );
   }
-  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken =
+  const accountId = c.env.CLOUDFLARE_ACCOUNT_ID,
+   apiToken =
     c.env.CLOUDFLARE_STREAM_API_TOKEN ?? c.env.CLOUDFLARE_API_TOKEN;
 
   if (accountId && apiToken) {
@@ -1535,8 +1558,8 @@ app.get("/cloudflare-stream/:streamId", async (c) => {
       );
 
       if (response.ok) {
-        const data = (await response.json()) as CloudflareStreamResponse;
-        const streamInput = streamInputFromCloudflareResponse(data);
+        const data = (await response.json()) as CloudflareStreamResponse,
+         streamInput = streamInputFromCloudflareResponse(data);
 
         if (streamInput) {
           await syncCloudflareStreamStatus({ env: c.env, experience });

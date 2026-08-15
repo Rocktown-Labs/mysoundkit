@@ -58,9 +58,9 @@ const formatBytes = (sizeBytes: number | null | undefined) => {
     return `${(sizeBytes / 1024).toFixed(1)} KB`;
   }
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
-};
+},
 
-const formatTrackStatusLabel = (
+ formatTrackStatusLabel = (
   isLive: boolean,
   productionStatus: string | null | undefined
 ) => {
@@ -73,9 +73,9 @@ const formatTrackStatusLabel = (
   }
 
   return productionStatus ?? "Draft";
-};
+},
 
-const formatReleaseDateLabel = (
+ formatReleaseDateLabel = (
   releaseAt: string | null | undefined,
   isLive: boolean
 ) => {
@@ -90,12 +90,12 @@ const formatReleaseDateLabel = (
   }
 
   return "Draft";
-};
+},
 
-const getCoverArtUrl = (coverArtUrl: null | string | undefined) =>
-  coverArtUrl && coverArtUrl.length > 0 ? coverArtUrl : "/placeholder.svg";
+ getCoverArtUrl = (coverArtUrl: null | string | undefined) =>
+  coverArtUrl && coverArtUrl.length > 0 ? coverArtUrl : "/placeholder.svg",
 
-const SECTION_HEADER_PATTERN =
+ SECTION_HEADER_PATTERN =
   /^\s*(?:\[(?:hook|chorus|verse(?:\s+\d+)?|bridge|pre-chorus|intro|outro|refrain|post-chorus)\]|(?:hook|chorus|verse(?:\s+\d+)?|bridge|pre-chorus|intro|outro|refrain|post-chorus):)\s*$/iu;
 
 interface TimedLyricLine {
@@ -133,12 +133,12 @@ const SECTION_SNIPPETS = [
   "[Verse 2]",
   "[Bridge]",
   "[Outro]",
-] as const;
+] as const,
 
-const formatSecondsInput = (milliseconds: number) =>
-  (milliseconds / 1000).toFixed(2);
+ formatSecondsInput = (milliseconds: number) =>
+  (milliseconds / 1000).toFixed(2),
 
-const secondsInputToMilliseconds = (value: string) => {
+ secondsInputToMilliseconds = (value: string) => {
   const seconds = Number(value);
 
   if (!Number.isFinite(seconds) || seconds < 0) {
@@ -146,15 +146,15 @@ const secondsInputToMilliseconds = (value: string) => {
   }
 
   return Math.round(seconds * 1000);
-};
+},
 
-const lyricLinesFromText = (text: string) =>
+ lyricLinesFromText = (text: string) =>
   text
     .split(/\r?\n/u)
     .map((line) => line.trim())
-    .filter((line) => line && !SECTION_HEADER_PATTERN.test(line));
+    .filter((line) => line && !SECTION_HEADER_PATTERN.test(line)),
 
-const generateDraftTimedLines = (text: string): TimedLyricLine[] =>
+ generateDraftTimedLines = (text: string): TimedLyricLine[] =>
   lyricLinesFromText(text).map((line, index) => {
     const startMs = index * 4000;
 
@@ -163,18 +163,18 @@ const generateDraftTimedLines = (text: string): TimedLyricLine[] =>
       startMs,
       text: line,
     };
-  });
+  }),
 
-const normalizeTimedLines = (lines: TimedLyricLine[]) =>
+ normalizeTimedLines = (lines: TimedLyricLine[]) =>
   lines
     .map((line) => ({
       endMs: Math.round(line.endMs),
       startMs: Math.round(line.startMs),
       text: line.text.trim(),
     }))
-    .filter((line) => line.text && line.endMs > line.startMs);
+    .filter((line) => line.text && line.endMs > line.startMs),
 
-const renderReleaseStatusBanner = (
+ renderReleaseStatusBanner = (
   releaseAt: string | null | undefined,
   isScheduledInFuture: boolean,
   isLive: boolean
@@ -234,10 +234,10 @@ function LyricsWorkspace({
   onTranscribe,
   trackId,
 }: LyricsWorkspaceProps) {
-  const createLyricsMutation = useCreateTrackLyricsMutation(trackId);
-  const reviewLyricsMutation = useReviewTrackLyricsMutation(trackId);
-  const [lyricsText, setLyricsText] = useState(initialLyrics ?? "");
-  const [timedLines, setTimedLines] = useState<TimedLyricLine[]>(
+  const createLyricsMutation = useCreateTrackLyricsMutation(trackId),
+   reviewLyricsMutation = useReviewTrackLyricsMutation(trackId),
+   [lyricsText, setLyricsText] = useState(initialLyrics ?? ""),
+   [timedLines, setTimedLines] = useState<TimedLyricLine[]>(
     initialRevision?.timedLines ?? []
   );
 
@@ -246,22 +246,22 @@ function LyricsWorkspace({
     setTimedLines(initialRevision?.timedLines ?? []);
   }, [initialLyrics, initialRevision?.id, initialRevision?.timedLines]);
 
-  const hasTimedLines = timedLines.length > 0;
-  const hasValidTimedLines = normalizeTimedLines(timedLines).length > 0;
-  const canApproveCurrent =
+  const hasTimedLines = timedLines.length > 0,
+   hasValidTimedLines = normalizeTimedLines(timedLines).length > 0,
+   canApproveCurrent =
     Boolean(initialRevision?.id) &&
     initialRevision?.status !== "approved" &&
-    (initialRevision?.timedLines?.length ?? 0) > 0;
+    (initialRevision?.timedLines?.length ?? 0) > 0,
 
-  const appendSection = (section: string) => {
+   appendSection = (section: string) => {
     setLyricsText((current) => {
       const spacer = current.trim().length > 0 ? "\n\n" : "";
 
       return `${current}${spacer}${section}\n`;
     });
-  };
+  },
 
-  const handleGenerateDraftSync = () => {
+   handleGenerateDraftSync = () => {
     const generated = generateDraftTimedLines(lyricsText);
 
     if (generated.length === 0) {
@@ -274,9 +274,9 @@ function LyricsWorkspace({
     }
 
     setTimedLines(generated);
-  };
+  },
 
-  const handleTimedLineChange = (
+   handleTimedLineChange = (
     index: number,
     field: keyof TimedLyricLine,
     value: string
@@ -298,9 +298,9 @@ function LyricsWorkspace({
           : { ...line, [field]: milliseconds };
       })
     );
-  };
+  },
 
-  const handleSubmitLyrics = async ({ approve }: { approve: boolean }) => {
+   handleSubmitLyrics = async ({ approve }: { approve: boolean }) => {
     const normalizedTimedLines = normalizeTimedLines(timedLines);
 
     if (!lyricsText.trim()) {
@@ -351,9 +351,9 @@ function LyricsWorkspace({
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleApproveCurrent = async () => {
+   handleApproveCurrent = async () => {
     if (!(initialRevision?.id && canApproveCurrent)) {
       return;
     }
@@ -710,15 +710,15 @@ function TrackCollaboratorsPanel({
 }
 
 function TrackDetailPage() {
-  const { id } = Route.useParams();
-  const trackQuery = useTrackQuery(id);
-  const processTrackMutation = useProcessTrackMutation(id);
-  const updateTrackMutation = useUpdateTrackMutation(id);
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
-  const track = trackQuery.data;
+  const { id } = Route.useParams(),
+   trackQuery = useTrackQuery(id),
+   processTrackMutation = useProcessTrackMutation(id),
+   updateTrackMutation = useUpdateTrackMutation(id),
+   { setCurrentTrack, setQueue } = useAudioPlayer(),
+   track = trackQuery.data,
   // Hooks must stay above the early returns below, otherwise the hook count
   // changes once the query resolves and React crashes (error #310).
-  const [isTranscribing, setIsTranscribing] = useState(false);
+   [isTranscribing, setIsTranscribing] = useState(false);
 
   if (trackQuery.isLoading) {
     return (
@@ -743,27 +743,27 @@ function TrackDetailPage() {
     );
   }
 
-  const coverArt = getCoverArtUrl(track.coverArtUrl);
-  const assets =
-    "assets" in track && Array.isArray(track.assets) ? track.assets : [];
-  const collaborators =
+  const coverArt = getCoverArtUrl(track.coverArtUrl),
+   assets =
+    "assets" in track && Array.isArray(track.assets) ? track.assets : [],
+   collaborators =
     "collaborators" in track && Array.isArray(track.collaborators)
       ? track.collaborators
-      : [];
-  const masterAsset = assets.find((asset) => asset.assetKind === "master");
-  const isLive = Boolean(track.isPublic);
-  const statusLabel = formatTrackStatusLabel(isLive, track.productionStatus);
+      : [],
+   masterAsset = assets.find((asset) => asset.assetKind === "master"),
+   isLive = Boolean(track.isPublic),
+   statusLabel = formatTrackStatusLabel(isLive, track.productionStatus),
 
-  const handleShare = async () => {
+   handleShare = async () => {
     const publicTrackPath =
       track.regionSlug && track.slug
         ? `/tracks/${track.regionSlug}/${track.slug}`
-        : `/tracks/${track.id}`;
-    const shareUrl =
+        : `/tracks/${track.id}`,
+     shareUrl =
       typeof window === "undefined"
         ? publicTrackPath
-        : `${window.location.origin}${publicTrackPath}`;
-    const outcome = await shareLink({
+        : `${window.location.origin}${publicTrackPath}`,
+     outcome = await shareLink({
       text: `${track.title} by ${track.artistName}`,
       title: track.title,
       url: shareUrl,
@@ -786,9 +786,9 @@ function TrackDetailPage() {
       description: `Track link copied to clipboard: ${shareUrl}`,
       title: "Link copied!",
     });
-  };
+  },
 
-  const handleReleaseNow = async () => {
+   handleReleaseNow = async () => {
     try {
       await updateTrackMutation.mutateAsync({ isPublic: true });
       toast({
@@ -803,9 +803,9 @@ function TrackDetailPage() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleTranscribe = async () => {
+   handleTranscribe = async () => {
     setIsTranscribing(true);
     try {
       const result = await processTrackMutation.mutateAsync();
@@ -830,9 +830,9 @@ function TrackDetailPage() {
     } finally {
       setIsTranscribing(false);
     }
-  };
+  },
 
-  const handlePlay = () => {
+   handlePlay = () => {
     if (!track.playbackUrl) {
       return;
     }
@@ -849,13 +849,13 @@ function TrackDetailPage() {
     };
     setQueue([playerTrack]);
     setCurrentTrack(playerTrack);
-  };
+  },
 
-  const hasScheduledDate = Boolean(track.releaseAt);
-  const isScheduledInFuture =
+   hasScheduledDate = Boolean(track.releaseAt),
+   isScheduledInFuture =
     hasScheduledDate &&
-    new Date(track.releaseAt as string).getTime() > Date.now();
-  const releaseDateLabel = formatReleaseDateLabel(track.releaseAt, isLive);
+    new Date(track.releaseAt as string).getTime() > Date.now(),
+   releaseDateLabel = formatReleaseDateLabel(track.releaseAt, isLive);
 
   return (
     <div className="space-y-6">
@@ -875,7 +875,7 @@ function TrackDetailPage() {
               <p className="text-muted-foreground">{track.genre}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {!isLive ? (
+              {isLive ? null : (
                 <Button
                   disabled={updateTrackMutation.isPending}
                   onClick={handleReleaseNow}
@@ -884,7 +884,7 @@ function TrackDetailPage() {
                   <Rocket className="mr-2 size-4" />
                   Release now
                 </Button>
-              ) : null}
+              )}
               {track.playbackUrl ? (
                 <Button onClick={handlePlay} type="button">
                   <Play className="mr-2 size-4" />

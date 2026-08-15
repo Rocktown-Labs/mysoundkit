@@ -37,11 +37,11 @@ import {
 import type { StripePriceSummary, StripeProductSummary } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
-const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+const app = new OpenAPIHono<AppEnv>(),
+ getEnvValue = (key: string) =>
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
 
-const planEnvKeys: Record<
+ planEnvKeys: Record<
   string,
   { annual: string | null; monthly: string | null }
 > = {
@@ -98,9 +98,9 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
     stripeAnnualPriceId: "",
     stripeMonthlyPriceId: "",
   },
-];
+],
 
-const ensureDefaultPlansSeeded = async () => {
+ ensureDefaultPlansSeeded = async () => {
   if (!isDatabaseConfigured()) {
     return;
   }
@@ -123,15 +123,15 @@ const ensureDefaultPlansSeeded = async () => {
         target: planCatalog.code,
       });
   }
-};
+},
 
-const productIdFromPrice = (price: StripePriceSummary) =>
-  typeof price.product === "string" ? price.product : price.product.id;
+ productIdFromPrice = (price: StripePriceSummary) =>
+  typeof price.product === "string" ? price.product : price.product.id,
 
-const productNameFromPrice = (price: StripePriceSummary) =>
-  typeof price.product === "string" ? "Stripe product" : price.product.name;
+ productNameFromPrice = (price: StripePriceSummary) =>
+  typeof price.product === "string" ? "Stripe product" : price.product.name,
 
-const serializeStripePrice = (price: StripePriceSummary) => ({
+ serializeStripePrice = (price: StripePriceSummary) => ({
   active: price.active,
   currency: price.currency.toUpperCase(),
   id: price.id,
@@ -174,9 +174,9 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
     stripeAnnualPriceId: plan.stripeAnnualPriceId,
     stripeMonthlyPriceId: plan.stripeMonthlyPriceId,
   };
-};
+},
 
-const findProductForPlan = (
+ findProductForPlan = (
   products: StripeProductSummary[],
   plan: typeof planCatalog.$inferSelect
 ) =>
@@ -185,9 +185,9 @@ const findProductForPlan = (
   ) ??
   products.find((product) =>
     product.name.trim().toLowerCase().includes(plan.name.trim().toLowerCase())
-  );
+  ),
 
-const validateStripePriceImport = async ({
+ validateStripePriceImport = async ({
   annualPriceId,
   monthlyPriceId,
 }: {
@@ -214,9 +214,9 @@ const validateStripePriceImport = async ({
   }
 
   return null;
-};
+},
 
-const discardMismatchedPriceIds = async ({
+ discardMismatchedPriceIds = async ({
   annualPriceCents,
   annualPriceId,
   monthlyPriceCents,
@@ -240,9 +240,9 @@ const discardMismatchedPriceIds = async ({
     monthlyPriceId:
       monthlyPrice?.unit_amount === monthlyPriceCents ? monthlyPriceId : null,
   };
-};
+},
 
-const loadPaymentOverview = async () => {
+ loadPaymentOverview = async () => {
   await ensureDefaultPlansSeeded();
 
   if (!isDatabaseConfigured()) {
@@ -261,8 +261,8 @@ const loadPaymentOverview = async () => {
     };
   }
 
-  const db = createDb();
-  const [
+  const db = createDb(),
+   [
     plans,
     [transactionSummary],
     [feeSummary],
@@ -305,10 +305,10 @@ const loadPaymentOverview = async () => {
       .orderBy(desc(transactions.createdAt))
       .limit(12),
     listStripePrices().catch(() => null),
-  ]);
-  const serializedPlans = plans.map(serializePlan);
+  ]),
+   serializedPlans = plans.map(serializePlan),
 
-  const priceList = stripePrices?.data?.map(serializeStripePrice) ?? [];
+   priceList = stripePrices?.data?.map(serializeStripePrice) ?? [];
 
   return {
     configuredCheckoutPlans: serializedPlans.filter(
@@ -372,10 +372,10 @@ app.get("/payments/users", async (c) => {
     );
   }
 
-  const query = c.req.query("q")?.trim() ?? "";
-  const searchTerm = `%${query}%`;
-  const db = createDb();
-  const users = await db
+  const query = c.req.query("q")?.trim() ?? "",
+   searchTerm = `%${query}%`,
+   db = createDb(),
+   users = await db
     .select({
       accountType: userProfiles.accountType,
       banned: user.banned,
@@ -398,9 +398,9 @@ app.get("/payments/users", async (c) => {
         : undefined
     )
     .orderBy(desc(user.createdAt))
-    .limit(100);
-  const userIds = users.map((item) => item.id);
-  const activeSubscriptions = userIds.length
+    .limit(100),
+   userIds = users.map((item) => item.id),
+   activeSubscriptions = userIds.length
     ? await db
         .select({
           plan: subscription.plan,
@@ -414,8 +414,8 @@ app.get("/payments/users", async (c) => {
             inArray(subscription.status, ["active", "trialing"])
           )
         )
-    : [];
-  const premiumByUser = new Map(
+    : [],
+   premiumByUser = new Map(
     activeSubscriptions.map((item) => [item.referenceId, item])
   );
 
@@ -467,15 +467,15 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [transactionSummary] = await db
+    const db = createDb(),
+     [transactionSummary] = await db
       .select({
         amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
         count: sql<number>`count(*)`,
       })
       .from(transactions)
-      .where(eq(transactions.status, "succeeded"));
-    const [feeSummary] = await db
+      .where(eq(transactions.status, "succeeded")),
+     [feeSummary] = await db
       .select({
         amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
       })
@@ -576,9 +576,9 @@ app.openapi(
 
     const body = (await c.req.json().catch(() => ({}))) as {
       planCodes?: string[];
-    };
-    const db = createDb();
-    const plans =
+    },
+     db = createDb(),
+     plans =
       body.planCodes && body.planCodes.length > 0
         ? await db
             .select()
@@ -587,16 +587,16 @@ app.openapi(
         : await db
             .select()
             .from(planCatalog)
-            .where(eq(planCatalog.isActive, true));
+            .where(eq(planCatalog.isActive, true)),
 
-    const productList = await listStripeProducts().catch(() => null);
-    const products = productList?.data ?? [];
-    const results = [];
+     productList = await listStripeProducts().catch(() => null),
+     products = productList?.data ?? [],
+     results = [];
 
     for (const plan of plans) {
-      let monthlyPriceId = plan.stripeMonthlyPriceId;
-      let annualPriceId = plan.stripeAnnualPriceId;
-      let productId = null;
+      let monthlyPriceId = plan.stripeMonthlyPriceId,
+       annualPriceId = plan.stripeAnnualPriceId,
+       productId = null;
 
       try {
         ({ annualPriceId, monthlyPriceId } = await discardMismatchedPriceIds({
@@ -606,8 +606,8 @@ app.openapi(
           monthlyPriceId,
         }));
 
-        const existingProduct = findProductForPlan(products, plan);
-        const product =
+        const existingProduct = findProductForPlan(products, plan),
+         product =
           existingProduct ??
           (await createStripeProduct({ code: plan.code, name: plan.name }));
 
@@ -706,11 +706,11 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const monthlyPriceId = body.monthlyPriceId?.trim() || null;
-    const annualPriceId = body.annualPriceId?.trim() || null;
+    const body = c.req.valid("json"),
+     monthlyPriceId = body.monthlyPriceId?.trim() || null,
+     annualPriceId = body.annualPriceId?.trim() || null,
 
-    const validationMessage = await validateStripePriceImport({
+     validationMessage = await validateStripePriceImport({
       annualPriceId,
       monthlyPriceId,
     });
@@ -948,12 +948,12 @@ app.post("/payments/grant-premium", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     planCode?: string;
     userIds?: string[];
-  };
-  const premiumPlanCodes = [
+  },
+   premiumPlanCodes = [
     "soundkit_premium_artist",
     "soundkit_premium_fan",
-  ] as const;
-  const planCode = body.planCode?.trim() || "soundkit_premium_artist";
+  ] as const,
+   planCode = body.planCode?.trim() || "soundkit_premium_artist";
   if (
     !premiumPlanCodes.includes(planCode as (typeof premiumPlanCodes)[number])
   ) {
@@ -971,8 +971,8 @@ app.post("/payments/grant-premium", async (c) => {
   }
 
   await ensureDefaultPlansSeeded();
-  const db = createDb();
-  const targets = await db
+  const db = createDb(),
+   targets = await db
     .select({
       accountType: userProfiles.accountType,
       email: user.email,
@@ -993,9 +993,9 @@ app.post("/payments/grant-premium", async (c) => {
     .select({ entitlements: planCatalog.entitlements, name: planCatalog.name })
     .from(planCatalog)
     .where(eq(planCatalog.code, planCode))
-    .limit(1);
-  const now = new Date();
-  const periodEnd = new Date(now);
+    .limit(1),
+   now = new Date(),
+   periodEnd = new Date(now);
   periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
   for (const target of targets) {
@@ -1017,8 +1017,8 @@ app.post("/payments/grant-premium", async (c) => {
           eq(subscription.plan, planCode)
         )
       )
-      .limit(1);
-    const subscriptionId = existing?.id ?? crypto.randomUUID();
+      .limit(1),
+     subscriptionId = existing?.id ?? crypto.randomUUID();
     await (existing
       ? db
           .update(subscription)

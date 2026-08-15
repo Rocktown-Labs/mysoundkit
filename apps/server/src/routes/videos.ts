@@ -20,8 +20,8 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { resolveListeningAccess } from "@/lib/content-access";
 import { indexSearchEntity } from "@/lib/audio-processing";
+import { resolveListeningAccess } from "@/lib/content-access";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -30,6 +30,7 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { createTrackPlaybackSession } from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
   regionSlugFromUser,
@@ -49,9 +50,6 @@ import {
   videoSummarySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
-import {
-  createTrackPlaybackSession,
-} from "@/lib/playback-qualification";
 import { videoPlaybackSourceType } from "@/lib/video-playback";
 import { uniqueSlug } from "@/lib/workspace";
 
@@ -64,10 +62,13 @@ app.post("/:videoId/pre-save", async (c) => {
   }
   const videoId = c.req.param("videoId");
   if (isDatabaseConfigured()) {
-    await createDb().insert(videoPreSaves).values({
-      userId: user.id,
-      videoId,
-    }).onConflictDoNothing();
+    await createDb()
+      .insert(videoPreSaves)
+      .values({
+        userId: user.id,
+        videoId,
+      })
+      .onConflictDoNothing();
   }
   return c.json({ isPreSaved: true, videoId }, 200);
 });
@@ -103,9 +104,9 @@ const hasPurchasedTrack = async ({
     .limit(1);
 
   return Boolean(projectPurchase);
-};
+},
 
-const getMuxClient = () => {
+ getMuxClient = () => {
   if (!env.MUX_TOKEN_ID || !env.MUX_TOKEN_SECRET) {
     return null;
   }
@@ -114,16 +115,16 @@ const getMuxClient = () => {
     tokenId: env.MUX_TOKEN_ID,
     tokenSecret: env.MUX_TOKEN_SECRET,
   });
-};
+},
 
-const videoViewCount = sql<number>`(
+ videoViewCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.sourceType} = ${videoPlaybackSourceType}
     and ${playbackSessions.sourceId} = ${videos.id}
-)`;
+)`,
 
-const publicVideoOrderBy = (sort?: string) => {
+ publicVideoOrderBy = (sort?: string) => {
   if (sort === "title-asc") {
     return asc(videos.title);
   }
@@ -137,9 +138,9 @@ const publicVideoOrderBy = (sort?: string) => {
   }
 
   return desc(videoViewCount);
-};
+},
 
-const getSampleVideoFallback = (
+ getSampleVideoFallback = (
   videoId?: string
 ): (typeof sampleVideos)[number] => {
   const fallback =
@@ -150,19 +151,19 @@ const getSampleVideoFallback = (
   }
 
   return fallback;
-};
+},
 
-const formatVideoDuration = (durationMs?: number | null) => {
+ formatVideoDuration = (durationMs?: number | null) => {
   if (!durationMs) {
     return "0:00";
   }
 
-  const minutes = Math.floor(durationMs / 60_000);
-  const seconds = Math.round((durationMs % 60_000) / 1000);
+  const minutes = Math.floor(durationMs / 60_000),
+   seconds = Math.round((durationMs % 60_000) / 1000);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
+},
 
-const resolveVideoGenreId = async (
+ resolveVideoGenreId = async (
   db: ReturnType<typeof createDb>,
   genre?: string
 ) => {
@@ -170,8 +171,8 @@ const resolveVideoGenreId = async (
     return null;
   }
 
-  const genreSlug = canonicalGenreSlug(genre);
-  const [genreRow] = await db
+  const genreSlug = canonicalGenreSlug(genre),
+   [genreRow] = await db
     .select({ id: genres.id })
     .from(genres)
     .where(eq(genres.slug, genreSlug))
@@ -267,10 +268,10 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const genreSlug = genreSlugFromExploreFilter(query.genre);
-    const state = stateFromExploreRegion(query);
-    const publicVideoConditions = [
+    const db = createDb(),
+     genreSlug = genreSlugFromExploreFilter(query.genre),
+     state = stateFromExploreRegion(query),
+     publicVideoConditions = [
       eq(videos.isPublic, true),
       sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`,
     ];
@@ -292,8 +293,8 @@ app.openapi(
       );
     }
 
-    const order = publicVideoOrderBy(query.sort);
-    const rows = await db
+    const order = publicVideoOrderBy(query.sort),
+     rows = await db
       .select({
         displayName: userProfiles.displayName,
         name: authUser.name,
@@ -350,9 +351,9 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const body = c.req.valid("json"),
+     session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
@@ -385,13 +386,13 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const videoId = crypto.randomUUID();
-    const genreId = await resolveVideoGenreId(db, body.genre);
-    const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null;
-    const publishedAt = releaseAt ?? (body.isPublic ? new Date() : null);
+    const db = createDb(),
+     videoId = crypto.randomUUID(),
+     genreId = await resolveVideoGenreId(db, body.genre),
+     releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
+     publishedAt = releaseAt ?? (body.isPublic ? new Date() : null),
 
-    const [video] = await db
+     [video] = await db
       .insert(videos)
       .values({
         description: body.description,
@@ -480,14 +481,14 @@ app.openapi(
       );
     }
 
-    const session = c.get("session");
-    const body = c.req.valid("json");
-    const db = createDb();
-    const videoId = crypto.randomUUID();
-    const mux = getMuxClient();
-    const genreId = await resolveVideoGenreId(db, body.genre);
-    const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null;
-    const publishedAt = releaseAt ?? (body.isPublic ? new Date() : null);
+    const session = c.get("session"),
+     body = c.req.valid("json"),
+     db = createDb(),
+     videoId = crypto.randomUUID(),
+     mux = getMuxClient(),
+     genreId = await resolveVideoGenreId(db, body.genre),
+     releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
+     publishedAt = releaseAt ?? (body.isPublic ? new Date() : null);
 
     if (!mux) {
       if (isDatabaseConfigured()) {
@@ -524,8 +525,8 @@ app.openapi(
       );
     }
 
-    const passthrough = videoId;
-    const upload = await mux.video.uploads.create({
+    const passthrough = videoId,
+     upload = await mux.video.uploads.create({
       cors_origin: env.CORS_ORIGIN,
       new_asset_settings: {
         meta: {
@@ -620,8 +621,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [video] = await db
+    const db = createDb(),
+     [video] = await db
       .select({
         genreName: genres.name,
         state: userProfiles.state,
@@ -678,8 +679,8 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         avatarUrl: userProfiles.avatarUrl,
         body: videoComments.body,
@@ -734,8 +735,8 @@ app.openapi(
     tags: ["Videos"],
   }),
   async (c) => {
-    const session = c.get("session");
-    const currentUser = c.get("user");
+    const session = c.get("session"),
+     currentUser = c.get("user");
 
     if (!isAuthenticatedSession(session) || !isAuthenticatedUser(currentUser)) {
       return c.json(
@@ -744,8 +745,8 @@ app.openapi(
       );
     }
 
-    const { videoId } = c.req.valid("param");
-    const { body } = c.req.valid("json");
+    const { videoId } = c.req.valid("param"),
+     { body } = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -761,8 +762,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const commentId = crypto.randomUUID();
+    const db = createDb(),
+     commentId = crypto.randomUUID();
     await db.insert(videoComments).values({
       body,
       id: commentId,
@@ -833,8 +834,8 @@ app.openapi(
       return c.json({ message: "Video deleted." }, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [video] = await db
+    const db = createDb(),
+     [video] = await db
       .select()
       .from(videos)
       .where(eq(videos.id, videoId))
@@ -915,10 +916,10 @@ app.openapi(
       );
     }
 
-    const { videoId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [video] = await db
+    const { videoId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     db = createDb(),
+     [video] = await db
       .select({
         isPublic: videos.isPublic,
         releaseAt: videos.releaseAt,
@@ -951,18 +952,18 @@ app.openapi(
       })
       .from(tracks)
       .where(eq(tracks.id, video.sourceTrackId))
-      .limit(1);
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+      .limit(1),
+     session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const hasPurchase = await hasPurchasedTrack({
+    }),
+     hasPurchase = await hasPurchasedTrack({
       db,
       trackId: video.sourceTrackId,
       userId: user.id,
-    });
-    const access = trackPolicy
+    }),
+     access = trackPolicy
       ? resolveListeningAccess({
           hasPurchase,
           isPremium: entitlements.isPremium,

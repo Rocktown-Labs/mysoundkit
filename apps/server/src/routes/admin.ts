@@ -21,13 +21,13 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { isAdminUser } from "@/lib/admin";
 import {
-  enqueueTrackDurationBackfills,
-  loadTrackDurationBackfillStatus,
-} from "@/lib/media-metadata";
-import {
   backfillSearchEmbeddings,
   loadEmbeddingStatus,
 } from "@/lib/audio-processing";
+import {
+  enqueueTrackDurationBackfills,
+  loadTrackDurationBackfillStatus,
+} from "@/lib/media-metadata";
 import {
   loadPlatformSettings,
   platformDiscoverySettingsKey,
@@ -49,7 +49,10 @@ const app = new OpenAPIHono<AppEnv>();
 
 app.post("/embeddings/backfill", async (c) => {
   if (!isAdminUser(c.get("user"))) {
-    return c.json({ message: "Admin access is required." }, HttpStatusCodes.FORBIDDEN);
+    return c.json(
+      { message: "Admin access is required." },
+      HttpStatusCodes.FORBIDDEN
+    );
   }
   const limit = Number(c.req.query("limit") ?? 100);
   return c.json(
@@ -60,7 +63,10 @@ app.post("/embeddings/backfill", async (c) => {
 
 app.get("/embeddings/status", async (c) => {
   if (!isAdminUser(c.get("user"))) {
-    return c.json({ message: "Admin access is required." }, HttpStatusCodes.FORBIDDEN);
+    return c.json(
+      { message: "Admin access is required." },
+      HttpStatusCodes.FORBIDDEN
+    );
   }
   return c.json(await loadEmbeddingStatus(), HttpStatusCodes.OK);
 });
@@ -94,11 +100,11 @@ const emptyOverview = () => ({
     fans: 0,
     users: 0,
   },
-});
+}),
 
-const loadPeople = async () => {
-  const db = createDb();
-  const [[users], [artists], [fans], [admins], [bannedUsers]] =
+ loadPeople = async () => {
+  const db = createDb(),
+   [[users], [artists], [fans], [admins], [bannedUsers]] =
     await Promise.all([
       db.select({ value: count() }).from(user),
       db.select({ value: count() }).from(artistProfiles),
@@ -114,11 +120,11 @@ const loadPeople = async () => {
     fans: fans?.value ?? 0,
     users: users?.value ?? 0,
   };
-};
+},
 
-const loadContent = async () => {
-  const db = createDb();
-  const [
+ loadContent = async () => {
+  const db = createDb(),
+   [
     [trackCount],
     [projectCount],
     [videoCount],
@@ -142,11 +148,11 @@ const loadContent = async () => {
     tracks: trackCount?.value ?? 0,
     videos: videoCount?.value ?? 0,
   };
-};
+},
 
-const loadOperations = async () => {
-  const db = createDb();
-  const [
+ loadOperations = async () => {
+  const db = createDb(),
+   [
     [publishedTracks],
     [releasedProjects],
     [readyVideos],
@@ -192,11 +198,11 @@ const loadOperations = async () => {
     scheduledListeningParties: scheduledListeningParties?.value ?? 0,
     tracksMissingDuration: tracksMissingDuration?.value ?? 0,
   };
-};
+},
 
-const loadCommerce = async () => {
-  const db = createDb();
-  const [[transactionSummary], [feeSummary]] = await Promise.all([
+ loadCommerce = async () => {
+  const db = createDb(),
+   [[transactionSummary], [feeSummary]] = await Promise.all([
     db
       .select({
         amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
@@ -216,9 +222,9 @@ const loadCommerce = async () => {
     platformFeeCents: Number(feeSummary?.amountCents ?? 0),
     successfulTransactions: Number(transactionSummary?.count ?? 0),
   };
-};
+},
 
-const overviewSectionTimeoutMs = 8_000;
+ overviewSectionTimeoutMs = 8000;
 
 const loadOverviewSection = async <T>(
   task: Promise<T>,
@@ -243,11 +249,11 @@ const loadOverviewSection = async <T>(
       clearTimeout(timeoutId);
     }
   }
-};
+},
 
-const loadOverview = async () => {
-  const empty = emptyOverview();
-  const [people, content, operations, commerce] = await Promise.all([
+ loadOverview = async () => {
+  const empty = emptyOverview(),
+   [people, content, operations, commerce] = await Promise.all([
     loadOverviewSection(loadPeople(), empty.people, "people"),
     loadOverviewSection(loadContent(), empty.content, "content"),
     loadOverviewSection(loadOperations(), empty.operations, "operations"),
@@ -334,8 +340,8 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const result = await enqueueTrackDurationBackfills({
+    const body = c.req.valid("json"),
+     result = await enqueueTrackDurationBackfills({
       limit: body.limit,
       queue: c.env.TRACK_DURATION_BACKFILL_QUEUE,
       trackIds: body.trackIds,
@@ -441,8 +447,8 @@ app.openapi(
       );
     }
 
-    const body = updatePlatformSettingsBodySchema.parse(await c.req.json());
-    const nextSettings = platformSettingsSchema.parse({
+    const body = updatePlatformSettingsBodySchema.parse(await c.req.json()),
+     nextSettings = platformSettingsSchema.parse({
       ...(await loadPlatformSettings()),
       ...body,
     });

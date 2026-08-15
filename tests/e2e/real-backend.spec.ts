@@ -53,24 +53,24 @@ const requiredEnvNames = [
   "SOUNDKIT_E2E_ARTIST_PASSWORD",
   "SOUNDKIT_E2E_FAN_EMAIL",
   "SOUNDKIT_E2E_FAN_PASSWORD",
-] as const;
+] as const,
 
-const realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true";
-const missingEnv = requiredEnvNames.filter((name) => !process.env[name]);
-const apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/, "") ?? "";
-const searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR";
-const realE2eEnv = {
+ realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true",
+ missingEnv = requiredEnvNames.filter((name) => !process.env[name]),
+ apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/, "") ?? "",
+ searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR",
+ realE2eEnv = {
   artistEmail: process.env.SOUNDKIT_E2E_ARTIST_EMAIL ?? "",
   artistPassword: process.env.SOUNDKIT_E2E_ARTIST_PASSWORD ?? "",
   fanEmail: process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "",
   fanPassword: process.env.SOUNDKIT_E2E_FAN_PASSWORD ?? "",
   webBaseUrl: process.env.PLAYWRIGHT_BASE_URL ?? "",
-};
+},
 
-const uniqueName = (prefix: string) =>
-  `${prefix} ${new Date().toISOString().replaceAll(/[:.]/g, "-")}`;
+ uniqueName = (prefix: string) =>
+  `${prefix} ${new Date().toISOString().replaceAll(/[:.]/g, "-")}`,
 
-const apiJson = async <T>({
+ apiJson = async <T>({
   data,
   method = "GET",
   path,
@@ -85,28 +85,28 @@ const apiJson = async <T>({
     data,
     failOnStatusCode: false,
     method,
-  });
-  const text = await response.text();
+  }),
+   text = await response.text();
 
   return {
     body: text ? (JSON.parse(text) as T) : ({} as T),
     status: response.status(),
   };
-};
+},
 
-const expectOk = <T>(response: JsonResponse<T>, label: string) => {
+ expectOk = <T>(response: JsonResponse<T>, label: string) => {
   expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
     200
   );
-};
+},
 
-const expectCreated = <T>(response: JsonResponse<T>, label: string) => {
+ expectCreated = <T>(response: JsonResponse<T>, label: string) => {
   expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
     201
   );
-};
+},
 
-const login = async ({
+ login = async ({
   email,
   page,
   password,
@@ -157,8 +157,8 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(artistMe.body.user.accountType).toBe("artist");
     expect(artistMe.body.user.onboardingCompletedAt).toBeTruthy();
 
-    const trackTitle = uniqueName("E2E Arkansas Track");
-    const track = await apiJson<TrackSummary>({
+    const trackTitle = uniqueName("E2E Arkansas Track"),
+     track = await apiJson<TrackSummary>({
       data: {
         assetIds: [],
         catalogItemType: "single",
@@ -195,8 +195,8 @@ test.describe("real backend artist and fan smoke flow", () => {
     expectCreated(track, "track create");
     expect(track.body.title).toBe(trackTitle);
 
-    const openVerseTitle = `${trackTitle} Open Verse`;
-    const openVerse = await apiJson<{ id: string; title: string }>({
+    const openVerseTitle = `${trackTitle} Open Verse`,
+     openVerse = await apiJson<{ id: string; title: string }>({
       data: {
         description: "Real E2E open verse listing.",
         maxSubmissions: 10,
@@ -209,8 +209,8 @@ test.describe("real backend artist and fan smoke flow", () => {
     });
     expectCreated(openVerse, "open verse create");
 
-    const projectTitle = uniqueName("E2E Arkansas EP");
-    const project = await apiJson<ProjectSummary>({
+    const projectTitle = uniqueName("E2E Arkansas EP"),
+     project = await apiJson<ProjectSummary>({
       data: {
         assetIds: [],
         collaboratorNames: [],

@@ -9,8 +9,8 @@ export function LandingMobileNav() {
 
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ["home", "features", "pricing"];
-      const scrollPosition = window.scrollY + 100;
+      const sections = ["home", "features", "pricing"],
+       scrollPosition = window.scrollY + 100;
 
       for (const section of sections) {
         const element =
@@ -18,8 +18,8 @@ export function LandingMobileNav() {
             ? document.body
             : document.querySelector(`#${section}`);
         if (element instanceof HTMLElement) {
-          const offsetTop = section === "home" ? 0 : element.offsetTop;
-          const offsetBottom =
+          const offsetTop = section === "home" ? 0 : element.offsetTop,
+           offsetBottom =
             offsetTop + (section === "home" ? 500 : element.offsetHeight);
 
           if (scrollPosition >= offsetTop && scrollPosition < offsetBottom) {
@@ -44,9 +44,9 @@ export function LandingMobileNav() {
         window.scrollTo({ behavior: "smooth", top: offsetTop });
       }
     }
-  };
+  },
 
-  const navItems = [
+   navItems = [
     { icon: Home, id: "home", isScroll: true, label: "Home" },
     { icon: Zap, id: "features", isScroll: true, label: "Features" },
     {
@@ -63,8 +63,8 @@ export function LandingMobileNav() {
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border">
       <div className="flex items-center justify-around h-16 px-2">
         {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeSection === item.id;
+          const Icon = item.icon,
+           isActive = activeSection === item.id;
 
           if (!item.isScroll && "to" in item) {
             return (

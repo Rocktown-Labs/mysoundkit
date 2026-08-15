@@ -41,9 +41,9 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const toRecentTrack = async ({
+ toRecentTrack = async ({
   lastPlayedAt,
   playCount,
   track,
@@ -66,9 +66,9 @@ const toRecentTrack = async ({
     timesPlayed: playCount,
     title: summary.title,
   };
-};
+},
 
-const toSavedTrack = async ({
+ toSavedTrack = async ({
   savedAt,
   track,
 }: {
@@ -89,30 +89,30 @@ const toSavedTrack = async ({
     slug: summary.slug,
     title: summary.title,
   };
-};
+},
 
-const saveTrackStateSchema = z.object({
+ saveTrackStateSchema = z.object({
   saved: z.boolean(),
   trackId: z.string(),
-});
+}),
 
-const downloadableAssetKinds = [
+ downloadableAssetKinds = [
   "master",
   "tagged_mp3",
   "untagged_wav",
   "variant_audio",
   "instrumental",
-] as const;
+] as const,
 
-const getPurchasedCatalogRow = ({
+ getPurchasedCatalogRow = ({
   purchaseId,
   userId,
 }: {
   purchaseId?: string;
   userId: string;
 }) => {
-  const db = createDb();
-  const query = db
+  const db = createDb(),
+   query = db
     .select({
       id: purchases.id,
       licenseOptionId: orderItems.licenseOptionId,
@@ -133,9 +133,9 @@ const getPurchasedCatalogRow = ({
     );
 
   return query;
-};
+},
 
-const getPurchaseDownloads = async ({
+ getPurchaseDownloads = async ({
   trackId,
 }: {
   trackId: string | null;
@@ -197,8 +197,8 @@ app.openapi(
       return c.json(sampleLibraryOverview, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [playlistRows, purchaseRows, recentRows, savedRows, watchedRows] =
+    const db = createDb(),
+     [playlistRows, purchaseRows, recentRows, savedRows, watchedRows] =
       await Promise.all([
         db
           .select({ value: count() })
@@ -265,8 +265,8 @@ app.openapi(
       return c.json(samplePlaylists, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         description: playlists.description,
         id: playlists.id,
@@ -276,9 +276,9 @@ app.openapi(
       .from(playlists)
       .where(eq(playlists.ownerUserId, user.id))
       .orderBy(desc(playlists.updatedAt))
-      .limit(100);
+      .limit(100),
 
-    const items = await Promise.all(
+     items = await Promise.all(
       rows.map(async (playlist) => {
         const [trackCountRow] = await db
           .select({ value: count() })
@@ -333,8 +333,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         lastPlayedAt: recentPlays.lastPlayedAt,
         playCount: recentPlays.playCount,
@@ -344,9 +344,9 @@ app.openapi(
       .innerJoin(tracks, eq(tracks.id, recentPlays.trackId))
       .where(eq(recentPlays.userId, user.id))
       .orderBy(desc(recentPlays.lastPlayedAt))
-      .limit(100);
+      .limit(100),
 
-    const recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
+     recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
     for (const row of rows) {
       const existing = recentRowsByTrackId.get(row.track.id);
       if (!existing) {
@@ -366,9 +366,9 @@ app.openapi(
 
     const dedupedRows = [...recentRowsByTrackId.values()].toSorted(
       (a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime()
-    );
+    ),
 
-    const items = await Promise.all(
+     items = await Promise.all(
       dedupedRows.map((row) =>
         toRecentTrack({
           lastPlayedAt: row.lastPlayedAt,
@@ -417,8 +417,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         savedAt: librarySaves.createdAt,
         track: tracks,
@@ -427,9 +427,9 @@ app.openapi(
       .innerJoin(tracks, eq(tracks.id, librarySaves.trackId))
       .where(eq(librarySaves.userId, user.id))
       .orderBy(desc(librarySaves.createdAt))
-      .limit(100);
+      .limit(100),
 
-    const items = await Promise.all(
+     items = await Promise.all(
       rows.map((row) =>
         toSavedTrack({ savedAt: row.savedAt, track: row.track })
       )
@@ -476,8 +476,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         session: playbackSessions,
         track: tracks,
@@ -491,14 +491,14 @@ app.openapi(
         )
       )
       .orderBy(desc(playbackSessions.startedAt))
-      .limit(100);
+      .limit(100),
 
-    const watchedRowsBySource = new Map<string, (typeof rows)[number]>();
+     watchedRowsBySource = new Map<string, (typeof rows)[number]>();
     for (const row of rows) {
       const key = `${row.session.sourceType}:${
         row.session.sourceId ?? row.track.id
-      }`;
-      const existing = watchedRowsBySource.get(key);
+      }`,
+       existing = watchedRowsBySource.get(key);
       if (!existing || row.session.startedAt > existing.session.startedAt) {
         watchedRowsBySource.set(key, row);
       }
@@ -506,9 +506,9 @@ app.openapi(
 
     const dedupedRows = [...watchedRowsBySource.values()].toSorted(
       (a, b) => b.session.startedAt.getTime() - a.session.startedAt.getTime()
-    );
+    ),
 
-    const items = await Promise.all(
+     items = await Promise.all(
       dedupedRows.map(async (row) => {
         const summary = await buildTrackSummary(row.track);
         return {
@@ -553,9 +553,9 @@ app.openapi(
       return c.json(samplePurchasedCatalogItems, HttpStatusCodes.OK);
     }
 
-    const rows = await getPurchasedCatalogRow({ userId: user.id });
+    const rows = await getPurchasedCatalogRow({ userId: user.id }),
 
-    const items = await Promise.all(
+     items = await Promise.all(
       rows.map(async (row) => {
         const [download] = await getPurchaseDownloads({
           trackId: row.trackId,
@@ -650,9 +650,9 @@ app.openapi(
 
     const downloads = await getPurchaseDownloads({
       trackId: row.trackId,
-    });
-    const [download] = downloads;
-    const purchase = toPurchasedCatalogItem({
+    }),
+     [download] = downloads,
+     purchase = toPurchasedCatalogItem({
       ...row,
       projectId: row.purchaseProjectId ?? row.orderProjectId,
       trackDownloadUrl: download?.downloadUrl ?? null,
@@ -698,8 +698,8 @@ app.openapi(
       return c.json({ saved: true, trackId }, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const existing = await db
+    const db = createDb(),
+     existing = await db
       .select()
       .from(librarySaves)
       .where(
@@ -813,8 +813,8 @@ app.openapi(
         HttpStatusCodes.UNAUTHORIZED
       );
     }
-    const body = c.req.valid("json");
-    const id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const body = c.req.valid("json"),
+     id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -930,8 +930,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [playlistRow] = await db
+    const db = createDb(),
+     [playlistRow] = await db
       .select()
       .from(playlists)
       .where(eq(playlists.id, id))
@@ -951,9 +951,9 @@ app.openapi(
       .from(playlistTracks)
       .innerJoin(tracks, eq(tracks.id, playlistTracks.trackId))
       .where(eq(playlistTracks.playlistId, id))
-      .orderBy(desc(playlistTracks.createdAt));
+      .orderBy(desc(playlistTracks.createdAt)),
 
-    const trackItems = await Promise.all(
+     trackItems = await Promise.all(
       playlistTrackRows.map(async (row) => {
         const savedTrack = await toSavedTrack({
           savedAt: row.track.createdAt,
@@ -1018,8 +1018,8 @@ app.openapi(
     tags: ["Library"],
   }),
   async (c) => {
-    const { id } = c.req.valid("param");
-    const { trackId } = c.req.valid("json");
+    const { id } = c.req.valid("param"),
+     { trackId } = c.req.valid("json");
 
     if (isDatabaseConfigured()) {
       const db = createDb();

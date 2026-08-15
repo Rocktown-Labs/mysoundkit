@@ -33,14 +33,14 @@ export function ImageCropperDialog({
   open,
   title,
 }: ImageCropperDialogProps) {
-  const [zoom, setZoom] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [isCropping, setIsCropping] = useState(false);
+  const [zoom, setZoom] = useState(1),
+   [position, setPosition] = useState({ x: 0, y: 0 }),
+   [isDragging, setIsDragging] = useState(false),
+   [dragStart, setDragStart] = useState({ x: 0, y: 0 }),
+   [isCropping, setIsCropping] = useState(false),
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+   containerRef = useRef<HTMLDivElement>(null),
+   imageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -53,9 +53,9 @@ export function ImageCropperDialog({
     e.preventDefault();
     setIsDragging(true);
     setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  };
+  },
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+   handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) {
       return;
     }
@@ -63,29 +63,29 @@ export function ImageCropperDialog({
       x: e.clientX - dragStart.x,
       y: e.clientY - dragStart.y,
     });
-  };
+  },
 
-  const handleMouseUp = () => {
+   handleMouseUp = () => {
     setIsDragging(false);
-  };
+  },
 
-  const handleReset = () => {
+   handleReset = () => {
     setZoom(1);
     setPosition({ x: 0, y: 0 });
-  };
+  },
 
-  const confirmCrop = async () => {
+   confirmCrop = async () => {
     if (!file || !objectUrl || !imageRef.current) {
       return;
     }
 
     setIsCropping(true);
     try {
-      const img = imageRef.current;
-      const outputWidth = aspectRatio === 1 ? 800 : 1600;
-      const outputHeight = Math.round(outputWidth / aspectRatio);
+      const img = imageRef.current,
+       outputWidth = aspectRatio === 1 ? 800 : 1600,
+       outputHeight = Math.round(outputWidth / aspectRatio),
 
-      const canvas = document.createElement("canvas");
+       canvas = document.createElement("canvas");
       canvas.width = outputWidth;
       canvas.height = outputHeight;
       const ctx = canvas.getContext("2d");
@@ -94,13 +94,13 @@ export function ImageCropperDialog({
         ctx.fillStyle = "#000000";
         ctx.fillRect(0, 0, outputWidth, outputHeight);
 
-        const scale = zoom;
-        const drawWidth = outputWidth * scale;
-        const drawHeight =
-          (outputWidth / (img.naturalWidth / img.naturalHeight)) * scale;
+        const scale = zoom,
+         drawWidth = outputWidth * scale,
+         drawHeight =
+          (outputWidth / (img.naturalWidth / img.naturalHeight)) * scale,
 
-        const offsetX = (outputWidth - drawWidth) / 2 + position.x * 2;
-        const offsetY = (outputHeight - drawHeight) / 2 + position.y * 2;
+         offsetX = (outputWidth - drawWidth) / 2 + position.x * 2,
+         offsetY = (outputHeight - drawHeight) / 2 + position.y * 2;
 
         ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
 
@@ -109,8 +109,8 @@ export function ImageCropperDialog({
         );
 
         if (blob) {
-          const croppedFile = new File([blob], file.name, { type: blob.type });
-          const previewUrl = URL.createObjectURL(croppedFile);
+          const croppedFile = new File([blob], file.name, { type: blob.type }),
+           previewUrl = URL.createObjectURL(croppedFile);
           await onCropped(croppedFile, previewUrl);
         }
       }

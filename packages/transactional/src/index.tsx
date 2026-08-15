@@ -16,13 +16,13 @@ import {
 } from "@react-email/components";
 import { render } from "@react-email/render";
 
-const brandPurple = "#A798FF";
-const deepPurple = "#7C5CFF";
-const surfaceBlack = "#050509";
-const panelBlack = "#0B0B12";
-const mutedText = "#B8B4C7";
-const white = "#FFFFFF";
-const noLinks: NonNullable<TransactionalNotificationEmailProps["links"]> = [];
+const brandPurple = "#A798FF",
+ deepPurple = "#7C5CFF",
+ surfaceBlack = "#050509",
+ panelBlack = "#0B0B12",
+ mutedText = "#B8B4C7",
+ white = "#FFFFFF",
+ noLinks: NonNullable<TransactionalNotificationEmailProps["links"]> = [];
 
 export interface TrackLifecycleEmailProps {
   actionUrl: string;
@@ -308,12 +308,12 @@ export async function renderTrackLifecycleEmail(
   const previewText =
     options.eventType === "track_processing_ready"
       ? `${options.trackTitle} has new details ready to review.`
-      : `${options.trackTitle} is ready in your SoundKit dashboard.`;
-  const element = (
+      : `${options.trackTitle} is ready in your SoundKit dashboard.`,
+   element = (
     <TrackLifecycleEmail {...options} previewText={previewText} />
-  );
+  ),
 
-  const [html, text] = await Promise.all([
+   [html, text] = await Promise.all([
     render(element),
     render(element, { plainText: true }),
   ]);
@@ -328,9 +328,9 @@ export interface RenderTransactionalNotificationEmailOptions extends Transaction
 export async function renderTransactionalNotificationEmail(
   options: RenderTransactionalNotificationEmailOptions
 ) {
-  const element = <TransactionalNotificationEmail {...options} />;
+  const element = <TransactionalNotificationEmail {...options} />,
 
-  const [html, text] = await Promise.all([
+   [html, text] = await Promise.all([
     render(element),
     render(element, { plainText: true }),
   ]);

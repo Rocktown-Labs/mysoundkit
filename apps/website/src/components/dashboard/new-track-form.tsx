@@ -30,7 +30,6 @@ import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
-import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import {
   Accordion,
@@ -79,6 +78,7 @@ import {
   rpcJson,
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
+import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { authClient } from "@/lib/auth-client";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
 import { readAudioDurationMs } from "@/lib/media-duration";
@@ -103,13 +103,13 @@ const SUPPORTED_GENRES = [
   "R&B/Soul",
   "Rock",
   "Spoken Word",
-] as const;
+] as const,
 
-const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
+ trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
 
-const SINGLE_PRICE_USD = 1.29;
+ SINGLE_PRICE_USD = 1.29,
 
-const exclusiveUntilForApi = (
+ exclusiveUntilForApi = (
   value: string | undefined,
   preserveEmpty = false
 ) => {
@@ -118,9 +118,9 @@ const exclusiveUntilForApi = (
   }
 
   return new Date(value).toISOString();
-};
+},
 
-const exclusiveUntilForInput = (value: unknown) => {
+ exclusiveUntilForInput = (value: unknown) => {
   if (typeof value !== "string" || !value) {
     return "";
   }
@@ -132,18 +132,18 @@ const exclusiveUntilForInput = (value: unknown) => {
 
   const pad = (part: number) => part.toString().padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+},
 
-const creditRoleSchema = z.enum(["songwriter", "producer"]);
+ creditRoleSchema = z.enum(["songwriter", "producer"]),
 
-const creditEntrySchema = z.object({
+ creditEntrySchema = z.object({
   displayName: z.string().min(1),
   inviteEmail: z.string().email().optional(),
   role: creditRoleSchema,
   userId: z.string().optional(),
-});
+}),
 
-const trackFormSchema = z
+ trackFormSchema = z
   .object({
     coverObjectKey: z.string().optional(),
     credits: z.array(creditEntrySchema).default([]),
@@ -204,14 +204,14 @@ const isGenreOption = (value: unknown): value is GenreOption =>
     typeof value === "object" &&
     "name" in value &&
     typeof value.name === "string"
-  );
+  ),
 
-const mapStatusToRelease = (
+ mapStatusToRelease = (
   status: TrackFormValues["status"],
   releaseAt?: string
 ) => {
-  const hasScheduledDate = Boolean(releaseAt && releaseAt.trim().length > 0);
-  const releaseStrategy = hasScheduledDate
+  const hasScheduledDate = Boolean(releaseAt && releaseAt.trim().length > 0),
+   releaseStrategy = hasScheduledDate
     ? ("scheduled" as const)
     : ("publish_when_ready" as const);
 
@@ -237,9 +237,9 @@ const mapStatusToRelease = (
     productionStatus: "demo" as const,
     releaseStrategy: "private" as const,
   };
-};
+},
 
-const defaultTrackFormValues: TrackFormValues = {
+ defaultTrackFormValues: TrackFormValues = {
   coverObjectKey: "",
   credits: [],
   description: "",
@@ -290,31 +290,31 @@ export function NewTrackForm({
   initialTrack,
   trackId,
 }: NewTrackFormProps = {}) {
-  const posthog = usePostHog();
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const genresQuery = useGenresQuery();
-  const genreRows = Array.isArray(genresQuery.data)
+  const posthog = usePostHog(),
+   queryClient = useQueryClient(),
+   router = useRouter(),
+   genresQuery = useGenresQuery(),
+   genreRows = Array.isArray(genresQuery.data)
     ? genresQuery.data.filter(isGenreOption)
-    : [];
-  const availableGenres =
+    : [],
+   availableGenres =
     genreRows.length > 0
       ? genreRows.map((genre) => genre.name)
-      : SUPPORTED_GENRES;
-  const { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
-    useAudioPlayer();
-  const isReleasedTrack = Boolean(
+      : SUPPORTED_GENRES,
+   { currentTrack, isPlaying, togglePlay, setCurrentTrack, setQueue } =
+    useAudioPlayer(),
+   isReleasedTrack = Boolean(
     initialTrack &&
-      (initialTrack.isPublic === true ||
-        Number(initialTrack.playCount ?? initialTrack.plays ?? 0) > 0)
-  );
-  const [step, setStep] = useState("details");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStage, setSubmitStage] = useState<
+    (initialTrack.isPublic === true ||
+      Number(initialTrack.playCount ?? initialTrack.plays ?? 0) > 0)
+  ),
+   [step, setStep] = useState("details"),
+   [isSubmitting, setIsSubmitting] = useState(false),
+   [submitStage, setSubmitStage] = useState<
     "idle" | "uploading" | "creating" | "processing" | "complete" | "settled"
-  >("idle");
-  const [submitProgress, setSubmitProgress] = useState(0);
-  const [createdTrackInfo, setCreatedTrackInfo] = useState<{
+  >("idle"),
+   [submitProgress, setSubmitProgress] = useState(0),
+   [createdTrackInfo, setCreatedTrackInfo] = useState<{
     audioFileName?: string;
     audioFileSize?: string;
     coverUrl?: string;
@@ -324,47 +324,47 @@ export function NewTrackForm({
     playbackUrl?: string;
     status: string;
     title: string;
-  } | null>(null);
+  } | null>(null),
 
-  const [creditQuery, setCreditQuery] = useState("");
-  const [creditRole, setCreditRole] = useState<"songwriter" | "producer">(
+   [creditQuery, setCreditQuery] = useState(""),
+   [creditRole, setCreditRole] = useState<"songwriter" | "producer">(
     "songwriter"
-  );
-  const [coverUpload, setCoverUpload] = useState<UploadedAssetPreview | null>(
+  ),
+   [coverUpload, setCoverUpload] = useState<UploadedAssetPreview | null>(
     null
-  );
-  const coverUploadRef = useRef<UploadedAssetPreview | null>(null);
-  const [uploadedTrack, setUploadedTrack] =
-    useState<UploadedTrackPreview | null>(null);
+  ),
+   coverUploadRef = useRef<UploadedAssetPreview | null>(null),
+   [uploadedTrack, setUploadedTrack] =
+    useState<UploadedTrackPreview | null>(null),
 
-  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
-  const [selectedMasterFile, setSelectedMasterFile] = useState<File | null>(
+   [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null),
+   [selectedMasterFile, setSelectedMasterFile] = useState<File | null>(
     null
-  );
-  const [selectedMasterDurationMs, setSelectedMasterDurationMs] = useState<
+  ),
+   [selectedMasterDurationMs, setSelectedMasterDurationMs] = useState<
     number | null
-  >(null);
-  const [leadVocalsFile, setLeadVocalsFile] = useState<File | null>(null);
-  const [adlibsFile, setAdlibsFile] = useState<File | null>(null);
-  const [instrumentalFile, setInstrumentalFile] = useState<File | null>(null);
+  >(null),
+   [leadVocalsFile, setLeadVocalsFile] = useState<File | null>(null),
+   [adlibsFile, setAdlibsFile] = useState<File | null>(null),
+   [instrumentalFile, setInstrumentalFile] = useState<File | null>(null),
 
-  const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
-  const masterUploadResolverRef = useRef<
+   coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
+   masterUploadResolverRef = useRef<
     ((preview: UploadedTrackPreview | null) => void) | null
-  >(null);
-  const pendingMasterTrackRef = useRef<{
+  >(null),
+   pendingMasterTrackRef = useRef<{
     id: string;
     title: string;
-  } | null>(null);
+  } | null>(null),
 
-  const createOpenVerseMutation = useCreateOpenVerseMutation();
-  const createTrackMutation = useCreateTrackMutation();
-  const settleTrackMutation = useSettleTrackMutation();
-  const updateTrackMutation = useUpdateTrackMutation(trackId ?? "");
-  const { data: session } = authClient.useSession();
-  const peopleSearch = usePeopleSearchQuery(creditQuery);
+   createOpenVerseMutation = useCreateOpenVerseMutation(),
+   createTrackMutation = useCreateTrackMutation(),
+   settleTrackMutation = useSettleTrackMutation(),
+   updateTrackMutation = useUpdateTrackMutation(trackId ?? ""),
+   { data: session } = authClient.useSession(),
+   peopleSearch = usePeopleSearchQuery(creditQuery),
 
-  const form = useForm<TrackFormValues>({
+   form = useForm<TrackFormValues>({
     defaultValues: defaultTrackFormValues,
     resolver: zodResolver(trackFormSchema),
   });
@@ -374,16 +374,16 @@ export function NewTrackForm({
     if (!initialTrack) {
       return;
     }
-    const isPublic = Boolean(initialTrack.isPublic);
-    const isForSale = Boolean(initialTrack.isForSale);
-    const rawCollaborators = Array.isArray(initialTrack.collaborators)
+    const isPublic = Boolean(initialTrack.isPublic),
+     isForSale = Boolean(initialTrack.isForSale),
+     rawCollaborators = Array.isArray(initialTrack.collaborators)
       ? (initialTrack.collaborators as Record<string, unknown>[])
-      : [];
-    const assets = Array.isArray(initialTrack.assets)
+      : [],
+     assets = Array.isArray(initialTrack.assets)
       ? (initialTrack.assets as Record<string, unknown>[])
-      : [];
-    const coverAsset = assets.find((asset) => asset.assetKind === "cover_art");
-    const coverObjectKey =
+      : [],
+     coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
+     coverObjectKey =
       (coverAsset?.objectKey as string) || (initialTrack.coverArtUrl as string);
 
     form.reset({
@@ -398,7 +398,8 @@ export function NewTrackForm({
       })),
       description: (initialTrack.description as string) ?? "",
       downloadsAllowed: initialTrack.downloadsAllowed !== false,
-      downloadsRequireFirstPlay: initialTrack.downloadsRequireFirstPlay !== false,
+      downloadsRequireFirstPlay:
+        initialTrack.downloadsRequireFirstPlay !== false,
       downloadsRequirePurchase: Boolean(initialTrack.downloadsRequirePurchase),
       exclusiveUntil: exclusiveUntilForInput(initialTrack.exclusiveUntil),
       genre: (initialTrack.genre as string) ?? "",
@@ -452,9 +453,9 @@ export function NewTrackForm({
 
   const handleBatchFileUpload = (files: FileList | File[]) => {
     const fileList = [...files];
-    let masterFound = false;
-    let coverFound = false;
-    let stemsFound = false;
+    let masterFound = false,
+     coverFound = false,
+     stemsFound = false;
 
     for (const file of fileList) {
       if (file.type.startsWith("image/") && !coverFound) {
@@ -502,9 +503,9 @@ export function NewTrackForm({
         title: "Files Auto-Assigned",
       });
     }
-  };
+  },
 
-  const {
+   {
     allowNavigation,
     blockerDialog,
     clearDraft,
@@ -533,9 +534,9 @@ export function NewTrackForm({
     persist: false,
     restoreOnMount: false,
     storageKey: "soundkit:new-track-draft",
-  });
+  }),
 
-  const clearTrackMediaState = () => {
+   clearTrackMediaState = () => {
     setSelectedCoverFile(null);
     setSelectedMasterFile(null);
     setSelectedMasterDurationMs(null);
@@ -553,18 +554,18 @@ export function NewTrackForm({
     } catch {
       // Ignore
     }
-  };
+  },
 
-  const resetTrackDraft = () => {
+   resetTrackDraft = () => {
     resetDraft();
     clearTrackMediaState();
     toast({
       description: "Track draft cleared. You can start fresh.",
       title: "Draft reset",
     });
-  };
+  },
 
-  const attachMasterUploadToTrack = async ({
+   attachMasterUploadToTrack = async ({
     durationMs,
     file,
     objectKey,
@@ -624,8 +625,8 @@ export function NewTrackForm({
         },
         param: { trackId: track.id },
       })
-    );
-    const masterAsset = detail.assets.find(
+    ),
+     masterAsset = detail.assets.find(
       (asset) => asset.assetKind === "master" && asset.objectKey === objectKey
     );
 
@@ -639,8 +640,8 @@ export function NewTrackForm({
               durationMs: Math.min(durationMs ?? 30_000, 30_000),
               originalFileName: previewUpload.file.name,
               previewDurationSeconds: 30,
-              variant: "preview_30s",
               url: previewUpload.remoteUrl,
+              variant: "preview_30s",
             },
             mimeType: previewUpload.file.type,
             objectKey: previewUpload.objectKey,
@@ -688,9 +689,9 @@ export function NewTrackForm({
       masterUploadResolverRef.current(preview);
       masterUploadResolverRef.current = null;
     }
-  };
+  },
 
-  const {
+   {
     averageProgress,
     isPending: isUploading,
     upload,
@@ -722,15 +723,15 @@ export function NewTrackForm({
 
       const masterUpload =
         files.find((entry) => !entry.raw.name.endsWith(".preview.wav")) ??
-        uploadedFile;
-      const previewUpload = files.find((entry) =>
+        uploadedFile,
+       previewUpload = files.find((entry) =>
         entry.raw.name.endsWith(".preview.wav")
-      );
-      const sourceFile = masterUpload.raw;
-      const objectKey = masterUpload.objectInfo.key;
-      const remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
+      ),
+       sourceFile = masterUpload.raw,
+       objectKey = masterUpload.objectInfo.key,
+       remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`,
 
-      const pendingTrack = pendingMasterTrackRef.current;
+       pendingTrack = pendingMasterTrackRef.current;
 
       if (!pendingTrack) {
         toast({
@@ -792,9 +793,9 @@ export function NewTrackForm({
       }
     },
     route: "track-source",
-  });
+  }),
 
-  const {
+   {
     averageProgress: coverProgress,
     isPending: isCoverUploading,
     upload: uploadCover,
@@ -824,8 +825,8 @@ export function NewTrackForm({
         return;
       }
 
-      const objectKey = uploadedFile.objectInfo.key;
-      const nextCover = {
+      const objectKey = uploadedFile.objectInfo.key,
+       nextCover = {
         fileName: uploadedFile.raw.name,
         objectKey,
         remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
@@ -861,9 +862,9 @@ export function NewTrackForm({
       }
     },
     route: "media",
-  });
+  }),
 
-  const handleCoverUpload = async (files: FileList) => {
+   handleCoverUpload = async (files: FileList) => {
     const [file] = [...files];
 
     if (!file) {
@@ -880,9 +881,9 @@ export function NewTrackForm({
     }
 
     setSelectedCoverFile(await optimizeCoverImageFile(file));
-  };
+  },
 
-  const handleMasterUpload = async (files: FileList) => {
+   handleMasterUpload = async (files: FileList) => {
     const [file] = [...files];
 
     if (!file) {
@@ -891,9 +892,9 @@ export function NewTrackForm({
 
     setSelectedMasterFile(file);
     setSelectedMasterDurationMs(await readAudioDurationMs(file));
-  };
+  },
 
-  const handleSaveTrackDraft = async () => {
+   handleSaveTrackDraft = async () => {
     const values = form.getValues();
 
     if (values.name.trim().length < 2) {
@@ -971,11 +972,15 @@ export function NewTrackForm({
       setSubmitStage("idle");
       setIsSubmitting(false);
     }
-  };
+  },
 
-  const handleInvalidSubmit = (errors: FieldErrors<TrackFormValues>) => {
+   handleInvalidSubmit = (errors: FieldErrors<TrackFormValues>) => {
     const firstError = Object.keys(errors)[0];
-    if (firstError === "genre" || firstError === "name" || firstError === "status") {
+    if (
+      firstError === "genre" ||
+      firstError === "name" ||
+      firstError === "status"
+    ) {
       setStep("details");
     }
     toast({
@@ -983,9 +988,9 @@ export function NewTrackForm({
       title: "Track setup incomplete",
       variant: "destructive",
     });
-  };
+  },
 
-  const onSubmit = async (values: TrackFormValues) => {
+   onSubmit = async (values: TrackFormValues) => {
     setIsSubmitting(true);
     setSubmitStage("uploading");
     setSubmitProgress(20);
@@ -1094,8 +1099,8 @@ export function NewTrackForm({
     }
 
     try {
-      let coverKey = values.coverObjectKey;
-      let coverUrl = coverUpload?.remoteUrl ?? "";
+      let coverKey = values.coverObjectKey,
+       coverUrl = coverUpload?.remoteUrl ?? "";
 
       if (selectedCoverFile && !coverKey) {
         try {
@@ -1135,8 +1140,8 @@ export function NewTrackForm({
       setSubmitStage("creating");
       setSubmitProgress(50);
 
-      let trackPreview = uploadedTrack;
-      let createdTrackForUpload: { id: string; title: string } | null = null;
+      let trackPreview = uploadedTrack,
+       createdTrackForUpload: { id: string; title: string } | null = null;
 
       if (!trackPreview && selectedMasterFile) {
         try {
@@ -1185,12 +1190,14 @@ export function NewTrackForm({
             (resolve) => {
               masterUploadResolverRef.current = resolve;
             }
-          );
-          const previewFile = await createAudioPreviewFile(selectedMasterFile).catch(
-            () => null
-          );
+          ),
+           previewFile = await createAudioPreviewFile(
+            selectedMasterFile
+          ).catch(() => null);
           upload(
-            previewFile ? [selectedMasterFile, previewFile] : [selectedMasterFile]
+            previewFile
+              ? [selectedMasterFile, previewFile]
+              : [selectedMasterFile]
           ).catch((uploadError: unknown) => {
             posthog.captureException(uploadError);
             masterUploadResolverRef.current?.(null);
@@ -1244,8 +1251,8 @@ export function NewTrackForm({
 
       setSubmitStage("processing");
       setSubmitProgress(80);
-      const release = mapStatusToRelease(values.status, values.releaseAt);
-      const requireCoverArt = values.status !== "draft";
+      const release = mapStatusToRelease(values.status, values.releaseAt),
+       requireCoverArt = values.status !== "draft";
 
       if (requireCoverArt && !coverKey) {
         toast({
@@ -1333,16 +1340,16 @@ export function NewTrackForm({
       setSubmitStage("idle");
       setIsSubmitting(false);
     }
-  };
+  },
 
-  const addCredit = (entry: {
+   addCredit = (entry: {
     displayName: string;
     inviteEmail?: string;
     role: "songwriter" | "producer";
     userId?: string;
   }) => {
-    const current = form.getValues("credits");
-    const alreadyAdded = current.some(
+    const current = form.getValues("credits"),
+     alreadyAdded = current.some(
       (credit) =>
         credit.role === entry.role &&
         ((entry.userId && credit.userId === entry.userId) ||
@@ -1355,9 +1362,9 @@ export function NewTrackForm({
       shouldDirty: true,
     });
     setCreditQuery("");
-  };
+  },
 
-  const addSelfAsWriter = () => {
+   addSelfAsWriter = () => {
     const user = session?.user;
     if (!user) {
       return;
@@ -1368,9 +1375,9 @@ export function NewTrackForm({
       role: "songwriter",
       userId: user.id,
     });
-  };
+  },
 
-  const removeCredit = (index: number) => {
+   removeCredit = (index: number) => {
     const current = form.getValues("credits");
     form.setValue(
       "credits",
@@ -1833,8 +1840,8 @@ export function NewTrackForm({
                           onClick={() => {
                             const src = selectedMasterFile
                               ? URL.createObjectURL(selectedMasterFile)
-                              : (uploadedTrack?.remoteUrl ?? "");
-                            const trackData = {
+                              : (uploadedTrack?.remoteUrl ?? ""),
+                             trackData = {
                               artist: "You",
                               artistHref: "/dashboard/profile",
                               cover: selectedCoverFile

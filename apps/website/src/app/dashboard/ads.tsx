@@ -22,7 +22,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { WorldAndUSAMap, type MapScope } from "@/components/explore/world-and-usa-map";
+import { WorldAndUSAMap } from '@/components/explore/world-and-usa-map';
+import type { MapScope } from '@/components/explore/world-and-usa-map';
 import {
   Accordion,
   AccordionContent,
@@ -66,19 +67,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
-import {
-  useAdCampaignsQuery,
-  useAdWalletQuery,
-  useBillingCheckoutMutation,
-  useCreateAdCampaignMutation,
-  useTracksQuery,
-  type AdBillingType,
-  type AdCampaignSummary,
-  type AdCreativeFormat,
-  type AdPlacement,
-  type AdTarget,
-  type CreateAdCampaignBody,
-} from "@/lib/soundkit-api-hooks";
+import { useAdCampaignsQuery, useAdWalletQuery, useBillingCheckoutMutation, useCreateAdCampaignMutation, useTracksQuery } from '@/lib/soundkit-api-hooks';
+import type { AdBillingType, AdCampaignSummary, AdCreativeFormat, AdPlacement, AdTarget, CreateAdCampaignBody } from '@/lib/soundkit-api-hooks';
 
 interface AdsSearch {
   tab?: "builder" | "campaigns" | "library" | "wallet";
@@ -107,54 +97,174 @@ interface TargetOption {
 
 const targetOptions: readonly TargetOption[] = [
   // North America
-  { code: "US-AL", label: "Alabama", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-AK", label: "Alaska", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-AZ", label: "Arizona", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-AR", label: "Arkansas", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-CA", label: "California", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-CO", label: "Colorado", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-FL", label: "Florida", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-GA", label: "Georgia", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-NY", label: "New York", regionGroup: "north-america", scope: "north-america", type: "state" },
-  { code: "US-TX", label: "Texas", regionGroup: "north-america", scope: "north-america", type: "state" },
+  {
+    code: "US-AL",
+    label: "Alabama",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-AK",
+    label: "Alaska",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-AZ",
+    label: "Arizona",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-AR",
+    label: "Arkansas",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-CA",
+    label: "California",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-CO",
+    label: "Colorado",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-FL",
+    label: "Florida",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-GA",
+    label: "Georgia",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-NY",
+    label: "New York",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
+  {
+    code: "US-TX",
+    label: "Texas",
+    regionGroup: "north-america",
+    scope: "north-america",
+    type: "state",
+  },
 
   // Europe
-  { code: "EU-UK", label: "United Kingdom", regionGroup: "europe", scope: "global", type: "country" },
-  { code: "EU-DE", label: "Germany", regionGroup: "europe", scope: "global", type: "country" },
-  { code: "EU-FR", label: "France", regionGroup: "europe", scope: "global", type: "country" },
-  { code: "EU-ES", label: "Spain", regionGroup: "europe", scope: "global", type: "country" },
-  { code: "EU-NL", label: "Netherlands", regionGroup: "europe", scope: "global", type: "country" },
+  {
+    code: "EU-UK",
+    label: "United Kingdom",
+    regionGroup: "europe",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "EU-DE",
+    label: "Germany",
+    regionGroup: "europe",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "EU-FR",
+    label: "France",
+    regionGroup: "europe",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "EU-ES",
+    label: "Spain",
+    regionGroup: "europe",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "EU-NL",
+    label: "Netherlands",
+    regionGroup: "europe",
+    scope: "global",
+    type: "country",
+  },
 
   // Africa
-  { code: "AF-NG", label: "Nigeria", regionGroup: "africa", scope: "global", type: "country" },
-  { code: "AF-ZA", label: "South Africa", regionGroup: "africa", scope: "global", type: "country" },
-  { code: "AF-EG", label: "Egypt", regionGroup: "africa", scope: "global", type: "country" },
-  { code: "AF-KE", label: "Kenya", regionGroup: "africa", scope: "global", type: "country" },
-  { code: "AF-GH", label: "Ghana", regionGroup: "africa", scope: "global", type: "country" },
+  {
+    code: "AF-NG",
+    label: "Nigeria",
+    regionGroup: "africa",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "AF-ZA",
+    label: "South Africa",
+    regionGroup: "africa",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "AF-EG",
+    label: "Egypt",
+    regionGroup: "africa",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "AF-KE",
+    label: "Kenya",
+    regionGroup: "africa",
+    scope: "global",
+    type: "country",
+  },
+  {
+    code: "AF-GH",
+    label: "Ghana",
+    regionGroup: "africa",
+    scope: "global",
+    type: "country",
+  },
 ];
 
 function DashboardAdsPage() {
-  const navigate = useNavigate();
-  const search = Route.useSearch();
-  const activeTab = search.tab ?? "campaigns";
-  const { toast } = useToast();
+  const navigate = useNavigate(),
+   search = Route.useSearch(),
+   activeTab = search.tab ?? "campaigns",
+   { toast } = useToast(),
 
-  const campaignsQuery = useAdCampaignsQuery();
-  const walletQuery = useAdWalletQuery();
-  const createCampaignMutation = useCreateAdCampaignMutation();
-  const checkoutMutation = useBillingCheckoutMutation();
+   campaignsQuery = useAdCampaignsQuery(),
+   walletQuery = useAdWalletQuery(),
+   createCampaignMutation = useCreateAdCampaignMutation(),
+   checkoutMutation = useBillingCheckoutMutation(),
 
-  const campaigns = campaignsQuery.data ?? [];
-  const wallet = walletQuery.data;
+   campaigns = campaignsQuery.data ?? [],
+   wallet = walletQuery.data,
 
-  const [selectedCampaign, setSelectedCampaign] =
-    useState<AdCampaignSummary | null>(null);
+   [selectedCampaign, setSelectedCampaign] =
+    useState<AdCampaignSummary | null>(null),
 
-  const handleTabChange = (val: string) => {
+   handleTabChange = (val: string) => {
     navigate({ search: { tab: val as AdsSearch["tab"] } });
-  };
+  },
 
-  const handleTopUpWallet = async (amountCents: number) => {
+   handleTopUpWallet = async (amountCents: number) => {
     try {
       const result = await checkoutMutation.mutateAsync({
         cancelUrl: window.location.href,
@@ -181,7 +291,8 @@ function DashboardAdsPage() {
             SoundKit Ads & Pre-Roll Campaigns
           </h1>
           <p className="text-muted-foreground">
-            Run audio & video pre-roll ads, target macro regions & continents, and manage your advertiser balance.
+            Run audio & video pre-roll ads, target macro regions & continents,
+            and manage your advertiser balance.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -195,9 +306,15 @@ function DashboardAdsPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="w-full"
+      >
         <TabsList className="grid grid-cols-4 w-full md:w-auto">
-          <TabsTrigger value="campaigns">Active Campaigns ({campaigns.length})</TabsTrigger>
+          <TabsTrigger value="campaigns">
+            Active Campaigns ({campaigns.length})
+          </TabsTrigger>
           <TabsTrigger value="builder">Campaign Builder</TabsTrigger>
           <TabsTrigger value="library">Media Library</TabsTrigger>
           <TabsTrigger value="wallet">Wallet &amp; Billing</TabsTrigger>
@@ -208,29 +325,43 @@ function DashboardAdsPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Impressions</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Impressions
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {campaigns.reduce((sum, c) => sum + c.metrics.impressions, 0).toLocaleString()}
+                  {campaigns
+                    .reduce((sum, c) => sum + c.metrics.impressions, 0)
+                    .toLocaleString()}
                 </div>
-                <p className="text-xs text-muted-foreground">Across all active campaigns</p>
+                <p className="text-xs text-muted-foreground">
+                  Across all active campaigns
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total Clicks</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Total Clicks
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {campaigns.reduce((sum, c) => sum + c.metrics.clicks, 0).toLocaleString()}
+                  {campaigns
+                    .reduce((sum, c) => sum + c.metrics.clicks, 0)
+                    .toLocaleString()}
                 </div>
-                <p className="text-xs text-muted-foreground">Direct listener interactions</p>
+                <p className="text-xs text-muted-foreground">
+                  Direct listener interactions
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Ad Wallet Balance</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Ad Wallet Balance
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex items-center justify-between">
                 <div>
@@ -240,9 +371,15 @@ function DashboardAdsPage() {
                       style: "currency",
                     }).format((wallet?.balanceCents ?? 0) / 100)}
                   </div>
-                  <p className="text-xs text-muted-foreground">Prepaid ad balance</p>
+                  <p className="text-xs text-muted-foreground">
+                    Prepaid ad balance
+                  </p>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => handleTabChange("wallet")}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTabChange("wallet")}
+                >
                   Top Up
                 </Button>
               </CardContent>
@@ -253,16 +390,25 @@ function DashboardAdsPage() {
             <CardHeader>
               <CardTitle>Active &amp; Past Campaigns</CardTitle>
               <CardDescription>
-                Inspect live campaign metrics, creative placements, and target regions.
+                Inspect live campaign metrics, creative placements, and target
+                regions.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {campaigns.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
                   <Megaphone className="mx-auto size-10 mb-3 opacity-50" />
-                  <p className="font-semibold text-foreground">No campaigns created yet</p>
-                  <p className="mt-1 text-sm">Create your first audio or video pre-roll campaign to reach listeners.</p>
-                  <Button className="mt-4" onClick={() => handleTabChange("builder")}>
+                  <p className="font-semibold text-foreground">
+                    No campaigns created yet
+                  </p>
+                  <p className="mt-1 text-sm">
+                    Create your first audio or video pre-roll campaign to reach
+                    listeners.
+                  </p>
+                  <Button
+                    className="mt-4"
+                    onClick={() => handleTabChange("builder")}
+                  >
                     Build First Campaign
                   </Button>
                 </div>
@@ -281,27 +427,39 @@ function DashboardAdsPage() {
                   <TableBody>
                     {campaigns.map((c) => (
                       <TableRow key={c.id}>
-                        <TableCell className="font-semibold">{c.name}</TableCell>
+                        <TableCell className="font-semibold">
+                          {c.name}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={
                               c.status === "running"
                                 ? "default"
-                                : c.status === "completed"
-                                ? "secondary"
-                                : "outline"
+                                : (c.status === "completed"
+                                  ? "secondary"
+                                  : "outline")
                             }
                           >
                             {c.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{c.placement.replaceAll("_", " ")}</Badge>
+                          <Badge variant="outline">
+                            {c.placement.replaceAll("_", " ")}
+                          </Badge>
                         </TableCell>
-                        <TableCell>{c.metrics.impressions.toLocaleString()}</TableCell>
-                        <TableCell>{c.metrics.clicks.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {c.metrics.impressions.toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          {c.metrics.clicks.toLocaleString()}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => setSelectedCampaign(c)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedCampaign(c)}
+                          >
                             View Info &amp; ID
                           </Button>
                         </TableCell>
@@ -342,7 +500,9 @@ function DashboardAdsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Creative Media Library</CardTitle>
-              <CardDescription>Your pre-roll audio tracks, video clips, and display banners.</CardDescription>
+              <CardDescription>
+                Your pre-roll audio tracks, video clips, and display banners.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -352,13 +512,23 @@ function DashboardAdsPage() {
                     key={`creative-${campaign.id}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate font-semibold text-sm">{campaign.name}</p>
+                      <p className="truncate font-semibold text-sm">
+                        {campaign.name}
+                      </p>
                       <Badge variant="outline">{campaign.creativeFormat}</Badge>
                     </div>
                     {campaign.creativeFormat === "audio" ? (
-                      <audio className="w-full" controls src={campaign.creativeUrl} />
-                    ) : campaign.creativeFormat === "video" ? (
-                      <video className="aspect-video w-full rounded object-cover" controls src={campaign.creativeUrl} />
+                      <audio
+                        className="w-full"
+                        controls
+                        src={campaign.creativeUrl}
+                      />
+                    ) : (campaign.creativeFormat === "video" ? (
+                      <video
+                        className="aspect-video w-full rounded object-cover"
+                        controls
+                        src={campaign.creativeUrl}
+                      />
                     ) : (
                       <AppImage
                         alt={campaign.name}
@@ -367,11 +537,13 @@ function DashboardAdsPage() {
                         src={campaign.creativeImageUrl ?? campaign.creativeUrl}
                         width={320}
                       />
-                    )}
+                    ))}
                   </div>
                 ))}
                 {campaigns.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">No uploaded ad creatives yet.</p>
+                  <p className="text-muted-foreground text-sm">
+                    No uploaded ad creatives yet.
+                  </p>
                 ) : null}
               </div>
             </CardContent>
@@ -387,13 +559,16 @@ function DashboardAdsPage() {
                 SoundKit Ads Wallet &amp; Billing
               </CardTitle>
               <CardDescription>
-                Prepay your advertiser balance via Stripe to fund live pre-roll campaigns.
+                Prepay your advertiser balance via Stripe to fund live pre-roll
+                campaigns.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 rounded-lg border bg-accent/30">
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase">Current Available Balance</p>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">
+                    Current Available Balance
+                  </p>
                   <p className="text-4xl font-bold text-emerald-400 mt-1">
                     {new Intl.NumberFormat("en-US", {
                       currency: wallet?.currency ?? "USD",
@@ -402,16 +577,32 @@ function DashboardAdsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => handleTopUpWallet(5000)}>+$50 Top Up</Button>
-                  <Button onClick={() => handleTopUpWallet(10000)} variant="outline">+$100 Top Up</Button>
-                  <Button onClick={() => handleTopUpWallet(25000)} variant="outline">+$250 Top Up</Button>
+                  <Button onClick={() => handleTopUpWallet(5000)}>
+                    +$50 Top Up
+                  </Button>
+                  <Button
+                    onClick={() => handleTopUpWallet(10_000)}
+                    variant="outline"
+                  >
+                    +$100 Top Up
+                  </Button>
+                  <Button
+                    onClick={() => handleTopUpWallet(25_000)}
+                    variant="outline"
+                  >
+                    +$250 Top Up
+                  </Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Automatic Campaign Billing</p>
+                <p className="text-sm font-semibold">
+                  Automatic Campaign Billing
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  When you launch campaigns, impressions are automatically billed against your balance at a CPM rate. Admin house ads run with zero budget.
+                  When you launch campaigns, impressions are automatically
+                  billed against your balance at a CPM rate. Admin house ads run
+                  with zero budget.
                 </p>
               </div>
             </CardContent>
@@ -421,7 +612,10 @@ function DashboardAdsPage() {
 
       {/* Campaign Detail Dialog */}
       {selectedCampaign && (
-        <Dialog open={Boolean(selectedCampaign)} onOpenChange={() => setSelectedCampaign(null)}>
+        <Dialog
+          open={Boolean(selectedCampaign)}
+          onOpenChange={() => setSelectedCampaign(null)}
+        >
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle className="flex items-center justify-between">
@@ -429,7 +623,10 @@ function DashboardAdsPage() {
                 <Badge variant="outline">{selectedCampaign.status}</Badge>
               </DialogTitle>
               <DialogDescription>
-                Campaign ID: <code className="text-xs text-primary font-mono">{selectedCampaign.id}</code>
+                Campaign ID:{" "}
+                <code className="text-xs text-primary font-mono">
+                  {selectedCampaign.id}
+                </code>
               </DialogDescription>
             </DialogHeader>
 
@@ -437,27 +634,43 @@ function DashboardAdsPage() {
               <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted text-xs">
                 <div>
                   <span className="text-muted-foreground">Placement:</span>
-                  <p className="font-semibold">{selectedCampaign.placement.replaceAll("_", " ")}</p>
+                  <p className="font-semibold">
+                    {selectedCampaign.placement.replaceAll("_", " ")}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Format:</span>
-                  <p className="font-semibold">{selectedCampaign.creativeFormat}</p>
+                  <p className="font-semibold">
+                    {selectedCampaign.creativeFormat}
+                  </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Total Impressions:</span>
-                  <p className="font-semibold">{selectedCampaign.metrics.impressions.toLocaleString()}</p>
+                  <span className="text-muted-foreground">
+                    Total Impressions:
+                  </span>
+                  <p className="font-semibold">
+                    {selectedCampaign.metrics.impressions.toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Clicks:</span>
-                  <p className="font-semibold">{selectedCampaign.metrics.clicks.toLocaleString()}</p>
+                  <p className="font-semibold">
+                    {selectedCampaign.metrics.clicks.toLocaleString()}
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs font-semibold">Target Regions ({selectedCampaign.targets.length})</p>
+                <p className="text-xs font-semibold">
+                  Target Regions ({selectedCampaign.targets.length})
+                </p>
                 <div className="flex flex-wrap gap-1">
                   {selectedCampaign.targets.map((t) => (
-                    <Badge key={t.targetCode} variant="secondary" className="text-[10px]">
+                    <Badge
+                      key={t.targetCode}
+                      variant="secondary"
+                      className="text-[10px]"
+                    >
                       {t.targetCode} ({t.targetType})
                     </Badge>
                   ))}
@@ -479,26 +692,28 @@ function AccordionBuilderForm({
   isPending: boolean;
   onCreate: (body: CreateAdCampaignBody) => void;
 }) {
-  const [activeStep, setActiveStep] = useState<string>("step-1");
-  const tracksQuery = useTracksQuery();
-  const catalogTracks = tracksQuery.data ?? [];
+  const [activeStep, setActiveStep] = useState<string>("step-1"),
+   tracksQuery = useTracksQuery(),
+   catalogTracks = tracksQuery.data ?? [],
 
   // Form State
-  const [name, setName] = useState("");
-  const [placement, setPlacement] = useState<AdPlacement>("audio_preroll");
-  const [format, setFormat] = useState<AdCreativeFormat>("audio");
-  const [destinationUrl, setDestinationUrl] = useState("https://mysoundkit.com");
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
-  const [mediaPreviewUrl, setMediaPreviewUrl] = useState("");
-  const [creativeUrl, setCreativeUrl] = useState("");
+   [name, setName] = useState(""),
+   [placement, setPlacement] = useState<AdPlacement>("audio_preroll"),
+   [format, setFormat] = useState<AdCreativeFormat>("audio"),
+   [destinationUrl, setDestinationUrl] = useState(
+    "https://mysoundkit.com"
+  ),
+   [attachedFile, setAttachedFile] = useState<File | null>(null),
+   [mediaPreviewUrl, setMediaPreviewUrl] = useState(""),
+   [creativeUrl, setCreativeUrl] = useState(""),
 
-  const [mapScope, setMapScope] = useState<MapScope>("north-america");
-  const [selectedCodes, setSelectedCodes] = useState<string[]>(["US-AR"]);
+   [mapScope, setMapScope] = useState<MapScope>("north-america"),
+   [selectedCodes, setSelectedCodes] = useState<string[]>(["US-AR"]),
 
-  const [billingType, setBillingType] =
-    useState<AdBillingType>("prepaid_wallet");
-  const [budgetDollars, setBudgetDollars] = useState(50);
-  const { isPending: isUploading, upload } = useUploadFiles({
+   [billingType, setBillingType] =
+    useState<AdBillingType>("prepaid_wallet"),
+   [budgetDollars, setBudgetDollars] = useState(50),
+   { isPending: isUploading, upload } = useUploadFiles({
     api: MEDIA_UPLOAD_URL,
     credentials: "include",
     onError: () => {
@@ -510,9 +725,9 @@ function AccordionBuilderForm({
         setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
       }
     },
-  });
+  }),
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+   handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
       return;
@@ -527,30 +742,34 @@ function AccordionBuilderForm({
     setMediaPreviewUrl(URL.createObjectURL(file));
     const nextFormat = file.type.startsWith("video/")
       ? "video"
-      : file.type.startsWith("image/")
+      : (file.type.startsWith("image/")
         ? "image"
-        : "audio";
+        : "audio");
     setFormat(nextFormat);
     setPlacement(
       nextFormat === "audio"
         ? "audio_preroll"
-        : nextFormat === "video"
+        : (nextFormat === "video"
           ? "video_preroll"
-          : "video_overlay"
+          : "video_overlay")
     );
     void upload([file]);
-  };
+  },
 
-  const handleMacroSelect = (group: "africa" | "all" | "europe" | "north-america") => {
+   handleMacroSelect = (
+    group: "africa" | "all" | "europe" | "north-america"
+  ) => {
     if (group === "all") {
       setSelectedCodes(targetOptions.map((t) => t.code));
     } else {
-      setSelectedCodes(targetOptions.filter((t) => t.regionGroup === group).map((t) => t.code));
+      setSelectedCodes(
+        targetOptions.filter((t) => t.regionGroup === group).map((t) => t.code)
+      );
     }
-  };
+  },
 
-  const handleSubmit = () => {
-    if (!name.trim()) return;
+   handleSubmit = () => {
+    if (!name.trim()) {return;}
 
     const targets: AdTarget[] = selectedCodes.map((code) => {
       const match = targetOptions.find((t) => t.code === code);
@@ -580,13 +799,22 @@ function AccordionBuilderForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl font-bold">Campaign Builder (3 Step Accordion)</CardTitle>
+        <CardTitle className="text-xl font-bold">
+          Campaign Builder (3 Step Accordion)
+        </CardTitle>
         <CardDescription>
-          Complete creative details, select macro audience targets, and launch your ad campaign.
+          Complete creative details, select macro audience targets, and launch
+          your ad campaign.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Accordion type="single" value={activeStep} onValueChange={setActiveStep} collapsible className="w-full">
+        <Accordion
+          type="single"
+          value={activeStep}
+          onValueChange={setActiveStep}
+          collapsible
+          className="w-full"
+        >
           {/* Step 1: Creative & Media */}
           <AccordionItem value="step-1">
             <AccordionTrigger className="font-semibold text-base">
@@ -605,28 +833,43 @@ function AccordionBuilderForm({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="placement">Ad Placement</Label>
-                  <Select value={placement} onValueChange={(val) => setPlacement(val as AdPlacement)}>
+                  <Select
+                    value={placement}
+                    onValueChange={(val) => setPlacement(val as AdPlacement)}
+                  >
                     <SelectTrigger id="placement">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="audio_preroll">Audio Pre-Roll</SelectItem>
-                      <SelectItem value="video_preroll">Video Pre-Roll</SelectItem>
-                      <SelectItem value="video_overlay">Display Overlay</SelectItem>
+                      <SelectItem value="audio_preroll">
+                        Audio Pre-Roll
+                      </SelectItem>
+                      <SelectItem value="video_preroll">
+                        Video Pre-Roll
+                      </SelectItem>
+                      <SelectItem value="video_overlay">
+                        Display Overlay
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="catalog-ad-track">Promote an uploaded song</Label>
+                <Label htmlFor="catalog-ad-track">
+                  Promote an uploaded song
+                </Label>
                 <Select
                   onValueChange={(trackId) => {
-                    const track = catalogTracks.find((item) => item.id === trackId);
+                    const track = catalogTracks.find(
+                      (item) => item.id === trackId
+                    );
                     if (!track) {
                       return;
                     }
-                    setDestinationUrl(`${window.location.origin}/tracks/${track.id}`);
+                    setDestinationUrl(
+                      `${window.location.origin}/tracks/${track.id}`
+                    );
                     if (track.coverArtUrl) {
                       setCreativeUrl(track.coverArtUrl);
                       setMediaPreviewUrl(track.coverArtUrl);
@@ -651,25 +894,48 @@ function AccordionBuilderForm({
 
               {/* File Attachment Upload */}
               <div className="space-y-2 border border-dashed rounded-lg p-4 bg-muted/30">
-                <Label className="font-semibold">Attach Creative Asset File</Label>
+                <Label className="font-semibold">
+                  Attach Creative Asset File
+                </Label>
                 <div className="flex items-center gap-3">
-                  <Input type="file" accept="audio/*,video/*,image/*" onChange={handleFileSelected} />
+                  <Input
+                    type="file"
+                    accept="audio/*,video/*,image/*"
+                    onChange={handleFileSelected}
+                  />
                 </div>
                 {mediaPreviewUrl ? (
                   <div className="mt-3 overflow-hidden rounded-lg border bg-background p-3">
                     {format === "audio" ? (
-                      <audio className="w-full" controls src={mediaPreviewUrl} />
-                    ) : format === "video" ? (
-                      <video className="aspect-video w-full rounded object-cover" controls src={mediaPreviewUrl} />
+                      <audio
+                        className="w-full"
+                        controls
+                        src={mediaPreviewUrl}
+                      />
+                    ) : (format === "video" ? (
+                      <video
+                        className="aspect-video w-full rounded object-cover"
+                        controls
+                        src={mediaPreviewUrl}
+                      />
                     ) : (
-                      <img alt="Ad creative preview" className="max-h-64 w-full rounded object-contain" src={mediaPreviewUrl} />
-                    )}
+                      <img
+                        alt="Ad creative preview"
+                        className="max-h-64 w-full rounded object-contain"
+                        src={mediaPreviewUrl}
+                      />
+                    ))}
                   </div>
                 ) : null}
                 {attachedFile && (
                   <div className="mt-2 p-2 rounded bg-accent/40 text-xs font-semibold flex items-center justify-between">
-                    <span>Attached: {attachedFile.name} ({(attachedFile.size / 1024 / 1024).toFixed(2)} MB)</span>
-                    <Badge variant="outline" className="text-[10px]">Ready</Badge>
+                    <span>
+                      Attached: {attachedFile.name} (
+                      {(attachedFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </span>
+                    <Badge variant="outline" className="text-[10px]">
+                      Ready
+                    </Badge>
                   </div>
                 )}
               </div>
@@ -698,25 +964,59 @@ function AccordionBuilderForm({
           {/* Step 2: Target Audience & Macro Regions */}
           <AccordionItem value="step-2">
             <AccordionTrigger className="font-semibold text-base">
-              Step 2: Target Audience &amp; Macro Region Selection ({selectedCodes.length} Selected)
+              Step 2: Target Audience &amp; Macro Region Selection (
+              {selectedCodes.length} Selected)
             </AccordionTrigger>
             <AccordionContent className="space-y-4 pt-2">
               <p className="text-xs text-muted-foreground">
-                Select an entire continent or pick specific states and countries.
+                Select an entire continent or pick specific states and
+                countries.
               </p>
 
               {/* Macro Selectors */}
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => handleMacroSelect("north-america")}>
-                  All North America ({targetOptions.filter((t) => t.regionGroup === "north-america").length})
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleMacroSelect("north-america")}
+                >
+                  All North America (
+                  {
+                    targetOptions.filter(
+                      (t) => t.regionGroup === "north-america"
+                    ).length
+                  }
+                  )
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleMacroSelect("europe")}>
-                  All Europe ({targetOptions.filter((t) => t.regionGroup === "europe").length})
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleMacroSelect("europe")}
+                >
+                  All Europe (
+                  {
+                    targetOptions.filter((t) => t.regionGroup === "europe")
+                      .length
+                  }
+                  )
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => handleMacroSelect("africa")}>
-                  All Africa ({targetOptions.filter((t) => t.regionGroup === "africa").length})
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleMacroSelect("africa")}
+                >
+                  All Africa (
+                  {
+                    targetOptions.filter((t) => t.regionGroup === "africa")
+                      .length
+                  }
+                  )
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => handleMacroSelect("all")}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleMacroSelect("all")}
+                >
                   Global / All Regions ({targetOptions.length})
                 </Button>
               </div>
@@ -726,7 +1026,11 @@ function AccordionBuilderForm({
                 <WorldAndUSAMap scope={mapScope} onScopeChange={setMapScope} />
               </div>
 
-              <Button type="button" className="mt-2" onClick={() => setActiveStep("step-3")}>
+              <Button
+                type="button"
+                className="mt-2"
+                onClick={() => setActiveStep("step-3")}
+              >
                 Proceed to Step 3: Budget &amp; Launch
               </Button>
             </AccordionContent>
@@ -741,13 +1045,22 @@ function AccordionBuilderForm({
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Billing Type</Label>
-                  <Select value={billingType} onValueChange={(val) => setBillingType(val as AdBillingType)}>
+                  <Select
+                    value={billingType}
+                    onValueChange={(val) =>
+                      setBillingType(val as AdBillingType)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="prepaid_wallet">Prepaid Wallet</SelectItem>
-                      <SelectItem value="upfront_recurring">Recurring Billing</SelectItem>
+                      <SelectItem value="prepaid_wallet">
+                        Prepaid Wallet
+                      </SelectItem>
+                      <SelectItem value="upfront_recurring">
+                        Recurring Billing
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -764,14 +1077,16 @@ function AccordionBuilderForm({
               <Button
                 type="button"
                 className="w-full font-bold text-base py-6"
-                disabled={isPending || isUploading || !name.trim() || !creativeUrl}
+                disabled={
+                  isPending || isUploading || !name.trim() || !creativeUrl
+                }
                 onClick={handleSubmit}
               >
                 {isUploading
                   ? "Uploading Creative..."
-                  : isPending
+                  : (isPending
                     ? "Launching Campaign..."
-                    : "Launch Ad Campaign"}
+                    : "Launch Ad Campaign")}
               </Button>
             </AccordionContent>
           </AccordionItem>

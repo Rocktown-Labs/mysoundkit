@@ -48,9 +48,9 @@ export const signupRedirectForUser = ({
 };
 
 const isArtistRole = (value: unknown): value is ArtistRole =>
-  value === "musician" || value === "producer";
+  value === "musician" || value === "producer",
 
-const clampStep = (value: unknown) => {
+ clampStep = (value: unknown) => {
   if (typeof value !== "number") {
     return 1;
   }
@@ -65,8 +65,8 @@ export const parseArtistOnboardingDraft = (
     return null;
   }
 
-  const parsed = JSON.parse(value) as Partial<ArtistOnboardingDraft>;
-  const roles = Array.isArray(parsed.roles)
+  const parsed = JSON.parse(value) as Partial<ArtistOnboardingDraft>,
+   roles = Array.isArray(parsed.roles)
     ? parsed.roles.filter(isArtistRole)
     : [];
 

@@ -20,7 +20,7 @@ export const filterSearchCandidates = ({
   return candidates
     .filter((user) => user.userId !== currentUserId)
     .filter((user) => {
-      if (!normalized) return true;
+      if (!normalized) {return true;}
       return [user.displayName, user.username, user.email, user.stageName]
         .filter(Boolean)
         .some((field) => field?.toLowerCase().includes(normalized));
@@ -53,6 +53,8 @@ export const normalizeParticipantIds = ({
   currentUserId: string;
   participantUserIds: string[];
 }): string[] => {
-  const set = new Set(participantUserIds.filter((id) => id && id !== currentUserId));
-  return Array.from(set);
+  const set = new Set(
+    participantUserIds.filter((id) => id && id !== currentUserId)
+  );
+  return [...set];
 };

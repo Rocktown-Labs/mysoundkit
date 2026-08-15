@@ -128,10 +128,14 @@ test.describe("main application surfaces", () => {
     page,
   }) => {
     await gotoWithViteRetry(page, "/tracks?view=all");
-    await expect(page.getByRole("heading", { name: "All Songs" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "All Songs" })
+    ).toBeVisible();
 
     await gotoWithViteRetry(page, "/videos?view=all");
-    await expect(page.getByRole("heading", { name: "All Videos" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "All Videos" })
+    ).toBeVisible();
 
     await gotoWithViteRetry(page, "/projects?view=all");
     await expect(
@@ -208,9 +212,7 @@ test.describe("main application surfaces", () => {
         name: /beat making from the first drum hit/i,
       })
     ).toBeVisible();
-    await expect(
-      page.getByText("Media Path", { exact: true })
-    ).toBeVisible();
+    await expect(page.getByText("Media Path", { exact: true })).toBeVisible();
     await expect(page.getByText("Live Signals")).toBeVisible();
   });
 

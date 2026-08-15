@@ -39,15 +39,15 @@ const discoverLinks: SidebarNavItem[] = [
   { href: "/artist", icon: Users, label: "Artists" },
   { href: "/genres", icon: Tags, label: "Genres" },
   { href: "/shop", icon: ShoppingBag, label: "Shop" },
-].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
+].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
 
-const liveLinks: SidebarNavItem[] = [
+ liveLinks: SidebarNavItem[] = [
   { href: "/live/battles", icon: Swords, label: "Battles" },
   { href: "/live/parties", icon: PartyPopper, label: "Parties" },
   { href: "/live/streams", icon: TvMinimalPlay, label: "Streams" },
-].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
+].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
 
-const libraryLinks: SidebarNavItem[] = [
+ libraryLinks: SidebarNavItem[] = [
   { href: "/library/recent", icon: ListMusic, label: "Recently Played" },
   { href: "/library/watched", icon: ListVideo, label: "Recently Watched" },
   { href: "/library/playlists", icon: ListPlus, label: "Playlists" },
@@ -57,26 +57,26 @@ const libraryLinks: SidebarNavItem[] = [
 ].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
 export function ExploreAppSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const meQuery = useMeQuery();
-  const isSignedIn = Boolean(meQuery.data);
+  const pathname = useRouterState({ select: (s) => s.location.pathname }),
+   meQuery = useMeQuery(),
+   isSignedIn = Boolean(meQuery.data),
 
-  const isRouteActive = (href: string) =>
+   isRouteActive = (href: string) =>
     href === "/"
       ? pathname === "/"
-      : pathname === href || pathname.startsWith(`${href}/`);
+      : pathname === href || pathname.startsWith(`${href}/`),
 
-  const resolvedDiscoverLinks = discoverLinks.map((item) => ({
+   resolvedDiscoverLinks = discoverLinks.map((item) => ({
     ...item,
     isActive: isRouteActive(item.url ?? "/"),
-  }));
+  })),
 
-  const resolvedLiveLinks = liveLinks.map((item) => ({
+   resolvedLiveLinks = liveLinks.map((item) => ({
     ...item,
     isActive: isRouteActive(item.url ?? "/live"),
-  }));
+  })),
 
-  const profileLink: SidebarNavItem | null = meQuery.data
+   profileLink: SidebarNavItem | null = meQuery.data
     ? {
         icon: Users,
         isActive:
@@ -92,8 +92,8 @@ export function ExploreAppSidebar() {
             ? "/dashboard"
             : `/people/${meQuery.data.user.username}`,
       }
-    : null;
-  const resolvedLibraryLinks = [
+    : null,
+   resolvedLibraryLinks = [
     ...(profileLink ? [profileLink] : []),
     ...libraryLinks.map((item) => ({
       ...item,

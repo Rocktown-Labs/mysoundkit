@@ -92,33 +92,33 @@ import {
 } from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
-  validator("json", (value) => schema.parse(value) as z.infer<Schema>);
+  validator("json", (value) => schema.parse(value) as z.infer<Schema>),
 
-const checkoutBodySchema = z.object({
+ checkoutBodySchema = z.object({
   cancelUrl: z.url(),
   planCode: z.string(),
   referenceId: z.string().optional(),
   seats: z.number().int().positive().optional(),
   successUrl: z.url(),
-});
+}),
 
-const checkoutResponseSchema = onboardingResponseSchema.pick({
+ checkoutResponseSchema = onboardingResponseSchema.pick({
   checkoutUrl: true,
   requiresCheckout: true,
   setupRequired: true,
-});
+}),
 
-const cloudflareStreamBodySchema = z.object({
+ cloudflareStreamBodySchema = z.object({
   title: z.string().optional(),
-});
+}),
 
-const genreCatalogItemSchema = z.object({
+ genreCatalogItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-});
+}),
 
-const notificationSummarySchema = z
+ notificationSummarySchema = z
   .object({
     body: z.string(),
     createdAt: z.string(),
@@ -127,19 +127,19 @@ const notificationSummarySchema = z
     title: z.string(),
     type: z.string(),
   })
-  .passthrough();
+  .passthrough(),
 
-const notificationsResponseSchema = z.object({
+ notificationsResponseSchema = z.object({
   notifications: z.array(notificationSummarySchema),
   unreadCount: z.number().int().nonnegative(),
-});
+}),
 
-const followResponseSchema = z.object({
+ followResponseSchema = z.object({
   followed: z.boolean(),
   followerCount: z.number().int().nonnegative(),
-});
+}),
 
-const liveExperienceSummarySchema = z
+ liveExperienceSummarySchema = z
   .object({
     id: z.string(),
     kind: z.enum(["battle", "party", "stream"]),
@@ -147,9 +147,9 @@ const liveExperienceSummarySchema = z
     status: z.string(),
     title: z.string(),
   })
-  .passthrough();
+  .passthrough(),
 
-const liveExperienceResponseSchema = z
+ liveExperienceResponseSchema = z
   .object({
     defaults: z.object({}).passthrough(),
     experience: liveExperienceSummarySchema,
@@ -169,9 +169,9 @@ const liveExperienceResponseSchema = z
       })
       .nullable(),
   })
-  .passthrough();
+  .passthrough(),
 
-const liveParticipantResponseSchema = z
+ liveParticipantResponseSchema = z
   .object({
     participant: z
       .object({
@@ -183,9 +183,9 @@ const liveParticipantResponseSchema = z
       .passthrough(),
     setupScreen: z.boolean(),
   })
-  .passthrough();
+  .passthrough(),
 
-const liveExperienceActionResponseSchema = z
+ liveExperienceActionResponseSchema = z
   .object({
     action: z.string().optional(),
     battleBot: z.object({}).passthrough().optional(),

@@ -51,9 +51,9 @@ export interface VideoSeoData {
 const readObject = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
-    : {};
+    : {},
 
-const readString = (value: unknown): string | null =>
+ readString = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
 export const loadPublicTrackSeo = async (
@@ -67,10 +67,10 @@ export const loadPublicTrackSeo = async (
     return null;
   }
 
-  const rawTrack = readObject(await response.json());
-  const rawArtist = readObject(rawTrack.artist);
-  const id = readString(rawTrack.id);
-  const title = readString(rawTrack.title);
+  const rawTrack = readObject(await response.json()),
+   rawArtist = readObject(rawTrack.artist),
+   id = readString(rawTrack.id),
+   title = readString(rawTrack.title);
 
   if (!(id && title)) {
     return null;
@@ -108,9 +108,9 @@ export const loadPublicArtistSeo = async (
     return null;
   }
 
-  const rawArtist = readObject(await response.json());
-  const artistName = readString(rawArtist.name);
-  const artistUsername = readString(rawArtist.username);
+  const rawArtist = readObject(await response.json()),
+   artistName = readString(rawArtist.name),
+   artistUsername = readString(rawArtist.username);
 
   if (!(artistName && artistUsername)) {
     return null;
@@ -137,9 +137,9 @@ export const loadPublicProjectSeo = async (
     return null;
   }
 
-  const rawProject = readObject(await response.json());
-  const id = readString(rawProject.id);
-  const title = readString(rawProject.title);
+  const rawProject = readObject(await response.json()),
+   id = readString(rawProject.id),
+   title = readString(rawProject.title);
 
   if (!(id && title)) {
     return null;
@@ -169,9 +169,9 @@ export const loadPublicVideoSeo = async (
     return null;
   }
 
-  const rawVideo = readObject(await response.json());
-  const id = readString(rawVideo.id);
-  const title = readString(rawVideo.title);
+  const rawVideo = readObject(await response.json()),
+   id = readString(rawVideo.id),
+   title = readString(rawVideo.title);
 
   if (!(id && title)) {
     return null;

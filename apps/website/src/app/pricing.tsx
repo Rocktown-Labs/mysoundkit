@@ -39,29 +39,29 @@ const pricingText = {
     `Signed in as a ${accountType ?? "user"} account.`,
   startFree: "Start Free",
   startPremium: "Start Premium",
-} as const;
+} as const,
 
-const freeFeatures = [
+ freeFeatures = [
   "Stream music and explore public SoundKit releases",
   "Save tracks, build playlists, and follow artists",
   "Artist accounts can upload music and maintain a public profile",
-] as const;
+] as const,
 
-const premiumFeatures = [
+ premiumFeatures = [
   "Watch live streams, battles, and listening parties",
   "Vote in live battles and join premium chat",
   "Host live experiences and sell music as an artist",
   `Add up to ${PREMIUM_INCLUDED_SEATS} accounts on one Premium plan`,
   "Keep Premium if you move between fan and artist accounts",
-] as const;
+] as const,
 
-const enterpriseFeatures = [
+ enterpriseFeatures = [
   "Label, signed artist, and large team onboarding",
   "Custom support for catalog migrations and releases",
   "Premium workspace planning before launch",
-] as const;
+] as const,
 
-const enterpriseHref =
+ enterpriseHref =
   "mailto:enterprise@mysoundkit.com?subject=SoundKit%20Enterprise";
 
 interface PlanCardContent {
@@ -80,18 +80,18 @@ const freePlan: PlanCardContent = {
   label: "Free",
   price: "Free",
   title: "SoundKit Free",
-};
+},
 
-const premiumPlan: PlanCardContent = {
+ premiumPlan: PlanCardContent = {
   description: pricingText.premiumDescription,
   features: premiumFeatures,
   icon: Sparkles,
   label: "Premium",
   price: "$22.99/month",
   title: "SoundKit Premium",
-};
+},
 
-const enterprisePlan: PlanCardContent = {
+ enterprisePlan: PlanCardContent = {
   description:
     "A holding lane for major labels, signed artists, and larger teams.",
   features: enterpriseFeatures,
@@ -102,24 +102,24 @@ const enterprisePlan: PlanCardContent = {
 };
 
 function PricingPage() {
-  const { data: me } = useMeQuery();
-  const checkout = useBillingCheckoutMutation();
-  const [checkoutMessage, setCheckoutMessage] = useState("");
-  const accountType = me?.user.accountType;
-  const isSignedIn = Boolean(me?.user);
-  const accountHomePath = accountHomePathForAccount(accountType);
-  const accountHomeLabel =
-    accountType === "artist" ? "Go to Dashboard" : "Go to Library";
+  const { data: me } = useMeQuery(),
+   checkout = useBillingCheckoutMutation(),
+   [checkoutMessage, setCheckoutMessage] = useState(""),
+   accountType = me?.user.accountType,
+   isSignedIn = Boolean(me?.user),
+   accountHomePath = accountHomePathForAccount(accountType),
+   accountHomeLabel =
+    accountType === "artist" ? "Go to Dashboard" : "Go to Library",
 
-  const startPremiumCheckout = async () => {
+   startPremiumCheckout = async () => {
     if (!me?.user) {
       return;
     }
 
     try {
       setCheckoutMessage("");
-      const { origin } = window.location;
-      const response = await checkout.mutateAsync({
+      const { origin } = window.location,
+       response = await checkout.mutateAsync({
         cancelUrl: `${origin}/pricing`,
         planCode: premiumPlanCodeForAccount(me.user.accountType),
         successUrl: `${origin}${premiumSuccessPathForAccount(
@@ -205,8 +205,8 @@ function PlanCard({
   featured?: boolean;
   plan: PlanCardContent;
 }) {
-  const Icon = plan.icon;
-  const cardClassName = featured
+  const Icon = plan.icon,
+   cardClassName = featured
     ? "flex h-full flex-col rounded-lg border border-primary bg-card text-card-foreground shadow-lg"
     : "flex h-full flex-col rounded-lg border bg-card text-card-foreground shadow-sm";
 

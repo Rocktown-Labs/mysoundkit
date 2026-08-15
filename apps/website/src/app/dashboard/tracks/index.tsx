@@ -69,20 +69,20 @@ export const Route = createFileRoute("/dashboard/tracks/")({
 });
 
 function TracksPage() {
-  const initialTracks = Route.useLoaderData();
-  const { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks);
-  const deleteTrackMutation = useDeleteTrackMutation();
-  const meQuery = useMeQuery();
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
-  const [deleteCandidate, setDeleteCandidate] = useState<{
+  const initialTracks = Route.useLoaderData(),
+   { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks),
+   deleteTrackMutation = useDeleteTrackMutation(),
+   meQuery = useMeQuery(),
+   { setCurrentTrack, setQueue } = useAudioPlayer(),
+   [deleteCandidate, setDeleteCandidate] = useState<{
     id: string;
     title: string;
-  } | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const completedCount = tracks.filter(
+  } | null>(null),
+   [deleteConfirmation, setDeleteConfirmation] = useState(""),
+   completedCount = tracks.filter(
     (track) => track.productionStatus === "complete"
-  ).length;
-  const trackStats = [
+  ).length,
+   trackStats = [
     {
       description: "Across all genres and projects",
       icon: Music,
@@ -107,9 +107,9 @@ function TracksPage() {
       title: "Total Plays",
       value: String(tracks.reduce((total, track) => total + track.plays, 0)),
     },
-  ];
+  ],
 
-  const playableTracks = tracks
+   playableTracks = tracks
     .filter((track) => Boolean(track.playbackUrl))
     .map((track) => ({
       artist: track.artistName,
@@ -121,9 +121,9 @@ function TracksPage() {
       src: track.playbackUrl ?? "",
       title: track.title,
       trackHref: `/tracks/${track.id}`,
-    }));
+    })),
 
-  const playTrack = (trackId: string) => {
+   playTrack = (trackId: string) => {
     const track = playableTracks.find((entry) => entry.id === trackId);
 
     if (!track) {
@@ -132,9 +132,9 @@ function TracksPage() {
 
     setQueue(playableTracks);
     setCurrentTrack(track);
-  };
+  },
 
-  const downloadTrackMaster = async (track: (typeof tracks)[number]) => {
+   downloadTrackMaster = async (track: (typeof tracks)[number]) => {
     if (!track.downloadUrl) {
       toast({
         description: "No guarded master download is available for this track.",

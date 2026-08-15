@@ -49,96 +49,94 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
 import {
-  useBattlesQuery,
-  useListeningPartiesQuery,
-  useProjectsQuery,
-  useTracksQuery,
-  useVideosQuery,
-} from "@/lib/soundkit-api-hooks";
-import type { TrackSummary } from "@/lib/soundkit-api-hooks";
-import {
   computeGeographicData,
+  computeLoyaltySegments,
   computeRetentionMetrics,
   computeSourcesData,
   computeSpike48hData,
   computeStreamTrends28d,
   computeStreamTrends7d,
 } from "@/lib/analytics-calculations";
+import {
+  useBattlesQuery,
+  useListeningPartiesQuery,
+  useMeQuery,
+  useProjectsQuery,
+  useTracksQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
 });
 
 const areaChartConfig: ChartConfig = {
-  desktop: { color: "hsl(var(--primary))", label: "Desktop Streams" },
-  mobile: {
-    color: "hsl(var(--chart-2, 220 70% 50%))",
-    label: "Mobile Streams",
+    desktop: { color: "hsl(var(--primary))", label: "Desktop Streams" },
+    mobile: {
+      color: "hsl(var(--chart-2, 220 70% 50%))",
+      label: "Mobile Streams",
+    },
   },
-},
-
- sourcesChartConfig: ChartConfig = {
-  algorithmic: {
-    color: "hsl(var(--chart-2, 160 60% 45%))",
-    label: "Algorithmic Radio",
-  },
-  direct: { color: "hsl(var(--primary))", label: "Direct & Profile" },
-  playlists: {
-    color: "hsl(var(--chart-3, 30 80% 55%))",
-    label: "User Playlists",
-  },
-};
+  sourcesChartConfig: ChartConfig = {
+    algorithmic: {
+      color: "hsl(var(--chart-2, 160 60% 45%))",
+      label: "Algorithmic Radio",
+    },
+    direct: { color: "hsl(var(--primary))", label: "Direct & Profile" },
+    playlists: {
+      color: "hsl(var(--chart-3, 30 80% 55%))",
+      label: "User Playlists",
+    },
+  };
 
 function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d"),
-   tracksQuery = useTracksQuery(),
-   projectsQuery = useProjectsQuery(),
-   videosQuery = useVideosQuery(),
-   partiesQuery = useListeningPartiesQuery(),
-   battlesQuery = useBattlesQuery(),
-
-   tracks = tracksQuery.data ?? [],
-   projects = projectsQuery.data ?? [],
-   videos = videosQuery.data ?? [],
-   parties = partiesQuery.data ?? [],
-   battles = battlesQuery.data ?? [],
-
-   totalPlays = tracks.reduce(
-    (total, track) => total + (track.plays ?? 0),
-    0
-  ),
-   qualifiedPlays = Math.round(totalPlays * 0.72),
-   totalSaves =
-    Math.round(totalPlays * 0.18) +
-    (tracks.length > 0 && totalPlays > 0 ? tracks.length * 4 : 0),
-
-   publicTracks = tracks.filter((track) => track.isPublic).length,
-   scheduledProjects = projects.filter(
-    (project) => project.releaseDate && project.status !== "released"
-  ),
-   liveEvents = [
-    ...parties.filter((party) => party.status === "live"),
-    ...battles.filter((battle) => battle.status === "live"),
-  ],
-
-  // Dynamic trend data generated from actual plays
-   streamTrends7d = useMemo(
-    () => computeStreamTrends7d(totalPlays),
-    [totalPlays]
-  ),
-   streamTrends28d = useMemo(
-    () => computeStreamTrends28d(totalPlays),
-    [totalPlays]
-  ),
-   sourcesData = useMemo(() => computeSourcesData(totalPlays), [totalPlays]),
-   spike48hData = useMemo(() => computeSpike48hData(totalPlays), [totalPlays]),
-   geographicData = useMemo(
-    () => computeGeographicData(totalPlays),
-    [totalPlays]
-  ),
-   retention = useMemo(() => computeRetentionMetrics(totalPlays), [totalPlays]),
-
-   trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
+    meQuery = useMeQuery(),
+    tracksQuery = useTracksQuery(),
+    projectsQuery = useProjectsQuery(),
+    videosQuery = useVideosQuery(),
+    partiesQuery = useListeningPartiesQuery(),
+    battlesQuery = useBattlesQuery(),
+    tracks = tracksQuery.data ?? [],
+    projects = projectsQuery.data ?? [],
+    videos = videosQuery.data ?? [],
+    parties = partiesQuery.data ?? [],
+    battles = battlesQuery.data ?? [],
+    totalPlays = tracks.reduce((total, track) => total + (track.plays ?? 0), 0),
+    qualifiedPlays = Math.round(totalPlays * 0.72),
+    totalSaves =
+      Math.round(totalPlays * 0.18) +
+      (tracks.length > 0 && totalPlays > 0 ? tracks.length * 4 : 0),
+    publicTracks = tracks.filter((track) => track.isPublic).length,
+    scheduledProjects = projects.filter(
+      (project) => project.releaseDate && project.status !== "released"
+    ),
+    liveEvents = [
+      ...parties.filter((party) => party.status === "live"),
+      ...battles.filter((battle) => battle.status === "live"),
+    ],
+    // Dynamic trend data generated from actual plays
+    streamTrends7d = useMemo(
+      () => computeStreamTrends7d(totalPlays),
+      [totalPlays]
+    ),
+    streamTrends28d = useMemo(
+      () => computeStreamTrends28d(totalPlays),
+      [totalPlays]
+    ),
+    sourcesData = useMemo(() => computeSourcesData(totalPlays), [totalPlays]),
+    spike48hData = useMemo(() => computeSpike48hData(totalPlays), [totalPlays]),
+    geographicData = useMemo(
+      () => computeGeographicData(totalPlays, meQuery.data?.user.name),
+      [totalPlays, meQuery.data?.user.name]
+    ),
+    retention = useMemo(
+      () => computeRetentionMetrics(totalPlays),
+      [totalPlays]
+    ),
+    loyalty = useMemo(() => computeLoyaltySegments(totalPlays), [totalPlays]),
+    trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
 
   return (
     <div className="space-y-6">
@@ -480,29 +478,42 @@ function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={{}} className="h-[220px] w-full">
-              <BarChart
-                data={geographicData}
-                layout="vertical"
-                margin={{ bottom: 0, left: 20, right: 20, top: 0 }}
-              >
-                <XAxis type="number" hide />
-                <YAxis
-                  dataKey="region"
-                  type="category"
-                  tickLine={false}
-                  axisLine={false}
-                  width={150}
-                  style={{ fontSize: "12px" }}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar
-                  dataKey="plays"
-                  fill="hsl(var(--primary))"
-                  radius={[0, 4, 4, 0]}
-                />
-              </BarChart>
-            </ChartContainer>
+            {geographicData.length > 0 ? (
+              <ChartContainer config={{}} className="h-[220px] w-full">
+                <BarChart
+                  data={geographicData}
+                  layout="vertical"
+                  margin={{ bottom: 0, left: 20, right: 20, top: 0 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="region"
+                    type="category"
+                    tickLine={false}
+                    axisLine={false}
+                    width={150}
+                    style={{ fontSize: "12px" }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="plays"
+                    fill="hsl(var(--primary))"
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <div className="flex h-[220px] flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center text-muted-foreground">
+                <MapPin className="mb-2 size-8 opacity-40" />
+                <p className="text-sm font-medium">
+                  No regional listener data tracked yet
+                </p>
+                <p className="mt-1 text-xs">
+                  City-level tour metrics update automatically as fans stream
+                  your tracks across different regions.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -521,9 +532,10 @@ function AnalyticsPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-emerald-400">
-                  🔥 Super Listeners (42%)
+                  🔥 Super Listeners{" "}
+                  {loyalty.hasData ? `(${loyalty.superPct}%)` : ""}
                 </span>
-                <span>{(totalPlays * 0.42).toFixed(0)} plays</span>
+                <span>{loyalty.superPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Dedicated fans streaming catalog tracks regularly. High repeat
@@ -533,8 +545,11 @@ function AnalyticsPage() {
 
             <div className="space-y-2 pt-2 border-t border-border/30">
               <div className="flex justify-between text-xs font-semibold">
-                <span className="text-sky-400">🎧 Casual / Moderate (45%)</span>
-                <span>{(totalPlays * 0.45).toFixed(0)} plays</span>
+                <span className="text-sky-400">
+                  🎧 Casual / Moderate{" "}
+                  {loyalty.hasData ? `(${loyalty.casualPct}%)` : ""}
+                </span>
+                <span>{loyalty.casualPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Streams primarily from ambient & algorithmic radio playlists.
@@ -544,9 +559,10 @@ function AnalyticsPage() {
             <div className="space-y-2 pt-2 border-t border-border/30">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-muted-foreground">
-                  💤 Lapsed / Inactive (13%)
+                  💤 Lapsed / Inactive{" "}
+                  {loyalty.hasData ? `(${loyalty.lapsedPct}%)` : ""}
                 </span>
-                <span>{(totalPlays * 0.13).toFixed(0)} plays</span>
+                <span>{loyalty.lapsedPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Former listeners who haven't played a track in 28+ days.

@@ -23,17 +23,17 @@ const discoverLinks = [
   { href: "/artist", icon: Users, label: "Artists" },
   { href: "/shop", icon: ShoppingBag, label: "Shop" },
   { href: "/live", icon: Trophy, label: "Live" },
-];
+],
 
-const libraryLinks = [
+ libraryLinks = [
   { href: "/library/recent", icon: Clock, label: "Recently Played" },
   { href: "/library/playlists", icon: Music, label: "Playlists" },
   { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
   { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
   { href: "/library/settings", icon: Settings, label: "Account" },
-];
+],
 
-const genres = [
+ genres = [
   { id: "hip-hop", name: "Hip-Hop" },
   { id: "rb-soul", name: "R&B/Soul" },
   { id: "electronic", name: "Electronic" },
@@ -50,8 +50,8 @@ const genres = [
 ];
 
 export function ExploreSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isRouteActive = (href: string) =>
+  const pathname = useRouterState({ select: (s) => s.location.pathname }),
+   isRouteActive = (href: string) =>
     href === "/"
       ? pathname === "/"
       : pathname === href || pathname.startsWith(`${href}/`);
@@ -64,8 +64,8 @@ export function ExploreSidebar() {
         </h3>
         <nav className="space-y-1">
           {discoverLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = isRouteActive(link.href);
+            const Icon = link.icon,
+             isActive = isRouteActive(link.href);
 
             return (
               <Link key={link.href} to={link.href}>
@@ -90,8 +90,8 @@ export function ExploreSidebar() {
         </h3>
         <nav className="space-y-1">
           {libraryLinks.map((link) => {
-            const Icon = link.icon;
-            const isActive = isRouteActive(link.href);
+            const Icon = link.icon,
+             isActive = isRouteActive(link.href);
 
             return (
               <Link key={link.href} to={link.href}>

@@ -19,8 +19,8 @@ interface Community {
 }
 
 function CommunitiesPage() {
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [communities, setCommunities] = useState<Community[]>([]),
+   [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCommunities = async () => {
@@ -47,8 +47,8 @@ function CommunitiesPage() {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "POST",
-    });
-    const payload = (await response.json()) as {
+    }),
+     payload = (await response.json()) as {
       checkoutUrl?: string | null;
       message?: string;
     };

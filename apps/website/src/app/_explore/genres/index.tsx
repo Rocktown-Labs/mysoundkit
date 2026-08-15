@@ -25,19 +25,19 @@ const genreEmoji: Record<string, string> = {
   reggae: "🌴",
   rock: "🎸",
   "spoken-word": "🎙️",
-};
+},
 
-const formatCount = (count: number) => {
+ formatCount = (count: number) => {
   if (count >= 1000) {
     return `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}K`;
   }
 
   return count.toLocaleString();
-};
+},
 
-const genreActivityLabel = (genre: GenreSummary) => {
-  const total = genre.totalCount ?? genre.trackCount ?? 0;
-  const noun = total === 1 ? "live item" : "live items";
+ genreActivityLabel = (genre: GenreSummary) => {
+  const total = genre.totalCount ?? genre.trackCount ?? 0,
+   noun = total === 1 ? "live item" : "live items";
 
   return `${formatCount(total)} ${noun}`;
 };
@@ -47,8 +47,8 @@ export const Route = createFileRoute("/_explore/genres/")({
 });
 
 function GenresPage() {
-  const genresQuery = useGenresQuery();
-  const genres = genresQuery.data ?? [];
+  const genresQuery = useGenresQuery(),
+   genres = genresQuery.data ?? [];
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

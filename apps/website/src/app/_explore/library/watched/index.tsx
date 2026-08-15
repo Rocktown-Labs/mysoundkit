@@ -13,9 +13,9 @@ export const Route = createFileRoute("/_explore/library/watched/")({
 });
 
 function RecentlyWatchedPage() {
-  const { data = [], isLoading } = useLibraryWatchedQuery();
-  const { data: me } = useMeQuery();
-  const isSignedIn = Boolean(me?.user);
+  const { data = [], isLoading } = useLibraryWatchedQuery(),
+   { data: me } = useMeQuery(),
+   isSignedIn = Boolean(me?.user);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

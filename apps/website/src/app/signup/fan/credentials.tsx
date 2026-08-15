@@ -27,16 +27,16 @@ export const Route = createFileRoute("/signup/fan/credentials")({
 });
 
 function FanCredentialsPage() {
-  const [authMethod, setAuthMethod] = useState<"email" | "oauth" | null>(null);
-  const posthog = usePostHog();
-  const router = useRouter();
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [email, setEmail] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [password, setPassword] = useState("");
+  const [authMethod, setAuthMethod] = useState<"email" | "oauth" | null>(null),
+   posthog = usePostHog(),
+   router = useRouter(),
+   [confirmPassword, setConfirmPassword] = useState(""),
+   [email, setEmail] = useState(""),
+   [errorMessage, setErrorMessage] = useState<string | null>(null),
+   [isSubmitting, setIsSubmitting] = useState(false),
+   [password, setPassword] = useState(""),
 
-  const handleEmailSignup = async (event: FormEvent<HTMLFormElement>) => {
+   handleEmailSignup = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
 

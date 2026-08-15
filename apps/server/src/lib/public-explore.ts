@@ -75,8 +75,8 @@ const regionEntryByStateValue = (state?: string | null) => {
     return null;
   }
 
-  const normalized = state.trim().toLowerCase();
-  const entry = (
+  const normalized = state.trim().toLowerCase(),
+   entry = (
     Object.entries(northAmericaStates) as [
       string,
       {

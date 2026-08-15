@@ -2,18 +2,18 @@ import { spawn } from "node:child_process";
 
 import { createMockApiServer } from "./mock-api.mjs";
 
-const webBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4311";
-const apiBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://127.0.0.1:3000";
-const webUrl = new URL(webBaseUrl);
-const apiUrl = new URL(apiBaseUrl);
+const webBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4311",
+ apiBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://127.0.0.1:3000",
+ webUrl = new URL(webBaseUrl),
+ apiUrl = new URL(apiBaseUrl),
 
-const mockApi = await createMockApiServer({
+ mockApi = await createMockApiServer({
   host: apiUrl.hostname,
   port: Number(apiUrl.port || "80"),
   webOrigin: webUrl.origin,
-});
+}),
 
-const vite = spawn(
+ vite = spawn(
   "pnpm",
   [
     "--dir",
@@ -35,9 +35,9 @@ const vite = spawn(
     },
     stdio: "inherit",
   }
-);
+),
 
-const shutdown = () => {
+ shutdown = () => {
   vite.kill("SIGTERM");
   mockApi.close(() => process.exit(0));
 };

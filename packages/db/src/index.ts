@@ -18,8 +18,8 @@ const schema = {
   ...plansSchema,
 };
 
-let pool: Pool | null = null;
-let db: ReturnType<typeof drizzle> | null = null;
+let pool: Pool | null = null,
+ db: ReturnType<typeof drizzle> | null = null;
 
 const getConnectionString = () => {
   if (env.HYPERDRIVE?.connectionString) {

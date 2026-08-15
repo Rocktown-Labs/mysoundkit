@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import {
   filterSearchCandidates,
   normalizeParticipantIds,
@@ -69,7 +70,12 @@ describe("Messages Domain & User Search", () => {
     it("deduplicates IDs and removes current user", () => {
       const ids = normalizeParticipantIds({
         currentUserId: "user_current",
-        participantUserIds: ["user_luna", "user_luna", "user_current", "user_marcus"],
+        participantUserIds: [
+          "user_luna",
+          "user_luna",
+          "user_current",
+          "user_marcus",
+        ],
       });
 
       expect(ids).toEqual(["user_luna", "user_marcus"]);

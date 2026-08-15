@@ -12,12 +12,12 @@ export const Route = createFileRoute("/dashboard/community")({
 });
 
 function CommunityDashboard() {
-  const [description, setDescription] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("4.99");
+  const [description, setDescription] = useState(""),
+   [message, setMessage] = useState<string | null>(null),
+   [name, setName] = useState(""),
+   [price, setPrice] = useState("4.99"),
 
-  const createCommunity = async () => {
+   createCommunity = async () => {
     const response = await fetch(`${API_V1_URL}/communities`, {
       body: JSON.stringify({
         description,
@@ -27,8 +27,8 @@ function CommunityDashboard() {
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       method: "POST",
-    });
-    const payload = (await response.json()) as {
+    }),
+     payload = (await response.json()) as {
       message?: string;
       name?: string;
     };

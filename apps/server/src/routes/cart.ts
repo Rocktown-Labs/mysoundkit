@@ -40,13 +40,13 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
   }
 
   return Math.round(Number(price) * 100);
-};
+},
 
-const toCartResponse = async (
+ toCartResponse = async (
   user: AuthenticatedUser
 ): Promise<CartResponse> => {
-  const db = createDb();
-  const [cart] = await db.select().from(carts).where(eq(carts.userId, user.id));
+  const db = createDb(),
+   [cart] = await db.select().from(carts).where(eq(carts.userId, user.id));
 
   if (!cart) {
     return {
@@ -62,9 +62,9 @@ const toCartResponse = async (
   const rows = await db
     .select()
     .from(cartItems)
-    .where(eq(cartItems.cartId, cart.id));
+    .where(eq(cartItems.cartId, cart.id)),
 
-  const items: CartItemResponse[] = [];
+   items: CartItemResponse[] = [];
 
   for (const row of rows) {
     let licenseName: string | null = null;
@@ -77,10 +77,10 @@ const toCartResponse = async (
       licenseName = license?.name ?? null;
     }
 
-    const productId = row.trackId ?? row.projectId ?? row.id;
-    const productType: "track" | "project" =
-      row.productType === "project" ? "project" : "track";
-    const purchaseMode: "digital_download" | "license" = row.licenseOptionId
+    const productId = row.trackId ?? row.projectId ?? row.id,
+     productType: "track" | "project" =
+      row.productType === "project" ? "project" : "track",
+     purchaseMode: "digital_download" | "license" = row.licenseOptionId
       ? "license"
       : "digital_download";
 
@@ -105,8 +105,8 @@ const toCartResponse = async (
   const subtotalCents = items.reduce(
     (sum, item) => sum + item.priceCents * item.quantity,
     0
-  );
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  ),
+   itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return {
     currency: "USD",
@@ -116,11 +116,11 @@ const toCartResponse = async (
     subtotalCents,
     totalCents: subtotalCents,
   };
-};
+},
 
-const getOrCreateCart = async (user: AuthenticatedUser) => {
-  const db = createDb();
-  const [existingCart] = await db
+ getOrCreateCart = async (user: AuthenticatedUser) => {
+  const db = createDb(),
+   [existingCart] = await db
     .select()
     .from(carts)
     .where(eq(carts.userId, user.id));
@@ -142,18 +142,18 @@ const getOrCreateCart = async (user: AuthenticatedUser) => {
   }
 
   return createdCart;
-};
+},
 
-const addItemToCart = async ({
+ addItemToCart = async ({
   body,
   user,
 }: {
   body: z.infer<typeof addCartItemBodySchema>;
   user: AuthenticatedUser;
 }): Promise<CartMutationResult> => {
-  const db = createDb();
-  const cart = await getOrCreateCart(user);
-  const quantity = body.quantity ?? 1;
+  const db = createDb(),
+   cart = await getOrCreateCart(user),
+   quantity = body.quantity ?? 1;
 
   if (body.productType === "track") {
     if (!body.trackId) {
@@ -169,8 +169,8 @@ const addItemToCart = async ({
       return { error: "Track was not found." };
     }
 
-    let priceCents = centsFromPrice(track.price, track.priceCents);
-    let titleSnapshot = track.title;
+    let priceCents = centsFromPrice(track.price, track.priceCents),
+     titleSnapshot = track.title;
 
     if (body.licenseOptionId) {
       const [license] = await db
@@ -377,10 +377,10 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const { cartItemId } = c.req.valid("param");
-    const db = createDb();
-    const cart = await getOrCreateCart(user);
+    const body = c.req.valid("json"),
+     { cartItemId } = c.req.valid("param"),
+     db = createDb(),
+     cart = await getOrCreateCart(user);
 
     await db
       .update(cartItems)
@@ -416,9 +416,9 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const { cartItemId } = c.req.valid("param");
-    const db = createDb();
-    const cart = await getOrCreateCart(user);
+    const { cartItemId } = c.req.valid("param"),
+     db = createDb(),
+     cart = await getOrCreateCart(user);
 
     await db
       .delete(cartItems)
@@ -448,8 +448,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const db = createDb();
-    const cart = await getOrCreateCart(user);
+    const db = createDb(),
+     cart = await getOrCreateCart(user);
 
     await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
 

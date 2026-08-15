@@ -44,85 +44,85 @@ import { authClient } from "@/lib/auth-client";
 import { useAdminAccessQuery } from "@/lib/soundkit-api-hooks";
 
 const myMusicNavigation: SidebarNavItem[] = [
-  { href: "/dashboard", icon: Home, name: "Dashboard" },
-  { href: "/dashboard/tracks", icon: Music, name: "Tracks" },
-  { href: "/dashboard/projects", icon: FolderOpen, name: "Projects" },
-  { href: "/dashboard/videos", icon: Film, name: "Videos" },
-  { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
-  { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
-  { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Friends" },
-].map(({ href, icon, name }) => ({ icon, title: name, url: href })),
-
- careerNavigation: SidebarNavItem[] = [
-  { href: "/dashboard/career/profile", icon: User, name: "Profile" },
-  { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
-  { href: "/dashboard/career/calendar", icon: CalendarDays, name: "Calendar" },
-  { href: "/dashboard/team", icon: Users, name: "Team" },
-  { href: "/dashboard/ads", icon: Megaphone, name: "Ads" },
-  { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
-  {
-    href: "/dashboard/career/payments",
-    icon: CircleDollarSign,
-    name: "Payments",
-  },
-].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
+    { href: "/dashboard", icon: Home, name: "Dashboard" },
+    { href: "/dashboard/tracks", icon: Music, name: "Tracks" },
+    { href: "/dashboard/projects", icon: FolderOpen, name: "Projects" },
+    { href: "/dashboard/videos", icon: Film, name: "Videos" },
+    { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
+    { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
+    { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Friends" },
+  ].map(({ href, icon, name }) => ({ icon, title: name, url: href })),
+  careerNavigation: SidebarNavItem[] = [
+    { href: "/dashboard/career/profile", icon: User, name: "Profile" },
+    { href: "/dashboard/career/analytics", icon: BarChart3, name: "Analytics" },
+    {
+      href: "/dashboard/career/calendar",
+      icon: CalendarDays,
+      name: "Calendar",
+    },
+    { href: "/dashboard/team", icon: Users, name: "Team" },
+    { href: "/dashboard/ads", icon: Megaphone, name: "Ads" },
+    { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
+    {
+      href: "/dashboard/career/payments",
+      icon: CircleDollarSign,
+      name: "Payments",
+    },
+  ].map(({ href, icon, name }) => ({ icon, title: name, url: href }));
 
 export function AppSidebar() {
   const { data: session } = authClient.useSession(),
-   adminAccess = useAdminAccessQuery(Boolean(session?.user)),
-   pathname = useRouterState({ select: (s) => s.location.pathname }),
-   isAdmin =
-    session?.user.role
-      ?.split(",")
-      .map((role) => role.trim())
-      .includes("admin") || adminAccess.data?.isAdmin,
-   isRouteActive = (href: string) =>
-    href === "/dashboard"
-      ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`),
-
-   resolvedMyMusicNavigation = myMusicNavigation.map((item) => ({
-    ...item,
-    isActive: isRouteActive(item.url ?? "/dashboard"),
-  })),
-
-   resolvedCareerNavigation = careerNavigation.map((item) => ({
-    ...item,
-    isActive: isRouteActive(item.url ?? "/dashboard"),
-  })),
-
-   liveNavigation: SidebarNavItem[] = [
-    {
-      icon: Trophy,
-      isActive: pathname === "/dashboard/live",
-      title: "Battles",
-      url: "/dashboard/live",
-    },
-    {
-      icon: Users,
-      isActive: isRouteActive("/dashboard/live/parties"),
-      title: "Parties",
-      url: "/dashboard/live/parties",
-    },
-    {
-      icon: Film,
-      isActive: isRouteActive("/dashboard/live/streams"),
-      title: "Streams",
-      url: "/dashboard/live/streams",
-    },
-    {
-      icon: Music,
-      isActive: isRouteActive("/dashboard/live/my-kit"),
-      title: "My Kits",
-      url: "/dashboard/live/my-kit",
-    },
-    {
-      icon: BarChart3,
-      isActive: isRouteActive("/dashboard/live/my-stats"),
-      title: "My Stats",
-      url: "/dashboard/live/my-stats",
-    },
-  ];
+    adminAccess = useAdminAccessQuery(Boolean(session?.user)),
+    pathname = useRouterState({ select: (s) => s.location.pathname }),
+    isAdmin =
+      session?.user.role
+        ?.split(",")
+        .map((role) => role.trim())
+        .includes("admin") || adminAccess.data?.isAdmin,
+    isRouteActive = (href: string) =>
+      href === "/dashboard"
+        ? pathname === href
+        : pathname === href || pathname.startsWith(`${href}/`),
+    resolvedMyMusicNavigation = myMusicNavigation.map((item) => ({
+      ...item,
+      isActive: isRouteActive(item.url ?? "/dashboard"),
+    })),
+    resolvedCareerNavigation = careerNavigation.map((item) => ({
+      ...item,
+      isActive: isRouteActive(item.url ?? "/dashboard"),
+    })),
+    liveNavigation: SidebarNavItem[] = [
+      {
+        icon: Trophy,
+        isActive: pathname === "/dashboard/live",
+        title: "Battles",
+        url: "/dashboard/live",
+      },
+      {
+        icon: Users,
+        isActive: isRouteActive("/dashboard/live/parties"),
+        title: "Parties",
+        url: "/dashboard/live/parties",
+      },
+      {
+        icon: Film,
+        isActive: isRouteActive("/dashboard/live/streams"),
+        title: "Streams",
+        url: "/dashboard/live/streams",
+      },
+      {
+        icon: Music,
+        isActive: isRouteActive("/dashboard/live/my-kit"),
+        title: "My Kits",
+        url: "/dashboard/live/my-kit",
+      },
+      {
+        icon: BarChart3,
+        isActive: isRouteActive("/dashboard/live/my-stats"),
+        title: "My Stats",
+        url: "/dashboard/live/my-stats",
+      },
+    ];
 
   return (
     <Sidebar collapsible="icon">

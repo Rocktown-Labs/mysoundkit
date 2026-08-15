@@ -32,15 +32,15 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const router = useRouter();
-  const { redirect } = Route.useSearch();
-  const posthog = usePostHog();
-  const [email, setEmail] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [password, setPassword] = useState("");
+  const router = useRouter(),
+   { redirect } = Route.useSearch(),
+   posthog = usePostHog(),
+   [email, setEmail] = useState(""),
+   [errorMessage, setErrorMessage] = useState<string | null>(null),
+   [isSubmitting, setIsSubmitting] = useState(false),
+   [password, setPassword] = useState(""),
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+   handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);

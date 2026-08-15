@@ -30,9 +30,9 @@ export const Route = createFileRoute("/_explore/videos/")({
     genre:
       search.genre === "hip-hop"
         ? "hip-hop-rap"
-        : typeof search.genre === "string"
+        : (typeof search.genre === "string"
           ? search.genre
-          : undefined,
+          : undefined),
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
@@ -41,31 +41,31 @@ export const Route = createFileRoute("/_explore/videos/")({
 });
 
 function VideosPage() {
-  const router = useRouter();
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
+  const router = useRouter(),
+   search = Route.useSearch(),
+   navigate = Route.useNavigate(),
 
-  const savedRegionType =
+   savedRegionType =
     typeof window === "undefined"
       ? null
       : (localStorage.getItem("exploreRegionType") as
           | "north-america"
           | "global"
-          | null);
-  const savedRegion =
+          | null),
+   savedRegion =
     typeof window === "undefined"
       ? null
-      : localStorage.getItem("exploreRegion");
+      : localStorage.getItem("exploreRegion"),
 
-  const regionType = search.regionType ?? savedRegionType ?? "north-america";
-  const region = search.region ?? savedRegion ?? "us-arkansas";
-  const genre = search.genre ?? "all";
-  const sort = search.sort ?? "views-desc";
-  const view = search.view ?? "sections";
+   regionType = search.regionType ?? savedRegionType ?? "north-america",
+   region = search.region ?? savedRegion ?? "us-arkansas",
+   genre = search.genre ?? "all",
+   sort = search.sort ?? "views-desc",
+   view = search.view ?? "sections",
 
-  const updateFilters = (next: Partial<VideosSearch>) => {
-    const nextRegionType = next.regionType ?? regionType;
-    const nextRegion = next.region ?? region;
+   updateFilters = (next: Partial<VideosSearch>) => {
+    const nextRegionType = next.regionType ?? regionType,
+     nextRegion = next.region ?? region;
     if (typeof window !== "undefined") {
       localStorage.setItem("exploreRegionType", nextRegionType);
       localStorage.setItem("exploreRegion", nextRegion);
@@ -81,9 +81,9 @@ function VideosPage() {
         view: next.view ?? view,
       }),
     });
-  };
+  },
 
-  const { data: videos = [], isLoading } = useVideosQuery({
+   { data: videos = [], isLoading } = useVideosQuery({
     genre,
     limit: "48",
     region,
@@ -94,16 +94,6 @@ function VideosPage() {
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
-      <Button
-        className="mb-4"
-        onClick={() => router.history.back()}
-        size="sm"
-        variant="ghost"
-      >
-        <ArrowLeft className="mr-2 size-4" />
-        Back
-      </Button>
-
       <div className="mb-8">
         <h1 className="mb-2 flex items-center gap-2 font-bold text-2xl md:text-3xl lg:text-4xl">
           <Video className="size-6 text-primary md:size-8" />
@@ -139,55 +129,61 @@ function VideosPage() {
           {(video) => <ExploreVideoCard video={video} />}
         </ExploreCollectionGrid>
       ) : (
-      <div className="mb-10">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-xl">Featured Videos</h2>
-            <p className="text-muted-foreground text-sm">
-              Music videos and replays ranked by the current filters.
-            </p>
+        <div className="mb-10">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-xl">Featured Videos</h2>
+              <p className="text-muted-foreground text-sm">
+                Music videos and replays ranked by the current filters.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="ghost">
+              <Link
+                to="/videos"
+                search={
+                  {
+                    genre,
+                    region,
+                    regionType,
+                    sort,
+                    view: "all",
+                  } satisfies VideosSearch
+                }
+              >
+                View All
+              </Link>
+            </Button>
           </div>
-          <Button asChild size="sm" variant="ghost">
-            <Link
-              to="/videos"
-              search={
-                { genre, region, regionType, sort, view: "all" } satisfies VideosSearch
-              }
-            >
-              View All
-            </Link>
-          </Button>
+          {isLoading || videos.length > 0 ? (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {videos.slice(0, 12).map((video) => (
+                <div className="min-w-[320px] max-w-[420px]" key={video.id}>
+                  <ExploreVideoCard video={video} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <VideoEmptyState>
+              No videos found for this filter yet. Arkansas is selected by
+              default until this region has more uploads.
+            </VideoEmptyState>
+          )}
         </div>
-        {isLoading || videos.length > 0 ? (
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {videos.slice(0, 12).map((video) => (
-              <div className="min-w-[320px] max-w-[420px]" key={video.id}>
-                <ExploreVideoCard video={video} />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <VideoEmptyState>
-            No videos found for this filter yet. Arkansas is selected by default
-            until this region has more uploads.
-          </VideoEmptyState>
-        )}
-      </div>
       )}
 
-      {view !== "all" ? (
-      <div className="flex flex-col gap-10">
-        {musicGenres.map((sectionGenre) => (
-          <VideoGenreRail
-            key={sectionGenre.value}
-            genre={sectionGenre}
-            region={region}
-            regionType={regionType}
-            sort={sort}
-          />
-        ))}
-      </div>
-      ) : null}
+      {view === "all" ? null : (
+        <div className="flex flex-col gap-10">
+          {musicGenres.map((sectionGenre) => (
+            <VideoGenreRail
+              key={sectionGenre.value}
+              genre={sectionGenre}
+              region={region}
+              regionType={regionType}
+              sort={sort}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

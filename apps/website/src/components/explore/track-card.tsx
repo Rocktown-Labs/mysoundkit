@@ -33,11 +33,11 @@ export function TrackCard({
   regionSlug,
   slug,
 }: TrackCardProps) {
-  const { toast } = useToast();
-  const { data: savedTracks = [] } = useLibrarySavedQuery();
-  const toggleSaveMutation = useToggleSaveTrackMutation();
-  const isSaved = savedTracks.some((t) => t.id === id);
-  const [optimisticSaved, setOptimisticSaved] = useState(isSaved);
+  const { toast } = useToast(),
+   { data: savedTracks = [] } = useLibrarySavedQuery(),
+   toggleSaveMutation = useToggleSaveTrackMutation(),
+   isSaved = savedTracks.some((t) => t.id === id),
+   [optimisticSaved, setOptimisticSaved] = useState(isSaved);
 
   useEffect(() => {
     setOptimisticSaved(isSaved);
@@ -69,9 +69,9 @@ export function TrackCard({
       });
       setOptimisticSaved(isSaved);
     }
-  };
+  },
 
-  const trackLink =
+   trackLink =
     regionSlug && slug
       ? {
           params: { regionSlug, slug },

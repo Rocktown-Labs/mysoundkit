@@ -101,7 +101,7 @@ export function ExploreCollectionEmpty({ children }: { children: ReactNode }) {
 
 const getItemKey = <T,>(item: T, index: number) => {
   if (typeof item === "object" && item !== null && "id" in item) {
-    const id = item.id;
+    const {id} = item;
     if (typeof id === "string" || typeof id === "number") {
       return id;
     }

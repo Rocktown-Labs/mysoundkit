@@ -9,15 +9,15 @@ const jsonRequest = (method: string, body: unknown) => ({
     "content-type": "application/json",
   },
   method,
-});
+}),
 
-const readJson = <T>(response: Response): Promise<T> =>
-  response.json() as Promise<T>;
+ readJson = <T>(response: Response): Promise<T> =>
+  response.json() as Promise<T>,
 
-const bytesToHex = (bytes: Uint8Array) =>
-  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+ bytesToHex = (bytes: Uint8Array) =>
+  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
 
-const stripeSignature = async ({
+ stripeSignature = async ({
   payload,
   timestamp = Math.floor(Date.now() / 1000),
 }: {
@@ -30,8 +30,8 @@ const stripeSignature = async ({
     { hash: "SHA-256", name: "HMAC" },
     false,
     ["sign"]
-  );
-  const digest = await crypto.subtle.sign(
+  ),
+   digest = await crypto.subtle.sign(
     "HMAC",
     key,
     new TextEncoder().encode(`${timestamp}.${payload}`)
@@ -42,8 +42,8 @@ const stripeSignature = async ({
 
 describe("SoundKit Worker API", () => {
   it("exposes service health metadata", async () => {
-    const response = await SELF.fetch("http://soundkit.test/health");
-    const body = await readJson<{
+    const response = await SELF.fetch("http://soundkit.test/health"),
+     body = await readJson<{
       ok: boolean;
       service: string;
     }>(response);
@@ -54,8 +54,8 @@ describe("SoundKit Worker API", () => {
   });
 
   it("publishes an OpenAPI document", async () => {
-    const response = await SELF.fetch("http://soundkit.test/api/openapi.json");
-    const body = await readJson<{
+    const response = await SELF.fetch("http://soundkit.test/api/openapi.json"),
+     body = await readJson<{
       info: { title: string };
       openapi: string;
     }>(response);
@@ -69,8 +69,8 @@ describe("SoundKit Worker API", () => {
     const payload = JSON.stringify({
       data: { object: {} },
       type: "checkout.session.completed",
-    });
-    const response = await SELF.fetch(
+    }),
+     response = await SELF.fetch(
       "http://soundkit.test/v1/webhooks/stripe-commerce",
       {
         body: payload,
@@ -79,8 +79,8 @@ describe("SoundKit Worker API", () => {
         },
         method: "POST",
       }
-    );
-    const body = await readJson<{ message: string }>(response);
+    ),
+     body = await readJson<{ message: string }>(response);
 
     expect(response.status).toBe(200);
     expect(body.message).toBe("Stripe webhook accepted.");
@@ -103,8 +103,8 @@ describe("SoundKit Worker API", () => {
   });
 
   it("rejects correctly signed but stale Stripe webhooks", async () => {
-    const payload = JSON.stringify({ id: "evt_stale" });
-    const response = await SELF.fetch(
+    const payload = JSON.stringify({ id: "evt_stale" }),
+     response = await SELF.fetch(
       "http://soundkit.test/v1/webhooks/stripe-commerce",
       {
         body: payload,
@@ -161,10 +161,10 @@ describe("SoundKit Worker API", () => {
     expect(battlesResponse.status).toBe(200);
     expect(projectsResponse.status).toBe(200);
 
-    const tracks = await readJson<unknown[]>(tracksResponse);
-    const videos = await readJson<unknown[]>(videosResponse);
-    const battles = await readJson<unknown[]>(battlesResponse);
-    const projects = await readJson<
+    const tracks = await readJson<unknown[]>(tracksResponse),
+     videos = await readJson<unknown[]>(videosResponse),
+     battles = await readJson<unknown[]>(battlesResponse),
+     projects = await readJson<
       {
         genre: string | null;
         projectType: string;
@@ -187,8 +187,8 @@ describe("SoundKit Worker API", () => {
   it("filters public projects by sale state in no-storage mode", async () => {
     const response = await SELF.fetch(
       "http://soundkit.test/v1/projects/public?forSale=true"
-    );
-    const projects = await readJson<unknown[]>(response);
+    ),
+     projects = await readJson<unknown[]>(response);
 
     expect(response.status).toBe(200);
     expect(projects).toEqual([]);
@@ -197,12 +197,12 @@ describe("SoundKit Worker API", () => {
   it("reports live room state as unavailable without a Durable Object binding", async () => {
     const partyResponse = await SELF.fetch(
       "http://soundkit.test/v1/live/rooms/single-album-party"
-    );
-    const battleResponse = await SELF.fetch(
+    ),
+     battleResponse = await SELF.fetch(
       "http://soundkit.test/v1/live/rooms/battle-1"
-    );
-    const party = await readJson<{ message: string }>(partyResponse);
-    const battle = await readJson<{ message: string }>(battleResponse);
+    ),
+     party = await readJson<{ message: string }>(partyResponse),
+     battle = await readJson<{ message: string }>(battleResponse);
 
     expect(partyResponse.status).toBe(503);
     expect(party.message).toContain("Durable Object");
@@ -224,18 +224,18 @@ describe("SoundKit Worker API", () => {
         releaseStrategy: "private",
         title: "Worker Test Track",
       })
-    );
-    const cartResponse = await SELF.fetch("http://soundkit.test/v1/cart");
-    const friendsResponse = await SELF.fetch(
+    ),
+     cartResponse = await SELF.fetch("http://soundkit.test/v1/cart"),
+     friendsResponse = await SELF.fetch(
       "http://soundkit.test/v1/messages/friends"
-    );
-    const conversationsResponse = await SELF.fetch(
+    ),
+     conversationsResponse = await SELF.fetch(
       "http://soundkit.test/v1/messages/conversations"
-    );
-    const conversationMessagesResponse = await SELF.fetch(
+    ),
+     conversationMessagesResponse = await SELF.fetch(
       "http://soundkit.test/v1/messages/conversations/conv_sarah/messages"
-    );
-    const checkoutResponse = await SELF.fetch(
+    ),
+     checkoutResponse = await SELF.fetch(
       "http://soundkit.test/v1/billing/checkout",
       jsonRequest("POST", {
         cancelUrl: "http://127.0.0.1:3001/pricing",
@@ -253,15 +253,15 @@ describe("SoundKit Worker API", () => {
   });
 
   it("reports upload routes as unavailable until storage credentials are bound", async () => {
-    const statusResponse = await SELF.fetch("http://soundkit.test/v1/uploads");
-    const uploadResponse = await SELF.fetch(
+    const statusResponse = await SELF.fetch("http://soundkit.test/v1/uploads"),
+     uploadResponse = await SELF.fetch(
       "http://soundkit.test/v1/uploads/track-source",
       {
         method: "POST",
       }
-    );
-    const statusBody = await readJson<{ message: string }>(statusResponse);
-    const uploadBody = await readJson<{ message: string }>(uploadResponse);
+    ),
+     statusBody = await readJson<{ message: string }>(statusResponse),
+     uploadBody = await readJson<{ message: string }>(uploadResponse);
 
     expect(statusResponse.status).toBe(200);
     expect(statusBody.message).toContain("UPLOAD_BUCKET_NAME");
@@ -272,8 +272,8 @@ describe("SoundKit Worker API", () => {
   it("exposes the full genre catalog even when the database is not configured", async () => {
     const response = await SELF.fetch(
       "http://soundkit.test/v1/discover/genres"
-    );
-    const body = await readJson<{ name: string; slug: string }[]>(response);
+    ),
+     body = await readJson<{ name: string; slug: string }[]>(response);
 
     expect(response.status).toBe(200);
     expect(body.length).toBeGreaterThanOrEqual(9);
@@ -300,8 +300,8 @@ describe("SoundKit Worker API", () => {
         genre: "Hip-Hop",
         opponentUsername: "rival-artist",
       })
-    );
-    const body = await readJson<{ message: string }>(response);
+    ),
+     body = await readJson<{ message: string }>(response);
 
     expect(response.status).toBe(401);
     expect(body.message).toContain("Authentication");
@@ -333,8 +333,8 @@ describe("SoundKit Worker API", () => {
   it("returns no approved public lyrics when storage is not configured", async () => {
     const response = await SELF.fetch(
       "http://soundkit.test/v1/tracks/track_123/lyrics"
-    );
-    const body = await readJson<unknown>(response);
+    ),
+     body = await readJson<unknown>(response);
 
     expect(response.status).toBe(200);
     expect(body).toBeNull();

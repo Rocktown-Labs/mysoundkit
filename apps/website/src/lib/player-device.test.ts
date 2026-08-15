@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import {
   classifyAudioDevice,
   formatPlaybackTime,
@@ -9,7 +10,9 @@ describe("Player Device & UI Helpers", () => {
   describe("classifyAudioDevice", () => {
     it("identifies Bluetooth devices", () => {
       expect(classifyAudioDevice("AirPods Pro Bluetooth")).toBe("bluetooth");
-      expect(classifyAudioDevice("Sony WH-1000XM4 (BT Audio)")).toBe("bluetooth");
+      expect(classifyAudioDevice("Sony WH-1000XM4 (BT Audio)")).toBe(
+        "bluetooth"
+      );
       expect(classifyAudioDevice("Wireless Speaker")).toBe("bluetooth");
     });
 
@@ -20,7 +23,9 @@ describe("Player Device & UI Helpers", () => {
     });
 
     it("identifies built-in computer outputs", () => {
-      expect(classifyAudioDevice("MacBook Pro Speakers (Built-in)")).toBe("computer");
+      expect(classifyAudioDevice("MacBook Pro Speakers (Built-in)")).toBe(
+        "computer"
+      );
       expect(classifyAudioDevice("Internal Laptop Audio")).toBe("computer");
       expect(classifyAudioDevice("This Computer")).toBe("computer");
     });
@@ -46,7 +51,7 @@ describe("Player Device & UI Helpers", () => {
       expect(formatPlaybackTime(65)).toBe("1:05");
       expect(formatPlaybackTime(185)).toBe("3:05");
       expect(formatPlaybackTime(-1)).toBe("0:00");
-      expect(formatPlaybackTime(NaN)).toBe("0:00");
+      expect(formatPlaybackTime(Number.NaN)).toBe("0:00");
     });
   });
 });

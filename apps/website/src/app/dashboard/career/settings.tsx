@@ -86,9 +86,9 @@ const emailNotificationItems: {
     key: "emailSales",
     title: "Sales",
   },
-];
+],
 
-const pushNotificationItems: {
+ pushNotificationItems: {
   description: string;
   key: NotificationSettingKey;
   title: string;
@@ -108,9 +108,9 @@ const pushNotificationItems: {
     key: "pushReleases",
     title: "Releases",
   },
-];
+],
 
-const privacyNotificationItems = [
+ privacyNotificationItems = [
   {
     description: "Make your profile visible at mysoundkit.com/johndoe",
     key: "public-profile",
@@ -136,37 +136,37 @@ const privacyNotificationItems = [
 // Existing settings sections are intentionally consolidated into one screen.
 // eslint-disable-next-line complexity
 function SettingsPage() {
-  const navigate = useNavigate();
-  const search = Route.useSearch();
-  const activeTab = search.tab ?? "profile";
-  const meQuery = useMeQuery();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const notificationSettingsQuery = useNotificationSettingsQuery();
-  const updateProfile = useUpdateMeProfileMutation();
-  const updateNotificationSettings = useUpdateNotificationSettingsMutation();
-  const user = meQuery.data?.user;
-  const entitlements = entitlementsQuery.data;
-  const notificationSettings = {
+  const navigate = useNavigate(),
+   search = Route.useSearch(),
+   activeTab = search.tab ?? "profile",
+   meQuery = useMeQuery(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   notificationSettingsQuery = useNotificationSettingsQuery(),
+   updateProfile = useUpdateMeProfileMutation(),
+   updateNotificationSettings = useUpdateNotificationSettingsMutation(),
+   user = meQuery.data?.user,
+   entitlements = entitlementsQuery.data,
+   notificationSettings = {
     ...defaultNotificationSettings,
     ...notificationSettingsQuery.data,
-  };
-  const location = [user?.city, user?.state].filter(Boolean).join(", ");
-  const [isDirty, setIsDirty] = useState(false);
+  },
+   location = [user?.city, user?.state].filter(Boolean).join(", "),
+   [isDirty, setIsDirty] = useState(false),
 
-  const handleTabChange = (val: string) => {
+   handleTabChange = (val: string) => {
     navigate({
       search: { tab: val as SettingsSearch["tab"] },
     });
-  };
+  },
 
-  const updateNotificationSetting = (
+   updateNotificationSetting = (
     key: NotificationSettingKey,
     checked: boolean
   ) => {
     updateNotificationSettings.mutate({ [key]: checked });
-  };
+  },
 
-  const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
+   saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     updateProfile.mutate(
@@ -174,10 +174,6 @@ function SettingsPage() {
         bio: String(form.get("bio") ?? ""),
         city: String(form.get("city") ?? ""),
         displayName: String(form.get("displayName") ?? ""),
-        mediaLayout:
-          String(form.get("mediaLayout") ?? "cards") === "list"
-            ? "list"
-            : "cards",
         links: {
           appleMusic: String(form.get("appleMusic") ?? ""),
           instagram: String(form.get("instagram") ?? ""),
@@ -188,6 +184,10 @@ function SettingsPage() {
           twitter: String(form.get("twitter") ?? ""),
           youtube: String(form.get("youtube") ?? ""),
         },
+        mediaLayout:
+          String(form.get("mediaLayout") ?? "cards") === "list"
+            ? "list"
+            : "cards",
         proAffiliation: String(form.get("proAffiliation") ?? "None"),
         proMemberId: String(form.get("proMemberId") ?? ""),
         songwriterLegalName: String(form.get("songwriterLegalName") ?? ""),

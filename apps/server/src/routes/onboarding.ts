@@ -15,8 +15,8 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { indexSearchEntity } from "@/lib/audio-processing";
+import { createPlanCheckout, isFreePlan } from "@/lib/billing";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
@@ -32,8 +32,8 @@ import {
 import type { AppEnv } from "@/lib/types";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>();
-const RESERVED_USERNAMES = new Set(["soundkit"]);
+const app = new OpenAPIHono<AppEnv>(),
+ RESERVED_USERNAMES = new Set(["soundkit"]);
 
 type UsernameAvailability =
   | {
@@ -71,8 +71,8 @@ const checkUsernameAvailability = async (
     };
   }
 
-  const db = createDb();
-  const [existing] = await db
+  const db = createDb(),
+   [existing] = await db
     .select({ userId: userProfiles.userId })
     .from(userProfiles)
     .where(sql`lower(${userProfiles.username}) = ${username}`)
@@ -93,13 +93,13 @@ const checkUsernameAvailability = async (
     reason: "available",
     username,
   };
-};
+},
 
-const ensureGenre = async (name: string) => {
-  const db = createDb();
-  const canonicalName = canonicalGenreName(name);
-  const slug = canonicalGenreSlug(name);
-  const [existing] = await db
+ ensureGenre = async (name: string) => {
+  const db = createDb(),
+   canonicalName = canonicalGenreName(name),
+   slug = canonicalGenreSlug(name),
+   [existing] = await db
     .select({ id: genres.id })
     .from(genres)
     .where(eq(genres.slug, slug))
@@ -117,9 +117,9 @@ const ensureGenre = async (name: string) => {
   });
 
   return genreId;
-};
+},
 
-const ensureFreeSubscription = async ({
+ ensureFreeSubscription = async ({
   planCode,
   referenceId,
 }: {
@@ -130,8 +130,8 @@ const ensureFreeSubscription = async ({
     return;
   }
 
-  const db = createDb();
-  const [existing] = await db
+  const db = createDb(),
+   [existing] = await db
     .select({ id: subscription.id })
     .from(subscription)
     .where(
@@ -153,11 +153,11 @@ const ensureFreeSubscription = async ({
     referenceId,
     status: "active",
   });
-};
+},
 
-const onboardingUrls = (request: Request) => {
-  const url = new URL(request.url);
-  const { origin } = url;
+ onboardingUrls = (request: Request) => {
+  const url = new URL(request.url),
+   { origin } = url;
 
   return {
     cancelUrl: `${origin}/signup`,
@@ -181,9 +181,9 @@ app.openapi(
     tags: ["Onboarding"],
   }),
   async (c) => {
-    const { username } = c.req.valid("query");
-    const user = c.get("user");
-    const availability = await checkUsernameAvailability(
+    const { username } = c.req.valid("query"),
+     user = c.get("user"),
+     availability = await checkUsernameAvailability(
       username,
       isAuthenticatedUser(user) ? user.id : undefined
     );
@@ -223,8 +223,8 @@ app.openapi(
     tags: ["Onboarding"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const body = c.req.valid("json");
+    const user = c.get("user"),
+     body = c.req.valid("json");
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -261,17 +261,17 @@ app.openapi(
         );
       }
 
-      const db = createDb();
-      const now = new Date();
-      const genreId = await ensureGenre(body.primaryGenre);
-      const avatar =
+      const db = createDb(),
+       now = new Date(),
+       genreId = await ensureGenre(body.primaryGenre),
+       avatar =
         body.avatarObjectKey && body.avatarUrl
           ? {
               avatarObjectKey: body.avatarObjectKey,
               avatarUrl: body.avatarUrl,
             }
-          : {};
-      const workspaceId = await ensureWorkspaceForUser({
+          : {},
+       workspaceId = await ensureWorkspaceForUser({
         accountType: "artist",
         displayName: user.name ?? body.username,
         user,
@@ -334,7 +334,13 @@ app.openapi(
         entityId: user.id,
         entityType: "artist",
         organizationId: workspaceId,
-        text: [user.name, body.username, body.primaryGenre, body.city, body.state]
+        text: [
+          user.name,
+          body.username,
+          body.primaryGenre,
+          body.city,
+          body.state,
+        ]
           .filter(Boolean)
           .join("\n"),
       });
@@ -439,8 +445,8 @@ app.openapi(
     tags: ["Onboarding"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const body = c.req.valid("json");
+    const user = c.get("user"),
+     body = c.req.valid("json");
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -459,9 +465,9 @@ app.openapi(
     }
 
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
-      const db = createDb();
-      const now = new Date();
-      const workspaceId = await ensureWorkspaceForUser({
+      const db = createDb(),
+       now = new Date(),
+       workspaceId = await ensureWorkspaceForUser({
         accountType: "fan",
         displayName: user.name ?? body.username,
         user,

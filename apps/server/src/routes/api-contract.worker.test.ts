@@ -3,24 +3,24 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 
-const API_ORIGIN = "http://soundkit.test";
+const API_ORIGIN = "http://soundkit.test",
 
-const jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
+ jsonRequest = (body: unknown, method = "POST"): RequestInit => ({
   body: JSON.stringify(body),
   headers: {
     "content-type": "application/json",
   },
   method,
-});
+}),
 
-const fetchJson = async <T>(path: string, init?: RequestInit) => {
-  const response = await SELF.fetch(`${API_ORIGIN}${path}`, init);
-  const body = (await response.json()) as T;
+ fetchJson = async <T>(path: string, init?: RequestInit) => {
+  const response = await SELF.fetch(`${API_ORIGIN}${path}`, init),
+   body = (await response.json()) as T;
 
   return { body, response };
-};
+},
 
-const publicReadCases = [
+ publicReadCases = [
   ["/v1/artists", "array"],
   ["/v1/artists/luna-eclipse", "object"],
   ["/v1/tracks", "array"],
@@ -41,9 +41,9 @@ const publicReadCases = [
   ["/v1/library/purchases", "array"],
   ["/v1/social/posts/post_1/comments", "array"],
   ["/v1/analytics/overview", "object"],
-] as const;
+] as const,
 
-const expectedOpenApiOperations = [
+ expectedOpenApiOperations = [
   ["get", "/v1/analytics/overview"],
   ["get", "/v1/artists"],
   ["get", "/v1/artists/{username}"],
@@ -239,9 +239,9 @@ describe("SoundKit API HTTP contracts", () => {
             return null;
           }
         })
-        .filter(Boolean);
+        .filter(Boolean),
 
-      const requestEntry = entries.find(
+       requestEntry = entries.find(
         (entry) => entry?.requestId === "rid_log"
       );
 

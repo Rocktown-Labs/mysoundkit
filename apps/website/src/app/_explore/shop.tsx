@@ -23,8 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { musicGenres } from "@/lib/music-genres";
-import { useTracksQuery } from '@/lib/soundkit-api-hooks';
-import type { TrackSummary } from '@/lib/soundkit-api-hooks';
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 interface ShopSearch {
   genre?: string;
@@ -45,14 +45,14 @@ export const Route = createFileRoute("/_explore/shop")({
 const PAGE_SIZE = 20;
 
 function ShopPage() {
-  const search = Route.useSearch();
-  const activeGenre = search.genre ?? "all";
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
+  const search = Route.useSearch(),
+   activeGenre = search.genre ?? "all",
+   [viewMode, setViewMode] = useState<"grid" | "list">(
     search.view ?? "grid"
-  );
-  const [currentPage, setCurrentPage] = useState(1);
+  ),
+   [currentPage, setCurrentPage] = useState(1),
 
-  const { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
+   { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
     forSale: true,
     genre: activeGenre,
     limit: 100,
@@ -60,20 +60,20 @@ function ShopPage() {
     regionType: "north-america",
     scope: "public",
     sort: "plays-desc",
-  });
+  }),
 
   // Ensure we filter for purchasability if backend flags it
-  const shopTracks = rawTracks.filter(
+   shopTracks = rawTracks.filter(
     (t) => t.isPurchasable ?? t.isForSale ?? true
-  );
+  ),
 
-  const totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1;
-  const paginatedTracks = shopTracks.slice(
+   totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1,
+   paginatedTracks = shopTracks.slice(
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
-  );
+  ),
 
-  const activeGenreLabel =
+   activeGenreLabel =
     musicGenres.find((g) => g.value === activeGenre)?.label ?? "All Genres";
 
   return (
@@ -413,9 +413,9 @@ function GenreShopRail({
     regionType: "north-america",
     scope: "public",
     sort: "plays-desc",
-  });
+  }),
 
-  const shopTracks = tracks.filter(
+   shopTracks = tracks.filter(
     (t) => t.isPurchasable ?? t.isForSale ?? true
   );
 

@@ -18,18 +18,18 @@ config({ path: "../../apps/website/.env" });
 config({ path: "../../apps/server/.env" });
 
 const app = await alchemy("soundkit", {
-  stateStore: process.env.ALCHEMY_STATE_TOKEN
-    ? (scope) =>
-        new CloudflareStateStore(scope, {
-          forceUpdate: process.env.ALCHEMY_STATE_FORCE_UPDATE === "true",
-          scriptName: scope.stage.startsWith("pr-")
-            ? `alchemy-state-service-${scope.stage}`
-            : undefined,
-        })
-    : undefined,
-}),
- isProduction = app.stage === "prod",
- isPullRequestPreview = app.stage.startsWith("pr-");
+    stateStore: process.env.ALCHEMY_STATE_TOKEN
+      ? (scope) =>
+          new CloudflareStateStore(scope, {
+            forceUpdate: process.env.ALCHEMY_STATE_FORCE_UPDATE === "true",
+            scriptName: scope.stage.startsWith("pr-")
+              ? `alchemy-state-service-${scope.stage}`
+              : undefined,
+          })
+      : undefined,
+  }),
+  isProduction = app.stage === "prod",
+  isPullRequestPreview = app.stage.startsWith("pr-");
 
 if (!(app.local || isProduction || isPullRequestPreview)) {
   throw new Error(
@@ -38,191 +38,175 @@ if (!(app.local || isProduction || isPullRequestPreview)) {
 }
 
 const SITE_HOST = isProduction
-  ? "mysoundkit.com"
-  : `web-${app.stage}.mysoundkit.com`,
- API_HOST = isProduction
-  ? "api.mysoundkit.com"
-  : `api-${app.stage}.mysoundkit.com`,
- MEDIA_HOST = isProduction
-  ? "media.mysoundkit.com"
-  : `media-${app.stage}.mysoundkit.com`,
- SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
- API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
- MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`,
- SENTRY_WEB_DSN =
-  process.env.VITE_SENTRY_DSN ||
-  "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
- SENTRY_SERVER_DSN =
-  process.env.SENTRY_DSN ||
-  "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208",
- resourceName = (name: string) =>
-  isProduction ? name : `${name}-${app.stage}`,
- shouldAdoptRemoteResources = isProduction || isPullRequestPreview,
- requiredSecret = <T>(value: T | undefined, name: string) => {
-  if (!value) {
-    throw new Error(`${name} is required.`);
-  }
+    ? "mysoundkit.com"
+    : `web-${app.stage}.mysoundkit.com`,
+  API_HOST = isProduction
+    ? "api.mysoundkit.com"
+    : `api-${app.stage}.mysoundkit.com`,
+  MEDIA_HOST = isProduction
+    ? "media.mysoundkit.com"
+    : `media-${app.stage}.mysoundkit.com`,
+  SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
+  API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
+  MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`,
+  SENTRY_WEB_DSN =
+    process.env.VITE_SENTRY_DSN ||
+    "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
+  SENTRY_SERVER_DSN =
+    process.env.SENTRY_DSN ||
+    "https://13f74e858c970e20c62795b915266237@o4510278858309632.ingest.us.sentry.io/4511447939678208",
+  resourceName = (name: string) =>
+    isProduction ? name : `${name}-${app.stage}`,
+  shouldAdoptRemoteResources = isProduction || isPullRequestPreview,
+  requiredSecret = <T>(value: T | undefined, name: string) => {
+    if (!value) {
+      throw new Error(`${name} is required.`);
+    }
 
-  return value;
-},
-
- requiredEnv = (name: string) => {
-  const value = process.env[name];
-
-  if (!value) {
-    throw new Error(`${name} is required.`);
-  }
-
-  return value;
-},
-
- optionalEnvBinding = (name: string) => {
-  const value = process.env[name];
-
-  return value ? { [name]: value } : {};
-},
-
- cloudflareAccountId = await AccountId(),
-
- getR2Jurisdiction = () => {
-  const jurisdiction = process.env.CLOUDFLARE_R2_JURISDICTION;
-
-  if (!jurisdiction || jurisdiction === "default") {
-    return;
-  }
-
-  if (!["eu", "fedramp"].includes(jurisdiction)) {
-    throw new Error(
-      "CLOUDFLARE_R2_JURISDICTION must be default, eu, or fedramp."
-    );
-  }
-
-  return jurisdiction as "eu" | "fedramp";
-},
-
- r2Jurisdiction = getR2Jurisdiction(),
-
- media = await R2Bucket("media", {
-  adopt: shouldAdoptRemoteResources,
-  cors: [
-    {
-      allowed: {
-        headers: ["*"],
-        methods: ["GET", "HEAD", "PUT", "POST"],
-        origins: [SITE_URL, API_URL],
-      },
-      // @better-upload multipart uploads read the ETag response header from
-      // the part PUT to build the CompleteMultipartUpload request, so it must
-      // be exposed to the browser across origins.
-      exposeHeaders: ["ETag"],
-    },
-  ],
-  domains: app.local
-    ? undefined
-    : [{ adopt: shouldAdoptRemoteResources, domain: MEDIA_HOST }],
-  jurisdiction: r2Jurisdiction,
-  name: resourceName("soundkit-media"),
-}),
-
- mediaUploadToken = await AccountApiToken("media-upload-token", {
-  name: resourceName("soundkit-media-upload-token"),
-  policies: [
-    {
-      effect: "allow",
-      permissionGroups: [
-        "Workers R2 Storage Bucket Item Read",
-        "Workers R2 Storage Bucket Item Write",
-      ],
-      resources: {
-        [`com.cloudflare.edge.r2.bucket.${cloudflareAccountId}_${r2Jurisdiction ?? "default"}_${media.name}`]:
-          "*",
-      },
-    },
-  ],
-}),
-
-// Storage bucket for RealtimeKit live recordings. Recordings stay private
-// until a live experience is published; the server streams them via R2.
- recordings = await R2Bucket("recordings", {
-  adopt: shouldAdoptRemoteResources,
-  name: resourceName("soundkit-recordings"),
-}),
-
- recordingsUploadToken = await AccountApiToken("recordings-upload-token", {
-  name: resourceName("soundkit-recordings-upload-token"),
-  policies: [
-    {
-      effect: "allow",
-      permissionGroups: [
-        "Workers R2 Storage Bucket Item Read",
-        "Workers R2 Storage Bucket Item Write",
-      ],
-      resources: {
-        [`com.cloudflare.edge.r2.bucket.${cloudflareAccountId}_${r2Jurisdiction ?? "default"}_${recordings.name}`]:
-          "*",
-      },
-    },
-  ],
-}),
-
- trackProcessingWorkflow = Workflow("track-processing", {
-  className: "TrackProcessingWorkflow",
-  workflowName: resourceName("soundkit-track-processing"),
-}),
-
- emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
-  adopt: shouldAdoptRemoteResources,
-  name: resourceName("soundkit-email-delivery-dlq"),
-  settings: {
-    messageRetentionPeriod: 1_209_600,
+    return value;
   },
-}),
+  requiredEnv = (name: string) => {
+    const value = process.env[name];
 
- emailDeliveryQueue = await Queue("email-delivery", {
-  adopt: shouldAdoptRemoteResources,
-  dlq: emailDeliveryDeadLetterQueue,
-  name: resourceName("soundkit-email-delivery"),
-  settings: {
-    messageRetentionPeriod: 1_209_600,
+    if (!value) {
+      throw new Error(`${name} is required.`);
+    }
+
+    return value;
   },
-}),
+  optionalEnvBinding = (name: string) => {
+    const value = process.env[name];
 
- liveRooms = DurableObjectNamespace("live-rooms", {
-  className: "LiveRoomDurableObject",
-  sqlite: true,
-}),
+    return value ? { [name]: value } : {};
+  },
+  cloudflareAccountId = await AccountId(),
+  getR2Jurisdiction = () => {
+    const jurisdiction = process.env.CLOUDFLARE_R2_JURISDICTION;
 
- trackDurationBackfillDeadLetterQueue = await Queue(
-  "track-duration-backfill-dlq",
-  {
+    if (!jurisdiction || jurisdiction === "default") {
+      return;
+    }
+
+    if (!["eu", "fedramp"].includes(jurisdiction)) {
+      throw new Error(
+        "CLOUDFLARE_R2_JURISDICTION must be default, eu, or fedramp."
+      );
+    }
+
+    return jurisdiction as "eu" | "fedramp";
+  },
+  r2Jurisdiction = getR2Jurisdiction(),
+  media = await R2Bucket("media", {
     adopt: shouldAdoptRemoteResources,
-    name: resourceName("soundkit-track-duration-backfill-dlq"),
+    cors: [
+      {
+        allowed: {
+          headers: ["*"],
+          methods: ["GET", "HEAD", "PUT", "POST"],
+          origins: [SITE_URL, API_URL],
+        },
+        // @better-upload multipart uploads read the ETag response header from
+        // the part PUT to build the CompleteMultipartUpload request, so it must
+        // be exposed to the browser across origins.
+        exposeHeaders: ["ETag"],
+      },
+    ],
+    domains: app.local
+      ? undefined
+      : [{ adopt: shouldAdoptRemoteResources, domain: MEDIA_HOST }],
+    jurisdiction: r2Jurisdiction,
+    name: resourceName("soundkit-media"),
+  }),
+  mediaUploadToken = await AccountApiToken("media-upload-token", {
+    name: resourceName("soundkit-media-upload-token"),
+    policies: [
+      {
+        effect: "allow",
+        permissionGroups: [
+          "Workers R2 Storage Bucket Item Read",
+          "Workers R2 Storage Bucket Item Write",
+        ],
+        resources: {
+          [`com.cloudflare.edge.r2.bucket.${cloudflareAccountId}_${r2Jurisdiction ?? "default"}_${media.name}`]:
+            "*",
+        },
+      },
+    ],
+  }),
+  // Storage bucket for RealtimeKit live recordings. Recordings stay private
+  // until a live experience is published; the server streams them via R2.
+  recordings = await R2Bucket("recordings", {
+    adopt: shouldAdoptRemoteResources,
+    name: resourceName("soundkit-recordings"),
+  }),
+  recordingsUploadToken = await AccountApiToken("recordings-upload-token", {
+    name: resourceName("soundkit-recordings-upload-token"),
+    policies: [
+      {
+        effect: "allow",
+        permissionGroups: [
+          "Workers R2 Storage Bucket Item Read",
+          "Workers R2 Storage Bucket Item Write",
+        ],
+        resources: {
+          [`com.cloudflare.edge.r2.bucket.${cloudflareAccountId}_${r2Jurisdiction ?? "default"}_${recordings.name}`]:
+            "*",
+        },
+      },
+    ],
+  }),
+  trackProcessingWorkflow = Workflow("track-processing", {
+    className: "TrackProcessingWorkflow",
+    workflowName: resourceName("soundkit-track-processing"),
+  }),
+  emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
+    adopt: shouldAdoptRemoteResources,
+    name: resourceName("soundkit-email-delivery-dlq"),
     settings: {
       messageRetentionPeriod: 1_209_600,
     },
-  }
-),
-
- trackDurationBackfillQueue = await Queue("track-duration-backfill", {
-  adopt: shouldAdoptRemoteResources,
-  dlq: trackDurationBackfillDeadLetterQueue,
-  name: resourceName("soundkit-track-duration-backfill"),
-  settings: {
-    messageRetentionPeriod: 1_209_600,
-  },
-}),
-
- hyperdrive = await Hyperdrive("hyperdrive", {
-  ...(isProduction
-    ? {
-        adopt: true,
-        hyperdriveId: "1b900b19692a4e9f920eebd379d21d3d",
-      }
-    : {
-        name: resourceName("soundkit-hyperdrive"),
-      }),
-  origin: requiredSecret(alchemy.secret.env.DATABASE_URL, "DATABASE_URL"),
-});
+  }),
+  emailDeliveryQueue = await Queue("email-delivery", {
+    adopt: shouldAdoptRemoteResources,
+    dlq: emailDeliveryDeadLetterQueue,
+    name: resourceName("soundkit-email-delivery"),
+    settings: {
+      messageRetentionPeriod: 1_209_600,
+    },
+  }),
+  liveRooms = DurableObjectNamespace("live-rooms", {
+    className: "LiveRoomDurableObject",
+    sqlite: true,
+  }),
+  trackDurationBackfillDeadLetterQueue = await Queue(
+    "track-duration-backfill-dlq",
+    {
+      adopt: shouldAdoptRemoteResources,
+      name: resourceName("soundkit-track-duration-backfill-dlq"),
+      settings: {
+        messageRetentionPeriod: 1_209_600,
+      },
+    }
+  ),
+  trackDurationBackfillQueue = await Queue("track-duration-backfill", {
+    adopt: shouldAdoptRemoteResources,
+    dlq: trackDurationBackfillDeadLetterQueue,
+    name: resourceName("soundkit-track-duration-backfill"),
+    settings: {
+      messageRetentionPeriod: 1_209_600,
+    },
+  }),
+  hyperdrive = await Hyperdrive("hyperdrive", {
+    ...(isProduction
+      ? {
+          adopt: true,
+          hyperdriveId: "1b900b19692a4e9f920eebd379d21d3d",
+        }
+      : {
+          name: resourceName("soundkit-hyperdrive"),
+        }),
+    origin: requiredSecret(alchemy.secret.env.DATABASE_URL, "DATABASE_URL"),
+  });
 
 export const web = await TanStackStart("web", {
   adopt: isProduction,

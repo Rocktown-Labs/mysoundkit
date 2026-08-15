@@ -19,12 +19,12 @@ export const Route = createFileRoute("/_explore/library/saved/")({
 });
 
 function SavedTracksPage() {
-  const { data = [], isLoading } = useLibrarySavedQuery();
-  const { toast } = useToast();
-  const removeSavedTrackMutation = useRemoveSavedTrackMutation();
-  const [removingTrackId, setRemovingTrackId] = useState<string>();
+  const { data = [], isLoading } = useLibrarySavedQuery(),
+   { toast } = useToast(),
+   removeSavedTrackMutation = useRemoveSavedTrackMutation(),
+   [removingTrackId, setRemovingTrackId] = useState<string>(),
 
-  const handleRemoveTrack = useCallback(
+   handleRemoveTrack = useCallback(
     async (track: SavedTrack) => {
       setRemovingTrackId(track.id);
       try {
@@ -44,9 +44,9 @@ function SavedTracksPage() {
       }
     },
     [removeSavedTrackMutation, toast]
-  );
+  ),
 
-  const columns = useMemo(
+   columns = useMemo(
     () =>
       createSavedTrackColumns({
         onRemove: handleRemoveTrack,

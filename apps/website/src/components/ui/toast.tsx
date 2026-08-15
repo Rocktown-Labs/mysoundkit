@@ -6,9 +6,9 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const ToastProvider = ToastPrimitives.Provider;
+const ToastProvider = ToastPrimitives.Provider,
 
-const ToastViewport = React.forwardRef<
+ ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
 >(({ className, ...props }, ref) => (
@@ -37,9 +37,9 @@ const toastVariants = cva(
       },
     },
   }
-);
+),
 
-const Toast = React.forwardRef<
+ Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
     VariantProps<typeof toastVariants>

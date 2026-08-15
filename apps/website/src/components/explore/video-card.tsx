@@ -44,8 +44,8 @@ export function VideoCard({
   compact?: boolean;
   video: ExploreVideoCardData;
 }) {
-  const isPremiumLive = video.playbackPolicy === "premium_only_live";
-  const videoLink =
+  const isPremiumLive = video.playbackPolicy === "premium_only_live",
+   videoLink =
     video.regionSlug && video.slug
       ? {
           params: { regionSlug: video.regionSlug, slug: video.slug },

@@ -23,36 +23,36 @@ import { isSellerEnabled } from "@/lib/seller";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, slugify } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>();
-const communitySchema = z.object({
+const app = new OpenAPIHono<AppEnv>(),
+ communitySchema = z.object({
   artistUserId: z.string(),
   description: z.string().nullable(),
   id: z.string(),
   monthlyPriceCents: z.number().int(),
   name: z.string(),
   slug: z.string(),
-});
-const createCommunitySchema = z.object({
+}),
+ createCommunitySchema = z.object({
   description: z.string().max(2000).optional(),
   monthlyPriceCents: z.number().int().min(299).max(9999),
   name: z.string().min(1).max(100),
-});
-const createPostSchema = z.object({
+}),
+ createPostSchema = z.object({
   body: z.string().max(10_000).optional(),
   mediaUrl: z.url().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   postType: z.enum(["text", "image", "audio", "video", "poll"]).default("text"),
-});
-const createMessageSchema = z.object({ body: z.string().min(1).max(2000) });
-const communityPostSchema = createPostSchema.extend({
+}),
+ createMessageSchema = z.object({ body: z.string().min(1).max(2000) }),
+ communityPostSchema = createPostSchema.extend({
   body: z.string().nullable(),
   createdAt: z.string(),
   id: z.string(),
   mediaUrl: z.string().nullable(),
   metadata: z.unknown().nullable(),
   userId: z.string(),
-});
-const communityMessageSchema = createMessageSchema.extend({
+}),
+ communityMessageSchema = createMessageSchema.extend({
   createdAt: z.string(),
   id: z.string(),
   userId: z.string(),
@@ -107,12 +107,12 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const organizationId = await resolveActiveOrganizationId({
+    }),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
@@ -129,8 +129,8 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const row = {
+    const body = c.req.valid("json"),
+     row = {
       artistUserId: user.id,
       description: body.description ?? null,
       id: crypto.randomUUID(),
@@ -153,8 +153,8 @@ const requireCommunityAccess = ({
 }: {
   communityId: string;
   userId: string;
-}) => canAccessCommunity({ communityId, userId });
-const requireCommunityOwner = async ({
+}) => canAccessCommunity({ communityId, userId }),
+ requireCommunityOwner = async ({
   communityId,
   userId,
 }: {
@@ -194,8 +194,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { communityId } = c.req.valid("param");
+    const user = c.get("user"),
+     { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -237,8 +237,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { communityId } = c.req.valid("param");
+    const user = c.get("user"),
+     { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -250,9 +250,9 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const createdAt = new Date();
-    const row = {
+    const body = c.req.valid("json"),
+     createdAt = new Date(),
+     row = {
       body: body.body ?? null,
       communityId,
       createdAt,
@@ -288,8 +288,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { communityId } = c.req.valid("param");
+    const user = c.get("user"),
+     { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -331,8 +331,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { communityId } = c.req.valid("param");
+    const user = c.get("user"),
+     { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -344,8 +344,8 @@ app.openapi(
       );
     }
 
-    const createdAt = new Date();
-    const row = {
+    const createdAt = new Date(),
+     row = {
       body: c.req.valid("json").body,
       communityId,
       createdAt,
@@ -384,8 +384,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { communityId } = c.req.valid("param");
+    const user = c.get("user"),
+     { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -431,8 +431,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { communityId } = c.req.valid("param");
+    const user = c.get("user"),
+     { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -444,23 +444,23 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [community] = await db
+    const db = createDb(),
+     [community] = await db
       .select({ monthlyPriceCents: communities.monthlyPriceCents })
       .from(communities)
       .where(eq(communities.id, communityId))
-      .limit(1);
-    const rows = await db
+      .limit(1),
+     rows = await db
       .select({
         count: sql<number>`count(*)`,
         status: communitySubscriptions.status,
       })
       .from(communitySubscriptions)
       .where(eq(communitySubscriptions.communityId, communityId))
-      .groupBy(communitySubscriptions.status);
-    const countFor = (status: (typeof rows)[number]["status"]) =>
-      Number(rows.find((row) => row.status === status)?.count ?? 0);
-    const activeSubscribers = countFor("active");
+      .groupBy(communitySubscriptions.status),
+     countFor = (status: (typeof rows)[number]["status"]) =>
+      Number(rows.find((row) => row.status === status)?.count ?? 0),
+     activeSubscribers = countFor("active");
 
     return c.json(
       {
@@ -499,8 +499,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const currentUser = c.get("user");
-    const { communityId, userId } = c.req.valid("param");
+    const currentUser = c.get("user"),
+     { communityId, userId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(currentUser) ||
@@ -545,8 +545,8 @@ app.openapi(
     tags: ["Communities"],
   }),
   async (c) => {
-    const currentUser = c.get("user");
-    const { communityId, userId } = c.req.valid("param");
+    const currentUser = c.get("user"),
+     { communityId, userId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(currentUser) ||

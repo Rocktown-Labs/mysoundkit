@@ -85,31 +85,31 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
-const app = new OpenAPIHono<AppEnv>();
-const databaseUnavailableMessage = {
+const app = new OpenAPIHono<AppEnv>(),
+ databaseUnavailableMessage = {
   message: "Database is not configured.",
-};
+},
 
-const formatDuration = (durationMs: number | null) => {
+ formatDuration = (durationMs: number | null) => {
   if (!durationMs) {
     return null;
   }
 
-  const totalSeconds = Math.round(durationMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  const totalSeconds = Math.round(durationMs / 1000),
+   minutes = Math.floor(totalSeconds / 60),
+   seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
+},
 
-const formatPrice = (priceCents: number | null) => {
+ formatPrice = (priceCents: number | null) => {
   if (typeof priceCents !== "number") {
     return "";
   }
 
   return `$${(priceCents / 100).toFixed(2)}`;
-};
+},
 
-const priceCentsFromTrack = ({
+ priceCentsFromTrack = ({
   price,
   priceCents,
 }: {
@@ -125,9 +125,9 @@ const priceCentsFromTrack = ({
   }
 
   return Math.round(Number(price) * 100);
-};
+},
 
-const objectUrlFromMetadata = (metadata: unknown) => {
+ objectUrlFromMetadata = (metadata: unknown) => {
   if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
     return null;
   }
@@ -135,9 +135,9 @@ const objectUrlFromMetadata = (metadata: unknown) => {
   const { url } = metadata as { url?: unknown };
 
   return typeof url === "string" ? url : null;
-};
+},
 
-const publicTrackAssetUrl = (
+ publicTrackAssetUrl = (
   asset: typeof trackAssets.$inferSelect | undefined
 ) => {
   if (!asset) {
@@ -159,17 +159,17 @@ const publicTrackAssetUrl = (
   ).replace(/\/+$/u, "");
 
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-};
+},
 
-const trackAssetFileName = (
+ trackAssetFileName = (
   asset: typeof trackAssets.$inferSelect | undefined
 ) => {
   if (!asset) {
     return null;
   }
 
-  const metadata = asset.metadata as Record<string, unknown> | null | undefined;
-  const metadataFileName = metadata?.originalFileName;
+  const metadata = asset.metadata as Record<string, unknown> | null | undefined,
+   metadataFileName = metadata?.originalFileName;
   if (typeof metadataFileName === "string" && metadataFileName.trim()) {
     return metadataFileName;
   }
@@ -179,17 +179,17 @@ const trackAssetFileName = (
   }
 
   return null;
-};
+},
 
-const quotedDownloadFileName = (fileName: string) =>
-  fileName.replaceAll(/[\\"]/gu, "_");
+ quotedDownloadFileName = (fileName: string) =>
+  fileName.replaceAll(/[\\"]/gu, "_"),
 
-const getMediaBucket = (bindings: AppEnv["Bindings"]) =>
+ getMediaBucket = (bindings: AppEnv["Bindings"]) =>
   bindings.MEDIA_BUCKET ??
   (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
-  null;
+  null,
 
-const hasPurchasedTrack = async ({
+ hasPurchasedTrack = async ({
   db,
   trackId,
   userId,
@@ -220,9 +220,9 @@ const hasPurchasedTrack = async ({
     .limit(1);
 
   return Boolean(projectPurchase);
-};
+},
 
-const hasPlayedTrackOnce = async ({
+ hasPlayedTrackOnce = async ({
   db,
   trackId,
   userId,
@@ -261,9 +261,9 @@ const hasPlayedTrackOnce = async ({
     .limit(1);
 
   return Boolean(endedSession);
-};
+},
 
-const assetKindLabels = {
+ assetKindLabels = {
   alternate_mix: "Alternate Mix",
   artwork: "Artwork",
   booklet: "Digital Booklet",
@@ -276,17 +276,17 @@ const assetKindLabels = {
   stems: "Track Stems",
   tagged_mp3: "Tagged MP3",
   untagged_wav: "Untagged WAV",
-} as const;
+} as const,
 
-const catalogAssetKinds = new Set(Object.keys(assetKindLabels));
+ catalogAssetKinds = new Set(Object.keys(assetKindLabels)),
 
-const trackPlayCount = sql<number>`(
+ trackPlayCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.trackId} = ${tracks.id}
-)`;
+)`,
 
-const publicTrackOrderBy = (sort?: string) => {
+ publicTrackOrderBy = (sort?: string) => {
   if (sort === "title-asc") {
     return asc(tracks.title);
   }
@@ -308,16 +308,16 @@ const publicTrackOrderBy = (sort?: string) => {
   }
 
   return desc(trackPlayCount);
-};
+},
 
-const getTrackProcessingWorkflow = () =>
+ getTrackProcessingWorkflow = () =>
   (
     env as unknown as {
       TRACK_PROCESSING_WORKFLOW?: Workflow<TrackProcessingWorkflowPayload>;
     }
-  ).TRACK_PROCESSING_WORKFLOW ?? null;
+  ).TRACK_PROCESSING_WORKFLOW ?? null,
 
-const isLiveRelease = ({
+ isLiveRelease = ({
   isPublic,
   releaseAt,
   releaseStrategy,
@@ -328,25 +328,25 @@ const isLiveRelease = ({
 }) =>
   isPublic &&
   releaseStrategy !== "private" &&
-  (!releaseAt || releaseAt.getTime() <= Date.now());
+  (!releaseAt || releaseAt.getTime() <= Date.now()),
 
-const queueTrackAudioProcessing = async ({
+ queueTrackAudioProcessing = async ({
   masterAsset,
   trackId,
 }: {
   masterAsset: typeof trackAssets.$inferSelect;
   trackId: string;
 }) => {
-  const db = createDb();
-  const [existingJob] = await withRetry("find existing stem job", () =>
+  const db = createDb(),
+   [existingJob] = await withRetry("find existing stem job", () =>
     db
       .select()
       .from(trackStemJobs)
       .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
       .limit(1)
-  );
+  ),
 
-  const [job] =
+   [job] =
     existingJob?.status === "queued" || existingJob?.status === "processing"
       ? [existingJob]
       : await withRetry("create stem job", () =>
@@ -438,19 +438,19 @@ app.openapi(
     tags: ["Tracks"],
   }),
   async (c) => {
-    const query = c.req.valid("query");
-    const user = c.get("user");
-    const isPublicScope = query.scope === "public";
+    const query = c.req.valid("query"),
+     user = c.get("user"),
+     isPublicScope = query.scope === "public";
 
     if (!isDatabaseConfigured()) {
       return c.json([], HttpStatusCodes.OK);
     }
 
     if (isPublicScope || !isAuthenticatedUser(user)) {
-      const db = createDb();
-      const genreSlug = genreSlugFromExploreFilter(query.genre);
-      const state = stateFromExploreRegion(query);
-      const publicTrackConditions = [
+      const db = createDb(),
+       genreSlug = genreSlugFromExploreFilter(query.genre),
+       state = stateFromExploreRegion(query),
+       publicTrackConditions = [
         eq(tracks.isPublic, true),
         eq(tracks.productionStatus, "complete"),
       ];
@@ -473,8 +473,8 @@ app.openapi(
         );
       }
 
-      const order = publicTrackOrderBy(query.sort);
-      const rows = await withRetry("list public tracks", () =>
+      const order = publicTrackOrderBy(query.sort),
+       rows = await withRetry("list public tracks", () =>
         db
           .select({
             playCount: trackPlayCount,
@@ -487,8 +487,8 @@ app.openapi(
           .where(and(...publicTrackConditions))
           .orderBy(order)
           .limit(query.limit ?? 24)
-      );
-      const summaries = [];
+      ),
+       summaries = [];
 
       for (const row of rows) {
         summaries.push({
@@ -501,13 +501,13 @@ app.openapi(
       return c.json(summaries, HttpStatusCodes.OK);
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const rows = await withRetry("list dashboard tracks", () =>
+    }),
+     db = createDb(),
+     rows = await withRetry("list dashboard tracks", () =>
       db
         .select()
         .from(tracks)
@@ -518,8 +518,8 @@ app.openapi(
         )
         .orderBy(desc(tracks.updatedAt))
         .limit(100)
-    );
-    const summaries = [];
+    ),
+     summaries = [];
 
     for (const row of rows) {
       summaries.push(await buildTrackSummary(row));
@@ -580,15 +580,15 @@ app.openapi(
       );
     }
 
-    const { trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const { trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [trackPolicy] = await db
+    }),
+     db = createDb(),
+     [trackPolicy] = await db
       .select({
         exclusiveUntil: tracks.exclusiveUntil,
         isForSale: tracks.isForSale,
@@ -606,8 +606,8 @@ app.openapi(
       db,
       trackId,
       userId: user.id,
-    });
-    const access = resolveListeningAccess({
+    }),
+     access = resolveListeningAccess({
       hasPurchase,
       isPremium: entitlements.isPremium,
       policy: trackPolicy,
@@ -710,9 +710,9 @@ app.openapi(
       );
     }
 
-    const { sessionId, trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const result = await recordPlaybackProgress({
+    const { sessionId, trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     result = await recordPlaybackProgress({
       db: createDb(),
       input: {
         durationSeconds: body.durationSeconds,
@@ -782,9 +782,9 @@ app.openapi(
       );
     }
 
-    const { sessionId, trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const result = await recordPlaybackProgress({
+    const { sessionId, trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     result = await recordPlaybackProgress({
       db: createDb(),
       input: {
         durationSeconds: body.durationSeconds,
@@ -834,8 +834,8 @@ app.openapi(
       return c.json(null, HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const [revision] = await db
+    const db = createDb(),
+     [revision] = await db
       .select({
         approvedAt: trackLyrics.approvedAt,
         id: trackLyrics.id,
@@ -912,10 +912,10 @@ app.openapi(
       return c.json({ message: "Database is not configured." }, 404);
     }
 
-    const { trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [track] = await db
+    const { trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     db = createDb(),
+     [track] = await db
       .select({ id: tracks.id })
       .from(tracks)
       .where(and(eq(tracks.id, trackId), eq(tracks.isPublic, true)))
@@ -993,8 +993,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json");
-    const session = c.get("session");
+    const body = c.req.valid("json"),
+     session = c.get("session");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -1043,12 +1043,12 @@ app.openapi(
     }
 
     try {
-      const db = createDb();
-      const organizationId = await resolveActiveOrganizationId({
+      const db = createDb(),
+       organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user,
-      });
-      const [profile] = await db
+      }),
+       [profile] = await db
         .select({ accountType: userProfiles.accountType })
         .from(userProfiles)
         .where(eq(userProfiles.userId, user.id))
@@ -1118,15 +1118,15 @@ app.openapi(
         }
       }
 
-      const genreSlug = canonicalGenreSlug(body.genre);
-      const [genreRow] = await withRetry("find track genre", () =>
+      const genreSlug = canonicalGenreSlug(body.genre),
+       [genreRow] = await withRetry("find track genre", () =>
         db
           .select({ id: genres.id })
           .from(genres)
           .where(eq(genres.slug, genreSlug))
           .limit(1)
-      );
-      const genreId = genreRow?.id ?? crypto.randomUUID();
+      ),
+       genreId = genreRow?.id ?? crypto.randomUUID();
 
       if (!genreRow) {
         await withRetry("create track genre", () =>
@@ -1138,10 +1138,10 @@ app.openapi(
         );
       }
 
-      const trackId = crypto.randomUUID();
-      const now = new Date();
-      const isSingle = body.catalogItemType === "single";
-      const rawPriceNum =
+      const trackId = crypto.randomUUID(),
+       now = new Date(),
+       isSingle = body.catalogItemType === "single",
+       rawPriceNum =
         typeof body.price === "number"
           ? body.price
           : (body.price
@@ -1157,8 +1157,8 @@ app.openapi(
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_CENTS
           : (body.priceCents ??
-            (salePriceUsd === null ? null : Math.round(salePriceUsd * 100)));
-      const [track] = await withRetry("create track", () =>
+            (salePriceUsd === null ? null : Math.round(salePriceUsd * 100))),
+       [track] = await withRetry("create track", () =>
         db
           .insert(tracks)
           .values({
@@ -1316,8 +1316,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const { trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
+    const { trackId } = c.req.valid("param"),
+     body = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -1326,17 +1326,17 @@ app.openapi(
       );
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
+    }),
+     db = createDb();
 
     let updatedGenreId: string | undefined;
     if (body.genre) {
-      const genreSlug = canonicalGenreSlug(body.genre);
-      const [genreRow] = await db
+      const genreSlug = canonicalGenreSlug(body.genre),
+       [genreRow] = await db
         .select({ id: genres.id })
         .from(genres)
         .where(eq(genres.slug, genreSlug));
@@ -1460,13 +1460,13 @@ app.openapi(
       return c.json({ message: "Track deleted." }, HttpStatusCodes.OK);
     }
 
-    const { trackId } = c.req.valid("param");
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const { trackId } = c.req.valid("param"),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
+    }),
+     db = createDb();
 
     await db
       .delete(tracks)
@@ -1512,8 +1512,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const { trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
+    const { trackId } = c.req.valid("param"),
+     body = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       const [sampleTrack] = sampleTracks;
@@ -1535,13 +1535,13 @@ app.openapi(
       );
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [track] = await db
+    }),
+     db = createDb(),
+     [track] = await db
       .select()
       .from(tracks)
       .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
@@ -1651,19 +1651,19 @@ app.openapi(
       );
     }
 
-    const { trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const { trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const organizationId = await resolveActiveOrganizationId({
+    }),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [track] = await db
+    }),
+     db = createDb(),
+     [track] = await db
       .select()
       .from(tracks)
       .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
@@ -1676,14 +1676,14 @@ app.openapi(
     const assetRows = await db
       .select()
       .from(trackAssets)
-      .where(eq(trackAssets.trackId, trackId));
-    const masterAsset = assetRows.find(
+      .where(eq(trackAssets.trackId, trackId)),
+     masterAsset = assetRows.find(
       (asset) =>
         asset.assetKind === "master" &&
         Boolean(asset.objectKey) &&
         (asset.status === "ready" || asset.status === "uploaded")
-    );
-    const coverAsset = assetRows.find(
+    ),
+     coverAsset = assetRows.find(
       (asset) => asset.assetKind === "cover_art" && Boolean(asset.objectKey)
     );
 
@@ -1714,9 +1714,9 @@ app.openapi(
         .where(eq(trackAssets.id, masterAsset.id))
     );
 
-    const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null;
-    const shouldPublish = body.isPublic;
-    const [settledTrack] = await withRetry("settle track", () =>
+    const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
+     shouldPublish = body.isPublic,
+     [settledTrack] = await withRetry("settle track", () =>
       db
         .update(tracks)
         .set({
@@ -1807,9 +1807,9 @@ app.openapi(
       );
     }
 
-    const { trackId } = c.req.valid("param");
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const { trackId } = c.req.valid("param"),
+     session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });
@@ -1827,9 +1827,9 @@ app.openapi(
     const organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [track] = await db
+    }),
+     db = createDb(),
+     [track] = await db
       .select()
       .from(tracks)
       .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
@@ -1906,15 +1906,15 @@ app.openapi(
       return c.json({ message: "Database is not configured." }, 404);
     }
 
-    const { trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const { trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [track] = await db
+    }),
+     db = createDb(),
+     [track] = await db
       .select({ id: tracks.id })
       .from(tracks)
       .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
@@ -2008,15 +2008,15 @@ app.openapi(
       return c.json({ message: "Database is not configured." }, 404);
     }
 
-    const { lyricsId, trackId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const { lyricsId, trackId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const db = createDb();
-    const [track] = await db
+    }),
+     db = createDb(),
+     [track] = await db
       .select({ id: tracks.id })
       .from(tracks)
       .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
@@ -2079,9 +2079,9 @@ app.openapi(
         updatedAt: new Date(),
       })
       .where(eq(trackLyrics.id, lyricsId))
-      .returning();
+      .returning(),
 
-    const [remainingApproved] =
+     [remainingApproved] =
       body.status === "approved"
         ? [revision]
         : await db
@@ -2093,8 +2093,8 @@ app.openapi(
                 eq(trackLyrics.status, "approved")
               )
             )
-            .limit(1);
-    const nextLyricsStatus = remainingApproved ? "approved" : "missing";
+            .limit(1),
+     nextLyricsStatus = remainingApproved ? "approved" : "missing";
 
     await db
       .update(tracks)
@@ -2185,9 +2185,9 @@ app.openapi(
       );
     }
 
-    const { assetId, trackId } = c.req.valid("param");
-    const db = createDb();
-    const [row] = await db
+    const { assetId, trackId } = c.req.valid("param"),
+     db = createDb(),
+     [row] = await db
       .select({
         asset: trackAssets,
         track: {
@@ -2212,8 +2212,8 @@ app.openapi(
       );
     }
 
-    const isOwner = row.track.ownerUserId === user.id;
-    const hasPurchase = await hasPurchasedTrack({
+    const isOwner = row.track.ownerUserId === user.id,
+     hasPurchase = await hasPurchasedTrack({
       db,
       trackId,
       userId: user.id,
@@ -2249,11 +2249,11 @@ app.openapi(
       }
     }
 
-    const object = await bucket.get(row.asset.objectKey);
-    const canonicalMediaUrl = (
+    const object = await bucket.get(row.asset.objectKey),
+     canonicalMediaUrl = (
       env as unknown as { MEDIA_CANONICAL_URL?: string }
-    ).MEDIA_CANONICAL_URL?.replace(/\/+$/u, "");
-    const canonicalResponse =
+    ).MEDIA_CANONICAL_URL?.replace(/\/+$/u, ""),
+     canonicalResponse =
       !object && canonicalMediaUrl
         ? await fetch(
             `${canonicalMediaUrl}/${row.asset.objectKey
@@ -2290,8 +2290,8 @@ app.openapi(
 
     const fileName =
       trackAssetFileName(row.asset) ??
-      `${uniqueSlug(row.track.title)}.download`;
-    const headers = new Headers(canonicalResponse?.headers);
+      `${uniqueSlug(row.track.title)}.download`,
+     headers = new Headers(canonicalResponse?.headers);
     object?.writeHttpMetadata(headers);
     headers.set(
       "Content-Disposition",
@@ -2343,16 +2343,16 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    const db = createDb();
-    const currentUser = c.get("user");
+    const db = createDb(),
+     currentUser = c.get("user");
 
     if (isAuthenticatedUser(currentUser)) {
-      const session = c.get("session");
-      const organizationId = await resolveActiveOrganizationId({
+      const session = c.get("session"),
+       organizationId = await resolveActiveOrganizationId({
         session: isAuthenticatedSession(session) ? session : null,
         user: currentUser,
-      });
-      const [ownedTrack] = await db
+      }),
+       [ownedTrack] = await db
         .select()
         .from(tracks)
         .where(
@@ -2421,43 +2421,43 @@ app.openapi(
         .select()
         .from(trackLicenseOptions)
         .where(eq(trackLicenseOptions.trackId, row.id)),
-    ]);
+    ]),
 
-    const isAuthenticated = isAuthenticatedUser(currentUser);
-    const entitlements = isAuthenticated
+     isAuthenticated = isAuthenticatedUser(currentUser),
+     entitlements = isAuthenticated
       ? await resolveEntitlements({
           session: isAuthenticatedSession(c.get("session"))
             ? c.get("session")
             : null,
           user: currentUser,
         })
-      : null;
-    const hasPurchase = isAuthenticated
+      : null,
+     hasPurchase = isAuthenticated
       ? await hasPurchasedTrack({
           db,
           trackId: row.id,
           userId: currentUser.id,
         })
-      : false;
-    const access = resolveListeningAccess({
+      : false,
+     access = resolveListeningAccess({
       hasPurchase,
       isPremium: entitlements?.isPremium ?? false,
       policy: row,
-    });
-    const isOwned = hasPurchase;
+    }),
+     isOwned = hasPurchase,
 
-    const roles: ("musician" | "producer")[] =
+     roles: ("musician" | "producer")[] =
       roleRows.length > 0
         ? roleRows.map((roleRow) => roleRow.role)
-        : ["musician"];
-    const coverAsset =
+        : ["musician"],
+     coverAsset =
       assetRows.find(
         (asset) => asset.assetKind === "cover_art" && asset.status === "ready"
-      ) ?? assetRows.find((asset) => asset.assetKind === "cover_art");
-    const firstAudioAsset =
+      ) ?? assetRows.find((asset) => asset.assetKind === "cover_art"),
+     firstAudioAsset =
       assetRows.find((asset) => asset.assetKind === "master") ??
-      assetRows.find((asset) => asset.durationMs);
-    const previewAsset = assetRows.find((asset) => {
+      assetRows.find((asset) => asset.durationMs),
+     previewAsset = assetRows.find((asset) => {
       if (asset.assetKind !== "variant_audio") {
         return false;
       }
@@ -2468,13 +2468,13 @@ app.openapi(
         "variant" in asset.metadata &&
         asset.metadata.variant === "preview_30s"
       );
-    });
-    const priceCents = priceCentsFromTrack({
+    }),
+     priceCents = priceCentsFromTrack({
       price: row.price,
       priceCents: row.priceCents,
-    });
+    }),
 
-    const assets = assetRows
+     assets = assetRows
       .filter((asset) => catalogAssetKinds.has(asset.assetKind))
       .map((asset) => ({
         downloadUrl: `/v1/tracks/${row.id}/assets/${asset.id}/download`,
@@ -2583,8 +2583,8 @@ app.openapi(
     tags: ["Tracks"],
   }),
   async (c) => {
-    const { trackId } = c.req.valid("param");
-    const user = c.get("user");
+    const { trackId } = c.req.valid("param"),
+     user = c.get("user");
 
     if (!isAuthenticatedUser(user)) {
       return c.json(

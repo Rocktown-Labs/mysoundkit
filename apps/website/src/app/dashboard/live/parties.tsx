@@ -61,9 +61,9 @@ const buildPartyTitle = ({
   return creationType === "release_auto"
     ? `${projectTitle} Premiere`
     : `${projectTitle} Live Party`;
-};
+},
 
-const resolveScheduledStartAt = ({
+ resolveScheduledStartAt = ({
   creationType,
   fallbackValue,
   releaseDate,
@@ -86,48 +86,48 @@ const resolveScheduledStartAt = ({
 };
 
 function DashboardLivePartiesPage() {
-  const creationType: PartyCreationType = "release_auto";
-  const scheduleMode: LiveScheduleMode = "scheduled";
-  const [hostPresence, setHostPresence] = useState<"video" | "chat">("chat");
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const creationType: PartyCreationType = "release_auto",
+   scheduleMode: LiveScheduleMode = "scheduled",
+   [hostPresence, setHostPresence] = useState<"video" | "chat">("chat"),
+   [selectedProjectId, setSelectedProjectId] = useState(""),
 
-  const partiesQuery = useListeningPartiesQuery();
-  const projectsQuery = useProjectsQuery();
-  const createParty = useCreateListeningPartyMutation();
+   partiesQuery = useListeningPartiesQuery(),
+   projectsQuery = useProjectsQuery(),
+   createParty = useCreateListeningPartyMutation(),
 
-  const parties = partiesQuery.data ?? [];
-  const projects = projectsQuery.data ?? [];
-  const selectedProject = projects.find(
+   parties = partiesQuery.data ?? [],
+   projects = projectsQuery.data ?? [],
+   selectedProject = projects.find(
     (project) => project.id === selectedProjectId
-  );
-  const suggestedTitle = buildPartyTitle({
+  ),
+   suggestedTitle = buildPartyTitle({
     creationType,
     projectTitle: selectedProject?.title,
-  });
-  const liveParties = parties.filter((party) => party.status === "live");
-  const scheduledParties = parties.filter(
+  }),
+   liveParties = parties.filter((party) => party.status === "live"),
+   scheduledParties = parties.filter(
     (party) => party.status === "scheduled"
-  );
+  ),
 
-  const submitParty = (event: React.FormEvent<HTMLFormElement>) => {
+   submitParty = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(event.currentTarget),
 
-    const title = String(form.get("title") ?? "").trim();
-    const projectId = selectedProjectId;
-    const description = String(form.get("description") ?? "");
+     title = String(form.get("title") ?? "").trim(),
+     projectId = selectedProjectId,
+     description = String(form.get("description") ?? ""),
 
-    const scheduledStartAt = resolveScheduledStartAt({
+     scheduledStartAt = resolveScheduledStartAt({
       creationType,
       fallbackValue: form.get("scheduledStartAt"),
       releaseDate: selectedProject?.releaseDate,
       scheduleMode,
-    });
+    }),
 
-    const effectivePlaybackMode =
-      creationType === "release_auto" ? "programmed_release" : "artist_hosted";
+     effectivePlaybackMode =
+      creationType === "release_auto" ? "programmed_release" : "artist_hosted",
 
-    const partyTitle = title || suggestedTitle;
+     partyTitle = title || suggestedTitle;
 
     if (!projectId) {
       toast({
@@ -409,12 +409,7 @@ function DashboardLivePartiesPage() {
                     />
                   </div>
 
-                  <Button
-                    className="w-full"
-                    disabled={
-                      createParty.isPending
-                    }
-                  >
+                  <Button className="w-full" disabled={createParty.isPending}>
                     <Plus className="mr-2 size-4" />
                     {createParty.isPending
                       ? "Creating Room..."

@@ -20,9 +20,9 @@ const genreRows = [
 ] as const;
 
 function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
-  const { setCurrentTrack, setQueue } = useAudioPlayer();
+  const { setCurrentTrack, setQueue } = useAudioPlayer(),
 
-  const playListing = () => {
+   playListing = () => {
     if (!listing.playbackUrl) {
       return;
     }
@@ -86,8 +86,8 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
 function GenreRow({ label, slug }: { label: string; slug?: string }) {
   const query = useOpenVersesInfiniteQuery(
     slug ? { genre: slug, limit: "10" } : { limit: "10" }
-  );
-  const listings = query.data?.pages.flatMap((page) => page.items) ?? [];
+  ),
+   listings = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <section className="space-y-3">

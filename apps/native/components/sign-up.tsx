@@ -61,11 +61,11 @@ function getErrorMessage(error: unknown): string | null {
 }
 
 function SignUp() {
-  const { colorScheme } = useColorScheme();
-  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
-  const [error, setError] = useState<string | null>(null);
+  const { colorScheme } = useColorScheme(),
+   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+   [error, setError] = useState<string | null>(null),
 
-  const form = useForm({
+   form = useForm({
     defaultValues: {
       email: "",
       name: "",

@@ -31,9 +31,9 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const getDefaultUserSummary = (user: AuthenticatedUser) => ({
+ getDefaultUserSummary = (user: AuthenticatedUser) => ({
   accountType: "artist" as const,
   avatarUrl: null,
   bio: null,
@@ -51,9 +51,9 @@ const getDefaultUserSummary = (user: AuthenticatedUser) => ({
   stageName: user.name ?? null,
   state: null,
   username: user.email?.split("@")[0] ?? "soundkit-user",
-});
+}),
 
-const formatPlatformKey = (platform: string) => {
+ formatPlatformKey = (platform: string) => {
   if (platform === "apple_music") {
     return "appleMusic";
   }
@@ -61,15 +61,15 @@ const formatPlatformKey = (platform: string) => {
     return "personalSite";
   }
   return platform;
-};
+},
 
-const getUserSummary = async (user: AuthenticatedUser) => {
+ getUserSummary = async (user: AuthenticatedUser) => {
   if (!isDatabaseConfigured()) {
     return getDefaultUserSummary(user);
   }
 
-  const db = createDb();
-  const [profile] = await db
+  const db = createDb(),
+   [profile] = await db
     .select({
       accountType: userProfiles.accountType,
       avatarUrl: userProfiles.avatarUrl,
@@ -101,8 +101,8 @@ const getUserSummary = async (user: AuthenticatedUser) => {
       url: profileLinks.url,
     })
     .from(profileLinks)
-    .where(eq(profileLinks.userId, user.id));
-  const profileLinkMap = Object.fromEntries(
+    .where(eq(profileLinks.userId, user.id)),
+   profileLinkMap = Object.fromEntries(
     links.map((link) => [formatPlatformKey(link.platform), link.url])
   );
 
@@ -127,9 +127,9 @@ const getUserSummary = async (user: AuthenticatedUser) => {
     state: profile.state,
     username: profile.username,
   };
-};
+},
 
-const getActiveWorkspace = async ({
+ getActiveWorkspace = async ({
   activeOrganizationId,
   userId,
 }: {
@@ -140,8 +140,8 @@ const getActiveWorkspace = async ({
     return null;
   }
 
-  const db = createDb();
-  const workspaceQuery = db
+  const db = createDb(),
+   workspaceQuery = db
     .select({
       id: organization.id,
       name: organization.name,
@@ -155,17 +155,17 @@ const getActiveWorkspace = async ({
       workspaceProfiles,
       eq(workspaceProfiles.organizationId, organization.id)
     )
-    .where(eq(member.userId, userId));
+    .where(eq(member.userId, userId)),
 
-  const workspaces = await workspaceQuery;
-  const activeWorkspace =
+   workspaces = await workspaceQuery,
+   activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeOrganizationId) ??
     workspaces[0];
 
   return activeWorkspace ?? null;
-};
+},
 
-const defaultNotificationSettings = {
+ defaultNotificationSettings = {
   emailCollaborations: true,
   emailComments: true,
   emailFollowers: true,
@@ -174,15 +174,15 @@ const defaultNotificationSettings = {
   pushMentions: true,
   pushMessages: true,
   pushReleases: true,
-};
+},
 
-const getNotificationSettings = async (userId: string) => {
+ getNotificationSettings = async (userId: string) => {
   if (!isDatabaseConfigured()) {
     return defaultNotificationSettings;
   }
 
-  const db = createDb();
-  const [settings] = await db
+  const db = createDb(),
+   [settings] = await db
     .select({
       emailCollaborations: notificationSettings.emailCollaborations,
       emailComments: notificationSettings.emailComments,
@@ -223,8 +223,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const session = c.get("session");
-    const activeOrganizationId = isAuthenticatedSession(session)
+    const session = c.get("session"),
+     activeOrganizationId = isAuthenticatedSession(session)
       ? (session.activeOrganizationId ?? null)
       : null;
 
@@ -270,8 +270,8 @@ app.openapi(
       return c.json([], HttpStatusCodes.OK);
     }
 
-    const db = createDb();
-    const workspaces = await db
+    const db = createDb(),
+     workspaces = await db
       .select({
         id: organization.id,
         name: organization.name,
@@ -314,8 +314,8 @@ app.openapi(
     tags: ["Me"],
   }),
   async (c) => {
-    const user = c.get("user");
-    const { name } = c.req.valid("json");
+    const user = c.get("user"),
+     { name } = c.req.valid("json");
 
     if (!isAuthenticatedUser(user)) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -334,8 +334,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const activeOrgId = user.id;
+    const db = createDb(),
+     activeOrgId = user.id;
 
     await db
       .update(organization)
@@ -415,8 +415,8 @@ app.openapi(
       return c.json(defaultNotificationSettings, HttpStatusCodes.OK);
     }
 
-    const body = c.req.valid("json");
-    const db = createDb();
+    const body = c.req.valid("json"),
+     db = createDb();
 
     await db
       .insert(notificationSettings)
@@ -478,8 +478,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const {
+    const db = createDb(),
+     {
       links,
       proAffiliation,
       proMemberId,
@@ -570,8 +570,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const session = c.get("session");
-    const entitlements = await resolveEntitlements({
+    const session = c.get("session"),
+     entitlements = await resolveEntitlements({
       session: isAuthenticatedSession(session) ? session : null,
       user,
     });

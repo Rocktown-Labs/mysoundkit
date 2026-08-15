@@ -78,47 +78,43 @@ const initials = (value: string) =>
 
 function MessagesPage() {
   const searchParams = Route.useSearch(),
-   conversationsQuery = useConversationsQuery(),
-   friendsQuery = useFriendsQuery(),
-
-   conversations = useMemo(
-    () =>
-      Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
-    [conversationsQuery.data]
-  ),
-   friends = useMemo(
-    () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
-    [friendsQuery.data]
-  ),
-
-  // Messageable connections: mutual friends & track collaborators
-   messageableFriends = useMemo(
-    () =>
-      friends.filter(
-        (friend) =>
-          friend.relationship === "friend" ||
-          friend.relationship === "collaborator"
-      ),
-    [friends]
-  ),
-
-   [selectedId, setSelectedId] = useState(""),
-   [searchQuery, setSearchQuery] = useState(""),
-   [attachments, setAttachments] = useState<
-    {
-      displayName: string;
-      mimeType?: string;
-      objectKey?: string;
-      sizeBytes?: number;
-      sourceTrackId?: string;
-      url: string;
-    }[]
-  >([]),
-   [composerText, setComposerText] = useState(""),
-   [isCollaborationOpen, setIsCollaborationOpen] = useState(false),
-   [isNewChatOpen, setIsNewChatOpen] = useState(false),
-   [targetFriendId, setTargetFriendId] = useState<string | undefined>(
-    );
+    conversationsQuery = useConversationsQuery(),
+    friendsQuery = useFriendsQuery(),
+    conversations = useMemo(
+      () =>
+        Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
+      [conversationsQuery.data]
+    ),
+    friends = useMemo(
+      () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+      [friendsQuery.data]
+    ),
+    // Messageable connections: mutual friends & track collaborators
+    messageableFriends = useMemo(
+      () =>
+        friends.filter(
+          (friend) =>
+            friend.relationship === "friend" ||
+            friend.relationship === "collaborator"
+        ),
+      [friends]
+    ),
+    [selectedId, setSelectedId] = useState(""),
+    [searchQuery, setSearchQuery] = useState(""),
+    [attachments, setAttachments] = useState<
+      {
+        displayName: string;
+        mimeType?: string;
+        objectKey?: string;
+        sizeBytes?: number;
+        sourceTrackId?: string;
+        url: string;
+      }[]
+    >([]),
+    [composerText, setComposerText] = useState(""),
+    [isCollaborationOpen, setIsCollaborationOpen] = useState(false),
+    [isNewChatOpen, setIsNewChatOpen] = useState(false),
+    [targetFriendId, setTargetFriendId] = useState<string | undefined>();
 
   // Handle URL search params (friendId or conversationId)
   useEffect(() => {
@@ -129,16 +125,16 @@ function MessagesPage() {
 
     if (searchParams.friendId) {
       const targetFriend = friends.find((f) => f.id === searchParams.friendId),
-      // Check if conversation already exists with this friend
-       existing = conversations.find(
-        (c) =>
-          targetFriend &&
-          (c.title.toLowerCase().includes(targetFriend.name.toLowerCase()) ||
-            (targetFriend.username &&
-              c.title
-                .toLowerCase()
-                .includes(targetFriend.username.toLowerCase())))
-      );
+        // Check if conversation already exists with this friend
+        existing = conversations.find(
+          (c) =>
+            targetFriend &&
+            (c.title.toLowerCase().includes(targetFriend.name.toLowerCase()) ||
+              (targetFriend.username &&
+                c.title
+                  .toLowerCase()
+                  .includes(targetFriend.username.toLowerCase())))
+        );
 
       if (existing) {
         setSelectedId(existing.id);
@@ -161,68 +157,66 @@ function MessagesPage() {
   ]);
 
   const selectedConversation = conversations.find(
-    (conversation) => conversation.id === selectedId
-  ),
-   messagesQuery = useConversationMessagesQuery(selectedId),
-   sendMessage = useCreateMessageMutation(selectedId),
-   purchasesQuery = useLibraryPurchasesQuery(),
-   savedTracksQuery = useLibrarySavedQuery(),
-   { isPending: isUploading, upload } = useUploadFiles({
-    api: MEDIA_UPLOAD_URL,
-    credentials: "include",
-    onUploadComplete: ({ files }) => {
-      setAttachments((current) => [
-        ...current,
-        ...files.map((file) => ({
-          displayName: file.raw.name,
-          mimeType: file.raw.type,
-          objectKey: file.objectInfo.key,
-          sizeBytes: file.raw.size,
-          url: `${MEDIA_BASE_URL}/${file.objectInfo.key}`,
-        })),
-      ]);
-    },
-  }),
-   filteredConversations = conversations.filter((conversation) =>
-    conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
-  ),
-
-   submitMessage = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
-      return;
-    }
-
-    sendMessage.mutate(
-      {
-        attachments,
-        body: composerText.trim(),
+      (conversation) => conversation.id === selectedId
+    ),
+    messagesQuery = useConversationMessagesQuery(selectedId),
+    sendMessage = useCreateMessageMutation(selectedId),
+    purchasesQuery = useLibraryPurchasesQuery(),
+    savedTracksQuery = useLibrarySavedQuery(),
+    { isPending: isUploading, upload } = useUploadFiles({
+      api: MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onUploadComplete: ({ files }) => {
+        setAttachments((current) => [
+          ...current,
+          ...files.map((file) => ({
+            displayName: file.raw.name,
+            mimeType: file.raw.type,
+            objectKey: file.objectInfo.key,
+            sizeBytes: file.raw.size,
+            url: `${MEDIA_BASE_URL}/${file.objectInfo.key}`,
+          })),
+        ]);
       },
-      {
-        onSuccess: () => {
-          setComposerText("");
-          setAttachments([]);
-        },
+    }),
+    filteredConversations = conversations.filter((conversation) =>
+      conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+    submitMessage = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      if (!(selectedId && (composerText.trim() || attachments.length > 0))) {
+        return;
       }
-    );
-  },
 
-   handleStartChatWithFriend = (friend: FriendSummary) => {
-    const existing = conversations.find(
-      (c) =>
-        c.title.toLowerCase().includes(friend.name.toLowerCase()) ||
-        (friend.username &&
-          c.title.toLowerCase().includes(friend.username.toLowerCase()))
-    );
+      sendMessage.mutate(
+        {
+          attachments,
+          body: composerText.trim(),
+        },
+        {
+          onSuccess: () => {
+            setComposerText("");
+            setAttachments([]);
+          },
+        }
+      );
+    },
+    handleStartChatWithFriend = (friend: FriendSummary) => {
+      const existing = conversations.find(
+        (c) =>
+          c.title.toLowerCase().includes(friend.name.toLowerCase()) ||
+          (friend.username &&
+            c.title.toLowerCase().includes(friend.username.toLowerCase()))
+      );
 
-    if (existing) {
-      setSelectedId(existing.id);
-    } else {
-      setTargetFriendId(friend.id);
-      setIsNewChatOpen(true);
-    }
-  };
+      if (existing) {
+        setSelectedId(existing.id);
+      } else {
+        setTargetFriendId(friend.id);
+        setIsNewChatOpen(true);
+      }
+    };
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
@@ -589,31 +583,30 @@ function CollaborationDialog({
   open: boolean;
 }) {
   const [kind, setKind] = useState<"project" | "track">("track"),
-   [title, setTitle] = useState(""),
-   [isCreating, setIsCreating] = useState(false),
-
-   createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsCreating(true);
-    try {
-      const response = await fetch(
-        `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
-        {
-          body: JSON.stringify({ kind, title }),
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
+    [title, setTitle] = useState(""),
+    [isCreating, setIsCreating] = useState(false),
+    createCollaboration = async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setIsCreating(true);
+      try {
+        const response = await fetch(
+          `${API_V1_URL}/messages/conversations/${encodeURIComponent(conversationId)}/collaborations`,
+          {
+            body: JSON.stringify({ kind, title }),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        if (!response.ok) {
+          throw new Error("Could not start the collaboration.");
         }
-      );
-      if (!response.ok) {
-        throw new Error("Could not start the collaboration.");
+        const result = (await response.json()) as { href: string };
+        window.location.assign(result.href);
+      } finally {
+        setIsCreating(false);
       }
-      const result = (await response.json()) as { href: string };
-      window.location.assign(result.href);
-    } finally {
-      setIsCreating(false);
-    }
-  };
+    };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -671,16 +664,15 @@ function NewChatDialog({
   open: boolean;
 }) {
   const friendsQuery = useFriendsQuery(),
-   startConversation = useStartConversationMutation(),
-   [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]),
-   [message, setMessage] = useState(""),
-   [search, setSearch] = useState(""),
-   peopleSearchQuery = usePeopleSearchQuery(search),
-
-   friends = useMemo(
-    () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
-    [friendsQuery.data]
-  );
+    startConversation = useStartConversationMutation(),
+    [selectedFriends, setSelectedFriends] = useState<FriendSummary[]>([]),
+    [message, setMessage] = useState(""),
+    [search, setSearch] = useState(""),
+    peopleSearchQuery = usePeopleSearchQuery(search),
+    friends = useMemo(
+      () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
+      [friendsQuery.data]
+    );
 
   // Preselect initialFriendId when dialog opens
   useEffect(() => {
@@ -695,91 +687,88 @@ function NewChatDialog({
   }, [open, initialFriendId, friends]);
 
   const normalizedSearch = search.trim().replace(/^@/, "").toLowerCase(),
+    // Combine local friends with database search results
+    allCandidates = useMemo(() => {
+      const candidatesMap = new Map<string, FriendSummary>();
 
-  // Combine local friends with database search results
-   allCandidates = useMemo(() => {
-    const candidatesMap = new Map<string, FriendSummary>();
+      // 1. Add all local friends/collaborators/following/fans
+      for (const friend of friends) {
+        candidatesMap.set(friend.id, friend);
+      }
 
-    // 1. Add all local friends/collaborators/following/fans
-    for (const friend of friends) {
-      candidatesMap.set(friend.id, friend);
-    }
-
-    // 2. Merge in database search results
-    if (Array.isArray(peopleSearchQuery.data)) {
-      for (const person of peopleSearchQuery.data) {
-        if (!candidatesMap.has(person.userId)) {
-          candidatesMap.set(person.userId, {
-            avatarUrl: person.avatarUrl,
-            email: person.email,
-            id: person.userId,
-            lastInteractionAt: null,
-            name: person.displayName,
-            relationship: "user",
-            role: person.stageName ? "Artist" : "User",
-            username: person.username,
-          });
+      // 2. Merge in database search results
+      if (Array.isArray(peopleSearchQuery.data)) {
+        for (const person of peopleSearchQuery.data) {
+          if (!candidatesMap.has(person.userId)) {
+            candidatesMap.set(person.userId, {
+              avatarUrl: person.avatarUrl,
+              email: person.email,
+              id: person.userId,
+              lastInteractionAt: null,
+              name: person.displayName,
+              relationship: "user",
+              role: person.stageName ? "Artist" : "User",
+              username: person.username,
+            });
+          }
         }
       }
-    }
 
-    return [...candidatesMap.values()];
-  }, [friends, peopleSearchQuery.data]),
+      return [...candidatesMap.values()];
+    }, [friends, peopleSearchQuery.data]),
+    selectedIds = useMemo(
+      () => new Set(selectedFriends.map((f) => f.id)),
+      [selectedFriends]
+    ),
+    // Filter candidates based on search query and exclude already selected
+    filteredCandidates = useMemo(
+      () =>
+        allCandidates
+          .filter((candidate) => !selectedIds.has(candidate.id))
+          .filter((candidate) => {
+            if (!normalizedSearch) {return true;}
+            return [
+              candidate.name,
+              candidate.username,
+              candidate.email,
+              candidate.role,
+            ]
+              .filter(Boolean)
+              .some((val) => val?.toLowerCase().includes(normalizedSearch));
+          }),
+      [allCandidates, selectedIds, normalizedSearch]
+    ),
+    isGroupChat = selectedFriends.length > 1,
+    startChat = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
 
-   selectedIds = useMemo(
-    () => new Set(selectedFriends.map((f) => f.id)),
-    [selectedFriends]
-  ),
-
-  // Filter candidates based on search query and exclude already selected
-   filteredCandidates = useMemo(() => 
-    allCandidates
-      .filter((candidate) => !selectedIds.has(candidate.id))
-      .filter((candidate) => {
-        if (!normalizedSearch) return true;
-        return [
-          candidate.name,
-          candidate.username,
-          candidate.email,
-          candidate.role,
-        ]
-          .filter(Boolean)
-          .some((val) => val?.toLowerCase().includes(normalizedSearch));
-      })
-  , [allCandidates, selectedIds, normalizedSearch]),
-
-   isGroupChat = selectedFriends.length > 1,
-
-   startChat = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (selectedFriends.length === 0 || !message.trim()) {
-      return;
-    }
-
-    startConversation.mutate(
-      {
-        conversation: {
-          participantUserIds: selectedFriends.map((friend) => friend.id),
-          title: isGroupChat
-            ? selectedFriends.map((friend) => friend.name).join(", ")
-            : undefined,
-        },
-        message: { body: message.trim() },
-      },
-      {
-        onSuccess: (res) => {
-          setMessage("");
-          setSearch("");
-          setSelectedFriends([]);
-          onOpenChange(false);
-          if (res?.id && onConversationCreated) {
-            onConversationCreated(res.id);
-          }
-        },
+      if (selectedFriends.length === 0) {
+        return;
       }
-    );
-  };
+
+      startConversation.mutate(
+        {
+          conversation: {
+            participantUserIds: selectedFriends.map((friend) => friend.id),
+            title: isGroupChat
+              ? selectedFriends.map((friend) => friend.name).join(", ")
+              : undefined,
+          },
+          message: message.trim() ? { body: message.trim() } : undefined,
+        },
+        {
+          onSuccess: (res) => {
+            setMessage("");
+            setSearch("");
+            setSelectedFriends([]);
+            onOpenChange(false);
+            if (res?.id && onConversationCreated) {
+              onConversationCreated(res.id);
+            }
+          },
+        }
+      );
+    };
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -922,7 +911,7 @@ function NewChatDialog({
 
           <Textarea
             onChange={(event) => setMessage(event.target.value)}
-            placeholder="Write your message..."
+            placeholder="Type a message (optional)..."
             value={message}
             className="min-h-[80px]"
           />
@@ -933,9 +922,7 @@ function NewChatDialog({
             </Button>
             <Button
               disabled={
-                selectedFriends.length === 0 ||
-                !message.trim() ||
-                startConversation.isPending
+                selectedFriends.length === 0 || startConversation.isPending
               }
               type="submit"
             >

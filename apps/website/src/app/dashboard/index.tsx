@@ -24,49 +24,49 @@ export const Route = createFileRoute("/dashboard/")({
 
 function DashboardPage() {
   const meQuery = useMeQuery(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   tracksQuery = useTracksQuery(),
-   projectsQuery = useProjectsQuery(),
-   entitlements = entitlementsQuery.data,
-   isPremium = Boolean(entitlements?.isPremium),
-   sellerStatusQuery = useQuery({
-    enabled: isPremium,
-    queryFn: async () => {
-      const response = await fetch(`${API_V1_URL}/seller/status`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        return null;
+    entitlementsQuery = useMeEntitlementsQuery(),
+    tracksQuery = useTracksQuery(),
+    projectsQuery = useProjectsQuery(),
+    entitlements = entitlementsQuery.data,
+    isPremium = Boolean(entitlements?.isPremium),
+    sellerStatusQuery = useQuery({
+      enabled: isPremium,
+      queryFn: async () => {
+        const response = await fetch(`${API_V1_URL}/seller/status`, {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          return null;
+        }
+        return (await response.json()) as { onboardingStatus: string };
+      },
+      queryKey: ["seller", "status"],
+    }),
+    needsPaymentsSetup =
+      isPremium && sellerStatusQuery.data?.onboardingStatus !== "enabled",
+    activePlanLabel = entitlements?.activePlanCode
+      ? entitlements.activePlanCode.replaceAll("_", " ")
+      : "SoundKit Free",
+    displayName =
+      meQuery.data?.user.displayName ??
+      meQuery.data?.user.username ??
+      "SoundKit Artist",
+    firstName = displayName.split(" ")[0] ?? displayName,
+    tracks = tracksQuery.data ?? [],
+    projects = projectsQuery.data ?? [],
+    collaboratorCount = Math.max(
+      ...tracks.map((track) => track.collaboratorCount),
+      ...projects.map((project) => project.collaboratorCount),
+      0
+    ),
+    upcomingReleases = projects.filter((project) => {
+      if (!project.releaseDate) {
+        return false;
       }
-      return (await response.json()) as { onboardingStatus: string };
-    },
-    queryKey: ["seller", "status"],
-  }),
-   needsPaymentsSetup =
-    isPremium && sellerStatusQuery.data?.onboardingStatus !== "enabled",
-   activePlanLabel = entitlements?.activePlanCode
-    ? entitlements.activePlanCode.replaceAll("_", " ")
-    : "SoundKit Free",
-   displayName =
-    meQuery.data?.user.displayName ??
-    meQuery.data?.user.username ??
-    "SoundKit Artist",
-   firstName = displayName.split(" ")[0] ?? displayName,
-   tracks = tracksQuery.data ?? [],
-   projects = projectsQuery.data ?? [],
-   collaboratorCount = Math.max(
-    ...tracks.map((track) => track.collaboratorCount),
-    ...projects.map((project) => project.collaboratorCount),
-    0
-  ),
-   upcomingReleases = projects.filter((project) => {
-    if (!project.releaseDate) {
-      return false;
-    }
 
-    return new Date(project.releaseDate).getTime() >= Date.now();
-  }),
-   projectTypeCounts: Record<string, number> = {};
+      return new Date(project.releaseDate).getTime() >= Date.now();
+    }),
+    projectTypeCounts: Record<string, number> = {};
   for (const project of projects) {
     projectTypeCounts[project.projectType] =
       (projectTypeCounts[project.projectType] ?? 0) + 1;

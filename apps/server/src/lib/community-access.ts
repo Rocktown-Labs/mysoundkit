@@ -19,8 +19,8 @@ export const canAccessCommunity = async ({
     return false;
   }
 
-  const db = createDb();
-  const [community] = await db
+  const db = createDb(),
+   [community] = await db
     .select({ artistUserId: communities.artistUserId })
     .from(communities)
     .where(eq(communities.id, communityId))

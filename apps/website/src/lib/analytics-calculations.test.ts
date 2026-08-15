@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+
 import {
   computeGeographicData,
-  computeReleaseSpikeData,
+  computeLoyaltySegments,
   computeRetentionMetrics,
   computeSourcesData,
+  computeSpike48hData,
   computeStreamTrends28d,
   computeStreamTrends7d,
 } from "./analytics-calculations";
@@ -31,7 +33,10 @@ describe("Analytics Calculations", () => {
     it("computes proportional stream distribution when totalPlays > 0", () => {
       const trends7d = computeStreamTrends7d(1000);
       expect(trends7d).toHaveLength(7);
-      const totalStreams = trends7d.reduce((sum, item) => sum + item.streams, 0);
+      const totalStreams = trends7d.reduce(
+        (sum, item) => sum + item.streams,
+        0
+      );
       expect(totalStreams).toBeGreaterThan(950);
       expect(totalStreams).toBeLessThan(1050);
 
@@ -65,21 +70,39 @@ describe("Analytics Calculations", () => {
   });
 
   describe("Geographic Data", () => {
-    it("returns zeroed regions when totalPlays is 0", () => {
+    it("returns empty array when totalPlays is 0", () => {
       const geo = computeGeographicData(0);
-      expect(geo).toHaveLength(5);
-      for (const item of geo) {
-        expect(item.plays).toBe(0);
-      }
+      expect(geo).toHaveLength(0);
     });
 
     it("distributes plays across target regions when totalPlays > 0", () => {
-      const geo = computeGeographicData(1000);
+      const geo = computeGeographicData(1000, "Little Rock, AR");
       expect(geo).toHaveLength(5);
       const totalGeoPlays = geo.reduce((sum, item) => sum + item.plays, 0);
       expect(totalGeoPlays).toBeGreaterThan(950);
       expect(totalGeoPlays).toBeLessThan(1050);
-      expect(geo[0]?.region).toContain("Arkansas");
+      expect(geo[0]?.region).toContain("Little Rock, AR (Local HQ)");
+    });
+  });
+
+  describe("Loyalty Segments", () => {
+    it("returns 0 plays and hasData: false when totalPlays is 0", () => {
+      const loyalty = computeLoyaltySegments(0);
+      expect(loyalty.hasData).toBe(false);
+      expect(loyalty.superPlays).toBe(0);
+      expect(loyalty.casualPlays).toBe(0);
+      expect(loyalty.lapsedPlays).toBe(0);
+    });
+
+    it("computes segmented plays and percentages when totalPlays > 0", () => {
+      const loyalty = computeLoyaltySegments(1000);
+      expect(loyalty.hasData).toBe(true);
+      expect(loyalty.superPlays).toBe(420);
+      expect(loyalty.casualPlays).toBe(450);
+      expect(loyalty.lapsedPlays).toBe(130);
+      expect(loyalty.superPct).toBe(42);
+      expect(loyalty.casualPct).toBe(45);
+      expect(loyalty.lapsedPct).toBe(13);
     });
   });
 

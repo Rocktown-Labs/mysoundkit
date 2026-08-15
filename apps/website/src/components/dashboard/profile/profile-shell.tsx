@@ -89,129 +89,128 @@ export function ProfileShell({
   viewerAccountType,
 }: ProfileShellProps) {
   const router = useRouter(),
-   followArtist = useFollowArtistMutation(user.username),
-   [followerCount, setFollowerCount] = useState(user.followers),
-   [isShareOpen, setIsShareOpen] = useState(false),
-
-   showChallenge = canShowChallengeAction({
-    isOwner: Boolean(isOwner),
-    targetIsArtist,
-    viewerAccountType,
-  }),
-
-   appleMusicLink = user.links.appleMusic ?? user.links.apple,
-
-   listenLinks = [
-    user.links.spotify
-      ? {
-          href: user.links.spotify,
-          icon: SpotifyIcon,
-          label: "Spotify",
-          tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500",
-        }
-      : null,
-    appleMusicLink
-      ? {
-          href: appleMusicLink,
-          icon: AppleMusicIcon,
-          label: "Apple Music",
-          tone: "border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500",
-        }
-      : null,
-    user.links.youtube
-      ? {
-          href: user.links.youtube,
-          icon: YoutubeMusicIcon,
-          label: "YouTube",
-          tone: "border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500",
-        }
-      : null,
-  ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
-
-   followLinks = [
-    user.links.instagram
-      ? { href: user.links.instagram, icon: InstagramIcon, label: "Instagram" }
-      : null,
-    user.links.twitter
-      ? { href: user.links.twitter, icon: TwitterIcon, label: "X" }
-      : null,
-    user.links.tiktok
-      ? { href: user.links.tiktok, icon: TikTokIcon, label: "TikTok" }
-      : null,
-    user.links.soundcloud
-      ? { href: user.links.soundcloud, icon: SpotifyIcon, label: "SoundCloud" }
-      : null,
-    user.links.personalSite
-      ? { href: user.links.personalSite, icon: Globe, label: "Website" }
-      : null,
-  ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
-
-   handleFollow = async () => {
-    const result = await followArtist.mutateAsync();
-    setFollowerCount(result.followerCount.toLocaleString());
-  },
-
-   profileShareUrl = absoluteSiteUrl(`/artist/${user.username}`),
-   profileShareTitle = `Check out ${user.name} on SoundKit`,
-   profileShareText = `Follow @${user.username} on SoundKit.`,
-
-   handleNativeShare = async () => {
-    const outcome = await shareLink({
-      text: profileShareText,
-      title: profileShareTitle,
-      url: profileShareUrl,
-    });
-
-    if (outcome === "shared") {
-      setIsShareOpen(false);
-      return;
-    }
-
-    if (outcome === "unsupported") {
-      toast({
-        description: "Sharing is not supported on this device.",
-        title: "Unable to share",
-        variant: "destructive",
+    followArtist = useFollowArtistMutation(user.username),
+    [followerCount, setFollowerCount] = useState(user.followers),
+    [isShareOpen, setIsShareOpen] = useState(false),
+    showChallenge = canShowChallengeAction({
+      isOwner: Boolean(isOwner),
+      targetIsArtist,
+      viewerAccountType,
+    }),
+    appleMusicLink = user.links.appleMusic ?? user.links.apple,
+    listenLinks = [
+      user.links.spotify
+        ? {
+            href: user.links.spotify,
+            icon: SpotifyIcon,
+            label: "Spotify",
+            tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500",
+          }
+        : null,
+      appleMusicLink
+        ? {
+            href: appleMusicLink,
+            icon: AppleMusicIcon,
+            label: "Apple Music",
+            tone: "border-rose-500/20 bg-rose-500/10 text-rose-500 hover:bg-rose-500",
+          }
+        : null,
+      user.links.youtube
+        ? {
+            href: user.links.youtube,
+            icon: YoutubeMusicIcon,
+            label: "YouTube",
+            tone: "border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500",
+          }
+        : null,
+    ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
+    followLinks = [
+      user.links.instagram
+        ? {
+            href: user.links.instagram,
+            icon: InstagramIcon,
+            label: "Instagram",
+          }
+        : null,
+      user.links.twitter
+        ? { href: user.links.twitter, icon: TwitterIcon, label: "X" }
+        : null,
+      user.links.tiktok
+        ? { href: user.links.tiktok, icon: TikTokIcon, label: "TikTok" }
+        : null,
+      user.links.soundcloud
+        ? {
+            href: user.links.soundcloud,
+            icon: SpotifyIcon,
+            label: "SoundCloud",
+          }
+        : null,
+      user.links.personalSite
+        ? { href: user.links.personalSite, icon: Globe, label: "Website" }
+        : null,
+    ].filter((link): link is Exclude<typeof link, null> => Boolean(link)),
+    handleFollow = async () => {
+      const result = await followArtist.mutateAsync();
+      setFollowerCount(result.followerCount.toLocaleString());
+    },
+    profileShareUrl = absoluteSiteUrl(`/artist/${user.username}`),
+    profileShareTitle = `Check out ${user.name} on SoundKit`,
+    profileShareText = `Follow @${user.username} on SoundKit.`,
+    handleNativeShare = async () => {
+      const outcome = await shareLink({
+        text: profileShareText,
+        title: profileShareTitle,
+        url: profileShareUrl,
       });
-      return;
-    }
 
-    setIsShareOpen(false);
-    toast({
-      description: `Profile URL copied to clipboard: ${profileShareUrl}`,
-      title: "Link Copied",
-    });
-  },
+      if (outcome === "shared") {
+        setIsShareOpen(false);
+        return;
+      }
 
-   handleCopyLink = () => {
-    void navigator.clipboard
-      .writeText(profileShareUrl)
-      .then(() => {
+      if (outcome === "unsupported") {
         toast({
-          description: `Profile URL copied to clipboard: ${profileShareUrl}`,
-          title: "Link Copied",
+          description: "Sharing is not supported on this device.",
+          title: "Unable to share",
+          variant: "destructive",
         });
-      })
-      .catch(() => {});
-  },
+        return;
+      }
 
-   handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {
-    const url = encodeURIComponent(profileShareUrl),
-     text = encodeURIComponent(profileShareTitle);
+      setIsShareOpen(false);
+      toast({
+        description: `Profile URL copied to clipboard: ${profileShareUrl}`,
+        title: "Link Copied",
+      });
+    },
+    handleCopyLink = () => {
+      void navigator.clipboard
+        .writeText(profileShareUrl)
+        .then(() => {
+          toast({
+            description: `Profile URL copied to clipboard: ${profileShareUrl}`,
+            title: "Link Copied",
+          });
+        })
+        .catch(() => {});
+    },
+    handleShareApp = (platform: "twitter" | "facebook" | "whatsapp") => {
+      const url = encodeURIComponent(profileShareUrl),
+        text = encodeURIComponent(profileShareTitle);
 
-    let shareUrl = "";
-    if (platform === "twitter") {
-      shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
-    } else if (platform === "whatsapp") {
-      shareUrl = `https://api.whatsapp.com/send?text=${text}%20${url}`;
-    } else if (platform === "facebook") {
-      shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-    }
+      let shareUrl = "";
+      if (platform === "twitter") {
+        shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
+      } else if (platform === "whatsapp") {
+        shareUrl = `https://api.whatsapp.com/send?text=${text}%20${url}`;
+      } else if (platform === "facebook") {
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+      }
 
-    if (shareUrl) {
-      window.open(shareUrl, "_blank", "noopener,noreferrer");
-    }
-  };
+      if (shareUrl) {
+        window.open(shareUrl, "_blank", "noopener,noreferrer");
+      }
+    };
 
   return (
     <div className="min-h-screen bg-background pb-20">

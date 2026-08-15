@@ -19,12 +19,12 @@ import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useMeQuery, useSearchQuery } from "@/lib/soundkit-api-hooks";
 
-const SEARCH_DEBOUNCE_MS = 250;
+const SEARCH_DEBOUNCE_MS = 250,
 
-const resultLinkClassName =
-  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer";
+ resultLinkClassName =
+  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer",
 
-const canOpenDashboardForUser = (user?: {
+ canOpenDashboardForUser = (user?: {
   accountType: string;
   onboardingCompletedAt?: string | null;
   role?: string | null;
@@ -35,18 +35,18 @@ const canOpenDashboardForUser = (user?: {
 // The search, cart, and account controls intentionally share one responsive header.
 // eslint-disable-next-line complexity
 export function ExploreHeader() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const locationHref = useRouterState({ select: (s) => s.location.href });
-  const { cart, setIsCartOpen } = useCart();
-  const meQuery = useMeQuery();
-  const me = meQuery.data;
-  const isSignedIn = Boolean(me);
-  const canOpenDashboard = canOpenDashboardForUser(me?.user);
+  const pathname = useRouterState({ select: (s) => s.location.pathname }),
+   locationHref = useRouterState({ select: (s) => s.location.href }),
+   { cart, setIsCartOpen } = useCart(),
+   meQuery = useMeQuery(),
+   me = meQuery.data,
+   isSignedIn = Boolean(me),
+   canOpenDashboard = canOpenDashboardForUser(me?.user),
 
-  const [searchValue, setSearchValue] = useState("");
-  const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const trimmedSearchValue = debouncedSearchValue.trim();
+   [searchValue, setSearchValue] = useState(""),
+   [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
+   searchInputRef = useRef<HTMLInputElement>(null),
+   trimmedSearchValue = debouncedSearchValue.trim();
 
   useHotkey("Mod+K", (event) => {
     event.preventDefault();
@@ -60,14 +60,14 @@ export function ExploreHeader() {
       ? "tracks"
       : pathname.startsWith("/artist")
         ? "artists"
-        : "all";
-  const searchQuery = useSearchQuery({
+        : "all",
+   searchQuery = useSearchQuery({
     limit: "8",
     q: trimmedSearchValue,
     type: searchScope,
-  });
-  const results = searchQuery.data;
-  const resultCount =
+  }),
+   results = searchQuery.data,
+   resultCount =
     (results?.artists.length ?? 0) +
     (results?.tracks.length ?? 0) +
     (results?.projects.length ?? 0);
@@ -90,9 +90,9 @@ export function ExploreHeader() {
     }
 
     return { q: trimmedSearchValue };
-  };
+  },
 
-  const getSearchPlaceholder = () => {
+   getSearchPlaceholder = () => {
     if (pathname.startsWith("/artist")) {
       return "Search artists...";
     } else if (pathname.startsWith("/live")) {
@@ -243,9 +243,9 @@ export function ExploreHeader() {
                       to={
                         searchScope === "projects"
                           ? "/projects"
-                          : searchScope === "tracks"
+                          : (searchScope === "tracks"
                             ? "/tracks"
-                            : "/artist"
+                            : "/artist")
                       }
                     >
                       View all {searchScope}

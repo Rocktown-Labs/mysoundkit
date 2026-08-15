@@ -72,8 +72,8 @@ app.openapi(
     tags: ["Playlists"],
   }),
   (c) => {
-    const { playlistId } = c.req.valid("param");
-    const playlist =
+    const { playlistId } = c.req.valid("param"),
+     playlist =
       samplePlaylists.find((entry) => entry.id === playlistId) ??
       samplePlaylists[0];
     return c.json(playlist, HttpStatusCodes.OK);

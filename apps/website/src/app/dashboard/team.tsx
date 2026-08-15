@@ -53,22 +53,22 @@ interface PlanMember {
 }
 
 export function TeamPage() {
-  const { toast } = useToast();
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [isRenameOpen, setIsRenameOpen] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const { toast } = useToast(),
+   [isInviteOpen, setIsInviteOpen] = useState(false),
+   [isRenameOpen, setIsRenameOpen] = useState(false),
+   [newWorkspaceName, setNewWorkspaceName] = useState(""),
+   [searchQuery, setSearchQuery] = useState(""),
 
-  const meQuery = useMeQuery();
-  const friendsQuery = useFriendsQuery();
-  const updateWorkspaceMutation = useUpdateWorkspaceMutation();
+   meQuery = useMeQuery(),
+   friendsQuery = useFriendsQuery(),
+   updateWorkspaceMutation = useUpdateWorkspaceMutation(),
 
-  const user = meQuery.data?.user;
-  const activeWorkspace = meQuery.data?.activeWorkspace;
-  const collaborators = friendsQuery.data ?? [];
+   user = meQuery.data?.user,
+   activeWorkspace = meQuery.data?.activeWorkspace,
+   collaborators = friendsQuery.data ?? [],
 
   // Team Plan Seats state (5 total seats per subscription plan)
-  const [teamMembers, setTeamMembers] = useState<PlanMember[]>([
+   [teamMembers, setTeamMembers] = useState<PlanMember[]>([
     {
       email: user?.email ?? "owner@mysoundkit.com",
       id: "member-owner",
@@ -76,10 +76,12 @@ export function TeamPage() {
       role: "Owner / Primary Account",
       status: "active",
     },
-  ]);
+  ]),
 
-  const handleRenameWorkspace = async () => {
-    if (!newWorkspaceName.trim()) {return;}
+   handleRenameWorkspace = async () => {
+    if (!newWorkspaceName.trim()) {
+      return;
+    }
     try {
       await updateWorkspaceMutation.mutateAsync({ name: newWorkspaceName });
       setIsRenameOpen(false);
@@ -94,26 +96,30 @@ export function TeamPage() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleRevokeMember = (memberId: string) => {
+   handleRevokeMember = (memberId: string) => {
     setTeamMembers((prev) => prev.filter((m) => m.id !== memberId));
     toast({
       description: "Member access revoked.",
       title: "Plan Member Removed",
     });
-  };
+  },
 
-  const filteredCollaborators = collaborators.filter((person) => {
-    if (person.id === user?.id) {return false;}
+   filteredCollaborators = collaborators.filter((person) => {
+    if (person.id === user?.id) {
+      return false;
+    }
     const query = searchQuery.trim().toLowerCase();
-    if (!query) {return true;}
+    if (!query) {
+      return true;
+    }
     return [person.name, person.username, person.email, person.role]
       .filter((value): value is string => typeof value === "string")
       .some((value) => value.toLowerCase().includes(query));
-  });
+  }),
 
-  const teamStats = [
+   teamStats = [
     {
       description: activeWorkspace?.name ?? "My Workspace",
       icon: Users,
@@ -330,7 +336,10 @@ export function TeamPage() {
                       <Badge variant="outline">{person.role}</Badge>
                     )}
                     <Button asChild size="sm" variant="outline">
-                      <Link search={{ friendId: person.id }} to="/dashboard/messages">
+                      <Link
+                        search={{ friendId: person.id }}
+                        to="/dashboard/messages"
+                      >
                         Message
                       </Link>
                     </Button>

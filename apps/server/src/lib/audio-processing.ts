@@ -19,15 +19,15 @@ import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
 
-const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1";
-const OPENAI_TRANSCRIPTION_URL =
-  "https://api.openai.com/v1/audio/transcriptions";
-const DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2";
-const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
-const MAX_OPENAI_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_LYRIC_LINE_CHARACTERS = 64;
-const MAX_WORDS_PER_LYRIC_LINE = 9;
-const LYRIC_LINE_BREAK_SECONDS = 1.2;
+const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1",
+ OPENAI_TRANSCRIPTION_URL =
+  "https://api.openai.com/v1/audio/transcriptions",
+ DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2",
+ DEFAULT_EMBEDDING_DIMENSIONS = 1536,
+ MAX_OPENAI_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024,
+ MAX_LYRIC_LINE_CHARACTERS = 64,
+ MAX_WORDS_PER_LYRIC_LINE = 9,
+ LYRIC_LINE_BREAK_SECONDS = 1.2;
 
 type StemSplitJobStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 
@@ -78,15 +78,15 @@ interface TimedLyricLine {
 }
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
 
-const getMediaBucket = () =>
-  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null;
+ getMediaBucket = () =>
+  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
 
-const getMediaPublicUrl = () =>
-  getEnvValue("MEDIA_PUBLIC_URL") || getEnvValue("VITE_MEDIA_URL");
+ getMediaPublicUrl = () =>
+  getEnvValue("MEDIA_PUBLIC_URL") || getEnvValue("VITE_MEDIA_URL"),
 
-const getObjectPublicUrl = (objectKey: string) => {
+ getObjectPublicUrl = (objectKey: string) => {
   const mediaPublicUrl = getMediaPublicUrl();
 
   if (!mediaPublicUrl) {
@@ -94,17 +94,17 @@ const getObjectPublicUrl = (objectKey: string) => {
   }
 
   return `${mediaPublicUrl.replace(/\/+$/u, "")}/${objectKey}`;
-};
+},
 
-const sha256 = async (value: string) => {
-  const data = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", data);
+ sha256 = async (value: string) => {
+  const data = new TextEncoder().encode(value),
+   digest = await crypto.subtle.digest("SHA-256", data);
   return [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-};
+},
 
-const stemsplitFetch = async <T>(path: string, init?: RequestInit) => {
+ stemsplitFetch = async <T>(path: string, init?: RequestInit) => {
   const apiKey = getEnvValue("STEMSPLIT_API_KEY");
 
   if (!apiKey) {
@@ -125,9 +125,9 @@ const stemsplitFetch = async <T>(path: string, init?: RequestInit) => {
   }
 
   return response.json() as Promise<T>;
-};
+},
 
-const mapStemJobStatus = (status: StemSplitJobStatus) => {
+ mapStemJobStatus = (status: StemSplitJobStatus) => {
   if (status === "COMPLETED") {
     return "completed" as const;
   }
@@ -190,9 +190,9 @@ const copyStemOutputToR2 = async ({
     objectKey: targetKey,
     sizeBytes: Number(response.headers.get("content-length")) || null,
   };
-};
+},
 
-const saveStemAsset = async ({
+ saveStemAsset = async ({
   assetKind,
   sourceAssetId,
   sourceOutput,
@@ -214,9 +214,9 @@ const saveStemAsset = async ({
   const copied = await copyStemOutputToR2({
     sourceUrl: sourceOutput.url,
     targetKey,
-  });
-  const db = createDb();
-  const [asset] = await db
+  }),
+   db = createDb(),
+   [asset] = await db
     .insert(trackAssets)
     .values({
       assetKind,
@@ -237,22 +237,22 @@ const saveStemAsset = async ({
     .returning();
 
   return asset ?? null;
-};
+},
 
-const secondsToMilliseconds = (seconds: number) =>
-  Math.max(0, Math.round(seconds * 1000));
+ secondsToMilliseconds = (seconds: number) =>
+  Math.max(0, Math.round(seconds * 1000)),
 
-const cleanTranscriptionWord = (word: string) =>
+ cleanTranscriptionWord = (word: string) =>
   word.trim().replaceAll(/\s+/gu, " ");
 
 export const buildTimedLyricLinesFromWords = (
   words: OpenAiTranscriptionWord[]
 ): TimedLyricLine[] => {
   const lines: TimedLyricLine[] = [];
-  let currentWords: string[] = [];
-  let currentStartMs: null | number = null;
-  let currentEndMs: null | number = null;
-  let previousEndSeconds: null | number = null;
+  let currentWords: string[] = [],
+   currentStartMs: null | number = null,
+   currentEndMs: null | number = null,
+   previousEndSeconds: null | number = null;
 
   const flushLine = () => {
     const text = currentWords.join(" ").trim();
@@ -287,9 +287,9 @@ export const buildTimedLyricLinesFromWords = (
 
     const shouldBreakForPause =
       previousEndSeconds !== null &&
-      word.start - previousEndSeconds >= LYRIC_LINE_BREAK_SECONDS;
-    const nextLineText = [...currentWords, text].join(" ");
-    const shouldBreakForLength =
+      word.start - previousEndSeconds >= LYRIC_LINE_BREAK_SECONDS,
+     nextLineText = [...currentWords, text].join(" "),
+     shouldBreakForLength =
       currentWords.length >= MAX_WORDS_PER_LYRIC_LINE ||
       nextLineText.length > MAX_LYRIC_LINE_CHARACTERS;
 
@@ -333,9 +333,9 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
   return new File([audio], "vocals.mp3", {
     type: response.headers.get("content-type") ?? "audio/mpeg",
   });
-};
+},
 
-const transcribeAudioWithOpenAi = async (sourceUrl: string) => {
+ transcribeAudioWithOpenAi = async (sourceUrl: string) => {
   const apiKey = getEnvValue("OPENAI_API_KEY");
 
   if (!apiKey) {
@@ -368,9 +368,9 @@ const transcribeAudioWithOpenAi = async (sourceUrl: string) => {
   }
 
   return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
-};
+},
 
-const transcribeVocals = async ({
+ transcribeVocals = async ({
   objectKey,
   trackId,
 }: {
@@ -383,17 +383,17 @@ const transcribeVocals = async ({
     return null;
   }
 
-  const result = await transcribeAudioWithOpenAi(sourceUrl);
-  const text = result?.text?.trim() ?? "";
+  const result = await transcribeAudioWithOpenAi(sourceUrl),
+   text = result?.text?.trim() ?? "";
 
   if (!text) {
     return null;
   }
 
-  const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []);
+  const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
 
-  const db = createDb();
-  const [lyrics] = await db
+   db = createDb(),
+   [lyrics] = await db
     .insert(trackLyrics)
     .values({
       id: crypto.randomUUID(),
@@ -414,9 +414,9 @@ const transcribeVocals = async ({
     .returning();
 
   return lyrics ?? null;
-};
+},
 
-const embeddingModelName = () =>
+ embeddingModelName = () =>
   getEnvValue("GOOGLE_EMBEDDING_MODEL")
     .replace(/^google\//u, "")
     .trim() || DEFAULT_EMBEDDING_MODEL;
@@ -426,8 +426,8 @@ export const backfillSearchEmbeddings = async (limit = 100) => {
     return { indexed: 0 };
   }
 
-  const db = createDb();
-  const cappedLimit = Math.min(Math.max(limit, 1), 500);
+  const db = createDb(),
+   cappedLimit = Math.min(Math.max(limit, 1), 500);
   let indexed = 0;
   const trackRows = await db.select().from(tracks).limit(cappedLimit);
   for (const row of trackRows) {
@@ -435,7 +435,9 @@ export const backfillSearchEmbeddings = async (limit = 100) => {
       entityId: row.id,
       entityType: "track",
       organizationId: row.organizationId,
-      text: [row.title, row.description, row.musicalKey].filter(Boolean).join("\n"),
+      text: [row.title, row.description, row.musicalKey]
+        .filter(Boolean)
+        .join("\n"),
     });
     indexed += 1;
   }
@@ -469,7 +471,12 @@ export const backfillSearchEmbeddings = async (limit = 100) => {
       entityId: row.profile.userId,
       entityType: "artist",
       organizationId: row.profile.primaryOrganizationId,
-      text: [row.profile.stageName, row.profileDetails.username, row.profileDetails.city, row.profileDetails.state]
+      text: [
+        row.profile.stageName,
+        row.profileDetails.username,
+        row.profileDetails.city,
+        row.profileDetails.state,
+      ]
         .filter(Boolean)
         .join("\n"),
     });
@@ -485,11 +492,13 @@ export const loadEmbeddingStatus = async () => {
   }
 
   const rows = await createDb()
-    .select({ entityType: searchEmbeddings.entityType, count: count() })
+    .select({ count: count(), entityType: searchEmbeddings.entityType })
     .from(searchEmbeddings)
     .groupBy(searchEmbeddings.entityType);
   return {
-    byEntityType: Object.fromEntries(rows.map((row) => [row.entityType, row.count])),
+    byEntityType: Object.fromEntries(
+      rows.map((row) => [row.entityType, row.count])
+    ),
     total: rows.reduce((sum, row) => sum + row.count, 0),
   };
 };
@@ -501,17 +510,34 @@ export const searchSemanticEntities = async ({
   limit?: number;
   text: string;
 }) => {
-  if (!isDatabaseConfigured() || !text.trim() || !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")) {
+  if (
+    !isDatabaseConfigured() ||
+    !text.trim() ||
+    !getEnvValue("GOOGLE_GENERATIVE_AI_API_KEY")
+  ) {
     return [];
   }
 
-  const result = await embed({ model: google.embedding(embeddingModelName()), value: text });
-  const embedding = result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
-    ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
-    : [...result.embedding, ...Array.from({ length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length }, () => 0)];
-  const vector = `[${embedding.join(",")}]`;
+  const result = await embed({
+    model: google.embedding(embeddingModelName()),
+    value: text,
+  }),
+   embedding =
+    result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
+      ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
+      : [
+          ...result.embedding,
+          ...Array.from(
+            { length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length },
+            () => 0
+          ),
+        ],
+   vector = `[${embedding.join(",")}]`;
   return createDb()
-    .select({ entityId: searchEmbeddings.entityId, entityType: searchEmbeddings.entityType })
+    .select({
+      entityId: searchEmbeddings.entityId,
+      entityType: searchEmbeddings.entityType,
+    })
     .from(searchEmbeddings)
     .orderBy(asc(sql`${searchEmbeddings.embedding} <=> ${vector}::vector`))
     .limit(Math.min(limit, 50));
@@ -546,12 +572,12 @@ const saveEmbedding = async ({
     return;
   }
 
-  const model = embeddingModelName();
-  const result = await embed({
+  const model = embeddingModelName(),
+   result = await embed({
     model: google.embedding(model),
     value: text,
-  });
-  const embedding: number[] =
+  }),
+   embedding: number[] =
     result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
       ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
       : [
@@ -562,9 +588,9 @@ const saveEmbedding = async ({
             },
             () => 0
           ),
-        ];
-  const textHash = await sha256(text);
-  const db = createDb();
+        ],
+   textHash = await sha256(text),
+   db = createDb();
 
   await db
     .insert(searchEmbeddings)
@@ -605,10 +631,10 @@ export const processCompletedStemSplitJob = async ({
   job: StemSplitJobResponse;
   trackId: string;
 }) => {
-  const db = createDb();
-  const now = new Date();
-  const targetPrefix = `processed/tracks/${trackId}/${job.id}`;
-  const vocalsAsset = job.outputs?.vocals
+  const db = createDb(),
+   now = new Date(),
+   targetPrefix = `processed/tracks/${trackId}/${job.id}`,
+   vocalsAsset = job.outputs?.vocals
     ? await saveStemAsset({
         assetKind: "vocal_stem",
         sourceAssetId: assetId,
@@ -733,8 +759,8 @@ export const processTrackAudio = async ({
     throw new Error("DATABASE_URL is required for track processing.");
   }
 
-  const db = createDb();
-  const sourceUrl = getObjectPublicUrl(objectKey);
+  const db = createDb(),
+   sourceUrl = getObjectPublicUrl(objectKey);
 
   if (!sourceUrl) {
     throw new Error("MEDIA_PUBLIC_URL is required for StemSplit source URLs.");
@@ -826,8 +852,8 @@ export const createWorkflowJobRow = async ({
     return null;
   }
 
-  const db = createDb();
-  const [job] = await db
+  const db = createDb(),
+   [job] = await db
     .insert(workflowJobs)
     .values({
       id: crypto.randomUUID(),

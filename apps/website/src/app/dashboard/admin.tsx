@@ -131,18 +131,18 @@ const formatCurrency = (cents: number) =>
   new Intl.NumberFormat("en-US", {
     currency: "USD",
     style: "currency",
-  }).format(cents / 100);
+  }).format(cents / 100),
 
-const hasAdminRole = (role: string | null | undefined) =>
+ hasAdminRole = (role: string | null | undefined) =>
   role
     ?.split(",")
     .map((value) => value.trim())
     .includes("admin") ?? false;
 
 function AdminDashboard() {
-  const { data: session, isPending } = authClient.useSession();
-  const adminAccess = useAdminAccessQuery(Boolean(session?.user));
-  const isAdmin =
+  const { data: session, isPending } = authClient.useSession(),
+   adminAccess = useAdminAccessQuery(Boolean(session?.user)),
+   isAdmin =
     hasAdminRole(session?.user.role) || adminAccess.data?.isAdmin === true;
 
   if (isPending || (session?.user && adminAccess.isLoading)) {
@@ -207,8 +207,8 @@ function AdminDashboard() {
 }
 
 function SettingsPanel() {
-  const settingsQuery = useAdminSettingsQuery();
-  const updateSettings = useUpdateAdminSettingsMutation();
+  const settingsQuery = useAdminSettingsQuery(),
+   updateSettings = useUpdateAdminSettingsMutation();
 
   if (settingsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading settings...</p>;
@@ -283,17 +283,21 @@ function SettingsPanel() {
 }
 
 function AdsPanel() {
-  const campaignsQuery = useAdminAdCampaignsQuery();
-  const queryClient = useQueryClient();
-  const [clickthroughUrl, setClickthroughUrl] = useState("https://mysoundkit.com");
-  const [creativeFormat, setCreativeFormat] = useState<"audio" | "image" | "video">("image");
-  const [creativeUrl, setCreativeUrl] = useState("");
-  const [name, setName] = useState("");
-  const [placement, setPlacement] = useState<
+  const campaignsQuery = useAdminAdCampaignsQuery(),
+   queryClient = useQueryClient(),
+   [clickthroughUrl, setClickthroughUrl] = useState(
+    "https://mysoundkit.com"
+  ),
+   [creativeFormat, setCreativeFormat] = useState<
+    "audio" | "image" | "video"
+  >("image"),
+   [creativeUrl, setCreativeUrl] = useState(""),
+   [name, setName] = useState(""),
+   [placement, setPlacement] = useState<
     "audio_preroll" | "video_overlay" | "video_preroll"
-  >("video_overlay");
-  const [previewUrl, setPreviewUrl] = useState("");
-  const { isPending: isUploading, upload } = useUploadFiles({
+  >("video_overlay"),
+   [previewUrl, setPreviewUrl] = useState(""),
+   { isPending: isUploading, upload } = useUploadFiles({
     api: MEDIA_UPLOAD_URL,
     credentials: "include",
     onUploadComplete: ({ files }) => {
@@ -302,14 +306,15 @@ function AdsPanel() {
         setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
       }
     },
-  });
-  const createHouseAd = useMutation({
+  }),
+   createHouseAd = useMutation({
     mutationFn: async () => {
       const response = await fetch(`${API_V1_URL}/ads/admin/campaigns`, {
         body: JSON.stringify({
           clickthroughUrl,
           creativeFormat,
-          creativeImageUrl: creativeFormat === "image" ? creativeUrl : undefined,
+          creativeImageUrl:
+            creativeFormat === "image" ? creativeUrl : undefined,
           creativeUrl,
           name,
           placement,
@@ -326,12 +331,23 @@ function AdsPanel() {
       setName("");
       setCreativeUrl("");
       setPreviewUrl("");
-      await queryClient.invalidateQueries({ queryKey: ["ads", "admin", "campaigns"] });
-      toast({ description: "The zero-budget house ad is now active.", title: "House ad created" });
+      await queryClient.invalidateQueries({
+        queryKey: ["ads", "admin", "campaigns"],
+      });
+      toast({
+        description: "The zero-budget house ad is now active.",
+        title: "House ad created",
+      });
     },
-  });
-  const updateStatus = useMutation({
-    mutationFn: async ({ campaignId, status }: { campaignId: string; status: "active" | "paused" }) => {
+  }),
+   updateStatus = useMutation({
+    mutationFn: async ({
+      campaignId,
+      status,
+    }: {
+      campaignId: string;
+      status: "active" | "paused";
+    }) => {
       const response = await fetch(
         `${API_V1_URL}/ads/admin/campaigns/${encodeURIComponent(campaignId)}/status`,
         {
@@ -346,10 +362,12 @@ function AdsPanel() {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["ads", "admin", "campaigns"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["ads", "admin", "campaigns"],
+      });
     },
-  });
-  const campaigns = campaignsQuery.data ?? [];
+  }),
+   campaigns = campaignsQuery.data ?? [];
 
   if (campaignsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading ads...</p>;
@@ -444,7 +462,8 @@ function AdsPanel() {
                   : 100 * 1024 * 1024;
                 if (file.size > maxBytes) {
                   toast({
-                    description: "Images must be under 10 MB; audio and video must be under 100 MB.",
+                    description:
+                      "Images must be under 10 MB; audio and video must be under 100 MB.",
                     title: "Creative too large",
                     variant: "destructive",
                   });
@@ -479,12 +498,14 @@ function AdsPanel() {
             </Button>
           </div>
           <div className="flex min-h-48 items-center justify-center overflow-hidden rounded-lg border bg-background">
-            {!previewUrl ? (
-              <p className="text-muted-foreground text-sm">Creative preview</p>
-            ) : creativeFormat === "audio" ? (
+            {previewUrl ? creativeFormat === "audio" ? (
               <audio className="w-full px-4" controls src={previewUrl} />
             ) : creativeFormat === "video" ? (
-              <video className="aspect-video w-full object-cover" controls src={previewUrl} />
+              <video
+                className="aspect-video w-full object-cover"
+                controls
+                src={previewUrl}
+              />
             ) : (
               <AppImage
                 alt="House ad preview"
@@ -493,6 +514,8 @@ function AdsPanel() {
                 src={previewUrl}
                 width={500}
               />
+            ) : (
+              <p className="text-muted-foreground text-sm">Creative preview</p>
             )}
           </div>
         </div>
@@ -570,12 +593,12 @@ function AdsPanel() {
 }
 
 function OverviewPanel() {
-  const { data, error, isLoading } = useAdminOverviewQuery();
-  const backfillDurations = useBackfillTrackDurationsMutation();
-  const [backfillRunId, setBackfillRunId] = useState<string | null>(null);
-  const [backfillActive, setBackfillActive] = useState(false);
-  const completionHandledRef = useRef(false);
-  const backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
+  const { data, error, isLoading } = useAdminOverviewQuery(),
+   backfillDurations = useBackfillTrackDurationsMutation(),
+   [backfillRunId, setBackfillRunId] = useState<string | null>(null),
+   [backfillActive, setBackfillActive] = useState(false),
+   completionHandledRef = useRef(false),
+   backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
 
   useEffect(() => {
     if (
@@ -586,8 +609,8 @@ function OverviewPanel() {
       return;
     }
 
-    const { done, failed, processing, queued } = backfillStatus.data;
-    const inFlight = processing + queued;
+    const { done, failed, processing, queued } = backfillStatus.data,
+     inFlight = processing + queued;
 
     if (inFlight > 0) {
       return;
@@ -826,11 +849,11 @@ function MetricRow({
 }
 
 function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
-  const queryClient = useQueryClient();
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
-  const usersQuery = useQuery({
+  const queryClient = useQueryClient(),
+   [searchInput, setSearchInput] = useState(""),
+   [search, setSearch] = useState(""),
+   [pendingAction, setPendingAction] = useState<PendingAction>(null),
+   usersQuery = useQuery({
     queryFn: async () => {
       const params = new URLSearchParams();
       if (search) {
@@ -846,8 +869,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
       return (await response.json()) as { users: AdminUserSummary[] };
     },
     queryKey: ["admin", "users", search],
-  });
-  const actionMutation = useMutation({
+  }),
+   actionMutation = useMutation({
     mutationFn: async (
       action:
         | Exclude<PendingAction, null>
@@ -912,9 +935,9 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
       await queryClient.invalidateQueries({ queryKey: ["admin"] });
       toast({ description: "The user account was updated.", title: "Updated" });
     },
-  });
+  }),
 
-  const confirmAction = () => {
+   confirmAction = () => {
     if (!pendingAction) {
       return;
     }
@@ -960,8 +983,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
           </TableHeader>
           <TableBody>
             {usersQuery.data?.users.map((user) => {
-              const isSelf = user.id === currentUserId;
-              const isUserAdmin = hasAdminRole(user.role);
+              const isSelf = user.id === currentUserId,
+               isUserAdmin = hasAdminRole(user.role);
 
               return (
                 <TableRow key={user.id}>
@@ -1132,8 +1155,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 }
 
 function PaymentsPanel() {
-  const paymentsQuery = useAdminPaymentsQuery();
-  const syncMutation = useSyncStripePlansMutation();
+  const paymentsQuery = useAdminPaymentsQuery(),
+   syncMutation = useSyncStripePlansMutation();
 
   if (paymentsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading payments...</p>;
@@ -1143,14 +1166,14 @@ function PaymentsPanel() {
     return <p className="text-sm text-destructive">Unable to load payments.</p>;
   }
 
-  const { data } = paymentsQuery;
-  const missingCheckoutEnv = data.plans.filter(
+  const { data } = paymentsQuery,
+   missingCheckoutEnv = data.plans.filter(
     (plan) => plan.stripeMonthlyPriceId && !plan.envMonthlyPriceId
-  );
-  const configuredPlanCount = data.plans.filter(
+  ),
+   configuredPlanCount = data.plans.filter(
     (plan) => plan.stripeMonthlyPriceId
-  ).length;
-  const paymentMetrics = [
+  ).length,
+   paymentMetrics = [
     {
       label: "Gross revenue",
       supporting: "All successful transactions",
@@ -1171,9 +1194,9 @@ function PaymentsPanel() {
       supporting: `${configuredPlanCount} Stripe-linked plans`,
       value: `${data.configuredCheckoutPlans}/${data.planCount}`,
     },
-  ];
+  ],
 
-  const handleSync = () => {
+   handleSync = () => {
     syncMutation.mutate(
       {},
       {
@@ -1202,12 +1225,16 @@ function PaymentsPanel() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
                 <CircleDollarSign className="size-5 text-primary shrink-0" />
-                <CardTitle className="text-base font-bold">Payments &amp; Stripe Health</CardTitle>
+                <CardTitle className="text-base font-bold">
+                  Payments &amp; Stripe Health
+                </CardTitle>
                 <Badge
                   className="shrink-0 text-xs font-semibold"
                   variant={data.stripeConfigured ? "secondary" : "destructive"}
                 >
-                  {data.stripeConfigured ? "Stripe Connected" : "Stripe Missing"}
+                  {data.stripeConfigured
+                    ? "Stripe Connected"
+                    : "Stripe Missing"}
                 </Badge>
               </div>
               <CardDescription className="mt-1 text-xs">
@@ -1227,7 +1254,9 @@ function PaymentsPanel() {
               <RefreshCw
                 className={`mr-2 size-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`}
               />
-              {syncMutation.isPending ? "Syncing Stripe…" : "Sync Products & Prices"}
+              {syncMutation.isPending
+                ? "Syncing Stripe…"
+                : "Sync Products & Prices"}
             </Button>
           </div>
         </CardHeader>
@@ -1256,7 +1285,9 @@ function PaymentsPanel() {
       {missingCheckoutEnv.length > 0 && (
         <Alert className="border-amber-500/30 bg-amber-500/5">
           <TriangleAlert className="size-4 text-amber-500" />
-          <AlertTitle className="text-amber-500 font-semibold">Checkout Env Vars Need Updating</AlertTitle>
+          <AlertTitle className="text-amber-500 font-semibold">
+            Checkout Env Vars Need Updating
+          </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
             Synced DB price IDs are visible here. Copy the matching monthly and
             annual IDs into the listed env keys before testing paid checkout.
@@ -1277,16 +1308,16 @@ function PaymentsPanel() {
 }
 
 function CouponsManagerCard() {
-  const queryClient = useQueryClient();
-  const syncPlansMutation = useSyncStripePlansMutation();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [percentOff, setPercentOff] = useState("17");
-  const duration = "forever" as const;
-  const [maxRedemptions, setMaxRedemptions] = useState("");
+  const queryClient = useQueryClient(),
+   syncPlansMutation = useSyncStripePlansMutation(),
+   [isDialogOpen, setIsDialogOpen] = useState(false),
+   [name, setName] = useState(""),
+   [code, setCode] = useState(""),
+   [percentOff, setPercentOff] = useState("17"),
+   duration = "forever" as const,
+   [maxRedemptions, setMaxRedemptions] = useState(""),
 
-  const {
+   {
     data: couponsData,
     error: couponsError,
     isLoading,
@@ -1323,11 +1354,11 @@ function CouponsManagerCard() {
       };
     },
     queryKey: ["admin", "stripe-coupons"],
-  });
+  }),
 
-  const coupons = couponsData?.coupons ?? [];
+   coupons = couponsData?.coupons ?? [],
 
-  const handleCreateCoupon = async (e: React.FormEvent) => {
+   handleCreateCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!(name.trim() && code.trim())) {
       toast({
@@ -1380,9 +1411,9 @@ function CouponsManagerCard() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleDeleteCoupon = async (couponId: string) => {
+   handleDeleteCoupon = async (couponId: string) => {
     try {
       const res = await fetch(
         `${API_V1_URL}/admin/finance/payments/coupons/${encodeURIComponent(couponId)}`,
@@ -1410,9 +1441,9 @@ function CouponsManagerCard() {
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const handleSyncStripe = async () => {
+   handleSyncStripe = async () => {
     try {
       await syncPlansMutation.mutateAsync({});
       await refetch();
@@ -1627,11 +1658,11 @@ function CouponsManagerCard() {
 }
 
 function PremiumGrantCard() {
-  const queryClient = useQueryClient();
-  const [planCode, setPlanCode] = useState("soundkit_premium_artist");
-  const [search, setSearch] = useState("");
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const usersQuery = useQuery({
+  const queryClient = useQueryClient(),
+   [planCode, setPlanCode] = useState("soundkit_premium_artist"),
+   [search, setSearch] = useState(""),
+   [selectedUserIds, setSelectedUserIds] = useState<string[]>([]),
+   usersQuery = useQuery({
     enabled: search.trim().length >= 2,
     queryFn: async () => {
       const response = await fetch(
@@ -1644,8 +1675,8 @@ function PremiumGrantCard() {
       return (await response.json()) as { users: AdminUserSummary[] };
     },
     queryKey: ["admin", "premium-user-search", search.trim()],
-  });
-  const grantMutation = useMutation({
+  }),
+   grantMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(
         `${API_V1_URL}/admin/finance/payments/grant-premium`,
@@ -1655,8 +1686,8 @@ function PremiumGrantCard() {
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }
-      );
-      const body = (await response.json().catch(() => ({}))) as {
+      ),
+       body = (await response.json().catch(() => ({}))) as {
         grantedCount?: number;
         message?: string;
       };
@@ -1681,8 +1712,8 @@ function PremiumGrantCard() {
         title: "Premium granted",
       });
     },
-  });
-  const searchResults = usersQuery.data?.users ?? [];
+  }),
+   searchResults = usersQuery.data?.users ?? [];
 
   return (
     <Card>
@@ -1823,9 +1854,12 @@ function PaymentPlanCatalog({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base font-bold">Subscription Catalog</CardTitle>
+            <CardTitle className="text-base font-bold">
+              Subscription Catalog
+            </CardTitle>
             <CardDescription className="text-xs">
-              Link SoundKit plan rows to Stripe prices and checkout environment keys.
+              Link SoundKit plan rows to Stripe prices and checkout environment
+              keys.
             </CardDescription>
           </div>
           <Badge className="font-semibold" variant="outline">
@@ -1855,31 +1889,31 @@ function PaymentPlanCard({
   plan: AdminPaymentPlan;
   stripePrices: StripePriceOption[];
 }>) {
-  const importMutation = useImportStripePlanMutation();
-  const suggestedMonthly =
+  const importMutation = useImportStripePlanMutation(),
+   suggestedMonthly =
     stripePrices.find(
       (price) => price.planCode === plan.code && price.interval === "month"
-    )?.id ?? "";
-  const suggestedAnnual =
+    )?.id ?? "",
+   suggestedAnnual =
     stripePrices.find(
       (price) => price.planCode === plan.code && price.interval === "year"
-    )?.id ?? "";
-  const [monthlyPriceId, setMonthlyPriceId] = useState(
+    )?.id ?? "",
+   [monthlyPriceId, setMonthlyPriceId] = useState(
     plan.stripeMonthlyPriceId ?? suggestedMonthly
-  );
-  const [annualPriceId, setAnnualPriceId] = useState(
+  ),
+   [annualPriceId, setAnnualPriceId] = useState(
     plan.stripeAnnualPriceId ?? suggestedAnnual
-  );
-  const monthlyCheckoutReady =
+  ),
+   monthlyCheckoutReady =
     Boolean(plan.stripeMonthlyPriceId) &&
-    plan.stripeMonthlyPriceId === plan.envMonthlyPriceId;
-  const annualCheckoutReady =
+    plan.stripeMonthlyPriceId === plan.envMonthlyPriceId,
+   annualCheckoutReady =
     !plan.annualPriceCents ||
     (Boolean(plan.stripeAnnualPriceId) &&
-      plan.stripeAnnualPriceId === plan.envAnnualPriceId);
-  const checkoutReady = monthlyCheckoutReady && annualCheckoutReady;
+      plan.stripeAnnualPriceId === plan.envAnnualPriceId),
+   checkoutReady = monthlyCheckoutReady && annualCheckoutReady,
 
-  const handleImport = () => {
+   handleImport = () => {
     importMutation.mutate(
       {
         annualPriceId: annualPriceId.trim() || undefined,
@@ -1910,13 +1944,20 @@ function PaymentPlanCard({
         {/* Card Header */}
         <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
           <div className="min-w-0">
-            <h4 className="font-bold text-sm tracking-tight text-foreground">{plan.name}</h4>
-            <p className="font-mono text-xs text-muted-foreground truncate">{plan.code}</p>
+            <h4 className="font-bold text-sm tracking-tight text-foreground">
+              {plan.name}
+            </h4>
+            <p className="font-mono text-xs text-muted-foreground truncate">
+              {plan.code}
+            </p>
             <div className="mt-2 flex items-center gap-1.5">
               <Badge className="text-[11px] capitalize" variant="outline">
                 {plan.audience}
               </Badge>
-              <Badge className="text-[11px]" variant={plan.isActive ? "secondary" : "outline"}>
+              <Badge
+                className="text-[11px]"
+                variant={plan.isActive ? "secondary" : "outline"}
+              >
                 {plan.isActive ? "Active" : "Inactive"}
               </Badge>
             </div>
@@ -1950,16 +1991,22 @@ function PaymentPlanCard({
         {/* Pricing Summary */}
         <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/30 p-2.5 text-xs">
           <div>
-            <span className="block text-[11px] text-muted-foreground">Monthly Price</span>
+            <span className="block text-[11px] text-muted-foreground">
+              Monthly Price
+            </span>
             <span className="font-bold text-foreground text-sm tabular-nums">
               {formatCurrency(plan.monthlyPriceCents)}
             </span>
             <span className="text-[11px] text-muted-foreground"> / mo</span>
           </div>
           <div>
-            <span className="block text-[11px] text-muted-foreground">Annual Price</span>
+            <span className="block text-[11px] text-muted-foreground">
+              Annual Price
+            </span>
             <span className="font-bold text-foreground text-sm tabular-nums">
-              {plan.annualPriceCents ? formatCurrency(plan.annualPriceCents) : "—"}
+              {plan.annualPriceCents
+                ? formatCurrency(plan.annualPriceCents)
+                : "—"}
             </span>
             {plan.annualPriceCents ? (
               <span className="text-[11px] text-muted-foreground"> / yr</span>
@@ -2013,10 +2060,10 @@ function EnvKeyLine({
   label,
   value,
 }: Readonly<{ isReady: boolean; label: string; value: string }>) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false),
 
-  const handleCopy = async () => {
-    if (!value || value === "not required") return;
+   handleCopy = async () => {
+    if (!value || value === "not required") {return;}
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
@@ -2037,7 +2084,9 @@ function EnvKeyLine({
         )}
         <div className="min-w-0">
           <p className="font-medium text-[11px] text-foreground">{label}</p>
-          <p className="break-all font-mono text-[11px] text-muted-foreground">{value}</p>
+          <p className="break-all font-mono text-[11px] text-muted-foreground">
+            {value}
+          </p>
         </div>
       </div>
       {value && value !== "not required" ? (
@@ -2049,7 +2098,11 @@ function EnvKeyLine({
           type="button"
           variant="ghost"
         >
-          {copied ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+          {copied ? (
+            <Check className="size-3 text-emerald-400" />
+          ) : (
+            <Copy className="size-3" />
+          )}
         </Button>
       ) : null}
     </div>
@@ -2102,7 +2155,9 @@ function RecentTransactions({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-bold">Recent transactions</CardTitle>
+        <CardTitle className="text-base font-bold">
+          Recent transactions
+        </CardTitle>
         <CardDescription className="text-xs">
           Latest successful payments and platform fees.
         </CardDescription>
@@ -2126,7 +2181,9 @@ function RecentTransactions({
               <TableBody>
                 {transactions.map((transaction) => (
                   <TableRow key={transaction.id}>
-                    <TableCell className="font-medium capitalize">{transaction.transactionType}</TableCell>
+                    <TableCell className="font-medium capitalize">
+                      {transaction.transactionType}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">{transaction.status}</Badge>
                     </TableCell>

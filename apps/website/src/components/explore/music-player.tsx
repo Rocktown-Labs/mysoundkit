@@ -305,76 +305,75 @@ export function MusicPlayer() {
     [repeatMode, setRepeatMode] = useState<"off" | "all" | "one">("off"),
     [volume, setVolume] = useState(75),
     [activeAd, setActiveAd] = useState<ServedAudioAd | null>(null),
-
-   enumerateAudioDevices = useCallback(async () => {
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.mediaDevices?.enumerateDevices
-    ) {
-      return;
-    }
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices(),
-       audioOutputs = devices.filter((d) => d.kind === "audiooutput");
-
-      if (audioOutputs.length === 0) {
-        setAvailableDevices([
-          {
-            active: audioOutput.id === "default",
-            id: "default",
-            name: "This Computer / Default Output",
-            type: "computer",
-          },
-        ]);
+    enumerateAudioDevices = useCallback(async () => {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.enumerateDevices
+      ) {
         return;
       }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices(),
+          audioOutputs = devices.filter((d) => d.kind === "audiooutput");
 
-      const mapped: Device[] = audioOutputs.map((d, index) => {
-        const label =
-          d.label ||
-          (index === 0
-            ? "This Computer / Default Output"
-            : `Audio Output ${index + 1}`),
-         lower = label.toLowerCase();
-        let type: Device["type"] = "speaker";
-        if (
-          lower.includes("bluetooth") ||
-          lower.includes("bt ") ||
-          lower.includes("airpods") ||
-          lower.includes("wireless")
-        ) {
-          type = "bluetooth";
-        } else if (
-          lower.includes("headphone") ||
-          lower.includes("headset") ||
-          lower.includes("earphone")
-        ) {
-          type = "headphones";
-        } else if (
-          lower.includes("built-in") ||
-          lower.includes("internal") ||
-          lower.includes("macbook") ||
-          lower.includes("laptop") ||
-          lower.includes("computer")
-        ) {
-          type = "computer";
+        if (audioOutputs.length === 0) {
+          setAvailableDevices([
+            {
+              active: audioOutput.id === "default",
+              id: "default",
+              name: "This Computer / Default Output",
+              type: "computer",
+            },
+          ]);
+          return;
         }
 
-        return {
-          active:
-            d.deviceId === audioOutput.id ||
-            (d.deviceId === "" && audioOutput.id === "default"),
-          id: d.deviceId || "default",
-          name: label,
-          type,
-        };
-      });
+        const mapped: Device[] = audioOutputs.map((d, index) => {
+          const label =
+              d.label ||
+              (index === 0
+                ? "This Computer / Default Output"
+                : `Audio Output ${index + 1}`),
+            lower = label.toLowerCase();
+          let type: Device["type"] = "speaker";
+          if (
+            lower.includes("bluetooth") ||
+            lower.includes("bt ") ||
+            lower.includes("airpods") ||
+            lower.includes("wireless")
+          ) {
+            type = "bluetooth";
+          } else if (
+            lower.includes("headphone") ||
+            lower.includes("headset") ||
+            lower.includes("earphone")
+          ) {
+            type = "headphones";
+          } else if (
+            lower.includes("built-in") ||
+            lower.includes("internal") ||
+            lower.includes("macbook") ||
+            lower.includes("laptop") ||
+            lower.includes("computer")
+          ) {
+            type = "computer";
+          }
 
-      setAvailableDevices(mapped);
-    } catch {
-      // Ignore enumeration failure
-    }
-  }, [audioOutput.id]);
+          return {
+            active:
+              d.deviceId === audioOutput.id ||
+              (d.deviceId === "" && audioOutput.id === "default"),
+            id: d.deviceId || "default",
+            name: label,
+            type,
+          };
+        });
+
+        setAvailableDevices(mapped);
+      } catch {
+        // Ignore enumeration failure
+      }
+    }, [audioOutput.id]);
 
   useEffect(() => {
     enumerateAudioDevices();
@@ -1706,9 +1705,9 @@ export function MusicPlayer() {
                       <p>
                         {repeatMode === "one"
                           ? "Repeat: One"
-                          : repeatMode === "all"
+                          : (repeatMode === "all"
                             ? "Repeat: All"
-                            : "Repeat: Off"}
+                            : "Repeat: Off")}
                       </p>
                     </TooltipContent>
                   </Tooltip>

@@ -38,30 +38,30 @@ import {
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const slugify = (value: string) =>
+ slugify = (value: string) =>
   value
     .trim()
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-|-$/g, "");
+    .replaceAll(/^-|-$/g, ""),
 
-const likeTerm = (value: string) => `%${value.replaceAll("%", "\\%")}%`;
+ likeTerm = (value: string) => `%${value.replaceAll("%", "\\%")}%`,
 
-const sampleOpenVersePage = ({
+ sampleOpenVersePage = ({
   cursor,
   genre,
   limit,
   q,
 }: z.infer<typeof openVerseQuerySchema>) => {
-  const needle = q?.toLowerCase();
-  const genreNeedle = genre ? slugify(genre) : null;
-  const rows = sampleTracks
+  const needle = q?.toLowerCase(),
+   genreNeedle = genre ? slugify(genre) : null,
+   rows = sampleTracks
     .filter((track) => {
-      const trackGenreSlug = slugify(track.genre);
-      const matchesGenre = !genreNeedle || trackGenreSlug === genreNeedle;
-      const matchesQuery =
+      const trackGenreSlug = slugify(track.genre),
+       matchesGenre = !genreNeedle || trackGenreSlug === genreNeedle,
+       matchesQuery =
         !needle ||
         track.title.toLowerCase().includes(needle) ||
         track.artistName.toLowerCase().includes(needle);
@@ -96,18 +96,18 @@ const sampleOpenVersePage = ({
     items: rows,
     nextCursor: null,
   };
-};
+},
 
-const listOpenVerses = async (query: z.infer<typeof openVerseQuerySchema>) => {
+ listOpenVerses = async (query: z.infer<typeof openVerseQuerySchema>) => {
   if (!isDatabaseConfigured()) {
     return sampleOpenVersePage(query);
   }
 
-  const db = createDb();
-  const term = query.q ? likeTerm(query.q) : null;
-  const genreTerm = query.genre ? slugify(query.genre) : null;
-  const cursorDate = query.cursor ? new Date(query.cursor) : null;
-  const rows = await db
+  const db = createDb(),
+   term = query.q ? likeTerm(query.q) : null,
+   genreTerm = query.genre ? slugify(query.genre) : null,
+   cursorDate = query.cursor ? new Date(query.cursor) : null,
+   rows = await db
     .select({
       artistName: userProfiles.displayName,
       artistUsername: userProfiles.username,
@@ -166,10 +166,10 @@ const listOpenVerses = async (query: z.infer<typeof openVerseQuerySchema>) => {
       genres.slug
     )
     .orderBy(desc(openVerseListings.createdAt))
-    .limit(query.limit + 1);
+    .limit(query.limit + 1),
 
-  const pageRows = rows.slice(0, query.limit);
-  const items = [];
+   pageRows = rows.slice(0, query.limit),
+   items = [];
 
   for (const row of pageRows) {
     const trackSummary = await buildTrackSummary(row.track);
@@ -258,9 +258,9 @@ app.openapi(
       );
     }
 
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [track] = await db
+    const body = c.req.valid("json"),
+     db = createDb(),
+     [track] = await db
       .select()
       .from(tracks)
       .where(and(eq(tracks.id, body.trackId), eq(tracks.ownerUserId, user.id)))
@@ -270,14 +270,14 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    const session = c.get("session");
-    const organizationId = await resolveActiveOrganizationId({
+    const session = c.get("session"),
+     organizationId = await resolveActiveOrganizationId({
       session: isAuthenticatedSession(session) ? session : null,
       user,
-    });
-    const id = crypto.randomUUID();
-    const now = new Date();
-    const [listing] = await db
+    }),
+     id = crypto.randomUUID(),
+     now = new Date(),
+     [listing] = await db
       .insert(openVerseListings)
       .values({
         bpm: track.bpm,
@@ -302,8 +302,8 @@ app.openapi(
       throw new Error("Failed to create open verse listing.");
     }
 
-    const page = await listOpenVerses({ limit: 1, q: body.title });
-    const created = page.items.find((item) => item.id === listing.id);
+    const page = await listOpenVerses({ limit: 1, q: body.title }),
+     created = page.items.find((item) => item.id === listing.id);
 
     return c.json(created ?? page.items[0], HttpStatusCodes.CREATED);
   }
@@ -327,9 +327,9 @@ app.openapi(
     tags: ["Open Verses"],
   }),
   async (c) => {
-    const { listingId } = c.req.valid("param");
-    const page = await listOpenVerses({ limit: 50 });
-    const listing = page.items.find((item) => item.id === listingId);
+    const { listingId } = c.req.valid("param"),
+     page = await listOpenVerses({ limit: 50 }),
+     listing = page.items.find((item) => item.id === listingId);
 
     if (!listing) {
       return c.json(
@@ -387,10 +387,10 @@ app.openapi(
       );
     }
 
-    const { listingId } = c.req.valid("param");
-    const body = c.req.valid("json");
-    const db = createDb();
-    const [submission] = await db
+    const { listingId } = c.req.valid("param"),
+     body = c.req.valid("json"),
+     db = createDb(),
+     [submission] = await db
       .insert(openVerseSubmissions)
       .values({
         assetId: body.assetId ?? null,
@@ -516,8 +516,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const rows = await db
+    const db = createDb(),
+     rows = await db
       .select({
         assetId: openVerseSubmissions.assetId,
         createdAt: openVerseSubmissions.createdAt,
@@ -599,8 +599,8 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const [listing] = await db
+    const db = createDb(),
+     [listing] = await db
       .select()
       .from(openVerseListings)
       .where(eq(openVerseListings.id, listingId))

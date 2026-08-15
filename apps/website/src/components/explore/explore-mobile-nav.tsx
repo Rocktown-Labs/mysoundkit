@@ -35,9 +35,9 @@ const navLinks = [
     icon: Library,
     label: "My SoundKit",
   },
-];
+],
 
-const musicLinks = [
+ musicLinks = [
   {
     description: "Songs, charts, and regional track discovery",
     href: "/tracks",
@@ -71,10 +71,10 @@ const musicLinks = [
 ] as const;
 
 export function ExploreMobileNav() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { data: session } = authClient.useSession();
-  const [mounted, setMounted] = useState(false);
-  const [musicOpen, setMusicOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname }),
+   { data: session } = authClient.useSession(),
+   [mounted, setMounted] = useState(false),
+   [musicOpen, setMusicOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -111,10 +111,10 @@ export function ExploreMobileNav() {
             );
           }
 
-          const isLibrary = link.href.includes("/library");
-          const href =
-            link.authRequired && mounted && !session ? "/login" : link.href;
-          const isActive =
+          const isLibrary = link.href.includes("/library"),
+           href =
+            link.authRequired && mounted && !session ? "/login" : link.href,
+           isActive =
             pathname === href ||
             (href !== "/" && !isLibrary && pathname.startsWith(href)) ||
             (isLibrary && pathname.startsWith("/library"));

@@ -18,9 +18,9 @@ import { sampleArtists, sampleBattles, sampleTracks } from "@/lib/sample-data";
 import { discoverHomeResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>();
+const app = new OpenAPIHono<AppEnv>(),
 
-const genreCatalogSchema = z.array(
+ genreCatalogSchema = z.array(
   z.object({
     id: z.string(),
     name: z.string(),
@@ -56,15 +56,15 @@ app.openapi(
       );
     }
 
-    const db = createDb();
-    const trackRows = await db
+    const db = createDb(),
+     trackRows = await db
       .select()
       .from(tracks)
       .where(eq(tracks.isPublic, true))
       .orderBy(desc(tracks.updatedAt))
-      .limit(12);
+      .limit(12),
 
-    const featuredTracks = [];
+     featuredTracks = [];
     for (const row of trackRows) {
       featuredTracks.push(await buildTrackSummary(row));
     }
@@ -82,9 +82,9 @@ app.openapi(
       .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
       .where(eq(artistProfiles.publicProfileEnabled, true))
       .orderBy(desc(artistProfiles.followerCount))
-      .limit(12);
+      .limit(12),
 
-    const featuredArtists = artistRows.map((row) => ({
+     featuredArtists = artistRows.map((row) => ({
       followers: row.followerCount,
       genre: "Music",
       id: row.id,
@@ -138,9 +138,9 @@ app.openapi(
     );
 
     try {
-      const db = createDb();
-      const rows = await db.select().from(genres);
-      const trackCountRows = await db
+      const db = createDb(),
+       rows = await db.select().from(genres),
+       trackCountRows = await db
         .select({
           count: sql<number>`count(${tracks.id})::int`,
           genreId: tracks.genreId,
@@ -152,16 +152,16 @@ app.openapi(
             eq(tracks.productionStatus, "complete")
           )
         )
-        .groupBy(tracks.genreId);
-      const videoCountRows = await db
+        .groupBy(tracks.genreId),
+       videoCountRows = await db
         .select({
           count: sql<number>`count(${videos.id})::int`,
           genreId: videos.genreId,
         })
         .from(videos)
         .where(eq(videos.isPublic, true))
-        .groupBy(videos.genreId);
-      const countsByGenreId = new Map<
+        .groupBy(videos.genreId),
+       countsByGenreId = new Map<
         string,
         { trackCount: number; videoCount: number }
       >();

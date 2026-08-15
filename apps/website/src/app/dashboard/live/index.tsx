@@ -55,34 +55,34 @@ export const Route = createFileRoute("/dashboard/live/")({
 });
 
 function BattleHubPage() {
-  const meQuery = useMeQuery();
-  const tracksQuery = useTracksQuery();
-  const battlesQuery = useBattlesQuery();
-  const battleChallengesQuery = useBattleChallengesQuery();
-  const genresQuery = useGenresQuery();
-  const createChallenge = useCreateBattleChallengeMutation();
-  const updateChallenge = useUpdateBattleChallengeMutation();
+  const meQuery = useMeQuery(),
+   tracksQuery = useTracksQuery(),
+   battlesQuery = useBattlesQuery(),
+   battleChallengesQuery = useBattleChallengesQuery(),
+   genresQuery = useGenresQuery(),
+   createChallenge = useCreateBattleChallengeMutation(),
+   updateChallenge = useUpdateBattleChallengeMutation(),
 
-  const availableGenres =
+   availableGenres =
     genresQuery.data && genresQuery.data.length > 0
       ? genresQuery.data.map((g) => ({ label: g.name, value: g.slug }))
-      : musicGenres;
+      : musicGenres,
 
-  const defaultGenre = availableGenres[0]?.value ?? "hip-hop";
-  const userTracks = tracksQuery.data ?? [];
-  const hasNoTracksOrKits = userTracks.length === 0;
+   defaultGenre = availableGenres[0]?.value ?? "hip-hop",
+   userTracks = tracksQuery.data ?? [],
+   hasNoTracksOrKits = userTracks.length === 0,
 
-  const [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre);
-  const [selectedFormat, setSelectedFormat] = useState<string>("best_of_5");
-  const [targetUsername, setTargetUsername] = useState<string>("");
-  const artistsQuery = useQuery({
+   [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre),
+   [selectedFormat, setSelectedFormat] = useState<string>("best_of_5"),
+   [targetUsername, setTargetUsername] = useState<string>(""),
+   artistsQuery = useQuery({
     enabled: targetUsername.trim().length > 0,
     queryFn: async () => {
       const query = new URLSearchParams({
         genre: selectedGenre,
         q: targetUsername.trim(),
-      });
-      const response = await fetch(`${API_V1_URL}/battles/opponents?${query}`, {
+      }),
+       response = await fetch(`${API_V1_URL}/battles/opponents?${query}`, {
         credentials: "include",
       });
       if (!response.ok) {
@@ -101,16 +101,16 @@ function BattleHubPage() {
     setSelectedGenre((current) => current || defaultGenre);
   }, [defaultGenre]);
 
-  const battles = battlesQuery.data ?? [];
-  const incomingRequests = battleChallengesQuery.data?.incoming ?? [];
-  const outgoingRequests = battleChallengesQuery.data?.outgoing ?? [];
-  const candidateArtists = artistsQuery.data ?? [];
-  const liveBattles = battles.filter((battle) => battle.status === "live");
-  const scheduledBattles = battles.filter(
+  const battles = battlesQuery.data ?? [],
+   incomingRequests = battleChallengesQuery.data?.incoming ?? [],
+   outgoingRequests = battleChallengesQuery.data?.outgoing ?? [],
+   candidateArtists = artistsQuery.data ?? [],
+   liveBattles = battles.filter((battle) => battle.status === "live"),
+   scheduledBattles = battles.filter(
     (battle) => battle.status === "scheduled"
-  );
+  ),
 
-  const handleConfirmRequest = (id: string) => {
+   handleConfirmRequest = (id: string) => {
     updateChallenge.mutate(
       { challengeId: id, status: "accepted" },
       {
@@ -122,9 +122,9 @@ function BattleHubPage() {
         },
       }
     );
-  };
+  },
 
-  const handleDenyRequest = (id: string) => {
+   handleDenyRequest = (id: string) => {
     updateChallenge.mutate(
       { challengeId: id, status: "declined" },
       {
@@ -136,12 +136,12 @@ function BattleHubPage() {
         },
       }
     );
-  };
+  },
 
-  const submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
+   submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const opponent =
+    const form = new FormData(event.currentTarget),
+     opponent =
       targetUsername.trim() ||
       String(form.get("opponentUsername") ?? "").trim();
 
@@ -154,23 +154,23 @@ function BattleHubPage() {
       return;
     }
 
-    const proposedDateValue = String(form.get("proposedDate") ?? "");
-    const proposedTimeValue = String(form.get("proposedTime") ?? "");
-    const proposedDateTime =
+    const proposedDateValue = String(form.get("proposedDate") ?? ""),
+     proposedTimeValue = String(form.get("proposedTime") ?? ""),
+     proposedDateTime =
       proposedDateValue && proposedTimeValue
         ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
-        : null;
-    const proposedDate =
+        : null,
+     proposedDate =
       proposedDateTime && !Number.isNaN(proposedDateTime.getTime())
         ? proposedDateTime.toISOString()
-        : "";
-    const proposedTimeLabel = proposedDateTime
+        : "",
+     proposedTimeLabel = proposedDateTime
       ? proposedDateTime.toLocaleString(undefined, {
           dateStyle: "medium",
           timeStyle: "short",
         })
-      : "";
-    const message = String(form.get("message") ?? "");
+      : "",
+     message = String(form.get("message") ?? "");
 
     createChallenge.mutate(
       {
@@ -528,7 +528,9 @@ function BattleHubPage() {
                         className="pl-9"
                         id="opponentUsername"
                         name="opponentUsername"
-                        onChange={(event) => setTargetUsername(event.target.value)}
+                        onChange={(event) =>
+                          setTargetUsername(event.target.value)
+                        }
                         placeholder="Type an artist name or @handle"
                         value={targetUsername}
                       />
@@ -536,7 +538,9 @@ function BattleHubPage() {
                     {targetUsername.trim() ? (
                       <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border bg-muted/20 p-2">
                         {artistsQuery.isLoading ? (
-                          <p className="p-2 text-muted-foreground text-xs">Searching Premium artists…</p>
+                          <p className="p-2 text-muted-foreground text-xs">
+                            Searching Premium artists…
+                          </p>
                         ) : null}
                         {candidateArtists.map((artist) => (
                           <button
@@ -546,18 +550,27 @@ function BattleHubPage() {
                                 : "hover:bg-accent"
                             }`}
                             key={artist.username}
-                            onClick={() => setTargetUsername(artist.username ?? "")}
+                            onClick={() =>
+                              setTargetUsername(artist.username ?? "")
+                            }
                             type="button"
                           >
                             <span>
-                              <span className="block font-semibold">{artist.name}</span>
-                              <span className="text-muted-foreground">@{artist.username} · {artist.genre}</span>
+                              <span className="block font-semibold">
+                                {artist.name}
+                              </span>
+                              <span className="text-muted-foreground">
+                                @{artist.username} · {artist.genre}
+                              </span>
                             </span>
                             <Badge variant="outline">Select</Badge>
                           </button>
                         ))}
-                        {!artistsQuery.isLoading && candidateArtists.length === 0 ? (
-                          <p className="p-2 text-muted-foreground text-xs">No matching artists found.</p>
+                        {!artistsQuery.isLoading &&
+                        candidateArtists.length === 0 ? (
+                          <p className="p-2 text-muted-foreground text-xs">
+                            No matching artists found.
+                          </p>
                         ) : null}
                       </div>
                     ) : null}

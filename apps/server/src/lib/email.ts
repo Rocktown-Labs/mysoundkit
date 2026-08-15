@@ -58,11 +58,11 @@ export const getPublicSiteUrl = () =>
 
 const getEmailFrom = () =>
   getEnvValue("SOUNDKIT_EMAIL_FROM") ||
-  "SoundKit <noreply@news.mysoundkit.com>";
+  "SoundKit <noreply@news.mysoundkit.com>",
 
-const getEmailReplyTo = () => getEnvValue("SOUNDKIT_EMAIL_REPLY_TO") || null;
+ getEmailReplyTo = () => getEnvValue("SOUNDKIT_EMAIL_REPLY_TO") || null,
 
-const getResendApiKey = () => getEnvValue("RESEND_API_KEY");
+ getResendApiKey = () => getEnvValue("RESEND_API_KEY");
 
 export const isTransactionalEmailConfigured = () => Boolean(getResendApiKey());
 
@@ -73,15 +73,15 @@ export const verifyResendWebhook = async ({
   headers: Headers;
   payload: string;
 }) => {
-  const secret = getEnvValue("RESEND_WEBHOOK_SECRET");
-  const apiKey = getResendApiKey();
+  const secret = getEnvValue("RESEND_WEBHOOK_SECRET"),
+   apiKey = getResendApiKey();
 
   if (!apiKey || !secret) {
     return null;
   }
 
-  const { Resend } = await import("resend");
-  const resend = new Resend(apiKey);
+  const { Resend } = await import("resend"),
+   resend = new Resend(apiKey);
 
   return resend.webhooks.verify({
     headers: {
@@ -107,9 +107,9 @@ const getEmailSubject = ({
   }
 
   return `${payload.trackTitle} is ready`;
-};
+},
 
-const getEmailTags = ({
+ getEmailTags = ({
   payload,
   template,
 }: Pick<SendTransactionalEmailOptions, "payload" | "template">) => [
@@ -129,12 +129,12 @@ export const sendTransactionalEmail = async ({
     return { reason: "resend_not_configured", sent: false };
   }
 
-  const publicSiteUrl = getPublicSiteUrl();
-  const [
+  const publicSiteUrl = getPublicSiteUrl(),
+   [
     { renderTrackLifecycleEmail, renderTransactionalNotificationEmail },
     { Resend },
-  ] = await Promise.all([import("@soundkit/transactional"), import("resend")]);
-  const emailContent =
+  ] = await Promise.all([import("@soundkit/transactional"), import("resend")]),
+   emailContent =
     template === "track_ready" || template === "track_processing_ready"
       ? await renderTrackLifecycleEmail({
           actionUrl: payload.actionUrl,
@@ -158,11 +158,11 @@ export const sendTransactionalEmail = async ({
             payload.previewText ?? "Open SoundKit to review the latest update.",
           recipientName: payload.recipientName,
           subject: getEmailSubject({ payload, template }),
-        });
-  const subject = getEmailSubject({ payload, template });
-  const resend = new Resend(apiKey);
-  const replyTo = getEmailReplyTo();
-  const { data, error } = await resend.emails.send(
+        }),
+   subject = getEmailSubject({ payload, template }),
+   resend = new Resend(apiKey),
+   replyTo = getEmailReplyTo(),
+   { data, error } = await resend.emails.send(
     {
       from: getEmailFrom(),
       html: emailContent.html,

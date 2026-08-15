@@ -5,14 +5,14 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import process from "node:process";
 
-const CACHE_DIRECTORY = resolve(import.meta.dirname, ".cache");
-const DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
+const CACHE_DIRECTORY = resolve(import.meta.dirname, ".cache"),
+ DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
 
 export async function fetchCached(url) {
   await mkdir(CACHE_DIRECTORY, { recursive: true });
 
-  const cacheFile = resolve(CACHE_DIRECTORY, `${hashUrl(url)}.json`);
-  const cached = await loadCacheEntry(cacheFile);
+  const cacheFile = resolve(CACHE_DIRECTORY, `${hashUrl(url)}.json`),
+   cached = await loadCacheEntry(cacheFile);
   if (cached && cached.expires > Math.floor(Date.now() / 1000)) {
     return cached.data;
   }
@@ -37,9 +37,9 @@ export async function fetchCached(url) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  const etag = response.headers.get("etag");
-  const data = await response.text();
-  const expires = getExpires(response.headers);
+  const etag = response.headers.get("etag"),
+   data = await response.text(),
+   expires = getExpires(response.headers);
 
   await saveCacheEntry(cacheFile, { data, etag, expires, url });
 
@@ -63,10 +63,10 @@ async function saveCacheEntry(cacheFile, entry) {
 }
 
 function getExpires(headers) {
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000),
 
   // Prefer Cache-Control: max-age
-  const maxAgeSeconds = parseMaxAge(headers.get("cache-control"));
+   maxAgeSeconds = parseMaxAge(headers.get("cache-control"));
   if (maxAgeSeconds != null) {
     return now + maxAgeSeconds;
   }

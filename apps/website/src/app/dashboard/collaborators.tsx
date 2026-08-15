@@ -135,10 +135,10 @@ function ArtistSearchResultRow({
 }: {
   artist: { genre?: string; id: string; name: string; username: string };
 }) {
-  const friendRequestMutation = useCreateFriendRequestMutation();
-  const [isPending, setIsPending] = useState(false);
+  const friendRequestMutation = useCreateFriendRequestMutation(),
+   [isPending, setIsPending] = useState(false),
 
-  const handleAdd = async () => {
+   handleAdd = async () => {
     try {
       await friendRequestMutation.mutateAsync({ username: artist.username });
       setIsPending(true);
@@ -261,44 +261,44 @@ function PersonCard({ person }: { person: FriendSummary }) {
 }
 
 function FriendsPage() {
-  const searchParams = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const activeTab: CollaboratorsTab = searchParams.tab ?? "all";
+  const searchParams = Route.useSearch(),
+   navigate = Route.useNavigate(),
+   activeTab: CollaboratorsTab = searchParams.tab ?? "all",
 
-  const [search, setSearch] = useState("");
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newFriendHandle, setNewFriendHandle] = useState("");
+   [search, setSearch] = useState(""),
+   [isAddModalOpen, setIsAddModalOpen] = useState(false),
+   [newFriendHandle, setNewFriendHandle] = useState(""),
 
-  const friendsQuery = useFriendsQuery();
-  const friendRequestsQuery = useFriendRequestsQuery();
-  const createFriendRequestMutation = useCreateFriendRequestMutation();
-  const respondFriendRequestMutation = useRespondFriendRequestMutation();
+   friendsQuery = useFriendsQuery(),
+   friendRequestsQuery = useFriendRequestsQuery(),
+   createFriendRequestMutation = useCreateFriendRequestMutation(),
+   respondFriendRequestMutation = useRespondFriendRequestMutation(),
 
-  const allConnections = useMemo(
+   allConnections = useMemo(
     () => (Array.isArray(friendsQuery.data) ? friendsQuery.data : []),
     [friendsQuery.data]
-  );
-  const friendRequests = useMemo(
+  ),
+   friendRequests = useMemo(
     () =>
       Array.isArray(friendRequestsQuery.data) ? friendRequestsQuery.data : [],
     [friendRequestsQuery.data]
-  );
+  ),
 
-  const meQuery = useMeQuery();
-  const currentUserId = meQuery.data?.user?.id;
+   meQuery = useMeQuery(),
+   currentUserId = meQuery.data?.user?.id,
 
-  const normalizedSearch = search.trim().replace(/^@/u, "");
+   normalizedSearch = search.trim().replace(/^@/u, ""),
 
-  const peopleSearchQuery = useSearchQuery({
+   peopleSearchQuery = useSearchQuery({
     limit: "8",
     q: normalizedSearch,
     type: "artists",
-  });
+  }),
 
-  const searchedArtists = peopleSearchQuery.data?.artists ?? [];
+   searchedArtists = peopleSearchQuery.data?.artists ?? [],
 
   // Filter self out and search needle
-  const filteredConnections = useMemo(() => {
+   filteredConnections = useMemo(() => {
     const needle = normalizedSearch.toLowerCase();
 
     return allConnections.filter((person) => {
@@ -313,61 +313,61 @@ function FriendsPage() {
         .filter(Boolean)
         .some((value) => value?.toLowerCase().includes(needle));
     });
-  }, [allConnections, currentUserId, normalizedSearch]);
+  }, [allConnections, currentUserId, normalizedSearch]),
 
-  const collaborators = useMemo(
+   collaborators = useMemo(
     () =>
       filteredConnections.filter(
         (person) => person.relationship === "collaborator"
       ),
     [filteredConnections]
-  );
+  ),
 
-  const mutualFriends = useMemo(
+   mutualFriends = useMemo(
     () =>
       filteredConnections.filter((person) => person.relationship === "friend"),
     [filteredConnections]
-  );
+  ),
 
-  const followingAndFans = useMemo(
+   followingAndFans = useMemo(
     () =>
       filteredConnections.filter(
         (person) =>
           person.relationship === "following" || person.relationship === "fan"
       ),
     [filteredConnections]
-  );
+  ),
 
-  const pendingIncomingRequests = useMemo(
+   pendingIncomingRequests = useMemo(
     () =>
       friendRequests.filter(
         (request) =>
           request.status === "pending" && request.direction === "incoming"
       ),
     [friendRequests]
-  );
+  ),
 
-  const pendingOutgoingRequests = useMemo(
+   pendingOutgoingRequests = useMemo(
     () =>
       friendRequests.filter(
         (request) =>
           request.status === "pending" && request.direction === "outgoing"
       ),
     [friendRequests]
-  );
+  ),
 
-  const totalPendingCount =
-    pendingIncomingRequests.length + pendingOutgoingRequests.length;
+   totalPendingCount =
+    pendingIncomingRequests.length + pendingOutgoingRequests.length,
 
-  const handleTabChange = (newTab: string) => {
+   handleTabChange = (newTab: string) => {
     void navigate({
       search: {
         tab: newTab as CollaboratorsTab,
       },
     });
-  };
+  },
 
-  const handleManualAddFriend = async (e: React.FormEvent) => {
+   handleManualAddFriend = async (e: React.FormEvent) => {
     e.preventDefault();
     const handle = newFriendHandle.trim().replace(/^@/u, "");
     if (!handle) {
@@ -385,14 +385,16 @@ function FriendsPage() {
     } catch (error) {
       toast({
         description:
-          error instanceof Error ? error.message : "Unable to send friend request.",
+          error instanceof Error
+            ? error.message
+            : "Unable to send friend request.",
         title: "Error",
         variant: "destructive",
       });
     }
-  };
+  },
 
-  const respondToRequest = async ({
+   respondToRequest = async ({
     action,
     requestId,
   }: {

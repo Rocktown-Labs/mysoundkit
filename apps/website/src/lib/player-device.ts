@@ -47,8 +47,8 @@ export const classifyAudioDevice = (label: string): DeviceType => {
 };
 
 export const getRepeatTooltipLabel = (mode: "off" | "all" | "one"): string => {
-  if (mode === "one") return "Repeat: One";
-  if (mode === "all") return "Repeat: All";
+  if (mode === "one") {return "Repeat: One";}
+  if (mode === "all") {return "Repeat: All";}
   return "Repeat: Off";
 };
 
@@ -57,7 +57,7 @@ export const formatPlaybackTime = (seconds: number): string => {
     return "0:00";
   }
 
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
+  const mins = Math.floor(seconds / 60),
+   secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };

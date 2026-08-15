@@ -13,21 +13,21 @@
 //   --name "Recording webhook"   Webhook label (default: "SoundKit live experiences")
 //   --delete                     Unregister the webhook instead of creating it
 
-const args = process.argv.slice(2);
-const urlIndex = args.findIndex((arg) => !arg.startsWith("--"));
-const webhookUrl = urlIndex !== -1 ? args[urlIndex] : null;
-const options = args.filter((arg) => arg.startsWith("--"));
-const deleteMode = options.includes("--delete");
+const args = process.argv.slice(2),
+ urlIndex = args.findIndex((arg) => !arg.startsWith("--")),
+ webhookUrl = urlIndex === -1 ? null : args[urlIndex];
+const options = args.filter((arg) => arg.startsWith("--")),
+ deleteMode = options.includes("--delete"),
 
-const nameArgIndex = args.indexOf("--name");
-const name =
-  nameArgIndex !== -1 ? args[nameArgIndex + 1] : "SoundKit live experiences";
+ nameArgIndex = args.indexOf("--name"),
+ name =
+  nameArgIndex === -1 ? "SoundKit live experiences" : args[nameArgIndex + 1];
 
-const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-const apiToken = process.env.CLOUDFLARE_API_TOKEN;
-const configuredAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID;
+const accountId = process.env.CLOUDFLARE_ACCOUNT_ID,
+ apiToken = process.env.CLOUDFLARE_API_TOKEN,
+ configuredAppId = process.env.CLOUDFLARE_REALTIMEKIT_APP_ID,
 
-const events = [
+ events = [
   "meeting.started",
   "meeting.ended",
   "meeting.participantJoined",
@@ -53,9 +53,9 @@ if (!webhookUrl) {
 const headers = {
   Authorization: `Bearer ${apiToken}`,
   "Content-Type": "application/json",
-};
+},
 
-const resolveAppId = async () => {
+ resolveAppId = async () => {
   if (configuredAppId) {
     return configuredAppId;
   }
@@ -63,8 +63,8 @@ const resolveAppId = async () => {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/realtime/kit/apps`,
     { headers }
-  );
-  const body = await response.json();
+  ),
+   body = await response.json();
   if (!response.ok) {
     throw new Error(
       `Unable to discover RealtimeKit apps: ${response.status} ${JSON.stringify(body)}`
@@ -73,8 +73,8 @@ const resolveAppId = async () => {
 
   const apps = Array.isArray(body.result)
     ? body.result
-    : (body.result?.apps ?? []);
-  const app = apps.find((entry) =>
+    : (body.result?.apps ?? []),
+   app = apps.find((entry) =>
     entry.name?.toLowerCase().includes("soundkit")
   );
   if (!app?.id) {
@@ -84,9 +84,9 @@ const resolveAppId = async () => {
   }
 
   return app.id;
-};
+},
 
-const listExisting = async (apiUrl) => {
+ listExisting = async (apiUrl) => {
   const response = await fetch(apiUrl, { headers, method: "GET" });
 
   if (!response.ok) {
@@ -97,13 +97,13 @@ const listExisting = async (apiUrl) => {
   const data = await response.json();
 
   return (data.result ?? []).filter((entry) => entry.url === webhookUrl);
-};
+},
 
-const main = async () => {
-  const appId = await resolveAppId();
-  const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/realtime/kit/${appId}/webhooks`;
-  const existing = await listExisting(apiUrl);
-  const [match] = existing;
+ main = async () => {
+  const appId = await resolveAppId(),
+   apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/realtime/kit/${appId}/webhooks`,
+   existing = await listExisting(apiUrl),
+   [match] = existing;
 
   if (deleteMode) {
     if (!match?.id) {

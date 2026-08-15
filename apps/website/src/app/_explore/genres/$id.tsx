@@ -25,9 +25,9 @@ const sortOptions = [
   { label: "Oldest", value: "date-asc" },
   { label: "Title (A-Z)", value: "title-asc" },
   { label: "Title (Z-A)", value: "title-desc" },
-];
+],
 
-const genreData: Record<
+ genreData: Record<
   string,
   { name: string; emoji: string; description: string; queryGenre: string }
 > = {
@@ -91,17 +91,17 @@ export const Route = createFileRoute("/_explore/genres/$id")({
 });
 
 const genreRouteIdFromValue = (value: string) =>
-  value === "hip-hop-rap" ? "hip-hop" : value;
+  value === "hip-hop-rap" ? "hip-hop" : value,
 
-const formatFollowers = (followers: number) => {
+ formatFollowers = (followers: number) => {
   if (followers >= 1000) {
     return `${Math.round(followers / 1000)}K`;
   }
 
   return followers.toLocaleString();
-};
+},
 
-const matchesGenre = (battle: BattleSummary, genreValue: string) => {
+ matchesGenre = (battle: BattleSummary, genreValue: string) => {
   const normalized = battle.genre
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/gu, "-")
@@ -218,17 +218,17 @@ function GenreBattleRail({
 }
 
 function useGenreBattles(genreValue: string) {
-  const { data: battles = [] } = useBattlesQuery();
-  const entitlementsQuery = useMeEntitlementsQuery();
-  const isPremiumUser = Boolean(
+  const { data: battles = [] } = useBattlesQuery(),
+   entitlementsQuery = useMeEntitlementsQuery(),
+   isPremiumUser = Boolean(
     entitlementsQuery.data?.isPremium ||
     entitlementsQuery.data?.canViewLiveBattles ||
     entitlementsQuery.data?.canVoteLiveBattles
-  );
-  const genreBattles = battles.filter((battle) =>
+  ),
+   genreBattles = battles.filter((battle) =>
     matchesGenre(battle, genreValue)
-  );
-  const sections = {
+  ),
+   sections = {
     live: genreBattles.filter((battle) => battle.status === "live"),
     mustSee: genreBattles.filter((battle) => battle.status === "completed"),
     upcoming: genreBattles.filter((battle) => battle.status === "scheduled"),
@@ -238,43 +238,43 @@ function useGenreBattles(genreValue: string) {
 }
 
 function GenreDetailPage() {
-  const { id } = Route.useParams();
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const router = useRouter();
-  const genreOption = musicGenres.find(
+  const { id } = Route.useParams(),
+   search = Route.useSearch(),
+   navigate = Route.useNavigate(),
+   router = useRouter(),
+   genreOption = musicGenres.find(
     (option) => genreRouteIdFromValue(option.value) === id
-  );
-  const genre = genreData[id] || {
+  ),
+   genre = genreData[id] || {
     description: "",
     emoji: "🎵",
     name: genreOption?.label ?? "Genre",
     queryGenre: genreOption?.value ?? id,
-  };
+  },
 
-  const savedRegionType =
+   savedRegionType =
     typeof window === "undefined"
       ? null
       : (localStorage.getItem("exploreRegionType") as
           | "north-america"
           | "global"
-          | null);
-  const savedRegion =
+          | null),
+   savedRegion =
     typeof window === "undefined"
       ? null
-      : localStorage.getItem("exploreRegion");
+      : localStorage.getItem("exploreRegion"),
 
-  const regionType = search.regionType ?? savedRegionType ?? "north-america";
-  const region = search.region ?? savedRegion ?? "us-arkansas";
-  const sort = search.sort ?? "plays-desc";
+   regionType = search.regionType ?? savedRegionType ?? "north-america",
+   region = search.region ?? savedRegion ?? "us-arkansas",
+   sort = search.sort ?? "plays-desc",
 
-  const updateFilters = (next: {
+   updateFilters = (next: {
     region?: string;
     regionType?: "north-america" | "global";
     sort?: string;
   }) => {
-    const nextRegionType = next.regionType ?? regionType;
-    const nextRegion = next.region ?? region;
+    const nextRegionType = next.regionType ?? regionType,
+     nextRegion = next.region ?? region;
 
     if (typeof window !== "undefined") {
       localStorage.setItem("exploreRegionType", nextRegionType);
@@ -289,33 +289,33 @@ function GenreDetailPage() {
         sort: next.sort ?? sort,
       },
     });
-  };
+  },
 
-  const { data: topTracks = [] } = useTracksQuery(undefined, {
+   { data: topTracks = [] } = useTracksQuery(undefined, {
     genre: genre.queryGenre,
     limit: 12,
     region,
     regionType,
     scope: "public",
     sort,
-  });
-  const { data: newTracks = [] } = useTracksQuery(undefined, {
+  }),
+   { data: newTracks = [] } = useTracksQuery(undefined, {
     genre: genre.queryGenre,
     limit: 12,
     region,
     regionType,
     scope: "public",
     sort: "date-desc",
-  });
-  const { data: topArtists = [] } = useArtistsQuery({
+  }),
+   { data: topArtists = [] } = useArtistsQuery({
     category: "top",
     genre: genre.queryGenre,
     limit: 12,
     region,
     regionType,
     sort: "rank-asc",
-  });
-  const { isPremiumUser, sections } = useGenreBattles(genre.queryGenre);
+  }),
+   { isPremiumUser, sections } = useGenreBattles(genre.queryGenre);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 space-y-8 md:space-y-10">

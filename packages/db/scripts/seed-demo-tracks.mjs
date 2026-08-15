@@ -19,31 +19,31 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import pg from "pg";
 
-const scriptDir = import.meta.dirname;
-const repoRoot = path.resolve(scriptDir, "..", "..", "..");
+const scriptDir = import.meta.dirname,
+ repoRoot = path.resolve(scriptDir, "..", "..", "..");
 
 dotenv.config({
   path: path.join(repoRoot, "apps", "server", ".env"),
   quiet: true,
 });
 
-const args = process.argv.slice(2);
-const dryRun = args.includes("--dry-run");
-const username = (args.find((arg) => !arg.startsWith("--")) ?? "cgstewart")
+const args = process.argv.slice(2),
+ dryRun = args.includes("--dry-run"),
+ username = (args.find((arg) => !arg.startsWith("--")) ?? "cgstewart")
   .trim()
-  .toLowerCase();
+  .toLowerCase(),
 
-const DEMO_AUDIO_DIR = path.join(
+ DEMO_AUDIO_DIR = path.join(
   repoRoot,
   "apps",
   "website",
   "public",
   "demo-audio"
-);
+),
 
 // Mirrors apps/server/src/lib/sample-data.ts so the seeded rows line up with
 // the sample catalog the app already references.
-const DEMO_TRACKS = [
+ DEMO_TRACKS = [
   {
     bpm: 96,
     description: "Seeded demo track for playback and stream qualification.",
@@ -88,17 +88,17 @@ function readWavDurationMs(filePath) {
       throw new Error("not a RIFF/WAVE file");
     }
 
-    let byteRate = null;
-    let dataSize = null;
-    let offset = 12;
+    let byteRate = null,
+     dataSize = null,
+     offset = 12;
     const chunkHeader = Buffer.alloc(8);
 
     while (byteRate === null || dataSize === null) {
       if (readSync(fd, chunkHeader, 0, 8, offset) < 8) {
         break;
       }
-      const chunkId = chunkHeader.toString("ascii", 0, 4);
-      const chunkSize = chunkHeader.readUInt32LE(4);
+      const chunkId = chunkHeader.toString("ascii", 0, 4),
+       chunkSize = chunkHeader.readUInt32LE(4);
       if (chunkId === "fmt ") {
         const fmt = Buffer.alloc(16);
         readSync(fd, fmt, 0, 16, offset + 8);
@@ -158,8 +158,8 @@ async function main() {
     const { rows: owners } = await client.query(
       "SELECT user_id AS id, username, display_name FROM user_profiles WHERE lower(username) = lower($1) LIMIT 1",
       [username]
-    );
-    const owner = owners[0];
+    ),
+     owner = owners[0];
     if (!owner) {
       console.error(`No user profile found with username "${username}".`);
       process.exit(1);
@@ -180,8 +180,8 @@ async function main() {
         continue;
       }
 
-      const genreSlug = demo.genre.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
-      const { rows: genreRows } = await client.query(
+      const genreSlug = demo.genre.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-"),
+       { rows: genreRows } = await client.query(
         "SELECT id FROM genres WHERE slug = $1 LIMIT 1",
         [genreSlug]
       );

@@ -93,8 +93,8 @@ import {
   PROJECT_ASSETS_UPLOAD_URL,
   rpcJson,
 } from "@/lib/api";
-import { authClient } from "@/lib/auth-client";
 import { createAudioPreviewFile } from "@/lib/audio-preview";
+import { authClient } from "@/lib/auth-client";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
@@ -111,9 +111,9 @@ const collaboratorRoles = ["songwriter", "producer"] as const;
 type CollaboratorRole = (typeof collaboratorRoles)[number];
 
 const isCollaboratorRole = (value: string): value is CollaboratorRole =>
-  collaboratorRoles.includes(value as CollaboratorRole);
+  collaboratorRoles.includes(value as CollaboratorRole),
 
-const collaboratorSchema = z.preprocess(
+ collaboratorSchema = z.preprocess(
   (value) => {
     if (!(value && typeof value === "object")) {
       return value;
@@ -134,9 +134,9 @@ const collaboratorSchema = z.preprocess(
     role: z.enum(["songwriter", "producer"]).default("songwriter"),
     userId: z.string().optional(),
   })
-);
+),
 
-const projectFormSchema = z.object({
+ projectFormSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
   description: z.string().optional(),
   exclusiveUntil: z.string().optional(),
@@ -147,7 +147,6 @@ const projectFormSchema = z.object({
   isForSale: z.boolean().default(false),
   listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
   name: z.string().min(2, "Project name is required"),
-  priceCents: z.number().int().positive().default(999),
   newTracks: z
     .array(
       z.object({
@@ -163,6 +162,7 @@ const projectFormSchema = z.object({
       })
     )
     .default([]),
+  priceCents: z.number().int().positive().default(999),
   projectCoverObjectKey: z.string().optional(),
   releaseDate: z.string().optional(),
   releaseVisibility: z.enum(["listed", "unlisted"]).default("unlisted"),
@@ -174,12 +174,12 @@ const projectFormSchema = z.object({
 });
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
-const projectGet = apiClient.v1.projects[":projectId"].$get;
-const projectPatch = apiClient.v1.projects[":projectId"].$patch;
-const projectsPost = apiClient.v1.projects.index.$post;
-const trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post;
+const projectGet = apiClient.v1.projects[":projectId"].$get,
+ projectPatch = apiClient.v1.projects[":projectId"].$patch,
+ projectsPost = apiClient.v1.projects.index.$post,
+ trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
 
-const defaultProjectFormValues: ProjectFormValues = {
+ defaultProjectFormValues: ProjectFormValues = {
   collaborators: [],
   description: "",
   exclusiveUntil: "",
@@ -187,19 +187,19 @@ const defaultProjectFormValues: ProjectFormValues = {
   isForSale: false,
   listeningAccess: "public",
   name: "",
-  priceCents: 999,
   newTracks: [],
+  priceCents: 999,
   projectCoverObjectKey: "",
   releaseDate: "",
   releaseVisibility: "unlisted",
   rightsAccepted: false,
   selectedExistingTracks: [],
   type: "album",
-};
+},
 
-const epRuntimeLimitMs = 30 * 60 * 1000;
+ epRuntimeLimitMs = 30 * 60 * 1000,
 
-const exclusiveUntilForApi = (
+ exclusiveUntilForApi = (
   value: string | undefined,
   preserveEmpty = false
 ) => {
@@ -208,9 +208,9 @@ const exclusiveUntilForApi = (
   }
 
   return new Date(value).toISOString();
-};
+},
 
-const exclusiveUntilForInput = (value: unknown) => {
+ exclusiveUntilForInput = (value: unknown) => {
   if (typeof value !== "string" || !value) {
     return "";
   }
@@ -222,16 +222,16 @@ const exclusiveUntilForInput = (value: unknown) => {
 
   const pad = (part: number) => part.toString().padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
+},
 
-const formatDurationLabel = (durationMs: number) => {
-  const totalSeconds = Math.round(durationMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+ formatDurationLabel = (durationMs: number) => {
+  const totalSeconds = Math.round(durationMs / 1000),
+   minutes = Math.floor(totalSeconds / 60),
+   seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
+},
 
-const formatDatePickerLabel = (dateValue?: string) => {
+ formatDatePickerLabel = (dateValue?: string) => {
   if (!dateValue) {
     return "Pick a release date";
   }
@@ -243,17 +243,17 @@ const formatDatePickerLabel = (dateValue?: string) => {
     month: "short",
     year: "numeric",
   });
-};
+},
 
-const dateToPickerValue = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+ dateToPickerValue = (date: Date) => {
+  const year = date.getFullYear(),
+   month = String(date.getMonth() + 1).padStart(2, "0"),
+   day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
-};
+},
 
-const toDatePickerValue = (value: unknown) => {
+ toDatePickerValue = (value: unknown) => {
   if (typeof value !== "string" || !value) {
     return "";
   }
@@ -269,19 +269,19 @@ const toDatePickerValue = (value: unknown) => {
   }
 
   return date.toISOString().slice(0, 10);
-};
+},
 
-const releaseDateToMidnightIso = (dateValue?: string) => {
+ releaseDateToMidnightIso = (dateValue?: string) => {
   if (!dateValue) {
     return;
   }
 
   return new Date(`${dateValue}T00:00:00`).toISOString();
-};
+},
 
-const projectReleaseState = (values: ProjectFormValues) => {
-  const releaseDate = releaseDateToMidnightIso(values.releaseDate);
-  const isListed = values.releaseVisibility === "listed";
+ projectReleaseState = (values: ProjectFormValues) => {
+  const releaseDate = releaseDateToMidnightIso(values.releaseDate),
+   isListed = values.releaseVisibility === "listed";
 
   return {
     isListed,
@@ -292,9 +292,9 @@ const projectReleaseState = (values: ProjectFormValues) => {
         : ("released" as const)
       : ("draft" as const),
   };
-};
+},
 
-const parseDurationLabelMs = (duration: unknown) => {
+ parseDurationLabelMs = (duration: unknown) => {
   if (typeof duration !== "string") {
     return null;
   }
@@ -309,16 +309,16 @@ const parseDurationLabelMs = (duration: unknown) => {
     return null;
   }
 
-  const [hoursOrMinutes, minutesOrSeconds, seconds = 0] = parts;
-  const totalSeconds =
+  const [hoursOrMinutes, minutesOrSeconds, seconds = 0] = parts,
+   totalSeconds =
     parts.length === 3
       ? hoursOrMinutes * 3600 + minutesOrSeconds * 60 + seconds
       : hoursOrMinutes * 60 + minutesOrSeconds;
 
   return Math.round(totalSeconds * 1000);
-};
+},
 
-const getTrackDurationLabel = (track: unknown) => {
+ getTrackDurationLabel = (track: unknown) => {
   if (!(track && typeof track === "object" && "duration" in track)) {
     return null;
   }
@@ -348,51 +348,51 @@ export function NewProjectForm({
   initialProject,
   projectId,
 }: NewProjectFormProps = {}) {
-  const posthog = usePostHog();
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const genresQuery = useGenresQuery();
-  const genreRows = Array.isArray(genresQuery.data)
+  const posthog = usePostHog(),
+   queryClient = useQueryClient(),
+   router = useRouter(),
+   genresQuery = useGenresQuery(),
+   genreRows = Array.isArray(genresQuery.data)
     ? genresQuery.data.filter(isGenreOption)
-    : [];
-  const availableGenres =
+    : [],
+   availableGenres =
     genreRows.length > 0
       ? genreRows.map((genre) => genre.name)
-      : SUPPORTED_GENRES;
-  const isReleasedProject = Boolean(
+      : SUPPORTED_GENRES,
+   isReleasedProject = Boolean(
     initialProject &&
-      (initialProject.status === "released" ||
-        Number(initialProject.playCount ?? initialProject.plays ?? 0) > 0)
-  );
-  const [step, setStep] = useState("identity");
-  const [isSubmittingProject, setIsSubmittingProject] = useState(false);
-  const [collaboratorQuery, setCollaboratorQuery] = useState("");
-  const [collaboratorRole, setCollaboratorRole] =
-    useState<CollaboratorRole>("songwriter");
-  const [projectCover, setProjectCover] = useState<{
+    (initialProject.status === "released" ||
+      Number(initialProject.playCount ?? initialProject.plays ?? 0) > 0)
+  ),
+   [step, setStep] = useState("identity"),
+   [isSubmittingProject, setIsSubmittingProject] = useState(false),
+   [collaboratorQuery, setCollaboratorQuery] = useState(""),
+   [collaboratorRole, setCollaboratorRole] =
+    useState<CollaboratorRole>("songwriter"),
+   [projectCover, setProjectCover] = useState<{
     fileName: string;
     objectKey: string;
     remoteUrl: string;
-  } | null>(null);
-  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
-  const [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
+  } | null>(null),
+   [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null),
+   [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
     string | null
-  >(null);
-  const coverUploadResolverRef = useRef<((key: string) => void) | null>(null);
-  const projectAssetsUploadResolverRef = useRef<
+  >(null),
+   coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
+   projectAssetsUploadResolverRef = useRef<
     ((assets: ProjectTrackUploadResult[] | null) => void) | null
-  >(null);
-  const {
+  >(null),
+   {
     data: existingTracks = [],
     error: tracksError,
     isLoading: tracksLoading,
-  } = useTracksQuery();
-  const settleTrackMutation = useSettleTrackMutation();
-  const updateProjectMutation = useUpdateProjectMutation(projectId ?? "");
-  const { data: session } = authClient.useSession();
-  const peopleSearch = usePeopleSearchQuery(collaboratorQuery);
+  } = useTracksQuery(),
+   settleTrackMutation = useSettleTrackMutation(),
+   updateProjectMutation = useUpdateProjectMutation(projectId ?? ""),
+   { data: session } = authClient.useSession(),
+   peopleSearch = usePeopleSearchQuery(collaboratorQuery),
 
-  const form = useForm<ProjectFormValues>({
+   form = useForm<ProjectFormValues>({
     defaultValues: defaultProjectFormValues,
     resolver: zodResolver(projectFormSchema),
   });
@@ -417,25 +417,25 @@ export function NewProjectForm({
 
     const assetRows = Array.isArray(initialProject.assets)
       ? (initialProject.assets as Record<string, unknown>[])
-      : [];
-    const coverAsset = assetRows.find(
+      : [],
+     coverAsset = assetRows.find(
       (asset) => asset.assetKind === "cover_art"
-    );
-    const coverObjectKey =
+    ),
+     coverObjectKey =
       (coverAsset?.objectKey as string) ||
-      (initialProject.coverArtUrl as string);
-    const projectTracks = Array.isArray(initialProject.tracks)
+      (initialProject.coverArtUrl as string),
+     projectTracks = Array.isArray(initialProject.tracks)
       ? (initialProject.tracks as Record<string, unknown>[])
-      : [];
-    const rawCollaborators = Array.isArray(initialProject.collaborators)
+      : [],
+     rawCollaborators = Array.isArray(initialProject.collaborators)
       ? (initialProject.collaborators as Record<string, unknown>[])
-      : [];
-    const firstGenre =
+      : [],
+     firstGenre =
       projectTracks.find((track) => typeof track.genre === "string")?.genre ||
-      "Hip-Hop/Rap";
+      "Hip-Hop/Rap",
 
-    const rawProjectType = initialProject.projectType as string;
-    const projectType: ProjectFormValues["type"] =
+     rawProjectType = initialProject.projectType as string,
+     projectType: ProjectFormValues["type"] =
       rawProjectType === "album" ||
       rawProjectType === "ep" ||
       rawProjectType === "mixtape"
@@ -463,12 +463,12 @@ export function NewProjectForm({
         initialProject.listeningAccess === "premium_or_purchased"
           ? "premium_or_purchased"
           : "public",
+      name: (initialProject.title as string) ?? "",
+      newTracks: [],
       priceCents:
         typeof initialProject.priceCents === "number"
           ? initialProject.priceCents
           : 999,
-      name: (initialProject.title as string) ?? "",
-      newTracks: [],
       projectCoverObjectKey: coverObjectKey ?? "",
       releaseDate: toDatePickerValue(initialProject.releaseDate),
       releaseVisibility: initialProject.isPublic ? "listed" : "unlisted",
@@ -501,9 +501,9 @@ export function NewProjectForm({
     storageKey: projectId
       ? `soundkit:edit-project-draft-${projectId}`
       : "soundkit:new-project-draft",
-  });
+  }),
 
-  const resetProjectDraft = () => {
+   resetProjectDraft = () => {
     resetDraft();
     setSelectedCoverFile(null);
     setProjectCover(null);
@@ -511,14 +511,14 @@ export function NewProjectForm({
       description: "Project draft cleared. You can start fresh.",
       title: "Draft reset",
     });
-  };
+  },
 
-  const { fields, append, remove } = useFieldArray({
+   { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "newTracks",
-  });
+  }),
 
-  const getSelectedExistingRuntimeMs = (trackIds: string[]) => {
+   getSelectedExistingRuntimeMs = (trackIds: string[]) => {
     const initialTracks = Array.isArray(initialProject?.tracks)
       ? (initialProject.tracks as Record<string, unknown>[])
       : [];
@@ -528,9 +528,9 @@ export function NewProjectForm({
     for (const trackId of trackIds) {
       const existingTrack = existingTracks.find(
         (track) => track.id === trackId
-      );
-      const initialTrack = initialTracks.find((track) => track.id === trackId);
-      const durationMs = parseDurationLabelMs(
+      ),
+       initialTrack = initialTracks.find((track) => track.id === trackId),
+       durationMs = parseDurationLabelMs(
         getTrackDurationLabel(existingTrack) ??
           getTrackDurationLabel(initialTrack)
       );
@@ -539,9 +539,9 @@ export function NewProjectForm({
     }
 
     return totalRuntimeMs;
-  };
+  },
 
-  const shouldBlockEpRuntime = ({
+   shouldBlockEpRuntime = ({
     newTrackDurationsMs = [],
     values,
   }: {
@@ -571,9 +571,9 @@ export function NewProjectForm({
     });
     setStep("identity");
     return true;
-  };
+  },
 
-  const onSubmit = async (values: ProjectFormValues) => {
+   onSubmit = async (values: ProjectFormValues) => {
     // Edit Mode submission
     if (projectId) {
       try {
@@ -740,9 +740,9 @@ export function NewProjectForm({
         return;
       }
 
-      const hasReleaseDate = Boolean(releaseState.releaseDate);
+      const hasReleaseDate = Boolean(releaseState.releaseDate),
 
-      const projectTracks = values.newTracks.map((track, index) => {
+       projectTracks = values.newTracks.map((track, index) => {
         const projectTrack = {
           downloadsAllowed: true,
           downloadsRequireFirstPlay: true,
@@ -753,9 +753,9 @@ export function NewProjectForm({
         };
 
         return projectTrack;
-      });
+      }),
 
-      const projectPayload = {
+       projectPayload = {
         assetIds: coverKey ? [coverKey] : [],
         collaboratorNames: values.collaborators.map(
           (collaborator) => collaborator.displayName
@@ -770,8 +770,8 @@ export function NewProjectForm({
         isForSale: values.isForSale,
         isPublic: false,
         listeningAccess: values.listeningAccess,
-        priceCents: values.isForSale ? values.priceCents : undefined,
         newTracks: projectTracks,
+        priceCents: values.isForSale ? values.priceCents : undefined,
         projectType: values.type,
         status: releaseState.status,
         streamingLinks: {},
@@ -781,12 +781,12 @@ export function NewProjectForm({
         ...(releaseState.releaseDate
           ? { releaseDate: releaseState.releaseDate }
           : {}),
-      };
+      },
 
-      const project = await rpcJson(
+       project = await rpcJson(
         await projectsPost({ json: projectPayload })
-      );
-      const pendingTrackUploads = pendingTrackFiles.filter(
+      ),
+       pendingTrackUploads = pendingTrackFiles.filter(
         (
           entry
         ): entry is {
@@ -794,12 +794,12 @@ export function NewProjectForm({
           file: File;
           index: number;
         } => Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
-      );
+      ),
 
-      const projectDetail = await rpcJson(
+       projectDetail = await rpcJson(
         await projectGet({ param: { projectId: project.id } })
-      );
-      const newProjectTracks = projectDetail.tracks.filter(
+      ),
+       newProjectTracks = projectDetail.tracks.filter(
         (track) => !values.selectedExistingTracks.includes(track.id)
       );
 
@@ -810,10 +810,10 @@ export function NewProjectForm({
             continue;
           }
 
-          const previewFile = await createAudioPreviewFile(pendingTrack.file).catch(
-            () => null
-          );
-          const uploadedAssets = await uploadProjectTrackFiles(
+          const previewFile = await createAudioPreviewFile(
+            pendingTrack.file
+          ).catch(() => null),
+           uploadedAssets = await uploadProjectTrackFiles(
             previewFile ? [pendingTrack.file, previewFile] : [pendingTrack.file]
           );
           if (!uploadedAssets) {
@@ -832,8 +832,8 @@ export function NewProjectForm({
 
           const uploadedAsset = uploadedAssets.find(
             (asset) => !asset.fileName.endsWith(".preview.wav")
-          );
-          const uploadedPreview = uploadedAssets.find((asset) =>
+          ),
+           uploadedPreview = uploadedAssets.find((asset) =>
             asset.fileName.endsWith(".preview.wav")
           );
           if (!uploadedAsset) {
@@ -865,7 +865,10 @@ export function NewProjectForm({
               await trackAssetPost({
                 json: {
                   assetKind: "variant_audio",
-                  durationMs: Math.min(pendingTrack.durationMs ?? 30_000, 30_000),
+                  durationMs: Math.min(
+                    pendingTrack.durationMs ?? 30_000,
+                    30_000
+                  ),
                   metadata: {
                     durationMs: Math.min(
                       pendingTrack.durationMs ?? 30_000,
@@ -873,8 +876,8 @@ export function NewProjectForm({
                     ),
                     originalFileName: uploadedPreview.fileName,
                     previewDurationSeconds: 30,
-                    variant: "preview_30s",
                     url: `${MEDIA_BASE_URL}/${uploadedPreview.objectKey}`,
+                    variant: "preview_30s",
                   },
                   mimeType: uploadedPreview.mimeType,
                   objectKey: uploadedPreview.objectKey,
@@ -959,11 +962,11 @@ export function NewProjectForm({
     } finally {
       setIsSubmittingProject(false);
     }
-  };
+  },
 
-  const toggleExistingTrack = (trackId: string) => {
-    const current = form.getValues("selectedExistingTracks");
-    const trackTitle =
+   toggleExistingTrack = (trackId: string) => {
+    const current = form.getValues("selectedExistingTracks"),
+     trackTitle =
       existingTracks.find((track) => track.id === trackId)?.title ?? "Track";
 
     if (current.includes(trackId)) {
@@ -985,9 +988,9 @@ export function NewProjectForm({
       description: `Added "${trackTitle}" to this project.`,
       title: "Track added",
     });
-  };
+  },
 
-  const handleNewUpload = (files: FileList | File[]) => {
+   handleNewUpload = (files: FileList | File[]) => {
     for (const file of files) {
       append({
         file,
@@ -997,9 +1000,9 @@ export function NewProjectForm({
         writers: "",
       });
     }
-  };
+  },
 
-  const {
+   {
     averageProgress: coverProgress,
     isPending: isCoverUploading,
     upload: uploadCover,
@@ -1111,9 +1114,9 @@ export function NewProjectForm({
       projectAssetsUploadResolverRef.current = null;
     },
     route: "project-assets",
-  });
+  }),
 
-  const uploadProjectTrackFiles = async (files: File[]) => {
+   uploadProjectTrackFiles = async (files: File[]) => {
     const uploadPromise = new Promise<ProjectTrackUploadResult[] | null>(
       (resolve) => {
         projectAssetsUploadResolverRef.current = resolve;
@@ -1130,9 +1133,9 @@ export function NewProjectForm({
       uploadPromise,
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 120_000)),
     ]);
-  };
+  },
 
-  const handleProjectCoverUpload = async (files: FileList) => {
+   handleProjectCoverUpload = async (files: FileList) => {
     const [file] = [...files];
 
     if (!file) {
@@ -1149,9 +1152,9 @@ export function NewProjectForm({
     }
 
     setSelectedCoverFile(file);
-  };
+  },
 
-  const addCollaborator = (entry: {
+   addCollaborator = (entry: {
     displayName: string;
     inviteEmail?: string;
     role: CollaboratorRole;
@@ -1161,8 +1164,8 @@ export function NewProjectForm({
       return;
     }
 
-    const current = form.getValues("collaborators");
-    const alreadyAdded = current.some(
+    const current = form.getValues("collaborators"),
+     alreadyAdded = current.some(
       (collaborator) =>
         collaborator.role === entry.role &&
         ((entry.userId && collaborator.userId === entry.userId) ||
@@ -1178,9 +1181,9 @@ export function NewProjectForm({
       shouldDirty: true,
     });
     setCollaboratorQuery("");
-  };
+  },
 
-  const addQueriedCollaborator = () => {
+   addQueriedCollaborator = () => {
     const query = collaboratorQuery.trim();
 
     if (!query) {
@@ -1192,9 +1195,9 @@ export function NewProjectForm({
       inviteEmail: query.includes("@") ? query : undefined,
       role: collaboratorRole,
     });
-  };
+  },
 
-  const addSelfAsWriter = () => {
+   addSelfAsWriter = () => {
     const user = session?.user;
 
     if (!user) {
@@ -1207,18 +1210,18 @@ export function NewProjectForm({
       role: "songwriter",
       userId: user.id,
     });
-  };
+  },
 
-  const removeCollaborator = (index: number) => {
+   removeCollaborator = (index: number) => {
     const current = form.getValues("collaborators");
     form.setValue(
       "collaborators",
       current.filter((_, i) => i !== index),
       { shouldDirty: true }
     );
-  };
+  },
 
-  const handleInvalidSubmit = (errors: FieldErrors<ProjectFormValues>) => {
+   handleInvalidSubmit = (errors: FieldErrors<ProjectFormValues>) => {
     if (errors.name || errors.type || errors.genre) {
       setStep("identity");
     } else if (errors.newTracks || errors.selectedExistingTracks) {
@@ -1239,10 +1242,10 @@ export function NewProjectForm({
       title: "Project setup incomplete",
       variant: "destructive",
     });
-  };
+  },
 
-  const releaseVisibility = form.watch("releaseVisibility");
-  const submitButtonLabel = projectId ? "Save Changes" : "Create Project";
+   releaseVisibility = form.watch("releaseVisibility"),
+   submitButtonLabel = projectId ? "Save Changes" : "Create Project";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -1452,8 +1455,8 @@ export function NewProjectForm({
                           disabled={isReleasedProject}
                           onValueChange={(val) => {
                             field.onChange(val);
-                            const currentTracks = form.getValues("newTracks");
-                            const updated = currentTracks.map((t) => ({
+                            const currentTracks = form.getValues("newTracks"),
+                             updated = currentTracks.map((t) => ({
                               ...t,
                               genre: t.genre || val,
                             }));
@@ -2039,7 +2042,9 @@ export function NewProjectForm({
                                   value={(field.value / 100).toFixed(2)}
                                   onChange={(event) =>
                                     field.onChange(
-                                      Math.round(Number(event.target.value) * 100)
+                                      Math.round(
+                                        Number(event.target.value) * 100
+                                      )
                                     )
                                   }
                                 />

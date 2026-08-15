@@ -28,10 +28,10 @@ export const Route = createFileRoute("/_explore/live/parties/$id")({
 });
 
 function ListeningPartyDetailPage() {
-  const { id } = Route.useParams();
-  const { chat, query } = useLiveRoom(id);
-  const room = query.data;
-  const currentTrack = room?.tracklist.find(
+  const { id } = Route.useParams(),
+   { chat, query } = useLiveRoom(id),
+   room = query.data,
+   currentTrack = room?.tracklist.find(
     (track) => track.id === room.currentTrackId
   );
 

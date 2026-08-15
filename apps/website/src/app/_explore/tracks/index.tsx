@@ -38,32 +38,32 @@ export const Route = createFileRoute("/_explore/tracks/")({
 });
 
 function TracksPage() {
-  const router = useRouter();
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
+  const router = useRouter(),
+   search = Route.useSearch(),
+   navigate = Route.useNavigate(),
 
-  const savedRegionType =
+   savedRegionType =
     typeof window === "undefined"
       ? null
       : (localStorage.getItem("exploreRegionType") as
           | "north-america"
           | "global"
-          | null);
-  const savedRegion =
+          | null),
+   savedRegion =
     typeof window === "undefined"
       ? null
-      : localStorage.getItem("exploreRegion");
+      : localStorage.getItem("exploreRegion"),
 
-  const regionType = search.regionType ?? savedRegionType ?? "north-america";
-  const region = search.region ?? savedRegion ?? "us-arkansas";
-  const genre = search.genre ?? "all";
-  const q = search.q ?? "";
-  const sort = search.sort ?? "plays-desc";
-  const view = search.view ?? "sections";
+   regionType = search.regionType ?? savedRegionType ?? "north-america",
+   region = search.region ?? savedRegion ?? "us-arkansas",
+   genre = search.genre ?? "all",
+   q = search.q ?? "",
+   sort = search.sort ?? "plays-desc",
+   view = search.view ?? "sections",
 
-  const updateFilters = (next: Partial<TracksSearch>) => {
-    const nextRegionType = next.regionType ?? regionType;
-    const nextRegion = next.region ?? region;
+   updateFilters = (next: Partial<TracksSearch>) => {
+    const nextRegionType = next.regionType ?? regionType,
+     nextRegion = next.region ?? region;
     if (typeof window !== "undefined") {
       localStorage.setItem("exploreRegionType", nextRegionType);
       localStorage.setItem("exploreRegion", nextRegion);
@@ -80,9 +80,9 @@ function TracksPage() {
         view: next.view ?? view,
       }),
     });
-  };
+  },
 
-  const { data: tracks = [], isLoading } = useTracksQuery(undefined, {
+   { data: tracks = [], isLoading } = useTracksQuery(undefined, {
     genre,
     limit: 48,
     q: q || undefined,
@@ -94,29 +94,6 @@ function TracksPage() {
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
-      <Button
-        className="mb-4"
-        onClick={() => {
-          if (view === "all") {
-            void navigate({
-              replace: true,
-              search: (previous) => ({
-                ...previous,
-                genre: "all",
-                view: "sections",
-              }),
-            });
-            return;
-          }
-          router.history.back();
-        }}
-        size="sm"
-        variant="ghost"
-      >
-        <ArrowLeft className="size-4 mr-2" />
-        Back
-      </Button>
-
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-2 flex items-center gap-2">
           <Music className="size-6 md:size-8 text-primary" />

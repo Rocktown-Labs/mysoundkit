@@ -5,8 +5,8 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function TabTwo() {
-  const { colorScheme } = useColorScheme();
-  const theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+  const { colorScheme } = useColorScheme(),
+   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
     <Container>

@@ -22,10 +22,10 @@ export const genreCatalog: GenreCatalogEntry[] = [
 
 const genreByName = new Map(
   genreCatalog.map((genre) => [genre.name.toLowerCase(), genre])
-);
-const genreBySlug = new Map(genreCatalog.map((genre) => [genre.slug, genre]));
+),
+ genreBySlug = new Map(genreCatalog.map((genre) => [genre.slug, genre])),
 
-const genreValueAliases = new Map([
+ genreValueAliases = new Map([
   ["hip-hop-rap", "hip-hop"],
   ["hiphop", "hip-hop"],
   ["rb", "rb-soul"],

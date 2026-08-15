@@ -44,14 +44,14 @@ export function DataTable<TData, TValue>({
   filterPlaceholder = "Filter items...",
   filterColumn = "title",
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+  const [sorting, setSorting] = React.useState<SortingState>([]),
+   [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  ),
+   [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({}),
 
-  const table = useReactTable({
+   table = useReactTable({
     columns,
     data,
     getCoreRowModel: getCoreRowModel(),

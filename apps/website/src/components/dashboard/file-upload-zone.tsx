@@ -28,9 +28,9 @@ interface FileUploadZoneProps {
   variant?: "default" | "compact";
 }
 
-const EMPTY_FILES: readonly { name: string; status?: string }[] = [];
+const EMPTY_FILES: readonly { name: string; status?: string }[] = [],
 
-const isArtworkTitle = (title: string) => {
+ isArtworkTitle = (title: string) => {
   const normalizedTitle = title.toLowerCase();
 
   return (
@@ -55,40 +55,40 @@ export function FileUploadZone({
   title,
   variant = "default",
 }: FileUploadZoneProps) {
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false),
+   fileInputRef = useRef<HTMLInputElement>(null),
 
-  const handleDragOver = (e: React.DragEvent) => {
+   handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
-  };
+  },
 
-  const handleDragLeave = (e: React.DragEvent) => {
+   handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-  };
+  },
 
-  const handleDrop = (e: React.DragEvent) => {
+   handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     const droppedFiles = e.dataTransfer.files;
     if (droppedFiles.length > 0) {
       onFileUpload(droppedFiles);
     }
-  };
+  },
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+   handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (selectedFiles && selectedFiles.length > 0) {
       onFileUpload(selectedFiles);
     }
-  };
+  },
 
-  const handleClick = () => {
+   handleClick = () => {
     fileInputRef.current?.click();
-  };
+  },
 
-  const getIcon = () => {
+   getIcon = () => {
     if (
       title.toLowerCase().includes("cover") ||
       title.toLowerCase().includes("art")
@@ -99,12 +99,12 @@ export function FileUploadZone({
       return File;
     }
     return FileAudio;
-  };
+  },
 
-  const IconComponent = getIcon();
-  const isArtwork = isArtworkTitle(title);
-  const hasFiles = files.length > 0 || Boolean(previewUrl);
-  const hasProgress = typeof progress === "number";
+   IconComponent = getIcon(),
+   isArtwork = isArtworkTitle(title),
+   hasFiles = files.length > 0 || Boolean(previewUrl),
+   hasProgress = typeof progress === "number";
 
   return (
     <Card

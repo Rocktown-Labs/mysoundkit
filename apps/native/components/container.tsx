@@ -6,8 +6,8 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 export function Container({ children }: { children: React.ReactNode }) {
-  const { colorScheme } = useColorScheme();
-  const backgroundColor =
+  const { colorScheme } = useColorScheme(),
+   backgroundColor =
     colorScheme === "dark"
       ? NAV_THEME.dark.background
       : NAV_THEME.light.background;

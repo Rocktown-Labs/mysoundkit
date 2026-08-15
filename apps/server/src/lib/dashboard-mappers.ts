@@ -25,22 +25,22 @@ const formatDuration = (durationMs: number | null | undefined) => {
     return "0:00";
   }
 
-  const totalSeconds = Math.round(durationMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  const totalSeconds = Math.round(durationMs / 1000),
+   minutes = Math.floor(totalSeconds / 60),
+   seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
+},
 
-const objectUrlFromMetadata = (metadata: unknown) => {
+ objectUrlFromMetadata = (metadata: unknown) => {
   if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
     return null;
   }
 
   const { url } = metadata as { url?: unknown };
   return typeof url === "string" ? url : null;
-};
+},
 
-const publicAssetUrl = (
+ publicAssetUrl = (
   asset: InferSelectModel<typeof trackAssets> | undefined
 ) => {
   if (!asset) {
@@ -62,9 +62,9 @@ const publicAssetUrl = (
   ).replace(/\/+$/u, "");
 
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-};
+},
 
-const publicProjectAssetUrl = (
+ publicProjectAssetUrl = (
   asset: InferSelectModel<typeof projectAssets> | undefined
 ) => {
   if (!asset) {
@@ -80,9 +80,9 @@ const publicProjectAssetUrl = (
   ).replace(/\/+$/u, "");
 
   return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-};
+},
 
-const mapAssetForDashboard = (
+ mapAssetForDashboard = (
   asset:
     | InferSelectModel<typeof trackAssets>
     | InferSelectModel<typeof projectAssets>
@@ -101,9 +101,9 @@ const mapAssetForDashboard = (
   sizeBytes: asset.sizeBytes,
   status: asset.status,
   storageProvider: asset.storageProvider,
-});
+}),
 
-const fileAvailabilityFromAssets = (
+ fileAvailabilityFromAssets = (
   assets: InferSelectModel<typeof trackAssets>[]
 ) => ({
   adlibs: assets.some((asset) => asset.assetKind === "adlib"),
@@ -135,19 +135,19 @@ export const mapTrackSummary = ({
   regionSlug?: string | null;
   row: InferSelectModel<typeof tracks>;
 }) => {
-  const coverAsset = assets.find((asset) => asset.assetKind === "cover_art");
-  const primaryAudioAsset =
+  const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
+   primaryAudioAsset =
     assets.find((asset) => asset.assetKind === "master") ??
-    assets.find((asset) => asset.durationMs);
-  const previewAsset = assets.find(
+    assets.find((asset) => asset.durationMs),
+   previewAsset = assets.find(
     (asset) =>
       asset.assetKind === "variant_audio" &&
       typeof asset.metadata === "object" &&
       asset.metadata !== null &&
       "variant" in asset.metadata &&
       asset.metadata.variant === "preview_30s"
-  );
-  const assetStatus = assets.some((asset) => asset.status === "processing")
+  ),
+   assetStatus = assets.some((asset) => asset.status === "processing")
     ? "processing"
     : (primaryAudioAsset?.status ?? null);
 
@@ -166,10 +166,10 @@ export const mapTrackSummary = ({
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
     downloadsRequirePurchase: row.downloadsRequirePurchase,
     duration: formatDuration(primaryAudioAsset?.durationMs),
+    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     fileAvailability: fileAvailabilityFromAssets(assets),
     genre: genre ? canonicalGenreName(genre) : "Uncategorized",
     id: row.id,
-    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
     isrc: row.isrc,
@@ -212,8 +212,8 @@ export const mapTrackSummary = ({
 export const buildTrackSummary = async (
   row: InferSelectModel<typeof tracks>
 ) => {
-  const db = createDb();
-  const [profile] = await db
+  const db = createDb(),
+   [profile] = await db
     .select({
       displayName: userProfiles.displayName,
       state: userProfiles.state,
@@ -223,16 +223,16 @@ export const buildTrackSummary = async (
     .from(authUser)
     .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
     .where(eq(authUser.id, row.ownerUserId))
-    .limit(1);
-  const [genreRow] = row.genreId
+    .limit(1),
+   [genreRow] = row.genreId
     ? await db
         .select({ name: genres.name })
         .from(genres)
         .where(eq(genres.id, row.genreId))
         .limit(1)
-    : [];
+    : [],
 
-  const [assetRows, collaboratorRows] = await Promise.all([
+   [assetRows, collaboratorRows] = await Promise.all([
     db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
     db
       .select({ id: trackCollaborators.id })
@@ -254,8 +254,8 @@ export const buildTrackSummary = async (
 export const buildTrackDetail = async (
   row: InferSelectModel<typeof tracks>
 ) => {
-  const db = createDb();
-  const [summary, assetRows, collaboratorRows, lyricsRows] = await Promise.all([
+  const db = createDb(),
+   [summary, assetRows, collaboratorRows, lyricsRows] = await Promise.all([
     buildTrackSummary(row),
     db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
     db
@@ -318,8 +318,8 @@ export const buildTrackDetail = async (
 export const buildProjectSummary = async (
   row: InferSelectModel<typeof projects>
 ) => {
-  const db = createDb();
-  const [trackRows, assetRows, collaboratorRows, profileRows] =
+  const db = createDb(),
+   [trackRows, assetRows, collaboratorRows, profileRows] =
     await Promise.all([
       db
         .select({
@@ -349,11 +349,11 @@ export const buildProjectSummary = async (
         .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
         .where(eq(authUser.id, row.ownerUserId))
         .limit(1),
-    ]);
-  const trackIds = trackRows.map((track) => track.id);
-  const primaryGenre = trackRows.find((track) => track.genreName)?.genreName;
-  const [ownerProfile] = profileRows;
-  const durationAssetRows =
+    ]),
+   trackIds = trackRows.map((track) => track.id),
+   primaryGenre = trackRows.find((track) => track.genreName)?.genreName,
+   [ownerProfile] = profileRows,
+   durationAssetRows =
     trackIds.length > 0
       ? await db
           .select({
@@ -363,8 +363,8 @@ export const buildProjectSummary = async (
           })
           .from(trackAssets)
           .where(inArray(trackAssets.trackId, trackIds))
-      : [];
-  const durationByTrackId = new Map<string, number>();
+      : [],
+   durationByTrackId = new Map<string, number>();
 
   for (const asset of durationAssetRows) {
     if (!(asset.trackId && asset.durationMs)) {
@@ -405,9 +405,9 @@ export const buildProjectSummary = async (
     description: row.description,
     duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
     durationMs,
+    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
-    exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     isForSale: row.isForSale,
     isPublic: row.isPublic,
     listeningAccess: row.listeningAccess,
@@ -438,8 +438,8 @@ export const buildProjectSummary = async (
 export const buildProjectDetail = async (
   row: InferSelectModel<typeof projects>
 ) => {
-  const db = createDb();
-  const [summary, assetRows, collaboratorRows, trackRows] = await Promise.all([
+  const db = createDb(),
+   [summary, assetRows, collaboratorRows, trackRows] = await Promise.all([
     buildProjectSummary(row),
     db.select().from(projectAssets).where(eq(projectAssets.projectId, row.id)),
     db
@@ -466,9 +466,9 @@ export const buildProjectDetail = async (
       .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
       .where(eq(projectTracks.projectId, row.id))
       .orderBy(asc(projectTracks.position)),
-  ]);
+  ]),
 
-  const trackSummaries = [];
+   trackSummaries = [];
 
   for (const trackRow of trackRows) {
     trackSummaries.push(await buildTrackSummary(trackRow.row));

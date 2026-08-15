@@ -133,20 +133,20 @@ const targetOptions: readonly TargetOption[] = [
   { code: "JP", label: "Japan", scope: "asia", type: "country" },
   { code: "KR", label: "South Korea", scope: "asia", type: "country" },
   { code: "AU", label: "Australia", scope: "oceania", type: "country" },
-] as const;
+] as const,
 
-const targetKey = (target: AdTarget) =>
-  `${target.targetType}:${target.targetCode}`;
+ targetKey = (target: AdTarget) =>
+  `${target.targetType}:${target.targetCode}`,
 
-const targetOptionByRegion = new Map(
+ targetOptionByRegion = new Map(
   targetOptions.flatMap((target) =>
     [target.label, ...(target.aliases ?? [])].map(
       (label) => [label.toLowerCase(), target] as const
     )
   )
-);
+),
 
-const targetOptionByKey = new Map(
+ targetOptionByKey = new Map(
   targetOptions.map((target) => [targetKey(toAdTarget(target)), target])
 );
 
@@ -177,16 +177,16 @@ const money = (cents: number | null | undefined) =>
     : new Intl.NumberFormat("en-US", {
         currency: "USD",
         style: "currency",
-      }).format(cents / 100);
+      }).format(cents / 100),
 
-const formatPercent = (value: number) => `${value.toFixed(2)}%`;
+ formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
 function AdsManagerPage() {
-  const { toast } = useToast();
-  const campaignsQuery = useAdCampaignsQuery();
-  const walletQuery = useAdWalletQuery();
-  const createCampaign = useCreateAdCampaignMutation();
-  const totals = useMemo(() => {
+  const { toast } = useToast(),
+   campaignsQuery = useAdCampaignsQuery(),
+   walletQuery = useAdWalletQuery(),
+   createCampaign = useCreateAdCampaignMutation(),
+   totals = useMemo(() => {
     const nextTotals = { clicks: 0, impressions: 0, spendCents: 0 };
 
     for (const campaign of campaignsQuery.data ?? []) {
@@ -196,8 +196,8 @@ function AdsManagerPage() {
     }
 
     return nextTotals;
-  }, [campaignsQuery.data]);
-  const campaigns = campaignsQuery.data ?? [];
+  }, [campaignsQuery.data]),
+   campaigns = campaignsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -366,23 +366,23 @@ function CampaignBuilder({
   isPending: boolean;
   onCreate: (body: CreateAdCampaignBody) => void;
 }) {
-  const [name, setName] = useState("SoundKit house pre-roll");
-  const [creativeUrl, setCreativeUrl] = useState("");
-  const [creativeImageUrl, setCreativeImageUrl] = useState("");
-  const [clickthroughUrl, setClickthroughUrl] = useState("");
-  const [creativeFormat, setCreativeFormat] =
-    useState<AdCreativeFormat>("audio");
-  const [placement, setPlacement] = useState<AdPlacement>("audio_preroll");
-  const [billingType, setBillingType] =
-    useState<AdBillingType>("prepaid_wallet");
-  const [dailyBudgetCents, setDailyBudgetCents] = useState(500);
-  const [dailyImpressionCap, setDailyImpressionCap] = useState(1000);
-  const [mapScope, setMapScope] = useState<MapScope>("north-america");
-  const [selectedTargets, setSelectedTargets] = useState<AdTarget[]>([
+  const [name, setName] = useState("SoundKit house pre-roll"),
+   [creativeUrl, setCreativeUrl] = useState(""),
+   [creativeImageUrl, setCreativeImageUrl] = useState(""),
+   [clickthroughUrl, setClickthroughUrl] = useState(""),
+   [creativeFormat, setCreativeFormat] =
+    useState<AdCreativeFormat>("audio"),
+   [placement, setPlacement] = useState<AdPlacement>("audio_preroll"),
+   [billingType, setBillingType] =
+    useState<AdBillingType>("prepaid_wallet"),
+   [dailyBudgetCents, setDailyBudgetCents] = useState(500),
+   [dailyImpressionCap, setDailyImpressionCap] = useState(1000),
+   [mapScope, setMapScope] = useState<MapScope>("north-america"),
+   [selectedTargets, setSelectedTargets] = useState<AdTarget[]>([
     { targetCode: "US-AR", targetType: "state" },
-  ]);
+  ]),
 
-  const toggleTarget = (target: AdTarget) => {
+   toggleTarget = (target: AdTarget) => {
     setSelectedTargets((current) => {
       const exists = current.some(
         (item) =>
@@ -402,13 +402,13 @@ function CampaignBuilder({
 
       return [...current, target];
     });
-  };
-  const selectedTargetKeys = new Set(selectedTargets.map(targetKey));
-  const selectedTargetRegionNames = selectedTargets.flatMap(targetRegionNames);
-  const availableTargets = targetOptions.filter(
+  },
+   selectedTargetKeys = new Set(selectedTargets.map(targetKey)),
+   selectedTargetRegionNames = selectedTargets.flatMap(targetRegionNames),
+   availableTargets = targetOptions.filter(
     (target) => !selectedTargetKeys.has(targetKey(toAdTarget(target)))
-  );
-  const addTargetFromMap = (regionName: string) => {
+  ),
+   addTargetFromMap = (regionName: string) => {
     const option = targetOptionByRegion.get(regionName.toLowerCase());
 
     if (!option) {
@@ -416,8 +416,8 @@ function CampaignBuilder({
     }
 
     toggleTarget(toAdTarget(option));
-  };
-  const updateDailyBudget = (value: string) => {
+  },
+   updateDailyBudget = (value: string) => {
     const dollars = Number(value);
 
     if (Number.isNaN(dollars)) {
@@ -426,8 +426,8 @@ function CampaignBuilder({
 
     const cents = Math.round(dollars * 100);
     setDailyBudgetCents(Math.max(100, cents));
-  };
-  const updateDailyImpressionCap = (value: string) => {
+  },
+   updateDailyImpressionCap = (value: string) => {
     const impressions = Number(value);
 
     if (Number.isNaN(impressions)) {

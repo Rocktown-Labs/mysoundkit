@@ -31,16 +31,16 @@ function MyStatsPage() {
     );
   }
 
-  const totalWins = stats.reduce((sum, item) => sum + item.wins, 0);
-  const totalLosses = stats.reduce((sum, item) => sum + item.losses, 0);
-  const totalBattles = totalWins + totalLosses;
-  const overallWinRate =
-    totalBattles > 0 ? Math.round((totalWins / totalBattles) * 100) : 0;
-  const totalSaves = stats.reduce((sum, item) => sum + item.saves, 0);
-  const totalPurchases = stats.reduce((sum, item) => sum + item.purchases, 0);
-  const totalRevenue = totalPurchases * 29.99;
+  const totalWins = stats.reduce((sum, item) => sum + item.wins, 0),
+   totalLosses = stats.reduce((sum, item) => sum + item.losses, 0),
+   totalBattles = totalWins + totalLosses,
+   overallWinRate =
+    totalBattles > 0 ? Math.round((totalWins / totalBattles) * 100) : 0,
+   totalSaves = stats.reduce((sum, item) => sum + item.saves, 0),
+   totalPurchases = stats.reduce((sum, item) => sum + item.purchases, 0),
+   totalRevenue = totalPurchases * 29.99,
 
-  const tableData = stats.map((item) => ({
+   tableData = stats.map((item) => ({
     ...item,
     winRate: Math.round((item.wins / (item.wins + item.losses || 1)) * 100),
   }));
