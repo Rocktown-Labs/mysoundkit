@@ -46,50 +46,47 @@ const formatSlot = ({
 
 function OpenVerseDetailPage() {
   const { id } = Route.useParams(),
-   query = useOpenVerseQuery(id),
-   submitMutation = useSubmitOpenVerseMutation(id),
-   { setCurrentTrack, setQueue } = useAudioPlayer(),
-   [assetId, setAssetId] = useState(""),
-   [message, setMessage] = useState(""),
-   [acceptedSubId, setAcceptedSubId] = useState<string | null>(null),
-   listing = query.data,
+    query = useOpenVerseQuery(id),
+    submitMutation = useSubmitOpenVerseMutation(id),
+    { setCurrentTrack, setQueue } = useAudioPlayer(),
+    [assetId, setAssetId] = useState(""),
+    [message, setMessage] = useState(""),
+    [acceptedSubId, setAcceptedSubId] = useState<string | null>(null),
+    listing = query.data,
+    handleAcceptSubmission = (subId: string, artistName: string) => {
+      setAcceptedSubId(subId);
+      toast({
+        description: `${artistName} has been added to official track credits & royalty splits.`,
+        title: "Contender Accepted!",
+      });
+    },
+    playListing = () => {
+      if (!listing?.playbackUrl) {
+        return;
+      }
 
-   handleAcceptSubmission = (subId: string, artistName: string) => {
-    setAcceptedSubId(subId);
-    toast({
-      description: `${artistName} has been added to official track credits & royalty splits.`,
-      title: "Contender Accepted!",
-    });
-  },
+      const playerTrack = {
+        artist: listing.artistName,
+        artistHref: listing.artistUsername
+          ? `/artist/${listing.artistUsername}`
+          : "/dashboard/profile",
+        cover: listing.coverArtUrl ?? "/placeholder.svg",
+        id: listing.trackId,
+        src: listing.playbackUrl,
+        title: listing.trackTitle,
+        trackHref: `/tracks/${listing.trackId}`,
+      };
 
-   playListing = () => {
-    if (!listing?.playbackUrl) {
-      return;
-    }
-
-    const playerTrack = {
-      artist: listing.artistName,
-      artistHref: listing.artistUsername
-        ? `/artist/${listing.artistUsername}`
-        : "/dashboard/profile",
-      cover: listing.coverArtUrl ?? "/placeholder.svg",
-      id: listing.trackId,
-      src: listing.playbackUrl,
-      title: listing.trackTitle,
-      trackHref: `/tracks/${listing.trackId}`,
+      setQueue([playerTrack]);
+      setCurrentTrack(playerTrack);
+    },
+    submitVerse = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      submitMutation.mutate({
+        assetId: assetId.trim() || undefined,
+        message: message.trim() || undefined,
+      });
     };
-
-    setQueue([playerTrack]);
-    setCurrentTrack(playerTrack);
-  },
-
-   submitVerse = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    submitMutation.mutate({
-      assetId: assetId.trim() || undefined,
-      message: message.trim() || undefined,
-    });
-  };
 
   if (query.isLoading) {
     return (

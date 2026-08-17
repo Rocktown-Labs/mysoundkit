@@ -17,7 +17,7 @@ interface SellerStatus {
 
 function FinanceDashboard() {
   const [message, setMessage] = useState<string | null>(null),
-   [status, setStatus] = useState<SellerStatus | null>(null);
+    [status, setStatus] = useState<SellerStatus | null>(null);
 
   useEffect(() => {
     const loadStatus = async () => {
@@ -36,18 +36,18 @@ function FinanceDashboard() {
 
   const startConnectOnboarding = async () => {
     const response = await fetch(`${API_V1_URL}/seller/account-link`, {
-      body: JSON.stringify({
-        refreshUrl: window.location.href,
-        returnUrl: window.location.href,
+        body: JSON.stringify({
+          refreshUrl: window.location.href,
+          returnUrl: window.location.href,
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       }),
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }),
-     payload = (await response.json()) as {
-      accountLinkUrl?: string;
-      message?: string;
-    };
+      payload = (await response.json()) as {
+        accountLinkUrl?: string;
+        message?: string;
+      };
 
     if (payload.accountLinkUrl) {
       window.location.assign(payload.accountLinkUrl);

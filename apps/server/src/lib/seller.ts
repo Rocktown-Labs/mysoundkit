@@ -220,7 +220,61 @@ export const createSellerAccountLink = async ({
       path: "/core/accounts",
     }).catch(() => null);
 
-    if (!account) {
+    if (account) {
+      stripeAccountId = account.id;
+      await db.insert(sellerAccounts).values({
+        ...serializeAccountStatus(account),
+        id: crypto.randomUUID(),
+        metadata: { stripeAccountApi: "v2" },
+        organizationId,
+        stripeAccountId,
+        userId: user.id,
+      });
+    } else {
+      // Fallback to standard V1 Express Accounts API
+      const v1Params = new URLSearchParams();
+      v1Params.append("type", "express");
+      v1Params.append("country", "US");
+      if (user.email) {
+        v1Params.append("email", user.email);
+      }
+      v1Params.append("capabilities[transfers][requested]", "true");
+      v1Params.append("capabilities[card_payments][requested]", "true");
+      v1Params.append("business_type", "individual");
+      v1Params.append("metadata[soundkit_user_id]", user.id);
+
+      const v1Account = await stripeRequest<{
+        charges_enabled?: boolean;
+        details_submitted?: boolean;
+        id: string;
+        payouts_enabled?: boolean;
+      }>({
+        method: "POST",
+        params: v1Params,
+        path: "/accounts",
+      }).catch((error) => {
+        console.error("Stripe v1 account creation failed", error);
+        return null;
+      });
+
+      if (v1Account) {
+        stripeAccountId = v1Account.id;
+        await db.insert(sellerAccounts).values({
+          chargesEnabled: Boolean(v1Account.charges_enabled),
+          detailsSubmitted: Boolean(v1Account.details_submitted),
+          id: crypto.randomUUID(),
+          metadata: { stripeAccountApi: "v1" },
+          onboardingStatus: v1Account.charges_enabled ? "enabled" : "pending",
+          organizationId,
+          payoutsEnabled: Boolean(v1Account.payouts_enabled),
+          requirementsDue: [],
+          stripeAccountId,
+          userId: user.id,
+        });
+      }
+    }
+
+    if (!stripeAccountId) {
       return {
         accountLinkUrl: null,
         message: "Stripe Connect account creation is not configured yet.",
@@ -228,19 +282,9 @@ export const createSellerAccountLink = async ({
         setupRequired: true,
       };
     }
-
-    stripeAccountId = account.id;
-    await db.insert(sellerAccounts).values({
-      ...serializeAccountStatus(account),
-      id: crypto.randomUUID(),
-      metadata: { stripeAccountApi: "v2" },
-      organizationId,
-      stripeAccountId,
-      userId: user.id,
-    });
   }
 
-  const accountLink = await stripeV2Request<StripeV2AccountLinkResponse>({
+  let accountLink = await stripeV2Request<StripeV2AccountLinkResponse>({
     body: {
       account: stripeAccountId,
       use_case: {
@@ -254,6 +298,27 @@ export const createSellerAccountLink = async ({
     },
     path: "/core/account_links",
   }).catch(() => null);
+
+  if (!accountLink && stripeAccountId) {
+    const linkParams = new URLSearchParams();
+    linkParams.append("account", stripeAccountId);
+    linkParams.append("refresh_url", refreshUrl);
+    linkParams.append("return_url", returnUrl);
+    linkParams.append("type", "account_onboarding");
+
+    const v1Link = await stripeRequest<{ url: string }>({
+      method: "POST",
+      params: linkParams,
+      path: "/account_links",
+    }).catch((error) => {
+      console.error("Stripe v1 account link creation failed", error);
+      return null;
+    });
+
+    if (v1Link?.url) {
+      accountLink = { url: v1Link.url };
+    }
+  }
 
   if (!accountLink) {
     return {

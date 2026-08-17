@@ -7,21 +7,19 @@ import { Button } from "@/components/ui/button";
 import { useArtistsQuery } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
-  { label: "Rank (High to Low)", value: "rank-asc" },
-  { label: "Rank (Low to High)", value: "rank-desc" },
-  { label: "Name (A-Z)", value: "name-asc" },
-  { label: "Name (Z-A)", value: "name-desc" },
-],
+    { label: "Rank (High to Low)", value: "rank-asc" },
+    { label: "Rank (Low to High)", value: "rank-desc" },
+    { label: "Name (A-Z)", value: "name-asc" },
+    { label: "Name (Z-A)", value: "name-desc" },
+  ],
+  pageSize = 24,
+  formatFollowers = (followers: number) => {
+    if (followers >= 1000) {
+      return `${Math.round(followers / 1000)}K`;
+    }
 
- pageSize = 24,
-
- formatFollowers = (followers: number) => {
-  if (followers >= 1000) {
-    return `${Math.round(followers / 1000)}K`;
-  }
-
-  return followers.toLocaleString();
-};
+    return followers.toLocaleString();
+  };
 
 export function ArtistListPage({
   category,
@@ -35,21 +33,21 @@ export function ArtistListPage({
   title: string;
 }) {
   const [regionType, setRegionType] = useState<"north-america" | "global">(
-    "north-america"
-  ),
-   [region, setRegion] = useState("us-arkansas"),
-   [genre, setGenre] = useState("all"),
-   [sort, setSort] = useState("rank-asc"),
-   [page, setPage] = useState(1),
-   { data: artists = [], isLoading } = useArtistsQuery({
-    category,
-    genre,
-    limit: String(pageSize),
-    page: String(page),
-    region,
-    regionType,
-    sort,
-  });
+      "north-america"
+    ),
+    [region, setRegion] = useState("us-arkansas"),
+    [genre, setGenre] = useState("all"),
+    [sort, setSort] = useState("rank-asc"),
+    [page, setPage] = useState(1),
+    { data: artists = [], isLoading } = useArtistsQuery({
+      category,
+      genre,
+      limit: String(pageSize),
+      page: String(page),
+      region,
+      regionType,
+      sort,
+    });
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">

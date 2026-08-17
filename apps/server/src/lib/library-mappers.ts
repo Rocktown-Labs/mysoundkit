@@ -46,12 +46,12 @@ export interface PurchasedCatalogRow {
 
 export const toPurchasedCatalogItem = (row: PurchasedCatalogRow) => {
   const priceCents = Math.round(Number(row.priceCents) * 100),
-   productType: "track" | "project" =
-    row.productType === "project" ? "project" : "track",
-   purchaseMode: "digital_download" | "license" = row.licenseOptionId
-    ? "license"
-    : "digital_download",
-   productId = row.trackId ?? row.projectId ?? row.id;
+    productType: "track" | "project" =
+      row.productType === "project" ? "project" : "track",
+    purchaseMode: "digital_download" | "license" = row.licenseOptionId
+      ? "license"
+      : "digital_download",
+    productId = row.trackId ?? row.projectId ?? row.id;
 
   return {
     artist: "SoundKit Artist",

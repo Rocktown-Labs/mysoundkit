@@ -39,171 +39,169 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
+  slugify = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/^-|-$/g, ""),
+  likeTerm = (value: string) => `%${value.replaceAll("%", "\\%")}%`,
+  sampleOpenVersePage = ({
+    cursor,
+    genre,
+    limit,
+    q,
+  }: z.infer<typeof openVerseQuerySchema>) => {
+    const needle = q?.toLowerCase(),
+      genreNeedle = genre ? slugify(genre) : null,
+      rows = sampleTracks
+        .filter((track) => {
+          const trackGenreSlug = slugify(track.genre),
+            matchesGenre = !genreNeedle || trackGenreSlug === genreNeedle,
+            matchesQuery =
+              !needle ||
+              track.title.toLowerCase().includes(needle) ||
+              track.artistName.toLowerCase().includes(needle);
 
- slugify = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/^-|-$/g, ""),
+          return matchesGenre && matchesQuery;
+        })
+        .slice(0, cursor ? 0 : limit)
+        .map((track) => ({
+          artistName: track.artistName,
+          artistUsername: null,
+          bpm: track.bpm ?? null,
+          closesAt: null,
+          coverArtUrl: track.coverArtUrl ?? null,
+          createdAt: track.updatedAt ?? new Date().toISOString(),
+          description:
+            "Open verse slot available for artists looking to collab.",
+          genre: track.genre,
+          genreSlug: slugify(track.genre),
+          id: `open_${track.id}`,
+          maxSubmissions: 50,
+          musicalKey: track.musicalKey ?? null,
+          playbackUrl: track.playbackUrl ?? null,
+          slotEndsAtMs: null,
+          slotStartsAtMs: null,
+          status: "open" as const,
+          submissionCount: 0,
+          title: `${track.title} - open verse`,
+          trackId: track.id,
+          trackTitle: track.title,
+        }));
 
- likeTerm = (value: string) => `%${value.replaceAll("%", "\\%")}%`,
+    return {
+      items: rows,
+      nextCursor: null,
+    };
+  },
+  listOpenVerses = async (query: z.infer<typeof openVerseQuerySchema>) => {
+    if (!isDatabaseConfigured()) {
+      return sampleOpenVersePage(query);
+    }
 
- sampleOpenVersePage = ({
-  cursor,
-  genre,
-  limit,
-  q,
-}: z.infer<typeof openVerseQuerySchema>) => {
-  const needle = q?.toLowerCase(),
-   genreNeedle = genre ? slugify(genre) : null,
-   rows = sampleTracks
-    .filter((track) => {
-      const trackGenreSlug = slugify(track.genre),
-       matchesGenre = !genreNeedle || trackGenreSlug === genreNeedle,
-       matchesQuery =
-        !needle ||
-        track.title.toLowerCase().includes(needle) ||
-        track.artistName.toLowerCase().includes(needle);
+    const db = createDb(),
+      term = query.q ? likeTerm(query.q) : null,
+      genreTerm = query.genre ? slugify(query.genre) : null,
+      cursorDate = query.cursor ? new Date(query.cursor) : null,
+      rows = await db
+        .select({
+          artistName: userProfiles.displayName,
+          artistUsername: userProfiles.username,
+          bpm: openVerseListings.bpm,
+          closesAt: openVerseListings.closesAt,
+          createdAt: openVerseListings.createdAt,
+          description: openVerseListings.description,
+          genre: genres.name,
+          genreSlug: genres.slug,
+          id: openVerseListings.id,
+          maxSubmissions: openVerseListings.maxSubmissions,
+          musicalKey: openVerseListings.musicalKey,
+          ownerUserId: openVerseListings.ownerUserId,
+          slotEndsAtMs: openVerseListings.slotEndsAtMs,
+          slotStartsAtMs: openVerseListings.slotStartsAtMs,
+          status: openVerseListings.status,
+          submissionCount: sql<number>`count(${openVerseSubmissions.id})::int`,
+          title: openVerseListings.title,
+          track: tracks,
+          trackId: openVerseListings.trackId,
+          trackTitle: tracks.title,
+        })
+        .from(openVerseListings)
+        .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+        .innerJoin(
+          userProfiles,
+          eq(userProfiles.userId, openVerseListings.ownerUserId)
+        )
+        .leftJoin(genres, eq(genres.id, openVerseListings.genreId))
+        .leftJoin(
+          openVerseSubmissions,
+          eq(openVerseSubmissions.listingId, openVerseListings.id)
+        )
+        .where(
+          and(
+            eq(openVerseListings.status, "open"),
+            eq(tracks.isPublic, true),
+            cursorDate
+              ? lt(openVerseListings.createdAt, cursorDate)
+              : undefined,
+            genreTerm ? eq(genres.slug, genreTerm) : undefined,
+            term
+              ? or(
+                  ilike(openVerseListings.title, term),
+                  ilike(tracks.title, term),
+                  ilike(userProfiles.displayName, term),
+                  ilike(genres.name, term)
+                )
+              : undefined
+          )
+        )
+        .groupBy(
+          openVerseListings.id,
+          tracks.id,
+          userProfiles.displayName,
+          userProfiles.username,
+          genres.name,
+          genres.slug
+        )
+        .orderBy(desc(openVerseListings.createdAt))
+        .limit(query.limit + 1),
+      pageRows = rows.slice(0, query.limit),
+      items = [];
 
-      return matchesGenre && matchesQuery;
-    })
-    .slice(0, cursor ? 0 : limit)
-    .map((track) => ({
-      artistName: track.artistName,
-      artistUsername: null,
-      bpm: track.bpm ?? null,
-      closesAt: null,
-      coverArtUrl: track.coverArtUrl ?? null,
-      createdAt: track.updatedAt ?? new Date().toISOString(),
-      description: "Open verse slot available for artists looking to collab.",
-      genre: track.genre,
-      genreSlug: slugify(track.genre),
-      id: `open_${track.id}`,
-      maxSubmissions: 50,
-      musicalKey: track.musicalKey ?? null,
-      playbackUrl: track.playbackUrl ?? null,
-      slotEndsAtMs: null,
-      slotStartsAtMs: null,
-      status: "open" as const,
-      submissionCount: 0,
-      title: `${track.title} - open verse`,
-      trackId: track.id,
-      trackTitle: track.title,
-    }));
+    for (const row of pageRows) {
+      const trackSummary = await buildTrackSummary(row.track);
+      items.push({
+        artistName: row.artistName ?? "SoundKit Artist",
+        artistUsername: row.artistUsername,
+        bpm: row.bpm ?? trackSummary.bpm ?? null,
+        closesAt: row.closesAt?.toISOString() ?? null,
+        coverArtUrl: trackSummary.coverArtUrl ?? null,
+        createdAt: row.createdAt.toISOString(),
+        description: row.description,
+        genre: row.genre ?? trackSummary.genre,
+        genreSlug: row.genreSlug ?? slugify(trackSummary.genre),
+        id: row.id,
+        maxSubmissions: row.maxSubmissions,
+        musicalKey: row.musicalKey ?? trackSummary.musicalKey ?? null,
+        playbackUrl: trackSummary.playbackUrl ?? null,
+        slotEndsAtMs: row.slotEndsAtMs,
+        slotStartsAtMs: row.slotStartsAtMs,
+        status: row.status,
+        submissionCount: row.submissionCount,
+        title: row.title,
+        trackId: row.trackId,
+        trackTitle: row.trackTitle,
+      });
+    }
 
-  return {
-    items: rows,
-    nextCursor: null,
+    const nextRow = rows[query.limit];
+
+    return {
+      items,
+      nextCursor: nextRow?.createdAt.toISOString() ?? null,
+    };
   };
-},
-
- listOpenVerses = async (query: z.infer<typeof openVerseQuerySchema>) => {
-  if (!isDatabaseConfigured()) {
-    return sampleOpenVersePage(query);
-  }
-
-  const db = createDb(),
-   term = query.q ? likeTerm(query.q) : null,
-   genreTerm = query.genre ? slugify(query.genre) : null,
-   cursorDate = query.cursor ? new Date(query.cursor) : null,
-   rows = await db
-    .select({
-      artistName: userProfiles.displayName,
-      artistUsername: userProfiles.username,
-      bpm: openVerseListings.bpm,
-      closesAt: openVerseListings.closesAt,
-      createdAt: openVerseListings.createdAt,
-      description: openVerseListings.description,
-      genre: genres.name,
-      genreSlug: genres.slug,
-      id: openVerseListings.id,
-      maxSubmissions: openVerseListings.maxSubmissions,
-      musicalKey: openVerseListings.musicalKey,
-      ownerUserId: openVerseListings.ownerUserId,
-      slotEndsAtMs: openVerseListings.slotEndsAtMs,
-      slotStartsAtMs: openVerseListings.slotStartsAtMs,
-      status: openVerseListings.status,
-      submissionCount: sql<number>`count(${openVerseSubmissions.id})::int`,
-      title: openVerseListings.title,
-      track: tracks,
-      trackId: openVerseListings.trackId,
-      trackTitle: tracks.title,
-    })
-    .from(openVerseListings)
-    .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
-    .innerJoin(
-      userProfiles,
-      eq(userProfiles.userId, openVerseListings.ownerUserId)
-    )
-    .leftJoin(genres, eq(genres.id, openVerseListings.genreId))
-    .leftJoin(
-      openVerseSubmissions,
-      eq(openVerseSubmissions.listingId, openVerseListings.id)
-    )
-    .where(
-      and(
-        eq(openVerseListings.status, "open"),
-        eq(tracks.isPublic, true),
-        cursorDate ? lt(openVerseListings.createdAt, cursorDate) : undefined,
-        genreTerm ? eq(genres.slug, genreTerm) : undefined,
-        term
-          ? or(
-              ilike(openVerseListings.title, term),
-              ilike(tracks.title, term),
-              ilike(userProfiles.displayName, term),
-              ilike(genres.name, term)
-            )
-          : undefined
-      )
-    )
-    .groupBy(
-      openVerseListings.id,
-      tracks.id,
-      userProfiles.displayName,
-      userProfiles.username,
-      genres.name,
-      genres.slug
-    )
-    .orderBy(desc(openVerseListings.createdAt))
-    .limit(query.limit + 1),
-
-   pageRows = rows.slice(0, query.limit),
-   items = [];
-
-  for (const row of pageRows) {
-    const trackSummary = await buildTrackSummary(row.track);
-    items.push({
-      artistName: row.artistName ?? "SoundKit Artist",
-      artistUsername: row.artistUsername,
-      bpm: row.bpm ?? trackSummary.bpm ?? null,
-      closesAt: row.closesAt?.toISOString() ?? null,
-      coverArtUrl: trackSummary.coverArtUrl ?? null,
-      createdAt: row.createdAt.toISOString(),
-      description: row.description,
-      genre: row.genre ?? trackSummary.genre,
-      genreSlug: row.genreSlug ?? slugify(trackSummary.genre),
-      id: row.id,
-      maxSubmissions: row.maxSubmissions,
-      musicalKey: row.musicalKey ?? trackSummary.musicalKey ?? null,
-      playbackUrl: trackSummary.playbackUrl ?? null,
-      slotEndsAtMs: row.slotEndsAtMs,
-      slotStartsAtMs: row.slotStartsAtMs,
-      status: row.status,
-      submissionCount: row.submissionCount,
-      title: row.title,
-      trackId: row.trackId,
-      trackTitle: row.trackTitle,
-    });
-  }
-
-  const nextRow = rows[query.limit];
-
-  return {
-    items,
-    nextCursor: nextRow?.createdAt.toISOString() ?? null,
-  };
-};
 
 app.openapi(
   createRoute({
@@ -259,51 +257,53 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     db = createDb(),
-     [track] = await db
-      .select()
-      .from(tracks)
-      .where(and(eq(tracks.id, body.trackId), eq(tracks.ownerUserId, user.id)))
-      .limit(1);
+      db = createDb(),
+      [track] = await db
+        .select()
+        .from(tracks)
+        .where(
+          and(eq(tracks.id, body.trackId), eq(tracks.ownerUserId, user.id))
+        )
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     id = crypto.randomUUID(),
-     now = new Date(),
-     [listing] = await db
-      .insert(openVerseListings)
-      .values({
-        bpm: track.bpm,
-        closesAt: body.closesAt ? new Date(body.closesAt) : null,
-        createdAt: now,
-        description: body.description ?? null,
-        genreId: track.genreId,
-        id,
-        maxSubmissions: body.maxSubmissions,
-        musicalKey: track.musicalKey,
-        organizationId,
-        ownerUserId: user.id,
-        slotEndsAtMs: body.slotEndsAtMs ?? null,
-        slotStartsAtMs: body.slotStartsAtMs ?? null,
-        title: body.title,
-        trackId: body.trackId,
-        updatedAt: now,
-      })
-      .returning();
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      id = crypto.randomUUID(),
+      now = new Date(),
+      [listing] = await db
+        .insert(openVerseListings)
+        .values({
+          bpm: track.bpm,
+          closesAt: body.closesAt ? new Date(body.closesAt) : null,
+          createdAt: now,
+          description: body.description ?? null,
+          genreId: track.genreId,
+          id,
+          maxSubmissions: body.maxSubmissions,
+          musicalKey: track.musicalKey,
+          organizationId,
+          ownerUserId: user.id,
+          slotEndsAtMs: body.slotEndsAtMs ?? null,
+          slotStartsAtMs: body.slotStartsAtMs ?? null,
+          title: body.title,
+          trackId: body.trackId,
+          updatedAt: now,
+        })
+        .returning();
 
     if (!listing) {
       throw new Error("Failed to create open verse listing.");
     }
 
     const page = await listOpenVerses({ limit: 1, q: body.title }),
-     created = page.items.find((item) => item.id === listing.id);
+      created = page.items.find((item) => item.id === listing.id);
 
     return c.json(created ?? page.items[0], HttpStatusCodes.CREATED);
   }
@@ -328,8 +328,8 @@ app.openapi(
   }),
   async (c) => {
     const { listingId } = c.req.valid("param"),
-     page = await listOpenVerses({ limit: 50 }),
-     listing = page.items.find((item) => item.id === listingId);
+      page = await listOpenVerses({ limit: 50 }),
+      listing = page.items.find((item) => item.id === listingId);
 
     if (!listing) {
       return c.json(
@@ -388,30 +388,30 @@ app.openapi(
     }
 
     const { listingId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     db = createDb(),
-     [submission] = await db
-      .insert(openVerseSubmissions)
-      .values({
-        assetId: body.assetId ?? null,
-        id: crypto.randomUUID(),
-        listingId,
-        message: body.message ?? null,
-        submitterUserId: user.id,
-      })
-      .onConflictDoUpdate({
-        set: {
+      body = c.req.valid("json"),
+      db = createDb(),
+      [submission] = await db
+        .insert(openVerseSubmissions)
+        .values({
           assetId: body.assetId ?? null,
+          id: crypto.randomUUID(),
+          listingId,
           message: body.message ?? null,
-          status: "submitted",
-          updatedAt: new Date(),
-        },
-        target: [
-          openVerseSubmissions.listingId,
-          openVerseSubmissions.submitterUserId,
-        ],
-      })
-      .returning();
+          submitterUserId: user.id,
+        })
+        .onConflictDoUpdate({
+          set: {
+            assetId: body.assetId ?? null,
+            message: body.message ?? null,
+            status: "submitted",
+            updatedAt: new Date(),
+          },
+          target: [
+            openVerseSubmissions.listingId,
+            openVerseSubmissions.submitterUserId,
+          ],
+        })
+        .returning();
 
     if (!submission) {
       throw new Error("Failed to submit open verse.");
@@ -517,26 +517,26 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        assetId: openVerseSubmissions.assetId,
-        createdAt: openVerseSubmissions.createdAt,
-        id: openVerseSubmissions.id,
-        listingId: openVerseSubmissions.listingId,
-        message: openVerseSubmissions.message,
-        status: openVerseSubmissions.status,
-        submitterAvatarUrl: userProfiles.avatarUrl,
-        submitterDisplayName: userProfiles.displayName,
-        submitterUserId: openVerseSubmissions.submitterUserId,
-        submitterUsername: userProfiles.username,
-      })
-      .from(openVerseSubmissions)
-      .leftJoin(
-        userProfiles,
-        eq(userProfiles.userId, openVerseSubmissions.submitterUserId)
-      )
-      .where(eq(openVerseSubmissions.listingId, listingId))
-      .orderBy(desc(openVerseSubmissions.createdAt));
+      rows = await db
+        .select({
+          assetId: openVerseSubmissions.assetId,
+          createdAt: openVerseSubmissions.createdAt,
+          id: openVerseSubmissions.id,
+          listingId: openVerseSubmissions.listingId,
+          message: openVerseSubmissions.message,
+          status: openVerseSubmissions.status,
+          submitterAvatarUrl: userProfiles.avatarUrl,
+          submitterDisplayName: userProfiles.displayName,
+          submitterUserId: openVerseSubmissions.submitterUserId,
+          submitterUsername: userProfiles.username,
+        })
+        .from(openVerseSubmissions)
+        .leftJoin(
+          userProfiles,
+          eq(userProfiles.userId, openVerseSubmissions.submitterUserId)
+        )
+        .where(eq(openVerseSubmissions.listingId, listingId))
+        .orderBy(desc(openVerseSubmissions.createdAt));
 
     return c.json(
       rows.map((r) => ({
@@ -600,11 +600,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     [listing] = await db
-      .select()
-      .from(openVerseListings)
-      .where(eq(openVerseListings.id, listingId))
-      .limit(1);
+      [listing] = await db
+        .select()
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1);
 
     if (!listing) {
       return c.json(

@@ -29,16 +29,15 @@ interface FileUploadZoneProps {
 }
 
 const EMPTY_FILES: readonly { name: string; status?: string }[] = [],
+  isArtworkTitle = (title: string) => {
+    const normalizedTitle = title.toLowerCase();
 
- isArtworkTitle = (title: string) => {
-  const normalizedTitle = title.toLowerCase();
-
-  return (
-    normalizedTitle.includes("cover") ||
-    normalizedTitle.includes("artwork") ||
-    normalizedTitle.includes("art")
-  );
-};
+    return (
+      normalizedTitle.includes("cover") ||
+      normalizedTitle.includes("artwork") ||
+      normalizedTitle.includes("art")
+    );
+  };
 
 // This shared dropzone intentionally handles multiple upload and preview states.
 // eslint-disable-next-line complexity
@@ -56,55 +55,48 @@ export function FileUploadZone({
   variant = "default",
 }: FileUploadZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false),
-   fileInputRef = useRef<HTMLInputElement>(null),
-
-   handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  },
-
-   handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  },
-
-   handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const droppedFiles = e.dataTransfer.files;
-    if (droppedFiles.length > 0) {
-      onFileUpload(droppedFiles);
-    }
-  },
-
-   handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (selectedFiles && selectedFiles.length > 0) {
-      onFileUpload(selectedFiles);
-    }
-  },
-
-   handleClick = () => {
-    fileInputRef.current?.click();
-  },
-
-   getIcon = () => {
-    if (
-      title.toLowerCase().includes("cover") ||
-      title.toLowerCase().includes("art")
-    ) {
-      return ImageIcon;
-    }
-    if (title.toLowerCase().includes("session")) {
-      return File;
-    }
-    return FileAudio;
-  },
-
-   IconComponent = getIcon(),
-   isArtwork = isArtworkTitle(title),
-   hasFiles = files.length > 0 || Boolean(previewUrl),
-   hasProgress = typeof progress === "number";
+    fileInputRef = useRef<HTMLInputElement>(null),
+    handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(true);
+    },
+    handleDragLeave = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+    },
+    handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      const droppedFiles = e.dataTransfer.files;
+      if (droppedFiles.length > 0) {
+        onFileUpload(droppedFiles);
+      }
+    },
+    handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = e.target.files;
+      if (selectedFiles && selectedFiles.length > 0) {
+        onFileUpload(selectedFiles);
+      }
+    },
+    handleClick = () => {
+      fileInputRef.current?.click();
+    },
+    getIcon = () => {
+      if (
+        title.toLowerCase().includes("cover") ||
+        title.toLowerCase().includes("art")
+      ) {
+        return ImageIcon;
+      }
+      if (title.toLowerCase().includes("session")) {
+        return File;
+      }
+      return FileAudio;
+    },
+    IconComponent = getIcon(),
+    isArtwork = isArtworkTitle(title),
+    hasFiles = files.length > 0 || Boolean(previewUrl),
+    hasProgress = typeof progress === "number";
 
   return (
     <Card

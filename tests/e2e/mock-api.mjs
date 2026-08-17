@@ -1,273 +1,267 @@
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group */
 import { once } from "node:events";
 import { createServer } from "node:http";
 
 const json = (response, status, body, origin) => {
-  response.writeHead(status, {
-    "access-control-allow-credentials": "true",
-    "access-control-allow-headers": "content-type,cookie",
-    "access-control-allow-origin": origin,
-    "content-type": "application/json",
-  });
-  response.end(JSON.stringify(body));
-},
+    response.writeHead(status, {
+      "access-control-allow-credentials": "true",
+      "access-control-allow-headers": "content-type,cookie",
+      "access-control-allow-origin": origin,
+      "content-type": "application/json",
+    });
+    response.end(JSON.stringify(body));
+  },
+  mockUser = (session) => {
+    if (session === "admin") {
+      return {
+        accountType: "artist",
+        displayName: "CG Admin",
+        id: "user_admin",
+        onboardingCompletedAt: "2026-06-22T12:00:00.000Z",
+        username: "cg_admin",
+      };
+    }
 
- mockUser = (session) => {
-  if (session === "admin") {
-    return {
-      accountType: "artist",
-      displayName: "CG Admin",
-      id: "user_admin",
-      onboardingCompletedAt: "2026-06-22T12:00:00.000Z",
-      username: "cg_admin",
+    if (session === "complete") {
+      return {
+        accountType: "artist",
+        displayName: "Complete Artist",
+        id: "user_complete",
+        onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
+        username: "complete_artist",
+      };
+    }
+
+    if (session === "fan_incomplete") {
+      return {
+        accountType: "fan",
+        displayName: "Fan",
+        id: "user_fan",
+        onboardingCompletedAt: null,
+        username: "fan_test",
+      };
+    }
+
+    if (session === "incomplete") {
+      return {
+        accountType: "artist",
+        displayName: "Artist",
+        id: "user_artist",
+        onboardingCompletedAt: null,
+        username: "artist_test",
+      };
+    }
+
+    return null;
+  },
+  liveRoom = (roomId) => {
+    const isBattle = roomId.includes("battle"),
+      isStream = roomId.includes("stream");
+    let kind = "party",
+      title = "Single Album Spotlight";
+
+    if (isBattle) {
+      kind = "battle";
+      title = "West Coast Showdown";
+    } else if (isStream) {
+      kind = "stream";
+      title = "Beat Making From The First Drum Hit";
+    }
+
+    const track = {
+      artistName: isBattle ? "DJ Nova" : "Luna Eclipse",
+      coverArtUrl: isStream
+        ? "/music-battle-video-thumbnail.jpg"
+        : "/summer-music-album-cover.png",
+      durationMs: 205_000,
+      id: `${roomId}-track-1`,
+      lyrics: [
+        {
+          endMs: 12_000,
+          startMs: 0,
+          text: "Sunset bleeding gold on the dashboard",
+        },
+        {
+          endMs: 24_000,
+          startMs: 12_000,
+          text: "Every chorus keeps the room glowing",
+        },
+      ],
+      status: "playing",
+      title: isStream ? "Neon Draft" : "Summer Nights",
     };
-  }
 
-  if (session === "complete") {
     return {
-      accountType: "artist",
-      displayName: "Complete Artist",
-      id: "user_complete",
-      onboardingCompletedAt: "2026-05-24T12:00:00.000Z",
-      username: "complete_artist",
-    };
-  }
-
-  if (session === "fan_incomplete") {
-    return {
-      accountType: "fan",
-      displayName: "Fan",
-      id: "user_fan",
-      onboardingCompletedAt: null,
-      username: "fan_test",
-    };
-  }
-
-  if (session === "incomplete") {
-    return {
-      accountType: "artist",
-      displayName: "Artist",
-      id: "user_artist",
-      onboardingCompletedAt: null,
-      username: "artist_test",
-    };
-  }
-
-  return null;
-},
-
- liveRoom = (roomId) => {
-  const isBattle = roomId.includes("battle"),
-   isStream = roomId.includes("stream");
-  let kind = "party",
-   title = "Single Album Spotlight";
-
-  if (isBattle) {
-    kind = "battle";
-    title = "West Coast Showdown";
-  } else if (isStream) {
-    kind = "stream";
-    title = "Beat Making From The First Drum Hit";
-  }
-
-  const track = {
-    artistName: isBattle ? "DJ Nova" : "Luna Eclipse",
-    coverArtUrl: isStream
-      ? "/music-battle-video-thumbnail.jpg"
-      : "/summer-music-album-cover.png",
-    durationMs: 205_000,
-    id: `${roomId}-track-1`,
-    lyrics: [
-      {
-        endMs: 12_000,
-        startMs: 0,
-        text: "Sunset bleeding gold on the dashboard",
-      },
-      {
-        endMs: 24_000,
-        startMs: 12_000,
-        text: "Every chorus keeps the room glowing",
-      },
-    ],
-    status: "playing",
-    title: isStream ? "Neon Draft" : "Summer Nights",
-  };
-
-  return {
-    battle: isBattle
-      ? {
-          artists: [
-            {
-              avatarUrl: "/diverse-user-avatars.png",
-              id: "artist-dj-nova",
-              isMuted: false,
-              name: "DJ Nova",
-              roundsWon: 1,
-              stagePosition: "left",
-              verified: true,
-            },
-            {
-              avatarUrl: "/diverse-user-avatars.png",
-              id: "artist-mc-rhythm",
-              isMuted: true,
-              name: "MC Rhythm",
-              roundsWon: 1,
-              stagePosition: "right",
-              verified: false,
-            },
-          ],
-          currentRoundId: "round-1",
-          rounds: [
-            {
-              artistATrack: track,
-              artistBTrack: {
-                ...track,
-                artistName: "MC Rhythm",
-                id: `${roomId}-track-2`,
-                title: "Urban Flow",
+      battle: isBattle
+        ? {
+            artists: [
+              {
+                avatarUrl: "/diverse-user-avatars.png",
+                id: "artist-dj-nova",
+                isMuted: false,
+                name: "DJ Nova",
+                roundsWon: 1,
+                stagePosition: "left",
+                verified: true,
               },
-              id: "round-1",
-              isTiebreaker: false,
-              number: 1,
-              status: "voting",
-              voteTotals: { "artist-dj-nova": 12, "artist-mc-rhythm": 10 },
-              winnerArtistId: null,
-            },
-          ],
-          tiePolicy: "If the rounds end tied, a tiebreaker round unlocks.",
-        }
-      : undefined,
-    chat: [
-      {
-        id: `${roomId}-chat-1`,
-        message: "This room is synced.",
-        sentAt: "2026-05-26T12:00:00.000Z",
-        userName: "Listener",
-      },
-    ],
-    createdAt: "2026-05-26T12:00:00.000Z",
-    currentTrackId: track.id,
-    hostName: isStream ? "Neon Pulse" : "Luna Eclipse",
-    id: roomId,
-    kind,
-    status: "live",
-    summary: "A live room with chat, track context, and lyrics.",
-    title,
-    tracklist: [track],
-    viewerCount: 512,
-  };
-},
-
- platformSettings = {
-  defaultExploreRegion: "us-arkansas",
-  defaultExploreRegionType: "north-america",
-  useGlobalExploreHome: true,
-},
-
- mockTracks = [
-  {
-    artistName: "Luna Eclipse",
-    artistUsername: "luna-eclipse",
-    coverArtUrl: "/summer-music-album-cover.png",
-    duration: "3:24",
-    genre: "R&B/Soul",
-    id: "track_summer_nights",
-    isForSale: true,
-    isPublic: true,
-    plays: 2_400_000,
-    price: "$2.99",
-    priceCents: 299,
-    title: "Summer Nights",
+              {
+                avatarUrl: "/diverse-user-avatars.png",
+                id: "artist-mc-rhythm",
+                isMuted: true,
+                name: "MC Rhythm",
+                roundsWon: 1,
+                stagePosition: "right",
+                verified: false,
+              },
+            ],
+            currentRoundId: "round-1",
+            rounds: [
+              {
+                artistATrack: track,
+                artistBTrack: {
+                  ...track,
+                  artistName: "MC Rhythm",
+                  id: `${roomId}-track-2`,
+                  title: "Urban Flow",
+                },
+                id: "round-1",
+                isTiebreaker: false,
+                number: 1,
+                status: "voting",
+                voteTotals: { "artist-dj-nova": 12, "artist-mc-rhythm": 10 },
+                winnerArtistId: null,
+              },
+            ],
+            tiePolicy: "If the rounds end tied, a tiebreaker round unlocks.",
+          }
+        : undefined,
+      chat: [
+        {
+          id: `${roomId}-chat-1`,
+          message: "This room is synced.",
+          sentAt: "2026-05-26T12:00:00.000Z",
+          userName: "Listener",
+        },
+      ],
+      createdAt: "2026-05-26T12:00:00.000Z",
+      currentTrackId: track.id,
+      hostName: isStream ? "Neon Pulse" : "Luna Eclipse",
+      id: roomId,
+      kind,
+      status: "live",
+      summary: "A live room with chat, track context, and lyrics.",
+      title,
+      tracklist: [track],
+      viewerCount: 512,
+    };
   },
-],
-
- mockArtists = [
-  {
-    avatarUrl: "/diverse-user-avatars.png",
-    battleCount: 12,
-    followers: 124_000,
-    genre: "R&B/Soul",
-    id: "artist_luna_eclipse",
-    location: "Global",
-    name: "Luna Eclipse",
-    rank: 1,
-    roles: ["musician"],
-    username: "luna-eclipse",
-    verified: true,
-    weeklyPlays: 2_400_000,
+  platformSettings = {
+    defaultExploreRegion: "us-arkansas",
+    defaultExploreRegionType: "north-america",
+    useGlobalExploreHome: true,
   },
-  {
-    avatarUrl: "/diverse-user-avatars.png",
-    battleCount: 9,
-    followers: 89_000,
-    genre: "Electronic",
-    id: "artist_neon_pulse",
-    location: "Global",
-    name: "Neon Pulse",
-    rank: 2,
-    roles: ["producer"],
-    username: "neon-pulse",
-    verified: true,
-    weeklyPlays: 1_800_000,
-  },
-],
-
- mockVideos = [
-  {
-    creatorName: "Luna Eclipse",
-    creatorUsername: "luna-eclipse",
-    duration: "3:42",
-    id: "video_midnight_vibes_mv",
-    muxPlaybackId: null,
-    playbackPolicy: "public",
-    sourceProvider: "external",
-    status: "ready",
-    thumbnailUrl: "/music-video-thumbnail.png",
-    title: "Midnight Vibes",
-    verifiedOnPlatform: true,
-    videoKind: "music_video",
-    viewCount: "42K",
-  },
-],
-
- mockBattles = [
-  {
-    featuredRank: 1,
-    format: "best_of_5",
-    genre: "Hip-Hop",
-    id: "battle_west_coast_showdown",
-    isFeatured: true,
-    joinMode: "waiting_room",
-    phaseEndsAt: new Date(Date.now() + 120_000).toISOString(),
-    queueSize: 128,
-    round: {
-      current: 1,
-      id: "round-1",
-      isVoting: true,
-      status: "active",
-      total: 5,
+  mockTracks = [
+    {
+      artistName: "Luna Eclipse",
+      artistUsername: "luna-eclipse",
+      coverArtUrl: "/summer-music-album-cover.png",
+      duration: "3:24",
+      genre: "R&B/Soul",
+      id: "track_summer_nights",
+      isForSale: true,
+      isPublic: true,
+      plays: 2_400_000,
+      price: "$2.99",
+      priceCents: 299,
+      title: "Summer Nights",
     },
-    status: "live",
-    title: "West Coast Showdown",
-    tracks: [
-      {
-        artist: "DJ Nova",
-        cover: null,
-        id: "battle_west_coast_track_1",
-        title: "Coastline",
-        votes: 1840,
+  ],
+  mockArtists = [
+    {
+      avatarUrl: "/diverse-user-avatars.png",
+      battleCount: 12,
+      followers: 124_000,
+      genre: "R&B/Soul",
+      id: "artist_luna_eclipse",
+      location: "Global",
+      name: "Luna Eclipse",
+      rank: 1,
+      roles: ["musician"],
+      username: "luna-eclipse",
+      verified: true,
+      weeklyPlays: 2_400_000,
+    },
+    {
+      avatarUrl: "/diverse-user-avatars.png",
+      battleCount: 9,
+      followers: 89_000,
+      genre: "Electronic",
+      id: "artist_neon_pulse",
+      location: "Global",
+      name: "Neon Pulse",
+      rank: 2,
+      roles: ["producer"],
+      username: "neon-pulse",
+      verified: true,
+      weeklyPlays: 1_800_000,
+    },
+  ],
+  mockVideos = [
+    {
+      creatorName: "Luna Eclipse",
+      creatorUsername: "luna-eclipse",
+      duration: "3:42",
+      id: "video_midnight_vibes_mv",
+      muxPlaybackId: null,
+      playbackPolicy: "public",
+      sourceProvider: "external",
+      status: "ready",
+      thumbnailUrl: "/music-video-thumbnail.png",
+      title: "Midnight Vibes",
+      verifiedOnPlatform: true,
+      videoKind: "music_video",
+      viewCount: "42K",
+    },
+  ],
+  mockBattles = [
+    {
+      featuredRank: 1,
+      format: "best_of_5",
+      genre: "Hip-Hop",
+      id: "battle_west_coast_showdown",
+      isFeatured: true,
+      joinMode: "waiting_room",
+      phaseEndsAt: new Date(Date.now() + 120_000).toISOString(),
+      queueSize: 128,
+      round: {
+        current: 1,
+        id: "round-1",
+        isVoting: true,
+        status: "active",
+        total: 5,
       },
-      {
-        artist: "MC Rhythm",
-        cover: null,
-        id: "battle_west_coast_track_2",
-        title: "Urban Flow",
-        votes: 1296,
-      },
-    ],
-    viewerCount: 4321,
-    visibility: "premium_only",
-  },
-];
+      status: "live",
+      title: "West Coast Showdown",
+      tracks: [
+        {
+          artist: "DJ Nova",
+          cover: null,
+          id: "battle_west_coast_track_1",
+          title: "Coastline",
+          votes: 1840,
+        },
+        {
+          artist: "MC Rhythm",
+          cover: null,
+          id: "battle_west_coast_track_2",
+          title: "Urban Flow",
+          votes: 1296,
+        },
+      ],
+      viewerCount: 4321,
+      visibility: "premium_only",
+    },
+  ];
 
 export const createMockApiServer = async ({
   host = "127.0.0.1",
@@ -275,7 +269,8 @@ export const createMockApiServer = async ({
   webOrigin = "http://127.0.0.1:4311",
 } = {}) => {
   const server = createServer((request, response) => {
-    response.setHeader("access-control-allow-origin", webOrigin);
+    const effectiveOrigin = request.headers.origin || webOrigin;
+    response.setHeader("access-control-allow-origin", effectiveOrigin);
     response.setHeader("access-control-allow-credentials", "true");
     response.setHeader("access-control-allow-headers", "content-type,cookie");
 
@@ -285,8 +280,9 @@ export const createMockApiServer = async ({
       return;
     }
 
-    const url = new URL(request.url ?? "/", `http://${host}:${port}`),
-     session = request.headers.cookie
+    const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+    console.log("[MockAPI]", request.method, url.pathname);
+    const session = request.headers.cookie
       ?.split(";")
       .map((cookie) => cookie.trim())
       .find((cookie) => cookie.startsWith("soundkit_test_session="))
@@ -484,6 +480,37 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const videoCommentsMatch = url.pathname.match(
+      /^\/v1\/videos\/([^/]+)\/comments$/
+    );
+    if (videoCommentsMatch) {
+      json(
+        response,
+        200,
+        [
+          {
+            authorAvatarUrl: "/diverse-user-avatars.png",
+            authorName: "MusicFan99",
+            body: "Incredible production quality!",
+            createdAt: "2026-05-26T12:00:00.000Z",
+            id: "comment-1",
+          },
+        ],
+        webOrigin
+      );
+      return;
+    }
+
+    const videoDetailMatch = url.pathname.match(/^\/v1\/videos\/([^/]+)$/);
+    if (videoDetailMatch) {
+      const video = mockVideos.find((v) => v.id === videoDetailMatch[1]) ?? {
+        ...mockVideos[0],
+        id: videoDetailMatch[1],
+      };
+      json(response, 200, video, webOrigin);
+      return;
+    }
+
     if (url.pathname === "/v1/battles" || url.pathname === "/v1/battles/") {
       json(response, 200, mockBattles, webOrigin);
       return;
@@ -548,9 +575,9 @@ export const createMockApiServer = async ({
 
     if (url.pathname === "/v1/onboarding/username-availability") {
       const username = (url.searchParams.get("username") ?? "")
-        .trim()
-        .toLowerCase(),
-       reserved = username === "soundkit";
+          .trim()
+          .toLowerCase(),
+        reserved = username === "soundkit";
 
       json(
         response,

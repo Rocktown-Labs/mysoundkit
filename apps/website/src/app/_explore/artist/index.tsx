@@ -11,35 +11,34 @@ import { useArtistsQuery } from "@/lib/soundkit-api-hooks";
 import type { ArtistSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
-  { label: "Rank (High to Low)", value: "rank-asc" },
-  { label: "Rank (Low to High)", value: "rank-desc" },
-  { label: "Name (A-Z)", value: "name-asc" },
-  { label: "Name (Z-A)", value: "name-desc" },
-],
-
- leaderboardSections = [
-  {
-    category: "rising",
-    description: "Artists on the rise with growing momentum",
-    href: "/artist/rising-stars",
-    icon: TrendingUp,
-    title: "Rising Stars",
-  },
-  {
-    category: "new",
-    description: "Fresh talent joining the scene",
-    href: "/artist/new",
-    icon: Sparkles,
-    title: "New Artists",
-  },
-  {
-    category: "top",
-    description: "The most popular artists right now",
-    href: "/artist/top",
-    icon: Trophy,
-    title: "Top Artists This Month",
-  },
-] as const;
+    { label: "Rank (High to Low)", value: "rank-asc" },
+    { label: "Rank (Low to High)", value: "rank-desc" },
+    { label: "Name (A-Z)", value: "name-asc" },
+    { label: "Name (Z-A)", value: "name-desc" },
+  ],
+  leaderboardSections = [
+    {
+      category: "rising",
+      description: "Artists on the rise with growing momentum",
+      href: "/artist/rising-stars",
+      icon: TrendingUp,
+      title: "Rising Stars",
+    },
+    {
+      category: "new",
+      description: "Fresh talent joining the scene",
+      href: "/artist/new",
+      icon: Sparkles,
+      title: "New Artists",
+    },
+    {
+      category: "top",
+      description: "The most popular artists right now",
+      href: "/artist/top",
+      icon: Trophy,
+      title: "Top Artists This Month",
+    },
+  ] as const;
 
 interface ArtistSearch {
   genre?: string;
@@ -61,37 +60,35 @@ export const Route = createFileRoute("/_explore/artist/")({
 });
 
 const formatFollowers = (followers: number) => {
-  if (followers >= 1000) {
-    return `${Math.round(followers / 1000)}K`;
-  }
+    if (followers >= 1000) {
+      return `${Math.round(followers / 1000)}K`;
+    }
 
-  return followers.toLocaleString();
-},
-
- toLeaderboardArtist = (
-  artist: ArtistSummary,
-  displayRank: number
-): LeaderboardArtist => ({
-  avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
-  genre: artist.genre,
-  location: artist.location || "Arkansas, US",
-  name: artist.name,
-  rank: displayRank,
-  slug: artist.username,
-  stats: {
-    battleWins: 0,
-    followers: formatFollowers(artist.followers),
-    plays: (artist.weeklyPlays ?? 0).toLocaleString(),
+    return followers.toLocaleString();
   },
-  verified: artist.verified,
-}),
-
- compactTopTen = (artists: ArtistSummary[]) => {
-  const ranked = artists
-    .slice(0, 10)
-    .map((artist, index) => toLeaderboardArtist(artist, index + 1));
-  return [ranked.slice(0, 5), ranked.slice(5, 10)];
-};
+  toLeaderboardArtist = (
+    artist: ArtistSummary,
+    displayRank: number
+  ): LeaderboardArtist => ({
+    avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
+    genre: artist.genre,
+    location: artist.location || "Arkansas, US",
+    name: artist.name,
+    rank: displayRank,
+    slug: artist.username,
+    stats: {
+      battleWins: 0,
+      followers: formatFollowers(artist.followers),
+      plays: (artist.weeklyPlays ?? 0).toLocaleString(),
+    },
+    verified: artist.verified,
+  }),
+  compactTopTen = (artists: ArtistSummary[]) => {
+    const ranked = artists
+      .slice(0, 10)
+      .map((artist, index) => toLeaderboardArtist(artist, index + 1));
+    return [ranked.slice(0, 5), ranked.slice(5, 10)];
+  };
 
 function LeaderboardSection({
   artists,
@@ -109,8 +106,8 @@ function LeaderboardSection({
   type: "new" | "rising" | "top";
 }) {
   const columns = compactTopTen(artists),
-   columnKey = (column: LeaderboardArtist[]) =>
-    `${title}-${column[0]?.slug ?? "empty"}-${column.at(-1)?.slug ?? "empty"}`;
+    columnKey = (column: LeaderboardArtist[]) =>
+      `${title}-${column[0]?.slug ?? "empty"}-${column.at(-1)?.slug ?? "empty"}`;
 
   return (
     <section>
@@ -156,14 +153,14 @@ function ArtistGenreRail({
   regionType: "north-america" | "global";
 }) {
   const query = useArtistsQuery({
-    category: "top",
-    genre: genre.value,
-    limit: 6,
-    region,
-    regionType,
-    sort: "rank-asc",
-  }),
-   artists = query.data ?? [];
+      category: "top",
+      genre: genre.value,
+      limit: 6,
+      region,
+      regionType,
+      sort: "rank-asc",
+    }),
+    artists = query.data ?? [];
 
   return (
     <div className="space-y-3">
@@ -208,56 +205,53 @@ function ArtistGenreRail({
 
 function ArtistPage() {
   const search = Route.useSearch(),
-   navigate = Route.useNavigate(),
-
-   savedRegionType =
-    typeof window === "undefined"
-      ? null
-      : (localStorage.getItem("exploreRegionType") as
-          | "north-america"
-          | "global"
-          | null),
-   savedRegion =
-    typeof window === "undefined"
-      ? null
-      : localStorage.getItem("exploreRegion"),
-
-   regionType = search.regionType ?? savedRegionType ?? "north-america",
-   region = search.region ?? savedRegion ?? "us-arkansas",
-   genre = search.genre ?? "all",
-   q = search.q ?? "",
-   sort = search.sort ?? "rank-asc",
-
-   updateFilters = (next: Partial<ArtistSearch>) => {
-    const nextRegionType = next.regionType ?? regionType,
-     nextRegion = next.region ?? region;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("exploreRegionType", nextRegionType);
-      localStorage.setItem("exploreRegion", nextRegion);
-    }
-    navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        genre: next.genre ?? genre,
-        q: next.q ?? q,
-        region: nextRegion,
-        regionType: nextRegionType,
-        sort: next.sort ?? sort,
-      }),
-    });
-  },
-   commonQuery = {
-    genre,
-    limit: 10,
-    q: q || undefined,
-    region,
-    regionType,
-    sort,
-  },
-   rising = useArtistsQuery({ ...commonQuery, category: "rising" }),
-   newest = useArtistsQuery({ ...commonQuery, category: "new" }),
-   top = useArtistsQuery({ ...commonQuery, category: "top" });
+    navigate = Route.useNavigate(),
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    region = search.region ?? savedRegion ?? "us-arkansas",
+    genre = search.genre ?? "all",
+    q = search.q ?? "",
+    sort = search.sort ?? "rank-asc",
+    updateFilters = (next: Partial<ArtistSearch>) => {
+      const nextRegionType = next.regionType ?? regionType,
+        nextRegion = next.region ?? region;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("exploreRegionType", nextRegionType);
+        localStorage.setItem("exploreRegion", nextRegion);
+      }
+      navigate({
+        replace: true,
+        search: (prev) => ({
+          ...prev,
+          genre: next.genre ?? genre,
+          q: next.q ?? q,
+          region: nextRegion,
+          regionType: nextRegionType,
+          sort: next.sort ?? sort,
+        }),
+      });
+    },
+    commonQuery = {
+      genre,
+      limit: 10,
+      q: q || undefined,
+      region,
+      regionType,
+      sort,
+    },
+    rising = useArtistsQuery({ ...commonQuery, category: "rising" }),
+    newest = useArtistsQuery({ ...commonQuery, category: "new" }),
+    top = useArtistsQuery({ ...commonQuery, category: "top" });
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">

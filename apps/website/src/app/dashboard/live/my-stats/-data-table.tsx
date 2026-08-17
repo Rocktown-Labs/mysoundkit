@@ -34,24 +34,21 @@ export function DataTable<TData, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]),
-   [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  ),
-
-   table = useReactTable({
-    columns,
-    data,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    onSortingChange: setSorting,
-    state: {
-      columnFilters,
-      sorting,
-    },
-  });
+    [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]),
+    table = useReactTable({
+      columns,
+      data,
+      getCoreRowModel: getCoreRowModel(),
+      getFilteredRowModel: getFilteredRowModel(),
+      getPaginationRowModel: getPaginationRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      onColumnFiltersChange: setColumnFilters,
+      onSortingChange: setSorting,
+      state: {
+        columnFilters,
+        sorting,
+      },
+    });
 
   return (
     <div>

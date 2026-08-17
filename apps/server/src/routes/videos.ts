@@ -74,123 +74,123 @@ app.post("/:videoId/pre-save", async (c) => {
 });
 
 const hasPurchasedTrack = async ({
-  db,
-  trackId,
-  userId,
-}: {
-  db: ReturnType<typeof createDb>;
-  trackId: string;
-  userId: string;
-}) => {
-  const [directPurchase] = await db
-    .select({ id: purchases.id })
-    .from(purchases)
-    .where(
-      and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
-    )
-    .limit(1);
+    db,
+    trackId,
+    userId,
+  }: {
+    db: ReturnType<typeof createDb>;
+    trackId: string;
+    userId: string;
+  }) => {
+    const [directPurchase] = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .where(
+        and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
+      )
+      .limit(1);
 
-  if (directPurchase) {
-    return true;
-  }
+    if (directPurchase) {
+      return true;
+    }
 
-  const [projectPurchase] = await db
-    .select({ id: purchases.id })
-    .from(purchases)
-    .innerJoin(projectTracks, eq(projectTracks.projectId, purchases.projectId))
-    .where(
-      and(eq(purchases.buyerUserId, userId), eq(projectTracks.trackId, trackId))
-    )
-    .limit(1);
+    const [projectPurchase] = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .innerJoin(
+        projectTracks,
+        eq(projectTracks.projectId, purchases.projectId)
+      )
+      .where(
+        and(
+          eq(purchases.buyerUserId, userId),
+          eq(projectTracks.trackId, trackId)
+        )
+      )
+      .limit(1);
 
-  return Boolean(projectPurchase);
-},
+    return Boolean(projectPurchase);
+  },
+  getMuxClient = () => {
+    if (!env.MUX_TOKEN_ID || !env.MUX_TOKEN_SECRET) {
+      return null;
+    }
 
- getMuxClient = () => {
-  if (!env.MUX_TOKEN_ID || !env.MUX_TOKEN_SECRET) {
-    return null;
-  }
-
-  return new Mux({
-    tokenId: env.MUX_TOKEN_ID,
-    tokenSecret: env.MUX_TOKEN_SECRET,
-  });
-},
-
- videoViewCount = sql<number>`(
+    return new Mux({
+      tokenId: env.MUX_TOKEN_ID,
+      tokenSecret: env.MUX_TOKEN_SECRET,
+    });
+  },
+  videoViewCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.sourceType} = ${videoPlaybackSourceType}
     and ${playbackSessions.sourceId} = ${videos.id}
 )`,
+  publicVideoOrderBy = (sort?: string) => {
+    if (sort === "title-asc") {
+      return asc(videos.title);
+    }
 
- publicVideoOrderBy = (sort?: string) => {
-  if (sort === "title-asc") {
-    return asc(videos.title);
-  }
+    if (sort === "title-desc") {
+      return desc(videos.title);
+    }
 
-  if (sort === "title-desc") {
-    return desc(videos.title);
-  }
+    if (sort === "views-asc") {
+      return asc(videoViewCount);
+    }
 
-  if (sort === "views-asc") {
-    return asc(videoViewCount);
-  }
+    return desc(videoViewCount);
+  },
+  getSampleVideoFallback = (
+    videoId?: string
+  ): (typeof sampleVideos)[number] => {
+    const fallback =
+      sampleVideos.find((entry) => entry.id === videoId) ?? sampleVideos[0];
 
-  return desc(videoViewCount);
-},
+    if (!fallback) {
+      throw new Error("Sample video fallback is missing.");
+    }
 
- getSampleVideoFallback = (
-  videoId?: string
-): (typeof sampleVideos)[number] => {
-  const fallback =
-    sampleVideos.find((entry) => entry.id === videoId) ?? sampleVideos[0];
+    return fallback;
+  },
+  formatVideoDuration = (durationMs?: number | null) => {
+    if (!durationMs) {
+      return "0:00";
+    }
 
-  if (!fallback) {
-    throw new Error("Sample video fallback is missing.");
-  }
+    const minutes = Math.floor(durationMs / 60_000),
+      seconds = Math.round((durationMs % 60_000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  },
+  resolveVideoGenreId = async (
+    db: ReturnType<typeof createDb>,
+    genre?: string
+  ) => {
+    if (!genre) {
+      return null;
+    }
 
-  return fallback;
-},
+    const genreSlug = canonicalGenreSlug(genre),
+      [genreRow] = await db
+        .select({ id: genres.id })
+        .from(genres)
+        .where(eq(genres.slug, genreSlug))
+        .limit(1);
 
- formatVideoDuration = (durationMs?: number | null) => {
-  if (!durationMs) {
-    return "0:00";
-  }
+    if (genreRow) {
+      return genreRow.id;
+    }
 
-  const minutes = Math.floor(durationMs / 60_000),
-   seconds = Math.round((durationMs % 60_000) / 1000);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-},
+    const genreId = crypto.randomUUID();
+    await db.insert(genres).values({
+      id: genreId,
+      name: canonicalGenreName(genre),
+      slug: genreSlug,
+    });
 
- resolveVideoGenreId = async (
-  db: ReturnType<typeof createDb>,
-  genre?: string
-) => {
-  if (!genre) {
-    return null;
-  }
-
-  const genreSlug = canonicalGenreSlug(genre),
-   [genreRow] = await db
-    .select({ id: genres.id })
-    .from(genres)
-    .where(eq(genres.slug, genreSlug))
-    .limit(1);
-
-  if (genreRow) {
-    return genreRow.id;
-  }
-
-  const genreId = crypto.randomUUID();
-  await db.insert(genres).values({
-    id: genreId,
-    name: canonicalGenreName(genre),
-    slug: genreSlug,
-  });
-
-  return genreId;
-};
+    return genreId;
+  };
 
 interface VideoMapInput {
   creatorName?: string;
@@ -269,12 +269,12 @@ app.openapi(
     }
 
     const db = createDb(),
-     genreSlug = genreSlugFromExploreFilter(query.genre),
-     state = stateFromExploreRegion(query),
-     publicVideoConditions = [
-      eq(videos.isPublic, true),
-      sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`,
-    ];
+      genreSlug = genreSlugFromExploreFilter(query.genre),
+      state = stateFromExploreRegion(query),
+      publicVideoConditions = [
+        eq(videos.isPublic, true),
+        sql`(${videos.releaseAt} is null or ${videos.releaseAt} <= now())`,
+      ];
 
     if (genreSlug) {
       publicVideoConditions.push(
@@ -294,20 +294,20 @@ app.openapi(
     }
 
     const order = publicVideoOrderBy(query.sort),
-     rows = await db
-      .select({
-        displayName: userProfiles.displayName,
-        name: authUser.name,
-        state: userProfiles.state,
-        username: userProfiles.username,
-        video: videos,
-      })
-      .from(videos)
-      .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
-      .leftJoin(authUser, eq(authUser.id, videos.ownerUserId))
-      .where(and(...publicVideoConditions))
-      .orderBy(order)
-      .limit(query.limit ?? 24);
+      rows = await db
+        .select({
+          displayName: userProfiles.displayName,
+          name: authUser.name,
+          state: userProfiles.state,
+          username: userProfiles.username,
+          video: videos,
+        })
+        .from(videos)
+        .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
+        .leftJoin(authUser, eq(authUser.id, videos.ownerUserId))
+        .where(and(...publicVideoConditions))
+        .orderBy(order)
+        .limit(query.limit ?? 24);
 
     return c.json(
       rows.map((row) => ({
@@ -352,11 +352,11 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      session = c.get("session"),
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
 
     if (body.sourceProvider === "mux" && !entitlements.isPremium) {
       return c.json(
@@ -387,39 +387,38 @@ app.openapi(
     }
 
     const db = createDb(),
-     videoId = crypto.randomUUID(),
-     genreId = await resolveVideoGenreId(db, body.genre),
-     releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
-     publishedAt = releaseAt ?? (body.isPublic ? new Date() : null),
-
-     [video] = await db
-      .insert(videos)
-      .values({
-        description: body.description,
-        externalPlaybackUrl:
-          body.sourceProvider === "external"
-            ? (body.externalPlaybackUrl ?? null)
+      videoId = crypto.randomUUID(),
+      genreId = await resolveVideoGenreId(db, body.genre),
+      releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
+      publishedAt = releaseAt ?? (body.isPublic ? new Date() : null),
+      [video] = await db
+        .insert(videos)
+        .values({
+          description: body.description,
+          externalPlaybackUrl:
+            body.sourceProvider === "external"
+              ? (body.externalPlaybackUrl ?? null)
+              : null,
+          genreId,
+          id: videoId,
+          isPublic: body.isPublic && !releaseAt,
+          organizationId: isAuthenticatedSession(session)
+            ? (session.activeOrganizationId ?? null)
             : null,
-        genreId,
-        id: videoId,
-        isPublic: body.isPublic && !releaseAt,
-        organizationId: isAuthenticatedSession(session)
-          ? (session.activeOrganizationId ?? null)
-          : null,
-        ownerUserId: user.id,
-        playbackPolicy: body.playbackPolicy,
-        publishedAt,
-        releaseAt,
-        slug: uniqueSlug(body.title),
-        sourceProjectId: body.sourceProjectId ?? null,
-        sourceProvider: body.sourceProvider,
-        sourceTrackId: body.sourceTrackId ?? null,
-        status: body.sourceProvider === "external" ? "ready" : "pending",
-        title: body.title,
-        verifiedOnPlatform: body.sourceProvider === "mux",
-        videoKind: body.videoKind,
-      })
-      .returning();
+          ownerUserId: user.id,
+          playbackPolicy: body.playbackPolicy,
+          publishedAt,
+          releaseAt,
+          slug: uniqueSlug(body.title),
+          sourceProjectId: body.sourceProjectId ?? null,
+          sourceProvider: body.sourceProvider,
+          sourceTrackId: body.sourceTrackId ?? null,
+          status: body.sourceProvider === "external" ? "ready" : "pending",
+          title: body.title,
+          verifiedOnPlatform: body.sourceProvider === "mux",
+          videoKind: body.videoKind,
+        })
+        .returning();
 
     if (video) {
       await indexSearchEntity({
@@ -482,13 +481,13 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     body = c.req.valid("json"),
-     db = createDb(),
-     videoId = crypto.randomUUID(),
-     mux = getMuxClient(),
-     genreId = await resolveVideoGenreId(db, body.genre),
-     releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
-     publishedAt = releaseAt ?? (body.isPublic ? new Date() : null);
+      body = c.req.valid("json"),
+      db = createDb(),
+      videoId = crypto.randomUUID(),
+      mux = getMuxClient(),
+      genreId = await resolveVideoGenreId(db, body.genre),
+      releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
+      publishedAt = releaseAt ?? (body.isPublic ? new Date() : null);
 
     if (!mux) {
       if (isDatabaseConfigured()) {
@@ -526,21 +525,21 @@ app.openapi(
     }
 
     const passthrough = videoId,
-     upload = await mux.video.uploads.create({
-      cors_origin: env.CORS_ORIGIN,
-      new_asset_settings: {
-        meta: {
-          creator_id: user.id,
-          external_id: videoId,
-          title: body.title,
+      upload = await mux.video.uploads.create({
+        cors_origin: env.CORS_ORIGIN,
+        new_asset_settings: {
+          meta: {
+            creator_id: user.id,
+            external_id: videoId,
+            title: body.title,
+          },
+          normalize_audio: true,
+          passthrough,
+          playback_policies: [body.playbackPolicy],
+          video_quality: "basic",
         },
-        normalize_audio: true,
-        passthrough,
-        playback_policies: [body.playbackPolicy],
-        video_quality: "basic",
-      },
-      timeout: 60 * 60,
-    });
+        timeout: 60 * 60,
+      });
 
     await db.insert(videos).values({
       description: body.description,
@@ -622,17 +621,17 @@ app.openapi(
     }
 
     const db = createDb(),
-     [video] = await db
-      .select({
-        genreName: genres.name,
-        state: userProfiles.state,
-        video: videos,
-      })
-      .from(videos)
-      .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
-      .leftJoin(genres, eq(genres.id, videos.genreId))
-      .where(or(eq(videos.id, videoId), eq(videos.slug, videoId)))
-      .limit(1);
+      [video] = await db
+        .select({
+          genreName: genres.name,
+          state: userProfiles.state,
+          video: videos,
+        })
+        .from(videos)
+        .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
+        .leftJoin(genres, eq(genres.id, videos.genreId))
+        .where(or(eq(videos.id, videoId), eq(videos.slug, videoId)))
+        .limit(1);
 
     if (
       !video ||
@@ -680,20 +679,20 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        body: videoComments.body,
-        createdAt: videoComments.createdAt,
-        displayName: userProfiles.displayName,
-        id: videoComments.id,
-        userId: videoComments.userId,
-        username: userProfiles.username,
-      })
-      .from(videoComments)
-      .innerJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
-      .where(eq(videoComments.videoId, videoId))
-      .orderBy(asc(videoComments.createdAt));
+      rows = await db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          body: videoComments.body,
+          createdAt: videoComments.createdAt,
+          displayName: userProfiles.displayName,
+          id: videoComments.id,
+          userId: videoComments.userId,
+          username: userProfiles.username,
+        })
+        .from(videoComments)
+        .innerJoin(userProfiles, eq(userProfiles.userId, videoComments.userId))
+        .where(eq(videoComments.videoId, videoId))
+        .orderBy(asc(videoComments.createdAt));
 
     return c.json(
       rows.map((row) => ({
@@ -736,7 +735,7 @@ app.openapi(
   }),
   async (c) => {
     const session = c.get("session"),
-     currentUser = c.get("user");
+      currentUser = c.get("user");
 
     if (!isAuthenticatedSession(session) || !isAuthenticatedUser(currentUser)) {
       return c.json(
@@ -746,7 +745,7 @@ app.openapi(
     }
 
     const { videoId } = c.req.valid("param"),
-     { body } = c.req.valid("json");
+      { body } = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -763,7 +762,7 @@ app.openapi(
     }
 
     const db = createDb(),
-     commentId = crypto.randomUUID();
+      commentId = crypto.randomUUID();
     await db.insert(videoComments).values({
       body,
       id: commentId,
@@ -835,11 +834,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     [video] = await db
-      .select()
-      .from(videos)
-      .where(eq(videos.id, videoId))
-      .limit(1);
+      [video] = await db
+        .select()
+        .from(videos)
+        .where(eq(videos.id, videoId))
+        .limit(1);
 
     if (!video) {
       return c.json({ message: "Video not found." }, HttpStatusCodes.NOT_FOUND);
@@ -917,17 +916,17 @@ app.openapi(
     }
 
     const { videoId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     db = createDb(),
-     [video] = await db
-      .select({
-        isPublic: videos.isPublic,
-        releaseAt: videos.releaseAt,
-        sourceTrackId: videos.sourceTrackId,
-      })
-      .from(videos)
-      .where(eq(videos.id, videoId))
-      .limit(1);
+      body = c.req.valid("json"),
+      db = createDb(),
+      [video] = await db
+        .select({
+          isPublic: videos.isPublic,
+          releaseAt: videos.releaseAt,
+          sourceTrackId: videos.sourceTrackId,
+        })
+        .from(videos)
+        .where(eq(videos.id, videoId))
+        .limit(1);
 
     if (
       !video ||
@@ -945,31 +944,31 @@ app.openapi(
     }
 
     const [trackPolicy] = await db
-      .select({
-        exclusiveUntil: tracks.exclusiveUntil,
-        isForSale: tracks.isForSale,
-        listeningAccess: tracks.listeningAccess,
-      })
-      .from(tracks)
-      .where(eq(tracks.id, video.sourceTrackId))
-      .limit(1),
-     session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     hasPurchase = await hasPurchasedTrack({
-      db,
-      trackId: video.sourceTrackId,
-      userId: user.id,
-    }),
-     access = trackPolicy
-      ? resolveListeningAccess({
-          hasPurchase,
-          isPremium: entitlements.isPremium,
-          policy: trackPolicy,
+        .select({
+          exclusiveUntil: tracks.exclusiveUntil,
+          isForSale: tracks.isForSale,
+          listeningAccess: tracks.listeningAccess,
         })
-      : { canListen: false };
+        .from(tracks)
+        .where(eq(tracks.id, video.sourceTrackId))
+        .limit(1),
+      session = c.get("session"),
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      hasPurchase = await hasPurchasedTrack({
+        db,
+        trackId: video.sourceTrackId,
+        userId: user.id,
+      }),
+      access = trackPolicy
+        ? resolveListeningAccess({
+            hasPurchase,
+            isPremium: entitlements.isPremium,
+            policy: trackPolicy,
+          })
+        : { canListen: false };
 
     if (!access.canListen) {
       return c.json(

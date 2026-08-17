@@ -7,22 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 const YOUTUBE_PATTERNS = [
-  /youtu\.be\/([A-Za-z0-9_-]{6,})/,
-  /youtube\.com\/watch\?v=([A-Za-z0-9_-]{6,})/,
-  /youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/,
-] as const,
+    /youtu\.be\/([A-Za-z0-9_-]{6,})/,
+    /youtube\.com\/watch\?v=([A-Za-z0-9_-]{6,})/,
+    /youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/,
+  ] as const,
+  getYouTubeEmbedUrl = (url: string) => {
+    for (const pattern of YOUTUBE_PATTERNS) {
+      const match = url.match(pattern);
 
- getYouTubeEmbedUrl = (url: string) => {
-  for (const pattern of YOUTUBE_PATTERNS) {
-    const match = url.match(pattern);
-
-    if (match?.[1]) {
-      return `https://www.youtube.com/embed/${match[1]}`;
+      if (match?.[1]) {
+        return `https://www.youtube.com/embed/${match[1]}`;
+      }
     }
-  }
 
-  return null;
-};
+    return null;
+  };
 
 export function SoundKitVideoPlayer({
   externalPlaybackUrl,

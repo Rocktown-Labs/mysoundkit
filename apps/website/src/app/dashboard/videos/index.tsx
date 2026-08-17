@@ -45,65 +45,64 @@ export const Route = createFileRoute("/dashboard/videos/")({
 
 function DashboardVideosPage() {
   const [searchQuery, setSearchQuery] = useState(""),
-   [pendingDeleteVideo, setPendingDeleteVideo] =
-    useState<VideoSummary | null>(null),
-   videosQuery = useVideosQuery(),
-   meQuery = useMeQuery(),
-   deleteVideoMutation = useDeleteVideoMutation(),
-   videos = videosQuery.data ?? [],
-   verifiedUploads = videos.filter(
-    (video) => video.sourceProvider === "mux"
-  ).length,
-   externalSources = videos.filter(
-    (video) => video.sourceProvider === "external"
-  ).length,
-   processingVideos = videos.filter((video) =>
-    ["pending", "processing", "uploading"].includes(video.status)
-  ).length,
-   videoStatusVariant = (status: string) => {
-    if (status === "ready") {
-      return "default";
-    }
+    [pendingDeleteVideo, setPendingDeleteVideo] = useState<VideoSummary | null>(
+      null
+    ),
+    videosQuery = useVideosQuery(),
+    meQuery = useMeQuery(),
+    deleteVideoMutation = useDeleteVideoMutation(),
+    videos = videosQuery.data ?? [],
+    verifiedUploads = videos.filter(
+      (video) => video.sourceProvider === "mux"
+    ).length,
+    externalSources = videos.filter(
+      (video) => video.sourceProvider === "external"
+    ).length,
+    processingVideos = videos.filter((video) =>
+      ["pending", "processing", "uploading"].includes(video.status)
+    ).length,
+    videoStatusVariant = (status: string) => {
+      if (status === "ready") {
+        return "default";
+      }
 
-    if (status === "processing") {
-      return "destructive";
-    }
+      if (status === "processing") {
+        return "destructive";
+      }
 
-    return "secondary";
-  },
-
-   videoStats = [
-    {
-      description: "Hosted directly on SoundKit via Mux",
-      icon: ShieldCheck,
-      title: "Verified Uploads",
-      value: String(verifiedUploads),
+      return "secondary";
     },
-    {
-      description: "Linked official videos via YouTube",
-      icon: Play,
-      title: "External Sources",
-      value: String(externalSources),
-    },
-    {
-      description: "Waiting on transcode and IDs",
-      icon: Film,
-      title: "Processing",
-      value: String(processingVideos),
-    },
-    {
-      description: "From your video library",
-      icon: Play,
-      title: "Total Videos",
-      value: String(videos.length),
-    },
-  ],
-
-   filteredVideos = videos.filter(
-    (video) =>
-      video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      video.videoKind.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    videoStats = [
+      {
+        description: "Hosted directly on SoundKit via Mux",
+        icon: ShieldCheck,
+        title: "Verified Uploads",
+        value: String(verifiedUploads),
+      },
+      {
+        description: "Linked official videos via YouTube",
+        icon: Play,
+        title: "External Sources",
+        value: String(externalSources),
+      },
+      {
+        description: "Waiting on transcode and IDs",
+        icon: Film,
+        title: "Processing",
+        value: String(processingVideos),
+      },
+      {
+        description: "From your video library",
+        icon: Play,
+        title: "Total Videos",
+        value: String(videos.length),
+      },
+    ],
+    filteredVideos = videos.filter(
+      (video) =>
+        video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        video.videoKind.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   return (
     <div className="space-y-6">

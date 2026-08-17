@@ -46,7 +46,7 @@ function ChartContainer({
   >["children"];
 }) {
   const uniqueId = React.useId(),
-   chartId = `chart-${id || uniqueId.replaceAll(":", "")}`;
+    chartId = `chart-${id || uniqueId.replaceAll(":", "")}`;
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -69,20 +69,20 @@ function ChartContainer({
 }
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color
-  );
+    const colorConfig = Object.entries(config).filter(
+      ([, config]) => config.theme || config.color
+    );
 
-  if (!colorConfig.length) {
-    return null;
-  }
+    if (!colorConfig.length) {
+      return null;
+    }
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
+    return (
+      <style
+        dangerouslySetInnerHTML={{
+          __html: Object.entries(THEMES)
+            .map(
+              ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
@@ -94,14 +94,13 @@ ${colorConfig
   .join("\n")}
 }
 `
-          )
-          .join("\n"),
-      }}
-    />
-  );
-},
-
- ChartTooltip = RechartsPrimitive.Tooltip;
+            )
+            .join("\n"),
+        }}
+      />
+    );
+  },
+  ChartTooltip = RechartsPrimitive.Tooltip;
 
 function ChartTooltipContent({
   active,
@@ -126,42 +125,41 @@ function ChartTooltipContent({
     labelKey?: string;
   }) {
   const { config } = useChart(),
+    tooltipLabel = React.useMemo(() => {
+      if (hideLabel || !payload?.length) {
+        return null;
+      }
 
-   tooltipLabel = React.useMemo(() => {
-    if (hideLabel || !payload?.length) {
-      return null;
-    }
+      const [item] = payload,
+        key = `${labelKey || item?.dataKey || item?.name || "value"}`,
+        itemConfig = getPayloadConfigFromPayload(config, item, key),
+        value =
+          !labelKey && typeof label === "string"
+            ? config[label as keyof typeof config]?.label || label
+            : itemConfig?.label;
 
-    const [item] = payload,
-     key = `${labelKey || item?.dataKey || item?.name || "value"}`,
-     itemConfig = getPayloadConfigFromPayload(config, item, key),
-     value =
-      !labelKey && typeof label === "string"
-        ? config[label as keyof typeof config]?.label || label
-        : itemConfig?.label;
+      if (labelFormatter) {
+        return (
+          <div className={cn("font-medium", labelClassName)}>
+            {labelFormatter(value, payload)}
+          </div>
+        );
+      }
 
-    if (labelFormatter) {
-      return (
-        <div className={cn("font-medium", labelClassName)}>
-          {labelFormatter(value, payload)}
-        </div>
-      );
-    }
+      if (!value) {
+        return null;
+      }
 
-    if (!value) {
-      return null;
-    }
-
-    return <div className={cn("font-medium", labelClassName)}>{value}</div>;
-  }, [
-    label,
-    labelFormatter,
-    payload,
-    hideLabel,
-    labelClassName,
-    config,
-    labelKey,
-  ]);
+      return <div className={cn("font-medium", labelClassName)}>{value}</div>;
+    }, [
+      label,
+      labelFormatter,
+      payload,
+      hideLabel,
+      labelClassName,
+      config,
+      labelKey,
+    ]);
 
   if (!active || !payload?.length) {
     return null;
@@ -180,8 +178,8 @@ function ChartTooltipContent({
       <div className="grid gap-1.5">
         {payload.map((item, index) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`,
-           itemConfig = getPayloadConfigFromPayload(config, item, key),
-           indicatorColor = color || item.payload.fill || item.color;
+            itemConfig = getPayloadConfigFromPayload(config, item, key),
+            indicatorColor = color || item.payload.fill || item.color;
 
           return (
             <div
@@ -276,7 +274,7 @@ function ChartLegendContent({
     >
       {payload.map((item) => {
         const key = `${nameKey || item.dataKey || "value"}`,
-         itemConfig = getPayloadConfigFromPayload(config, item, key);
+          itemConfig = getPayloadConfigFromPayload(config, item, key);
 
         return (
           <div

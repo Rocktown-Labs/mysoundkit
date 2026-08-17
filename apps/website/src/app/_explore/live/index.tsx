@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Headphones, Radio, Swords, Zap } from "lucide-react";
+import { CalendarClock, Zap } from "lucide-react";
 
 import {
   ExploreCollectionGrid,
   ExploreCollectionSection,
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { filterAndSortLiveItems } from "@/lib/live-collection";
+import {
+  filterAndSortLiveItems,
+  normalizeGenreValue,
+} from "@/lib/live-collection";
 import { musicGenres } from "@/lib/music-genres";
 import {
   useBattlesQuery,
@@ -54,116 +55,162 @@ const kindLabel = (kind: LiveHubItem["kind"]) => {
   return "Creator Stream";
 };
 
+function formatLiveHubViewers(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  }
+  return count.toLocaleString();
+}
+
 function LiveHubCard({ item }: { item: LiveHubItem }) {
-  const Icon =
-    item.kind === "battle"
-      ? Swords
-      : (item.kind === "party"
-        ? Headphones
-        : Radio);
+  const isLive = item.status === "live",
+    posterImage =
+      item.kind === "battle"
+        ? "/music-battle-video-thumbnail.jpg"
+        : (item.kind === "party"
+          ? "/summer-music-album-cover.png"
+          : "/night-music-album-cover.png"),
+    categoryLabel = kindLabel(item.kind),
+    tags = [
+      item.genre,
+      categoryLabel.toLowerCase(),
+      isLive ? "live" : "upcoming",
+    ].filter(Boolean) as string[];
 
   return (
     <Link
-      className="block w-full min-w-[280px]"
+      className="group block w-full text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
       params={{ id: item.id }}
       to={item.href}
     >
-      <Card className="h-full border-border/50 bg-card/60 transition-colors hover:border-primary/60">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Badge
-              variant={item.status === "live" ? "destructive" : "secondary"}
-            >
-              {item.status === "live" ? "Live" : "Upcoming"}
-            </Badge>
-            <Badge className="gap-1" variant="outline">
-              <Icon className="size-3" />
-              {kindLabel(item.kind)}
-            </Badge>
+      <div className="flex flex-col gap-2.5">
+        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted transition-transform duration-300 group-hover:scale-[1.02]">
+          <img
+            alt={item.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            height={720}
+            src={posterImage}
+            width={1280}
+          />
+
+          {/* Top-Left Live / Upcoming Badge */}
+          <div className="absolute left-2 top-2">
+            {isLive ? (
+              <div className="rounded-[4px] bg-red-600 px-1.5 py-0.5 font-bold text-[11px] uppercase tracking-wider text-white shadow-sm">
+                LIVE
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                <CalendarClock className="size-3 text-primary" />
+                Upcoming
+              </div>
+            )}
           </div>
-          <div>
-            <h3 className="line-clamp-2 font-bold text-lg">{item.title}</h3>
-            <p className="mt-2 text-muted-foreground text-sm">
-              {item.genre ?? "Live on SoundKit"}
-            </p>
-          </div>
-          <div className="flex items-center justify-between text-muted-foreground text-xs">
-            <span>{item.viewerCount.toLocaleString()} viewers</span>
-            {item.startsAt ? (
-              <span className="flex items-center gap-1">
-                <CalendarClock className="size-3" />
+
+          {/* Bottom-Left Viewer Count or Schedule Date */}
+          <div className="absolute bottom-2 left-2">
+            {isLive ? (
+              <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
+                {formatLiveHubViewers(item.viewerCount)} viewers
+              </div>
+            ) : (item.startsAt ? (
+              <div className="flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                <CalendarClock className="size-3 text-primary" />
                 {new Date(item.startsAt).toLocaleDateString()}
-              </span>
-            ) : null}
+              </div>
+            ) : null)}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Card info */}
+        <div className="space-y-0.5 px-0.5">
+          <h3 className="line-clamp-1 font-bold text-sm leading-tight text-foreground transition-colors group-hover:text-primary">
+            {item.title}
+          </h3>
+          <p className="truncate text-xs text-muted-foreground">
+            {item.genre ?? categoryLabel}
+          </p>
+          <div className="flex flex-wrap items-center gap-1 pt-1">
+            {tags.map((tag) => (
+              <span
+                className="rounded-full bg-secondary/80 px-2 py-0.5 text-[10px] font-medium text-secondary-foreground transition-colors hover:bg-secondary"
+                key={tag}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </Link>
   );
 }
 
 function LiveHubPage() {
   const navigate = Route.useNavigate(),
-   search = Route.useSearch(),
-   battlesQuery = useBattlesQuery(),
-   partiesQuery = useListeningPartiesQuery(),
-   streamsQuery = usePublicLiveExperiencesQuery("stream"),
-   genre = search.genre ?? "all",
-   sort = search.sort ?? "starts-asc",
-   status = search.status ?? "all",
-   view = search.view ?? "sections",
-
-   battleItems: LiveHubItem[] = (battlesQuery.data ?? [])
-    .filter(
-      (battle) => battle.status === "live" || battle.status === "scheduled"
-    )
-    .map((battle) => ({
-      genre: battle.genre,
-      href: "/live/battles/$id",
-      id: battle.id,
-      kind: "battle",
-      startsAt: battle.startsAt ?? null,
-      status: battle.status,
-      title: battle.title,
-      viewerCount: battle.viewerCount,
+    search = Route.useSearch(),
+    battlesQuery = useBattlesQuery(),
+    partiesQuery = useListeningPartiesQuery(),
+    streamsQuery = usePublicLiveExperiencesQuery("stream"),
+    genre = search.genre ?? "all",
+    sort = search.sort ?? "starts-asc",
+    status = search.status ?? "all",
+    view = search.view ?? "sections",
+    battleItems: LiveHubItem[] = (battlesQuery.data ?? [])
+      .filter(
+        (battle) => battle.status === "live" || battle.status === "scheduled"
+      )
+      .map((battle) => ({
+        genre: battle.genre,
+        href: "/live/battles/$id",
+        id: battle.id,
+        kind: "battle",
+        startsAt: battle.startsAt ?? null,
+        status: battle.status,
+        title: battle.title,
+        viewerCount: battle.viewerCount,
+      })),
+    partyItems: LiveHubItem[] = (partiesQuery.data ?? []).map((party) => ({
+      genre: party.genre ?? null,
+      href: "/live/parties/$id",
+      id: party.liveRoomId ?? party.id,
+      kind: "party",
+      startsAt: party.scheduledStartAt,
+      status: party.status,
+      title: party.title,
+      viewerCount: 0,
     })),
-   partyItems: LiveHubItem[] = (partiesQuery.data ?? []).map((party) => ({
-    genre: party.genre ?? null,
-    href: "/live/parties/$id",
-    id: party.liveRoomId ?? party.id,
-    kind: "party",
-    startsAt: party.scheduledStartAt,
-    status: party.status,
-    title: party.title,
-    viewerCount: 0,
-  })),
-   streamItems: LiveHubItem[] = (streamsQuery.data ?? [])
-    .filter((stream) => stream.kind === "stream")
-    .map((stream) => ({
-      genre: stream.genre ?? null,
-      href: "/live/streams/$id",
-      id: stream.id,
-      kind: "stream",
-      startsAt: stream.startsAt,
-      status: stream.status,
-      title: stream.title,
-      viewerCount: stream.viewerCount,
-    })),
-   allItems = [...battleItems, ...partyItems, ...streamItems],
-   filteredItems = filterAndSortLiveItems({
-    genre,
-    items: allItems,
-    sort,
-    status,
-  }),
-   isLoading =
-    battlesQuery.isLoading || partiesQuery.isLoading || streamsQuery.isLoading,
-
-   openCollection = (next: Partial<LiveHubSearch>) => {
-    void navigate({
-      search: (previous) => ({ ...previous, ...next, view: "all" }),
-    });
-  };
+    streamItems: LiveHubItem[] = (streamsQuery.data ?? [])
+      .filter((stream) => stream.kind === "stream")
+      .map((stream) => ({
+        genre: stream.genre ?? null,
+        href: "/live/streams/$id",
+        id: stream.id,
+        kind: "stream",
+        startsAt: stream.startsAt,
+        status: stream.status,
+        title: stream.title,
+        viewerCount: stream.viewerCount,
+      })),
+    allItems = [...battleItems, ...partyItems, ...streamItems],
+    filteredItems = filterAndSortLiveItems({
+      genre,
+      items: allItems,
+      sort,
+      status,
+    }),
+    isLoading =
+      battlesQuery.isLoading ||
+      partiesQuery.isLoading ||
+      streamsQuery.isLoading,
+    openCollection = (next: Partial<LiveHubSearch>) => {
+      void navigate({
+        search: (previous) => ({ ...previous, ...next, view: "all" }),
+      });
+    };
 
   return (
     <div className="space-y-8 pb-8">
@@ -221,19 +268,30 @@ function LiveHubPage() {
           >
             {(item) => <LiveHubCard item={item} />}
           </ExploreCollectionSection>
-          {musicGenres.map((sectionGenre) => (
-            <ExploreCollectionSection
-              empty={`No ${sectionGenre.label} live experiences yet.`}
-              items={allItems.filter(
-                (item) => item.genre === sectionGenre.value
-              )}
-              key={sectionGenre.value}
-              onViewAll={() => openCollection({ genre: sectionGenre.value })}
-              title={sectionGenre.label}
-            >
-              {(item) => <LiveHubCard item={item} />}
-            </ExploreCollectionSection>
-          ))}
+          {musicGenres.map((sectionGenre) => {
+            const sectionSlug = normalizeGenreValue(sectionGenre.value),
+              sectionLabel = normalizeGenreValue(sectionGenre.label);
+            return (
+              <ExploreCollectionSection
+                empty={`No ${sectionGenre.label} live experiences yet.`}
+                items={allItems.filter((item) => {
+                  const itemGenre = normalizeGenreValue(item.genre);
+                  return (
+                    item.genre === sectionGenre.value ||
+                    itemGenre === sectionSlug ||
+                    itemGenre === sectionLabel ||
+                    itemGenre.startsWith(sectionSlug) ||
+                    sectionSlug.startsWith(itemGenre)
+                  );
+                })}
+                key={sectionGenre.value}
+                onViewAll={() => openCollection({ genre: sectionGenre.value })}
+                title={sectionGenre.label}
+              >
+                {(item) => <LiveHubCard item={item} />}
+              </ExploreCollectionSection>
+            );
+          })}
         </>
       )}
     </div>

@@ -15,36 +15,36 @@ export const Route = createFileRoute("/_explore/tracks/$id")({
   component: LegacyTrackPage,
   head: ({ loaderData, params }) => {
     const track = loaderData as TrackSeoData | null,
-     canonicalPath =
-      track?.regionSlug && track.slug
-        ? `/tracks/${track.regionSlug}/${track.slug}`
-        : `/tracks/${params.id}`,
-     trackTitle = track?.title ?? "Track",
-     artistName = track?.artist.name ?? "SoundKit artist",
-     title = `Stream ${trackTitle} by ${artistName} on SoundKit`,
-     artistUrl = absoluteSiteUrl(
-      `/artist/${track?.artist.handle ?? "artist"}`
-    ),
-     genre = track?.genre ? `${track.genre} track` : "track",
-     descriptionFallback = `Play ${trackTitle} by ${artistName} on SoundKit.`,
-     description = seoDescription(track?.description, descriptionFallback),
-     ogDescription = seoOgDescription(
-      track?.description,
-      `Play ${trackTitle} by ${artistName} on SoundKit — a ${genre} you can stream right now.`
-    ),
-     head = createShareMeta({
-      canonicalPath,
-      description,
-      imageUrl: track?.coverArtUrl,
-      ogDescription,
-      song: {
-        audioUrl: track?.playbackUrl,
-        durationMs: track?.durationMs,
-        musicianUrl: artistUrl,
-      },
-      title,
-      type: "music.song",
-    });
+      canonicalPath =
+        track?.regionSlug && track.slug
+          ? `/tracks/${track.regionSlug}/${track.slug}`
+          : `/tracks/${params.id}`,
+      trackTitle = track?.title ?? "Track",
+      artistName = track?.artist.name ?? "SoundKit artist",
+      title = `Stream ${trackTitle} by ${artistName} on SoundKit`,
+      artistUrl = absoluteSiteUrl(
+        `/artist/${track?.artist.handle ?? "artist"}`
+      ),
+      genre = track?.genre ? `${track.genre} track` : "track",
+      descriptionFallback = `Play ${trackTitle} by ${artistName} on SoundKit.`,
+      description = seoDescription(track?.description, descriptionFallback),
+      ogDescription = seoOgDescription(
+        track?.description,
+        `Play ${trackTitle} by ${artistName} on SoundKit — a ${genre} you can stream right now.`
+      ),
+      head = createShareMeta({
+        canonicalPath,
+        description,
+        imageUrl: track?.coverArtUrl,
+        ogDescription,
+        song: {
+          audioUrl: track?.playbackUrl,
+          durationMs: track?.durationMs,
+          musicianUrl: artistUrl,
+        },
+        title,
+        type: "music.song",
+      });
 
     return {
       ...head,

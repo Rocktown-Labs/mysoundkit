@@ -15,32 +15,29 @@ export interface DurationBackfillQueueMessage {
 }
 
 const DURATION_BACKFILL_JOB_TYPE = "track_duration_backfill",
-
- getMediaBucket = () =>
-  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
-
- getRetryDelaySeconds = (attempts: number) =>
-  Math.min(15 * 2 ** Math.max(0, attempts - 1), 60 * 60),
-
- getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+  getMediaBucket = () =>
+    (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+  getRetryDelaySeconds = (attempts: number) =>
+    Math.min(15 * 2 ** Math.max(0, attempts - 1), 60 * 60),
+  getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : String(error);
 
 export const readAudioDurationMs = async (blob: Blob) => {
   const {
-    ALL_FORMATS,
-    BlobSource,
-    Input: MediaInput,
-  } = await import("mediabunny"),
-   input = new MediaInput({
-    formats: ALL_FORMATS,
-    source: new BlobSource(blob),
-  });
+      ALL_FORMATS,
+      BlobSource,
+      Input: MediaInput,
+    } = await import("mediabunny"),
+    input = new MediaInput({
+      formats: ALL_FORMATS,
+      source: new BlobSource(blob),
+    });
 
   try {
     const metadataDuration = await input.getDurationFromMetadata(),
-     durationSeconds =
-      metadataDuration ??
-      (await input.computeDuration(undefined, { skipLiveWait: true }));
+      durationSeconds =
+        metadataDuration ??
+        (await input.computeDuration(undefined, { skipLiveWait: true }));
 
     return Number.isFinite(durationSeconds)
       ? Math.max(0, Math.round(durationSeconds * 1000))
@@ -73,85 +70,80 @@ export const readR2AudioDurationMs = async (objectKey: string) => {
 };
 
 const genericGeneratedImagePattern =
-  /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu,
+    /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu,
+  fileNameFromObjectKey = (objectKey: string | null) =>
+    objectKey?.split("/").pop()?.split(/[?#]/u).at(0)?.trim() ?? "",
+  isGenericCoverArtFileName = (fileName: string) => {
+    const stem = fileName.trim().replace(/\.[^.]+$/u, "");
+    return genericGeneratedImagePattern.test(stem);
+  },
+  toCoverArtFileName = (title: string) => {
+    const stem = title
+      .trim()
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-|-$/gu, "");
 
- fileNameFromObjectKey = (objectKey: string | null) =>
-  objectKey?.split("/").pop()?.split(/[?#]/u).at(0)?.trim() ?? "",
+    return `${stem || "track"}.png`;
+  },
+  normalizeTrackCoverArtFileNames = async ({
+    db,
+    limit,
+    trackIds,
+  }: {
+    db: ReturnType<typeof createDb>;
+    limit: number;
+    trackIds?: string[];
+  }) => {
+    const whereClauses: SQL[] = [
+        eq(trackAssets.assetKind, "cover_art"),
+        trackIds && trackIds.length > 0
+          ? inArray(trackAssets.trackId, trackIds)
+          : undefined,
+      ].filter((clause): clause is SQL => clause !== undefined),
+      coverRows = await db
+        .select({
+          id: trackAssets.id,
+          metadata: trackAssets.metadata,
+          objectKey: trackAssets.objectKey,
+          title: tracks.title,
+        })
+        .from(trackAssets)
+        .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+        .where(and(...whereClauses))
+        .limit(limit);
 
- isGenericCoverArtFileName = (fileName: string) => {
-  const stem = fileName.trim().replace(/\.[^.]+$/u, "");
-  return genericGeneratedImagePattern.test(stem);
-},
+    let renamed = 0;
 
- toCoverArtFileName = (title: string) => {
-  const stem = title
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/gu, "-")
-    .replaceAll(/^-|-$/gu, "");
+    for (const row of coverRows) {
+      const metadata =
+          row.metadata && typeof row.metadata === "object"
+            ? (row.metadata as Record<string, unknown>)
+            : {},
+        originalFileName =
+          typeof metadata.originalFileName === "string"
+            ? metadata.originalFileName
+            : fileNameFromObjectKey(row.objectKey);
 
-  return `${stem || "track"}.png`;
-},
+      if (!isGenericCoverArtFileName(originalFileName)) {
+        continue;
+      }
 
- normalizeTrackCoverArtFileNames = async ({
-  db,
-  limit,
-  trackIds,
-}: {
-  db: ReturnType<typeof createDb>;
-  limit: number;
-  trackIds?: string[];
-}) => {
-  const whereClauses: SQL[] = [
-    eq(trackAssets.assetKind, "cover_art"),
-    trackIds && trackIds.length > 0
-      ? inArray(trackAssets.trackId, trackIds)
-      : undefined,
-  ].filter((clause): clause is SQL => clause !== undefined),
-
-   coverRows = await db
-    .select({
-      id: trackAssets.id,
-      metadata: trackAssets.metadata,
-      objectKey: trackAssets.objectKey,
-      title: tracks.title,
-    })
-    .from(trackAssets)
-    .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
-    .where(and(...whereClauses))
-    .limit(limit);
-
-  let renamed = 0;
-
-  for (const row of coverRows) {
-    const metadata =
-      row.metadata && typeof row.metadata === "object"
-        ? (row.metadata as Record<string, unknown>)
-        : {},
-     originalFileName =
-      typeof metadata.originalFileName === "string"
-        ? metadata.originalFileName
-        : fileNameFromObjectKey(row.objectKey);
-
-    if (!isGenericCoverArtFileName(originalFileName)) {
-      continue;
+      await db
+        .update(trackAssets)
+        .set({
+          metadata: {
+            ...metadata,
+            originalFileName: toCoverArtFileName(row.title),
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(trackAssets.id, row.id));
+      renamed += 1;
     }
 
-    await db
-      .update(trackAssets)
-      .set({
-        metadata: {
-          ...metadata,
-          originalFileName: toCoverArtFileName(row.title),
-        },
-        updatedAt: new Date(),
-      })
-      .where(eq(trackAssets.id, row.id));
-    renamed += 1;
-  }
-
-  return { renamed, scanned: coverRows.length };
-};
+    return { renamed, scanned: coverRows.length };
+  };
 
 export const backfillMissingTrackDurations = async ({
   limit = 25,
@@ -165,27 +157,27 @@ export const backfillMissingTrackDurations = async ({
   }
 
   const db = createDb(),
-   normalizedLimit = Math.max(1, Math.min(limit, 100)),
-   whereClauses: SQL[] = [
-    eq(trackAssets.assetKind, "master"),
-    eq(trackAssets.storageProvider, "r2"),
-    isNotNull(trackAssets.objectKey),
-    isNull(trackAssets.durationMs),
-    trackIds && trackIds.length > 0
-      ? inArray(trackAssets.trackId, trackIds)
-      : undefined,
-  ].filter((clause): clause is SQL => clause !== undefined),
-   rows = await db
-    .select({
-      id: trackAssets.id,
-      objectKey: trackAssets.objectKey,
-    })
-    .from(trackAssets)
-    .where(and(...whereClauses))
-    .limit(normalizedLimit);
+    normalizedLimit = Math.max(1, Math.min(limit, 100)),
+    whereClauses: SQL[] = [
+      eq(trackAssets.assetKind, "master"),
+      eq(trackAssets.storageProvider, "r2"),
+      isNotNull(trackAssets.objectKey),
+      isNull(trackAssets.durationMs),
+      trackIds && trackIds.length > 0
+        ? inArray(trackAssets.trackId, trackIds)
+        : undefined,
+    ].filter((clause): clause is SQL => clause !== undefined),
+    rows = await db
+      .select({
+        id: trackAssets.id,
+        objectKey: trackAssets.objectKey,
+      })
+      .from(trackAssets)
+      .where(and(...whereClauses))
+      .limit(normalizedLimit);
 
   let failed = 0,
-   updated = 0;
+    updated = 0;
 
   for (const row of rows) {
     if (!row.objectKey) {
@@ -275,7 +267,7 @@ export const enqueueTrackDurationBackfills = async ({
   }
 
   const db = createDb(),
-   rows = await findUnbackfilledMasterRows({ db, limit, trackIds });
+    rows = await findUnbackfilledMasterRows({ db, limit, trackIds });
 
   let enqueued = 0;
 
@@ -347,17 +339,17 @@ const processDurationBackfill = async ({
   }
 
   const db = createDb(),
-   [job] = await db
-    .select()
-    .from(workflowJobs)
-    .where(
-      and(
-        eq(workflowJobs.id, jobId),
-        eq(workflowJobs.targetId, assetId),
-        eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
+    [job] = await db
+      .select()
+      .from(workflowJobs)
+      .where(
+        and(
+          eq(workflowJobs.id, jobId),
+          eq(workflowJobs.targetId, assetId),
+          eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
   if (!job || job.status === "completed" || job.status === "canceled") {
     return { processed: true, retryable: false };
@@ -466,30 +458,29 @@ export const loadTrackDurationBackfillStatus = async (runId: string) => {
   }
 
   const db = createDb(),
-   rows = await db
-    .select({
-      durationMs: trackAssets.durationMs,
-      error: workflowJobs.error,
-      input: workflowJobs.input,
-      status: workflowJobs.status,
-      title: tracks.title,
-      trackId: tracks.id,
-    })
-    .from(workflowJobs)
-    .innerJoin(trackAssets, eq(trackAssets.id, workflowJobs.targetId))
-    .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
-    .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)),
-
-   runRows = rows.filter((row) => {
-    const { input } = row;
-    return (
-      input !== null &&
-      typeof input === "object" &&
-      "runId" in input &&
-      input.runId === runId
-    );
-  }),
-   summary = { done: 0, failed: 0, processing: 0, queued: 0 };
+    rows = await db
+      .select({
+        durationMs: trackAssets.durationMs,
+        error: workflowJobs.error,
+        input: workflowJobs.input,
+        status: workflowJobs.status,
+        title: tracks.title,
+        trackId: tracks.id,
+      })
+      .from(workflowJobs)
+      .innerJoin(trackAssets, eq(trackAssets.id, workflowJobs.targetId))
+      .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+      .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)),
+    runRows = rows.filter((row) => {
+      const { input } = row;
+      return (
+        input !== null &&
+        typeof input === "object" &&
+        "runId" in input &&
+        input.runId === runId
+      );
+    }),
+    summary = { done: 0, failed: 0, processing: 0, queued: 0 };
 
   for (const row of runRows) {
     if (row.status === "completed") {

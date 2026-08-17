@@ -60,22 +60,19 @@ type BattleFormatId = (typeof battleFormats)[number]["id"];
 type SelectedKits = Record<BattleFormatId, string[]>;
 
 const emptySelectedKits: SelectedKits = {
-  "best-of-3": [],
-  "best-of-5": [],
-  "best-of-7": [],
-  tiebreaker: [],
-},
-
- storageKey = "soundkit:battle-kit:v1";
+    "best-of-3": [],
+    "best-of-5": [],
+    "best-of-7": [],
+    tiebreaker: [],
+  },
+  storageKey = "soundkit:battle-kit:v1";
 
 function MyKitPage() {
   const { data: tracks = [], error, isLoading } = useTracksQuery(),
-   [activeFormatId, setActiveFormatId] =
-    useState<BattleFormatId>("best-of-3"),
-   [selectedKits, setSelectedKits] =
-    useState<SelectedKits>(emptySelectedKits),
-   [searchQuery, setSearchQuery] = useState(""),
-   [savedAt, setSavedAt] = useState<string | null>(null);
+    [activeFormatId, setActiveFormatId] = useState<BattleFormatId>("best-of-3"),
+    [selectedKits, setSelectedKits] = useState<SelectedKits>(emptySelectedKits),
+    [searchQuery, setSearchQuery] = useState(""),
+    [savedAt, setSavedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -102,71 +99,67 @@ function MyKitPage() {
   }, []);
 
   const activeFormat = battleFormats.find(
-    (format) => format.id === activeFormatId
-  ),
-   activeSelectedIds = selectedKits[activeFormatId],
-   selectedTrackMap = useMemo(
-    () => new Map(tracks.map((track) => [track.id, track])),
-    [tracks]
-  ),
-   selectedTracks = activeSelectedIds
-    .map((trackId) => selectedTrackMap.get(trackId))
-    .filter((track): track is TrackSummary => Boolean(track)),
-   normalizedQuery = searchQuery.trim().toLowerCase(),
-   filteredTracks = tracks.filter((track) => {
-    if (!normalizedQuery) {
-      return true;
-    }
+      (format) => format.id === activeFormatId
+    ),
+    activeSelectedIds = selectedKits[activeFormatId],
+    selectedTrackMap = useMemo(
+      () => new Map(tracks.map((track) => [track.id, track])),
+      [tracks]
+    ),
+    selectedTracks = activeSelectedIds
+      .map((trackId) => selectedTrackMap.get(trackId))
+      .filter((track): track is TrackSummary => Boolean(track)),
+    normalizedQuery = searchQuery.trim().toLowerCase(),
+    filteredTracks = tracks.filter((track) => {
+      if (!normalizedQuery) {
+        return true;
+      }
 
-    return [track.title, track.genre, track.productionStatus]
-      .filter((value): value is string => typeof value === "string")
-      .some((value) => value.toLowerCase().includes(normalizedQuery));
-  }),
+      return [track.title, track.genre, track.productionStatus]
+        .filter((value): value is string => typeof value === "string")
+        .some((value) => value.toLowerCase().includes(normalizedQuery));
+    }),
+    updateSelectedTracks = (trackId: string) => {
+      const slotCount = activeFormat?.slots ?? 0;
 
-   updateSelectedTracks = (trackId: string) => {
-    const slotCount = activeFormat?.slots ?? 0;
+      setSelectedKits((currentKits) => {
+        const currentTracks = currentKits[activeFormatId];
 
-    setSelectedKits((currentKits) => {
-      const currentTracks = currentKits[activeFormatId];
+        if (currentTracks.includes(trackId)) {
+          return {
+            ...currentKits,
+            [activeFormatId]: currentTracks.filter((id) => id !== trackId),
+          };
+        }
 
-      if (currentTracks.includes(trackId)) {
+        if (currentTracks.length >= slotCount) {
+          return currentKits;
+        }
+
         return {
           ...currentKits,
-          [activeFormatId]: currentTracks.filter((id) => id !== trackId),
+          [activeFormatId]: [...currentTracks, trackId],
         };
-      }
-
-      if (currentTracks.length >= slotCount) {
-        return currentKits;
-      }
-
-      return {
+      });
+    },
+    removeSelectedTrack = (trackId: string) => {
+      setSelectedKits((currentKits) => ({
         ...currentKits,
-        [activeFormatId]: [...currentTracks, trackId],
-      };
-    });
-  },
+        [activeFormatId]: currentKits[activeFormatId].filter(
+          (id) => id !== trackId
+        ),
+      }));
+    },
+    saveKit = () => {
+      if (typeof window === "undefined") {
+        return;
+      }
 
-   removeSelectedTrack = (trackId: string) => {
-    setSelectedKits((currentKits) => ({
-      ...currentKits,
-      [activeFormatId]: currentKits[activeFormatId].filter(
-        (id) => id !== trackId
-      ),
-    }));
-  },
-
-   saveKit = () => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    window.localStorage.setItem(storageKey, JSON.stringify(selectedKits));
-    setSavedAt(new Date().toLocaleTimeString([], { timeStyle: "short" }));
-  },
-
-   slotCount = activeFormat?.slots ?? 0,
-   isFormatFull = activeSelectedIds.length >= slotCount;
+      window.localStorage.setItem(storageKey, JSON.stringify(selectedKits));
+      setSavedAt(new Date().toLocaleTimeString([], { timeStyle: "short" }));
+    },
+    slotCount = activeFormat?.slots ?? 0,
+    isFormatFull = activeSelectedIds.length >= slotCount;
 
   return (
     <div className="space-y-6">
@@ -196,7 +189,7 @@ function MyKitPage() {
       <div className="grid gap-3 md:grid-cols-4">
         {battleFormats.map((format) => {
           const selectedCount = selectedKits[format.id].length,
-           isActive = activeFormatId === format.id;
+            isActive = activeFormatId === format.id;
 
           return (
             <button
@@ -274,7 +267,7 @@ function MyKitPage() {
               <div className="space-y-3">
                 {filteredTracks.map((track) => {
                   const isSelected = activeSelectedIds.includes(track.id),
-                   disableAdd = !isSelected && isFormatFull;
+                    disableAdd = !isSelected && isFormatFull;
 
                   return (
                     <TrackLibraryRow

@@ -70,7 +70,7 @@ export interface CloudflareRealtimeKitConfig {
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000,
- ROUND_LOBBY_PRESET = "soundkit-battle-lobby-text";
+  ROUND_LOBBY_PRESET = "soundkit-battle-lobby-text";
 
 export const hasRealtimeKitConfig = ({
   accountId,
@@ -126,16 +126,16 @@ export const findLiveSessionConflict = ({
   locks: LiveSessionLockInput[];
 }): LiveSessionConflict | null => {
   const candidateStart = new Date(candidateStartsAt).getTime(),
-   candidateEnd = candidateEndsAt
-    ? new Date(candidateEndsAt).getTime()
-    : candidateStart + ONE_HOUR_MS;
+    candidateEnd = candidateEndsAt
+      ? new Date(candidateEndsAt).getTime()
+      : candidateStart + ONE_HOUR_MS;
 
   for (const lock of locks) {
     const lockStart = new Date(lock.startsAt).getTime(),
-     lockEnd = lock.endsAt
-      ? new Date(lock.endsAt).getTime()
-      : lockStart + ONE_HOUR_MS,
-     overlaps = candidateStart < lockEnd && lockStart < candidateEnd;
+      lockEnd = lock.endsAt
+        ? new Date(lock.endsAt).getTime()
+        : lockStart + ONE_HOUR_MS,
+      overlaps = candidateStart < lockEnd && lockStart < candidateEnd;
 
     if (overlaps && lock.status !== "scheduled") {
       return {
@@ -155,11 +155,11 @@ export const createRoundVoterSnapshot = (
   participants: RoundVoterInput[]
 ): RoundVoterSnapshot => {
   const eligibleUserIds = participants
-    .filter((participant) => !participant.inLobby)
-    .map((participant) => participant.id),
-   missingVoteUserIds = participants
-    .filter((participant) => !(participant.inLobby || participant.voted))
-    .map((participant) => participant.id);
+      .filter((participant) => !participant.inLobby)
+      .map((participant) => participant.id),
+    missingVoteUserIds = participants
+      .filter((participant) => !(participant.inLobby || participant.voted))
+      .map((participant) => participant.id);
 
   return {
     bootedUserIds: missingVoteUserIds,
@@ -238,11 +238,11 @@ export const createMockParticipantToken = ({
   user: AuthenticatedUser;
 }): RealtimeParticipantToken => {
   const presetName = resolveRealtimePreset({
-    kind,
-    phase,
-    role,
-  }),
-   participantId = `participant_${user.id}`;
+      kind,
+      phase,
+      role,
+    }),
+    participantId = `participant_${user.id}`;
 
   return {
     authToken: `mock_rtk_${meetingId}_${participantId}_${presetName}`,

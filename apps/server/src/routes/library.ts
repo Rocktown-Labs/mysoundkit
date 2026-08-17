@@ -42,128 +42,121 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
+  toRecentTrack = async ({
+    lastPlayedAt,
+    playCount,
+    track,
+  }: {
+    lastPlayedAt: Date;
+    playCount: number;
+    track: typeof tracks.$inferSelect;
+  }) => {
+    const summary = await buildTrackSummary(track);
 
- toRecentTrack = async ({
-  lastPlayedAt,
-  playCount,
-  track,
-}: {
-  lastPlayedAt: Date;
-  playCount: number;
-  track: typeof tracks.$inferSelect;
-}) => {
-  const summary = await buildTrackSummary(track);
+    return {
+      artist: summary.artistName,
+      artistSlug: summary.artistUsername ?? fallbackArtistSlug,
+      cover: summary.coverArtUrl ?? fallbackCover,
+      duration: summary.duration,
+      id: summary.id,
+      lastPlayed: lastPlayedAt.toISOString(),
+      regionSlug: summary.regionSlug ?? null,
+      slug: summary.slug,
+      timesPlayed: playCount,
+      title: summary.title,
+    };
+  },
+  toSavedTrack = async ({
+    savedAt,
+    track,
+  }: {
+    savedAt: Date;
+    track: typeof tracks.$inferSelect;
+  }) => {
+    const summary = await buildTrackSummary(track);
 
-  return {
-    artist: summary.artistName,
-    artistSlug: summary.artistUsername ?? fallbackArtistSlug,
-    cover: summary.coverArtUrl ?? fallbackCover,
-    duration: summary.duration,
-    id: summary.id,
-    lastPlayed: lastPlayedAt.toISOString(),
-    regionSlug: summary.regionSlug ?? null,
-    slug: summary.slug,
-    timesPlayed: playCount,
-    title: summary.title,
-  };
-},
+    return {
+      artist: summary.artistName,
+      artistSlug: summary.artistUsername ?? fallbackArtistSlug,
+      cover: summary.coverArtUrl ?? fallbackCover,
+      duration: summary.duration,
+      genre: summary.genre,
+      id: summary.id,
+      regionSlug: summary.regionSlug ?? null,
+      savedAt: savedAt.toISOString(),
+      slug: summary.slug,
+      title: summary.title,
+    };
+  },
+  saveTrackStateSchema = z.object({
+    saved: z.boolean(),
+    trackId: z.string(),
+  }),
+  downloadableAssetKinds = [
+    "master",
+    "tagged_mp3",
+    "untagged_wav",
+    "variant_audio",
+    "instrumental",
+  ] as const,
+  getPurchasedCatalogRow = ({
+    purchaseId,
+    userId,
+  }: {
+    purchaseId?: string;
+    userId: string;
+  }) => {
+    const db = createDb(),
+      query = db
+        .select({
+          id: purchases.id,
+          licenseOptionId: orderItems.licenseOptionId,
+          orderProjectId: orderItems.projectId,
+          priceCents: orderItems.priceSnapshot,
+          productType: orderItems.productType,
+          purchaseProjectId: purchases.projectId,
+          purchasedAt: purchases.purchasedAt,
+          title: orderItems.titleSnapshot,
+          trackId: purchases.trackId,
+        })
+        .from(purchases)
+        .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
+        .where(
+          purchaseId
+            ? and(
+                eq(purchases.buyerUserId, userId),
+                eq(purchases.id, purchaseId)
+              )
+            : eq(purchases.buyerUserId, userId)
+        );
 
- toSavedTrack = async ({
-  savedAt,
-  track,
-}: {
-  savedAt: Date;
-  track: typeof tracks.$inferSelect;
-}) => {
-  const summary = await buildTrackSummary(track);
+    return query;
+  },
+  getPurchaseDownloads = async ({ trackId }: { trackId: string | null }) => {
+    if (!trackId) {
+      return [];
+    }
 
-  return {
-    artist: summary.artistName,
-    artistSlug: summary.artistUsername ?? fallbackArtistSlug,
-    cover: summary.coverArtUrl ?? fallbackCover,
-    duration: summary.duration,
-    genre: summary.genre,
-    id: summary.id,
-    regionSlug: summary.regionSlug ?? null,
-    savedAt: savedAt.toISOString(),
-    slug: summary.slug,
-    title: summary.title,
-  };
-},
-
- saveTrackStateSchema = z.object({
-  saved: z.boolean(),
-  trackId: z.string(),
-}),
-
- downloadableAssetKinds = [
-  "master",
-  "tagged_mp3",
-  "untagged_wav",
-  "variant_audio",
-  "instrumental",
-] as const,
-
- getPurchasedCatalogRow = ({
-  purchaseId,
-  userId,
-}: {
-  purchaseId?: string;
-  userId: string;
-}) => {
-  const db = createDb(),
-   query = db
-    .select({
-      id: purchases.id,
-      licenseOptionId: orderItems.licenseOptionId,
-      orderProjectId: orderItems.projectId,
-      priceCents: orderItems.priceSnapshot,
-      productType: orderItems.productType,
-      purchaseProjectId: purchases.projectId,
-      purchasedAt: purchases.purchasedAt,
-      title: orderItems.titleSnapshot,
-      trackId: purchases.trackId,
-    })
-    .from(purchases)
-    .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
-    .where(
-      purchaseId
-        ? and(eq(purchases.buyerUserId, userId), eq(purchases.id, purchaseId))
-        : eq(purchases.buyerUserId, userId)
-    );
-
-  return query;
-},
-
- getPurchaseDownloads = async ({
-  trackId,
-}: {
-  trackId: string | null;
-}) => {
-  if (!trackId) {
-    return [];
-  }
-
-  const assetRows = await createDb()
-    .select({
-      assetKind: trackAssets.assetKind,
-      id: trackAssets.id,
-    })
-    .from(trackAssets)
-    .where(
-      and(
-        eq(trackAssets.trackId, trackId),
-        inArray(trackAssets.assetKind, downloadableAssetKinds)
+    const assetRows = await createDb()
+      .select({
+        assetKind: trackAssets.assetKind,
+        id: trackAssets.id,
+      })
+      .from(trackAssets)
+      .where(
+        and(
+          eq(trackAssets.trackId, trackId),
+          inArray(trackAssets.assetKind, downloadableAssetKinds)
+        )
       )
-    )
-    .orderBy(desc(trackAssets.durationMs));
+      .orderBy(desc(trackAssets.durationMs));
 
-  return assetRows.map((asset) => ({
-    downloadUrl: `/v1/tracks/${trackId}/assets/${asset.id}/download`,
-    id: asset.id,
-    label: asset.assetKind.replaceAll("_", " "),
-  }));
-};
+    return assetRows.map((asset) => ({
+      downloadUrl: `/v1/tracks/${trackId}/assets/${asset.id}/download`,
+      id: asset.id,
+      label: asset.assetKind.replaceAll("_", " "),
+    }));
+  };
 
 app.openapi(
   createRoute({
@@ -198,36 +191,36 @@ app.openapi(
     }
 
     const db = createDb(),
-     [playlistRows, purchaseRows, recentRows, savedRows, watchedRows] =
-      await Promise.all([
-        db
-          .select({ value: count() })
-          .from(playlists)
-          .where(eq(playlists.ownerUserId, user.id)),
-        db
-          .select({ value: count() })
-          .from(purchases)
-          .where(eq(purchases.buyerUserId, user.id)),
-        db
-          .select({
-            value: sql<number>`count(distinct ${recentPlays.trackId})::int`,
-          })
-          .from(recentPlays)
-          .where(eq(recentPlays.userId, user.id)),
-        db
-          .select({ value: count() })
-          .from(librarySaves)
-          .where(eq(librarySaves.userId, user.id)),
-        db
-          .select({ value: count() })
-          .from(playbackSessions)
-          .where(
-            and(
-              eq(playbackSessions.userId, user.id),
-              inArray(playbackSessions.sourceType, watchedSourceTypes)
-            )
-          ),
-      ]);
+      [playlistRows, purchaseRows, recentRows, savedRows, watchedRows] =
+        await Promise.all([
+          db
+            .select({ value: count() })
+            .from(playlists)
+            .where(eq(playlists.ownerUserId, user.id)),
+          db
+            .select({ value: count() })
+            .from(purchases)
+            .where(eq(purchases.buyerUserId, user.id)),
+          db
+            .select({
+              value: sql<number>`count(distinct ${recentPlays.trackId})::int`,
+            })
+            .from(recentPlays)
+            .where(eq(recentPlays.userId, user.id)),
+          db
+            .select({ value: count() })
+            .from(librarySaves)
+            .where(eq(librarySaves.userId, user.id)),
+          db
+            .select({ value: count() })
+            .from(playbackSessions)
+            .where(
+              and(
+                eq(playbackSessions.userId, user.id),
+                inArray(playbackSessions.sourceType, watchedSourceTypes)
+              )
+            ),
+        ]);
 
     return c.json(
       {
@@ -266,31 +259,30 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        description: playlists.description,
-        id: playlists.id,
-        isPublic: playlists.isPublic,
-        title: playlists.title,
-      })
-      .from(playlists)
-      .where(eq(playlists.ownerUserId, user.id))
-      .orderBy(desc(playlists.updatedAt))
-      .limit(100),
+      rows = await db
+        .select({
+          description: playlists.description,
+          id: playlists.id,
+          isPublic: playlists.isPublic,
+          title: playlists.title,
+        })
+        .from(playlists)
+        .where(eq(playlists.ownerUserId, user.id))
+        .orderBy(desc(playlists.updatedAt))
+        .limit(100),
+      items = await Promise.all(
+        rows.map(async (playlist) => {
+          const [trackCountRow] = await db
+            .select({ value: count() })
+            .from(playlistTracks)
+            .where(eq(playlistTracks.playlistId, playlist.id));
 
-     items = await Promise.all(
-      rows.map(async (playlist) => {
-        const [trackCountRow] = await db
-          .select({ value: count() })
-          .from(playlistTracks)
-          .where(eq(playlistTracks.playlistId, playlist.id));
-
-        return {
-          ...playlist,
-          trackCount: trackCountRow?.value ?? 0,
-        };
-      })
-    );
+          return {
+            ...playlist,
+            trackCount: trackCountRow?.value ?? 0,
+          };
+        })
+      );
 
     return c.json(items, HttpStatusCodes.OK);
   }
@@ -334,19 +326,18 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        lastPlayedAt: recentPlays.lastPlayedAt,
-        playCount: recentPlays.playCount,
-        track: tracks,
-      })
-      .from(recentPlays)
-      .innerJoin(tracks, eq(tracks.id, recentPlays.trackId))
-      .where(eq(recentPlays.userId, user.id))
-      .orderBy(desc(recentPlays.lastPlayedAt))
-      .limit(100),
-
-     recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
+      rows = await db
+        .select({
+          lastPlayedAt: recentPlays.lastPlayedAt,
+          playCount: recentPlays.playCount,
+          track: tracks,
+        })
+        .from(recentPlays)
+        .innerJoin(tracks, eq(tracks.id, recentPlays.trackId))
+        .where(eq(recentPlays.userId, user.id))
+        .orderBy(desc(recentPlays.lastPlayedAt))
+        .limit(100),
+      recentRowsByTrackId = new Map<string, (typeof rows)[number]>();
     for (const row of rows) {
       const existing = recentRowsByTrackId.get(row.track.id);
       if (!existing) {
@@ -365,18 +356,17 @@ app.openapi(
     }
 
     const dedupedRows = [...recentRowsByTrackId.values()].toSorted(
-      (a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime()
-    ),
-
-     items = await Promise.all(
-      dedupedRows.map((row) =>
-        toRecentTrack({
-          lastPlayedAt: row.lastPlayedAt,
-          playCount: row.playCount,
-          track: row.track,
-        })
-      )
-    );
+        (a, b) => b.lastPlayedAt.getTime() - a.lastPlayedAt.getTime()
+      ),
+      items = await Promise.all(
+        dedupedRows.map((row) =>
+          toRecentTrack({
+            lastPlayedAt: row.lastPlayedAt,
+            playCount: row.playCount,
+            track: row.track,
+          })
+        )
+      );
 
     return c.json(items, HttpStatusCodes.OK);
   }
@@ -418,22 +408,21 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        savedAt: librarySaves.createdAt,
-        track: tracks,
-      })
-      .from(librarySaves)
-      .innerJoin(tracks, eq(tracks.id, librarySaves.trackId))
-      .where(eq(librarySaves.userId, user.id))
-      .orderBy(desc(librarySaves.createdAt))
-      .limit(100),
-
-     items = await Promise.all(
-      rows.map((row) =>
-        toSavedTrack({ savedAt: row.savedAt, track: row.track })
-      )
-    );
+      rows = await db
+        .select({
+          savedAt: librarySaves.createdAt,
+          track: tracks,
+        })
+        .from(librarySaves)
+        .innerJoin(tracks, eq(tracks.id, librarySaves.trackId))
+        .where(eq(librarySaves.userId, user.id))
+        .orderBy(desc(librarySaves.createdAt))
+        .limit(100),
+      items = await Promise.all(
+        rows.map((row) =>
+          toSavedTrack({ savedAt: row.savedAt, track: row.track })
+        )
+      );
 
     return c.json(items, HttpStatusCodes.OK);
   }
@@ -477,54 +466,52 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        session: playbackSessions,
-        track: tracks,
-      })
-      .from(playbackSessions)
-      .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
-      .where(
-        and(
-          eq(playbackSessions.userId, user.id),
-          inArray(playbackSessions.sourceType, watchedSourceTypes)
+      rows = await db
+        .select({
+          session: playbackSessions,
+          track: tracks,
+        })
+        .from(playbackSessions)
+        .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
+        .where(
+          and(
+            eq(playbackSessions.userId, user.id),
+            inArray(playbackSessions.sourceType, watchedSourceTypes)
+          )
         )
-      )
-      .orderBy(desc(playbackSessions.startedAt))
-      .limit(100),
-
-     watchedRowsBySource = new Map<string, (typeof rows)[number]>();
+        .orderBy(desc(playbackSessions.startedAt))
+        .limit(100),
+      watchedRowsBySource = new Map<string, (typeof rows)[number]>();
     for (const row of rows) {
       const key = `${row.session.sourceType}:${
-        row.session.sourceId ?? row.track.id
-      }`,
-       existing = watchedRowsBySource.get(key);
+          row.session.sourceId ?? row.track.id
+        }`,
+        existing = watchedRowsBySource.get(key);
       if (!existing || row.session.startedAt > existing.session.startedAt) {
         watchedRowsBySource.set(key, row);
       }
     }
 
     const dedupedRows = [...watchedRowsBySource.values()].toSorted(
-      (a, b) => b.session.startedAt.getTime() - a.session.startedAt.getTime()
-    ),
-
-     items = await Promise.all(
-      dedupedRows.map(async (row) => {
-        const summary = await buildTrackSummary(row.track);
-        return {
-          creator: summary.artistName,
-          creatorSlug: summary.artistUsername ?? fallbackArtistSlug,
-          duration: summary.duration,
-          id: row.session.sourceId ?? summary.id,
-          regionSlug: summary.regionSlug ?? null,
-          slug: summary.slug,
-          thumbnail: summary.coverArtUrl ?? fallbackCover,
-          title: summary.title,
-          type: toWatchedItemType(row.session.sourceType),
-          watchedAt: row.session.startedAt.toISOString(),
-        };
-      })
-    );
+        (a, b) => b.session.startedAt.getTime() - a.session.startedAt.getTime()
+      ),
+      items = await Promise.all(
+        dedupedRows.map(async (row) => {
+          const summary = await buildTrackSummary(row.track);
+          return {
+            creator: summary.artistName,
+            creatorSlug: summary.artistUsername ?? fallbackArtistSlug,
+            duration: summary.duration,
+            id: row.session.sourceId ?? summary.id,
+            regionSlug: summary.regionSlug ?? null,
+            slug: summary.slug,
+            thumbnail: summary.coverArtUrl ?? fallbackCover,
+            title: summary.title,
+            type: toWatchedItemType(row.session.sourceType),
+            watchedAt: row.session.startedAt.toISOString(),
+          };
+        })
+      );
 
     return c.json(items, HttpStatusCodes.OK);
   }
@@ -554,20 +541,19 @@ app.openapi(
     }
 
     const rows = await getPurchasedCatalogRow({ userId: user.id }),
+      items = await Promise.all(
+        rows.map(async (row) => {
+          const [download] = await getPurchaseDownloads({
+            trackId: row.trackId,
+          });
 
-     items = await Promise.all(
-      rows.map(async (row) => {
-        const [download] = await getPurchaseDownloads({
-          trackId: row.trackId,
-        });
-
-        return toPurchasedCatalogItem({
-          ...row,
-          projectId: row.purchaseProjectId ?? row.orderProjectId,
-          trackDownloadUrl: download?.downloadUrl ?? null,
-        });
-      })
-    );
+          return toPurchasedCatalogItem({
+            ...row,
+            projectId: row.purchaseProjectId ?? row.orderProjectId,
+            trackDownloadUrl: download?.downloadUrl ?? null,
+          });
+        })
+      );
 
     return c.json(items, HttpStatusCodes.OK);
   }
@@ -649,14 +635,14 @@ app.openapi(
     }
 
     const downloads = await getPurchaseDownloads({
-      trackId: row.trackId,
-    }),
-     [download] = downloads,
-     purchase = toPurchasedCatalogItem({
-      ...row,
-      projectId: row.purchaseProjectId ?? row.orderProjectId,
-      trackDownloadUrl: download?.downloadUrl ?? null,
-    });
+        trackId: row.trackId,
+      }),
+      [download] = downloads,
+      purchase = toPurchasedCatalogItem({
+        ...row,
+        projectId: row.purchaseProjectId ?? row.orderProjectId,
+        trackDownloadUrl: download?.downloadUrl ?? null,
+      });
 
     return c.json({ downloads, purchase }, HttpStatusCodes.OK);
   }
@@ -699,13 +685,16 @@ app.openapi(
     }
 
     const db = createDb(),
-     existing = await db
-      .select()
-      .from(librarySaves)
-      .where(
-        and(eq(librarySaves.userId, user.id), eq(librarySaves.trackId, trackId))
-      )
-      .limit(1);
+      existing = await db
+        .select()
+        .from(librarySaves)
+        .where(
+          and(
+            eq(librarySaves.userId, user.id),
+            eq(librarySaves.trackId, trackId)
+          )
+        )
+        .limit(1);
 
     if (existing.length > 0) {
       await db
@@ -814,7 +803,7 @@ app.openapi(
       );
     }
     const body = c.req.valid("json"),
-     id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      id = `playlist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -931,11 +920,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     [playlistRow] = await db
-      .select()
-      .from(playlists)
-      .where(eq(playlists.id, id))
-      .limit(1);
+      [playlistRow] = await db
+        .select()
+        .from(playlists)
+        .where(eq(playlists.id, id))
+        .limit(1);
 
     if (!playlistRow) {
       return c.json(
@@ -945,33 +934,32 @@ app.openapi(
     }
 
     const playlistTrackRows = await db
-      .select({
-        track: tracks,
-      })
-      .from(playlistTracks)
-      .innerJoin(tracks, eq(tracks.id, playlistTracks.trackId))
-      .where(eq(playlistTracks.playlistId, id))
-      .orderBy(desc(playlistTracks.createdAt)),
-
-     trackItems = await Promise.all(
-      playlistTrackRows.map(async (row) => {
-        const savedTrack = await toSavedTrack({
-          savedAt: row.track.createdAt,
-          track: row.track,
-        });
-        return {
-          artist: savedTrack.artist,
-          artistSlug: savedTrack.artistSlug,
-          cover: savedTrack.cover,
-          duration: savedTrack.duration,
-          genre: savedTrack.genre,
-          id: savedTrack.id,
-          regionSlug: null,
-          slug: row.track.slug,
-          title: savedTrack.title,
-        };
-      })
-    );
+        .select({
+          track: tracks,
+        })
+        .from(playlistTracks)
+        .innerJoin(tracks, eq(tracks.id, playlistTracks.trackId))
+        .where(eq(playlistTracks.playlistId, id))
+        .orderBy(desc(playlistTracks.createdAt)),
+      trackItems = await Promise.all(
+        playlistTrackRows.map(async (row) => {
+          const savedTrack = await toSavedTrack({
+            savedAt: row.track.createdAt,
+            track: row.track,
+          });
+          return {
+            artist: savedTrack.artist,
+            artistSlug: savedTrack.artistSlug,
+            cover: savedTrack.cover,
+            duration: savedTrack.duration,
+            genre: savedTrack.genre,
+            id: savedTrack.id,
+            regionSlug: null,
+            slug: row.track.slug,
+            title: savedTrack.title,
+          };
+        })
+      );
 
     return c.json(
       {
@@ -1019,7 +1007,7 @@ app.openapi(
   }),
   async (c) => {
     const { id } = c.req.valid("param"),
-     { trackId } = c.req.valid("json");
+      { trackId } = c.req.valid("json");
 
     if (isDatabaseConfigured()) {
       const db = createDb();

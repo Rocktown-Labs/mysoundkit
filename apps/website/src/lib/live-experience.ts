@@ -129,7 +129,7 @@ export const createRoundVoterSnapshot = ({
   roundId: string;
 }) => {
   const lobbyIds = new Set(lobbyParticipantIds),
-   uniqueActiveIds = new Set(activeParticipantIds);
+    uniqueActiveIds = new Set(activeParticipantIds);
 
   return [...uniqueActiveIds]
     .filter((userId) => !lobbyIds.has(userId))
@@ -170,22 +170,20 @@ export const resolveMandatoryVoteResults = ({
 };
 
 const isCreatorRole = (role: LiveSessionLock["role"]) =>
-  role === "host" || role === "participant",
+    role === "host" || role === "participant",
+  isActiveLock = (lock: LiveSessionLock, now: Date) => {
+    if (lock.status === "ended" || lock.status === "expired") {
+      return false;
+    }
 
- isActiveLock = (lock: LiveSessionLock, now: Date) => {
-  if (lock.status === "ended" || lock.status === "expired") {
-    return false;
-  }
-
-  return new Date(lock.expiresAt) > now;
-},
-
- windowsOverlap = (
-  firstStart: Date,
-  firstEnd: Date,
-  secondStart: Date,
-  secondEnd: Date
-) => firstStart < secondEnd && secondStart < firstEnd;
+    return new Date(lock.expiresAt) > now;
+  },
+  windowsOverlap = (
+    firstStart: Date,
+    firstEnd: Date,
+    secondStart: Date,
+    secondEnd: Date
+  ) => firstStart < secondEnd && secondStart < firstEnd;
 
 export const findLiveSessionConflict = ({
   existingLocks,
@@ -197,14 +195,14 @@ export const findLiveSessionConflict = ({
   requestedLock: LiveSessionLock;
 }) => {
   const requestedStart = new Date(requestedLock.startsAt),
-   requestedEnd = requestedLock.endsAt
-    ? new Date(requestedLock.endsAt)
-    : new Date(requestedLock.expiresAt);
+    requestedEnd = requestedLock.endsAt
+      ? new Date(requestedLock.endsAt)
+      : new Date(requestedLock.expiresAt);
 
   return (
     existingLocks.find((lock) => {
       const isSameUser = lock.userId === requestedLock.userId,
-       isSameSession = lock.sessionId === requestedLock.sessionId;
+        isSameSession = lock.sessionId === requestedLock.sessionId;
 
       if (!isSameUser || isSameSession) {
         return false;
@@ -219,9 +217,9 @@ export const findLiveSessionConflict = ({
       }
 
       const lockStart = new Date(lock.startsAt),
-       lockEnd = lock.endsAt
-        ? new Date(lock.endsAt)
-        : new Date(lock.expiresAt);
+        lockEnd = lock.endsAt
+          ? new Date(lock.endsAt)
+          : new Date(lock.expiresAt);
 
       return windowsOverlap(lockStart, lockEnd, requestedStart, requestedEnd);
     }) ?? null

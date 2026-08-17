@@ -57,154 +57,150 @@ const defaultNotificationSettings = {
 type NotificationSettingKey = keyof typeof defaultNotificationSettings;
 
 const emailNotificationItems: {
-  description: string;
-  key: NotificationSettingKey;
-  title: string;
-}[] = [
-  {
-    description: "Get notified when someone follows you",
-    key: "emailFollowers",
-    title: "New Followers",
-  },
-  {
-    description: "Get notified when your uploaded tracks are live or processed",
-    key: "emailTrackProcessing",
-    title: "Track Processing",
-  },
-  {
-    description: "Get notified when someone comments on your tracks",
-    key: "emailComments",
-    title: "Comments",
-  },
-  {
-    description: "Get notified about collaboration requests",
-    key: "emailCollaborations",
-    title: "Collaborations",
-  },
-  {
-    description: "Get notified when someone purchases your music",
-    key: "emailSales",
-    title: "Sales",
-  },
-],
-
- pushNotificationItems: {
-  description: string;
-  key: NotificationSettingKey;
-  title: string;
-}[] = [
-  {
-    description: "Get notified about new messages",
-    key: "pushMessages",
-    title: "Messages",
-  },
-  {
-    description: "Get notified when someone mentions you",
-    key: "pushMentions",
-    title: "Mentions",
-  },
-  {
-    description: "Get notified about new releases from artists you follow",
-    key: "pushReleases",
-    title: "Releases",
-  },
-],
-
- privacyNotificationItems = [
-  {
-    description: "Make your profile visible at mysoundkit.com/johndoe",
-    key: "public-profile",
-    title: "Public Profile",
-  },
-  {
-    description: "Display number of tracks on your profile",
-    key: "track-count",
-    title: "Show Track Count",
-  },
-  {
-    description: "Display your follower count publicly",
-    key: "followers",
-    title: "Show Followers",
-  },
-  {
-    description: "Display who you've collaborated with",
-    key: "collaborators",
-    title: "Show Collaborators",
-  },
-];
+    description: string;
+    key: NotificationSettingKey;
+    title: string;
+  }[] = [
+    {
+      description: "Get notified when someone follows you",
+      key: "emailFollowers",
+      title: "New Followers",
+    },
+    {
+      description:
+        "Get notified when your uploaded tracks are live or processed",
+      key: "emailTrackProcessing",
+      title: "Track Processing",
+    },
+    {
+      description: "Get notified when someone comments on your tracks",
+      key: "emailComments",
+      title: "Comments",
+    },
+    {
+      description: "Get notified about collaboration requests",
+      key: "emailCollaborations",
+      title: "Collaborations",
+    },
+    {
+      description: "Get notified when someone purchases your music",
+      key: "emailSales",
+      title: "Sales",
+    },
+  ],
+  pushNotificationItems: {
+    description: string;
+    key: NotificationSettingKey;
+    title: string;
+  }[] = [
+    {
+      description: "Get notified about new messages",
+      key: "pushMessages",
+      title: "Messages",
+    },
+    {
+      description: "Get notified when someone mentions you",
+      key: "pushMentions",
+      title: "Mentions",
+    },
+    {
+      description: "Get notified about new releases from artists you follow",
+      key: "pushReleases",
+      title: "Releases",
+    },
+  ],
+  privacyNotificationItems = [
+    {
+      description: "Make your profile visible at mysoundkit.com/johndoe",
+      key: "public-profile",
+      title: "Public Profile",
+    },
+    {
+      description: "Display number of tracks on your profile",
+      key: "track-count",
+      title: "Show Track Count",
+    },
+    {
+      description: "Display your follower count publicly",
+      key: "followers",
+      title: "Show Followers",
+    },
+    {
+      description: "Display who you've collaborated with",
+      key: "collaborators",
+      title: "Show Collaborators",
+    },
+  ];
 
 // Existing settings sections are intentionally consolidated into one screen.
 // eslint-disable-next-line complexity
 function SettingsPage() {
   const navigate = useNavigate(),
-   search = Route.useSearch(),
-   activeTab = search.tab ?? "profile",
-   meQuery = useMeQuery(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   notificationSettingsQuery = useNotificationSettingsQuery(),
-   updateProfile = useUpdateMeProfileMutation(),
-   updateNotificationSettings = useUpdateNotificationSettingsMutation(),
-   user = meQuery.data?.user,
-   entitlements = entitlementsQuery.data,
-   notificationSettings = {
-    ...defaultNotificationSettings,
-    ...notificationSettingsQuery.data,
-  },
-   location = [user?.city, user?.state].filter(Boolean).join(", "),
-   [isDirty, setIsDirty] = useState(false),
-
-   handleTabChange = (val: string) => {
-    navigate({
-      search: { tab: val as SettingsSearch["tab"] },
-    });
-  },
-
-   updateNotificationSetting = (
-    key: NotificationSettingKey,
-    checked: boolean
-  ) => {
-    updateNotificationSettings.mutate({ [key]: checked });
-  },
-
-   saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    updateProfile.mutate(
-      {
-        bio: String(form.get("bio") ?? ""),
-        city: String(form.get("city") ?? ""),
-        displayName: String(form.get("displayName") ?? ""),
-        links: {
-          appleMusic: String(form.get("appleMusic") ?? ""),
-          instagram: String(form.get("instagram") ?? ""),
-          personalSite: String(form.get("personalSite") ?? ""),
-          soundcloud: String(form.get("soundcloud") ?? ""),
-          spotify: String(form.get("spotify") ?? ""),
-          tiktok: String(form.get("tiktok") ?? ""),
-          twitter: String(form.get("twitter") ?? ""),
-          youtube: String(form.get("youtube") ?? ""),
+    search = Route.useSearch(),
+    activeTab = search.tab ?? "profile",
+    meQuery = useMeQuery(),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    notificationSettingsQuery = useNotificationSettingsQuery(),
+    updateProfile = useUpdateMeProfileMutation(),
+    updateNotificationSettings = useUpdateNotificationSettingsMutation(),
+    user = meQuery.data?.user,
+    entitlements = entitlementsQuery.data,
+    notificationSettings = {
+      ...defaultNotificationSettings,
+      ...notificationSettingsQuery.data,
+    },
+    location = [user?.city, user?.state].filter(Boolean).join(", "),
+    [isDirty, setIsDirty] = useState(false),
+    handleTabChange = (val: string) => {
+      navigate({
+        search: { tab: val as SettingsSearch["tab"] },
+      });
+    },
+    updateNotificationSetting = (
+      key: NotificationSettingKey,
+      checked: boolean
+    ) => {
+      updateNotificationSettings.mutate({ [key]: checked });
+    },
+    saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      updateProfile.mutate(
+        {
+          bio: String(form.get("bio") ?? ""),
+          city: String(form.get("city") ?? ""),
+          displayName: String(form.get("displayName") ?? ""),
+          links: {
+            appleMusic: String(form.get("appleMusic") ?? ""),
+            instagram: String(form.get("instagram") ?? ""),
+            personalSite: String(form.get("personalSite") ?? ""),
+            soundcloud: String(form.get("soundcloud") ?? ""),
+            spotify: String(form.get("spotify") ?? ""),
+            tiktok: String(form.get("tiktok") ?? ""),
+            twitter: String(form.get("twitter") ?? ""),
+            youtube: String(form.get("youtube") ?? ""),
+          },
+          mediaLayout:
+            String(form.get("mediaLayout") ?? "cards") === "list"
+              ? "list"
+              : "cards",
+          proAffiliation: String(form.get("proAffiliation") ?? "None"),
+          proMemberId: String(form.get("proMemberId") ?? ""),
+          songwriterLegalName: String(form.get("songwriterLegalName") ?? ""),
+          stageName: String(form.get("stageName") ?? ""),
+          state: String(form.get("state") ?? ""),
         },
-        mediaLayout:
-          String(form.get("mediaLayout") ?? "cards") === "list"
-            ? "list"
-            : "cards",
-        proAffiliation: String(form.get("proAffiliation") ?? "None"),
-        proMemberId: String(form.get("proMemberId") ?? ""),
-        songwriterLegalName: String(form.get("songwriterLegalName") ?? ""),
-        stageName: String(form.get("stageName") ?? ""),
-        state: String(form.get("state") ?? ""),
-      },
-      {
-        onSuccess: () => {
-          setIsDirty(false);
-          toast({
-            description: "Your profile changes have been saved.",
-            title: "Profile Saved",
-          });
-        },
-      }
-    );
-  };
+        {
+          onSuccess: () => {
+            setIsDirty(false);
+            toast({
+              description: "Your profile changes have been saved.",
+              title: "Profile Saved",
+            });
+          },
+        }
+      );
+    };
 
   return (
     <div className="space-y-6">

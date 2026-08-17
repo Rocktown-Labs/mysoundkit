@@ -2,7 +2,6 @@
 /* eslint-disable complexity, import/first, no-empty-function, no-nested-ternary, no-promise-executor-return, promise/avoid-new, promise/prefer-await-to-then, react/jsx-handler-names, require-await, require-unicode-regexp, unicorn/max-nested-calls */
 
 import { useUploadFiles } from "@better-upload/client";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { usePostHog } from "@posthog/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -105,227 +104,213 @@ import {
   useUpdateProjectMutation,
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
+import { zodResolver } from "@/lib/zod-resolver";
 
 const collaboratorRoles = ["songwriter", "producer"] as const;
 
 type CollaboratorRole = (typeof collaboratorRoles)[number];
 
 const isCollaboratorRole = (value: string): value is CollaboratorRole =>
-  collaboratorRoles.includes(value as CollaboratorRole),
+    collaboratorRoles.includes(value as CollaboratorRole),
+  collaboratorSchema = z.preprocess(
+    (value) => {
+      if (!(value && typeof value === "object")) {
+        return value;
+      }
 
- collaboratorSchema = z.preprocess(
-  (value) => {
-    if (!(value && typeof value === "object")) {
-      return value;
-    }
+      const collaborator = value as Record<string, unknown>;
 
-    const collaborator = value as Record<string, unknown>;
-
-    return {
-      ...collaborator,
-      displayName:
-        collaborator.displayName ?? collaborator.name ?? collaborator.email,
-      role: collaborator.role === "producer" ? "producer" : "songwriter",
-    };
-  },
-  z.object({
-    displayName: z.string().min(1, "Name is required"),
-    inviteEmail: z.string().optional(),
-    role: z.enum(["songwriter", "producer"]).default("songwriter"),
-    userId: z.string().optional(),
-  })
-),
-
- projectFormSchema = z.object({
-  collaborators: z.array(collaboratorSchema).default([]),
-  description: z.string().optional(),
-  exclusiveUntil: z.string().optional(),
-  genre: z
-    .string()
-    .min(1, "Project primary genre is required")
-    .default("R&B/Soul"),
-  isForSale: z.boolean().default(false),
-  listeningAccess: z.enum(["public", "premium_or_purchased"]).default("public"),
-  name: z.string().min(2, "Project name is required"),
-  newTracks: z
-    .array(
-      z.object({
-        assetId: z.string().optional(),
-        file: z.any().optional(),
-        fileName: z.string().optional(),
-        genre: z.string().min(1, "Genre is required"),
-        mimeType: z.string().optional(),
-        name: z.string().min(1, "Track name is required"),
-        producers: z.string().optional(),
-        sizeBytes: z.number().int().optional(),
-        writers: z.string().optional(),
-      })
-    )
-    .default([]),
-  priceCents: z.number().int().positive().default(999),
-  projectCoverObjectKey: z.string().optional(),
-  releaseDate: z.string().optional(),
-  releaseVisibility: z.enum(["listed", "unlisted"]).default("unlisted"),
-  rightsAccepted: z
-    .boolean()
-    .refine((value) => value, "Confirm you have the rights to this project"),
-  selectedExistingTracks: z.array(z.string()).default([]),
-  type: z.enum(["album", "ep", "mixtape"]).default("album"),
-});
+      return {
+        ...collaborator,
+        displayName:
+          collaborator.displayName ?? collaborator.name ?? collaborator.email,
+        role: collaborator.role === "producer" ? "producer" : "songwriter",
+      };
+    },
+    z.object({
+      displayName: z.string().min(1, "Name is required"),
+      inviteEmail: z.string().optional(),
+      role: z.enum(["songwriter", "producer"]).default("songwriter"),
+      userId: z.string().optional(),
+    })
+  ),
+  projectFormSchema = z.object({
+    collaborators: z.array(collaboratorSchema).default([]),
+    description: z.string().optional(),
+    exclusiveUntil: z.string().optional(),
+    genre: z
+      .string()
+      .min(1, "Project primary genre is required")
+      .default("R&B/Soul"),
+    isForSale: z.boolean().default(false),
+    listeningAccess: z
+      .enum(["public", "premium_or_purchased"])
+      .default("public"),
+    name: z.string().min(2, "Project name is required"),
+    newTracks: z
+      .array(
+        z.object({
+          assetId: z.string().optional(),
+          file: z.any().optional(),
+          fileName: z.string().optional(),
+          genre: z.string().min(1, "Genre is required"),
+          mimeType: z.string().optional(),
+          name: z.string().min(1, "Track name is required"),
+          producers: z.string().optional(),
+          sizeBytes: z.number().int().optional(),
+          writers: z.string().optional(),
+        })
+      )
+      .default([]),
+    priceCents: z.number().int().positive().default(999),
+    projectCoverObjectKey: z.string().optional(),
+    releaseDate: z.string().optional(),
+    releaseVisibility: z.enum(["listed", "unlisted"]).default("unlisted"),
+    rightsAccepted: z
+      .boolean()
+      .refine((value) => value, "Confirm you have the rights to this project"),
+    selectedExistingTracks: z.array(z.string()).default([]),
+    type: z.enum(["album", "ep", "mixtape"]).default("album"),
+  });
 
 type ProjectFormValues = z.infer<typeof projectFormSchema>;
 const projectGet = apiClient.v1.projects[":projectId"].$get,
- projectPatch = apiClient.v1.projects[":projectId"].$patch,
- projectsPost = apiClient.v1.projects.index.$post,
- trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
+  projectPatch = apiClient.v1.projects[":projectId"].$patch,
+  projectsPost = apiClient.v1.projects.index.$post,
+  trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
+  defaultProjectFormValues: ProjectFormValues = {
+    collaborators: [],
+    description: "",
+    exclusiveUntil: "",
+    genre: "Hip-Hop/Rap",
+    isForSale: false,
+    listeningAccess: "public",
+    name: "",
+    newTracks: [],
+    priceCents: 999,
+    projectCoverObjectKey: "",
+    releaseDate: "",
+    releaseVisibility: "unlisted",
+    rightsAccepted: false,
+    selectedExistingTracks: [],
+    type: "album",
+  },
+  epRuntimeLimitMs = 30 * 60 * 1000,
+  exclusiveUntilForApi = (value: string | undefined, preserveEmpty = false) => {
+    if (!value) {
+      return preserveEmpty ? "" : undefined;
+    }
 
- defaultProjectFormValues: ProjectFormValues = {
-  collaborators: [],
-  description: "",
-  exclusiveUntil: "",
-  genre: "Hip-Hop/Rap",
-  isForSale: false,
-  listeningAccess: "public",
-  name: "",
-  newTracks: [],
-  priceCents: 999,
-  projectCoverObjectKey: "",
-  releaseDate: "",
-  releaseVisibility: "unlisted",
-  rightsAccepted: false,
-  selectedExistingTracks: [],
-  type: "album",
-},
+    return new Date(value).toISOString();
+  },
+  exclusiveUntilForInput = (value: unknown) => {
+    if (typeof value !== "string" || !value) {
+      return "";
+    }
 
- epRuntimeLimitMs = 30 * 60 * 1000,
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
 
- exclusiveUntilForApi = (
-  value: string | undefined,
-  preserveEmpty = false
-) => {
-  if (!value) {
-    return preserveEmpty ? "" : undefined;
-  }
+    const pad = (part: number) => part.toString().padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  },
+  formatDurationLabel = (durationMs: number) => {
+    const totalSeconds = Math.round(durationMs / 1000),
+      minutes = Math.floor(totalSeconds / 60),
+      seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  },
+  formatDatePickerLabel = (dateValue?: string) => {
+    if (!dateValue) {
+      return "Pick a release date";
+    }
 
-  return new Date(value).toISOString();
-},
+    const releaseDate = new Date(`${dateValue}T00:00:00`);
 
- exclusiveUntilForInput = (value: unknown) => {
-  if (typeof value !== "string" || !value) {
-    return "";
-  }
+    return releaseDate.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  },
+  dateToPickerValue = (date: Date) => {
+    const year = date.getFullYear(),
+      month = String(date.getMonth() + 1).padStart(2, "0"),
+      day = String(date.getDate()).padStart(2, "0");
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
+    return `${year}-${month}-${day}`;
+  },
+  toDatePickerValue = (value: unknown) => {
+    if (typeof value !== "string" || !value) {
+      return "";
+    }
 
-  const pad = (part: number) => part.toString().padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-},
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
 
- formatDurationLabel = (durationMs: number) => {
-  const totalSeconds = Math.round(durationMs / 1000),
-   minutes = Math.floor(totalSeconds / 60),
-   seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-},
+    const date = new Date(value);
 
- formatDatePickerLabel = (dateValue?: string) => {
-  if (!dateValue) {
-    return "Pick a release date";
-  }
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
 
-  const releaseDate = new Date(`${dateValue}T00:00:00`);
+    return date.toISOString().slice(0, 10);
+  },
+  releaseDateToMidnightIso = (dateValue?: string) => {
+    if (!dateValue) {
+      return;
+    }
 
-  return releaseDate.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-},
+    return new Date(`${dateValue}T00:00:00`).toISOString();
+  },
+  projectReleaseState = (values: ProjectFormValues) => {
+    const releaseDate = releaseDateToMidnightIso(values.releaseDate),
+      isListed = values.releaseVisibility === "listed";
 
- dateToPickerValue = (date: Date) => {
-  const year = date.getFullYear(),
-   month = String(date.getMonth() + 1).padStart(2, "0"),
-   day = String(date.getDate()).padStart(2, "0");
+    return {
+      isListed,
+      releaseDate,
+      status: isListed
+        ? releaseDate
+          ? ("scheduled" as const)
+          : ("released" as const)
+        : ("draft" as const),
+    };
+  },
+  parseDurationLabelMs = (duration: unknown) => {
+    if (typeof duration !== "string") {
+      return null;
+    }
 
-  return `${year}-${month}-${day}`;
-},
+    const parts = duration.split(":").map(Number);
 
- toDatePickerValue = (value: unknown) => {
-  if (typeof value !== "string" || !value) {
-    return "";
-  }
+    if (
+      parts.length < 2 ||
+      parts.length > 3 ||
+      parts.some((part) => !Number.isFinite(part) || part < 0)
+    ) {
+      return null;
+    }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
+    const [hoursOrMinutes, minutesOrSeconds, seconds = 0] = parts,
+      totalSeconds =
+        parts.length === 3
+          ? hoursOrMinutes * 3600 + minutesOrSeconds * 60 + seconds
+          : hoursOrMinutes * 60 + minutesOrSeconds;
 
-  const date = new Date(value);
+    return Math.round(totalSeconds * 1000);
+  },
+  getTrackDurationLabel = (track: unknown) => {
+    if (!(track && typeof track === "object" && "duration" in track)) {
+      return null;
+    }
 
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toISOString().slice(0, 10);
-},
-
- releaseDateToMidnightIso = (dateValue?: string) => {
-  if (!dateValue) {
-    return;
-  }
-
-  return new Date(`${dateValue}T00:00:00`).toISOString();
-},
-
- projectReleaseState = (values: ProjectFormValues) => {
-  const releaseDate = releaseDateToMidnightIso(values.releaseDate),
-   isListed = values.releaseVisibility === "listed";
-
-  return {
-    isListed,
-    releaseDate,
-    status: isListed
-      ? releaseDate
-        ? ("scheduled" as const)
-        : ("released" as const)
-      : ("draft" as const),
+    const { duration } = track as { duration?: unknown };
+    return typeof duration === "string" ? duration : null;
   };
-},
-
- parseDurationLabelMs = (duration: unknown) => {
-  if (typeof duration !== "string") {
-    return null;
-  }
-
-  const parts = duration.split(":").map(Number);
-
-  if (
-    parts.length < 2 ||
-    parts.length > 3 ||
-    parts.some((part) => !Number.isFinite(part) || part < 0)
-  ) {
-    return null;
-  }
-
-  const [hoursOrMinutes, minutesOrSeconds, seconds = 0] = parts,
-   totalSeconds =
-    parts.length === 3
-      ? hoursOrMinutes * 3600 + minutesOrSeconds * 60 + seconds
-      : hoursOrMinutes * 60 + minutesOrSeconds;
-
-  return Math.round(totalSeconds * 1000);
-},
-
- getTrackDurationLabel = (track: unknown) => {
-  if (!(track && typeof track === "object" && "duration" in track)) {
-    return null;
-  }
-
-  const { duration } = track as { duration?: unknown };
-  return typeof duration === "string" ? duration : null;
-};
 
 interface GenreOption {
   name: string;
@@ -349,53 +334,52 @@ export function NewProjectForm({
   projectId,
 }: NewProjectFormProps = {}) {
   const posthog = usePostHog(),
-   queryClient = useQueryClient(),
-   router = useRouter(),
-   genresQuery = useGenresQuery(),
-   genreRows = Array.isArray(genresQuery.data)
-    ? genresQuery.data.filter(isGenreOption)
-    : [],
-   availableGenres =
-    genreRows.length > 0
-      ? genreRows.map((genre) => genre.name)
-      : SUPPORTED_GENRES,
-   isReleasedProject = Boolean(
-    initialProject &&
-    (initialProject.status === "released" ||
-      Number(initialProject.playCount ?? initialProject.plays ?? 0) > 0)
-  ),
-   [step, setStep] = useState("identity"),
-   [isSubmittingProject, setIsSubmittingProject] = useState(false),
-   [collaboratorQuery, setCollaboratorQuery] = useState(""),
-   [collaboratorRole, setCollaboratorRole] =
-    useState<CollaboratorRole>("songwriter"),
-   [projectCover, setProjectCover] = useState<{
-    fileName: string;
-    objectKey: string;
-    remoteUrl: string;
-  } | null>(null),
-   [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null),
-   [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
-    string | null
-  >(null),
-   coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
-   projectAssetsUploadResolverRef = useRef<
-    ((assets: ProjectTrackUploadResult[] | null) => void) | null
-  >(null),
-   {
-    data: existingTracks = [],
-    error: tracksError,
-    isLoading: tracksLoading,
-  } = useTracksQuery(),
-   settleTrackMutation = useSettleTrackMutation(),
-   updateProjectMutation = useUpdateProjectMutation(projectId ?? ""),
-   { data: session } = authClient.useSession(),
-   peopleSearch = usePeopleSearchQuery(collaboratorQuery),
-
-   form = useForm<ProjectFormValues>({
-    defaultValues: defaultProjectFormValues,
-    resolver: zodResolver(projectFormSchema),
-  });
+    queryClient = useQueryClient(),
+    router = useRouter(),
+    genresQuery = useGenresQuery(),
+    genreRows = Array.isArray(genresQuery.data)
+      ? genresQuery.data.filter(isGenreOption)
+      : [],
+    availableGenres =
+      genreRows.length > 0
+        ? genreRows.map((genre) => genre.name)
+        : SUPPORTED_GENRES,
+    isReleasedProject = Boolean(
+      initialProject &&
+      (initialProject.status === "released" ||
+        Number(initialProject.playCount ?? initialProject.plays ?? 0) > 0)
+    ),
+    [step, setStep] = useState("identity"),
+    [isSubmittingProject, setIsSubmittingProject] = useState(false),
+    [collaboratorQuery, setCollaboratorQuery] = useState(""),
+    [collaboratorRole, setCollaboratorRole] =
+      useState<CollaboratorRole>("songwriter"),
+    [projectCover, setProjectCover] = useState<{
+      fileName: string;
+      objectKey: string;
+      remoteUrl: string;
+    } | null>(null),
+    [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null),
+    [selectedCoverPreviewUrl, setSelectedCoverPreviewUrl] = useState<
+      string | null
+    >(null),
+    coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
+    projectAssetsUploadResolverRef = useRef<
+      ((assets: ProjectTrackUploadResult[] | null) => void) | null
+    >(null),
+    {
+      data: existingTracks = [],
+      error: tracksError,
+      isLoading: tracksLoading,
+    } = useTracksQuery(),
+    settleTrackMutation = useSettleTrackMutation(),
+    updateProjectMutation = useUpdateProjectMutation(projectId ?? ""),
+    { data: session } = authClient.useSession(),
+    peopleSearch = usePeopleSearchQuery(collaboratorQuery),
+    form = useForm<ProjectFormValues>({
+      defaultValues: defaultProjectFormValues,
+      resolver: zodResolver(projectFormSchema),
+    });
 
   useEffect(() => {
     if (!selectedCoverFile) {
@@ -416,31 +400,28 @@ export function NewProjectForm({
     }
 
     const assetRows = Array.isArray(initialProject.assets)
-      ? (initialProject.assets as Record<string, unknown>[])
-      : [],
-     coverAsset = assetRows.find(
-      (asset) => asset.assetKind === "cover_art"
-    ),
-     coverObjectKey =
-      (coverAsset?.objectKey as string) ||
-      (initialProject.coverArtUrl as string),
-     projectTracks = Array.isArray(initialProject.tracks)
-      ? (initialProject.tracks as Record<string, unknown>[])
-      : [],
-     rawCollaborators = Array.isArray(initialProject.collaborators)
-      ? (initialProject.collaborators as Record<string, unknown>[])
-      : [],
-     firstGenre =
-      projectTracks.find((track) => typeof track.genre === "string")?.genre ||
-      "Hip-Hop/Rap",
-
-     rawProjectType = initialProject.projectType as string,
-     projectType: ProjectFormValues["type"] =
-      rawProjectType === "album" ||
-      rawProjectType === "ep" ||
-      rawProjectType === "mixtape"
-        ? rawProjectType
-        : "album";
+        ? (initialProject.assets as Record<string, unknown>[])
+        : [],
+      coverAsset = assetRows.find((asset) => asset.assetKind === "cover_art"),
+      coverObjectKey =
+        (coverAsset?.objectKey as string) ||
+        (initialProject.coverArtUrl as string),
+      projectTracks = Array.isArray(initialProject.tracks)
+        ? (initialProject.tracks as Record<string, unknown>[])
+        : [],
+      rawCollaborators = Array.isArray(initialProject.collaborators)
+        ? (initialProject.collaborators as Record<string, unknown>[])
+        : [],
+      firstGenre =
+        projectTracks.find((track) => typeof track.genre === "string")?.genre ||
+        "Hip-Hop/Rap",
+      rawProjectType = initialProject.projectType as string,
+      projectType: ProjectFormValues["type"] =
+        rawProjectType === "album" ||
+        rawProjectType === "ep" ||
+        rawProjectType === "mixtape"
+          ? rawProjectType
+          : "album";
 
     form.reset({
       collaborators: rawCollaborators.map((collaborator) => ({
@@ -487,584 +468,575 @@ export function NewProjectForm({
   }, [initialProject, form]);
 
   const {
-    allowNavigation,
-    blockerDialog,
-    clearDraft,
-    hasSavedDraft,
-    resetDraft,
-  } = useFormDraftGuard({
-    additionalDirtyState: Boolean(selectedCoverFile),
-    defaultValues: defaultProjectFormValues,
-    form,
-    persist: false,
-    restoreOnMount: false,
-    storageKey: projectId
-      ? `soundkit:edit-project-draft-${projectId}`
-      : "soundkit:new-project-draft",
-  }),
+      allowNavigation,
+      blockerDialog,
+      clearDraft,
+      hasSavedDraft,
+      resetDraft,
+    } = useFormDraftGuard({
+      additionalDirtyState: Boolean(selectedCoverFile),
+      defaultValues: defaultProjectFormValues,
+      form,
+      persist: false,
+      restoreOnMount: false,
+      storageKey: projectId
+        ? `soundkit:edit-project-draft-${projectId}`
+        : "soundkit:new-project-draft",
+    }),
+    resetProjectDraft = () => {
+      resetDraft();
+      setSelectedCoverFile(null);
+      setProjectCover(null);
+      toast({
+        description: "Project draft cleared. You can start fresh.",
+        title: "Draft reset",
+      });
+    },
+    { fields, append, remove } = useFieldArray({
+      control: form.control,
+      name: "newTracks",
+    }),
+    getSelectedExistingRuntimeMs = (trackIds: string[]) => {
+      const initialTracks = Array.isArray(initialProject?.tracks)
+        ? (initialProject.tracks as Record<string, unknown>[])
+        : [];
 
-   resetProjectDraft = () => {
-    resetDraft();
-    setSelectedCoverFile(null);
-    setProjectCover(null);
-    toast({
-      description: "Project draft cleared. You can start fresh.",
-      title: "Draft reset",
-    });
-  },
+      let totalRuntimeMs = 0;
 
-   { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "newTracks",
-  }),
+      for (const trackId of trackIds) {
+        const existingTrack = existingTracks.find(
+            (track) => track.id === trackId
+          ),
+          initialTrack = initialTracks.find((track) => track.id === trackId),
+          durationMs = parseDurationLabelMs(
+            getTrackDurationLabel(existingTrack) ??
+              getTrackDurationLabel(initialTrack)
+          );
 
-   getSelectedExistingRuntimeMs = (trackIds: string[]) => {
-    const initialTracks = Array.isArray(initialProject?.tracks)
-      ? (initialProject.tracks as Record<string, unknown>[])
-      : [];
+        totalRuntimeMs += durationMs ?? 0;
+      }
 
-    let totalRuntimeMs = 0;
+      return totalRuntimeMs;
+    },
+    shouldBlockEpRuntime = ({
+      newTrackDurationsMs = [],
+      values,
+    }: {
+      newTrackDurationsMs?: (number | null)[];
+      values: ProjectFormValues;
+    }) => {
+      if (values.type !== "ep") {
+        return false;
+      }
 
-    for (const trackId of trackIds) {
-      const existingTrack = existingTracks.find(
-        (track) => track.id === trackId
-      ),
-       initialTrack = initialTracks.find((track) => track.id === trackId),
-       durationMs = parseDurationLabelMs(
-        getTrackDurationLabel(existingTrack) ??
-          getTrackDurationLabel(initialTrack)
+      let totalRuntimeMs = getSelectedExistingRuntimeMs(
+        values.selectedExistingTracks
       );
 
-      totalRuntimeMs += durationMs ?? 0;
-    }
-
-    return totalRuntimeMs;
-  },
-
-   shouldBlockEpRuntime = ({
-    newTrackDurationsMs = [],
-    values,
-  }: {
-    newTrackDurationsMs?: (number | null)[];
-    values: ProjectFormValues;
-  }) => {
-    if (values.type !== "ep") {
-      return false;
-    }
-
-    let totalRuntimeMs = getSelectedExistingRuntimeMs(
-      values.selectedExistingTracks
-    );
-
-    for (const durationMs of newTrackDurationsMs) {
-      totalRuntimeMs += durationMs ?? 0;
-    }
-
-    if (totalRuntimeMs <= epRuntimeLimitMs) {
-      return false;
-    }
-
-    toast({
-      description: `This project is ${formatDurationLabel(totalRuntimeMs)}. EPs should stay at 30:00 or less, so change the project type to Mixtape or Album before submitting.`,
-      title: "Project runtime exceeds EP length",
-      variant: "destructive",
-    });
-    setStep("identity");
-    return true;
-  },
-
-   onSubmit = async (values: ProjectFormValues) => {
-    // Edit Mode submission
-    if (projectId) {
-      try {
-        if (shouldBlockEpRuntime({ values })) {
-          return;
-        }
-
-        const releaseState = projectReleaseState(values);
-        let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
-
-        if (selectedCoverFile && !coverKey) {
-          const keyPromise = new Promise<string>((resolve) => {
-            coverUploadResolverRef.current = resolve;
-          });
-          uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
-            posthog.captureException(uploadError);
-            coverUploadResolverRef.current?.("");
-            coverUploadResolverRef.current = null;
-          });
-          coverKey = await Promise.race([
-            keyPromise,
-            new Promise<string>((resolve) =>
-              setTimeout(() => resolve(""), 60_000)
-            ),
-          ]);
-          if (!coverKey) {
-            coverUploadResolverRef.current = null;
-            toast({
-              description:
-                "Project cover upload did not finish. Please retry before saving.",
-              title: "Artwork upload incomplete",
-              variant: "destructive",
-            });
-            return;
-          }
-        }
-
-        await updateProjectMutation.mutateAsync({
-          assetIds: coverKey ? [coverKey] : undefined,
-          description: values.description || undefined,
-          exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
-          isForSale: values.isForSale,
-          isPublic: releaseState.isListed,
-          listeningAccess: values.listeningAccess,
-          priceCents: values.isForSale ? values.priceCents : undefined,
-          projectType: values.type,
-          releaseDate: releaseState.releaseDate,
-          status: releaseState.status,
-          streamingLinks: {},
-          title: values.name,
-        });
-
-        posthog.capture("project_updated", {
-          project_id: projectId,
-          project_type: values.type,
-        });
-        toast({
-          description: `${values.name} was updated successfully.`,
-          title: "Project Updated",
-        });
-        clearDraft();
-        allowNavigation();
-        router.navigate({
-          params: { id: projectId },
-          to: "/dashboard/projects/$id",
-        });
-      } catch (error) {
-        posthog.captureException(error);
-        toast({
-          description: "Failed to update project. Please try again.",
-          title: "Error",
-          variant: "destructive",
-        });
+      for (const durationMs of newTrackDurationsMs) {
+        totalRuntimeMs += durationMs ?? 0;
       }
-      return;
-    }
 
-    if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
-      setStep("tracks");
+      if (totalRuntimeMs <= epRuntimeLimitMs) {
+        return false;
+      }
+
       toast({
-        description:
-          "Projects need at least two songs. Add more tracks before submitting.",
-        title: "More tracks required",
+        description: `This project is ${formatDurationLabel(totalRuntimeMs)}. EPs should stay at 30:00 or less, so change the project type to Mixtape or Album before submitting.`,
+        title: "Project runtime exceeds EP length",
         variant: "destructive",
       });
-      return;
-    }
-
-    const releaseState = projectReleaseState(values);
-    let coverKey = values.projectCoverObjectKey;
-
-    if (selectedCoverFile && !coverKey) {
-      const keyPromise = new Promise<string>((resolve) => {
-        coverUploadResolverRef.current = resolve;
-      });
-      uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
-        posthog.captureException(uploadError);
-        coverUploadResolverRef.current?.("");
-        coverUploadResolverRef.current = null;
-      });
-      coverKey = await Promise.race([
-        keyPromise,
-        new Promise<string>((resolve) => setTimeout(() => resolve(""), 60_000)),
-      ]);
-      if (!coverKey) {
-        coverUploadResolverRef.current = null;
-        toast({
-          description:
-            "Project cover upload did not finish. Please retry before creating this project.",
-          title: "Artwork upload incomplete",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    if (!coverKey && releaseState.isListed) {
       setStep("identity");
-      toast({
-        description:
-          "Listed projects need cover artwork. Switch to Unlisted to keep building without artwork.",
-        title: "Artwork required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsSubmittingProject(true);
-      const filelessNewTrack = values.newTracks.find(
-        (track) => !(track.file instanceof File) && !track.assetId
-      );
-
-      if (filelessNewTrack) {
-        setStep("tracks");
-        toast({
-          description:
-            "Every new project track needs an uploaded audio file before the project can be created.",
-          title: "Track audio required",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const pendingTrackFiles = await Promise.all(
-        values.newTracks.map(async (track, index) => ({
-          durationMs:
-            track.file instanceof File
-              ? await readAudioDurationMs(track.file)
-              : null,
-          file: track.file instanceof File ? track.file : null,
-          index,
-        }))
-      );
-
-      if (
-        shouldBlockEpRuntime({
-          newTrackDurationsMs: pendingTrackFiles.map(
-            (trackFile) => trackFile.durationMs
-          ),
-          values,
-        })
-      ) {
-        return;
-      }
-
-      const hasReleaseDate = Boolean(releaseState.releaseDate),
-
-       projectTracks = values.newTracks.map((track, index) => {
-        const projectTrack = {
-          downloadsAllowed: true,
-          downloadsRequireFirstPlay: true,
-          downloadsRequirePurchase: false,
-          durationMs: pendingTrackFiles[index]?.durationMs ?? undefined,
-          genre: track.genre || values.genre || "Hip-Hop/Rap",
-          title: track.name,
-        };
-
-        return projectTrack;
-      }),
-
-       projectPayload = {
-        assetIds: coverKey ? [coverKey] : [],
-        collaboratorNames: values.collaborators.map(
-          (collaborator) => collaborator.displayName
-        ),
-        collaborators: values.collaborators.map((collaborator) => ({
-          inviteEmail: collaborator.inviteEmail,
-          name: collaborator.displayName,
-          role: collaborator.role,
-          userId: collaborator.userId,
-        })),
-        exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
-        isForSale: values.isForSale,
-        isPublic: false,
-        listeningAccess: values.listeningAccess,
-        newTracks: projectTracks,
-        priceCents: values.isForSale ? values.priceCents : undefined,
-        projectType: values.type,
-        status: releaseState.status,
-        streamingLinks: {},
-        title: values.name,
-        trackIds: values.selectedExistingTracks,
-        ...(values.description ? { description: values.description } : {}),
-        ...(releaseState.releaseDate
-          ? { releaseDate: releaseState.releaseDate }
-          : {}),
-      },
-
-       project = await rpcJson(
-        await projectsPost({ json: projectPayload })
-      ),
-       pendingTrackUploads = pendingTrackFiles.filter(
-        (
-          entry
-        ): entry is {
-          durationMs: number | null;
-          file: File;
-          index: number;
-        } => Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
-      ),
-
-       projectDetail = await rpcJson(
-        await projectGet({ param: { projectId: project.id } })
-      ),
-       newProjectTracks = projectDetail.tracks.filter(
-        (track) => !values.selectedExistingTracks.includes(track.id)
-      );
-
-      if (pendingTrackUploads.length > 0) {
-        for (const pendingTrack of pendingTrackUploads) {
-          const projectTrack = newProjectTracks[pendingTrack.index];
-          if (!projectTrack) {
-            continue;
-          }
-
-          const previewFile = await createAudioPreviewFile(
-            pendingTrack.file
-          ).catch(() => null),
-           uploadedAssets = await uploadProjectTrackFiles(
-            previewFile ? [pendingTrack.file, previewFile] : [pendingTrack.file]
-          );
-          if (!uploadedAssets) {
-            toast({
-              description:
-                "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
-              title: "Project draft saved",
-              variant: "destructive",
-            });
-            await queryClient.invalidateQueries({
-              queryKey: soundkitQueryKeys.projects,
-            });
-            router.navigate({ to: "/dashboard/projects" });
+      return true;
+    },
+    onSubmit = async (values: ProjectFormValues) => {
+      // Edit Mode submission
+      if (projectId) {
+        try {
+          if (shouldBlockEpRuntime({ values })) {
             return;
           }
 
-          const uploadedAsset = uploadedAssets.find(
-            (asset) => !asset.fileName.endsWith(".preview.wav")
-          ),
-           uploadedPreview = uploadedAssets.find((asset) =>
-            asset.fileName.endsWith(".preview.wav")
-          );
-          if (!uploadedAsset) {
-            continue;
+          const releaseState = projectReleaseState(values);
+          let coverKey = selectedCoverFile ? "" : values.projectCoverObjectKey;
+
+          if (selectedCoverFile && !coverKey) {
+            const keyPromise = new Promise<string>((resolve) => {
+              coverUploadResolverRef.current = resolve;
+            });
+            uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+              posthog.captureException(uploadError);
+              coverUploadResolverRef.current?.("");
+              coverUploadResolverRef.current = null;
+            });
+            coverKey = await Promise.race([
+              keyPromise,
+              new Promise<string>((resolve) =>
+                setTimeout(() => resolve(""), 60_000)
+              ),
+            ]);
+            if (!coverKey) {
+              coverUploadResolverRef.current = null;
+              toast({
+                description:
+                  "Project cover upload did not finish. Please retry before saving.",
+                title: "Artwork upload incomplete",
+                variant: "destructive",
+              });
+              return;
+            }
           }
 
-          await rpcJson(
-            await trackAssetPost({
-              json: {
-                assetKind: "master",
-                durationMs: pendingTrack.durationMs ?? undefined,
-                metadata: {
-                  durationMs: pendingTrack.durationMs,
-                  originalFileName: uploadedAsset.fileName,
-                  url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
-                },
-                mimeType: uploadedAsset.mimeType,
-                objectKey: uploadedAsset.objectKey,
-                sizeBytes: uploadedAsset.sizeBytes,
-                status: "uploaded",
-                storageProvider: "r2",
-              },
-              param: { trackId: projectTrack.id },
-            })
-          );
-
-          if (uploadedPreview) {
-            await rpcJson(
-              await trackAssetPost({
-                json: {
-                  assetKind: "variant_audio",
-                  durationMs: Math.min(
-                    pendingTrack.durationMs ?? 30_000,
-                    30_000
-                  ),
-                  metadata: {
-                    durationMs: Math.min(
-                      pendingTrack.durationMs ?? 30_000,
-                      30_000
-                    ),
-                    originalFileName: uploadedPreview.fileName,
-                    previewDurationSeconds: 30,
-                    url: `${MEDIA_BASE_URL}/${uploadedPreview.objectKey}`,
-                    variant: "preview_30s",
-                  },
-                  mimeType: uploadedPreview.mimeType,
-                  objectKey: uploadedPreview.objectKey,
-                  sizeBytes: uploadedPreview.sizeBytes,
-                  status: "ready",
-                  storageProvider: "r2",
-                },
-                param: { trackId: projectTrack.id },
-              })
-            );
-          }
-        }
-      }
-
-      if (releaseState.isListed) {
-        for (const projectTrack of newProjectTracks) {
-          await settleTrackMutation.mutateAsync({
-            body: {
-              isPublic: true,
-              productionStatus: "complete",
-              releaseAt: releaseState.releaseDate,
-              releaseStrategy: hasReleaseDate
-                ? "scheduled"
-                : "publish_when_ready",
-              requireCoverArt: releaseState.isListed,
-            },
-            trackId: projectTrack.id,
-          });
-        }
-      }
-
-      const settledProject = await rpcJson(
-        await projectPatch({
-          json: {
+          await updateProjectMutation.mutateAsync({
             assetIds: coverKey ? [coverKey] : undefined,
             description: values.description || undefined,
+            exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
+            isForSale: values.isForSale,
             isPublic: releaseState.isListed,
+            listeningAccess: values.listeningAccess,
+            priceCents: values.isForSale ? values.priceCents : undefined,
             projectType: values.type,
             releaseDate: releaseState.releaseDate,
             status: releaseState.status,
             streamingLinks: {},
             title: values.name,
-          },
-          param: { projectId: project.id },
-        })
-      );
+          });
 
-      await queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.projects,
-      });
-
-      posthog.capture("project_created", {
-        collaborator_count: values.collaborators.length,
-        existing_track_count: values.selectedExistingTracks.length,
-        has_release_date: Boolean(releaseState.releaseDate),
-        is_listed: releaseState.isListed,
-        new_track_count: values.newTracks.length,
-        project_id: project.id,
-        project_type: values.type,
-      });
-      toast({
-        description:
-          releaseState.status === "scheduled"
-            ? `${settledProject.title} is scheduled for ${formatDatePickerLabel(values.releaseDate)}.`
-            : releaseState.isListed
-              ? `${settledProject.title} is listed on SoundKit.`
-              : `${settledProject.title} is saved as an unlisted project.`,
-        title: releaseState.isListed ? "Project Created" : "Project Saved",
-      });
-      resetDraft();
-      setSelectedCoverFile(null);
-      setProjectCover(null);
-      allowNavigation();
-      router.navigate({ to: "/dashboard/projects" });
-    } catch (error) {
-      posthog.captureException(error);
-      toast({
-        description: "Failed to create project. Please try again.",
-        title: "Error",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingProject(false);
-    }
-  },
-
-   toggleExistingTrack = (trackId: string) => {
-    const current = form.getValues("selectedExistingTracks"),
-     trackTitle =
-      existingTracks.find((track) => track.id === trackId)?.title ?? "Track";
-
-    if (current.includes(trackId)) {
-      form.setValue(
-        "selectedExistingTracks",
-        current.filter((id) => id !== trackId),
-        { shouldDirty: true }
-      );
-      toast({
-        description: `Removed "${trackTitle}" from this project.`,
-        title: "Track removed",
-      });
-      return;
-    }
-
-    const updated = [...current, trackId];
-    form.setValue("selectedExistingTracks", updated, { shouldDirty: true });
-    toast({
-      description: `Added "${trackTitle}" to this project.`,
-      title: "Track added",
-    });
-  },
-
-   handleNewUpload = (files: FileList | File[]) => {
-    for (const file of files) {
-      append({
-        file,
-        genre: form.getValues("genre") || "Hip-Hop/Rap",
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        producers: "",
-        writers: "",
-      });
-    }
-  },
-
-   {
-    averageProgress: coverProgress,
-    isPending: isCoverUploading,
-    upload: uploadCover,
-  } = useUploadFiles({
-    api: MEDIA_UPLOAD_URL,
-    credentials: "include",
-    onError: (uploadError) => {
-      posthog.captureException(uploadError);
-      toast({
-        description: uploadError.message,
-        title: "Artwork upload failed",
-        variant: "destructive",
-      });
-      if (coverUploadResolverRef.current) {
-        coverUploadResolverRef.current("");
-        coverUploadResolverRef.current = null;
-      }
-    },
-    onUploadComplete: ({ files }) => {
-      const [uploadedFile] = files;
-
-      if (!uploadedFile) {
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current("");
-          coverUploadResolverRef.current = null;
+          posthog.capture("project_updated", {
+            project_id: projectId,
+            project_type: values.type,
+          });
+          toast({
+            description: `${values.name} was updated successfully.`,
+            title: "Project Updated",
+          });
+          clearDraft();
+          allowNavigation();
+          router.navigate({
+            params: { id: projectId },
+            to: "/dashboard/projects/$id",
+          });
+        } catch (error) {
+          posthog.captureException(error);
+          toast({
+            description: "Failed to update project. Please try again.",
+            title: "Error",
+            variant: "destructive",
+          });
         }
         return;
       }
 
-      const objectKey = uploadedFile.objectInfo.key;
+      if (values.selectedExistingTracks.length + values.newTracks.length < 2) {
+        setStep("tracks");
+        toast({
+          description:
+            "Projects need at least two songs. Add more tracks before submitting.",
+          title: "More tracks required",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      setProjectCover({
-        fileName: uploadedFile.raw.name,
-        objectKey,
-        remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
-      });
-      form.setValue("projectCoverObjectKey", objectKey, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
+      const releaseState = projectReleaseState(values);
+      let coverKey = values.projectCoverObjectKey;
 
-      if (coverUploadResolverRef.current) {
-        coverUploadResolverRef.current(objectKey);
-        coverUploadResolverRef.current = null;
+      if (selectedCoverFile && !coverKey) {
+        const keyPromise = new Promise<string>((resolve) => {
+          coverUploadResolverRef.current = resolve;
+        });
+        uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
+          posthog.captureException(uploadError);
+          coverUploadResolverRef.current?.("");
+          coverUploadResolverRef.current = null;
+        });
+        coverKey = await Promise.race([
+          keyPromise,
+          new Promise<string>((resolve) =>
+            setTimeout(() => resolve(""), 60_000)
+          ),
+        ]);
+        if (!coverKey) {
+          coverUploadResolverRef.current = null;
+          toast({
+            description:
+              "Project cover upload did not finish. Please retry before creating this project.",
+            title: "Artwork upload incomplete",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      if (!coverKey && releaseState.isListed) {
+        setStep("identity");
+        toast({
+          description:
+            "Listed projects need cover artwork. Switch to Unlisted to keep building without artwork.",
+          title: "Artwork required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        setIsSubmittingProject(true);
+        const filelessNewTrack = values.newTracks.find(
+          (track) => !(track.file instanceof File) && !track.assetId
+        );
+
+        if (filelessNewTrack) {
+          setStep("tracks");
+          toast({
+            description:
+              "Every new project track needs an uploaded audio file before the project can be created.",
+            title: "Track audio required",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const pendingTrackFiles = await Promise.all(
+          values.newTracks.map(async (track, index) => ({
+            durationMs:
+              track.file instanceof File
+                ? await readAudioDurationMs(track.file)
+                : null,
+            file: track.file instanceof File ? track.file : null,
+            index,
+          }))
+        );
+
+        if (
+          shouldBlockEpRuntime({
+            newTrackDurationsMs: pendingTrackFiles.map(
+              (trackFile) => trackFile.durationMs
+            ),
+            values,
+          })
+        ) {
+          return;
+        }
+
+        const hasReleaseDate = Boolean(releaseState.releaseDate),
+          projectTracks = values.newTracks.map((track, index) => {
+            const projectTrack = {
+              downloadsAllowed: true,
+              downloadsRequireFirstPlay: true,
+              downloadsRequirePurchase: false,
+              durationMs: pendingTrackFiles[index]?.durationMs ?? undefined,
+              genre: track.genre || values.genre || "Hip-Hop/Rap",
+              title: track.name,
+            };
+
+            return projectTrack;
+          }),
+          projectPayload = {
+            assetIds: coverKey ? [coverKey] : [],
+            collaboratorNames: values.collaborators.map(
+              (collaborator) => collaborator.displayName
+            ),
+            collaborators: values.collaborators.map((collaborator) => ({
+              inviteEmail: collaborator.inviteEmail,
+              name: collaborator.displayName,
+              role: collaborator.role,
+              userId: collaborator.userId,
+            })),
+            exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
+            isForSale: values.isForSale,
+            isPublic: false,
+            listeningAccess: values.listeningAccess,
+            newTracks: projectTracks,
+            priceCents: values.isForSale ? values.priceCents : undefined,
+            projectType: values.type,
+            status: releaseState.status,
+            streamingLinks: {},
+            title: values.name,
+            trackIds: values.selectedExistingTracks,
+            ...(values.description ? { description: values.description } : {}),
+            ...(releaseState.releaseDate
+              ? { releaseDate: releaseState.releaseDate }
+              : {}),
+          },
+          project = await rpcJson(await projectsPost({ json: projectPayload })),
+          pendingTrackUploads = pendingTrackFiles.filter(
+            (
+              entry
+            ): entry is {
+              durationMs: number | null;
+              file: File;
+              index: number;
+            } => Boolean(entry.file) && !values.newTracks[entry.index]?.assetId
+          ),
+          projectDetail = await rpcJson(
+            await projectGet({ param: { projectId: project.id } })
+          ),
+          newProjectTracks = projectDetail.tracks.filter(
+            (track) => !values.selectedExistingTracks.includes(track.id)
+          );
+
+        if (pendingTrackUploads.length > 0) {
+          for (const pendingTrack of pendingTrackUploads) {
+            const projectTrack = newProjectTracks[pendingTrack.index];
+            if (!projectTrack) {
+              continue;
+            }
+
+            const previewFile = await createAudioPreviewFile(
+                pendingTrack.file
+              ).catch(() => null),
+              uploadedAssets = await uploadProjectTrackFiles(
+                previewFile
+                  ? [pendingTrack.file, previewFile]
+                  : [pendingTrack.file]
+              );
+            if (!uploadedAssets) {
+              toast({
+                description:
+                  "Your project draft was saved, but one or more track files did not finish uploading. Open the project draft and retry those files.",
+                title: "Project draft saved",
+                variant: "destructive",
+              });
+              await queryClient.invalidateQueries({
+                queryKey: soundkitQueryKeys.projects,
+              });
+              router.navigate({ to: "/dashboard/projects" });
+              return;
+            }
+
+            const uploadedAsset = uploadedAssets.find(
+                (asset) => !asset.fileName.endsWith(".preview.wav")
+              ),
+              uploadedPreview = uploadedAssets.find((asset) =>
+                asset.fileName.endsWith(".preview.wav")
+              );
+            if (!uploadedAsset) {
+              continue;
+            }
+
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: "master",
+                  durationMs: pendingTrack.durationMs ?? undefined,
+                  metadata: {
+                    durationMs: pendingTrack.durationMs,
+                    originalFileName: uploadedAsset.fileName,
+                    url: `${MEDIA_BASE_URL}/${uploadedAsset.objectKey}`,
+                  },
+                  mimeType: uploadedAsset.mimeType,
+                  objectKey: uploadedAsset.objectKey,
+                  sizeBytes: uploadedAsset.sizeBytes,
+                  status: "uploaded",
+                  storageProvider: "r2",
+                },
+                param: { trackId: projectTrack.id },
+              })
+            );
+
+            if (uploadedPreview) {
+              await rpcJson(
+                await trackAssetPost({
+                  json: {
+                    assetKind: "variant_audio",
+                    durationMs: Math.min(
+                      pendingTrack.durationMs ?? 30_000,
+                      30_000
+                    ),
+                    metadata: {
+                      durationMs: Math.min(
+                        pendingTrack.durationMs ?? 30_000,
+                        30_000
+                      ),
+                      originalFileName: uploadedPreview.fileName,
+                      previewDurationSeconds: 30,
+                      url: `${MEDIA_BASE_URL}/${uploadedPreview.objectKey}`,
+                      variant: "preview_30s",
+                    },
+                    mimeType: uploadedPreview.mimeType,
+                    objectKey: uploadedPreview.objectKey,
+                    sizeBytes: uploadedPreview.sizeBytes,
+                    status: "ready",
+                    storageProvider: "r2",
+                  },
+                  param: { trackId: projectTrack.id },
+                })
+              );
+            }
+          }
+        }
+
+        if (releaseState.isListed) {
+          for (const projectTrack of newProjectTracks) {
+            await settleTrackMutation.mutateAsync({
+              body: {
+                isPublic: true,
+                productionStatus: "complete",
+                releaseAt: releaseState.releaseDate,
+                releaseStrategy: hasReleaseDate
+                  ? "scheduled"
+                  : "publish_when_ready",
+                requireCoverArt: releaseState.isListed,
+              },
+              trackId: projectTrack.id,
+            });
+          }
+        }
+
+        const settledProject = await rpcJson(
+          await projectPatch({
+            json: {
+              assetIds: coverKey ? [coverKey] : undefined,
+              description: values.description || undefined,
+              isPublic: releaseState.isListed,
+              projectType: values.type,
+              releaseDate: releaseState.releaseDate,
+              status: releaseState.status,
+              streamingLinks: {},
+              title: values.name,
+            },
+            param: { projectId: project.id },
+          })
+        );
+
+        await queryClient.invalidateQueries({
+          queryKey: soundkitQueryKeys.projects,
+        });
+
+        posthog.capture("project_created", {
+          collaborator_count: values.collaborators.length,
+          existing_track_count: values.selectedExistingTracks.length,
+          has_release_date: Boolean(releaseState.releaseDate),
+          is_listed: releaseState.isListed,
+          new_track_count: values.newTracks.length,
+          project_id: project.id,
+          project_type: values.type,
+        });
+        toast({
+          description:
+            releaseState.status === "scheduled"
+              ? `${settledProject.title} is scheduled for ${formatDatePickerLabel(values.releaseDate)}.`
+              : releaseState.isListed
+                ? `${settledProject.title} is listed on SoundKit.`
+                : `${settledProject.title} is saved as an unlisted project.`,
+          title: releaseState.isListed ? "Project Created" : "Project Saved",
+        });
+        resetDraft();
+        setSelectedCoverFile(null);
+        setProjectCover(null);
+        allowNavigation();
+        router.navigate({ to: "/dashboard/projects" });
+      } catch (error) {
+        posthog.captureException(error);
+        toast({
+          description: "Failed to create project. Please try again.",
+          title: "Error",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmittingProject(false);
       }
     },
-    onUploadFail: ({ failedFiles }) => {
-      const [failed] = failedFiles;
-      posthog.captureException(failed?.error);
+    toggleExistingTrack = (trackId: string) => {
+      const current = form.getValues("selectedExistingTracks"),
+        trackTitle =
+          existingTracks.find((track) => track.id === trackId)?.title ??
+          "Track";
+
+      if (current.includes(trackId)) {
+        form.setValue(
+          "selectedExistingTracks",
+          current.filter((id) => id !== trackId),
+          { shouldDirty: true }
+        );
+        toast({
+          description: `Removed "${trackTitle}" from this project.`,
+          title: "Track removed",
+        });
+        return;
+      }
+
+      const updated = [...current, trackId];
+      form.setValue("selectedExistingTracks", updated, { shouldDirty: true });
       toast({
-        description:
-          failed?.error?.message ?? "The artwork could not be stored.",
-        title: "Artwork upload failed",
-        variant: "destructive",
+        description: `Added "${trackTitle}" to this project.`,
+        title: "Track added",
       });
-      if (coverUploadResolverRef.current) {
-        coverUploadResolverRef.current("");
-        coverUploadResolverRef.current = null;
+    },
+    handleNewUpload = (files: FileList | File[]) => {
+      for (const file of files) {
+        append({
+          file,
+          genre: form.getValues("genre") || "Hip-Hop/Rap",
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          producers: "",
+          writers: "",
+        });
       }
     },
-    route: "media",
-  });
+    {
+      averageProgress: coverProgress,
+      isPending: isCoverUploading,
+      upload: uploadCover,
+    } = useUploadFiles({
+      api: MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onError: (uploadError) => {
+        posthog.captureException(uploadError);
+        toast({
+          description: uploadError.message,
+          title: "Artwork upload failed",
+          variant: "destructive",
+        });
+        if (coverUploadResolverRef.current) {
+          coverUploadResolverRef.current("");
+          coverUploadResolverRef.current = null;
+        }
+      },
+      onUploadComplete: ({ files }) => {
+        const [uploadedFile] = files;
+
+        if (!uploadedFile) {
+          if (coverUploadResolverRef.current) {
+            coverUploadResolverRef.current("");
+            coverUploadResolverRef.current = null;
+          }
+          return;
+        }
+
+        const objectKey = uploadedFile.objectInfo.key;
+
+        setProjectCover({
+          fileName: uploadedFile.raw.name,
+          objectKey,
+          remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+        });
+        form.setValue("projectCoverObjectKey", objectKey, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+
+        if (coverUploadResolverRef.current) {
+          coverUploadResolverRef.current(objectKey);
+          coverUploadResolverRef.current = null;
+        }
+      },
+      onUploadFail: ({ failedFiles }) => {
+        const [failed] = failedFiles;
+        posthog.captureException(failed?.error);
+        toast({
+          description:
+            failed?.error?.message ?? "The artwork could not be stored.",
+          title: "Artwork upload failed",
+          variant: "destructive",
+        });
+        if (coverUploadResolverRef.current) {
+          coverUploadResolverRef.current("");
+          coverUploadResolverRef.current = null;
+        }
+      },
+      route: "media",
+    });
 
   interface ProjectTrackUploadResult {
     fileName: string;
@@ -1074,178 +1046,172 @@ export function NewProjectForm({
   }
 
   const {
-    averageProgress: projectAssetProgress,
-    isPending: isProjectAssetUploading,
-    upload: uploadProjectAssets,
-  } = useUploadFiles({
-    api: PROJECT_ASSETS_UPLOAD_URL,
-    credentials: "include",
-    onError: (uploadError) => {
-      posthog.captureException(uploadError);
-      toast({
-        description: uploadError.message,
-        title: "Project file upload failed",
-        variant: "destructive",
-      });
-      projectAssetsUploadResolverRef.current?.(null);
-      projectAssetsUploadResolverRef.current = null;
-    },
-    onUploadComplete: ({ files }) => {
-      const assets = files.map((uploadedFile) => ({
-        fileName: uploadedFile.raw.name,
-        mimeType: uploadedFile.raw.type || "application/octet-stream",
-        objectKey: uploadedFile.objectInfo.key,
-        sizeBytes: uploadedFile.raw.size,
-      }));
+      averageProgress: projectAssetProgress,
+      isPending: isProjectAssetUploading,
+      upload: uploadProjectAssets,
+    } = useUploadFiles({
+      api: PROJECT_ASSETS_UPLOAD_URL,
+      credentials: "include",
+      onError: (uploadError) => {
+        posthog.captureException(uploadError);
+        toast({
+          description: uploadError.message,
+          title: "Project file upload failed",
+          variant: "destructive",
+        });
+        projectAssetsUploadResolverRef.current?.(null);
+        projectAssetsUploadResolverRef.current = null;
+      },
+      onUploadComplete: ({ files }) => {
+        const assets = files.map((uploadedFile) => ({
+          fileName: uploadedFile.raw.name,
+          mimeType: uploadedFile.raw.type || "application/octet-stream",
+          objectKey: uploadedFile.objectInfo.key,
+          sizeBytes: uploadedFile.raw.size,
+        }));
 
-      projectAssetsUploadResolverRef.current?.(assets);
-      projectAssetsUploadResolverRef.current = null;
+        projectAssetsUploadResolverRef.current?.(assets);
+        projectAssetsUploadResolverRef.current = null;
+      },
+      onUploadFail: ({ failedFiles }) => {
+        const [failed] = failedFiles;
+        posthog.captureException(failed?.error);
+        toast({
+          description:
+            failed?.error?.message ?? "The project files could not be stored.",
+          title: "Project file upload failed",
+          variant: "destructive",
+        });
+        projectAssetsUploadResolverRef.current?.(null);
+        projectAssetsUploadResolverRef.current = null;
+      },
+      route: "project-assets",
+    }),
+    uploadProjectTrackFiles = async (files: File[]) => {
+      const uploadPromise = new Promise<ProjectTrackUploadResult[] | null>(
+        (resolve) => {
+          projectAssetsUploadResolverRef.current = resolve;
+        }
+      );
+
+      uploadProjectAssets(files).catch((uploadError: unknown) => {
+        posthog.captureException(uploadError);
+        projectAssetsUploadResolverRef.current?.(null);
+        projectAssetsUploadResolverRef.current = null;
+      });
+
+      return Promise.race([
+        uploadPromise,
+        new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), 120_000)
+        ),
+      ]);
     },
-    onUploadFail: ({ failedFiles }) => {
-      const [failed] = failedFiles;
-      posthog.captureException(failed?.error);
+    handleProjectCoverUpload = async (files: FileList) => {
+      const [file] = [...files];
+
+      if (!file) {
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        toast({
+          description: "Select a JPG or PNG project cover.",
+          title: "Invalid artwork",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSelectedCoverFile(file);
+    },
+    addCollaborator = (entry: {
+      displayName: string;
+      inviteEmail?: string;
+      role: CollaboratorRole;
+      userId?: string;
+    }) => {
+      if (!entry.displayName.trim()) {
+        return;
+      }
+
+      const current = form.getValues("collaborators"),
+        alreadyAdded = current.some(
+          (collaborator) =>
+            collaborator.role === entry.role &&
+            ((entry.userId && collaborator.userId === entry.userId) ||
+              collaborator.displayName.toLowerCase() ===
+                entry.displayName.toLowerCase())
+        );
+
+      if (alreadyAdded) {
+        return;
+      }
+
+      form.setValue("collaborators", [...current, entry], {
+        shouldDirty: true,
+      });
+      setCollaboratorQuery("");
+    },
+    addQueriedCollaborator = () => {
+      const query = collaboratorQuery.trim();
+
+      if (!query) {
+        return;
+      }
+
+      addCollaborator({
+        displayName: query,
+        inviteEmail: query.includes("@") ? query : undefined,
+        role: collaboratorRole,
+      });
+    },
+    addSelfAsWriter = () => {
+      const user = session?.user;
+
+      if (!user) {
+        return;
+      }
+
+      addCollaborator({
+        displayName: user.name || user.email || "Me",
+        inviteEmail: user.email,
+        role: "songwriter",
+        userId: user.id,
+      });
+    },
+    removeCollaborator = (index: number) => {
+      const current = form.getValues("collaborators");
+      form.setValue(
+        "collaborators",
+        current.filter((_, i) => i !== index),
+        { shouldDirty: true }
+      );
+    },
+    handleInvalidSubmit = (errors: FieldErrors<ProjectFormValues>) => {
+      if (errors.name || errors.type || errors.genre) {
+        setStep("identity");
+      } else if (errors.newTracks || errors.selectedExistingTracks) {
+        setStep("tracks");
+      } else if (
+        errors.releaseDate ||
+        errors.releaseVisibility ||
+        errors.rightsAccepted
+      ) {
+        setStep("distribution");
+      } else if (errors.collaborators) {
+        setStep("collaboration");
+      }
+
       toast({
         description:
-          failed?.error?.message ?? "The project files could not be stored.",
-        title: "Project file upload failed",
+          "One required field still needs attention. I opened the section that needs it.",
+        title: "Project setup incomplete",
         variant: "destructive",
       });
-      projectAssetsUploadResolverRef.current?.(null);
-      projectAssetsUploadResolverRef.current = null;
     },
-    route: "project-assets",
-  }),
-
-   uploadProjectTrackFiles = async (files: File[]) => {
-    const uploadPromise = new Promise<ProjectTrackUploadResult[] | null>(
-      (resolve) => {
-        projectAssetsUploadResolverRef.current = resolve;
-      }
-    );
-
-    uploadProjectAssets(files).catch((uploadError: unknown) => {
-      posthog.captureException(uploadError);
-      projectAssetsUploadResolverRef.current?.(null);
-      projectAssetsUploadResolverRef.current = null;
-    });
-
-    return Promise.race([
-      uploadPromise,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 120_000)),
-    ]);
-  },
-
-   handleProjectCoverUpload = async (files: FileList) => {
-    const [file] = [...files];
-
-    if (!file) {
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      toast({
-        description: "Select a JPG or PNG project cover.",
-        title: "Invalid artwork",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSelectedCoverFile(file);
-  },
-
-   addCollaborator = (entry: {
-    displayName: string;
-    inviteEmail?: string;
-    role: CollaboratorRole;
-    userId?: string;
-  }) => {
-    if (!entry.displayName.trim()) {
-      return;
-    }
-
-    const current = form.getValues("collaborators"),
-     alreadyAdded = current.some(
-      (collaborator) =>
-        collaborator.role === entry.role &&
-        ((entry.userId && collaborator.userId === entry.userId) ||
-          collaborator.displayName.toLowerCase() ===
-            entry.displayName.toLowerCase())
-    );
-
-    if (alreadyAdded) {
-      return;
-    }
-
-    form.setValue("collaborators", [...current, entry], {
-      shouldDirty: true,
-    });
-    setCollaboratorQuery("");
-  },
-
-   addQueriedCollaborator = () => {
-    const query = collaboratorQuery.trim();
-
-    if (!query) {
-      return;
-    }
-
-    addCollaborator({
-      displayName: query,
-      inviteEmail: query.includes("@") ? query : undefined,
-      role: collaboratorRole,
-    });
-  },
-
-   addSelfAsWriter = () => {
-    const user = session?.user;
-
-    if (!user) {
-      return;
-    }
-
-    addCollaborator({
-      displayName: user.name || user.email || "Me",
-      inviteEmail: user.email,
-      role: "songwriter",
-      userId: user.id,
-    });
-  },
-
-   removeCollaborator = (index: number) => {
-    const current = form.getValues("collaborators");
-    form.setValue(
-      "collaborators",
-      current.filter((_, i) => i !== index),
-      { shouldDirty: true }
-    );
-  },
-
-   handleInvalidSubmit = (errors: FieldErrors<ProjectFormValues>) => {
-    if (errors.name || errors.type || errors.genre) {
-      setStep("identity");
-    } else if (errors.newTracks || errors.selectedExistingTracks) {
-      setStep("tracks");
-    } else if (
-      errors.releaseDate ||
-      errors.releaseVisibility ||
-      errors.rightsAccepted
-    ) {
-      setStep("distribution");
-    } else if (errors.collaborators) {
-      setStep("collaboration");
-    }
-
-    toast({
-      description:
-        "One required field still needs attention. I opened the section that needs it.",
-      title: "Project setup incomplete",
-      variant: "destructive",
-    });
-  },
-
-   releaseVisibility = form.watch("releaseVisibility"),
-   submitButtonLabel = projectId ? "Save Changes" : "Create Project";
+    releaseVisibility = form.watch("releaseVisibility"),
+    submitButtonLabel = projectId ? "Save Changes" : "Create Project";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -1456,10 +1422,10 @@ export function NewProjectForm({
                           onValueChange={(val) => {
                             field.onChange(val);
                             const currentTracks = form.getValues("newTracks"),
-                             updated = currentTracks.map((t) => ({
-                              ...t,
-                              genre: t.genre || val,
-                            }));
+                              updated = currentTracks.map((t) => ({
+                                ...t,
+                                genre: t.genre || val,
+                              }));
                             form.setValue("newTracks", updated);
                           }}
                           value={field.value}

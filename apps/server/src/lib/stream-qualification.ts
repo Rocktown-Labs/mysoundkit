@@ -6,7 +6,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { shouldExcludeArtistSeatStream } from "./stream-qualification-rules";
 
 const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"] as const,
- ARTIST_PREMIUM_PLAN_CODES = ["soundkit_premium_artist", "artist_team"];
+  ARTIST_PREMIUM_PLAN_CODES = ["soundkit_premium_artist", "artist_team"];
 
 export const isListenerOnTrackArtistPlan = async ({
   listenerUserId,
@@ -20,14 +20,14 @@ export const isListenerOnTrackArtistPlan = async ({
   }
 
   const db = createDb(),
-   [track] = await db
-    .select({
-      organizationId: tracks.organizationId,
-      ownerUserId: tracks.ownerUserId,
-    })
-    .from(tracks)
-    .where(eq(tracks.id, trackId))
-    .limit(1);
+    [track] = await db
+      .select({
+        organizationId: tracks.organizationId,
+        ownerUserId: tracks.ownerUserId,
+      })
+      .from(tracks)
+      .where(eq(tracks.id, trackId))
+      .limit(1);
 
   if (!track?.organizationId) {
     return listenerUserId === track?.ownerUserId;

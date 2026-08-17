@@ -64,14 +64,13 @@ export const ensureWorkspaceForUser = async ({
   user: AuthenticatedUser;
 }) => {
   const db = createDb(),
-
-   [existingMembership] = await db
-    .select({
-      organizationId: member.organizationId,
-    })
-    .from(member)
-    .where(eq(member.userId, user.id))
-    .limit(1);
+    [existingMembership] = await db
+      .select({
+        organizationId: member.organizationId,
+      })
+      .from(member)
+      .where(eq(member.userId, user.id))
+      .limit(1);
 
   if (existingMembership) {
     await db
@@ -86,8 +85,8 @@ export const ensureWorkspaceForUser = async ({
   }
 
   const organizationId = crypto.randomUUID(),
-   teamId = crypto.randomUUID(),
-   now = new Date();
+    teamId = crypto.randomUUID(),
+    now = new Date();
 
   await db.insert(organization).values({
     createdAt: now,

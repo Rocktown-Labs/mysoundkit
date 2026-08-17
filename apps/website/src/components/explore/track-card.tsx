@@ -34,50 +34,49 @@ export function TrackCard({
   slug,
 }: TrackCardProps) {
   const { toast } = useToast(),
-   { data: savedTracks = [] } = useLibrarySavedQuery(),
-   toggleSaveMutation = useToggleSaveTrackMutation(),
-   isSaved = savedTracks.some((t) => t.id === id),
-   [optimisticSaved, setOptimisticSaved] = useState(isSaved);
+    { data: savedTracks = [] } = useLibrarySavedQuery(),
+    toggleSaveMutation = useToggleSaveTrackMutation(),
+    isSaved = savedTracks.some((t) => t.id === id),
+    [optimisticSaved, setOptimisticSaved] = useState(isSaved);
 
   useEffect(() => {
     setOptimisticSaved(isSaved);
   }, [isSaved]);
 
   const handleToggleSave = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (toggleSaveMutation.isPending) {
-      return;
-    }
+      e.preventDefault();
+      e.stopPropagation();
+      if (toggleSaveMutation.isPending) {
+        return;
+      }
 
-    setOptimisticSaved((current) => !current);
+      setOptimisticSaved((current) => !current);
 
-    try {
-      const res = await toggleSaveMutation.mutateAsync(id);
-      setOptimisticSaved(res.saved);
-      toast({
-        description: res.saved
-          ? `Saved "${title}" to your Saved Tracks.`
-          : `Removed "${title}" from your Saved Tracks.`,
-        title: res.saved ? "Saved to Library" : "Removed from Library",
-      });
-    } catch {
-      toast({
-        description: "Please sign in to save tracks.",
-        title: "Sign in required",
-        variant: "destructive",
-      });
-      setOptimisticSaved(isSaved);
-    }
-  },
-
-   trackLink =
-    regionSlug && slug
-      ? {
-          params: { regionSlug, slug },
-          to: "/tracks/$regionSlug/$slug" as const,
-        }
-      : { params: { id }, to: "/tracks/$id" as const };
+      try {
+        const res = await toggleSaveMutation.mutateAsync(id);
+        setOptimisticSaved(res.saved);
+        toast({
+          description: res.saved
+            ? `Saved "${title}" to your Saved Tracks.`
+            : `Removed "${title}" from your Saved Tracks.`,
+          title: res.saved ? "Saved to Library" : "Removed from Library",
+        });
+      } catch {
+        toast({
+          description: "Please sign in to save tracks.",
+          title: "Sign in required",
+          variant: "destructive",
+        });
+        setOptimisticSaved(isSaved);
+      }
+    },
+    trackLink =
+      regionSlug && slug
+        ? {
+            params: { regionSlug, slug },
+            to: "/tracks/$regionSlug/$slug" as const,
+          }
+        : { params: { id }, to: "/tracks/$id" as const };
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-all group w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] xl:w-[220px] flex-shrink-0 p-0">

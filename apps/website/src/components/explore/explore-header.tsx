@@ -20,33 +20,30 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useMeQuery, useSearchQuery } from "@/lib/soundkit-api-hooks";
 
 const SEARCH_DEBOUNCE_MS = 250,
-
- resultLinkClassName =
-  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer",
-
- canOpenDashboardForUser = (user?: {
-  accountType: string;
-  onboardingCompletedAt?: string | null;
-  role?: string | null;
-}) =>
-  Boolean(user?.onboardingCompletedAt) &&
-  (user?.accountType === "artist" || user?.role === "admin");
+  resultLinkClassName =
+    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer",
+  canOpenDashboardForUser = (user?: {
+    accountType: string;
+    onboardingCompletedAt?: string | null;
+    role?: string | null;
+  }) =>
+    Boolean(user?.onboardingCompletedAt) &&
+    (user?.accountType === "artist" || user?.role === "admin");
 
 // The search, cart, and account controls intentionally share one responsive header.
 // eslint-disable-next-line complexity
 export function ExploreHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname }),
-   locationHref = useRouterState({ select: (s) => s.location.href }),
-   { cart, setIsCartOpen } = useCart(),
-   meQuery = useMeQuery(),
-   me = meQuery.data,
-   isSignedIn = Boolean(me),
-   canOpenDashboard = canOpenDashboardForUser(me?.user),
-
-   [searchValue, setSearchValue] = useState(""),
-   [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
-   searchInputRef = useRef<HTMLInputElement>(null),
-   trimmedSearchValue = debouncedSearchValue.trim();
+    locationHref = useRouterState({ select: (s) => s.location.href }),
+    { cart, setIsCartOpen } = useCart(),
+    meQuery = useMeQuery(),
+    me = meQuery.data,
+    isSignedIn = Boolean(me),
+    canOpenDashboard = canOpenDashboardForUser(me?.user),
+    [searchValue, setSearchValue] = useState(""),
+    [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
+    searchInputRef = useRef<HTMLInputElement>(null),
+    trimmedSearchValue = debouncedSearchValue.trim();
 
   useHotkey("Mod+K", (event) => {
     event.preventDefault();
@@ -55,22 +52,22 @@ export function ExploreHeader() {
   });
 
   const searchScope = pathname.startsWith("/projects")
-    ? "projects"
-    : pathname.startsWith("/tracks")
-      ? "tracks"
-      : pathname.startsWith("/artist")
-        ? "artists"
-        : "all",
-   searchQuery = useSearchQuery({
-    limit: "8",
-    q: trimmedSearchValue,
-    type: searchScope,
-  }),
-   results = searchQuery.data,
-   resultCount =
-    (results?.artists.length ?? 0) +
-    (results?.tracks.length ?? 0) +
-    (results?.projects.length ?? 0);
+      ? "projects"
+      : pathname.startsWith("/tracks")
+        ? "tracks"
+        : pathname.startsWith("/artist")
+          ? "artists"
+          : "all",
+    searchQuery = useSearchQuery({
+      limit: "8",
+      q: trimmedSearchValue,
+      type: searchScope,
+    }),
+    results = searchQuery.data,
+    resultCount =
+      (results?.artists.length ?? 0) +
+      (results?.tracks.length ?? 0) +
+      (results?.projects.length ?? 0);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -81,29 +78,28 @@ export function ExploreHeader() {
   }, [searchValue]);
 
   const getScopedSearch = () => {
-    if (searchScope === "projects") {
+      if (searchScope === "projects") {
+        return { q: trimmedSearchValue };
+      }
+
+      if (searchScope === "tracks") {
+        return { genre: "all", q: trimmedSearchValue, view: "all" as const };
+      }
+
       return { q: trimmedSearchValue };
-    }
-
-    if (searchScope === "tracks") {
-      return { genre: "all", q: trimmedSearchValue, view: "all" as const };
-    }
-
-    return { q: trimmedSearchValue };
-  },
-
-   getSearchPlaceholder = () => {
-    if (pathname.startsWith("/artist")) {
-      return "Search artists...";
-    } else if (pathname.startsWith("/live")) {
-      return "Search battles...";
-    } else if (pathname.startsWith("/tracks")) {
-      return "Search songs...";
-    } else if (pathname.startsWith("/genres")) {
-      return "Search genres...";
-    }
-    return "Search artists, tracks, battles...";
-  };
+    },
+    getSearchPlaceholder = () => {
+      if (pathname.startsWith("/artist")) {
+        return "Search artists...";
+      } else if (pathname.startsWith("/live")) {
+        return "Search battles...";
+      } else if (pathname.startsWith("/tracks")) {
+        return "Search songs...";
+      } else if (pathname.startsWith("/genres")) {
+        return "Search genres...";
+      }
+      return "Search artists, tracks, battles...";
+    };
 
   return (
     <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 md:gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">

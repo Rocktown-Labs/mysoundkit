@@ -35,180 +35,170 @@ export const Route = createFileRoute("/_explore/library/playlists/$id/")({
 
 function PlaylistDetailPage() {
   const { id } = Route.useParams(),
-   router = useRouter(),
-   { toast } = useToast(),
-   [addSongOpen, setAddSongOpen] = useState(false),
-   [locallyAddedTrackIds, setLocallyAddedTrackIds] = useState<string[]>(
-    []
-  ),
-   [removingTrackId, setRemovingTrackId] = useState<string>(),
-   [searchQuery, setSearchQuery] = useState(""),
-   [activeTab, setActiveTab] = useState("search"),
+    router = useRouter(),
+    { toast } = useToast(),
+    [addSongOpen, setAddSongOpen] = useState(false),
+    [locallyAddedTrackIds, setLocallyAddedTrackIds] = useState<string[]>([]),
+    [removingTrackId, setRemovingTrackId] = useState<string>(),
+    [searchQuery, setSearchQuery] = useState(""),
+    [activeTab, setActiveTab] = useState("search"),
+    { data: playlistData, isLoading } = usePlaylistQuery(id),
+    { data: publicTracks = [] } = useTracksQuery(),
+    { data: savedTracks = [] } = useLibrarySavedQuery(),
+    { data: recentPlays = [] } = useLibraryRecentQuery(),
+    { data: watchedHistory = [] } = useLibraryWatchedQuery(),
+    addTrackMutation = useAddPlaylistTrackMutation(),
+    removeTrackMutation = useRemovePlaylistTrackMutation(),
+    playlist = playlistData?.playlist,
+    currentTracks = useMemo(
+      () => playlistData?.tracks ?? [],
+      [playlistData?.tracks]
+    ),
+    currentTrackIds = useMemo(
+      () => new Set(currentTracks.map((track) => track.id)),
+      [currentTracks]
+    ),
+    handleAddSong = async (track: { id: string; title: string }) => {
+      if (
+        currentTrackIds.has(track.id) ||
+        locallyAddedTrackIds.includes(track.id)
+      ) {
+        toast({
+          description: `"${track.title}" is already in this playlist.`,
+          title: "Already added",
+        });
+        return;
+      }
 
-   { data: playlistData, isLoading } = usePlaylistQuery(id),
-   { data: publicTracks = [] } = useTracksQuery(),
-   { data: savedTracks = [] } = useLibrarySavedQuery(),
-   { data: recentPlays = [] } = useLibraryRecentQuery(),
-   { data: watchedHistory = [] } = useLibraryWatchedQuery(),
-
-   addTrackMutation = useAddPlaylistTrackMutation(),
-   removeTrackMutation = useRemovePlaylistTrackMutation(),
-
-   playlist = playlistData?.playlist,
-   currentTracks = useMemo(
-    () => playlistData?.tracks ?? [],
-    [playlistData?.tracks]
-  ),
-   currentTrackIds = useMemo(
-    () => new Set(currentTracks.map((track) => track.id)),
-    [currentTracks]
-  ),
-
-   handleAddSong = async (track: { id: string; title: string }) => {
-    if (
-      currentTrackIds.has(track.id) ||
-      locallyAddedTrackIds.includes(track.id)
-    ) {
-      toast({
-        description: `"${track.title}" is already in this playlist.`,
-        title: "Already added",
-      });
-      return;
-    }
-
-    try {
-      await addTrackMutation.mutateAsync({ playlistId: id, trackId: track.id });
-      setLocallyAddedTrackIds((trackIds) =>
-        trackIds.includes(track.id) ? trackIds : [...trackIds, track.id]
-      );
-      toast({
-        description: `Added "${track.title}" to playlist.`,
-        title: "Track Added",
-      });
-      await router.invalidate();
-    } catch {
-      toast({
-        description: "Could not add track to playlist.",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleRemoveSong = useCallback(
-    async (track: PlaylistTrack) => {
-      setRemovingTrackId(track.id);
       try {
-        await removeTrackMutation.mutateAsync({
+        await addTrackMutation.mutateAsync({
           playlistId: id,
           trackId: track.id,
         });
         setLocallyAddedTrackIds((trackIds) =>
-          trackIds.filter((trackId) => trackId !== track.id)
+          trackIds.includes(track.id) ? trackIds : [...trackIds, track.id]
         );
         toast({
-          description: `Removed "${track.title}" from this playlist.`,
-          title: "Track removed",
+          description: `Added "${track.title}" to playlist.`,
+          title: "Track Added",
         });
         await router.invalidate();
       } catch {
         toast({
-          description: "Could not remove this track. Please try again.",
-          title: "Remove failed",
+          description: "Could not add track to playlist.",
+          title: "Error",
           variant: "destructive",
         });
-      } finally {
-        setRemovingTrackId(undefined);
       }
     },
-    [id, removeTrackMutation, router, toast]
-  ),
-
-   filteredSearchTracks = publicTracks.filter(
-    (t) =>
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.artistName.toLowerCase().includes(searchQuery.toLowerCase())
-  ),
-
-   formattedSavedTracks = savedTracks.map((t) => ({
-    artist: t.artist,
-    cover: t.cover,
-    id: t.id,
-    title: t.title,
-  })),
-
-   formattedRecentTracks = recentPlays.map((r) => ({
-    artist: r.artist,
-    cover: r.cover,
-    id: r.id,
-    title: r.title,
-  })),
-
-   formattedWatchedTracks = watchedHistory.map((w) => ({
-    artist: w.creator,
-    cover: w.thumbnail ?? "/placeholder.svg",
-    id: w.id,
-    title: w.title,
-  })),
-
-   columns = useMemo(
-    () =>
-      createPlaylistTrackColumns({
-        onRemove: handleRemoveSong,
-        removingTrackId,
-      }),
-    [handleRemoveSong, removingTrackId]
-  ),
-
-   renderTrackSelectorList = (
-    list: { artist: string; cover: string; id: string; title: string }[]
-  ) => (
-    <ScrollArea className="h-[280px] rounded-md border p-4">
-      <div className="space-y-2">
-        {list.map((song) => {
-          const isAlreadyInPlaylist =
-            currentTrackIds.has(song.id) ||
-            locallyAddedTrackIds.includes(song.id);
-          return (
-            <div
-              key={song.id}
-              className="flex items-center gap-3 p-2 hover:bg-accent rounded-lg transition-colors"
-            >
-              <div className="relative size-12 flex-shrink-0">
-                <AppImage
-                  src={song.cover || "/placeholder.svg"}
-                  alt={song.title}
-                  width={48}
-                  height={48}
-                  layout="fixed"
-                  className="size-full rounded object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate text-sm">{song.title}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {song.artist}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant={isAlreadyInPlaylist ? "ghost" : "outline"}
-                disabled={isAlreadyInPlaylist || addTrackMutation.isPending}
-                onClick={() => handleAddSong(song)}
-              >
-                {isAlreadyInPlaylist ? "Added" : "Add"}
-              </Button>
-            </div>
+    handleRemoveSong = useCallback(
+      async (track: PlaylistTrack) => {
+        setRemovingTrackId(track.id);
+        try {
+          await removeTrackMutation.mutateAsync({
+            playlistId: id,
+            trackId: track.id,
+          });
+          setLocallyAddedTrackIds((trackIds) =>
+            trackIds.filter((trackId) => trackId !== track.id)
           );
-        })}
-        {list.length === 0 && (
-          <p className="text-center text-muted-foreground py-8 text-sm">
-            No songs found in this category
-          </p>
-        )}
-      </div>
-    </ScrollArea>
-  );
+          toast({
+            description: `Removed "${track.title}" from this playlist.`,
+            title: "Track removed",
+          });
+          await router.invalidate();
+        } catch {
+          toast({
+            description: "Could not remove this track. Please try again.",
+            title: "Remove failed",
+            variant: "destructive",
+          });
+        } finally {
+          setRemovingTrackId(undefined);
+        }
+      },
+      [id, removeTrackMutation, router, toast]
+    ),
+    filteredSearchTracks = publicTracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.artistName.toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+    formattedSavedTracks = savedTracks.map((t) => ({
+      artist: t.artist,
+      cover: t.cover,
+      id: t.id,
+      title: t.title,
+    })),
+    formattedRecentTracks = recentPlays.map((r) => ({
+      artist: r.artist,
+      cover: r.cover,
+      id: r.id,
+      title: r.title,
+    })),
+    formattedWatchedTracks = watchedHistory.map((w) => ({
+      artist: w.creator,
+      cover: w.thumbnail ?? "/placeholder.svg",
+      id: w.id,
+      title: w.title,
+    })),
+    columns = useMemo(
+      () =>
+        createPlaylistTrackColumns({
+          onRemove: handleRemoveSong,
+          removingTrackId,
+        }),
+      [handleRemoveSong, removingTrackId]
+    ),
+    renderTrackSelectorList = (
+      list: { artist: string; cover: string; id: string; title: string }[]
+    ) => (
+      <ScrollArea className="h-[280px] rounded-md border p-4">
+        <div className="space-y-2">
+          {list.map((song) => {
+            const isAlreadyInPlaylist =
+              currentTrackIds.has(song.id) ||
+              locallyAddedTrackIds.includes(song.id);
+            return (
+              <div
+                key={song.id}
+                className="flex items-center gap-3 p-2 hover:bg-accent rounded-lg transition-colors"
+              >
+                <div className="relative size-12 flex-shrink-0">
+                  <AppImage
+                    src={song.cover || "/placeholder.svg"}
+                    alt={song.title}
+                    width={48}
+                    height={48}
+                    layout="fixed"
+                    className="size-full rounded object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate text-sm">{song.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {song.artist}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={isAlreadyInPlaylist ? "ghost" : "outline"}
+                  disabled={isAlreadyInPlaylist || addTrackMutation.isPending}
+                  onClick={() => handleAddSong(song)}
+                >
+                  {isAlreadyInPlaylist ? "Added" : "Add"}
+                </Button>
+              </div>
+            );
+          })}
+          {list.length === 0 && (
+            <p className="text-center text-muted-foreground py-8 text-sm">
+              No songs found in this category
+            </p>
+          )}
+        </div>
+      </ScrollArea>
+    );
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

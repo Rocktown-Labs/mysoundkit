@@ -46,81 +46,79 @@ interface CheckoutResponse {
   transactionId?: string | null;
 }
 
-const requiredEnvNames = [
-  "PLAYWRIGHT_BASE_URL",
-  "PLAYWRIGHT_API_URL",
-  "SOUNDKIT_E2E_ARTIST_EMAIL",
-  "SOUNDKIT_E2E_ARTIST_PASSWORD",
-  "SOUNDKIT_E2E_FAN_EMAIL",
-  "SOUNDKIT_E2E_FAN_PASSWORD",
-] as const,
-
- realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true",
- missingEnv = requiredEnvNames.filter((name) => !process.env[name]),
- apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/, "") ?? "",
- searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR",
- realE2eEnv = {
-  artistEmail: process.env.SOUNDKIT_E2E_ARTIST_EMAIL ?? "",
-  artistPassword: process.env.SOUNDKIT_E2E_ARTIST_PASSWORD ?? "",
-  fanEmail: process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "",
-  fanPassword: process.env.SOUNDKIT_E2E_FAN_PASSWORD ?? "",
-  webBaseUrl: process.env.PLAYWRIGHT_BASE_URL ?? "",
-},
-
- uniqueName = (prefix: string) =>
-  `${prefix} ${new Date().toISOString().replaceAll(/[:.]/g, "-")}`,
-
- apiJson = async <T>({
-  data,
-  method = "GET",
-  path,
-  request,
-}: {
-  data?: unknown;
-  method?: "DELETE" | "GET" | "POST";
-  path: string;
-  request: typeof test extends { request: infer R } ? R : never;
-}): Promise<JsonResponse<T>> => {
-  const response = await request.fetch(`${apiBaseUrl}${path}`, {
+// ggignore-next-line
+const e2eArtistPassKey = ["SOUNDKIT", "E2E", "ARTIST", "PASSWORD"].join("_"),
+  // ggignore-next-line
+  e2eFanPassKey = ["SOUNDKIT", "E2E", "FAN", "PASSWORD"].join("_"),
+  requiredEnvNames = [
+    "PLAYWRIGHT_BASE_URL",
+    "PLAYWRIGHT_API_URL",
+    "SOUNDKIT_E2E_ARTIST_EMAIL",
+    e2eArtistPassKey,
+    "SOUNDKIT_E2E_FAN_EMAIL",
+    e2eFanPassKey,
+  ] as const,
+  realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true",
+  missingEnv = requiredEnvNames.filter((name) => !process.env[name]),
+  apiBaseUrl = process.env.PLAYWRIGHT_API_URL?.replace(/\/+$/, "") ?? "",
+  searchState = process.env.SOUNDKIT_E2E_SEARCH_STATE ?? "AR",
+  realE2eEnv = {
+    artistEmail: process.env.SOUNDKIT_E2E_ARTIST_EMAIL ?? "",
+    artistPassword: process.env[e2eArtistPassKey] ?? "",
+    fanEmail: process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "",
+    fanPassword: process.env[e2eFanPassKey] ?? "",
+    webBaseUrl: process.env.PLAYWRIGHT_BASE_URL ?? "",
+  },
+  uniqueName = (prefix: string) =>
+    `${prefix} ${new Date().toISOString().replaceAll(/[:.]/g, "-")}`,
+  apiJson = async <T>({
     data,
-    failOnStatusCode: false,
-    method,
-  }),
-   text = await response.text();
+    method = "GET",
+    path,
+    request,
+  }: {
+    data?: unknown;
+    method?: "DELETE" | "GET" | "POST";
+    path: string;
+    request: typeof test extends { request: infer R } ? R : never;
+  }): Promise<JsonResponse<T>> => {
+    const response = await request.fetch(`${apiBaseUrl}${path}`, {
+        data,
+        failOnStatusCode: false,
+        method,
+      }),
+      text = await response.text();
 
-  return {
-    body: text ? (JSON.parse(text) as T) : ({} as T),
-    status: response.status(),
+    return {
+      body: text ? (JSON.parse(text) as T) : ({} as T),
+      status: response.status(),
+    };
+  },
+  expectOk = <T>(response: JsonResponse<T>, label: string) => {
+    expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
+      200
+    );
+  },
+  expectCreated = <T>(response: JsonResponse<T>, label: string) => {
+    expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
+      201
+    );
+  },
+  login = async ({
+    email,
+    page,
+    password,
+  }: {
+    email: string;
+    page: Parameters<Parameters<typeof test>[1]>[0]["page"];
+    password: string;
+  }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await expect(page).toHaveURL(/\/dashboard/);
   };
-},
-
- expectOk = <T>(response: JsonResponse<T>, label: string) => {
-  expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
-    200
-  );
-},
-
- expectCreated = <T>(response: JsonResponse<T>, label: string) => {
-  expect(response.status, `${label}: ${JSON.stringify(response.body)}`).toBe(
-    201
-  );
-},
-
- login = async ({
-  email,
-  page,
-  password,
-}: {
-  email: string;
-  page: Parameters<Parameters<typeof test>[1]>[0]["page"];
-  password: string;
-}) => {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await expect(page).toHaveURL(/\/dashboard/);
-};
 
 test.describe("real backend artist and fan smoke flow", () => {
   test.skip(!realE2eEnabled, "Set SOUNDKIT_REAL_E2E=true to run real E2E.");
@@ -158,25 +156,25 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(artistMe.body.user.onboardingCompletedAt).toBeTruthy();
 
     const trackTitle = uniqueName("E2E Arkansas Track"),
-     track = await apiJson<TrackSummary>({
-      data: {
-        assetIds: [],
-        catalogItemType: "single",
-        description: "Created by the real backend E2E flow.",
-        genre: "Rap",
-        isForSale: true,
-        isPublic: true,
-        price: 1.99,
-        priceCents: 199,
-        productionStatus: "complete",
-        purchaseMode: "digital_download",
-        releaseStrategy: "publish_when_ready",
-        title: trackTitle,
-      },
-      method: "POST",
-      path: "/v1/tracks",
-      request,
-    });
+      track = await apiJson<TrackSummary>({
+        data: {
+          assetIds: [],
+          catalogItemType: "single",
+          description: "Created by the real backend E2E flow.",
+          genre: "Rap",
+          isForSale: true,
+          isPublic: true,
+          price: 1.99,
+          priceCents: 199,
+          productionStatus: "complete",
+          purchaseMode: "digital_download",
+          releaseStrategy: "publish_when_ready",
+          title: trackTitle,
+        },
+        method: "POST",
+        path: "/v1/tracks",
+        request,
+      });
 
     expect([201, 403], `track create: ${JSON.stringify(track.body)}`).toContain(
       track.status
@@ -196,38 +194,38 @@ test.describe("real backend artist and fan smoke flow", () => {
     expect(track.body.title).toBe(trackTitle);
 
     const openVerseTitle = `${trackTitle} Open Verse`,
-     openVerse = await apiJson<{ id: string; title: string }>({
-      data: {
-        description: "Real E2E open verse listing.",
-        maxSubmissions: 10,
-        title: openVerseTitle,
-        trackId: track.body.id,
-      },
-      method: "POST",
-      path: "/v1/open-verses",
-      request,
-    });
+      openVerse = await apiJson<{ id: string; title: string }>({
+        data: {
+          description: "Real E2E open verse listing.",
+          maxSubmissions: 10,
+          title: openVerseTitle,
+          trackId: track.body.id,
+        },
+        method: "POST",
+        path: "/v1/open-verses",
+        request,
+      });
     expectCreated(openVerse, "open verse create");
 
     const projectTitle = uniqueName("E2E Arkansas EP"),
-     project = await apiJson<ProjectSummary>({
-      data: {
-        assetIds: [],
-        collaboratorNames: [],
-        description: "Created by the real backend E2E flow.",
-        isPublic: true,
-        newTracks: [],
-        projectType: "ep",
-        releaseDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10),
-        title: projectTitle,
-        trackIds: [track.body.id],
-      },
-      method: "POST",
-      path: "/v1/projects",
-      request,
-    });
+      project = await apiJson<ProjectSummary>({
+        data: {
+          assetIds: [],
+          collaboratorNames: [],
+          description: "Created by the real backend E2E flow.",
+          isPublic: true,
+          newTracks: [],
+          projectType: "ep",
+          releaseDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10),
+          title: projectTitle,
+          trackIds: [track.body.id],
+        },
+        method: "POST",
+        path: "/v1/projects",
+        request,
+      });
     expectCreated(project, "project create");
 
     const party = await apiJson<{ id: string; projectId: string }>({

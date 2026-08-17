@@ -32,38 +32,36 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
+  resolveGenreId = async (genreName?: string) => {
+    if (!genreName) {
+      return null;
+    }
 
- resolveGenreId = async (genreName?: string) => {
-  if (!genreName) {
-    return null;
-  }
-
-  const [genre] = await createDb()
-    .select({ id: genres.id })
-    .from(genres)
-    .where(eq(genres.name, genreName))
-    .limit(1);
-  return genre?.id ?? null;
-},
-
- mapParty = (
-  party: typeof listeningParties.$inferSelect & { genre?: string | null }
-) => ({
-  description: party.description,
-  endedAt: party.endedAt?.toISOString() ?? null,
-  genre: party.genre ?? null,
-  hostUserId: party.hostUserId,
-  id: party.id,
-  liveRoomId: party.liveRoomId,
-  organizationId: party.organizationId,
-  playbackMode: party.playbackMode,
-  playlistId: party.playlistId,
-  projectId: party.projectId,
-  scheduledStartAt: party.scheduledStartAt.toISOString(),
-  startedAt: party.startedAt?.toISOString() ?? null,
-  status: party.status,
-  title: party.title,
-});
+    const [genre] = await createDb()
+      .select({ id: genres.id })
+      .from(genres)
+      .where(eq(genres.name, genreName))
+      .limit(1);
+    return genre?.id ?? null;
+  },
+  mapParty = (
+    party: typeof listeningParties.$inferSelect & { genre?: string | null }
+  ) => ({
+    description: party.description,
+    endedAt: party.endedAt?.toISOString() ?? null,
+    genre: party.genre ?? null,
+    hostUserId: party.hostUserId,
+    id: party.id,
+    liveRoomId: party.liveRoomId,
+    organizationId: party.organizationId,
+    playbackMode: party.playbackMode,
+    playlistId: party.playlistId,
+    projectId: party.projectId,
+    scheduledStartAt: party.scheduledStartAt.toISOString(),
+    startedAt: party.startedAt?.toISOString() ?? null,
+    status: party.status,
+    title: party.title,
+  });
 
 app.openapi(
   createRoute({
@@ -138,33 +136,33 @@ app.openapi(
     }
 
     const db = createDb(),
-     [profile] = await db
-      .select({ accountType: userProfiles.accountType })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, user.id))
-      .limit(1),
-     accountType = profile?.accountType ?? "fan",
-     projectRows = await db
-      .select({
-        id: projects.id,
-        ownerUserId: projects.ownerUserId,
-        projectType: projects.projectType,
-        releaseDate: projects.releaseDate,
-        title: projects.title,
-      })
-      .from(projects)
-      .where(
-        accountType === "artist"
-          ? eq(projects.ownerUserId, user.id)
-          : eq(projects.isPublic, true)
-      ),
-     playlistRows =
-      accountType === "fan"
-        ? await db
-            .select({ id: playlists.id, title: playlists.title })
-            .from(playlists)
-            .where(eq(playlists.ownerUserId, user.id))
-        : [];
+      [profile] = await db
+        .select({ accountType: userProfiles.accountType })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1),
+      accountType = profile?.accountType ?? "fan",
+      projectRows = await db
+        .select({
+          id: projects.id,
+          ownerUserId: projects.ownerUserId,
+          projectType: projects.projectType,
+          releaseDate: projects.releaseDate,
+          title: projects.title,
+        })
+        .from(projects)
+        .where(
+          accountType === "artist"
+            ? eq(projects.ownerUserId, user.id)
+            : eq(projects.isPublic, true)
+        ),
+      playlistRows =
+        accountType === "fan"
+          ? await db
+              .select({ id: playlists.id, title: playlists.title })
+              .from(playlists)
+              .where(eq(playlists.ownerUserId, user.id))
+          : [];
 
     return c.json(
       {
@@ -232,11 +230,11 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      session = c.get("session"),
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
     if (!entitlements.isPremium) {
       return c.json(
         forbiddenMessage("SoundKit Premium is required to host a party."),
@@ -245,37 +243,37 @@ app.openapi(
     }
 
     const db = createDb(),
-     [profile] = await db
-      .select({ accountType: userProfiles.accountType })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, user.id))
-      .limit(1),
-     accountType = profile?.accountType ?? "fan",
-     [project] = body.projectId
-      ? await db
-          .select()
-          .from(projects)
-          .where(eq(projects.id, body.projectId))
-          .limit(1)
-      : [],
-     [playlist] = body.playlistId
-      ? await db
-          .select()
-          .from(playlists)
-          .where(
-            and(
-              eq(playlists.id, body.playlistId),
-              eq(playlists.ownerUserId, user.id)
+      [profile] = await db
+        .select({ accountType: userProfiles.accountType })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1),
+      accountType = profile?.accountType ?? "fan",
+      [project] = body.projectId
+        ? await db
+            .select()
+            .from(projects)
+            .where(eq(projects.id, body.projectId))
+            .limit(1)
+        : [],
+      [playlist] = body.playlistId
+        ? await db
+            .select()
+            .from(playlists)
+            .where(
+              and(
+                eq(playlists.id, body.playlistId),
+                eq(playlists.ownerUserId, user.id)
+              )
             )
-          )
-          .limit(1)
-      : [],
-     validProject =
-      project &&
-      project.projectType !== "single" &&
-      (accountType === "artist"
-        ? project.ownerUserId === user.id
-        : project.isPublic);
+            .limit(1)
+        : [],
+      validProject =
+        project &&
+        project.projectType !== "single" &&
+        (accountType === "artist"
+          ? project.ownerUserId === user.id
+          : project.isPublic);
 
     if (!(validProject || playlist)) {
       return c.json(
@@ -300,52 +298,51 @@ app.openapi(
     }
 
     const playbackMode =
-      accountType === "artist" ? "programmed_release" : "artist_hosted",
-
-     sessionForWorkspace = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(sessionForWorkspace)
-        ? sessionForWorkspace
-        : null,
-      user,
-    }),
-     [party] = await db
-      .insert(listeningParties)
-      .values({
-        description: body.description ?? null,
-        genreId: await resolveGenreId(body.genre),
-        hostUserId: user.id,
-        id: crypto.randomUUID(),
-        liveRoomId: crypto.randomUUID(),
-        organizationId,
-        playbackMode,
-        playlistId: body.playlistId ?? null,
-        projectId: body.projectId ?? null,
-        scheduledStartAt,
-        title: body.title,
-      })
-      .returning();
+        accountType === "artist" ? "programmed_release" : "artist_hosted",
+      sessionForWorkspace = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(sessionForWorkspace)
+          ? sessionForWorkspace
+          : null,
+        user,
+      }),
+      [party] = await db
+        .insert(listeningParties)
+        .values({
+          description: body.description ?? null,
+          genreId: await resolveGenreId(body.genre),
+          hostUserId: user.id,
+          id: crypto.randomUUID(),
+          liveRoomId: crypto.randomUUID(),
+          organizationId,
+          playbackMode,
+          playlistId: body.playlistId ?? null,
+          projectId: body.projectId ?? null,
+          scheduledStartAt,
+          title: body.title,
+        })
+        .returning();
 
     if (!party) {
       throw new Error("Failed to create listening party.");
     }
 
     const [artistFollowers, profileFollowers] = await Promise.all([
-      db
-        .select({ userId: artistFollows.followerUserId })
-        .from(artistFollows)
-        .where(eq(artistFollows.artistUserId, user.id)),
-      db
-        .select({ userId: userFollows.followerUserId })
-        .from(userFollows)
-        .where(eq(userFollows.targetUserId, user.id)),
-    ]),
-     followerIds = [
-      ...new Set([
-        ...artistFollowers.map((entry) => entry.userId),
-        ...profileFollowers.map((entry) => entry.userId),
+        db
+          .select({ userId: artistFollows.followerUserId })
+          .from(artistFollows)
+          .where(eq(artistFollows.artistUserId, user.id)),
+        db
+          .select({ userId: userFollows.followerUserId })
+          .from(userFollows)
+          .where(eq(userFollows.targetUserId, user.id)),
       ]),
-    ];
+      followerIds = [
+        ...new Set([
+          ...artistFollowers.map((entry) => entry.userId),
+          ...profileFollowers.map((entry) => entry.userId),
+        ]),
+      ];
     for (const followerId of followerIds) {
       const [notification] = await db
         .insert(userNotifications)

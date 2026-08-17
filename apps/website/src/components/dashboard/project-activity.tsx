@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import { Edit, CheckCircle, Users, Music, LoaderCircle } from "lucide-react";
 
 import {
@@ -22,7 +23,7 @@ const formatRelativeTime = (isoString: string | null | undefined) => {
     return "—";
   }
   const diffMs = Date.now() - date.getTime(),
-   minutes = Math.round(diffMs / 60_000);
+    minutes = Math.round(diffMs / 60_000);
   if (minutes < 1) {
     return "just now";
   }
@@ -42,11 +43,11 @@ const formatRelativeTime = (isoString: string | null | undefined) => {
 
 export function ProjectActivity({ projectId }: ProjectActivityProps) {
   const projectQuery = useProjectQuery(projectId),
-   project = projectQuery.data,
-   tracks = project?.tracks ?? [],
-   collaborators = Array.isArray(project?.collaborators)
-    ? (project.collaborators ?? [])
-    : [];
+    project = projectQuery.data,
+    tracks = project?.tracks ?? [],
+    collaborators = Array.isArray(project?.collaborators)
+      ? (project.collaborators ?? [])
+      : [];
 
   if (projectQuery.isLoading) {
     return (
@@ -65,64 +66,62 @@ export function ProjectActivity({ projectId }: ProjectActivityProps) {
   }
 
   const statusMeta: Record<
-    string,
-    { icon: typeof CheckCircle; label: string }
-  > = {
-    archived: { icon: CheckCircle, label: "Archived" },
-    draft: { icon: Edit, label: "Draft" },
-    released: { icon: CheckCircle, label: "Released" },
-    scheduled: { icon: CheckCircle, label: "Scheduled" },
-  },
-
-   statusEntry =
-    project && project.status
-      ? {
-          action: `project is ${project.status}`,
-          icon: statusMeta[project.status]?.icon ?? Edit,
-          id: "status",
-          target: statusMeta[project.status]?.label ?? project.status,
-          time: formatRelativeTime(project.updatedAt),
-          type: "status",
-          user: "",
-        }
-      : null,
-
-   entries = [
-    ...(statusEntry ? [statusEntry] : []),
-    ...(project
-      ? [
-          {
-            action: "updated project",
-            icon: Edit,
-            id: "updated",
-            target: project.title,
+      string,
+      { icon: typeof CheckCircle; label: string }
+    > = {
+      archived: { icon: CheckCircle, label: "Archived" },
+      draft: { icon: Edit, label: "Draft" },
+      released: { icon: CheckCircle, label: "Released" },
+      scheduled: { icon: CheckCircle, label: "Scheduled" },
+    },
+    statusEntry =
+      project && project.status
+        ? {
+            action: "Project status is",
+            icon: statusMeta[project.status]?.icon ?? Edit,
+            id: "status",
+            target: statusMeta[project.status]?.label ?? project.status,
             time: formatRelativeTime(project.updatedAt),
-            type: "edit",
+            type: "status",
             user: "",
-          },
-        ]
-      : []),
-    ...tracks.map((track) => ({
-      action: "added track",
-      icon: Music,
-      id: `track-${track.id}`,
-      target: track.title,
-      time: formatRelativeTime(track.updatedAt),
-      type: "track",
-      user: "",
-    })),
-    ...collaborators
-      .filter((collaborator) => collaborator.status === "accepted")
-      .map((collaborator) => ({
-        action: "joined as",
-        icon: Users,
-        id: `collab-${collaborator.id}`,
-        target: collaborator.role,
-        time: formatRelativeTime(project?.updatedAt),
-        type: "collaborator",
-        user: collaborator.name ?? collaborator.email ?? "A collaborator",
+          }
+        : null,
+    entries = [
+      ...(statusEntry ? [statusEntry] : []),
+      ...(project
+        ? [
+            {
+              action: "updated project",
+              icon: Edit,
+              id: "updated",
+              target: project.title,
+              time: formatRelativeTime(project.updatedAt),
+              type: "edit",
+              user: "",
+            },
+          ]
+        : []),
+      ...tracks.map((track) => ({
+        action: "added track",
+        icon: Music,
+        id: `track-${track.id}`,
+        target: track.title,
+        time: formatRelativeTime(track.updatedAt),
+        type: "track",
+        user: "",
       })),
-  ];
+      ...collaborators
+        .filter((collaborator) => collaborator.status === "accepted")
+        .map((collaborator) => ({
+          action: "joined as",
+          icon: Users,
+          id: `collab-${collaborator.id}`,
+          target: collaborator.role,
+          time: formatRelativeTime(project?.updatedAt),
+          type: "collaborator",
+          user: collaborator.name ?? collaborator.email ?? "A collaborator",
+        })),
+    ];
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border/40">

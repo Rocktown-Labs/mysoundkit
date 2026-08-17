@@ -12,35 +12,33 @@ interface GenreSummary {
 }
 
 const genreEmoji: Record<string, string> = {
-  afrobeats: "🥁",
-  country: "🤠",
-  electronic: "🎹",
-  "hip-hop": "🎤",
-  indie: "🎧",
-  jazz: "🎺",
-  latin: "💃",
-  metal: "🤘",
-  pop: "⭐",
-  "rb-soul": "🎵",
-  reggae: "🌴",
-  rock: "🎸",
-  "spoken-word": "🎙️",
-},
+    afrobeats: "🥁",
+    country: "🤠",
+    electronic: "🎹",
+    "hip-hop": "🎤",
+    indie: "🎧",
+    jazz: "🎺",
+    latin: "💃",
+    metal: "🤘",
+    pop: "⭐",
+    "rb-soul": "🎵",
+    reggae: "🌴",
+    rock: "🎸",
+    "spoken-word": "🎙️",
+  },
+  formatCount = (count: number) => {
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}K`;
+    }
 
- formatCount = (count: number) => {
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}K`;
-  }
+    return count.toLocaleString();
+  },
+  genreActivityLabel = (genre: GenreSummary) => {
+    const total = genre.totalCount ?? genre.trackCount ?? 0,
+      noun = total === 1 ? "live item" : "live items";
 
-  return count.toLocaleString();
-},
-
- genreActivityLabel = (genre: GenreSummary) => {
-  const total = genre.totalCount ?? genre.trackCount ?? 0,
-   noun = total === 1 ? "live item" : "live items";
-
-  return `${formatCount(total)} ${noun}`;
-};
+    return `${formatCount(total)} ${noun}`;
+  };
 
 export const Route = createFileRoute("/_explore/genres/")({
   component: GenresPage,
@@ -48,7 +46,7 @@ export const Route = createFileRoute("/_explore/genres/")({
 
 function GenresPage() {
   const genresQuery = useGenresQuery(),
-   genres = genresQuery.data ?? [];
+    genres = genresQuery.data ?? [];
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

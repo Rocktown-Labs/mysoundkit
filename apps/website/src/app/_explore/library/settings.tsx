@@ -40,13 +40,13 @@ export const Route = createFileRoute("/_explore/library/settings")({
 
 function AccountSettingsPage() {
   const { data: me, isLoading } = useMeQuery(),
-   updateProfile = useUpdateMeProfileMutation(),
-   checkout = useBillingCheckoutMutation(),
-   [city, setCity] = useState(""),
-   [checkoutMessage, setCheckoutMessage] = useState(""),
-   [displayName, setDisplayName] = useState(""),
-   [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
-   [stateValue, setStateValue] = useState("");
+    updateProfile = useUpdateMeProfileMutation(),
+    checkout = useBillingCheckoutMutation(),
+    [city, setCity] = useState(""),
+    [checkoutMessage, setCheckoutMessage] = useState(""),
+    [displayName, setDisplayName] = useState(""),
+    [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
+    [stateValue, setStateValue] = useState("");
 
   useEffect(() => {
     if (!me?.user) {
@@ -60,46 +60,46 @@ function AccountSettingsPage() {
   }, [me]);
 
   const isSignedIn = Boolean(me?.user),
-   saveProfile = () => {
-    updateProfile.mutate({
-      city,
-      displayName,
-      mediaLayout,
-      state: stateValue,
-    });
-  },
-   startPremiumCheckout = async () => {
-    if (!me?.user) {
-      return;
-    }
-
-    try {
-      setCheckoutMessage("");
-      const { origin } = window.location,
-       response = await checkout.mutateAsync({
-        cancelUrl: `${origin}/library/settings`,
-        planCode: premiumPlanCodeForAccount(me.user.accountType),
-        successUrl: `${origin}${premiumSuccessPathForAccount(
-          me.user.accountType
-        )}?upgraded=1`,
+    saveProfile = () => {
+      updateProfile.mutate({
+        city,
+        displayName,
+        mediaLayout,
+        state: stateValue,
       });
-
-      if (response.checkoutUrl) {
-        window.location.assign(response.checkoutUrl);
+    },
+    startPremiumCheckout = async () => {
+      if (!me?.user) {
         return;
       }
 
-      setCheckoutMessage(
-        response.setupRequired
-          ? "Premium checkout is being connected. You can keep using Free while billing is finished."
-          : "Your account is already set for this plan."
-      );
-    } catch {
-      setCheckoutMessage(
-        "We could not open checkout right now. Please try again in a moment."
-      );
-    }
-  };
+      try {
+        setCheckoutMessage("");
+        const { origin } = window.location,
+          response = await checkout.mutateAsync({
+            cancelUrl: `${origin}/library/settings`,
+            planCode: premiumPlanCodeForAccount(me.user.accountType),
+            successUrl: `${origin}${premiumSuccessPathForAccount(
+              me.user.accountType
+            )}?upgraded=1`,
+          });
+
+        if (response.checkoutUrl) {
+          window.location.assign(response.checkoutUrl);
+          return;
+        }
+
+        setCheckoutMessage(
+          response.setupRequired
+            ? "Premium checkout is being connected. You can keep using Free while billing is finished."
+            : "Your account is already set for this plan."
+        );
+      } catch {
+        setCheckoutMessage(
+          "We could not open checkout right now. Please try again in a moment."
+        );
+      }
+    };
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

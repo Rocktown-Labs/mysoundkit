@@ -1,15 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Eye, Plus, Radio } from "lucide-react";
+import { Plus, Radio } from "lucide-react";
 
 import {
   ExploreCollectionGrid,
   ExploreCollectionSection,
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
-import { Badge } from "@/components/ui/badge";
+import { StreamCard } from "@/components/explore/stream-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { filterAndSortLiveItems } from "@/lib/live-collection";
+import {
+  filterAndSortLiveItems,
+  normalizeGenreValue,
+} from "@/lib/live-collection";
 import { musicGenres } from "@/lib/music-genres";
 import {
   useMeEntitlementsQuery,
@@ -25,6 +27,8 @@ interface LiveStreamsSearch {
 }
 
 interface PublicStream {
+  creatorAvatar?: null | string;
+  creatorName?: null | string;
   endsAt: string | null;
   genre: string | null;
   id: string;
@@ -46,68 +50,33 @@ export const Route = createFileRoute("/_explore/live/streams/")({
   }),
 });
 
-function StreamCard({ stream }: { stream: PublicStream }) {
-  return (
-    <Link
-      className="block w-full min-w-[280px]"
-      params={{ id: stream.id }}
-      to="/live/streams/$id"
-    >
-      <Card className="h-full border-border/50 bg-card/60 transition-colors hover:border-primary/60">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Badge
-              variant={stream.status === "live" ? "destructive" : "secondary"}
-            >
-              {stream.status === "live" ? "Live" : "Scheduled"}
-            </Badge>
-            <Badge variant="outline">{stream.source.toUpperCase()}</Badge>
-          </div>
-          <div>
-            <h3 className="line-clamp-2 font-bold text-lg">{stream.title}</h3>
-            <p className="mt-2 text-muted-foreground text-sm">
-              {stream.genre ?? "Creator stream"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Eye className="size-4 text-primary" />
-            {stream.viewerCount.toLocaleString()} viewers
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
-
 function LiveStreamsPage() {
   const navigate = Route.useNavigate(),
-   search = Route.useSearch(),
-   { data: streams = [], isLoading } =
-    usePublicLiveExperiencesQuery("stream"),
-   meQuery = useMeQuery(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   genre = search.genre ?? "all",
-   sort = search.sort ?? "starts-asc",
-   status = search.status ?? "all",
-   view = search.view ?? "sections",
-   publicStreams = (streams as PublicStream[]).filter(
-    (stream) => stream.kind === "stream"
-  ),
-   filteredStreams = filterAndSortLiveItems({
-    genre,
-    items: publicStreams,
-    sort,
-    status,
-  }),
-   canCreateStream =
-    meQuery.data?.user.accountType === "artist" &&
-    Boolean(entitlementsQuery.data?.isPremium),
-
-   openCollection = (next: Partial<LiveStreamsSearch>) => {
-    void navigate({
-      search: (previous) => ({ ...previous, ...next, view: "all" }),
-    });
-  };
+    search = Route.useSearch(),
+    { data: streams = [], isLoading } = usePublicLiveExperiencesQuery("stream"),
+    meQuery = useMeQuery(),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    genre = search.genre ?? "all",
+    sort = search.sort ?? "starts-asc",
+    status = search.status ?? "all",
+    view = search.view ?? "sections",
+    publicStreams = (streams as PublicStream[]).filter(
+      (stream) => stream.kind === "stream"
+    ),
+    filteredStreams = filterAndSortLiveItems({
+      genre,
+      items: publicStreams,
+      sort,
+      status,
+    }),
+    canCreateStream =
+      meQuery.data?.user.accountType === "artist" &&
+      Boolean(entitlementsQuery.data?.isPremium),
+    openCollection = (next: Partial<LiveStreamsSearch>) => {
+      void navigate({
+        search: (previous) => ({ ...previous, ...next, view: "all" }),
+      });
+    };
 
   return (
     <div className="space-y-8 pb-8">
@@ -146,7 +115,7 @@ function LiveStreamsPage() {
           items={filteredStreams}
           title="Creator Streams"
         >
-          {(stream) => <StreamCard stream={stream} />}
+          {(stream) => <StreamCard {...stream} />}
         </ExploreCollectionGrid>
       ) : (
         <>
@@ -157,7 +126,7 @@ function LiveStreamsPage() {
             onViewAll={() => openCollection({})}
             title="Featured"
           >
-            {(stream) => <StreamCard stream={stream} />}
+            {(stream) => <StreamCard {...stream} />}
           </ExploreCollectionSection>
           <ExploreCollectionSection
             empty="No creator streams are live right now."
@@ -165,7 +134,7 @@ function LiveStreamsPage() {
             onViewAll={() => openCollection({ status: "live" })}
             title="Live Now"
           >
-            {(stream) => <StreamCard stream={stream} />}
+            {(stream) => <StreamCard {...stream} />}
           </ExploreCollectionSection>
           <ExploreCollectionSection
             empty="No upcoming streams are scheduled."
@@ -175,21 +144,32 @@ function LiveStreamsPage() {
             onViewAll={() => openCollection({ status: "scheduled" })}
             title="Upcoming"
           >
-            {(stream) => <StreamCard stream={stream} />}
+            {(stream) => <StreamCard {...stream} />}
           </ExploreCollectionSection>
-          {musicGenres.map((sectionGenre) => (
-            <ExploreCollectionSection
-              empty={`No ${sectionGenre.label} streams are scheduled.`}
-              items={publicStreams.filter(
-                (stream) => stream.genre === sectionGenre.value
-              )}
-              key={sectionGenre.value}
-              onViewAll={() => openCollection({ genre: sectionGenre.value })}
-              title={sectionGenre.label}
-            >
-              {(stream) => <StreamCard stream={stream} />}
-            </ExploreCollectionSection>
-          ))}
+          {musicGenres.map((sectionGenre) => {
+            const sectionSlug = normalizeGenreValue(sectionGenre.value),
+              sectionLabel = normalizeGenreValue(sectionGenre.label);
+            return (
+              <ExploreCollectionSection
+                empty={`No ${sectionGenre.label} streams are scheduled.`}
+                items={publicStreams.filter((stream) => {
+                  const itemGenre = normalizeGenreValue(stream.genre);
+                  return (
+                    stream.genre === sectionGenre.value ||
+                    itemGenre === sectionSlug ||
+                    itemGenre === sectionLabel ||
+                    itemGenre.startsWith(sectionSlug) ||
+                    sectionSlug.startsWith(itemGenre)
+                  );
+                })}
+                key={sectionGenre.value}
+                onViewAll={() => openCollection({ genre: sectionGenre.value })}
+                title={sectionGenre.label}
+              >
+                {(stream) => <StreamCard {...stream} />}
+              </ExploreCollectionSection>
+            );
+          })}
         </>
       )}
     </div>

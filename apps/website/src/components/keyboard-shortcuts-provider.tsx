@@ -116,19 +116,19 @@ export function KeyboardShortcutsProvider({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const router = useRouter(),
-   [isSearchOpen, setIsSearchOpen] = useState(false),
-   [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+    [isSearchOpen, setIsSearchOpen] = useState(false),
+    [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   // Global keydown handler with input guard
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null,
-       isInput =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable);
+        isInput =
+          target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable);
 
       // Cmd+K or Ctrl+K opens search anywhere (even in inputs)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -154,22 +154,21 @@ export function KeyboardShortcutsProvider({
   }, []);
 
   const handleSelectRoute = useCallback(
-    (path: string) => {
-      setIsSearchOpen(false);
-      void router.navigate({ to: path });
-    },
-    [router]
-  ),
-
-   value = useMemo(
-    () => ({
-      isSearchOpen,
-      isShortcutsOpen,
-      setIsSearchOpen,
-      setIsShortcutsOpen,
-    }),
-    [isSearchOpen, isShortcutsOpen]
-  );
+      (path: string) => {
+        setIsSearchOpen(false);
+        void router.navigate({ to: path });
+      },
+      [router]
+    ),
+    value = useMemo(
+      () => ({
+        isSearchOpen,
+        isShortcutsOpen,
+        setIsSearchOpen,
+        setIsShortcutsOpen,
+      }),
+      [isSearchOpen, isShortcutsOpen]
+    );
 
   return (
     <KeyboardShortcutsContext.Provider value={value}>

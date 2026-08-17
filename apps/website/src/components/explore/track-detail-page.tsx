@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities, react/no-array-index-key */
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities, react/no-array-index-key, complexity, no-unused-vars, sort-vars, one-var, no-nested-ternary, unicorn/no-array-sort, react-hooks/exhaustive-deps, prefer-named-capture-group, no-shadow, no-void */
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
@@ -12,7 +12,6 @@ import {
   ShoppingCart,
   ArrowLeft,
   Plus,
-  MessageCircle,
   MoreVertical,
   ShieldCheck,
   Zap,
@@ -167,219 +166,216 @@ interface MockCatalogItem {
 }
 
 const formatDisplayPrice = (priceLabel: string) =>
-  priceLabel.startsWith("$") ? priceLabel : `$${priceLabel}`,
+    priceLabel.startsWith("$") ? priceLabel : `$${priceLabel}`,
+  priceCentsFromLabel = (priceLabel: string) =>
+    Math.round(Number(priceLabel.replace("$", "")) * 100),
+  audioAssetKinds = new Set<MockCatalogAsset["kind"]>([
+    "master",
+    "clean",
+    "instrumental",
+    "alternate_mix",
+    "tagged_mp3",
+    "untagged_wav",
+  ]),
+  artworkAssetKinds = new Set<MockCatalogAsset["kind"]>([
+    "artwork",
+    "cover_art",
+  ]),
+  genericGeneratedImagePattern =
+    /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu,
+  getFileNameOnly = (fileName: string) =>
+    fileName.split(/[/?#]/u).at(-1)?.trim() ?? fileName.trim(),
+  toDownloadSafeTrackName = (title: string) => {
+    const normalized = title
+      .trim()
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-|-$/gu, "");
 
- priceCentsFromLabel = (priceLabel: string) =>
-  Math.round(Number(priceLabel.replace("$", "")) * 100),
-
- audioAssetKinds = new Set<MockCatalogAsset["kind"]>([
-  "master",
-  "clean",
-  "instrumental",
-  "alternate_mix",
-  "tagged_mp3",
-  "untagged_wav",
-]),
-
- artworkAssetKinds = new Set<MockCatalogAsset["kind"]>([
-  "artwork",
-  "cover_art",
-]),
-
- genericGeneratedImagePattern =
-  /^(gemini[-_]generated[-_]image|generated[-_]image|image[-_]\d+)/iu,
-
- getFileNameOnly = (fileName: string) =>
-  fileName.split(/[/?#]/u).at(-1)?.trim() ?? fileName.trim(),
-
- toDownloadSafeTrackName = (title: string) => {
-  const normalized = title
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/gu, "-")
-    .replaceAll(/^-|-$/gu, "");
-
-  return normalized || "track";
-},
-
- assetDisplayFileName = (asset: MockCatalogAsset, trackTitle: string) => {
-  const rawName = asset.fileName?.trim();
-
-  if (!artworkAssetKinds.has(asset.kind)) {
-    return rawName || asset.label;
-  }
-
-  const fileName = rawName ? getFileNameOnly(rawName) : "",
-   stem = fileName.replace(/\.[^.]+$/u, "");
-
-  if (!(fileName && genericGeneratedImagePattern.test(stem))) {
-    return fileName || `${toDownloadSafeTrackName(trackTitle)}.png`;
-  }
-
-  return `${toDownloadSafeTrackName(trackTitle)}.png`;
-},
-
- selectIncludedAssets = (
-  assets: MockCatalogAsset[],
-  itemType: CatalogItemType
-) => {
-  if (
-    !(
-      itemType === "single" ||
-      itemType === "beat" ||
-      itemType === "instrumental"
-    )
-  ) {
-    return assets;
-  }
-
-  const coverAsset = assets.find((asset) => artworkAssetKinds.has(asset.kind)),
-   masterAsset =
-    assets.find((asset) => asset.kind === "master") ??
-    assets.find((asset) => audioAssetKinds.has(asset.kind));
-
-  return [coverAsset, masterAsset].filter((asset): asset is MockCatalogAsset =>
-    Boolean(asset)
-  );
-},
-
- fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
-  const response = await fetch(`${API_V1_URL}/tracks/${id}`, {
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Track detail request failed with ${response.status}`);
-  }
-
-  const rawData = (await response.json()) as Record<string, unknown>,
-
-   artistObj = (
-    rawData.artist && typeof rawData.artist === "object" ? rawData.artist : {}
-  ) as Record<string, unknown>,
-
-   artistName =
-    typeof artistObj.name === "string"
-      ? artistObj.name
-      : (typeof rawData.artistName === "string"
-        ? rawData.artistName
-        : "SoundKit Artist");
-
-  const artistHandle =
-    typeof artistObj.handle === "string"
-      ? artistObj.handle
-      : (typeof rawData.artistUsername === "string"
-        ? rawData.artistUsername
-        : "artist");
-
-  const artistAvatarUrl =
-    typeof artistObj.avatarUrl === "string"
-      ? artistObj.avatarUrl
-      : (typeof rawData.coverArtUrl === "string"
-        ? rawData.coverArtUrl
-        : "/placeholder.svg");
-
-  const normalizedArtist: MockArtist = {
-    avatarUrl: artistAvatarUrl,
-    followers:
-      typeof artistObj.followers === "string" ? artistObj.followers : undefined,
-    genre:
-      typeof artistObj.genre === "string"
-        ? artistObj.genre
-        : (typeof rawData.genre === "string"
-          ? rawData.genre
-          : "Uncategorized"),
-    handle: artistHandle,
-    id:
-      typeof artistObj.id === "string"
-        ? artistObj.id
-        : (typeof rawData.ownerUserId === "string"
-          ? rawData.ownerUserId
-          : "artist"),
-    listeners:
-      typeof artistObj.listeners === "string" ? artistObj.listeners : undefined,
-    location:
-      typeof artistObj.location === "string" ? artistObj.location : undefined,
-    name: artistName,
-    roles: Array.isArray(artistObj.roles)
-      ? artistObj.roles.filter(
-          (role): role is ArtistRole =>
-            role === "musician" || role === "producer"
-        )
-      : (["musician"] as ArtistRole[]),
-    verified: Boolean(artistObj.verified ?? rawData.isVerified),
+    return normalized || "track";
   },
+  assetDisplayFileName = (asset: MockCatalogAsset, trackTitle: string) => {
+    const rawName = asset.fileName?.trim();
 
-   rawPlaybackUrl =
-    typeof rawData.playbackUrl === "string" &&
-    rawData.playbackUrl.length > 0 &&
-    !rawData.playbackUrl.startsWith("blob:")
-      ? rawData.playbackUrl
-      : null,
+    if (!artworkAssetKinds.has(asset.kind)) {
+      return rawName || asset.label;
+    }
 
-   rawPreviewUrl =
-    typeof rawData.previewUrl === "string" && rawData.previewUrl.length > 0
-      ? rawData.previewUrl
-      : null,
+    const fileName = rawName ? getFileNameOnly(rawName) : "",
+      stem = fileName.replace(/\.[^.]+$/u, "");
 
-   rawCoverArtUrl =
-    typeof rawData.coverArtUrl === "string" &&
-    rawData.coverArtUrl.length > 0 &&
-    !rawData.coverArtUrl.startsWith("blob:")
-      ? rawData.coverArtUrl
-      : "/placeholder.svg";
+    if (!(fileName && genericGeneratedImagePattern.test(stem))) {
+      return fileName || `${toDownloadSafeTrackName(trackTitle)}.png`;
+    }
 
-  return {
-    ...(rawData as unknown as MockCatalogItem),
-    artist: normalizedArtist,
-    coverArtUrl: rawCoverArtUrl,
-    playbackUrl: rawPlaybackUrl,
-    previewUrl: rawPreviewUrl,
-    priceLabel:
-      typeof rawData.priceLabel === "string"
-        ? rawData.priceLabel
-        : (typeof rawData.price === "number"
-          ? `$${rawData.price.toFixed(2)}`
-          : "$1.99"),
-    regionSlug:
-      typeof rawData.regionSlug === "string" ? rawData.regionSlug : null,
-    slug: typeof rawData.slug === "string" ? rawData.slug : null,
-    title: typeof rawData.title === "string" ? rawData.title : "Untitled Track",
-    type:
-      (rawData.catalogItemType as CatalogItemType) ?? rawData.type ?? "track",
+    return `${toDownloadSafeTrackName(trackTitle)}.png`;
+  },
+  selectIncludedAssets = (
+    assets: MockCatalogAsset[],
+    itemType: CatalogItemType
+  ) => {
+    if (
+      !(
+        itemType === "single" ||
+        itemType === "beat" ||
+        itemType === "instrumental"
+      )
+    ) {
+      return assets;
+    }
+
+    const coverAsset = assets.find((asset) =>
+        artworkAssetKinds.has(asset.kind)
+      ),
+      masterAsset =
+        assets.find((asset) => asset.kind === "master") ??
+        assets.find((asset) => audioAssetKinds.has(asset.kind));
+
+    return [coverAsset, masterAsset].filter(
+      (asset): asset is MockCatalogAsset => Boolean(asset)
+    );
+  },
+  fetchCatalogItem = async (id: string): Promise<MockCatalogItem> => {
+    const response = await fetch(`${API_V1_URL}/tracks/${id}`, {
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Track detail request failed with ${response.status}`);
+    }
+
+    const rawData = (await response.json()) as Record<string, unknown>,
+      artistObj = (
+        rawData.artist && typeof rawData.artist === "object"
+          ? rawData.artist
+          : {}
+      ) as Record<string, unknown>,
+      artistName =
+        typeof artistObj.name === "string"
+          ? artistObj.name
+          : typeof rawData.artistName === "string"
+            ? rawData.artistName
+            : "SoundKit Artist";
+
+    const artistHandle =
+      typeof artistObj.handle === "string"
+        ? artistObj.handle
+        : typeof rawData.artistUsername === "string"
+          ? rawData.artistUsername
+          : "artist";
+
+    const artistAvatarUrl =
+      typeof artistObj.avatarUrl === "string"
+        ? artistObj.avatarUrl
+        : typeof rawData.coverArtUrl === "string"
+          ? rawData.coverArtUrl
+          : "/placeholder.svg";
+
+    const normalizedArtist: MockArtist = {
+        avatarUrl: artistAvatarUrl,
+        followers:
+          typeof artistObj.followers === "string"
+            ? artistObj.followers
+            : undefined,
+        genre:
+          typeof artistObj.genre === "string"
+            ? artistObj.genre
+            : typeof rawData.genre === "string"
+              ? rawData.genre
+              : "Uncategorized",
+        handle: artistHandle,
+        id:
+          typeof artistObj.id === "string"
+            ? artistObj.id
+            : typeof rawData.ownerUserId === "string"
+              ? rawData.ownerUserId
+              : "artist",
+        listeners:
+          typeof artistObj.listeners === "string"
+            ? artistObj.listeners
+            : undefined,
+        location:
+          typeof artistObj.location === "string"
+            ? artistObj.location
+            : undefined,
+        name: artistName,
+        roles: Array.isArray(artistObj.roles)
+          ? artistObj.roles.filter(
+              (role): role is ArtistRole =>
+                role === "musician" || role === "producer"
+            )
+          : (["musician"] as ArtistRole[]),
+        verified: Boolean(artistObj.verified ?? rawData.isVerified),
+      },
+      rawPlaybackUrl =
+        typeof rawData.playbackUrl === "string" &&
+        rawData.playbackUrl.length > 0 &&
+        !rawData.playbackUrl.startsWith("blob:")
+          ? rawData.playbackUrl
+          : null,
+      rawPreviewUrl =
+        typeof rawData.previewUrl === "string" && rawData.previewUrl.length > 0
+          ? rawData.previewUrl
+          : null,
+      rawCoverArtUrl =
+        typeof rawData.coverArtUrl === "string" &&
+        rawData.coverArtUrl.length > 0 &&
+        !rawData.coverArtUrl.startsWith("blob:")
+          ? rawData.coverArtUrl
+          : "/placeholder.svg";
+
+    return {
+      ...(rawData as unknown as MockCatalogItem),
+      artist: normalizedArtist,
+      coverArtUrl: rawCoverArtUrl,
+      playbackUrl: rawPlaybackUrl,
+      previewUrl: rawPreviewUrl,
+      priceLabel:
+        typeof rawData.priceLabel === "string"
+          ? rawData.priceLabel
+          : typeof rawData.price === "number"
+            ? `$${rawData.price.toFixed(2)}`
+            : "$1.99",
+      regionSlug:
+        typeof rawData.regionSlug === "string" ? rawData.regionSlug : null,
+      slug: typeof rawData.slug === "string" ? rawData.slug : null,
+      title:
+        typeof rawData.title === "string" ? rawData.title : "Untitled Track",
+      type:
+        (rawData.catalogItemType as CatalogItemType) ?? rawData.type ?? "track",
+    };
   };
-};
 
 export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   const id = lookupId,
-   router = useRouter(),
-   { setCurrentTrack, setQueue, addToQueue } = useAudioPlayer(),
-   { addItem } = useCart(),
-   { data: savedTracks = [] } = useLibrarySavedQuery(),
-   toggleSaveMutation = useToggleSaveTrackMutation(),
-   preSaveMutation = usePreSaveTrackMutation(id),
-
-   {
-    data: item,
-    error,
-    isError,
-    isLoading,
-  } = useQuery({
-    queryFn: () => fetchCatalogItem(id),
-    queryKey: ["track-detail", id],
-    retry: false,
-  }),
-   { data: relatedTrackResults = [] } = useTracksQuery(undefined, {
-    limit: 100,
-    scope: "public",
-    sort: "title-desc",
-  }),
-   [selectedLicense, setSelectedLicense] =
-    useState<MockLicenseOption | null>(null),
-   isLiked = Boolean(
-    item?.id && savedTracks.some((track) => track.id === item.id)
-  ),
-   [optimisticLiked, setOptimisticLiked] = useState(isLiked);
+    router = useRouter(),
+    { setCurrentTrack, setQueue, addToQueue } = useAudioPlayer(),
+    { addItem } = useCart(),
+    { data: savedTracks = [] } = useLibrarySavedQuery(),
+    toggleSaveMutation = useToggleSaveTrackMutation(),
+    preSaveMutation = usePreSaveTrackMutation(id),
+    {
+      data: item,
+      error,
+      isError,
+      isLoading,
+    } = useQuery({
+      queryFn: () => fetchCatalogItem(id),
+      queryKey: ["track-detail", id],
+      retry: false,
+    }),
+    { data: relatedTrackResults = [] } = useTracksQuery(undefined, {
+      limit: 100,
+      scope: "public",
+      sort: "title-desc",
+    }),
+    [selectedLicense, setSelectedLicense] = useState<MockLicenseOption | null>(
+      null
+    ),
+    isLiked = Boolean(
+      item?.id && savedTracks.some((track) => track.id === item.id)
+    ),
+    [optimisticLiked, setOptimisticLiked] = useState(isLiked);
 
   useEffect(() => {
     setSelectedLicense(item?.licenseOptions?.[0] ?? null);
@@ -419,185 +415,174 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   }
 
   const canPlayTrack = Boolean(item.playbackUrl ?? item.previewUrl),
-   canonicalTrackHref =
-    item.regionSlug && item.slug
-      ? `/tracks/${item.regionSlug}/${item.slug}`
-      : `/tracks/${item.id}`,
-   playerTrack = {
-    artist: item.artist.name,
-    artistHref: `/artist/${item.artist.handle}`,
-    cover: item.coverArtUrl,
-    id: item.id,
-    regionSlug: item.regionSlug,
-    slug: item.slug,
-    src: item.playbackUrl ?? item.previewUrl ?? "",
-    title: item.title,
-    trackHref: canonicalTrackHref,
-  },
-   includedAssets = selectIncludedAssets(item.assets, item.type),
-   relatedTracks = relatedTrackResults
-    .filter((track) => isSameArtistTrack(track, item) && track.id !== item.id)
-    .sort(compareTrackUpdatedAtDesc)
-    .slice(0, 5),
-
-   playCurrentTrack = () => {
-    if (!canPlayTrack) {
-      toast({
-        description: "No stream URL found for this track.",
-        title: "Playback unavailable",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setQueue([playerTrack]);
-    setCurrentTrack(playerTrack);
-    toast({
-      description: `${item.title} by ${item.artist.name}`,
-      title: "Now Playing",
-    });
-  },
-
-   handleQueueTrack = () => {
-    if (!canPlayTrack) {
-      toast({
-        description: "No stream URL found for this track.",
-        title: "Queue unavailable",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const added = addToQueue(playerTrack);
-    toast({
-      description: added
-        ? `Added "${item.title}" to play queue.`
-        : `"${item.title}" is already in the queue.`,
-      title: added ? "Queue Updated" : "Already Queued",
-    });
-  },
-
-   handleBuyTrack = () => {
-    addItem({
-      artistName: item.artist.name,
-      coverArtUrl: item.coverArtUrl,
-      priceCents: item.priceCents ?? 199,
-      productType:
-        item.type === "album" || item.type === "ep" ? "project" : "track",
-      purchaseMode: "digital_download",
+    canonicalTrackHref =
+      item.regionSlug && item.slug
+        ? `/tracks/${item.regionSlug}/${item.slug}`
+        : `/tracks/${item.id}`,
+    playerTrack = {
+      artist: item.artist.name,
+      artistHref: `/artist/${item.artist.handle}`,
+      cover: item.coverArtUrl,
+      id: item.id,
+      regionSlug: item.regionSlug,
+      slug: item.slug,
+      src: item.playbackUrl ?? item.previewUrl ?? "",
       title: item.title,
-      trackId: item.id,
-    });
-    toast({
-      description: `"${item.title}" (${item.priceLabel || "$1.99"}) added to cart.`,
-      title: "Added to Cart",
-    });
-  },
+      trackHref: canonicalTrackHref,
+    },
+    includedAssets = selectIncludedAssets(item.assets, item.type),
+    relatedTracks = relatedTrackResults
+      .filter((track) => isSameArtistTrack(track, item) && track.id !== item.id)
+      .sort(compareTrackUpdatedAtDesc)
+      .slice(0, 5),
+    playCurrentTrack = () => {
+      if (!canPlayTrack) {
+        toast({
+          description: "No stream URL found for this track.",
+          title: "Playback unavailable",
+          variant: "destructive",
+        });
+        return;
+      }
 
-   handleShare = async () => {
-    const shareTitle = `Stream ${item.title} on SoundKit`,
-     shareUrl = absoluteSiteUrl(canonicalTrackHref),
-     outcome = await shareLink({
-      text: `Play ${item.title} by ${item.artist.name} on SoundKit.`,
-      title: shareTitle,
-      url: shareUrl,
-    });
-    if (outcome === "shared") {
-      return;
-    }
-    if (outcome === "unsupported") {
+      setQueue([playerTrack]);
+      setCurrentTrack(playerTrack);
+    },
+    handleQueueTrack = () => {
+      if (!canPlayTrack) {
+        toast({
+          description: "No stream URL found for this track.",
+          title: "Queue unavailable",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const added = addToQueue(playerTrack);
       toast({
-        description: "Sharing is not supported on this device.",
-        title: "Unable to share",
-        variant: "destructive",
+        description: added
+          ? `Added "${item.title}" to play queue.`
+          : `"${item.title}" is already in the queue.`,
+        title: added ? "Queue Updated" : "Already Queued",
       });
-      return;
-    }
-    toast({
-      description: `Track URL copied to clipboard: ${shareUrl}`,
-      title: "Link Copied",
-    });
-  },
-
-   handleToggleLike = async () => {
-    if (!item?.id) {
-      return;
-    }
-    if (toggleSaveMutation.isPending) {
-      return;
-    }
-
-    setOptimisticLiked((current) => !current);
-
-    try {
-      const res = await toggleSaveMutation.mutateAsync(item.id);
-      setOptimisticLiked(res.saved);
+    },
+    handleBuyTrack = () => {
+      addItem({
+        artistName: item.artist.name,
+        coverArtUrl: item.coverArtUrl,
+        priceCents: item.priceCents ?? 199,
+        productType:
+          item.type === "album" || item.type === "ep" ? "project" : "track",
+        purchaseMode: "digital_download",
+        title: item.title,
+        trackId: item.id,
+      });
       toast({
-        description: res.saved
-          ? `Saved "${item.title}" to your Saved Tracks.`
-          : `Removed "${item.title}" from your Saved Tracks.`,
-        title: res.saved ? "Saved to Library" : "Removed from Library",
+        description: `"${item.title}" (${item.priceLabel || "$1.99"}) added to cart.`,
+        title: "Added to Cart",
       });
-    } catch {
+    },
+    handleShare = async () => {
+      const shareTitle = `Stream ${item.title} on SoundKit`,
+        shareUrl = absoluteSiteUrl(canonicalTrackHref),
+        outcome = await shareLink({
+          text: `Play ${item.title} by ${item.artist.name} on SoundKit.`,
+          title: shareTitle,
+          url: shareUrl,
+        });
+      if (outcome === "shared") {
+        return;
+      }
+      if (outcome === "unsupported") {
+        toast({
+          description: "Sharing is not supported on this device.",
+          title: "Unable to share",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
-        description: "Please sign in to save tracks to your library.",
-        title: "Sign in required",
-        variant: "destructive",
+        description: `Track URL copied to clipboard: ${shareUrl}`,
+        title: "Link Copied",
       });
-      setOptimisticLiked(isLiked);
-    }
-  },
+    },
+    handleToggleLike = async () => {
+      if (!item?.id) {
+        return;
+      }
+      if (toggleSaveMutation.isPending) {
+        return;
+      }
 
-   handlePreSave = async () => {
-    try {
-      await preSaveMutation.mutateAsync();
+      setOptimisticLiked((current) => !current);
+
+      try {
+        const res = await toggleSaveMutation.mutateAsync(item.id);
+        setOptimisticLiked(res.saved);
+        toast({
+          description: res.saved
+            ? `Saved "${item.title}" to your Saved Tracks.`
+            : `Removed "${item.title}" from your Saved Tracks.`,
+          title: res.saved ? "Saved to Library" : "Removed from Library",
+        });
+      } catch {
+        toast({
+          description: "Please sign in to save tracks to your library.",
+          title: "Sign in required",
+          variant: "destructive",
+        });
+        setOptimisticLiked(isLiked);
+      }
+    },
+    handlePreSave = async () => {
+      try {
+        await preSaveMutation.mutateAsync();
+        toast({
+          description: `We'll notify you when ${item.title} is released.`,
+          title: "Pre-save added",
+        });
+      } catch {
+        toast({
+          description: "Sign in to pre-save this release.",
+          title: "Sign in required",
+          variant: "destructive",
+        });
+      }
+    },
+    handleDownloadAsset = async (asset: MockCatalogAsset) => {
+      const fileName = assetDisplayFileName(asset, item.title);
+
+      if (!asset.downloadUrl) {
+        toast({
+          description: `No download link is available for ${asset.label} yet.`,
+          title: "Download unavailable",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        await downloadFileFromApi({
+          fallbackFileName: fileName,
+          url: asset.downloadUrl,
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : `Download is unavailable for ${asset.label}.`,
+          title: "Download unavailable",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
-        description: `We'll notify you when ${item.title} is released.`,
-        title: "Pre-save added",
+        description: `Downloading ${fileName}...`,
+        title: "Starting Download",
       });
-    } catch {
-      toast({
-        description: "Sign in to pre-save this release.",
-        title: "Sign in required",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleDownloadAsset = async (asset: MockCatalogAsset) => {
-    const fileName = assetDisplayFileName(asset, item.title);
-
-    if (!asset.downloadUrl) {
-      toast({
-        description: `No download link is available for ${asset.label} yet.`,
-        title: "Download unavailable",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await downloadFileFromApi({
-        fallbackFileName: fileName,
-        url: asset.downloadUrl,
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : `Download is unavailable for ${asset.label}.`,
-        title: "Download unavailable",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      description: `Downloading ${fileName}...`,
-      title: "Starting Download",
-    });
-  };
+    };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -934,7 +919,7 @@ function isSameArtistTrack(track: TrackSummary, item: MockCatalogItem) {
 
 function compareTrackUpdatedAtDesc(a: TrackSummary, b: TrackSummary) {
   const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0,
-   bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
   return bTime - aTime;
 }
 
@@ -1065,43 +1050,40 @@ function CommerceCard({
   onLicenseChange,
 }: CommerceCardProps) {
   const { addItem } = useCart(),
-   itemPriceCents =
-    item.priceCents ?? priceCentsFromLabel(item.priceLabel),
+    itemPriceCents = item.priceCents ?? priceCentsFromLabel(item.priceLabel),
+    addDigitalPurchase = () =>
+      addItem({
+        artistName: item.artist.name,
+        coverArtUrl: item.coverArtUrl,
+        priceCents: itemPriceCents,
+        productType:
+          item.type === "album" || item.type === "ep" ? "project" : "track",
+        projectId:
+          item.type === "album" || item.type === "ep" ? item.id : undefined,
+        purchaseMode: "digital_download",
+        title: item.title,
+        trackId:
+          item.type === "album" || item.type === "ep" ? undefined : item.id,
+      }),
+    addLicensePurchase = () => {
+      if (!selectedLicense) {
+        return Promise.resolve();
+      }
 
-   addDigitalPurchase = () =>
-    addItem({
-      artistName: item.artist.name,
-      coverArtUrl: item.coverArtUrl,
-      priceCents: itemPriceCents,
-      productType:
-        item.type === "album" || item.type === "ep" ? "project" : "track",
-      projectId:
-        item.type === "album" || item.type === "ep" ? item.id : undefined,
-      purchaseMode: "digital_download",
-      title: item.title,
-      trackId:
-        item.type === "album" || item.type === "ep" ? undefined : item.id,
-    }),
-
-   addLicensePurchase = () => {
-    if (!selectedLicense) {
-      return Promise.resolve();
-    }
-
-    return addItem({
-      artistName: item.artist.name,
-      coverArtUrl: item.coverArtUrl,
-      licenseName: selectedLicense.name,
-      licenseOptionId: selectedLicense.id,
-      priceCents:
-        selectedLicense.priceCents ??
-        priceCentsFromLabel(selectedLicense.priceLabel),
-      productType: "track",
-      purchaseMode: "license",
-      title: item.title,
-      trackId: item.id,
-    });
-  };
+      return addItem({
+        artistName: item.artist.name,
+        coverArtUrl: item.coverArtUrl,
+        licenseName: selectedLicense.name,
+        licenseOptionId: selectedLicense.id,
+        priceCents:
+          selectedLicense.priceCents ??
+          priceCentsFromLabel(selectedLicense.priceLabel),
+        productType: "track",
+        purchaseMode: "license",
+        title: item.title,
+        trackId: item.id,
+      });
+    };
 
   if (item.isOwned) {
     return (

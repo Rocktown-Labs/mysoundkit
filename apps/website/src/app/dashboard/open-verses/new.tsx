@@ -27,39 +27,38 @@ export const Route = createFileRoute("/dashboard/open-verses/new")({
 
 function NewOpenVersePage() {
   const router = useRouter(),
-   tracksQuery = useTracksQuery(),
-   createMutation = useCreateOpenVerseMutation(),
-   [trackId, setTrackId] = useState(""),
-   [title, setTitle] = useState(""),
-   [description, setDescription] = useState(""),
-   [slotStartsAtMs, setSlotStartsAtMs] = useState(""),
-   [slotEndsAtMs, setSlotEndsAtMs] = useState(""),
-   selectedTrack = tracksQuery.data?.find((track) => track.id === trackId),
+    tracksQuery = useTracksQuery(),
+    createMutation = useCreateOpenVerseMutation(),
+    [trackId, setTrackId] = useState(""),
+    [title, setTitle] = useState(""),
+    [description, setDescription] = useState(""),
+    [slotStartsAtMs, setSlotStartsAtMs] = useState(""),
+    [slotEndsAtMs, setSlotEndsAtMs] = useState(""),
+    selectedTrack = tracksQuery.data?.find((track) => track.id === trackId),
+    publishOpenVerse = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
 
-   publishOpenVerse = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    createMutation.mutate(
-      {
-        description: description.trim() || undefined,
-        maxSubmissions: 50,
-        slotEndsAtMs: slotEndsAtMs ? Number(slotEndsAtMs) * 1000 : undefined,
-        slotStartsAtMs: slotStartsAtMs
-          ? Number(slotStartsAtMs) * 1000
-          : undefined,
-        title: title.trim(),
-        trackId,
-      },
-      {
-        onSuccess: (listing) => {
-          void router.navigate({
-            params: { genre: listing.genreSlug, id: listing.id },
-            to: "/dashboard/open-verses/$genre/$id",
-          });
+      createMutation.mutate(
+        {
+          description: description.trim() || undefined,
+          maxSubmissions: 50,
+          slotEndsAtMs: slotEndsAtMs ? Number(slotEndsAtMs) * 1000 : undefined,
+          slotStartsAtMs: slotStartsAtMs
+            ? Number(slotStartsAtMs) * 1000
+            : undefined,
+          title: title.trim(),
+          trackId,
         },
-      }
-    );
-  };
+        {
+          onSuccess: (listing) => {
+            void router.navigate({
+              params: { genre: listing.genreSlug, id: listing.id },
+              to: "/dashboard/open-verses/$genre/$id",
+            });
+          },
+        }
+      );
+    };
 
   return (
     <form className="max-w-3xl space-y-6" onSubmit={publishOpenVerse}>

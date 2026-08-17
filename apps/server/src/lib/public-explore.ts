@@ -76,19 +76,19 @@ const regionEntryByStateValue = (state?: string | null) => {
   }
 
   const normalized = state.trim().toLowerCase(),
-   entry = (
-    Object.entries(northAmericaStates) as [
-      string,
-      {
-        abbreviation: string;
-        name: string;
-      },
-    ][]
-  ).find(
-    ([, value]) =>
-      value.abbreviation.toLowerCase() === normalized ||
-      value.name.toLowerCase() === normalized
-  );
+    entry = (
+      Object.entries(northAmericaStates) as [
+        string,
+        {
+          abbreviation: string;
+          name: string;
+        },
+      ][]
+    ).find(
+      ([, value]) =>
+        value.abbreviation.toLowerCase() === normalized ||
+        value.name.toLowerCase() === normalized
+    );
 
   return entry?.[1] ?? null;
 };

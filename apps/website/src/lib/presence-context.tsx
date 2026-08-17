@@ -40,51 +40,49 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
     ),
     socketRef = useRef<WebSocket | null>(null),
     heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null),
-
-  // Poll HTTP presence fallback
-   fetchHttpPresence = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_V1_URL}/presence`, {
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          onlineUserIds?: string[];
-          users?: Record<string, { lastSeen: number; status: string }>;
-        };
-        if (data.users) {
-          const mapped: Record<string, UserPresenceInfo> = {};
-          for (const [id, u] of Object.entries(data.users)) {
-            mapped[id] = {
-              isOnline: true,
-              lastSeen: u.lastSeen,
-              status: u.status,
-            };
+    // Poll HTTP presence fallback
+    fetchHttpPresence = useCallback(async () => {
+      try {
+        const res = await fetch(`${API_V1_URL}/presence`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            onlineUserIds?: string[];
+            users?: Record<string, { lastSeen: number; status: string }>;
+          };
+          if (data.users) {
+            const mapped: Record<string, UserPresenceInfo> = {};
+            for (const [id, u] of Object.entries(data.users)) {
+              mapped[id] = {
+                isOnline: true,
+                lastSeen: u.lastSeen,
+                status: u.status,
+              };
+            }
+            setOnlineUsers(mapped);
           }
-          setOnlineUsers(mapped);
         }
+      } catch {
+        // Ignore network errors on presence polling
       }
-    } catch {
-      // Ignore network errors on presence polling
-    }
-  }, []),
-
-  // Send HTTP heartbeat fallback
-   sendHeartbeat = useCallback(async () => {
-    if (!userId) {
-      return;
-    }
-    try {
-      await fetch(`${API_V1_URL}/presence/heartbeat`, {
-        body: JSON.stringify({ status: "online", userId }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-    } catch {
-      // Ignore heartbeat failure
-    }
-  }, [userId]);
+    }, []),
+    // Send HTTP heartbeat fallback
+    sendHeartbeat = useCallback(async () => {
+      if (!userId) {
+        return;
+      }
+      try {
+        await fetch(`${API_V1_URL}/presence/heartbeat`, {
+          body: JSON.stringify({ status: "online", userId }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+      } catch {
+        // Ignore heartbeat failure
+      }
+    }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -167,44 +165,41 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
   }, [userId, sendHeartbeat, fetchHttpPresence]);
 
   const isUserOnline = useCallback(
-    (targetUserId?: string | null) => {
-      if (!targetUserId) {
-        return false;
-      }
-      // The current logged-in user is always online
-      if (userId && targetUserId === userId) {
-        return true;
-      }
-      const user = onlineUsers[targetUserId];
-      return Boolean(user && user.isOnline);
-    },
-    [onlineUsers, userId]
-  ),
-
-   getUserPresence = useCallback(
-    (targetUserId?: string | null) => {
-      if (!targetUserId) {
-        return;
-      }
-      if (userId && targetUserId === userId) {
-        return { isOnline: true, lastSeen: Date.now(), status: "online" };
-      }
-      return onlineUsers[targetUserId];
-    },
-    [onlineUsers, userId]
-  ),
-
-   onlineUserIds = useMemo(() => Object.keys(onlineUsers), [onlineUsers]),
-
-   value = useMemo(
-    () => ({
-      getUserPresence,
-      isUserOnline,
-      onlineCount: onlineUserIds.length,
-      onlineUserIds,
-    }),
-    [getUserPresence, isUserOnline, onlineUserIds]
-  );
+      (targetUserId?: string | null) => {
+        if (!targetUserId) {
+          return false;
+        }
+        // The current logged-in user is always online
+        if (userId && targetUserId === userId) {
+          return true;
+        }
+        const user = onlineUsers[targetUserId];
+        return Boolean(user && user.isOnline);
+      },
+      [onlineUsers, userId]
+    ),
+    getUserPresence = useCallback(
+      (targetUserId?: string | null) => {
+        if (!targetUserId) {
+          return;
+        }
+        if (userId && targetUserId === userId) {
+          return { isOnline: true, lastSeen: Date.now(), status: "online" };
+        }
+        return onlineUsers[targetUserId];
+      },
+      [onlineUsers, userId]
+    ),
+    onlineUserIds = useMemo(() => Object.keys(onlineUsers), [onlineUsers]),
+    value = useMemo(
+      () => ({
+        getUserPresence,
+        isUserOnline,
+        onlineCount: onlineUserIds.length,
+        onlineUserIds,
+      }),
+      [getUserPresence, isUserOnline, onlineUserIds]
+    );
 
   return (
     <PresenceContext.Provider value={value}>

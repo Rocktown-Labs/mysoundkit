@@ -42,55 +42,51 @@ export const Route = createFileRoute("/_explore/videos/")({
 
 function VideosPage() {
   const router = useRouter(),
-   search = Route.useSearch(),
-   navigate = Route.useNavigate(),
-
-   savedRegionType =
-    typeof window === "undefined"
-      ? null
-      : (localStorage.getItem("exploreRegionType") as
-          | "north-america"
-          | "global"
-          | null),
-   savedRegion =
-    typeof window === "undefined"
-      ? null
-      : localStorage.getItem("exploreRegion"),
-
-   regionType = search.regionType ?? savedRegionType ?? "north-america",
-   region = search.region ?? savedRegion ?? "us-arkansas",
-   genre = search.genre ?? "all",
-   sort = search.sort ?? "views-desc",
-   view = search.view ?? "sections",
-
-   updateFilters = (next: Partial<VideosSearch>) => {
-    const nextRegionType = next.regionType ?? regionType,
-     nextRegion = next.region ?? region;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("exploreRegionType", nextRegionType);
-      localStorage.setItem("exploreRegion", nextRegion);
-    }
-    navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        genre: next.genre ?? genre,
-        region: nextRegion,
-        regionType: nextRegionType,
-        sort: next.sort ?? sort,
-        view: next.view ?? view,
-      }),
+    search = Route.useSearch(),
+    navigate = Route.useNavigate(),
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    region = search.region ?? savedRegion ?? "us-arkansas",
+    genre = search.genre ?? "all",
+    sort = search.sort ?? "views-desc",
+    view = search.view ?? "sections",
+    updateFilters = (next: Partial<VideosSearch>) => {
+      const nextRegionType = next.regionType ?? regionType,
+        nextRegion = next.region ?? region;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("exploreRegionType", nextRegionType);
+        localStorage.setItem("exploreRegion", nextRegion);
+      }
+      navigate({
+        replace: true,
+        search: (prev) => ({
+          ...prev,
+          genre: next.genre ?? genre,
+          region: nextRegion,
+          regionType: nextRegionType,
+          sort: next.sort ?? sort,
+          view: next.view ?? view,
+        }),
+      });
+    },
+    { data: videos = [], isLoading } = useVideosQuery({
+      genre,
+      limit: "48",
+      region,
+      regionType,
+      scope: "public",
+      sort,
     });
-  },
-
-   { data: videos = [], isLoading } = useVideosQuery({
-    genre,
-    limit: "48",
-    region,
-    regionType,
-    scope: "public",
-    sort,
-  });
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">

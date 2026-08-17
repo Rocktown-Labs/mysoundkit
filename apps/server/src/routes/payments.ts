@@ -25,38 +25,37 @@ import { createDestinationCheckout } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
- checkoutResponseSchema = z.object({
-  checkoutUrl: z.string().url().nullable(),
-  setupRequired: z.boolean(),
-  transactionId: z.string().nullable(),
-}),
- checkoutBodySchema = z.object({
-  cancelUrl: z.url(),
-  successUrl: z.url(),
-}),
- tipBodySchema = checkoutBodySchema.extend({
-  amountCents: z.number().int().min(100).max(100_000),
-  artistUserId: z.string(),
-  message: z.string().max(500).optional(),
-}),
+  checkoutResponseSchema = z.object({
+    checkoutUrl: z.string().url().nullable(),
+    setupRequired: z.boolean(),
+    transactionId: z.string().nullable(),
+  }),
+  checkoutBodySchema = z.object({
+    cancelUrl: z.url(),
+    successUrl: z.url(),
+  }),
+  tipBodySchema = checkoutBodySchema.extend({
+    amountCents: z.number().int().min(100).max(100_000),
+    artistUserId: z.string(),
+    message: z.string().max(500).optional(),
+  }),
+  getEnabledSeller = async (userId: string) => {
+    await refreshSellerAccount({ organizationId: null, userId });
+    const db = createDb(),
+      [seller] = await db
+        .select()
+        .from(sellerAccounts)
+        .where(
+          and(
+            eq(sellerAccounts.userId, userId),
+            eq(sellerAccounts.onboardingStatus, "enabled"),
+            eq(sellerAccounts.chargesEnabled, true)
+          )
+        )
+        .limit(1);
 
- getEnabledSeller = async (userId: string) => {
-  await refreshSellerAccount({ organizationId: null, userId });
-  const db = createDb(),
-   [seller] = await db
-    .select()
-    .from(sellerAccounts)
-    .where(
-      and(
-        eq(sellerAccounts.userId, userId),
-        eq(sellerAccounts.onboardingStatus, "enabled"),
-        eq(sellerAccounts.chargesEnabled, true)
-      )
-    )
-    .limit(1);
-
-  return seller ?? null;
-};
+    return seller ?? null;
+  };
 
 app.openapi(
   createRoute({
@@ -96,14 +95,14 @@ app.openapi(
     }
 
     const db = createDb(),
-     [cart] = await db
-      .select()
-      .from(carts)
-      .where(eq(carts.userId, user.id))
-      .limit(1),
-     items = cart
-      ? await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id))
-      : [];
+      [cart] = await db
+        .select()
+        .from(carts)
+        .where(eq(carts.userId, user.id))
+        .limit(1),
+      items = cart
+        ? await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id))
+        : [];
 
     if (items.length === 0) {
       return c.json({ message: "Cart is empty." }, HttpStatusCodes.BAD_REQUEST);
@@ -130,15 +129,15 @@ app.openapi(
     }
 
     const amountCents = items.reduce(
-      (sum, item) => sum + item.priceCentsSnapshot * item.quantity,
-      0
-    ),
-     platformFeeCents = calculateFeeCents({
-      amountCents,
-      basisPoints: PRODUCT_PLATFORM_FEE_BPS,
-    }),
-     transactionId = crypto.randomUUID(),
-     orderId = crypto.randomUUID();
+        (sum, item) => sum + item.priceCentsSnapshot * item.quantity,
+        0
+      ),
+      platformFeeCents = calculateFeeCents({
+        amountCents,
+        basisPoints: PRODUCT_PLATFORM_FEE_BPS,
+      }),
+      transactionId = crypto.randomUUID(),
+      orderId = crypto.randomUUID();
 
     await db.insert(transactions).values({
       amountCents,
@@ -180,20 +179,20 @@ app.openapi(
     );
 
     const body = c.req.valid("json"),
-     checkout = await createDestinationCheckout({
-      applicationFeeCents: platformFeeCents,
-      cancelUrl: body.cancelUrl,
-      connectedAccountId: seller.stripeAccountId,
-      customerEmail: user.email,
-      lineItems: items.map((item) => ({
-        currency: item.currency,
-        name: item.titleSnapshot,
-        priceCents: item.priceCentsSnapshot,
-        quantity: item.quantity,
-      })),
-      metadata: { transactionId, transactionType: "product_purchase" },
-      successUrl: body.successUrl,
-    });
+      checkout = await createDestinationCheckout({
+        applicationFeeCents: platformFeeCents,
+        cancelUrl: body.cancelUrl,
+        connectedAccountId: seller.stripeAccountId,
+        customerEmail: user.email,
+        lineItems: items.map((item) => ({
+          currency: item.currency,
+          name: item.titleSnapshot,
+          priceCents: item.priceCentsSnapshot,
+          quantity: item.quantity,
+        })),
+        metadata: { transactionId, transactionType: "product_purchase" },
+        successUrl: body.successUrl,
+      });
 
     if (checkout) {
       await db
@@ -250,7 +249,7 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     seller = await getEnabledSeller(body.artistUserId);
+      seller = await getEnabledSeller(body.artistUserId);
 
     if (!seller) {
       return c.json(
@@ -260,11 +259,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     platformFeeCents = calculateFeeCents({
-      amountCents: body.amountCents,
-      basisPoints: TIP_PLATFORM_FEE_BPS,
-    }),
-     transactionId = crypto.randomUUID();
+      platformFeeCents = calculateFeeCents({
+        amountCents: body.amountCents,
+        basisPoints: TIP_PLATFORM_FEE_BPS,
+      }),
+      transactionId = crypto.randomUUID();
 
     await db.insert(transactions).values({
       amountCents: body.amountCents,

@@ -28,129 +28,118 @@ export function ProfileMediaUpload({
   title: string;
 }) {
   const inputId = useId(),
-   queryClient = useQueryClient(),
-   [previewUrl, setPreviewUrl] = useState<string | null>(
-    currentUrl ?? null
-  ),
-   [selectedFile, setSelectedFile] = useState<File | null>(null),
-   [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
-   [statusMessage, setStatusMessage] = useState<string | null>(null),
+    queryClient = useQueryClient(),
+    [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl ?? null),
+    [selectedFile, setSelectedFile] = useState<File | null>(null),
+    [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
+    [statusMessage, setStatusMessage] = useState<string | null>(null),
+    persistUploadedMedia = async ({
+      objectKey,
+      remoteUrl,
+    }: {
+      objectKey: string;
+      remoteUrl: string;
+    }) => {
+      try {
+        const response = await fetch(`${API_V1_URL}/me/profile`, {
+            body: JSON.stringify(
+              kind === "avatar"
+                ? {
+                    avatarObjectKey: objectKey,
+                    avatarUrl: remoteUrl,
+                  }
+                : {
+                    headerObjectKey: objectKey,
+                    headerUrl: remoteUrl,
+                  }
+            ),
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            method: "PATCH",
+          }),
+          payload = (await response.json().catch(() => null)) as {
+            message?: string;
+          } | null;
 
-   persistUploadedMedia = async ({
-    objectKey,
-    remoteUrl,
-  }: {
-    objectKey: string;
-    remoteUrl: string;
-  }) => {
-    try {
-      const response = await fetch(`${API_V1_URL}/me/profile`, {
-        body: JSON.stringify(
-          kind === "avatar"
-            ? {
-                avatarObjectKey: objectKey,
-                avatarUrl: remoteUrl,
-              }
-            : {
-                headerObjectKey: objectKey,
-                headerUrl: remoteUrl,
-              }
-        ),
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "PATCH",
-      }),
+        void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
 
-       payload = (await response.json().catch(() => null)) as {
-        message?: string;
-      } | null;
-
-      void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
-
-      setStatusMessage(
-        payload?.message ??
+        setStatusMessage(
+          payload?.message ??
+            `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
+        );
+      } catch {
+        setStatusMessage(
           `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
-      );
-    } catch {
-      setStatusMessage(
-        `${kind === "avatar" ? "Profile photo" : "Header image"} updated.`
-      );
-    }
-  },
+        );
+      }
+    },
+    fileToDataUrl = (file: File): Promise<string> =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      }),
+    { averageProgress, isPending, upload } = useUploadFiles({
+      api: PROFILE_MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onError: async () => {
+        if (selectedFile) {
+          const dataUrl = await fileToDataUrl(selectedFile);
+          setPreviewUrl(dataUrl);
+          await persistUploadedMedia({
+            objectKey: `profile-${kind}-${Date.now()}`,
+            remoteUrl: dataUrl,
+          });
+        }
+      },
+      onUploadComplete: ({ files }) => {
+        const [file] = files;
 
-   fileToDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
+        if (!file) {
+          setStatusMessage("Upload completed.");
+          return;
+        }
+
+        const objectKey = file.objectInfo.key,
+          remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
+
+        setPreviewUrl(remoteUrl);
+        void persistUploadedMedia({ objectKey, remoteUrl });
+      },
+      route: "profile-media",
     }),
+    handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
 
-   { averageProgress, isPending, upload } = useUploadFiles({
-    api: PROFILE_MEDIA_UPLOAD_URL,
-    credentials: "include",
-    onError: async () => {
-      if (selectedFile) {
-        const dataUrl = await fileToDataUrl(selectedFile);
+      if (!file) {
+        return;
+      }
+
+      setSelectedFile(file);
+      setSelectedObjectUrl(URL.createObjectURL(file));
+      setStatusMessage(null);
+    },
+    uploadCroppedFile = async (croppedFile: File, localPreviewUrl: string) => {
+      setPreviewUrl(localPreviewUrl);
+      setSelectedObjectUrl("");
+      setStatusMessage("Saving profile media...");
+
+      try {
+        await upload([croppedFile]);
+      } catch {
+        const dataUrl = await fileToDataUrl(croppedFile);
         setPreviewUrl(dataUrl);
         await persistUploadedMedia({
           objectKey: `profile-${kind}-${Date.now()}`,
           remoteUrl: dataUrl,
         });
+      } finally {
+        setSelectedFile(null);
       }
-    },
-    onUploadComplete: ({ files }) => {
-      const [file] = files;
-
-      if (!file) {
-        setStatusMessage("Upload completed.");
-        return;
-      }
-
-      const objectKey = file.objectInfo.key,
-       remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`;
-
-      setPreviewUrl(remoteUrl);
-      void persistUploadedMedia({ objectKey, remoteUrl });
-    },
-    route: "profile-media",
-  }),
-
-   handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    setSelectedFile(file);
-    setSelectedObjectUrl(URL.createObjectURL(file));
-    setStatusMessage(null);
-  },
-
-   uploadCroppedFile = async (
-    croppedFile: File,
-    localPreviewUrl: string
-  ) => {
-    setPreviewUrl(localPreviewUrl);
-    setSelectedObjectUrl("");
-    setStatusMessage("Saving profile media...");
-
-    try {
-      await upload([croppedFile]);
-    } catch {
-      const dataUrl = await fileToDataUrl(croppedFile);
-      setPreviewUrl(dataUrl);
-      await persistUploadedMedia({
-        objectKey: `profile-${kind}-${Date.now()}`,
-        remoteUrl: dataUrl,
-      });
-    } finally {
-      setSelectedFile(null);
-    }
-  };
+    };
 
   return (
     <div className="space-y-3">

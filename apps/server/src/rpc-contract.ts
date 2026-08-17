@@ -92,116 +92,108 @@ import {
 } from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
-  validator("json", (value) => schema.parse(value) as z.infer<Schema>),
-
- checkoutBodySchema = z.object({
-  cancelUrl: z.url(),
-  planCode: z.string(),
-  referenceId: z.string().optional(),
-  seats: z.number().int().positive().optional(),
-  successUrl: z.url(),
-}),
-
- checkoutResponseSchema = onboardingResponseSchema.pick({
-  checkoutUrl: true,
-  requiresCheckout: true,
-  setupRequired: true,
-}),
-
- cloudflareStreamBodySchema = z.object({
-  title: z.string().optional(),
-}),
-
- genreCatalogItemSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  slug: z.string(),
-}),
-
- notificationSummarySchema = z
-  .object({
-    body: z.string(),
-    createdAt: z.string(),
+    validator("json", (value) => schema.parse(value) as z.infer<Schema>),
+  checkoutBodySchema = z.object({
+    cancelUrl: z.url(),
+    planCode: z.string(),
+    referenceId: z.string().optional(),
+    seats: z.number().int().positive().optional(),
+    successUrl: z.url(),
+  }),
+  checkoutResponseSchema = onboardingResponseSchema.pick({
+    checkoutUrl: true,
+    requiresCheckout: true,
+    setupRequired: true,
+  }),
+  cloudflareStreamBodySchema = z.object({
+    title: z.string().optional(),
+  }),
+  genreCatalogItemSchema = z.object({
     id: z.string(),
-    readAt: z.string().nullable(),
-    title: z.string(),
-    type: z.string(),
-  })
-  .passthrough(),
-
- notificationsResponseSchema = z.object({
-  notifications: z.array(notificationSummarySchema),
-  unreadCount: z.number().int().nonnegative(),
-}),
-
- followResponseSchema = z.object({
-  followed: z.boolean(),
-  followerCount: z.number().int().nonnegative(),
-}),
-
- liveExperienceSummarySchema = z
-  .object({
-    id: z.string(),
-    kind: z.enum(["battle", "party", "stream"]),
-    roomHref: z.string(),
-    status: z.string(),
-    title: z.string(),
-  })
-  .passthrough(),
-
- liveExperienceResponseSchema = z
-  .object({
-    defaults: z.object({}).passthrough(),
-    experience: liveExperienceSummarySchema,
-    lock: z.object({}).passthrough(),
-    notifications: z.array(z.object({}).passthrough()),
-    realtime: z.object({ id: z.string() }).passthrough(),
-    streamInput: z
-      .object({
-        id: z.string(),
-        playbackUrl: z.string(),
-        rtmpsKey: z.string(),
-        rtmpsUrl: z.string(),
-        srtKey: z.string(),
-        srtUrl: z.string(),
-        status: z.string(),
-        title: z.string(),
-      })
-      .nullable(),
-  })
-  .passthrough(),
-
- liveParticipantResponseSchema = z
-  .object({
-    participant: z
-      .object({
-        authToken: z.string(),
-        meetingId: z.string(),
-        participantId: z.string(),
-        presetName: z.string(),
-      })
-      .passthrough(),
-    setupScreen: z.boolean(),
-  })
-  .passthrough(),
-
- liveExperienceActionResponseSchema = z
-  .object({
-    action: z.string().optional(),
-    battleBot: z.object({}).passthrough().optional(),
-    conflict: z.unknown().optional(),
-    experienceId: z.string().optional(),
-    hasConflict: z.boolean().optional(),
-    message: z.string().optional(),
-    snapshot: z.object({}).passthrough().optional(),
-  })
-  .passthrough();
+    name: z.string(),
+    slug: z.string(),
+  }),
+  notificationSummarySchema = z
+    .object({
+      body: z.string(),
+      createdAt: z.string(),
+      id: z.string(),
+      readAt: z.string().nullable(),
+      title: z.string(),
+      type: z.string(),
+    })
+    .passthrough(),
+  notificationsResponseSchema = z.object({
+    notifications: z.array(notificationSummarySchema),
+    unreadCount: z.number().int().nonnegative(),
+  }),
+  followResponseSchema = z.object({
+    followed: z.boolean(),
+    followerCount: z.number().int().nonnegative(),
+  }),
+  liveExperienceSummarySchema = z
+    .object({
+      id: z.string(),
+      kind: z.enum(["battle", "party", "stream"]),
+      roomHref: z.string(),
+      status: z.string(),
+      title: z.string(),
+    })
+    .passthrough(),
+  liveExperienceResponseSchema = z
+    .object({
+      defaults: z.object({}).passthrough(),
+      experience: liveExperienceSummarySchema,
+      lock: z.object({}).passthrough(),
+      notifications: z.array(z.object({}).passthrough()),
+      realtime: z.object({ id: z.string() }).passthrough(),
+      streamInput: z
+        .object({
+          id: z.string(),
+          playbackUrl: z.string(),
+          rtmpsKey: z.string(),
+          rtmpsUrl: z.string(),
+          srtKey: z.string(),
+          srtUrl: z.string(),
+          status: z.string(),
+          title: z.string(),
+        })
+        .nullable(),
+    })
+    .passthrough(),
+  liveParticipantResponseSchema = z
+    .object({
+      participant: z
+        .object({
+          authToken: z.string(),
+          meetingId: z.string(),
+          participantId: z.string(),
+          presetName: z.string(),
+        })
+        .passthrough(),
+      setupScreen: z.boolean(),
+    })
+    .passthrough(),
+  liveExperienceActionResponseSchema = z
+    .object({
+      action: z.string().optional(),
+      battleBot: z.object({}).passthrough().optional(),
+      conflict: z.unknown().optional(),
+      experienceId: z.string().optional(),
+      hasConflict: z.boolean().optional(),
+      message: z.string().optional(),
+      snapshot: z.object({}).passthrough().optional(),
+    })
+    .passthrough();
 
 export const rpcContract = new Hono()
   .get("/v1/live/experiences/public", (c) =>
     c.json(
       [] as {
+        creatorAvatar: string | null;
+        creatorName: string | null;
         endsAt: string | null;
+        genre: string | null;
         id: string;
         kind: "battle" | "party" | "stream";
         source: string;
@@ -501,6 +493,30 @@ export const rpcContract = new Hono()
     jsonValidator(createLiveExperienceBodySchema),
     (c) => c.json({} as z.infer<typeof liveExperienceResponseSchema>, 201)
   )
+  .get("/v1/live/experiences/me", (c) =>
+    c.json(
+      [] as {
+        createdAt: string;
+        createdByUserId: string;
+        endsAt: string | null;
+        genre: string | null;
+        id: string;
+        kind: "battle" | "party" | "stream";
+        meetingId: string | null;
+        playbackMode: string;
+        playlistId: string | null;
+        projectId: string | null;
+        roomHref?: string;
+        source: "browser" | "obs" | "playlist";
+        startsAt: string;
+        status: "ended" | "live" | "scheduled";
+        streamInputId: string | null;
+        title: string;
+        viewerCount: number;
+        visibility: "premium_only" | "private" | "public";
+      }[]
+    )
+  )
   .get("/v1/live/experiences/:experienceId", (c) =>
     c.json({
       id: "",
@@ -515,6 +531,7 @@ export const rpcContract = new Hono()
       visibility: "public",
     })
   )
+  .delete("/v1/live/experiences/:experienceId", (c) => c.json({ message: "" }))
   .post(
     "/v1/live/experiences/:experienceId/join",
     jsonValidator(joinLiveExperienceBodySchema),

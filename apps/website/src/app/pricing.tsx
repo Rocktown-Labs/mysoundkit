@@ -21,48 +21,44 @@ export const Route = createFileRoute("/pricing")({
 });
 
 const pricingText = {
-  checkoutAlreadySet: "Your account is already set for this plan.",
-  checkoutOpening: "Opening Checkout...",
-  checkoutSetupRequired:
-    "Premium checkout is being connected. Your account can keep using Free while billing is finished.",
-  checkoutUnavailable:
-    "We could not open checkout right now. Please try again in a moment.",
-  enterpriseAction: "Request Enterprise Access",
-  heroBadge: "Simple plans. Direct artist support.",
-  heroBody:
-    "One free plan, one Premium plan, and an enterprise path for signed artists, labels, and larger teams.",
-  heroTitle: "Choose how you experience SoundKit",
-  premiumAction: "Upgrade to Premium",
-  premiumDescription:
-    "Premium follows you whether you listen as a fan or create as an artist, with three included accounts on one plan.",
-  signedInAccount: (accountType: string | undefined) =>
-    `Signed in as a ${accountType ?? "user"} account.`,
-  startFree: "Start Free",
-  startPremium: "Start Premium",
-} as const,
-
- freeFeatures = [
-  "Stream music and explore public SoundKit releases",
-  "Save tracks, build playlists, and follow artists",
-  "Artist accounts can upload music and maintain a public profile",
-] as const,
-
- premiumFeatures = [
-  "Watch live streams, battles, and listening parties",
-  "Vote in live battles and join premium chat",
-  "Host live experiences and sell music as an artist",
-  `Add up to ${PREMIUM_INCLUDED_SEATS} accounts on one Premium plan`,
-  "Keep Premium if you move between fan and artist accounts",
-] as const,
-
- enterpriseFeatures = [
-  "Label, signed artist, and large team onboarding",
-  "Custom support for catalog migrations and releases",
-  "Premium workspace planning before launch",
-] as const,
-
- enterpriseHref =
-  "mailto:enterprise@mysoundkit.com?subject=SoundKit%20Enterprise";
+    checkoutAlreadySet: "Your account is already set for this plan.",
+    checkoutOpening: "Opening Checkout...",
+    checkoutSetupRequired:
+      "Premium checkout is being connected. Your account can keep using Free while billing is finished.",
+    checkoutUnavailable:
+      "We could not open checkout right now. Please try again in a moment.",
+    enterpriseAction: "Request Enterprise Access",
+    heroBadge: "Simple plans. Direct artist support.",
+    heroBody:
+      "One free plan, one Premium plan, and an enterprise path for signed artists, labels, and larger teams.",
+    heroTitle: "Choose how you experience SoundKit",
+    premiumAction: "Upgrade to Premium",
+    premiumDescription:
+      "Premium follows you whether you listen as a fan or create as an artist, with three included accounts on one plan.",
+    signedInAccount: (accountType: string | undefined) =>
+      `Signed in as a ${accountType ?? "user"} account.`,
+    startFree: "Start Free",
+    startPremium: "Start Premium",
+  } as const,
+  freeFeatures = [
+    "Stream music and explore public SoundKit releases",
+    "Save tracks, build playlists, and follow artists",
+    "Artist accounts can upload music and maintain a public profile",
+  ] as const,
+  premiumFeatures = [
+    "Watch live streams, battles, and listening parties",
+    "Vote in live battles and join premium chat",
+    "Host live experiences and sell music as an artist",
+    `Add up to ${PREMIUM_INCLUDED_SEATS} accounts on one Premium plan`,
+    "Keep Premium if you move between fan and artist accounts",
+  ] as const,
+  enterpriseFeatures = [
+    "Label, signed artist, and large team onboarding",
+    "Custom support for catalog migrations and releases",
+    "Premium workspace planning before launch",
+  ] as const,
+  enterpriseHref =
+    "mailto:enterprise@mysoundkit.com?subject=SoundKit%20Enterprise";
 
 interface PlanCardContent {
   description: string;
@@ -74,73 +70,70 @@ interface PlanCardContent {
 }
 
 const freePlan: PlanCardContent = {
-  description: "Fan or artist accounts can start here.",
-  features: freeFeatures,
-  icon: Users,
-  label: "Free",
-  price: "Free",
-  title: "SoundKit Free",
-},
-
- premiumPlan: PlanCardContent = {
-  description: pricingText.premiumDescription,
-  features: premiumFeatures,
-  icon: Sparkles,
-  label: "Premium",
-  price: "$22.99/month",
-  title: "SoundKit Premium",
-},
-
- enterprisePlan: PlanCardContent = {
-  description:
-    "A holding lane for major labels, signed artists, and larger teams.",
-  features: enterpriseFeatures,
-  icon: Building2,
-  label: "Enterprise",
-  price: "Contact us",
-  title: "Labels & Signed Artists",
-};
+    description: "Fan or artist accounts can start here.",
+    features: freeFeatures,
+    icon: Users,
+    label: "Free",
+    price: "Free",
+    title: "SoundKit Free",
+  },
+  premiumPlan: PlanCardContent = {
+    description: pricingText.premiumDescription,
+    features: premiumFeatures,
+    icon: Sparkles,
+    label: "Premium",
+    price: "$22.99/month",
+    title: "SoundKit Premium",
+  },
+  enterprisePlan: PlanCardContent = {
+    description:
+      "A holding lane for major labels, signed artists, and larger teams.",
+    features: enterpriseFeatures,
+    icon: Building2,
+    label: "Enterprise",
+    price: "Contact us",
+    title: "Labels & Signed Artists",
+  };
 
 function PricingPage() {
   const { data: me } = useMeQuery(),
-   checkout = useBillingCheckoutMutation(),
-   [checkoutMessage, setCheckoutMessage] = useState(""),
-   accountType = me?.user.accountType,
-   isSignedIn = Boolean(me?.user),
-   accountHomePath = accountHomePathForAccount(accountType),
-   accountHomeLabel =
-    accountType === "artist" ? "Go to Dashboard" : "Go to Library",
-
-   startPremiumCheckout = async () => {
-    if (!me?.user) {
-      return;
-    }
-
-    try {
-      setCheckoutMessage("");
-      const { origin } = window.location,
-       response = await checkout.mutateAsync({
-        cancelUrl: `${origin}/pricing`,
-        planCode: premiumPlanCodeForAccount(me.user.accountType),
-        successUrl: `${origin}${premiumSuccessPathForAccount(
-          me.user.accountType
-        )}?upgraded=1`,
-      });
-
-      if (response.checkoutUrl) {
-        window.location.assign(response.checkoutUrl);
+    checkout = useBillingCheckoutMutation(),
+    [checkoutMessage, setCheckoutMessage] = useState(""),
+    accountType = me?.user.accountType,
+    isSignedIn = Boolean(me?.user),
+    accountHomePath = accountHomePathForAccount(accountType),
+    accountHomeLabel =
+      accountType === "artist" ? "Go to Dashboard" : "Go to Library",
+    startPremiumCheckout = async () => {
+      if (!me?.user) {
         return;
       }
 
-      setCheckoutMessage(
-        response.setupRequired
-          ? pricingText.checkoutSetupRequired
-          : pricingText.checkoutAlreadySet
-      );
-    } catch {
-      setCheckoutMessage(pricingText.checkoutUnavailable);
-    }
-  };
+      try {
+        setCheckoutMessage("");
+        const { origin } = window.location,
+          response = await checkout.mutateAsync({
+            cancelUrl: `${origin}/pricing`,
+            planCode: premiumPlanCodeForAccount(me.user.accountType),
+            successUrl: `${origin}${premiumSuccessPathForAccount(
+              me.user.accountType
+            )}?upgraded=1`,
+          });
+
+        if (response.checkoutUrl) {
+          window.location.assign(response.checkoutUrl);
+          return;
+        }
+
+        setCheckoutMessage(
+          response.setupRequired
+            ? pricingText.checkoutSetupRequired
+            : pricingText.checkoutAlreadySet
+        );
+      } catch {
+        setCheckoutMessage(pricingText.checkoutUnavailable);
+      }
+    };
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-16 md:px-6">
@@ -206,9 +199,9 @@ function PlanCard({
   plan: PlanCardContent;
 }) {
   const Icon = plan.icon,
-   cardClassName = featured
-    ? "flex h-full flex-col rounded-lg border border-primary bg-card text-card-foreground shadow-lg"
-    : "flex h-full flex-col rounded-lg border bg-card text-card-foreground shadow-sm";
+    cardClassName = featured
+      ? "flex h-full flex-col rounded-lg border border-primary bg-card text-card-foreground shadow-lg"
+      : "flex h-full flex-col rounded-lg border bg-card text-card-foreground shadow-sm";
 
   return (
     <section className={cardClassName}>

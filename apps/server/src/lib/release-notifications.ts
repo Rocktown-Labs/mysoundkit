@@ -24,16 +24,16 @@ const loadReleaseAudience = async ({
   preSavedUserIds: string[];
 }) => {
   const db = createDb(),
-   [artistFollowers, profileFollowers] = await Promise.all([
-    db
-      .select({ userId: artistFollows.followerUserId })
-      .from(artistFollows)
-      .where(eq(artistFollows.artistUserId, ownerUserId)),
-    db
-      .select({ userId: userFollows.followerUserId })
-      .from(userFollows)
-      .where(eq(userFollows.targetUserId, ownerUserId)),
-  ]);
+    [artistFollowers, profileFollowers] = await Promise.all([
+      db
+        .select({ userId: artistFollows.followerUserId })
+        .from(artistFollows)
+        .where(eq(artistFollows.artistUserId, ownerUserId)),
+      db
+        .select({ userId: userFollows.followerUserId })
+        .from(userFollows)
+        .where(eq(userFollows.targetUserId, ownerUserId)),
+    ]);
   return [
     ...new Set([
       ...preSavedUserIds,
@@ -53,23 +53,23 @@ export const publishDueTrackReleases = async ({
   }
 
   const db = createDb(),
-   dueTracks = await db
-    .select({
-      artistName: userProfiles.displayName,
-      id: tracks.id,
-      ownerUserId: tracks.ownerUserId,
-      title: tracks.title,
-    })
-    .from(tracks)
-    .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
-    .where(
-      and(
-        eq(tracks.releaseStrategy, "scheduled"),
-        eq(tracks.isPublic, false),
-        isNotNull(tracks.releaseAt),
-        lte(tracks.releaseAt, new Date())
-      )
-    );
+    dueTracks = await db
+      .select({
+        artistName: userProfiles.displayName,
+        id: tracks.id,
+        ownerUserId: tracks.ownerUserId,
+        title: tracks.title,
+      })
+      .from(tracks)
+      .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+      .where(
+        and(
+          eq(tracks.releaseStrategy, "scheduled"),
+          eq(tracks.isPublic, false),
+          isNotNull(tracks.releaseAt),
+          lte(tracks.releaseAt, new Date())
+        )
+      );
 
   let notified = 0;
   for (const track of dueTracks) {
@@ -79,13 +79,13 @@ export const publishDueTrackReleases = async ({
       .where(eq(tracks.id, track.id));
 
     const preSavers = await db
-      .select({ userId: trackPreSaves.userId })
-      .from(trackPreSaves)
-      .where(eq(trackPreSaves.trackId, track.id)),
-     subscriberIds = await loadReleaseAudience({
-      ownerUserId: track.ownerUserId,
-      preSavedUserIds: preSavers.map((entry) => entry.userId),
-    });
+        .select({ userId: trackPreSaves.userId })
+        .from(trackPreSaves)
+        .where(eq(trackPreSaves.trackId, track.id)),
+      subscriberIds = await loadReleaseAudience({
+        ownerUserId: track.ownerUserId,
+        preSavedUserIds: preSavers.map((entry) => entry.userId),
+      });
 
     for (const subscriberId of subscriberIds) {
       const [notification] = await db
@@ -136,13 +136,13 @@ export const publishDueTrackReleases = async ({
       .set({ isPublic: true, status: "released" })
       .where(eq(projects.id, project.id));
     const preSavers = await db
-      .select({ userId: projectPreSaves.userId })
-      .from(projectPreSaves)
-      .where(eq(projectPreSaves.projectId, project.id)),
-     subscriberIds = await loadReleaseAudience({
-      ownerUserId: project.ownerUserId,
-      preSavedUserIds: preSavers.map((entry) => entry.userId),
-    });
+        .select({ userId: projectPreSaves.userId })
+        .from(projectPreSaves)
+        .where(eq(projectPreSaves.projectId, project.id)),
+      subscriberIds = await loadReleaseAudience({
+        ownerUserId: project.ownerUserId,
+        preSavedUserIds: preSavers.map((entry) => entry.userId),
+      });
     for (const subscriberId of subscriberIds) {
       const [notification] = await db
         .insert(userNotifications)
@@ -192,13 +192,13 @@ export const publishDueTrackReleases = async ({
       .set({ isPublic: true })
       .where(eq(videos.id, video.id));
     const preSavers = await db
-      .select({ userId: videoPreSaves.userId })
-      .from(videoPreSaves)
-      .where(eq(videoPreSaves.videoId, video.id)),
-     subscriberIds = await loadReleaseAudience({
-      ownerUserId: video.ownerUserId,
-      preSavedUserIds: preSavers.map((entry) => entry.userId),
-    });
+        .select({ userId: videoPreSaves.userId })
+        .from(videoPreSaves)
+        .where(eq(videoPreSaves.videoId, video.id)),
+      subscriberIds = await loadReleaseAudience({
+        ownerUserId: video.ownerUserId,
+        preSavedUserIds: preSavers.map((entry) => entry.userId),
+      });
     for (const subscriberId of subscriberIds) {
       const [notification] = await db
         .insert(userNotifications)

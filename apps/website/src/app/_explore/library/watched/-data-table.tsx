@@ -45,28 +45,26 @@ export function DataTable<TData, TValue>({
   filterColumn = "title",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]),
-   [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  ),
-   [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({}),
-
-   table = useReactTable({
-    columns,
-    data,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onSortingChange: setSorting,
-    state: {
-      columnFilters,
-      columnVisibility,
-      sorting,
-    },
-  });
+    [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]),
+    [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
+      {}
+    ),
+    table = useReactTable({
+      columns,
+      data,
+      getCoreRowModel: getCoreRowModel(),
+      getFilteredRowModel: getFilteredRowModel(),
+      getPaginationRowModel: getPaginationRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      onColumnFiltersChange: setColumnFilters,
+      onColumnVisibilityChange: setColumnVisibility,
+      onSortingChange: setSorting,
+      state: {
+        columnFilters,
+        columnVisibility,
+        sorting,
+      },
+    });
 
   return (
     <div className="w-full">

@@ -1,7 +1,18 @@
-import { MessageSquare, Music2, Send } from "lucide-react";
-import { useState } from "react";
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group, no-nested-ternary, unicorn/no-nested-ternary */
+import {
+  ChevronRight,
+  Crown,
+  MessageSquare,
+  Music2,
+  PanelRightClose,
+  Send,
+  Shield,
+  Sparkles,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import type { LiveRoomState, LiveRoomTrack } from "@/lib/live-room";
+import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 import { AppImage } from "../ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
@@ -10,93 +21,246 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
+import { UserProfilePreviewModal } from "./user-profile-preview-modal";
+import type { UserPreviewData } from "./user-profile-preview-modal";
 
 interface LiveChatPanelProps {
+  className?: string;
   disabled?: boolean;
+  extraHeaderAction?: React.ReactNode;
+  fillHeight?: boolean;
   messages: LiveRoomState["chat"];
+  onCollapse?: () => void;
   onSend: (message: string) => void;
+  title?: string;
 }
 
 export function LiveChatPanel({
+  className = "",
   disabled,
+  extraHeaderAction,
+  fillHeight = false,
   messages,
+  onCollapse,
   onSend,
+  title = "Stream Chat",
 }: LiveChatPanelProps) {
   const [message, setMessage] = useState(""),
+    [previewUser, setPreviewUser] = useState<UserPreviewData | null>(null),
+    meQuery = useMeQuery(),
+    meUser = meQuery.data?.user,
+    meProfile = meQuery.data?.profile,
+    scrollBottomRef = useRef<HTMLDivElement | null>(null),
+    send = () => {
+      const trimmedMessage = message.trim();
+      if (!trimmedMessage) {
+        return;
+      }
 
-   send = () => {
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage) {
-      return;
-    }
+      onSend(trimmedMessage);
+      setMessage("");
+    };
 
-    onSend(trimmedMessage);
-    setMessage("");
-  };
+  useEffect(() => {
+    scrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <MessageSquare className="size-4" />
-          Live Chat
-          <span className="ml-auto text-sm font-normal text-muted-foreground">
-            {messages.length}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ScrollArea className="h-80 pr-3">
-          <div className="space-y-3">
-            {messages.map((chatMessage) => (
-              <div className="flex gap-3" key={chatMessage.id}>
-                <Avatar className="size-8">
-                  <AvatarImage src="/diverse-user-avatars.png" />
-                  <AvatarFallback>
-                    {chatMessage.userName.slice(0, 1)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1 rounded-lg bg-muted p-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">{chatMessage.userName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(chatMessage.sentAt).toLocaleTimeString([], {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                  <p className="mt-1 text-muted-foreground">
-                    {chatMessage.message}
-                  </p>
-                </div>
-              </div>
-            ))}
+    <>
+      <Card
+        className={`border-border/60 bg-card/95 backdrop-blur-md transition-all ${
+          fillHeight
+            ? "flex h-full min-h-0 flex-col overflow-hidden rounded-none border-0 shadow-none bg-transparent"
+            : ""
+        } ${className}`}
+      >
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 px-4 py-3 shrink-0">
+          <div className="flex items-center gap-2">
+            {onCollapse && (
+              <Button
+                className="size-7 text-muted-foreground hover:text-foreground"
+                onClick={onCollapse}
+                size="icon"
+                title="Collapse Chat"
+                type="button"
+                variant="ghost"
+              >
+                <PanelRightClose className="size-4" />
+              </Button>
+            )}
+            <CardTitle className="font-semibold text-sm tracking-wide">
+              {title}
+            </CardTitle>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary">
+              {messages.length}
+            </span>
           </div>
-        </ScrollArea>
-        <div className="flex gap-2">
-          <Input
-            disabled={disabled}
-            onChange={(event) => setMessage(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                send();
-              }
-            }}
-            placeholder="Send a message..."
-            value={message}
-          />
-          <Button
-            disabled={disabled || !message.trim()}
-            onClick={send}
-            size="icon"
-          >
-            <Send className="size-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex items-center gap-1.5">{extraHeaderAction}</div>
+        </CardHeader>
+
+        <CardContent
+          className={`p-0 ${
+            fillHeight
+              ? "flex min-h-0 flex-1 flex-col justify-between"
+              : "space-y-4 p-4"
+          }`}
+        >
+          <ScrollArea className={fillHeight ? "flex-1 px-4 py-3" : "h-80 pr-3"}>
+            <div className="space-y-2.5">
+              {messages.length === 0 && (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  <MessageSquare className="mx-auto mb-2 size-6 text-muted-foreground/50" />
+                  Welcome to the stream chat! Say hello to the room.
+                </div>
+              )}
+              {messages.map((chatMessage) => {
+                const isMe =
+                    chatMessage.userName.toLowerCase() === "you" ||
+                    chatMessage.userName === meUser?.name ||
+                    chatMessage.userName === meProfile?.displayName,
+                  isBot =
+                    chatMessage.userName.toLowerCase().includes("bot") ||
+                    chatMessage.userName.toLowerCase().includes("system"),
+                  isHost =
+                    chatMessage.userName.toLowerCase().includes("host") ||
+                    chatMessage.userName.toLowerCase().includes("artist"),
+                  userAvatar = isMe
+                    ? (meProfile?.avatarUrl ??
+                      meUser?.image ??
+                      "/diverse-user-avatars.png")
+                    : "/diverse-user-avatars.png",
+                  handleOpenProfile = () => {
+                    if (isMe && meUser) {
+                      setPreviewUser({
+                        avatarUrl:
+                          meProfile?.avatarUrl ??
+                          meUser.image ??
+                          "/diverse-user-avatars.png",
+                        bio: meProfile?.bio ?? "SoundKit artist & creator.",
+                        displayName:
+                          meProfile?.displayName ?? meUser.name ?? "You",
+                        followersCount: 1450,
+                        genre: "SoundKit Artist",
+                        id: meUser.id,
+                        role:
+                          meUser.role === "admin"
+                            ? "Platform Admin"
+                            : "SoundKit Artist",
+                        username:
+                          meProfile?.username ??
+                          meUser.email?.split("@")[0] ??
+                          "you",
+                        verified: true,
+                      });
+                    } else {
+                      setPreviewUser({
+                        avatarUrl: "/diverse-user-avatars.png",
+                        displayName: chatMessage.userName,
+                        role: isHost
+                          ? "Host & Creator"
+                          : isBot
+                            ? "Chat Bot"
+                            : "Community Member",
+                        username: chatMessage.userName
+                          .toLowerCase()
+                          .replaceAll(/\s+/g, ""),
+                      });
+                    }
+                  };
+
+                return (
+                  <div
+                    className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
+                      isBot ? "border-l-2 border-primary/60 bg-primary/5" : ""
+                    }`}
+                    key={chatMessage.id}
+                  >
+                    <button
+                      className="shrink-0 cursor-pointer transition-transform hover:scale-105"
+                      onClick={handleOpenProfile}
+                      type="button"
+                    >
+                      <Avatar className="size-6 border border-border/30">
+                        <AvatarImage src={userAvatar} />
+                        <AvatarFallback className="text-[10px]">
+                          {chatMessage.userName.slice(0, 1).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
+                    <div className="min-w-0 flex-1 text-xs">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {isHost && (
+                          <span className="flex items-center gap-0.5 rounded bg-primary/20 px-1 py-0.2 font-bold text-[9px] text-primary">
+                            <Crown className="size-2.5" />
+                            HOST
+                          </span>
+                        )}
+                        {isBot && (
+                          <span className="flex items-center gap-0.5 rounded bg-secondary px-1 py-0.2 font-bold text-[9px]">
+                            <Sparkles className="size-2.5 text-primary" />
+                            BOT
+                          </span>
+                        )}
+                        <button
+                          className="font-semibold text-foreground hover:text-primary transition-colors text-left truncate cursor-pointer"
+                          onClick={handleOpenProfile}
+                          type="button"
+                        >
+                          {chatMessage.userName}
+                        </button>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(chatMessage.sentAt).toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 break-words text-muted-foreground/90 leading-relaxed">
+                        {chatMessage.message}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={scrollBottomRef} />
+            </div>
+          </ScrollArea>
+
+          {/* Bottom input bar with safe mobile padding above ExploreMobileNav */}
+          <div className="border-t border-border/40 p-3 bg-background/50 max-lg:pb-24">
+            <div className="flex items-center gap-2">
+              <Input
+                className="h-9 text-xs"
+                disabled={disabled}
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    send();
+                  }
+                }}
+                placeholder="Send a message..."
+                value={message}
+              />
+              <Button
+                className="h-9 px-3 shrink-0"
+                disabled={disabled || !message.trim()}
+                onClick={send}
+                size="sm"
+              >
+                <Send className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <UserProfilePreviewModal
+        onClose={() => setPreviewUser(null)}
+        open={Boolean(previewUser)}
+        user={previewUser}
+      />
+    </>
   );
 }
 

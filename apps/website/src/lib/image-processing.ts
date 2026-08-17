@@ -14,18 +14,18 @@ export const optimizeCoverImageFile = async (
 
   try {
     const bitmap = await createImageBitmap(file),
-     { height, width } = bitmap,
-     shouldDownscale = width > maxDimension || height > maxDimension,
-     outputWidth = shouldDownscale
-      ? Math.round(
-          width > height ? maxDimension : maxDimension * (width / height)
-        )
-      : width,
-     outputHeight = shouldDownscale
-      ? Math.round(
-          height > width ? maxDimension : maxDimension * (height / width)
-        )
-      : height;
+      { height, width } = bitmap,
+      shouldDownscale = width > maxDimension || height > maxDimension,
+      outputWidth = shouldDownscale
+        ? Math.round(
+            width > height ? maxDimension : maxDimension * (width / height)
+          )
+        : width,
+      outputHeight = shouldDownscale
+        ? Math.round(
+            height > width ? maxDimension : maxDimension * (height / width)
+          )
+        : height;
 
     // Only re-encode when it can actually shrink the payload.
     if (!shouldDownscale && file.size <= 1_000_000) {
@@ -49,13 +49,13 @@ export const optimizeCoverImageFile = async (
     bitmap.close();
 
     const hasTransparency =
-      file.type === "image/png" || file.type === "image/webp",
-     outputType = hasTransparency ? "image/webp" : "image/jpeg",
-     extension = hasTransparency ? "webp" : "jpg",
-     baseName = file.name.replace(/\.[^.]+$/u, ""),
-     blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, outputType, 0.85)
-    );
+        file.type === "image/png" || file.type === "image/webp",
+      outputType = hasTransparency ? "image/webp" : "image/jpeg",
+      extension = hasTransparency ? "webp" : "jpg",
+      baseName = file.name.replace(/\.[^.]+$/u, ""),
+      blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, outputType, 0.85)
+      );
 
     if (!blob || blob.size >= file.size) {
       return file;

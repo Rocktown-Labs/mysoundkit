@@ -19,15 +19,14 @@ import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
 
-const STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1",
- OPENAI_TRANSCRIPTION_URL =
-  "https://api.openai.com/v1/audio/transcriptions",
- DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2",
- DEFAULT_EMBEDDING_DIMENSIONS = 1536,
- MAX_OPENAI_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024,
- MAX_LYRIC_LINE_CHARACTERS = 64,
- MAX_WORDS_PER_LYRIC_LINE = 9,
- LYRIC_LINE_BREAK_SECONDS = 1.2;
+const DEFAULT_EMBEDDING_DIMENSIONS = 1536,
+  DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2",
+  OPENAI_TRANSCRIPTION_URL = "https://api.openai.com/v1/audio/transcriptions",
+  STEMSPLIT_BASE_URL = "https://stemsplit.io/api/v1",
+  MAX_OPENAI_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024,
+  LYRIC_LINE_BREAK_SECONDS = 1.2,
+  MAX_LYRIC_LINE_CHARACTERS = 64,
+  MAX_WORDS_PER_LYRIC_LINE = 9;
 
 type StemSplitJobStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
 
@@ -78,70 +77,64 @@ interface TimedLyricLine {
 }
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  getMediaBucket = () =>
+    (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+  getMediaPublicUrl = () =>
+    getEnvValue("MEDIA_PUBLIC_URL") || getEnvValue("VITE_MEDIA_URL"),
+  getObjectPublicUrl = (objectKey: string) => {
+    const mediaPublicUrl = getMediaPublicUrl();
 
- getMediaBucket = () =>
-  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+    if (!mediaPublicUrl) {
+      return null;
+    }
 
- getMediaPublicUrl = () =>
-  getEnvValue("MEDIA_PUBLIC_URL") || getEnvValue("VITE_MEDIA_URL"),
+    return `${mediaPublicUrl.replace(/\/+$/u, "")}/${objectKey}`;
+  },
+  sha256 = async (value: string) => {
+    const data = new TextEncoder().encode(value),
+      digest = await crypto.subtle.digest("SHA-256", data);
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  },
+  stemsplitFetch = async <T>(path: string, init?: RequestInit) => {
+    const apiKey = getEnvValue("STEMSPLIT_API_KEY");
 
- getObjectPublicUrl = (objectKey: string) => {
-  const mediaPublicUrl = getMediaPublicUrl();
+    if (!apiKey) {
+      return null;
+    }
 
-  if (!mediaPublicUrl) {
-    return null;
-  }
+    const response = await fetch(`${STEMSPLIT_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
 
-  return `${mediaPublicUrl.replace(/\/+$/u, "")}/${objectKey}`;
-},
+    if (!response.ok) {
+      throw new Error(`StemSplit request failed: ${response.status}`);
+    }
 
- sha256 = async (value: string) => {
-  const data = new TextEncoder().encode(value),
-   digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-},
+    return response.json() as Promise<T>;
+  },
+  mapStemJobStatus = (status: StemSplitJobStatus) => {
+    if (status === "COMPLETED") {
+      return "completed" as const;
+    }
 
- stemsplitFetch = async <T>(path: string, init?: RequestInit) => {
-  const apiKey = getEnvValue("STEMSPLIT_API_KEY");
+    if (status === "FAILED") {
+      return "failed" as const;
+    }
 
-  if (!apiKey) {
-    return null;
-  }
+    if (status === "PROCESSING") {
+      return "processing" as const;
+    }
 
-  const response = await fetch(`${STEMSPLIT_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`StemSplit request failed: ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
-},
-
- mapStemJobStatus = (status: StemSplitJobStatus) => {
-  if (status === "COMPLETED") {
-    return "completed" as const;
-  }
-
-  if (status === "FAILED") {
-    return "failed" as const;
-  }
-
-  if (status === "PROCESSING") {
-    return "processing" as const;
-  }
-
-  return "submitted" as const;
-};
+    return "submitted" as const;
+  };
 
 export const submitStemSplitJob = ({ sourceUrl }: { sourceUrl: string }) =>
   stemsplitFetch<StemSplitJobResponse>("/jobs", {
@@ -160,99 +153,96 @@ export const getStemSplitJob = (jobId: string) =>
   });
 
 const copyStemOutputToR2 = async ({
-  sourceUrl,
-  targetKey,
-}: {
-  sourceUrl: string;
-  targetKey: string;
-}) => {
-  const bucket = getMediaBucket();
-
-  if (!bucket) {
-    throw new Error("MEDIA_BUCKET is not configured.");
-  }
-
-  const response = await fetch(sourceUrl);
-
-  if (!response.ok || !response.body) {
-    throw new Error(`Stem output download failed: ${response.status}`);
-  }
-
-  await bucket.put(targetKey, response.body, {
-    httpMetadata: {
-      contentType: response.headers.get("content-type") ?? "audio/mpeg",
-    },
-  });
-
-  return {
-    bucketName: getEnvValue("UPLOAD_BUCKET_NAME") || "soundkit-media",
-    mimeType: response.headers.get("content-type") ?? "audio/mpeg",
-    objectKey: targetKey,
-    sizeBytes: Number(response.headers.get("content-length")) || null,
-  };
-},
-
- saveStemAsset = async ({
-  assetKind,
-  sourceAssetId,
-  sourceOutput,
-  stemsplitJobId,
-  targetKey,
-  trackId,
-}: {
-  assetKind: "instrumental" | "vocal_stem";
-  sourceAssetId: string;
-  sourceOutput: StemSplitOutput;
-  stemsplitJobId: string;
-  targetKey: string;
-  trackId: string;
-}) => {
-  if (!sourceOutput.url) {
-    return null;
-  }
-
-  const copied = await copyStemOutputToR2({
-    sourceUrl: sourceOutput.url,
+    sourceUrl,
     targetKey,
-  }),
-   db = createDb(),
-   [asset] = await db
-    .insert(trackAssets)
-    .values({
-      assetKind,
-      bucketName: copied.bucketName,
-      id: crypto.randomUUID(),
-      metadata: {
-        expiresAt: sourceOutput.expiresAt ?? null,
-        sourceAssetId,
-        stemsplitJobId,
+  }: {
+    sourceUrl: string;
+    targetKey: string;
+  }) => {
+    const bucket = getMediaBucket();
+
+    if (!bucket) {
+      throw new Error("MEDIA_BUCKET is not configured.");
+    }
+
+    const response = await fetch(sourceUrl);
+
+    if (!response.ok || !response.body) {
+      throw new Error(`Stem output download failed: ${response.status}`);
+    }
+
+    await bucket.put(targetKey, response.body, {
+      httpMetadata: {
+        contentType: response.headers.get("content-type") ?? "audio/mpeg",
       },
-      mimeType: copied.mimeType,
-      objectKey: copied.objectKey,
-      sizeBytes: copied.sizeBytes,
-      status: "ready",
-      storageProvider: "r2",
-      trackId,
-    })
-    .returning();
+    });
 
-  return asset ?? null;
-},
+    return {
+      bucketName: getEnvValue("UPLOAD_BUCKET_NAME") || "soundkit-media",
+      mimeType: response.headers.get("content-type") ?? "audio/mpeg",
+      objectKey: targetKey,
+      sizeBytes: Number(response.headers.get("content-length")) || null,
+    };
+  },
+  saveStemAsset = async ({
+    assetKind,
+    sourceAssetId,
+    sourceOutput,
+    stemsplitJobId,
+    targetKey,
+    trackId,
+  }: {
+    assetKind: "instrumental" | "vocal_stem";
+    sourceAssetId: string;
+    sourceOutput: StemSplitOutput;
+    stemsplitJobId: string;
+    targetKey: string;
+    trackId: string;
+  }) => {
+    if (!sourceOutput.url) {
+      return null;
+    }
 
- secondsToMilliseconds = (seconds: number) =>
-  Math.max(0, Math.round(seconds * 1000)),
+    const copied = await copyStemOutputToR2({
+        sourceUrl: sourceOutput.url,
+        targetKey,
+      }),
+      db = createDb(),
+      [asset] = await db
+        .insert(trackAssets)
+        .values({
+          assetKind,
+          bucketName: copied.bucketName,
+          id: crypto.randomUUID(),
+          metadata: {
+            expiresAt: sourceOutput.expiresAt ?? null,
+            sourceAssetId,
+            stemsplitJobId,
+          },
+          mimeType: copied.mimeType,
+          objectKey: copied.objectKey,
+          sizeBytes: copied.sizeBytes,
+          status: "ready",
+          storageProvider: "r2",
+          trackId,
+        })
+        .returning();
 
- cleanTranscriptionWord = (word: string) =>
-  word.trim().replaceAll(/\s+/gu, " ");
+    return asset ?? null;
+  },
+  secondsToMilliseconds = (seconds: number) =>
+    Math.max(0, Math.round(seconds * 1000)),
+  cleanTranscriptionWord = (word: string) =>
+    word.trim().replaceAll(/\s+/gu, " ");
 
 export const buildTimedLyricLinesFromWords = (
   words: OpenAiTranscriptionWord[]
 ): TimedLyricLine[] => {
   const lines: TimedLyricLine[] = [];
   let currentWords: string[] = [],
-   currentStartMs: null | number = null,
-   currentEndMs: null | number = null,
-   previousEndSeconds: null | number = null;
+    currentEndMs: null | number = null,
+    currentStartMs: null | number = null,
+    previousEndSeconds: null | number = null;
 
   const flushLine = () => {
     const text = currentWords.join(" ").trim();
@@ -286,12 +276,12 @@ export const buildTimedLyricLinesFromWords = (
     }
 
     const shouldBreakForPause =
-      previousEndSeconds !== null &&
-      word.start - previousEndSeconds >= LYRIC_LINE_BREAK_SECONDS,
-     nextLineText = [...currentWords, text].join(" "),
-     shouldBreakForLength =
-      currentWords.length >= MAX_WORDS_PER_LYRIC_LINE ||
-      nextLineText.length > MAX_LYRIC_LINE_CHARACTERS;
+        previousEndSeconds !== null &&
+        word.start - previousEndSeconds >= LYRIC_LINE_BREAK_SECONDS,
+      nextLineText = [...currentWords, text].join(" "),
+      shouldBreakForLength =
+        currentWords.length >= MAX_WORDS_PER_LYRIC_LINE ||
+        nextLineText.length > MAX_LYRIC_LINE_CHARACTERS;
 
     if (
       currentWords.length > 0 &&
@@ -312,114 +302,110 @@ export const buildTimedLyricLinesFromWords = (
 };
 
 const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
-  const response = await fetch(sourceUrl);
+    const response = await fetch(sourceUrl);
 
-  if (!response.ok) {
-    throw new Error(`Vocal stem download failed: ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`Vocal stem download failed: ${response.status}`);
+    }
 
-  const contentLength = Number(response.headers.get("content-length"));
+    const contentLength = Number(response.headers.get("content-length"));
 
-  if (contentLength > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
-    throw new Error("Vocal stem is too large for OpenAI transcription.");
-  }
+    if (contentLength > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
+      throw new Error("Vocal stem is too large for OpenAI transcription.");
+    }
 
-  const audio = await response.blob();
+    const audio = await response.blob();
 
-  if (audio.size > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
-    throw new Error("Vocal stem is too large for OpenAI transcription.");
-  }
+    if (audio.size > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
+      throw new Error("Vocal stem is too large for OpenAI transcription.");
+    }
 
-  return new File([audio], "vocals.mp3", {
-    type: response.headers.get("content-type") ?? "audio/mpeg",
-  });
-},
+    return new File([audio], "vocals.mp3", {
+      type: response.headers.get("content-type") ?? "audio/mpeg",
+    });
+  },
+  transcribeAudioWithOpenAi = async (sourceUrl: string) => {
+    const apiKey = getEnvValue("OPENAI_API_KEY");
 
- transcribeAudioWithOpenAi = async (sourceUrl: string) => {
-  const apiKey = getEnvValue("OPENAI_API_KEY");
+    if (!apiKey) {
+      return null;
+    }
 
-  if (!apiKey) {
-    return null;
-  }
-
-  const formData = new FormData();
-  formData.set("file", await fetchAudioFileForOpenAi(sourceUrl));
-  formData.set("model", "whisper-1");
-  formData.set("response_format", "verbose_json");
-  formData.append("timestamp_granularities[]", "word");
-  formData.set(
-    "prompt",
-    "Transcribe song vocals as lyrics. Preserve line-friendly punctuation and avoid adding section labels that are not sung."
-  );
-
-  const response = await fetch(OPENAI_TRANSCRIPTION_URL, {
-    body: formData,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(
-      `OpenAI transcription failed: ${response.status} ${message.slice(0, 160)}`
+    const formData = new FormData();
+    formData.set("file", await fetchAudioFileForOpenAi(sourceUrl));
+    formData.set("model", "whisper-1");
+    formData.set("response_format", "verbose_json");
+    formData.append("timestamp_granularities[]", "word");
+    formData.set(
+      "prompt",
+      "Transcribe song vocals as lyrics. Preserve line-friendly punctuation and avoid adding section labels that are not sung."
     );
-  }
 
-  return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
-},
-
- transcribeVocals = async ({
-  objectKey,
-  trackId,
-}: {
-  objectKey: string;
-  trackId: string;
-}) => {
-  const sourceUrl = getObjectPublicUrl(objectKey);
-
-  if (!sourceUrl) {
-    return null;
-  }
-
-  const result = await transcribeAudioWithOpenAi(sourceUrl),
-   text = result?.text?.trim() ?? "";
-
-  if (!text) {
-    return null;
-  }
-
-  const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
-
-   db = createDb(),
-   [lyrics] = await db
-    .insert(trackLyrics)
-    .values({
-      id: crypto.randomUUID(),
-      language: "en",
-      metadata: {
-        duration: result?.duration ?? null,
-        language: result?.language ?? null,
-        model: "whisper-1",
-        provider: "openai",
-        timestampGranularity: "word",
+    const response = await fetch(OPENAI_TRANSCRIPTION_URL, {
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
       },
-      sourceType: "machine_transcription",
-      status: "pending_review",
-      text,
-      timedLines: timedLines.length > 0 ? timedLines : null,
-      trackId,
-    })
-    .returning();
+      method: "POST",
+    });
 
-  return lyrics ?? null;
-},
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(
+        `OpenAI transcription failed: ${response.status} ${message.slice(0, 160)}`
+      );
+    }
 
- embeddingModelName = () =>
-  getEnvValue("GOOGLE_EMBEDDING_MODEL")
-    .replace(/^google\//u, "")
-    .trim() || DEFAULT_EMBEDDING_MODEL;
+    return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
+  },
+  transcribeVocals = async ({
+    objectKey,
+    trackId,
+  }: {
+    objectKey: string;
+    trackId: string;
+  }) => {
+    const sourceUrl = getObjectPublicUrl(objectKey);
+
+    if (!sourceUrl) {
+      return null;
+    }
+
+    const result = await transcribeAudioWithOpenAi(sourceUrl),
+      text = result?.text?.trim() ?? "";
+
+    if (!text) {
+      return null;
+    }
+
+    const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
+      db = createDb(),
+      [lyrics] = await db
+        .insert(trackLyrics)
+        .values({
+          id: crypto.randomUUID(),
+          language: "en",
+          metadata: {
+            duration: result?.duration ?? null,
+            language: result?.language ?? null,
+            model: "whisper-1",
+            provider: "openai",
+            timestampGranularity: "word",
+          },
+          sourceType: "machine_transcription",
+          status: "pending_review",
+          text,
+          timedLines: timedLines.length > 0 ? timedLines : null,
+          trackId,
+        })
+        .returning();
+
+    return lyrics ?? null;
+  },
+  embeddingModelName = () =>
+    getEnvValue("GOOGLE_EMBEDDING_MODEL")
+      .replace(/^google\//u, "")
+      .trim() || DEFAULT_EMBEDDING_MODEL;
 
 export const backfillSearchEmbeddings = async (limit = 100) => {
   if (!isDatabaseConfigured()) {
@@ -427,7 +413,7 @@ export const backfillSearchEmbeddings = async (limit = 100) => {
   }
 
   const db = createDb(),
-   cappedLimit = Math.min(Math.max(limit, 1), 500);
+    cappedLimit = Math.min(Math.max(limit, 1), 500);
   let indexed = 0;
   const trackRows = await db.select().from(tracks).limit(cappedLimit);
   for (const row of trackRows) {
@@ -519,20 +505,22 @@ export const searchSemanticEntities = async ({
   }
 
   const result = await embed({
-    model: google.embedding(embeddingModelName()),
-    value: text,
-  }),
-   embedding =
-    result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
-      ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
-      : [
-          ...result.embedding,
-          ...Array.from(
-            { length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length },
-            () => 0
-          ),
-        ],
-   vector = `[${embedding.join(",")}]`;
+      model: google.embedding(embeddingModelName()),
+      value: text,
+    }),
+    embedding =
+      result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
+        ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
+        : [
+            ...result.embedding,
+            ...Array.from(
+              {
+                length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length,
+              },
+              () => 0
+            ),
+          ],
+    vector = `[${embedding.join(",")}]`;
   return createDb()
     .select({
       entityId: searchEmbeddings.entityId,
@@ -573,24 +561,24 @@ const saveEmbedding = async ({
   }
 
   const model = embeddingModelName(),
-   result = await embed({
-    model: google.embedding(model),
-    value: text,
-  }),
-   embedding: number[] =
-    result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
-      ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
-      : [
-          ...result.embedding,
-          ...Array.from(
-            {
-              length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length,
-            },
-            () => 0
-          ),
-        ],
-   textHash = await sha256(text),
-   db = createDb();
+    result = await embed({
+      model: google.embedding(model),
+      value: text,
+    }),
+    embedding: number[] =
+      result.embedding.length >= DEFAULT_EMBEDDING_DIMENSIONS
+        ? result.embedding.slice(0, DEFAULT_EMBEDDING_DIMENSIONS)
+        : [
+            ...result.embedding,
+            ...Array.from(
+              {
+                length: DEFAULT_EMBEDDING_DIMENSIONS - result.embedding.length,
+              },
+              () => 0
+            ),
+          ],
+    textHash = await sha256(text),
+    db = createDb();
 
   await db
     .insert(searchEmbeddings)
@@ -632,18 +620,18 @@ export const processCompletedStemSplitJob = async ({
   trackId: string;
 }) => {
   const db = createDb(),
-   now = new Date(),
-   targetPrefix = `processed/tracks/${trackId}/${job.id}`,
-   vocalsAsset = job.outputs?.vocals
-    ? await saveStemAsset({
-        assetKind: "vocal_stem",
-        sourceAssetId: assetId,
-        sourceOutput: job.outputs.vocals,
-        stemsplitJobId: job.id,
-        targetKey: `${targetPrefix}/vocals.mp3`,
-        trackId,
-      })
-    : null;
+    now = new Date(),
+    targetPrefix = `processed/tracks/${trackId}/${job.id}`,
+    vocalsAsset = job.outputs?.vocals
+      ? await saveStemAsset({
+          assetKind: "vocal_stem",
+          sourceAssetId: assetId,
+          sourceOutput: job.outputs.vocals,
+          stemsplitJobId: job.id,
+          targetKey: `${targetPrefix}/vocals.mp3`,
+          trackId,
+        })
+      : null;
 
   if (job.outputs?.instrumental) {
     await saveStemAsset({
@@ -760,7 +748,7 @@ export const processTrackAudio = async ({
   }
 
   const db = createDb(),
-   sourceUrl = getObjectPublicUrl(objectKey);
+    sourceUrl = getObjectPublicUrl(objectKey);
 
   if (!sourceUrl) {
     throw new Error("MEDIA_PUBLIC_URL is required for StemSplit source URLs.");
@@ -853,16 +841,16 @@ export const createWorkflowJobRow = async ({
   }
 
   const db = createDb(),
-   [job] = await db
-    .insert(workflowJobs)
-    .values({
-      id: crypto.randomUUID(),
-      input,
-      jobType,
-      targetId,
-      targetType,
-    })
-    .returning();
+    [job] = await db
+      .insert(workflowJobs)
+      .values({
+        id: crypto.randomUUID(),
+        input,
+        jobType,
+        targetId,
+        targetType,
+      })
+      .returning();
 
   return job ?? null;
 };

@@ -14,8 +14,8 @@ export const Route = createFileRoute("/_explore/library/recent/")({
 
 function RecentlyPlayedPage() {
   const { data = [], isLoading } = useLibraryRecentQuery(),
-   { data: me } = useMeQuery(),
-   isSignedIn = Boolean(me?.user);
+    { data: me } = useMeQuery(),
+    isSignedIn = Boolean(me?.user);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

@@ -36,12 +36,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     userTracks = await db
-      .select({ id: tracks.id })
-      .from(tracks)
-      .where(eq(tracks.ownerUserId, user.id)),
-
-     trackIds = userTracks.map((t) => t.id);
+      userTracks = await db
+        .select({ id: tracks.id })
+        .from(tracks)
+        .where(eq(tracks.ownerUserId, user.id)),
+      trackIds = userTracks.map((t) => t.id);
 
     let totalPlays = 0;
     if (trackIds.length > 0) {

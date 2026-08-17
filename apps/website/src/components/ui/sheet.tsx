@@ -7,26 +7,22 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Sheet = SheetPrimitive.Root,
-
- SheetTrigger = SheetPrimitive.Trigger,
-
- SheetClose = SheetPrimitive.Close,
-
- SheetPortal = SheetPrimitive.Portal,
-
- SheetOverlay = React.forwardRef<
-  React.ElementRef<typeof SheetPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <SheetPrimitive.Overlay
-    className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className
-    )}
-    {...props}
-    ref={ref}
-  />
-));
+  SheetTrigger = SheetPrimitive.Trigger,
+  SheetClose = SheetPrimitive.Close,
+  SheetPortal = SheetPrimitive.Portal,
+  SheetOverlay = React.forwardRef<
+    React.ElementRef<typeof SheetPrimitive.Overlay>,
+    React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
+  >(({ className, ...props }, ref) => (
+    <SheetPrimitive.Overlay
+      className={cn(
+        "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        className
+      )}
+      {...props}
+      ref={ref}
+    />
+  ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(

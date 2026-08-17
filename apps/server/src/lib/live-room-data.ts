@@ -65,51 +65,46 @@ export interface LiveRoomState {
 }
 
 const nowIso = () => new Date().toISOString(),
-
- lyrics = (lines: string[]): LiveRoomLyricsLine[] =>
-  lines.map((text, index) => ({
-    endMs: (index + 1) * 12_000,
-    startMs: index * 12_000,
-    text,
-  })),
-
- summerNightsLyrics = lyrics([
-  "Sunset bleeding gold on the dashboard",
-  "Windows down, we follow where the bass goes",
-  "Every chorus feels like home returning",
-  "Summer nights keep the whole room glowing",
-]),
-
- midnightLyrics = lyrics([
-  "Meet me where the city lights are softer",
-  "I kept a melody tucked under my coat",
-  "If the rhythm breaks, we rebuild it louder",
-  "Midnight knows the words we never wrote",
-]),
-
- neonLyrics = lyrics([
-  "Neon pulse and a wire full of thunder",
-  "Your voice cuts through the static in my head",
-  "Let the floor shake loose another memory",
-  "We are bright enough to wake the dead",
-]),
-
- makeTrack = (
-  id: string,
-  title: string,
-  artistName: string,
-  coverArtUrl: string,
-  status: LiveRoomTrack["status"],
-  trackLyrics: LiveRoomLyricsLine[]
-): LiveRoomTrack => ({
-  artistName,
-  coverArtUrl,
-  durationMs: 205_000,
-  id,
-  lyrics: trackLyrics,
-  status,
-  title,
-});
+  lyrics = (lines: string[]): LiveRoomLyricsLine[] =>
+    lines.map((text, index) => ({
+      endMs: (index + 1) * 12_000,
+      startMs: index * 12_000,
+      text,
+    })),
+  summerNightsLyrics = lyrics([
+    "Sunset bleeding gold on the dashboard",
+    "Windows down, we follow where the bass goes",
+    "Every chorus feels like home returning",
+    "Summer nights keep the whole room glowing",
+  ]),
+  midnightLyrics = lyrics([
+    "Meet me where the city lights are softer",
+    "I kept a melody tucked under my coat",
+    "If the rhythm breaks, we rebuild it louder",
+    "Midnight knows the words we never wrote",
+  ]),
+  neonLyrics = lyrics([
+    "Neon pulse and a wire full of thunder",
+    "Your voice cuts through the static in my head",
+    "Let the floor shake loose another memory",
+    "We are bright enough to wake the dead",
+  ]),
+  makeTrack = (
+    id: string,
+    title: string,
+    artistName: string,
+    coverArtUrl: string,
+    status: LiveRoomTrack["status"],
+    trackLyrics: LiveRoomLyricsLine[]
+  ): LiveRoomTrack => ({
+    artistName,
+    coverArtUrl,
+    durationMs: 205_000,
+    id,
+    lyrics: trackLyrics,
+    status,
+    title,
+  });
 
 export const sampleLiveRooms: LiveRoomState[] = [
   {
@@ -372,12 +367,11 @@ export const sampleLiveRooms: LiveRoomState[] = [
 ];
 
 const roomAliases: Record<string, string> = {
-  "album-faceoff": "single-album-party",
-  "party-1": "single-album-party",
-  "stream-breakdown": "stream-1",
-},
-
- cloneRoom = (room: LiveRoomState): LiveRoomState => structuredClone(room);
+    "album-faceoff": "single-album-party",
+    "party-1": "single-album-party",
+    "stream-breakdown": "stream-1",
+  },
+  cloneRoom = (room: LiveRoomState): LiveRoomState => structuredClone(room);
 
 export const findSampleLiveRoom = (roomId: string) => {
   const resolvedRoomId = roomAliases[roomId] ?? roomId;
@@ -385,10 +379,22 @@ export const findSampleLiveRoom = (roomId: string) => {
 };
 
 export const createSampleLiveRoom = (roomId: string): LiveRoomState => {
-  const room = findSampleLiveRoom(roomId) ?? sampleLiveRooms[0];
-  if (!room) {
-    throw new Error("No live room fixtures are configured.");
+  const room = findSampleLiveRoom(roomId);
+  if (room) {
+    return cloneRoom(room);
   }
 
-  return cloneRoom(room);
+  return {
+    chat: [],
+    createdAt: nowIso(),
+    currentTrackId: "",
+    hostName: "SoundKit Creator",
+    id: roomId,
+    kind: "stream",
+    status: "upcoming",
+    summary: "Live broadcast on SoundKit.",
+    title: "Live Stream",
+    tracklist: [],
+    viewerCount: 0,
+  };
 };

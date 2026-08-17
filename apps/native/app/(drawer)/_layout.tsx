@@ -8,7 +8,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 const DrawerLayout = () => {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
     <Drawer

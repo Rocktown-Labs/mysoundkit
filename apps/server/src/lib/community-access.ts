@@ -20,11 +20,11 @@ export const canAccessCommunity = async ({
   }
 
   const db = createDb(),
-   [community] = await db
-    .select({ artistUserId: communities.artistUserId })
-    .from(communities)
-    .where(eq(communities.id, communityId))
-    .limit(1);
+    [community] = await db
+      .select({ artistUserId: communities.artistUserId })
+      .from(communities)
+      .where(eq(communities.id, communityId))
+      .limit(1);
 
   if (community?.artistUserId === userId) {
     return true;

@@ -41,12 +41,12 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
- featuredBattleLimit = 6,
- battleTotalRoundsByFormat = {
-  best_of_3: 3,
-  best_of_5: 5,
-  best_of_7: 7,
-} as const;
+  featuredBattleLimit = 6,
+  battleTotalRoundsByFormat = {
+    best_of_3: 3,
+    best_of_5: 5,
+    best_of_7: 7,
+  } as const;
 
 interface BattleFeedRow {
   format: "best_of_3" | "best_of_5" | "best_of_7";
@@ -80,170 +80,167 @@ interface BattleFeedTrack {
 }
 
 const objectUrlFromMetadata = (metadata: unknown) => {
-  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-    return null;
-  }
+    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+      return null;
+    }
 
-  const { url } = metadata as { url?: unknown };
-  return typeof url === "string" ? url : null;
-},
+    const { url } = metadata as { url?: unknown };
+    return typeof url === "string" ? url : null;
+  },
+  selectCurrentRound = (rounds: BattleFeedRound[]) =>
+    rounds.find((round) => round.status === "active") ??
+    rounds.find((round) => round.status === "upcoming") ??
+    rounds.at(-1) ??
+    null,
+  enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
+    if (battleRows.length === 0) {
+      return [];
+    }
 
- selectCurrentRound = (rounds: BattleFeedRound[]) =>
-  rounds.find((round) => round.status === "active") ??
-  rounds.find((round) => round.status === "upcoming") ??
-  rounds.at(-1) ??
-  null,
-
- enrichBattleFeedRows = async (battleRows: BattleFeedRow[]) => {
-  if (battleRows.length === 0) {
-    return [];
-  }
-
-  const db = createDb(),
-   battleIds = battleRows.map((battle) => battle.id),
-   roundRows = await db
-    .select({
-      battleId: battleRounds.battleId,
-      id: battleRounds.id,
-      isTiebreaker: battleRounds.isTiebreaker,
-      roundNumber: battleRounds.roundNumber,
-      status: battleRounds.status,
-      trackOneId: battleRounds.trackOneId,
-      trackOneVotes: battleRounds.trackOneVotes,
-      trackTwoId: battleRounds.trackTwoId,
-      trackTwoVotes: battleRounds.trackTwoVotes,
-      votingEndsAt: battleRounds.votingEndsAt,
-    })
-    .from(battleRounds)
-    .where(inArray(battleRounds.battleId, battleIds))
-    .orderBy(asc(battleRounds.roundNumber)),
-   roundsByBattleId = new Map<string, BattleFeedRound[]>();
-
-  for (const round of roundRows) {
-    const rounds = roundsByBattleId.get(round.battleId) ?? [];
-    rounds.push(round);
-    roundsByBattleId.set(round.battleId, rounds);
-  }
-
-  const trackIds = [
-    ...new Set(
-      roundRows
-        .flatMap((round) => [round.trackOneId, round.trackTwoId])
-        .filter((trackId): trackId is string => Boolean(trackId))
-    ),
-  ],
-   trackById = new Map<string, BattleFeedTrack>();
-
-  if (trackIds.length > 0) {
-    const [trackRows, coverRows] = await Promise.all([
-      db
+    const db = createDb(),
+      battleIds = battleRows.map((battle) => battle.id),
+      roundRows = await db
         .select({
-          artistName: userProfiles.displayName,
-          id: tracks.id,
-          title: tracks.title,
+          battleId: battleRounds.battleId,
+          id: battleRounds.id,
+          isTiebreaker: battleRounds.isTiebreaker,
+          roundNumber: battleRounds.roundNumber,
+          status: battleRounds.status,
+          trackOneId: battleRounds.trackOneId,
+          trackOneVotes: battleRounds.trackOneVotes,
+          trackTwoId: battleRounds.trackTwoId,
+          trackTwoVotes: battleRounds.trackTwoVotes,
+          votingEndsAt: battleRounds.votingEndsAt,
         })
-        .from(tracks)
-        .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
-        .where(inArray(tracks.id, trackIds)),
-      db
-        .select({
-          metadata: trackAssets.metadata,
-          trackId: trackAssets.trackId,
-        })
-        .from(trackAssets)
-        .where(
-          and(
-            inArray(trackAssets.trackId, trackIds),
-            eq(trackAssets.assetKind, "cover_art")
-          )
+        .from(battleRounds)
+        .where(inArray(battleRounds.battleId, battleIds))
+        .orderBy(asc(battleRounds.roundNumber)),
+      roundsByBattleId = new Map<string, BattleFeedRound[]>();
+
+    for (const round of roundRows) {
+      const rounds = roundsByBattleId.get(round.battleId) ?? [];
+      rounds.push(round);
+      roundsByBattleId.set(round.battleId, rounds);
+    }
+
+    const trackIds = [
+        ...new Set(
+          roundRows
+            .flatMap((round) => [round.trackOneId, round.trackTwoId])
+            .filter((trackId): trackId is string => Boolean(trackId))
         ),
-    ]),
-     coverByTrackId = new Map(
-      coverRows.map((asset) => [
-        asset.trackId,
-        objectUrlFromMetadata(asset.metadata),
-      ])
+      ],
+      trackById = new Map<string, BattleFeedTrack>();
+
+    if (trackIds.length > 0) {
+      const [trackRows, coverRows] = await Promise.all([
+          db
+            .select({
+              artistName: userProfiles.displayName,
+              id: tracks.id,
+              title: tracks.title,
+            })
+            .from(tracks)
+            .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+            .where(inArray(tracks.id, trackIds)),
+          db
+            .select({
+              metadata: trackAssets.metadata,
+              trackId: trackAssets.trackId,
+            })
+            .from(trackAssets)
+            .where(
+              and(
+                inArray(trackAssets.trackId, trackIds),
+                eq(trackAssets.assetKind, "cover_art")
+              )
+            ),
+        ]),
+        coverByTrackId = new Map(
+          coverRows.map((asset) => [
+            asset.trackId,
+            objectUrlFromMetadata(asset.metadata),
+          ])
+        );
+
+      for (const track of trackRows) {
+        trackById.set(track.id, {
+          artist: track.artistName ?? "SoundKit Artist",
+          cover: coverByTrackId.get(track.id) ?? null,
+          id: track.id,
+          title: track.title,
+        });
+      }
+    }
+
+    return battleRows.map((battle) => {
+      const rounds = roundsByBattleId.get(battle.id) ?? [],
+        currentRound = selectCurrentRound(rounds),
+        roundTracks = currentRound
+          ? [
+              currentRound.trackOneId
+                ? {
+                    ...trackById.get(currentRound.trackOneId),
+                    votes: currentRound.trackOneVotes,
+                  }
+                : null,
+              currentRound.trackTwoId
+                ? {
+                    ...trackById.get(currentRound.trackTwoId),
+                    votes: currentRound.trackTwoVotes,
+                  }
+                : null,
+            ].filter(
+              (
+                track
+              ): track is BattleFeedTrack & {
+                votes: number;
+              } => Boolean(track?.id)
+            )
+          : [];
+
+      return {
+        ...battle,
+        joinMode:
+          battle.status === "live" && currentRound?.status === "active"
+            ? ("waiting_room" as const)
+            : ("watch_now" as const),
+        phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
+        queueSize: 0,
+        round: currentRound
+          ? {
+              current: currentRound.roundNumber,
+              id: currentRound.id,
+              isVoting: currentRound.status === "active",
+              status: currentRound.status,
+              total: battleTotalRoundsByFormat[battle.format],
+            }
+          : null,
+        startsAt: battle.startsAt?.toISOString() ?? null,
+        tracks: roundTracks,
+      };
+    });
+  },
+  rankFeaturedBattles = (
+    battleRows: Awaited<ReturnType<typeof enrichBattleFeedRows>>
+  ) => {
+    const featuredIds = new Map(
+      battleRows
+        .filter((battle) => battle.status === "live")
+        .toSorted((first, second) => second.viewerCount - first.viewerCount)
+        .slice(0, featuredBattleLimit)
+        .map((battle, index) => [battle.id, index + 1])
     );
 
-    for (const track of trackRows) {
-      trackById.set(track.id, {
-        artist: track.artistName ?? "SoundKit Artist",
-        cover: coverByTrackId.get(track.id) ?? null,
-        id: track.id,
-        title: track.title,
-      });
-    }
-  }
-
-  return battleRows.map((battle) => {
-    const rounds = roundsByBattleId.get(battle.id) ?? [],
-     currentRound = selectCurrentRound(rounds),
-     roundTracks = currentRound
-      ? [
-          currentRound.trackOneId
-            ? {
-                ...trackById.get(currentRound.trackOneId),
-                votes: currentRound.trackOneVotes,
-              }
-            : null,
-          currentRound.trackTwoId
-            ? {
-                ...trackById.get(currentRound.trackTwoId),
-                votes: currentRound.trackTwoVotes,
-              }
-            : null,
-        ].filter(
-          (
-            track
-          ): track is BattleFeedTrack & {
-            votes: number;
-          } => Boolean(track?.id)
-        )
-      : [];
-
-    return {
-      ...battle,
-      joinMode:
-        battle.status === "live" && currentRound?.status === "active"
-          ? ("waiting_room" as const)
-          : ("watch_now" as const),
-      phaseEndsAt: currentRound?.votingEndsAt?.toISOString() ?? null,
-      queueSize: 0,
-      round: currentRound
-        ? {
-            current: currentRound.roundNumber,
-            id: currentRound.id,
-            isVoting: currentRound.status === "active",
-            status: currentRound.status,
-            total: battleTotalRoundsByFormat[battle.format],
-          }
-        : null,
-      startsAt: battle.startsAt?.toISOString() ?? null,
-      tracks: roundTracks,
-    };
-  });
-},
-
- rankFeaturedBattles = (
-  battleRows: Awaited<ReturnType<typeof enrichBattleFeedRows>>
-) => {
-  const featuredIds = new Map(
-    battleRows
-      .filter((battle) => battle.status === "live")
-      .toSorted((first, second) => second.viewerCount - first.viewerCount)
-      .slice(0, featuredBattleLimit)
-      .map((battle, index) => [battle.id, index + 1])
-  );
-
-  return battleRows.map((battle) => {
-    const featuredRank = featuredIds.get(battle.id) ?? null;
-    return {
-      ...battle,
-      featuredRank,
-      isFeatured: featuredRank !== null,
-    };
-  });
-};
+    return battleRows.map((battle) => {
+      const featuredRank = featuredIds.get(battle.id) ?? null;
+      return {
+        ...battle,
+        featuredRank,
+        isFeatured: featuredRank !== null,
+      };
+    });
+  };
 
 app.openapi(
   createRoute({
@@ -263,27 +260,26 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        format: battles.format,
-        genre: genres.name,
-        id: battles.id,
-        startsAt: battles.startsAt,
-        status: battles.status,
-        title: battles.title,
-        viewerCount: battles.viewerCount,
-        visibility: battles.visibility,
-      })
-      .from(battles)
-      .leftJoin(genres, eq(genres.id, battles.genreId))
-      .orderBy(desc(battles.viewerCount)),
-
-     enrichedRows = await enrichBattleFeedRows(
-      rows.map((row) => ({
-        ...row,
-        genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
-      }))
-    );
+      rows = await db
+        .select({
+          format: battles.format,
+          genre: genres.name,
+          id: battles.id,
+          startsAt: battles.startsAt,
+          status: battles.status,
+          title: battles.title,
+          viewerCount: battles.viewerCount,
+          visibility: battles.visibility,
+        })
+        .from(battles)
+        .leftJoin(genres, eq(genres.id, battles.genreId))
+        .orderBy(desc(battles.viewerCount)),
+      enrichedRows = await enrichBattleFeedRows(
+        rows.map((row) => ({
+          ...row,
+          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+        }))
+      );
 
     return c.json(rankFeaturedBattles(enrichedRows), HttpStatusCodes.OK);
   }
@@ -336,11 +332,11 @@ app.openapi(
     }
 
     const db = createDb(),
-     session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
     if (trackIds.length === 0) {
       return c.json(
         {
@@ -352,37 +348,36 @@ app.openapi(
     }
 
     const [ownedTracks, approvedLyricsRows] = await Promise.all([
-      db
-        .select({ id: tracks.id })
-        .from(tracks)
-        .where(
-          and(
-            inArray(tracks.id, trackIds),
-            organizationId
-              ? eq(tracks.organizationId, organizationId)
-              : eq(tracks.ownerUserId, user.id)
-          )
-        ),
-      db
-        .select({
-          id: trackLyrics.id,
-          timedLines: trackLyrics.timedLines,
-          trackId: trackLyrics.trackId,
-        })
-        .from(trackLyrics)
-        .where(
-          and(
-            inArray(trackLyrics.trackId, trackIds),
-            eq(trackLyrics.status, "approved")
-          )
-        ),
-    ]),
-
-     ownedTrackIds = new Set(ownedTracks.map((track) => track.id)),
-     approvedLyricsByTrackId = new Map<
-      string,
-      { id: string; timedLines: typeof trackLyrics.$inferSelect.timedLines }
-    >();
+        db
+          .select({ id: tracks.id })
+          .from(tracks)
+          .where(
+            and(
+              inArray(tracks.id, trackIds),
+              organizationId
+                ? eq(tracks.organizationId, organizationId)
+                : eq(tracks.ownerUserId, user.id)
+            )
+          ),
+        db
+          .select({
+            id: trackLyrics.id,
+            timedLines: trackLyrics.timedLines,
+            trackId: trackLyrics.trackId,
+          })
+          .from(trackLyrics)
+          .where(
+            and(
+              inArray(trackLyrics.trackId, trackIds),
+              eq(trackLyrics.status, "approved")
+            )
+          ),
+      ]),
+      ownedTrackIds = new Set(ownedTracks.map((track) => track.id)),
+      approvedLyricsByTrackId = new Map<
+        string,
+        { id: string; timedLines: typeof trackLyrics.$inferSelect.timedLines }
+      >();
 
     for (const approvedLyrics of approvedLyricsRows) {
       if (!approvedLyricsByTrackId.has(approvedLyrics.trackId)) {
@@ -404,8 +399,7 @@ app.openapi(
       }
 
       const approvedLyrics = approvedLyricsByTrackId.get(trackId),
-       hasSynchronizedLyrics =
-        (approvedLyrics?.timedLines?.length ?? 0) > 0;
+        hasSynchronizedLyrics = (approvedLyrics?.timedLines?.length ?? 0) > 0;
 
       return {
         lyricsRevisionId: approvedLyrics?.id ?? null,
@@ -465,42 +459,44 @@ app.openapi(
     }
 
     const { genre, q } = c.req.valid("query"),
-     searchPattern = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
-     candidates = await createDb()
-      .select({
-        genre: genres.slug,
-        name: userProfiles.displayName,
-        userId: userProfiles.userId,
-        username: userProfiles.username,
-      })
-      .from(userProfiles)
-      .innerJoin(artistProfiles, eq(artistProfiles.userId, userProfiles.userId))
-      .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
-      .where(
-        and(
-          eq(userProfiles.accountType, "artist"),
-          q
-            ? or(
-                ilike(userProfiles.displayName, searchPattern),
-                ilike(userProfiles.username, searchPattern)
-              )
-            : undefined,
-          genre ? eq(genres.slug, canonicalGenreSlug(genre)) : undefined
+      searchPattern = `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`,
+      candidates = await createDb()
+        .select({
+          genre: genres.slug,
+          name: userProfiles.displayName,
+          userId: userProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .innerJoin(
+          artistProfiles,
+          eq(artistProfiles.userId, userProfiles.userId)
         )
-      )
-      .limit(12),
-
-     eligibleCandidates = await Promise.all(
-      candidates
-        .filter((candidate) => candidate.userId !== user.id)
-        .map(async (candidate) => ({
-          candidate,
-          entitlements: await resolveEntitlements({
-            session: null,
-            user: { id: candidate.userId },
-          }),
-        }))
-    );
+        .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
+        .where(
+          and(
+            eq(userProfiles.accountType, "artist"),
+            q
+              ? or(
+                  ilike(userProfiles.displayName, searchPattern),
+                  ilike(userProfiles.username, searchPattern)
+                )
+              : undefined,
+            genre ? eq(genres.slug, canonicalGenreSlug(genre)) : undefined
+          )
+        )
+        .limit(12),
+      eligibleCandidates = await Promise.all(
+        candidates
+          .filter((candidate) => candidate.userId !== user.id)
+          .map(async (candidate) => ({
+            candidate,
+            entitlements: await resolveEntitlements({
+              session: null,
+              user: { id: candidate.userId },
+            }),
+          }))
+      );
 
     return c.json(
       eligibleCandidates
@@ -549,75 +545,74 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        challengerUserId: battleChallenges.challengerUserId,
-        createdAt: battleChallenges.createdAt,
-        format: battleChallenges.format,
-        genre: genres.name,
-        id: battleChallenges.id,
-        message: battleChallenges.message,
-        opponentArtistUserId: battleChallenges.opponentArtistUserId,
-        opponentUsernameSnapshot: battleChallenges.opponentUsernameSnapshot,
-        proposedDate: battleChallenges.proposedDate,
-        proposedTimeLabel: battleChallenges.proposedTimeLabel,
-        status: battleChallenges.status,
-      })
-      .from(battleChallenges)
-      .leftJoin(genres, eq(genres.id, battleChallenges.genreId))
-      .where(
-        or(
-          eq(battleChallenges.challengerUserId, user.id),
-          eq(battleChallenges.opponentArtistUserId, user.id)
+      rows = await db
+        .select({
+          challengerUserId: battleChallenges.challengerUserId,
+          createdAt: battleChallenges.createdAt,
+          format: battleChallenges.format,
+          genre: genres.name,
+          id: battleChallenges.id,
+          message: battleChallenges.message,
+          opponentArtistUserId: battleChallenges.opponentArtistUserId,
+          opponentUsernameSnapshot: battleChallenges.opponentUsernameSnapshot,
+          proposedDate: battleChallenges.proposedDate,
+          proposedTimeLabel: battleChallenges.proposedTimeLabel,
+          status: battleChallenges.status,
+        })
+        .from(battleChallenges)
+        .leftJoin(genres, eq(genres.id, battleChallenges.genreId))
+        .where(
+          or(
+            eq(battleChallenges.challengerUserId, user.id),
+            eq(battleChallenges.opponentArtistUserId, user.id)
+          )
         )
-      )
-      .orderBy(desc(battleChallenges.createdAt)),
-
-     profileIds = [
-      ...new Set(
-        rows
-          .flatMap((row) => [row.challengerUserId, row.opponentArtistUserId])
-          .filter((id): id is string => Boolean(id))
+        .orderBy(desc(battleChallenges.createdAt)),
+      profileIds = [
+        ...new Set(
+          rows
+            .flatMap((row) => [row.challengerUserId, row.opponentArtistUserId])
+            .filter((id): id is string => Boolean(id))
+        ),
+      ],
+      profiles =
+        profileIds.length > 0
+          ? await db
+              .select({
+                userId: userProfiles.userId,
+                username: userProfiles.username,
+              })
+              .from(userProfiles)
+              .where(inArray(userProfiles.userId, profileIds))
+          : [],
+      usernameByUserId = new Map(
+        profiles.map((profile) => [profile.userId, profile.username])
       ),
-    ],
-     profiles =
-      profileIds.length > 0
-        ? await db
-            .select({
-              userId: userProfiles.userId,
-              username: userProfiles.username,
-            })
-            .from(userProfiles)
-            .where(inArray(userProfiles.userId, profileIds))
-        : [],
-     usernameByUserId = new Map(
-      profiles.map((profile) => [profile.userId, profile.username])
-    ),
+      challenges = rows.map((row) => {
+        const direction =
+          row.opponentArtistUserId === user.id
+            ? ("incoming" as const)
+            : ("outgoing" as const);
 
-     challenges = rows.map((row) => {
-      const direction =
-        row.opponentArtistUserId === user.id
-          ? ("incoming" as const)
-          : ("outgoing" as const);
-
-      return {
-        challengerUsername: usernameByUserId.get(row.challengerUserId) ?? null,
-        createdAt: row.createdAt.toISOString(),
-        direction,
-        format: row.format,
-        genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
-        id: row.id,
-        message: row.message,
-        opponentUsername:
-          row.opponentUsernameSnapshot ??
-          (row.opponentArtistUserId
-            ? (usernameByUserId.get(row.opponentArtistUserId) ?? null)
-            : null),
-        proposedDate: row.proposedDate?.toISOString() ?? null,
-        proposedTimeLabel: row.proposedTimeLabel,
-        status: row.status,
-      };
-    });
+        return {
+          challengerUsername:
+            usernameByUserId.get(row.challengerUserId) ?? null,
+          createdAt: row.createdAt.toISOString(),
+          direction,
+          format: row.format,
+          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+          id: row.id,
+          message: row.message,
+          opponentUsername:
+            row.opponentUsernameSnapshot ??
+            (row.opponentArtistUserId
+              ? (usernameByUserId.get(row.opponentArtistUserId) ?? null)
+              : null),
+          proposedDate: row.proposedDate?.toISOString() ?? null,
+          proposedTimeLabel: row.proposedTimeLabel,
+          status: row.status,
+        };
+      });
 
     return c.json(
       {
@@ -677,25 +672,24 @@ app.openapi(
     }
 
     const { challengeId } = c.req.valid("param"),
-     { status } = c.req.valid("json"),
-     db = createDb(),
-     [challenge] = await db
-      .select({
-        challengerUserId: battleChallenges.challengerUserId,
-        format: battleChallenges.format,
-        genreId: battleChallenges.genreId,
-        opponentArtistUserId: battleChallenges.opponentArtistUserId,
-        proposedDate: battleChallenges.proposedDate,
-        status: battleChallenges.status,
-      })
-      .from(battleChallenges)
-      .where(eq(battleChallenges.id, challengeId))
-      .limit(1),
-
-     canUpdate =
-      challenge &&
-      (challenge.opponentArtistUserId === user.id ||
-        (status === "canceled" && challenge.challengerUserId === user.id));
+      { status } = c.req.valid("json"),
+      db = createDb(),
+      [challenge] = await db
+        .select({
+          challengerUserId: battleChallenges.challengerUserId,
+          format: battleChallenges.format,
+          genreId: battleChallenges.genreId,
+          opponentArtistUserId: battleChallenges.opponentArtistUserId,
+          proposedDate: battleChallenges.proposedDate,
+          status: battleChallenges.status,
+        })
+        .from(battleChallenges)
+        .where(eq(battleChallenges.id, challengeId))
+        .limit(1),
+      canUpdate =
+        challenge &&
+        (challenge.opponentArtistUserId === user.id ||
+          (status === "canceled" && challenge.challengerUserId === user.id));
 
     if (!canUpdate) {
       return c.json(
@@ -726,11 +720,11 @@ app.openapi(
       challenge.opponentArtistUserId
     ) {
       const externalBattleId = `challenge:${challengeId}`,
-       [existingBattle] = await db
-        .select({ id: battles.id })
-        .from(battles)
-        .where(eq(battles.externalBattleId, externalBattleId))
-        .limit(1);
+        [existingBattle] = await db
+          .select({ id: battles.id })
+          .from(battles)
+          .where(eq(battles.externalBattleId, externalBattleId))
+          .limit(1);
 
       if (!existingBattle) {
         await db.insert(battles).values({
@@ -797,10 +791,10 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
 
     if (!entitlements.canCreateLiveBattles) {
       return c.json(
@@ -812,7 +806,7 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     opponentUsername = body.opponentUsername.trim().replace(/^@/u, "");
+      opponentUsername = body.opponentUsername.trim().replace(/^@/u, "");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -822,18 +816,17 @@ app.openapi(
     }
 
     const db = createDb(),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-
-     genreSlug = canonicalGenreSlug(body.genre),
-     [genreRow] = await db
-      .select({ id: genres.id })
-      .from(genres)
-      .where(eq(genres.slug, genreSlug))
-      .limit(1),
-     genreId = genreRow?.id ?? crypto.randomUUID();
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      genreSlug = canonicalGenreSlug(body.genre),
+      [genreRow] = await db
+        .select({ id: genres.id })
+        .from(genres)
+        .where(eq(genres.slug, genreSlug))
+        .limit(1),
+      genreId = genreRow?.id ?? crypto.randomUUID();
 
     if (!genreRow) {
       await db.insert(genres).values({
@@ -889,14 +882,13 @@ app.openapi(
     }
 
     const parsedProposedDate = body.proposedDate
-      ? new Date(body.proposedDate)
-      : null,
-     proposedDate =
-      parsedProposedDate && !Number.isNaN(parsedProposedDate.getTime())
-        ? parsedProposedDate
+        ? new Date(body.proposedDate)
         : null,
-
-     challengeId = crypto.randomUUID();
+      proposedDate =
+        parsedProposedDate && !Number.isNaN(parsedProposedDate.getTime())
+          ? parsedProposedDate
+          : null,
+      challengeId = crypto.randomUUID();
     await db.insert(battleChallenges).values({
       challengerOrganizationId: organizationId,
       challengerUserId: user.id,
@@ -912,12 +904,11 @@ app.openapi(
     });
 
     const [challengerProfile] = await db
-      .select({ username: userProfiles.username })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, user.id))
-      .limit(1),
-     challengerUsername =
-      challengerProfile?.username ?? user.name ?? "artist";
+        .select({ username: userProfiles.username })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1),
+      challengerUsername = challengerProfile?.username ?? user.name ?? "artist";
 
     await db.insert(userNotifications).values({
       id: crypto.randomUUID(),
@@ -982,38 +973,37 @@ app.openapi(
     }
 
     const db = createDb(),
-     rows = await db
-      .select({
-        downloads: battleStats.downloads,
-        losses: battleStats.losses,
-        purchases: battleStats.purchases,
-        saves: battleStats.saves,
-        trackId: battleStats.trackId,
-        trackName: tracks.title,
-        wins: battleStats.wins,
-      })
-      .from(battleStats)
-      .innerJoin(tracks, eq(tracks.id, battleStats.trackId))
-      .where(eq(battleStats.userId, user.id));
+      rows = await db
+        .select({
+          downloads: battleStats.downloads,
+          losses: battleStats.losses,
+          purchases: battleStats.purchases,
+          saves: battleStats.saves,
+          trackId: battleStats.trackId,
+          trackName: tracks.title,
+          wins: battleStats.wins,
+        })
+        .from(battleStats)
+        .innerJoin(tracks, eq(tracks.id, battleStats.trackId))
+        .where(eq(battleStats.userId, user.id));
 
     if (rows.length === 0) {
       const userTracks = await db
-        .select({
-          trackId: tracks.id,
-          trackName: tracks.title,
-        })
-        .from(tracks)
-        .where(eq(tracks.ownerUserId, user.id)),
-
-       generatedStats = userTracks.map((t) => ({
-        downloads: 0,
-        losses: 0,
-        purchases: 0,
-        saves: 0,
-        trackId: t.trackId,
-        trackName: t.trackName,
-        wins: 0,
-      }));
+          .select({
+            trackId: tracks.id,
+            trackName: tracks.title,
+          })
+          .from(tracks)
+          .where(eq(tracks.ownerUserId, user.id)),
+        generatedStats = userTracks.map((t) => ({
+          downloads: 0,
+          losses: 0,
+          purchases: 0,
+          saves: 0,
+          trackId: t.trackId,
+          trackName: t.trackName,
+          wins: 0,
+        }));
 
       return c.json(generatedStats, HttpStatusCodes.OK);
     }
@@ -1101,65 +1091,61 @@ app.openapi(
     }
 
     const db = createDb(),
-
-     [trackRow] = await db
-      .select({ title: tracks.title })
-      .from(tracks)
-      .where(eq(tracks.id, trackId))
-      .limit(1);
+      [trackRow] = await db
+        .select({ title: tracks.title })
+        .from(tracks)
+        .where(eq(tracks.id, trackId))
+        .limit(1);
 
     if (!trackRow) {
       return c.json({ message: "Track not found" }, HttpStatusCodes.NOT_FOUND);
     }
 
     const [statsRow] = await db
-      .select({
-        downloads: battleStats.downloads,
-        losses: battleStats.losses,
-        purchases: battleStats.purchases,
-        saves: battleStats.saves,
-        wins: battleStats.wins,
-      })
-      .from(battleStats)
-      .where(eq(battleStats.trackId, trackId))
-      .limit(1),
-
-     stats = statsRow || {
-      downloads: 0,
-      losses: 0,
-      purchases: 0,
-      saves: 0,
-      wins: 0,
-    },
-
-     rounds = await db
-      .select({
-        battleId: battleRounds.battleId,
-        battleTitle: battles.title,
-        createdAt: battleRounds.createdAt,
-        isTiebreaker: battleRounds.isTiebreaker,
-        roundNumber: battleRounds.roundNumber,
-        status: battleRounds.status,
-        trackOneId: battleRounds.trackOneId,
-        trackOneVotes: battleRounds.trackOneVotes,
-        trackTwoId: battleRounds.trackTwoId,
-        trackTwoVotes: battleRounds.trackTwoVotes,
-        viewerCount: battles.viewerCount,
-        winningTrackId: battleRounds.winningTrackId,
-      })
-      .from(battleRounds)
-      .innerJoin(battles, eq(battles.id, battleRounds.battleId))
-      .where(
-        or(
-          eq(battleRounds.trackOneId, trackId),
-          eq(battleRounds.trackTwoId, trackId)
+        .select({
+          downloads: battleStats.downloads,
+          losses: battleStats.losses,
+          purchases: battleStats.purchases,
+          saves: battleStats.saves,
+          wins: battleStats.wins,
+        })
+        .from(battleStats)
+        .where(eq(battleStats.trackId, trackId))
+        .limit(1),
+      stats = statsRow || {
+        downloads: 0,
+        losses: 0,
+        purchases: 0,
+        saves: 0,
+        wins: 0,
+      },
+      rounds = await db
+        .select({
+          battleId: battleRounds.battleId,
+          battleTitle: battles.title,
+          createdAt: battleRounds.createdAt,
+          isTiebreaker: battleRounds.isTiebreaker,
+          roundNumber: battleRounds.roundNumber,
+          status: battleRounds.status,
+          trackOneId: battleRounds.trackOneId,
+          trackOneVotes: battleRounds.trackOneVotes,
+          trackTwoId: battleRounds.trackTwoId,
+          trackTwoVotes: battleRounds.trackTwoVotes,
+          viewerCount: battles.viewerCount,
+          winningTrackId: battleRounds.winningTrackId,
+        })
+        .from(battleRounds)
+        .innerJoin(battles, eq(battles.id, battleRounds.battleId))
+        .where(
+          or(
+            eq(battleRounds.trackOneId, trackId),
+            eq(battleRounds.trackTwoId, trackId)
+          )
         )
-      )
-      .orderBy(desc(battleRounds.createdAt)),
-
-     opponentIds = rounds
-      .map((r) => (r.trackOneId === trackId ? r.trackTwoId : r.trackOneId))
-      .filter((id): id is string => id !== null);
+        .orderBy(desc(battleRounds.createdAt)),
+      opponentIds = rounds
+        .map((r) => (r.trackOneId === trackId ? r.trackTwoId : r.trackOneId))
+        .filter((id): id is string => id !== null);
 
     let opponentsMap = new Map<string, string>();
     if (opponentIds.length > 0) {
@@ -1172,12 +1158,12 @@ app.openapi(
 
     const history = rounds.map((r) => {
       const isTrackOne = r.trackOneId === trackId,
-       opponentTrackId = isTrackOne ? r.trackTwoId : r.trackOneId,
-       opponentTrackName = opponentTrackId
-        ? opponentsMap.get(opponentTrackId) || "Unknown Track"
-        : "No Opponent",
-       votesFor = isTrackOne ? r.trackOneVotes : r.trackTwoVotes,
-       votesAgainst = isTrackOne ? r.trackTwoVotes : r.trackOneVotes;
+        opponentTrackId = isTrackOne ? r.trackTwoId : r.trackOneId,
+        opponentTrackName = opponentTrackId
+          ? opponentsMap.get(opponentTrackId) || "Unknown Track"
+          : "No Opponent",
+        votesFor = isTrackOne ? r.trackOneVotes : r.trackTwoVotes,
+        votesAgainst = isTrackOne ? r.trackTwoVotes : r.trackOneVotes;
 
       return {
         battleId: r.battleId,
@@ -1245,33 +1231,32 @@ app.openapi(
     }
 
     const db = createDb(),
-     [row] = await db
-      .select({
-        format: battles.format,
-        genre: genres.name,
-        id: battles.id,
-        startsAt: battles.startsAt,
-        status: battles.status,
-        title: battles.title,
-        viewerCount: battles.viewerCount,
-        visibility: battles.visibility,
-      })
-      .from(battles)
-      .leftJoin(genres, eq(genres.id, battles.genreId))
-      .where(eq(battles.id, battleId))
-      .limit(1);
+      [row] = await db
+        .select({
+          format: battles.format,
+          genre: genres.name,
+          id: battles.id,
+          startsAt: battles.startsAt,
+          status: battles.status,
+          title: battles.title,
+          viewerCount: battles.viewerCount,
+          visibility: battles.visibility,
+        })
+        .from(battles)
+        .leftJoin(genres, eq(genres.id, battles.genreId))
+        .where(eq(battles.id, battleId))
+        .limit(1);
 
     if (row) {
       const [enrichedRow] = await enrichBattleFeedRows([
-        {
-          ...row,
-          genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
-        },
-      ]),
-
-       battle = enrichedRow
-        ? rankFeaturedBattles([enrichedRow])[0]
-        : undefined;
+          {
+            ...row,
+            genre: row.genre ? canonicalGenreName(row.genre) : "Uncategorized",
+          },
+        ]),
+        battle = enrichedRow
+          ? rankFeaturedBattles([enrichedRow])[0]
+          : undefined;
 
       if (!battle) {
         return c.json(

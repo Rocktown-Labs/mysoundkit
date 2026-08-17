@@ -17,15 +17,15 @@ import { createConnectedSubscriptionCheckout } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
- checkoutBodySchema = z.object({
-  cancelUrl: z.url(),
-  communityId: z.string(),
-  successUrl: z.url(),
-}),
- responseSchema = z.object({
-  checkoutUrl: z.string().url().nullable(),
-  setupRequired: z.boolean(),
-});
+  checkoutBodySchema = z.object({
+    cancelUrl: z.url(),
+    communityId: z.string(),
+    successUrl: z.url(),
+  }),
+  responseSchema = z.object({
+    checkoutUrl: z.string().url().nullable(),
+    setupRequired: z.boolean(),
+  });
 
 app.openapi(
   createRoute({
@@ -62,12 +62,12 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     db = createDb(),
-     [community] = await db
-      .select()
-      .from(communities)
-      .where(eq(communities.id, body.communityId))
-      .limit(1);
+      db = createDb(),
+      [community] = await db
+        .select()
+        .from(communities)
+        .where(eq(communities.id, body.communityId))
+        .limit(1);
 
     if (!community?.isActive || community.artistUserId === user.id) {
       return c.json(
@@ -95,11 +95,11 @@ app.openapi(
     }
 
     const subscriptionId = crypto.randomUUID(),
-     transactionId = crypto.randomUUID(),
-     feeCents = calculateFeeCents({
-      amountCents: community.monthlyPriceCents,
-      basisPoints: COMMUNITY_PLATFORM_FEE_BPS,
-    });
+      transactionId = crypto.randomUUID(),
+      feeCents = calculateFeeCents({
+        amountCents: community.monthlyPriceCents,
+        basisPoints: COMMUNITY_PLATFORM_FEE_BPS,
+      });
 
     await db.insert(communitySubscriptions).values({
       communityId: community.id,

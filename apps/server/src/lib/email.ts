@@ -57,12 +57,10 @@ export const getPublicSiteUrl = () =>
   "https://mysoundkit.com";
 
 const getEmailFrom = () =>
-  getEnvValue("SOUNDKIT_EMAIL_FROM") ||
-  "SoundKit <noreply@news.mysoundkit.com>",
-
- getEmailReplyTo = () => getEnvValue("SOUNDKIT_EMAIL_REPLY_TO") || null,
-
- getResendApiKey = () => getEnvValue("RESEND_API_KEY");
+    getEnvValue("SOUNDKIT_EMAIL_FROM") ||
+    "SoundKit <noreply@news.mysoundkit.com>",
+  getEmailReplyTo = () => getEnvValue("SOUNDKIT_EMAIL_REPLY_TO") || null,
+  getResendApiKey = () => getEnvValue("RESEND_API_KEY");
 
 export const isTransactionalEmailConfigured = () => Boolean(getResendApiKey());
 
@@ -74,14 +72,14 @@ export const verifyResendWebhook = async ({
   payload: string;
 }) => {
   const secret = getEnvValue("RESEND_WEBHOOK_SECRET"),
-   apiKey = getResendApiKey();
+    apiKey = getResendApiKey();
 
   if (!apiKey || !secret) {
     return null;
   }
 
   const { Resend } = await import("resend"),
-   resend = new Resend(apiKey);
+    resend = new Resend(apiKey);
 
   return resend.webhooks.verify({
     headers: {
@@ -95,27 +93,26 @@ export const verifyResendWebhook = async ({
 };
 
 const getEmailSubject = ({
-  payload,
-  template,
-}: Pick<SendTransactionalEmailOptions, "payload" | "template">) => {
-  if (payload.subject) {
-    return payload.subject;
-  }
+    payload,
+    template,
+  }: Pick<SendTransactionalEmailOptions, "payload" | "template">) => {
+    if (payload.subject) {
+      return payload.subject;
+    }
 
-  if (template === "track_processing_ready") {
-    return `${payload.trackTitle} is ready to review`;
-  }
+    if (template === "track_processing_ready") {
+      return `${payload.trackTitle} is ready to review`;
+    }
 
-  return `${payload.trackTitle} is ready`;
-},
-
- getEmailTags = ({
-  payload,
-  template,
-}: Pick<SendTransactionalEmailOptions, "payload" | "template">) => [
-  { name: "email_type", value: template },
-  ...(payload.trackId ? [{ name: "track_id", value: payload.trackId }] : []),
-];
+    return `${payload.trackTitle} is ready`;
+  },
+  getEmailTags = ({
+    payload,
+    template,
+  }: Pick<SendTransactionalEmailOptions, "payload" | "template">) => [
+    { name: "email_type", value: template },
+    ...(payload.trackId ? [{ name: "track_id", value: payload.trackId }] : []),
+  ];
 
 export const sendTransactionalEmail = async ({
   idempotencyKey,
@@ -130,50 +127,54 @@ export const sendTransactionalEmail = async ({
   }
 
   const publicSiteUrl = getPublicSiteUrl(),
-   [
-    { renderTrackLifecycleEmail, renderTransactionalNotificationEmail },
-    { Resend },
-  ] = await Promise.all([import("@soundkit/transactional"), import("resend")]),
-   emailContent =
-    template === "track_ready" || template === "track_processing_ready"
-      ? await renderTrackLifecycleEmail({
-          actionUrl: payload.actionUrl,
-          artistName: payload.recipientName,
-          assetBaseUrl: publicSiteUrl,
-          eventType: template,
-          trackTitle: payload.trackTitle ?? "Your track",
-        })
-      : await renderTransactionalNotificationEmail({
-          actionUrl: payload.actionUrl,
-          assetBaseUrl: publicSiteUrl,
-          body: payload.body ?? "Open SoundKit to review the latest update.",
-          ctaLabel: payload.ctaLabel ?? "Open SoundKit",
-          eyebrow: payload.eyebrow ?? "SoundKit",
-          footerNote:
-            payload.footerNote ??
-            "You are receiving this because this email is related to your SoundKit account.",
-          heading: payload.heading ?? "You have a SoundKit update",
-          links: payload.links,
-          previewText:
-            payload.previewText ?? "Open SoundKit to review the latest update.",
-          recipientName: payload.recipientName,
-          subject: getEmailSubject({ payload, template }),
-        }),
-   subject = getEmailSubject({ payload, template }),
-   resend = new Resend(apiKey),
-   replyTo = getEmailReplyTo(),
-   { data, error } = await resend.emails.send(
-    {
-      from: getEmailFrom(),
-      html: emailContent.html,
-      replyTo: replyTo ? [replyTo] : undefined,
-      subject,
-      tags: getEmailTags({ payload, template }),
-      text: emailContent.text,
-      to: [recipientEmail],
-    },
-    { idempotencyKey }
-  );
+    [
+      { renderTrackLifecycleEmail, renderTransactionalNotificationEmail },
+      { Resend },
+    ] = await Promise.all([
+      import("@soundkit/transactional"),
+      import("resend"),
+    ]),
+    emailContent =
+      template === "track_ready" || template === "track_processing_ready"
+        ? await renderTrackLifecycleEmail({
+            actionUrl: payload.actionUrl,
+            artistName: payload.recipientName,
+            assetBaseUrl: publicSiteUrl,
+            eventType: template,
+            trackTitle: payload.trackTitle ?? "Your track",
+          })
+        : await renderTransactionalNotificationEmail({
+            actionUrl: payload.actionUrl,
+            assetBaseUrl: publicSiteUrl,
+            body: payload.body ?? "Open SoundKit to review the latest update.",
+            ctaLabel: payload.ctaLabel ?? "Open SoundKit",
+            eyebrow: payload.eyebrow ?? "SoundKit",
+            footerNote:
+              payload.footerNote ??
+              "You are receiving this because this email is related to your SoundKit account.",
+            heading: payload.heading ?? "You have a SoundKit update",
+            links: payload.links,
+            previewText:
+              payload.previewText ??
+              "Open SoundKit to review the latest update.",
+            recipientName: payload.recipientName,
+            subject: getEmailSubject({ payload, template }),
+          }),
+    subject = getEmailSubject({ payload, template }),
+    resend = new Resend(apiKey),
+    replyTo = getEmailReplyTo(),
+    { data, error } = await resend.emails.send(
+      {
+        from: getEmailFrom(),
+        html: emailContent.html,
+        replyTo: replyTo ? [replyTo] : undefined,
+        subject,
+        tags: getEmailTags({ payload, template }),
+        text: emailContent.text,
+        to: [recipientEmail],
+      },
+      { idempotencyKey }
+    );
 
   if (error) {
     logWarn({

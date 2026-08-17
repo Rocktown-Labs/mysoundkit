@@ -13,20 +13,20 @@ export const Route = createFileRoute("/_explore/projects/$id")({
   component: ProjectDetailLayout,
   head: ({ loaderData, params }) => {
     const project = loaderData as ProjectSeoData | null,
-     titleText = project?.title ?? "Project",
-     artistName = project?.artistName ?? "SoundKit artist",
-     title = `Play ${titleText} by ${artistName} on SoundKit`,
-     description = seoDescription(
-      project?.description,
-      `Stream ${titleText}, a ${project?.projectType ?? "project"} by ${artistName}, on SoundKit.`
-    ),
-     head = createShareMeta({
-      canonicalPath: `/projects/${project?.id ?? params.id}`,
-      description,
-      imageUrl: project?.coverArtUrl,
-      title,
-      type: "music.album",
-    });
+      titleText = project?.title ?? "Project",
+      artistName = project?.artistName ?? "SoundKit artist",
+      title = `Play ${titleText} by ${artistName} on SoundKit`,
+      description = seoDescription(
+        project?.description,
+        `Stream ${titleText}, a ${project?.projectType ?? "project"} by ${artistName}, on SoundKit.`
+      ),
+      head = createShareMeta({
+        canonicalPath: `/projects/${project?.id ?? params.id}`,
+        description,
+        imageUrl: project?.coverArtUrl,
+        title,
+        type: "music.album",
+      });
 
     return {
       ...head,

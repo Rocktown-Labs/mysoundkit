@@ -68,145 +68,140 @@ interface CartContextValue {
 }
 
 const EMPTY_CART: Cart = {
-  currency: "USD",
-  id: null,
-  itemCount: 0,
-  items: [],
-  subtotalCents: 0,
-  totalCents: 0,
-},
-
- LOCAL_CART_STORAGE_KEY = "soundkit:cart:v1",
-
- CartContext = createContext<CartContextValue | null>(null),
-
- calculateCart = (items: CartItem[]): Cart => {
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0),
-   subtotalCents = items.reduce(
-    (sum, item) => sum + item.priceCents * item.quantity,
-    0
-  );
-
-  return {
     currency: "USD",
     id: null,
-    itemCount,
-    items,
-    subtotalCents,
-    totalCents: subtotalCents,
-  };
-},
+    itemCount: 0,
+    items: [],
+    subtotalCents: 0,
+    totalCents: 0,
+  },
+  LOCAL_CART_STORAGE_KEY = "soundkit:cart:v1",
+  CartContext = createContext<CartContextValue | null>(null),
+  calculateCart = (items: CartItem[]): Cart => {
+    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0),
+      subtotalCents = items.reduce(
+        (sum, item) => sum + item.priceCents * item.quantity,
+        0
+      );
 
- generateUUID = (): string => {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    try {
-      return crypto.randomUUID();
-    } catch {
-      // Fallback if crypto.randomUUID is restricted
+    return {
+      currency: "USD",
+      id: null,
+      itemCount,
+      items,
+      subtotalCents,
+      totalCents: subtotalCents,
+    };
+  },
+  generateUUID = (): string => {
+    if (
+      typeof crypto !== "undefined" &&
+      typeof crypto.randomUUID === "function"
+    ) {
+      try {
+        return crypto.randomUUID();
+      } catch {
+        // Fallback if crypto.randomUUID is restricted
+      }
     }
-  }
 
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.getRandomValues === "function"
-  ) {
-    try {
-      const bytes = new Uint8Array(16);
-      crypto.getRandomValues(bytes);
-      bytes[6] = (bytes[6] & 0x0F) | 0x40;
-      bytes[8] = (bytes[8] & 0x3F) | 0x80;
-      const hex = Array.from(bytes, (b) =>
-        b.toString(16).padStart(2, "0")
-      ).join("");
-      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
-        12,
-        16
-      )}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-    } catch {
-      // Fallback
+    if (
+      typeof crypto !== "undefined" &&
+      typeof crypto.getRandomValues === "function"
+    ) {
+      try {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6] & 0x0F) | 0x40;
+        bytes[8] = (bytes[8] & 0x3F) | 0x80;
+        const hex = Array.from(bytes, (b) =>
+          b.toString(16).padStart(2, "0")
+        ).join("");
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
+          12,
+          16
+        )}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      } catch {
+        // Fallback
+      }
     }
-  }
 
-  return `cart_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-},
-
- readLocalCart = () => {
-  if (typeof window === "undefined") {
-    return EMPTY_CART;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(LOCAL_CART_STORAGE_KEY);
-
-    if (!rawValue) {
+    return `cart_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  },
+  readLocalCart = () => {
+    if (typeof window === "undefined") {
       return EMPTY_CART;
     }
 
-    const items = JSON.parse(rawValue) as CartItem[];
-    return calculateCart(Array.isArray(items) ? items : []);
-  } catch {
-    return EMPTY_CART;
-  }
-},
+    try {
+      const rawValue = window.localStorage.getItem(LOCAL_CART_STORAGE_KEY);
 
- writeLocalCart = (items: CartItem[]) => {
-  if (typeof window === "undefined") {
-    return;
-  }
+      if (!rawValue) {
+        return EMPTY_CART;
+      }
 
-  try {
-    window.localStorage.setItem(LOCAL_CART_STORAGE_KEY, JSON.stringify(items));
-  } catch {
-    // Ignore storage restrictions in Safari Private mode
-  }
-},
+      const items = JSON.parse(rawValue) as CartItem[];
+      return calculateCart(Array.isArray(items) ? items : []);
+    } catch {
+      return EMPTY_CART;
+    }
+  },
+  writeLocalCart = (items: CartItem[]) => {
+    if (typeof window === "undefined") {
+      return;
+    }
 
- requestCart = async (path = "", init?: RequestInit) => {
-  const response = await fetch(`${API_V1_URL}/cart${path}`, {
-    credentials: "include",
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
+    try {
+      window.localStorage.setItem(
+        LOCAL_CART_STORAGE_KEY,
+        JSON.stringify(items)
+      );
+    } catch {
+      // Ignore storage restrictions in Safari Private mode
+    }
+  },
+  requestCart = async (path = "", init?: RequestInit) => {
+    const response = await fetch(`${API_V1_URL}/cart${path}`, {
+      credentials: "include",
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(`Cart request failed with ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`Cart request failed with ${response.status}`);
+    }
 
-  return (await response.json()) as Cart;
-},
+    return (await response.json()) as Cart;
+  },
+  buildLocalCartItem = (input: AddCartItemInput): CartItem => {
+    const productId = input.trackId ?? input.projectId ?? generateUUID();
 
- buildLocalCartItem = (input: AddCartItemInput): CartItem => {
-  const productId = input.trackId ?? input.projectId ?? generateUUID();
-
-  return {
-    artistName: input.artistName,
-    coverArtUrl: input.coverArtUrl,
-    currency: "USD",
-    id: generateUUID(),
-    licenseName: input.licenseName,
-    licenseOptionId: input.licenseOptionId,
-    priceCents: input.priceCents,
-    productId,
-    productType: input.productType,
-    projectId: input.projectId,
-    purchaseMode: input.purchaseMode,
-    quantity: input.quantity ?? 1,
-    title: input.title,
-    trackId: input.trackId,
+    return {
+      artistName: input.artistName,
+      coverArtUrl: input.coverArtUrl,
+      currency: "USD",
+      id: generateUUID(),
+      licenseName: input.licenseName,
+      licenseOptionId: input.licenseOptionId,
+      priceCents: input.priceCents,
+      productId,
+      productType: input.productType,
+      projectId: input.projectId,
+      purchaseMode: input.purchaseMode,
+      quantity: input.quantity ?? 1,
+      title: input.title,
+      trackId: input.trackId,
+    };
   };
-};
 
 export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   const posthog = usePostHog(),
-   [cart, setCart] = useState<Cart>(EMPTY_CART),
-   [isApiCartActive, setIsApiCartActive] = useState(false),
-   [isCartOpen, setIsCartOpen] = useState(false);
+    [cart, setCart] = useState<Cart>(EMPTY_CART),
+    [isApiCartActive, setIsApiCartActive] = useState(false),
+    [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
     const localCart = readLocalCart();
@@ -259,167 +254,162 @@ export function CartProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, []);
 
   const setLocalItems = useCallback((items: CartItem[]) => {
-    writeLocalCart(items);
-    setCart(calculateCart(items));
-  }, []),
+      writeLocalCart(items);
+      setCart(calculateCart(items));
+    }, []),
+    addItem = useCallback(
+      async (input: AddCartItemInput) => {
+        if (isApiCartActive || cart.items.length === 0) {
+          try {
+            const apiCart = await requestCart("/items", {
+              body: JSON.stringify({
+                licenseOptionId: input.licenseOptionId,
+                productType: input.productType,
+                projectId: input.projectId,
+                quantity: input.quantity ?? 1,
+                trackId: input.trackId,
+              }),
+              method: "POST",
+            });
+            setCart(apiCart);
+            setIsApiCartActive(true);
+            setIsCartOpen(true);
+            posthog.capture("cart_item_added", {
+              artist_name: input.artistName,
+              price_cents: input.priceCents,
+              product_type: input.productType,
+              purchase_mode: input.purchaseMode,
+              title: input.title,
+            });
+            return;
+          } catch {
+            setIsApiCartActive(false);
+          }
+        }
 
-   addItem = useCallback(
-    async (input: AddCartItemInput) => {
-      if (isApiCartActive || cart.items.length === 0) {
-        try {
-          const apiCart = await requestCart("/items", {
-            body: JSON.stringify({
-              licenseOptionId: input.licenseOptionId,
-              productType: input.productType,
-              projectId: input.projectId,
-              quantity: input.quantity ?? 1,
-              trackId: input.trackId,
-            }),
-            method: "POST",
+        const nextItem = buildLocalCartItem(input),
+          existingItem = cart.items.find(
+            (item) =>
+              item.productType === nextItem.productType &&
+              item.productId === nextItem.productId &&
+              item.licenseOptionId === nextItem.licenseOptionId
+          );
+
+        if (existingItem) {
+          toast({
+            description: `"${input.title}" is already in your cart.`,
+            title: "Already in Cart",
           });
-          setCart(apiCart);
-          setIsApiCartActive(true);
           setIsCartOpen(true);
-          posthog.capture("cart_item_added", {
-            artist_name: input.artistName,
-            price_cents: input.priceCents,
-            product_type: input.productType,
-            purchase_mode: input.purchaseMode,
-            title: input.title,
-          });
           return;
-        } catch {
-          setIsApiCartActive(false);
         }
-      }
 
-      const nextItem = buildLocalCartItem(input),
-       existingItem = cart.items.find(
-        (item) =>
-          item.productType === nextItem.productType &&
-          item.productId === nextItem.productId &&
-          item.licenseOptionId === nextItem.licenseOptionId
-      );
+        const nextItems = [...cart.items, nextItem];
 
-      if (existingItem) {
-        toast({
-          description: `"${input.title}" is already in your cart.`,
-          title: "Already in Cart",
-        });
+        setLocalItems(nextItems);
         setIsCartOpen(true);
-        return;
-      }
-
-      const nextItems = [...cart.items, nextItem];
-
-      setLocalItems(nextItems);
-      setIsCartOpen(true);
-      toast({
-        description: `"${input.title}" added to your cart.`,
-        title: "Added to Cart",
-      });
-      posthog.capture("cart_item_added", {
-        artist_name: input.artistName,
-        price_cents: input.priceCents,
-        product_type: input.productType,
-        purchase_mode: input.purchaseMode,
-        title: input.title,
-      });
-    },
-    [cart.items, isApiCartActive, posthog, setLocalItems]
-  ),
-
-   updateQuantity = useCallback(
-    async (cartItemId: string, quantity: number) => {
-      if (quantity < 1) {
-        return;
-      }
-
-      if (isApiCartActive) {
-        try {
-          const apiCart = await requestCart(`/items/${cartItemId}`, {
-            body: JSON.stringify({ quantity }),
-            method: "PATCH",
-          });
-          setCart(apiCart);
-          return;
-        } catch {
-          setIsApiCartActive(false);
-        }
-      }
-
-      setLocalItems(
-        cart.items.map((item) =>
-          item.id === cartItemId ? { ...item, quantity } : item
-        )
-      );
-    },
-    [cart.items, isApiCartActive, setLocalItems]
-  ),
-
-   removeItem = useCallback(
-    async (cartItemId: string) => {
-      if (isApiCartActive) {
-        try {
-          const apiCart = await requestCart(`/items/${cartItemId}`, {
-            method: "DELETE",
-          });
-          setCart(apiCart);
-          return;
-        } catch {
-          setIsApiCartActive(false);
-        }
-      }
-
-      const removed = cart.items.find((item) => item.id === cartItemId);
-      setLocalItems(cart.items.filter((item) => item.id !== cartItemId));
-      if (removed) {
-        posthog.capture("cart_item_removed", {
-          price_cents: removed.priceCents,
-          product_type: removed.productType,
-          purchase_mode: removed.purchaseMode,
-          title: removed.title,
+        toast({
+          description: `"${input.title}" added to your cart.`,
+          title: "Added to Cart",
         });
+        posthog.capture("cart_item_added", {
+          artist_name: input.artistName,
+          price_cents: input.priceCents,
+          product_type: input.productType,
+          purchase_mode: input.purchaseMode,
+          title: input.title,
+        });
+      },
+      [cart.items, isApiCartActive, posthog, setLocalItems]
+    ),
+    updateQuantity = useCallback(
+      async (cartItemId: string, quantity: number) => {
+        if (quantity < 1) {
+          return;
+        }
+
+        if (isApiCartActive) {
+          try {
+            const apiCart = await requestCart(`/items/${cartItemId}`, {
+              body: JSON.stringify({ quantity }),
+              method: "PATCH",
+            });
+            setCart(apiCart);
+            return;
+          } catch {
+            setIsApiCartActive(false);
+          }
+        }
+
+        setLocalItems(
+          cart.items.map((item) =>
+            item.id === cartItemId ? { ...item, quantity } : item
+          )
+        );
+      },
+      [cart.items, isApiCartActive, setLocalItems]
+    ),
+    removeItem = useCallback(
+      async (cartItemId: string) => {
+        if (isApiCartActive) {
+          try {
+            const apiCart = await requestCart(`/items/${cartItemId}`, {
+              method: "DELETE",
+            });
+            setCart(apiCart);
+            return;
+          } catch {
+            setIsApiCartActive(false);
+          }
+        }
+
+        const removed = cart.items.find((item) => item.id === cartItemId);
+        setLocalItems(cart.items.filter((item) => item.id !== cartItemId));
+        if (removed) {
+          posthog.capture("cart_item_removed", {
+            price_cents: removed.priceCents,
+            product_type: removed.productType,
+            purchase_mode: removed.purchaseMode,
+            title: removed.title,
+          });
+        }
+      },
+      [cart.items, isApiCartActive, posthog, setLocalItems]
+    ),
+    clearCart = useCallback(async () => {
+      if (isApiCartActive) {
+        try {
+          const apiCart = await requestCart("", { method: "DELETE" });
+          setCart(apiCart);
+          return;
+        } catch {
+          setIsApiCartActive(false);
+        }
       }
-    },
-    [cart.items, isApiCartActive, posthog, setLocalItems]
-  ),
 
-   clearCart = useCallback(async () => {
-    if (isApiCartActive) {
-      try {
-        const apiCart = await requestCart("", { method: "DELETE" });
-        setCart(apiCart);
-        return;
-      } catch {
-        setIsApiCartActive(false);
-      }
-    }
-
-    posthog.capture("cart_cleared", { item_count: cart.items.length });
-    setLocalItems([]);
-  }, [cart.items.length, isApiCartActive, posthog, setLocalItems]),
-
-   value = useMemo(
-    () => ({
-      addItem,
-      cart,
-      clearCart,
-      isCartOpen,
-      removeItem,
-      setIsCartOpen,
-      updateQuantity,
-    }),
-    [
-      addItem,
-      cart,
-      clearCart,
-      isCartOpen,
-      removeItem,
-      setIsCartOpen,
-      updateQuantity,
-    ]
-  );
+      posthog.capture("cart_cleared", { item_count: cart.items.length });
+      setLocalItems([]);
+    }, [cart.items.length, isApiCartActive, posthog, setLocalItems]),
+    value = useMemo(
+      () => ({
+        addItem,
+        cart,
+        clearCart,
+        isCartOpen,
+        removeItem,
+        setIsCartOpen,
+        updateQuantity,
+      }),
+      [
+        addItem,
+        cart,
+        clearCart,
+        isCartOpen,
+        removeItem,
+        setIsCartOpen,
+        updateQuantity,
+      ]
+    );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

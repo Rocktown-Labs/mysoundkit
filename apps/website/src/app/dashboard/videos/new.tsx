@@ -1,4 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ChevronLeft,
@@ -63,45 +62,45 @@ import {
 } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 import { uploadVideoFile, validateVideoFile } from "@/lib/video-upload";
+import { zodResolver } from "@/lib/zod-resolver";
 
 const SUPPORTED_GENRES = [
-  "Afrobeats",
-  "Electronic",
-  "Hip-Hop/Rap",
-  "Jazz",
-  "Latin",
-  "Pop",
-  "R&B/Soul",
-  "Rock",
-  "Spoken Word",
-] as const,
-
- videoFormSchema = z.object({
-  description: z.string().optional(),
-  genre: z.string().min(1, "Genre is required"),
-  playbackPolicy: z.literal("public").default("public"),
-  releaseAt: z.string().optional(),
-  sourceProjectId: z.string().optional(),
-  sourceTrackId: z.string().optional(),
-  sourceType: z.enum(["upload", "youtube"]).default("upload"),
-  title: z.string().min(2, "Video title is required"),
-  videoKind: z
-    .enum([
-      "music_video",
-      "promo",
-      "teaser",
-      "battle_replay",
-      "battle_clip",
-      "live_recording",
-    ])
-    .default("music_video"),
-  visibility: z.enum(["public", "private"]).default("public"),
-  youtubeUrl: z
-    .string()
-    .url("Invalid YouTube URL")
-    .optional()
-    .or(z.literal("")),
-});
+    "Afrobeats",
+    "Electronic",
+    "Hip-Hop/Rap",
+    "Jazz",
+    "Latin",
+    "Pop",
+    "R&B/Soul",
+    "Rock",
+    "Spoken Word",
+  ] as const,
+  videoFormSchema = z.object({
+    description: z.string().optional(),
+    genre: z.string().min(1, "Genre is required"),
+    playbackPolicy: z.literal("public").default("public"),
+    releaseAt: z.string().optional(),
+    sourceProjectId: z.string().optional(),
+    sourceTrackId: z.string().optional(),
+    sourceType: z.enum(["upload", "youtube"]).default("upload"),
+    title: z.string().min(2, "Video title is required"),
+    videoKind: z
+      .enum([
+        "music_video",
+        "promo",
+        "teaser",
+        "battle_replay",
+        "battle_clip",
+        "live_recording",
+      ])
+      .default("music_video"),
+    visibility: z.enum(["public", "private"]).default("public"),
+    youtubeUrl: z
+      .string()
+      .url("Invalid YouTube URL")
+      .optional()
+      .or(z.literal("")),
+  });
 
 type VideoFormValues = z.infer<typeof videoFormSchema>;
 
@@ -333,219 +332,216 @@ function LinkHistoryDropdown({
 
 function NewVideoPage() {
   const router = useRouter(),
-   [step, setStep] = useState("identity"),
-   [isSubmitting, setIsSubmitting] = useState(false),
-   [uploadProgress, setUploadProgress] = useState<number | null>(null),
-   [videoFile, setVideoFile] = useState<File | null>(null),
-   [historySearch, setHistorySearch] = useState(""),
-   { data: entitlements, isLoading: isEntitlementsLoading } =
-    useMeEntitlementsQuery(),
-   projectsQuery = useProjectsQuery(),
-   tracksQuery = useTracksQuery(undefined, { scope: "dashboard" }),
-   genresQuery = useGenresQuery(),
-   isPremium = entitlements?.isPremium ?? true,
-
-   form = useForm<VideoFormValues>({
-    defaultValues: {
-      description: "",
-      genre: "",
-      playbackPolicy: "public",
-      releaseAt: "",
-      sourceProjectId: "",
-      sourceTrackId: "",
-      sourceType: "upload",
-      title: "",
-      videoKind: "music_video",
-      visibility: "public",
-      youtubeUrl: "",
-    },
-    resolver: zodResolver(videoFormSchema),
-  }),
-
-   availableGenres = Array.isArray(genresQuery.data)
-    ? genresQuery.data
-        .map((genre) =>
-          typeof genre === "string"
-            ? genre
-            : (typeof genre === "object" && genre && "name" in genre
-              ? String(genre.name)
-              : null)
-        )
-        .filter((genre): genre is string => Boolean(genre))
-    : [...SUPPORTED_GENRES],
-
-   { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
-    additionalDirtyState: Boolean(videoFile),
-    defaultValues: {
-      description: "",
-      genre: "",
-      playbackPolicy: "public",
-      releaseAt: "",
-      sourceProjectId: "",
-      sourceTrackId: "",
-      sourceType: "upload",
-      title: "",
-      videoKind: "music_video",
-      visibility: "public",
-      youtubeUrl: "",
-    },
-    form,
-    storageKey: "soundkit:new-video-draft",
-  }),
-
-   filteredHistory = useMemo(() => {
-    const query = historySearch.toLowerCase();
-    if (!query) {
-      return null;
-    }
-    return {
-      projects: (projectsQuery.data ?? []).filter((project) =>
-        project.title.toLowerCase().includes(query)
-      ),
-      tracks: (tracksQuery.data ?? []).filter((track) =>
-        track.title.toLowerCase().includes(query)
-      ),
-    };
-  }, [historySearch, projectsQuery.data, tracksQuery.data]),
-
-   onFileSelected = (file: File | null) => {
-    if (!file) {
-      setVideoFile(null);
-      return;
-    }
-
-    const validationError = validateVideoFile(file);
-
-    if (validationError) {
-      toast({
-        description: validationError,
-        title: "Invalid Video",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setVideoFile(file);
-  },
-
-   onSubmit = async (values: VideoFormValues) => {
-    if (values.sourceType === "upload" && !videoFile) {
-      toast({
-        description: "Please select a video file to upload.",
-        title: "File Required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (values.sourceType === "upload" && !isPremium) {
-      toast({
-        description: "A premium artist subscription is required to upload.",
-        title: "Premium Required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const isPublic = values.visibility === "public" && !values.releaseAt;
-      if (values.sourceType === "upload" && videoFile) {
-        const createResponse = await fetch(
-          `${API_V1_URL}/videos/direct-upload`,
-          {
-            body: JSON.stringify({
-              description: values.description || undefined,
-              genre: values.genre,
-              isPublic,
-              playbackPolicy: "public",
-              releaseAt: values.releaseAt || undefined,
-              sourceProjectId: values.sourceProjectId || undefined,
-              sourceTrackId: values.sourceTrackId || undefined,
-              title: values.title,
-              videoKind: values.videoKind,
-            }),
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          }
+    [step, setStep] = useState("identity"),
+    [isSubmitting, setIsSubmitting] = useState(false),
+    [uploadProgress, setUploadProgress] = useState<number | null>(null),
+    [videoFile, setVideoFile] = useState<File | null>(null),
+    [historySearch, setHistorySearch] = useState(""),
+    { data: entitlements, isLoading: isEntitlementsLoading } =
+      useMeEntitlementsQuery(),
+    projectsQuery = useProjectsQuery(),
+    tracksQuery = useTracksQuery(undefined, { scope: "dashboard" }),
+    genresQuery = useGenresQuery(),
+    isPremium = entitlements?.isPremium ?? true,
+    form = useForm<VideoFormValues>({
+      defaultValues: {
+        description: "",
+        genre: "",
+        playbackPolicy: "public",
+        releaseAt: "",
+        sourceProjectId: "",
+        sourceTrackId: "",
+        sourceType: "upload",
+        title: "",
+        videoKind: "music_video",
+        visibility: "public",
+        youtubeUrl: "",
+      },
+      resolver: zodResolver(videoFormSchema),
+    }),
+    availableGenres = Array.isArray(genresQuery.data)
+      ? genresQuery.data
+          .map((genre) =>
+            typeof genre === "string"
+              ? genre
+              : (typeof genre === "object" && genre && "name" in genre
+                ? String(genre.name)
+                : null)
+          )
+          .filter((genre): genre is string => Boolean(genre))
+      : [...SUPPORTED_GENRES],
+    { allowNavigation, blockerDialog, clearDraft } = useFormDraftGuard({
+      additionalDirtyState: Boolean(videoFile),
+      defaultValues: {
+        description: "",
+        genre: "",
+        playbackPolicy: "public",
+        releaseAt: "",
+        sourceProjectId: "",
+        sourceTrackId: "",
+        sourceType: "upload",
+        title: "",
+        videoKind: "music_video",
+        visibility: "public",
+        youtubeUrl: "",
+      },
+      form,
+      storageKey: "soundkit:new-video-draft",
+    }),
+    filteredHistory = useMemo(() => {
+      const query = historySearch.toLowerCase();
+      if (!query) {
+        return null;
+      }
+      return {
+        projects: (projectsQuery.data ?? []).filter((project) =>
+          project.title.toLowerCase().includes(query)
         ),
-         createPayload = (await createResponse.json()) as {
-          message?: string;
-          uploadUrl?: string;
-        };
-
-        if (!createResponse.ok) {
-          throw new Error(createPayload.message ?? "Failed to create upload.");
-        }
-
-        if (createPayload.uploadUrl) {
-          await uploadVideoFile({
-            file: videoFile,
-            onProgress: setUploadProgress,
-            uploadUrl: createPayload.uploadUrl,
-          });
-        }
-      } else {
-        const createResponse = await fetch(`${API_V1_URL}/videos`, {
-          body: JSON.stringify({
-            description: values.description || undefined,
-            externalPlaybackUrl: values.youtubeUrl,
-            genre: values.genre,
-            isPublic,
-            playbackPolicy: "public",
-            releaseAt: values.releaseAt || undefined,
-            sourceProjectId: values.sourceProjectId || undefined,
-            sourceProvider: "external",
-            sourceTrackId: values.sourceTrackId || undefined,
-            title: values.title,
-            videoKind: values.videoKind,
-          }),
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }),
-         payload = (await createResponse.json()) as { message?: string };
-
-        if (!createResponse.ok) {
-          throw new Error(payload.message ?? "Failed to save external video.");
-        }
+        tracks: (tracksQuery.data ?? []).filter((track) =>
+          track.title.toLowerCase().includes(query)
+        ),
+      };
+    }, [historySearch, projectsQuery.data, tracksQuery.data]),
+    onFileSelected = (file: File | null) => {
+      if (!file) {
+        setVideoFile(null);
+        return;
       }
 
-      allowNavigation();
-      clearDraft();
-      toast({
-        description: `${values.title} is now ${values.sourceType === "upload" ? "processing" : "linked"}.`,
-        title: "Video Added",
-      });
-      router.navigate({ to: "/dashboard/videos" });
-    } catch {
-      toast({
-        description: "Failed to add video. Please try again.",
-        title: "Error",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  },
+      const validationError = validateVideoFile(file);
 
-   selectFromHistory = (
-    type: "track" | "project",
-    id: string,
-    name: string
-  ) => {
-    if (type === "track") {
-      form.setValue("sourceTrackId", id);
-    } else {
-      form.setValue("sourceProjectId", id);
-    }
-    setHistorySearch("");
-    toast({
-      description: `Video linked to ${name}`,
-      title: "Linked Successfully",
-    });
-  };
+      if (validationError) {
+        toast({
+          description: validationError,
+          title: "Invalid Video",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setVideoFile(file);
+    },
+    onSubmit = async (values: VideoFormValues) => {
+      if (values.sourceType === "upload" && !videoFile) {
+        toast({
+          description: "Please select a video file to upload.",
+          title: "File Required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (values.sourceType === "upload" && !isPremium) {
+        toast({
+          description: "A premium artist subscription is required to upload.",
+          title: "Premium Required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const isPublic = values.visibility === "public" && !values.releaseAt;
+        if (values.sourceType === "upload" && videoFile) {
+          const createResponse = await fetch(
+              `${API_V1_URL}/videos/direct-upload`,
+              {
+                body: JSON.stringify({
+                  description: values.description || undefined,
+                  genre: values.genre,
+                  isPublic,
+                  playbackPolicy: "public",
+                  releaseAt: values.releaseAt || undefined,
+                  sourceProjectId: values.sourceProjectId || undefined,
+                  sourceTrackId: values.sourceTrackId || undefined,
+                  title: values.title,
+                  videoKind: values.videoKind,
+                }),
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                method: "POST",
+              }
+            ),
+            createPayload = (await createResponse.json()) as {
+              message?: string;
+              uploadUrl?: string;
+            };
+
+          if (!createResponse.ok) {
+            throw new Error(
+              createPayload.message ?? "Failed to create upload."
+            );
+          }
+
+          if (createPayload.uploadUrl) {
+            await uploadVideoFile({
+              file: videoFile,
+              onProgress: setUploadProgress,
+              uploadUrl: createPayload.uploadUrl,
+            });
+          }
+        } else {
+          const createResponse = await fetch(`${API_V1_URL}/videos`, {
+              body: JSON.stringify({
+                description: values.description || undefined,
+                externalPlaybackUrl: values.youtubeUrl,
+                genre: values.genre,
+                isPublic,
+                playbackPolicy: "public",
+                releaseAt: values.releaseAt || undefined,
+                sourceProjectId: values.sourceProjectId || undefined,
+                sourceProvider: "external",
+                sourceTrackId: values.sourceTrackId || undefined,
+                title: values.title,
+                videoKind: values.videoKind,
+              }),
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              method: "POST",
+            }),
+            payload = (await createResponse.json()) as { message?: string };
+
+          if (!createResponse.ok) {
+            throw new Error(
+              payload.message ?? "Failed to save external video."
+            );
+          }
+        }
+
+        allowNavigation();
+        clearDraft();
+        toast({
+          description: `${values.title} is now ${values.sourceType === "upload" ? "processing" : "linked"}.`,
+          title: "Video Added",
+        });
+        router.navigate({ to: "/dashboard/videos" });
+      } catch {
+        toast({
+          description: "Failed to add video. Please try again.",
+          title: "Error",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    selectFromHistory = (
+      type: "track" | "project",
+      id: string,
+      name: string
+    ) => {
+      if (type === "track") {
+        form.setValue("sourceTrackId", id);
+      } else {
+        form.setValue("sourceProjectId", id);
+      }
+      setHistorySearch("");
+      toast({
+        description: `Video linked to ${name}`,
+        title: "Linked Successfully",
+      });
+    };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">

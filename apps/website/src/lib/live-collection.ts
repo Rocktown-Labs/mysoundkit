@@ -6,6 +6,16 @@ interface LiveCollectionItem {
   viewerCount?: number;
 }
 
+export const normalizeGenreValue = (genre?: string | null) => {
+  if (!genre) {
+    return "";
+  }
+  return genre
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-+|-+$/gu, "");
+};
+
 export const filterAndSortLiveItems = <T extends LiveCollectionItem>({
   genre,
   items,
@@ -17,11 +27,17 @@ export const filterAndSortLiveItems = <T extends LiveCollectionItem>({
   sort: string;
   status: string;
 }) => {
-  const filteredItems = items.filter(
-    (item) =>
-      (genre === "all" || item.genre === genre) &&
-      (status === "all" || item.status === status)
-  );
+  const targetGenre = normalizeGenreValue(genre),
+    filteredItems = items.filter((item) => {
+      const matchesGenre =
+          genre === "all" ||
+          item.genre === genre ||
+          normalizeGenreValue(item.genre) === targetGenre ||
+          normalizeGenreValue(item.genre).startsWith(targetGenre) ||
+          targetGenre.startsWith(normalizeGenreValue(item.genre)),
+        matchesStatus = status === "all" || item.status === status;
+      return matchesGenre && matchesStatus;
+    });
 
   return [...filteredItems].sort((first, second) => {
     if (sort === "viewers-desc") {

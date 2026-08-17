@@ -32,173 +32,173 @@ import {
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
-
- getDefaultUserSummary = (user: AuthenticatedUser) => ({
-  accountType: "artist" as const,
-  avatarUrl: null,
-  bio: null,
-  city: null,
-  displayName: user.name ?? user.email ?? "SoundKit User",
-  headerUrl: null,
-  id: user.id,
-  links: {},
-  mediaLayout: "cards" as const,
-  onboardingCompletedAt: null,
-  proAffiliation: null,
-  proMemberId: null,
-  role: user.role ?? null,
-  songwriterLegalName: null,
-  stageName: user.name ?? null,
-  state: null,
-  username: user.email?.split("@")[0] ?? "soundkit-user",
-}),
-
- formatPlatformKey = (platform: string) => {
-  if (platform === "apple_music") {
-    return "appleMusic";
-  }
-  if (platform === "personal_site") {
-    return "personalSite";
-  }
-  return platform;
-},
-
- getUserSummary = async (user: AuthenticatedUser) => {
-  if (!isDatabaseConfigured()) {
-    return getDefaultUserSummary(user);
-  }
-
-  const db = createDb(),
-   [profile] = await db
-    .select({
-      accountType: userProfiles.accountType,
-      avatarUrl: userProfiles.avatarUrl,
-      bio: userProfiles.bio,
-      city: userProfiles.city,
-      displayName: userProfiles.displayName,
-      headerUrl: userProfiles.headerUrl,
-      mediaLayout: userProfiles.mediaLayout,
-      onboardingCompletedAt: userProfiles.onboardingCompletedAt,
-      proAffiliation: artistProfiles.proAffiliation,
-      proMemberId: artistProfiles.proMemberId,
-      songwriterLegalName: artistProfiles.songwriterLegalName,
-      stageName: artistProfiles.stageName,
-      state: userProfiles.state,
-      username: userProfiles.username,
-    })
-    .from(userProfiles)
-    .leftJoin(artistProfiles, eq(artistProfiles.userId, userProfiles.userId))
-    .where(eq(userProfiles.userId, user.id))
-    .limit(1);
-
-  if (!profile) {
-    return getDefaultUserSummary(user);
-  }
-
-  const links = await db
-    .select({
-      platform: profileLinks.platform,
-      url: profileLinks.url,
-    })
-    .from(profileLinks)
-    .where(eq(profileLinks.userId, user.id)),
-   profileLinkMap = Object.fromEntries(
-    links.map((link) => [formatPlatformKey(link.platform), link.url])
-  );
-
-  return {
-    accountType: profile.accountType,
-    avatarUrl: profile.avatarUrl,
-    bio: profile.bio,
-    city: profile.city,
-    displayName: profile.displayName ?? user.name ?? profile.username,
-    headerUrl: profile.headerUrl,
+  getDefaultUserSummary = (user: AuthenticatedUser) => ({
+    accountType: "artist" as const,
+    avatarUrl: null,
+    bio: null,
+    city: null,
+    displayName: user.name ?? user.email ?? "SoundKit User",
+    headerUrl: null,
     id: user.id,
-    links: profileLinkMap,
-    mediaLayout:
-      profile.mediaLayout === "list" ? ("list" as const) : ("cards" as const),
-    onboardingCompletedAt: profile.onboardingCompletedAt?.toISOString() ?? null,
-    proAffiliation: profile.proAffiliation,
-    proMemberId: profile.proMemberId,
+    links: {},
+    mediaLayout: "cards" as const,
+    onboardingCompletedAt: null,
+    proAffiliation: null,
+    proMemberId: null,
     role: user.role ?? null,
-    songwriterLegalName: profile.songwriterLegalName,
-    stageName:
-      profile.stageName ?? profile.displayName ?? user.name ?? profile.username,
-    state: profile.state,
-    username: profile.username,
+    songwriterLegalName: null,
+    stageName: user.name ?? null,
+    state: null,
+    username: user.email?.split("@")[0] ?? "soundkit-user",
+  }),
+  formatPlatformKey = (platform: string) => {
+    if (platform === "apple_music") {
+      return "appleMusic";
+    }
+    if (platform === "personal_site") {
+      return "personalSite";
+    }
+    return platform;
+  },
+  getUserSummary = async (user: AuthenticatedUser) => {
+    if (!isDatabaseConfigured()) {
+      return getDefaultUserSummary(user);
+    }
+
+    const db = createDb(),
+      [profile] = await db
+        .select({
+          accountType: userProfiles.accountType,
+          avatarUrl: userProfiles.avatarUrl,
+          bio: userProfiles.bio,
+          city: userProfiles.city,
+          displayName: userProfiles.displayName,
+          headerUrl: userProfiles.headerUrl,
+          mediaLayout: userProfiles.mediaLayout,
+          onboardingCompletedAt: userProfiles.onboardingCompletedAt,
+          proAffiliation: artistProfiles.proAffiliation,
+          proMemberId: artistProfiles.proMemberId,
+          songwriterLegalName: artistProfiles.songwriterLegalName,
+          stageName: artistProfiles.stageName,
+          state: userProfiles.state,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .leftJoin(
+          artistProfiles,
+          eq(artistProfiles.userId, userProfiles.userId)
+        )
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1);
+
+    if (!profile) {
+      return getDefaultUserSummary(user);
+    }
+
+    const links = await db
+        .select({
+          platform: profileLinks.platform,
+          url: profileLinks.url,
+        })
+        .from(profileLinks)
+        .where(eq(profileLinks.userId, user.id)),
+      profileLinkMap = Object.fromEntries(
+        links.map((link) => [formatPlatformKey(link.platform), link.url])
+      );
+
+    return {
+      accountType: profile.accountType,
+      avatarUrl: profile.avatarUrl,
+      bio: profile.bio,
+      city: profile.city,
+      displayName: profile.displayName ?? user.name ?? profile.username,
+      headerUrl: profile.headerUrl,
+      id: user.id,
+      links: profileLinkMap,
+      mediaLayout:
+        profile.mediaLayout === "list" ? ("list" as const) : ("cards" as const),
+      onboardingCompletedAt:
+        profile.onboardingCompletedAt?.toISOString() ?? null,
+      proAffiliation: profile.proAffiliation,
+      proMemberId: profile.proMemberId,
+      role: user.role ?? null,
+      songwriterLegalName: profile.songwriterLegalName,
+      stageName:
+        profile.stageName ??
+        profile.displayName ??
+        user.name ??
+        profile.username,
+      state: profile.state,
+      username: profile.username,
+    };
+  },
+  getActiveWorkspace = async ({
+    activeOrganizationId,
+    userId,
+  }: {
+    activeOrganizationId: string | null;
+    userId: string;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return null;
+    }
+
+    const db = createDb(),
+      workspaceQuery = db
+        .select({
+          id: organization.id,
+          name: organization.name,
+          role: member.role,
+          slug: organization.slug,
+          workspaceType: workspaceProfiles.workspaceType,
+        })
+        .from(member)
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .innerJoin(
+          workspaceProfiles,
+          eq(workspaceProfiles.organizationId, organization.id)
+        )
+        .where(eq(member.userId, userId)),
+      workspaces = await workspaceQuery,
+      activeWorkspace =
+        workspaces.find((workspace) => workspace.id === activeOrganizationId) ??
+        workspaces[0];
+
+    return activeWorkspace ?? null;
+  },
+  defaultNotificationSettings = {
+    emailCollaborations: true,
+    emailComments: true,
+    emailFollowers: true,
+    emailSales: true,
+    emailTrackProcessing: true,
+    pushMentions: true,
+    pushMessages: true,
+    pushReleases: true,
+  },
+  getNotificationSettings = async (userId: string) => {
+    if (!isDatabaseConfigured()) {
+      return defaultNotificationSettings;
+    }
+
+    const db = createDb(),
+      [settings] = await db
+        .select({
+          emailCollaborations: notificationSettings.emailCollaborations,
+          emailComments: notificationSettings.emailComments,
+          emailFollowers: notificationSettings.emailFollowers,
+          emailSales: notificationSettings.emailSales,
+          emailTrackProcessing: notificationSettings.emailTrackProcessing,
+          pushMentions: notificationSettings.pushMentions,
+          pushMessages: notificationSettings.pushMessages,
+          pushReleases: notificationSettings.pushReleases,
+        })
+        .from(notificationSettings)
+        .where(eq(notificationSettings.userId, userId))
+        .limit(1);
+
+    return settings ?? defaultNotificationSettings;
   };
-},
-
- getActiveWorkspace = async ({
-  activeOrganizationId,
-  userId,
-}: {
-  activeOrganizationId: string | null;
-  userId: string;
-}) => {
-  if (!isDatabaseConfigured()) {
-    return null;
-  }
-
-  const db = createDb(),
-   workspaceQuery = db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      role: member.role,
-      slug: organization.slug,
-      workspaceType: workspaceProfiles.workspaceType,
-    })
-    .from(member)
-    .innerJoin(organization, eq(organization.id, member.organizationId))
-    .innerJoin(
-      workspaceProfiles,
-      eq(workspaceProfiles.organizationId, organization.id)
-    )
-    .where(eq(member.userId, userId)),
-
-   workspaces = await workspaceQuery,
-   activeWorkspace =
-    workspaces.find((workspace) => workspace.id === activeOrganizationId) ??
-    workspaces[0];
-
-  return activeWorkspace ?? null;
-},
-
- defaultNotificationSettings = {
-  emailCollaborations: true,
-  emailComments: true,
-  emailFollowers: true,
-  emailSales: true,
-  emailTrackProcessing: true,
-  pushMentions: true,
-  pushMessages: true,
-  pushReleases: true,
-},
-
- getNotificationSettings = async (userId: string) => {
-  if (!isDatabaseConfigured()) {
-    return defaultNotificationSettings;
-  }
-
-  const db = createDb(),
-   [settings] = await db
-    .select({
-      emailCollaborations: notificationSettings.emailCollaborations,
-      emailComments: notificationSettings.emailComments,
-      emailFollowers: notificationSettings.emailFollowers,
-      emailSales: notificationSettings.emailSales,
-      emailTrackProcessing: notificationSettings.emailTrackProcessing,
-      pushMentions: notificationSettings.pushMentions,
-      pushMessages: notificationSettings.pushMessages,
-      pushReleases: notificationSettings.pushReleases,
-    })
-    .from(notificationSettings)
-    .where(eq(notificationSettings.userId, userId))
-    .limit(1);
-
-  return settings ?? defaultNotificationSettings;
-};
 
 app.openapi(
   createRoute({
@@ -224,9 +224,9 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     activeOrganizationId = isAuthenticatedSession(session)
-      ? (session.activeOrganizationId ?? null)
-      : null;
+      activeOrganizationId = isAuthenticatedSession(session)
+        ? (session.activeOrganizationId ?? null)
+        : null;
 
     return c.json(
       {
@@ -271,21 +271,21 @@ app.openapi(
     }
 
     const db = createDb(),
-     workspaces = await db
-      .select({
-        id: organization.id,
-        name: organization.name,
-        role: member.role,
-        slug: organization.slug,
-        workspaceType: workspaceProfiles.workspaceType,
-      })
-      .from(member)
-      .innerJoin(organization, eq(organization.id, member.organizationId))
-      .innerJoin(
-        workspaceProfiles,
-        eq(workspaceProfiles.organizationId, organization.id)
-      )
-      .where(eq(member.userId, user.id));
+      workspaces = await db
+        .select({
+          id: organization.id,
+          name: organization.name,
+          role: member.role,
+          slug: organization.slug,
+          workspaceType: workspaceProfiles.workspaceType,
+        })
+        .from(member)
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .innerJoin(
+          workspaceProfiles,
+          eq(workspaceProfiles.organizationId, organization.id)
+        )
+        .where(eq(member.userId, user.id));
 
     return c.json(workspaces, HttpStatusCodes.OK);
   }
@@ -315,7 +315,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { name } = c.req.valid("json");
+      { name } = c.req.valid("json");
 
     if (!isAuthenticatedUser(user)) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -335,7 +335,7 @@ app.openapi(
     }
 
     const db = createDb(),
-     activeOrgId = user.id;
+      activeOrgId = user.id;
 
     await db
       .update(organization)
@@ -416,7 +416,7 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     db = createDb();
+      db = createDb();
 
     await db
       .insert(notificationSettings)
@@ -479,14 +479,14 @@ app.openapi(
     }
 
     const db = createDb(),
-     {
-      links,
-      proAffiliation,
-      proMemberId,
-      songwriterLegalName,
-      stageName,
-      ...userProfileBody
-    } = body;
+      {
+        links,
+        proAffiliation,
+        proMemberId,
+        songwriterLegalName,
+        stageName,
+        ...userProfileBody
+      } = body;
 
     if (Object.keys(userProfileBody).length > 0) {
       await db
@@ -571,10 +571,10 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
 
     return c.json(entitlements, HttpStatusCodes.OK);
   }

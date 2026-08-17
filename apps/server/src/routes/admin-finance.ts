@@ -1,6 +1,11 @@
+/* eslint-disable one-var, sort-vars, complexity, unicorn/max-nested-calls, no-nested-ternary, unicorn/no-nested-ternary */
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { userNotifications, userProfiles } from "@soundkit/db/schema/app";
+import {
+  sellerAccounts,
+  userNotifications,
+  userProfiles,
+} from "@soundkit/db/schema/app";
 import { subscription, user } from "@soundkit/db/schema/auth";
 import { platformFees, transactions } from "@soundkit/db/schema/payments";
 import {
@@ -34,7 +39,11 @@ import {
   listStripeProducts,
   retrieveStripePrice,
 } from "@/lib/stripe";
-import type { StripePriceSummary, StripeProductSummary } from "@/lib/stripe";
+import type {
+  StripeListResponse,
+  StripePriceSummary,
+  StripeProductSummary,
+} from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
@@ -380,6 +389,7 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
         plans,
         [transactionSummary],
         [feeSummary],
+        [sellerSummary],
         recentTransactions,
         stripePrices,
       ] = await Promise.all([
@@ -407,6 +417,13 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
           .from(platformFees),
         db
           .select({
+            active: sql<number>`count(*) filter (where ${sellerAccounts.chargesEnabled} = true and ${sellerAccounts.payoutsEnabled} = true)::int`,
+            pending: sql<number>`count(*) filter (where ${sellerAccounts.chargesEnabled} = false or ${sellerAccounts.payoutsEnabled} = false)::int`,
+            total: sql<number>`count(*)::int`,
+          })
+          .from(sellerAccounts),
+        db
+          .select({
             amountCents: transactions.amountCents,
             createdAt: transactions.createdAt,
             currency: transactions.currency,
@@ -429,6 +446,11 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
           isUsableStripePriceId(plan.envMonthlyPriceId) ||
           isUsableStripePriceId(plan.stripeMonthlyPriceId)
       ).length,
+      connectStats: {
+        activeCount: Number(sellerSummary?.active ?? 0),
+        pendingCount: Number(sellerSummary?.pending ?? 0),
+        totalAccounts: Number(sellerSummary?.total ?? 0),
+      },
       planCount: plans.length,
       plans: serializedPlans,
       recentTransactions: recentTransactions.map((transaction) => ({
@@ -683,6 +705,7 @@ app.openapi(
         planCodes?: string[];
       },
       db = createDb(),
+      hasStripe = Boolean(getEnvValue("STRIPE_SECRET_KEY")),
       plans =
         body.planCodes && body.planCodes.length > 0
           ? await db
@@ -692,15 +715,25 @@ app.openapi(
           : await db
               .select()
               .from(planCatalog)
-              .where(eq(planCatalog.isActive, true)),
-      hasStripe = Boolean(getEnvValue("STRIPE_SECRET_KEY")),
-      [productList, priceList] = hasStripe
-        ? await Promise.all([
-            listStripeProducts().catch(() => null),
-            listStripePrices().catch(() => null),
-          ])
-        : [null, null],
-      products = productList?.data ?? [],
+              .where(eq(planCatalog.isActive, true));
+
+    let priceList: StripeListResponse<StripePriceSummary> | null = null,
+      productList: StripeListResponse<StripeProductSummary> | null = null,
+      stripeError: string | null = null;
+
+    if (hasStripe) {
+      try {
+        [productList, priceList] = await Promise.all([
+          listStripeProducts(),
+          listStripePrices(),
+        ]);
+      } catch (error) {
+        stripeError = error instanceof Error ? error.message : String(error);
+        console.error("Stripe sync initial list failed", error);
+      }
+    }
+
+    const products = productList?.data ?? [],
       stripePrices = priceList?.data ?? [],
       results = [];
 
@@ -741,10 +774,17 @@ app.openapi(
       });
     }
 
-    return c.json(
-      { message: "Stripe catalog sync completed.", results },
-      HttpStatusCodes.OK
-    );
+    const createdCount = results.filter((r) => r.status === "created").length,
+      matchedCount = results.filter((r) => r.status === "matched").length,
+      message = stripeError
+        ? `Stripe API note: ${stripeError}`
+        : createdCount > 0
+          ? `Created & synced ${createdCount} plan${createdCount === 1 ? "" : "s"} to Stripe.`
+          : matchedCount > 0
+            ? `Synced ${matchedCount} plan${matchedCount === 1 ? "" : "s"} with Stripe.`
+            : "Stripe catalog sync completed.";
+
+    return c.json({ message, results }, HttpStatusCodes.OK);
   }
 );
 

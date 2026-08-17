@@ -11,44 +11,42 @@ import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { enqueueTransactionalEmail } from "@/lib/email-delivery";
 
 const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
+  loadTrackForNotification = async (trackId: string) => {
+    if (!isDatabaseConfigured()) {
+      return null;
+    }
 
- loadTrackForNotification = async (trackId: string) => {
-  if (!isDatabaseConfigured()) {
-    return null;
-  }
+    const db = createDb(),
+      [track] = await db
+        .select({
+          email: authUser.email,
+          id: tracks.id,
+          name: authUser.name,
+          ownerUserId: tracks.ownerUserId,
+          title: tracks.title,
+        })
+        .from(tracks)
+        .innerJoin(authUser, eq(authUser.id, tracks.ownerUserId))
+        .where(eq(tracks.id, trackId))
+        .limit(1);
 
-  const db = createDb(),
-   [track] = await db
-    .select({
-      email: authUser.email,
-      id: tracks.id,
-      name: authUser.name,
-      ownerUserId: tracks.ownerUserId,
-      title: tracks.title,
-    })
-    .from(tracks)
-    .innerJoin(authUser, eq(authUser.id, tracks.ownerUserId))
-    .where(eq(tracks.id, trackId))
-    .limit(1);
+    return track ?? null;
+  },
+  shouldSendTrackProcessingEmail = async (userId: string) => {
+    if (!isDatabaseConfigured()) {
+      return false;
+    }
 
-  return track ?? null;
-},
+    const [settings] = await createDb()
+      .select({
+        emailTrackProcessing: notificationSettings.emailTrackProcessing,
+      })
+      .from(notificationSettings)
+      .where(eq(notificationSettings.userId, userId))
+      .limit(1);
 
- shouldSendTrackProcessingEmail = async (userId: string) => {
-  if (!isDatabaseConfigured()) {
-    return false;
-  }
-
-  const [settings] = await createDb()
-    .select({
-      emailTrackProcessing: notificationSettings.emailTrackProcessing,
-    })
-    .from(notificationSettings)
-    .where(eq(notificationSettings.userId, userId))
-    .limit(1);
-
-  return settings?.emailTrackProcessing ?? true;
-};
+    return settings?.emailTrackProcessing ?? true;
+  };
 
 export const notifyTrackLive = async ({
   emailQueue,

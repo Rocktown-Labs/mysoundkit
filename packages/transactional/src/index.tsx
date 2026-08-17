@@ -17,12 +17,12 @@ import {
 import { render } from "@react-email/render";
 
 const brandPurple = "#A798FF",
- deepPurple = "#7C5CFF",
- surfaceBlack = "#050509",
- panelBlack = "#0B0B12",
- mutedText = "#B8B4C7",
- white = "#FFFFFF",
- noLinks: NonNullable<TransactionalNotificationEmailProps["links"]> = [];
+  deepPurple = "#7C5CFF",
+  mutedText = "#B8B4C7",
+  panelBlack = "#0B0B12",
+  surfaceBlack = "#050509",
+  white = "#FFFFFF",
+  noLinks: NonNullable<TransactionalNotificationEmailProps["links"]> = [];
 
 export interface TrackLifecycleEmailProps {
   actionUrl: string;
@@ -306,17 +306,14 @@ export async function renderTrackLifecycleEmail(
   options: RenderTrackLifecycleEmailOptions
 ) {
   const previewText =
-    options.eventType === "track_processing_ready"
-      ? `${options.trackTitle} has new details ready to review.`
-      : `${options.trackTitle} is ready in your SoundKit dashboard.`,
-   element = (
-    <TrackLifecycleEmail {...options} previewText={previewText} />
-  ),
-
-   [html, text] = await Promise.all([
-    render(element),
-    render(element, { plainText: true }),
-  ]);
+      options.eventType === "track_processing_ready"
+        ? `${options.trackTitle} has new details ready to review.`
+        : `${options.trackTitle} is ready in your SoundKit dashboard.`,
+    element = <TrackLifecycleEmail {...options} previewText={previewText} />,
+    [html, text] = await Promise.all([
+      render(element),
+      render(element, { plainText: true }),
+    ]);
 
   return { html, text };
 }
@@ -329,11 +326,10 @@ export async function renderTransactionalNotificationEmail(
   options: RenderTransactionalNotificationEmailOptions
 ) {
   const element = <TransactionalNotificationEmail {...options} />,
-
-   [html, text] = await Promise.all([
-    render(element),
-    render(element, { plainText: true }),
-  ]);
+    [html, text] = await Promise.all([
+      render(element),
+      render(element, { plainText: true }),
+    ]);
 
   return { html, subject: options.subject, text };
 }

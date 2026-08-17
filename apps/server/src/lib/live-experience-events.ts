@@ -24,10 +24,10 @@ export const REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL =
 
 const base64UrlToBytes = (value: string) => {
   const normalized = value.replaceAll("-", "+").replaceAll("_", "/"),
-   padded = normalized.padEnd(
-    normalized.length + ((4 - (normalized.length % 4)) % 4),
-    "="
-  );
+    padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "="
+    );
 
   return Uint8Array.from(atob(padded), (char) => char.codePointAt(0) ?? 0);
 };
@@ -42,18 +42,17 @@ export const verifyRealtimeKitSignature = async ({
   signature: string;
 }) => {
   const cleanPem = publicKeyPem
-    .replaceAll("\\n", "")
-    .replace("-----BEGIN PUBLIC KEY-----", "")
-    .replace("-----END PUBLIC KEY-----", "")
-    .replaceAll(/\s+/gu, ""),
-
-   publicKey = await crypto.subtle.importKey(
-    "spki",
-    base64UrlToBytes(cleanPem),
-    { hash: "SHA-256", name: "RSASSA-PKCS1-v1_5" },
-    false,
-    ["verify"]
-  );
+      .replaceAll("\\n", "")
+      .replace("-----BEGIN PUBLIC KEY-----", "")
+      .replace("-----END PUBLIC KEY-----", "")
+      .replaceAll(/\s+/gu, ""),
+    publicKey = await crypto.subtle.importKey(
+      "spki",
+      base64UrlToBytes(cleanPem),
+      { hash: "SHA-256", name: "RSASSA-PKCS1-v1_5" },
+      false,
+      ["verify"]
+    );
 
   return crypto.subtle.verify(
     "RSASSA-PKCS1-v1_5",
@@ -67,7 +66,7 @@ export const fetchRealtimeKitWebhookPublicKey = async (
   publicKeyUrl?: string
 ) => {
   const url = publicKeyUrl || REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL,
-   response = await fetch(url);
+    response = await fetch(url);
 
   if (!response.ok) {
     return null;
@@ -116,17 +115,15 @@ export const loadLiveExperienceById = async (experienceId: string) => {
 };
 
 const getMeetingObject = (payload: Record<string, unknown>) =>
-  typeof payload.meeting === "object" && payload.meeting !== null
-    ? (payload.meeting as Record<string, unknown>)
-    : null,
-
- getString = (value: unknown) =>
-  typeof value === "string" && value.length > 0 ? value : null,
-
- getMeetingId = (payload: Record<string, unknown>) => {
-  const meeting = getMeetingObject(payload);
-  return getString(meeting?.id) ?? getString(payload.meetingId);
-};
+    typeof payload.meeting === "object" && payload.meeting !== null
+      ? (payload.meeting as Record<string, unknown>)
+      : null,
+  getString = (value: unknown) =>
+    typeof value === "string" && value.length > 0 ? value : null,
+  getMeetingId = (payload: Record<string, unknown>) => {
+    const meeting = getMeetingObject(payload);
+    return getString(meeting?.id) ?? getString(payload.meetingId);
+  };
 
 export const markExperienceLive = async (experienceId: string) => {
   if (!isDatabaseConfigured()) {
@@ -168,39 +165,38 @@ export const updateExperienceViewerCount = async ({
   }
 
   const db = createDb(),
-   [experience] = await db
-    .select({
-      peakViewerCount: liveExperiences.peakViewerCount,
-      viewerCount: liveExperiences.viewerCount,
-    })
-    .from(liveExperiences)
-    .where(eq(liveExperiences.id, experienceId))
-    .limit(1);
+    [experience] = await db
+      .select({
+        peakViewerCount: liveExperiences.peakViewerCount,
+        viewerCount: liveExperiences.viewerCount,
+      })
+      .from(liveExperiences)
+      .where(eq(liveExperiences.id, experienceId))
+      .limit(1);
 
   if (!experience) {
     return null;
   }
 
   const viewerCount = Math.max(
-    0,
-    experience.viewerCount + (isJoining ? 1 : -1)
-  ),
-   peakViewerCount = Math.max(experience.peakViewerCount, viewerCount),
-
-   [updated] = await db
-    .update(liveExperiences)
-    .set({
-      peakViewerCount,
-      updatedAt: new Date(),
-      viewerCount,
-    })
-    .where(eq(liveExperiences.id, experienceId))
-    .returning();
+      0,
+      experience.viewerCount + (isJoining ? 1 : -1)
+    ),
+    peakViewerCount = Math.max(experience.peakViewerCount, viewerCount),
+    [updated] = await db
+      .update(liveExperiences)
+      .set({
+        peakViewerCount,
+        updatedAt: new Date(),
+        viewerCount,
+      })
+      .where(eq(liveExperiences.id, experienceId))
+      .returning();
 
   return updated ?? null;
 };
 
-const getFollowerUserIds = async (artistUserId: string) => {
+export const getFollowerUserIds = async (artistUserId: string) => {
   if (!isDatabaseConfigured()) {
     return [];
   }
@@ -212,9 +208,9 @@ const getFollowerUserIds = async (artistUserId: string) => {
     .limit(500);
 
   return rows.map(({ followerUserId }) => followerUserId);
-},
+};
 
- notificationTypeForKind = (kind: LiveExperienceKind) => {
+export const notificationTypeForKind = (kind: LiveExperienceKind) => {
   if (kind === "battle") {
     return "live_battle";
   }
@@ -224,14 +220,14 @@ const getFollowerUserIds = async (artistUserId: string) => {
   }
 
   return "live_stream";
-},
+};
 
- notificationHrefForKind = (
+export const notificationHrefForKind = (
   kind: LiveExperienceKind,
   experienceId: string
-) => `/live/${kind === "party" ? "parties" : `${kind}s`}/${experienceId}`,
+) => `/live/${kind === "party" ? "parties" : `${kind}s`}/${experienceId}`;
 
- insertNotificationsForUsers = async ({
+export const insertNotificationsForUsers = async ({
   experienceId,
   kind,
   message,
@@ -251,15 +247,15 @@ const getFollowerUserIds = async (artistUserId: string) => {
   }
 
   const db = createDb(),
-   link = notificationHrefForKind(kind, experienceId),
-   rows = recipientUserIds.map((userId) => ({
-    id: `${type}:${experienceId}:${userId}`,
-    link,
-    message,
-    title,
-    type,
-    userId,
-  }));
+    link = notificationHrefForKind(kind, experienceId),
+    rows = recipientUserIds.map((userId) => ({
+      id: `${type}:${experienceId}:${userId}`,
+      link,
+      message,
+      title,
+      type,
+      userId,
+    }));
 
   await db.insert(userNotifications).values(rows).onConflictDoNothing();
 
@@ -278,7 +274,7 @@ export const fanoutGoLiveNotifications = async ({
   title: string;
 }) => {
   const followerUserIds = await getFollowerUserIds(creatorUserId),
-   href = notificationHrefForKind(kind, experienceId);
+    href = notificationHrefForKind(kind, experienceId);
   let noun: string;
 
   if (kind === "battle") {
@@ -290,22 +286,21 @@ export const fanoutGoLiveNotifications = async ({
   }
 
   const followerNotifications = await insertNotificationsForUsers({
-    experienceId,
-    kind,
-    message: `${title} is live. Tap in to watch, chat, and react.`,
-    recipientUserIds: followerUserIds,
-    title: `${title} is live`,
-    type: `${notificationTypeForKind(kind)}_live`,
-  }),
-
-   premiumNotifications = await insertNotificationsForUsers({
-    experienceId,
-    kind,
-    message: `${title} is live. Premium watchers get the full Must Watch room.`,
-    recipientUserIds: await getPremiumWatcherUserIds(),
-    title: `Must Watch: ${title} is live`,
-    type: `${notificationTypeForKind(kind)}_must_watch`,
-  });
+      experienceId,
+      kind,
+      message: `${title} is live. Tap in to watch, chat, and react.`,
+      recipientUserIds: followerUserIds,
+      title: `${title} is live`,
+      type: `${notificationTypeForKind(kind)}_live`,
+    }),
+    premiumNotifications = await insertNotificationsForUsers({
+      experienceId,
+      kind,
+      message: `${title} is live. Premium watchers get the full Must Watch room.`,
+      recipientUserIds: await getPremiumWatcherUserIds(),
+      title: `Must Watch: ${title} is live`,
+      type: `${notificationTypeForKind(kind)}_must_watch`,
+    });
 
   return {
     creatorHref: href,
@@ -323,29 +318,26 @@ const getPremiumWatcherUserIds = async () => {
   }
 
   const db = createDb(),
-
-   subscriptionRows = await db
-    .select({
-      referenceId: subscription.referenceId,
-    })
-    .from(subscription)
-    .where(inArray(subscription.status, [...ACTIVE_SUBSCRIPTION_STATUSES]))
-    .limit(1000),
-
-   memberRows =
-    subscriptionRows.length > 0
-      ? await db
-          .select({ userId: member.userId })
-          .from(member)
-          .where(
-            inArray(
-              member.organizationId,
-              subscriptionRows.map(({ referenceId }) => referenceId)
+    subscriptionRows = await db
+      .select({
+        referenceId: subscription.referenceId,
+      })
+      .from(subscription)
+      .where(inArray(subscription.status, [...ACTIVE_SUBSCRIPTION_STATUSES]))
+      .limit(1000),
+    memberRows =
+      subscriptionRows.length > 0
+        ? await db
+            .select({ userId: member.userId })
+            .from(member)
+            .where(
+              inArray(
+                member.organizationId,
+                subscriptionRows.map(({ referenceId }) => referenceId)
+              )
             )
-          )
-      : [],
-
-   userIds: string[] = [];
+        : [],
+    userIds: string[] = [];
 
   for (const row of subscriptionRows) {
     if (row.referenceId) {
@@ -386,10 +378,10 @@ export const applyRecordingStatusUpdate = async (
   }
 
   const recording =
-    typeof payload.recording === "object" && payload.recording !== null
-      ? (payload.recording as RecordingStatusPayload)
-      : {},
-   status = getString(recording.status) ?? null;
+      typeof payload.recording === "object" && payload.recording !== null
+        ? (payload.recording as RecordingStatusPayload)
+        : {},
+    status = getString(recording.status) ?? null;
 
   if (status !== "UPLOADED") {
     await createDb()
@@ -405,20 +397,20 @@ export const applyRecordingStatusUpdate = async (
   }
 
   const downloadUrl = getString(recording.downloadUrl),
-   audioDownloadUrl = getString(recording.audioDownloadUrl),
-   expiresAt = getString(recording.downloadUrlExpiry),
-   [updated] = await createDb()
-    .update(liveExperiences)
-    .set({
-      recordingAudioUrl: audioDownloadUrl ?? experience.recordingAudioUrl,
-      recordingExpiresAt: expiresAt ? new Date(expiresAt) : null,
-      recordingId: getString(recording.id) ?? experience.recordingId,
-      recordingStatus: "UPLOADED",
-      recordingUrl: downloadUrl ?? experience.recordingUrl,
-      updatedAt: new Date(),
-    })
-    .where(eq(liveExperiences.id, experience.id))
-    .returning();
+    audioDownloadUrl = getString(recording.audioDownloadUrl),
+    expiresAt = getString(recording.downloadUrlExpiry),
+    [updated] = await createDb()
+      .update(liveExperiences)
+      .set({
+        recordingAudioUrl: audioDownloadUrl ?? experience.recordingAudioUrl,
+        recordingExpiresAt: expiresAt ? new Date(expiresAt) : null,
+        recordingId: getString(recording.id) ?? experience.recordingId,
+        recordingStatus: "UPLOADED",
+        recordingUrl: downloadUrl ?? experience.recordingUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(liveExperiences.id, experience.id))
+      .returning();
 
   if (updated && downloadUrl) {
     await scheduleLiveRecordingPublish({
@@ -431,8 +423,8 @@ export const applyRecordingStatusUpdate = async (
 };
 
 const LIVE_RECORDING_PUBLISH_JOB_TYPE = "live_recording_publish",
- LIVE_RECORDING_PUBLISH_DELAY_MS = 60 * 60 * 1000,
- LIVE_RECORDING_RETRY_DELAY_MS = 5 * 60 * 1000;
+  LIVE_RECORDING_PUBLISH_DELAY_MS = 60 * 60 * 1000,
+  LIVE_RECORDING_RETRY_DELAY_MS = 5 * 60 * 1000;
 
 export const scheduleLiveRecordingPublish = async ({
   experience,
@@ -448,17 +440,17 @@ export const scheduleLiveRecordingPublish = async ({
   }
 
   const db = createDb(),
-   [existing] = await db
-    .select({ id: workflowJobs.id })
-    .from(workflowJobs)
-    .where(
-      and(
-        eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
-        eq(workflowJobs.targetId, experience.id),
-        inArray(workflowJobs.status, ["queued", "running"])
+    [existing] = await db
+      .select({ id: workflowJobs.id })
+      .from(workflowJobs)
+      .where(
+        and(
+          eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
+          eq(workflowJobs.targetId, experience.id),
+          inArray(workflowJobs.status, ["queued", "running"])
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
   if (existing) {
     return null;
@@ -495,7 +487,7 @@ export const applyChatSyncedEvent = async (
   }
 
   const chatDownloadUrl = getString(payload.chatDownloadUrl),
-   chatDownloadUrlExpiry = getString(payload.chatDownloadUrlExpiry);
+    chatDownloadUrlExpiry = getString(payload.chatDownloadUrlExpiry);
 
   if (!chatDownloadUrl) {
     return "ignored" as const;
@@ -637,19 +629,19 @@ export const updateArtistRecordsForBattle = async ({
   }
 
   const db = createDb(),
-   roundRows = await db
-    .select({
-      trackOneId: battleRounds.trackOneId,
-      trackTwoId: battleRounds.trackTwoId,
-      winningTrackId: battleRounds.winningTrackId,
-    })
-    .from(battleRounds)
-    .where(
-      and(
-        eq(battleRounds.battleId, battleId),
-        eq(battleRounds.status, "completed")
-      )
-    );
+    roundRows = await db
+      .select({
+        trackOneId: battleRounds.trackOneId,
+        trackTwoId: battleRounds.trackTwoId,
+        winningTrackId: battleRounds.winningTrackId,
+      })
+      .from(battleRounds)
+      .where(
+        and(
+          eq(battleRounds.battleId, battleId),
+          eq(battleRounds.status, "completed")
+        )
+      );
 
   if (roundRows.length === 0) {
     return { losses: 0, skipped: true, wins: 0 };
@@ -672,19 +664,18 @@ export const updateArtistRecordsForBattle = async ({
   }
 
   const trackRows = await db
-    .select({
-      id: tracks.id,
-      ownerUserId: tracks.ownerUserId,
-    })
-    .from(tracks)
-    .where(inArray(tracks.id, trackIds)),
+      .select({
+        id: tracks.id,
+        ownerUserId: tracks.ownerUserId,
+      })
+      .from(tracks)
+      .where(inArray(tracks.id, trackIds)),
+    ownerByTrackId = new Map(
+      trackRows.map((track) => [track.id, track.ownerUserId])
+    );
 
-   ownerByTrackId = new Map(
-    trackRows.map((track) => [track.id, track.ownerUserId])
-  );
-
-  let wins = 0,
-   losses = 0;
+  let losses = 0,
+    wins = 0;
 
   const upsertBattleStats = async ({
     isWinner,
@@ -786,13 +777,12 @@ export const publishExperienceRecordingAsVideo = async ({
   }
 
   const db = createDb(),
-   videoId = `video_live_${experience.id}`,
-   slug = `live-${experience.kind}-${experience.id.replaceAll("_", "-")}`,
-
-   playbackUrl = await copyRecordingToPublicMedia({
-    experienceId: experience.id,
-    sourceUrl: recordingUrl,
-  });
+    videoId = `video_live_${experience.id}`,
+    slug = `live-${experience.kind}-${experience.id.replaceAll("_", "-")}`,
+    playbackUrl = await copyRecordingToPublicMedia({
+      experienceId: experience.id,
+      sourceUrl: recordingUrl,
+    });
 
   await db
     .insert(videos)
@@ -823,51 +813,51 @@ export const publishExperienceRecordingAsVideo = async ({
 };
 
 const getRecordingMediaHelpers = () => ({
-  bucket: (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
-  publicUrl:
-    (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined })
-      .MEDIA_PUBLIC_URL ??
-    (env as unknown as { VITE_MEDIA_URL?: string | undefined })
-      .VITE_MEDIA_URL ??
-    "",
-}),
+    bucket:
+      (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
+    publicUrl:
+      (env as unknown as { MEDIA_PUBLIC_URL?: string | undefined })
+        .MEDIA_PUBLIC_URL ??
+      (env as unknown as { VITE_MEDIA_URL?: string | undefined })
+        .VITE_MEDIA_URL ??
+      "",
+  }),
+  copyRecordingToPublicMedia = async ({
+    experienceId,
+    sourceUrl,
+  }: {
+    experienceId: string;
+    sourceUrl: string;
+  }) => {
+    const { bucket, publicUrl } = getRecordingMediaHelpers();
 
- copyRecordingToPublicMedia = async ({
-  experienceId,
-  sourceUrl,
-}: {
-  experienceId: string;
-  sourceUrl: string;
-}) => {
-  const { bucket, publicUrl } = getRecordingMediaHelpers();
-
-  if (!bucket) {
-    return null;
-  }
-
-  const extension = /\.(mp4|mov|webm|mkv|m4v)(?:$|[?#])/iu.test(sourceUrl)
-    ? "mp4"
-    : "mp3",
-   objectKey = `live-recordings/${experienceId}/recording.${extension}`;
-
-  try {
-    const response = await fetch(sourceUrl);
-
-    if (!response.ok || !response.body) {
+    if (!bucket) {
       return null;
     }
 
-    await bucket.put(objectKey, response.body, {
-      httpMetadata: {
-        contentType: extension === "mp4" ? "video/mp4" : "audio/mpeg",
-      },
-    });
+    const extension = /\.(mp4|mov|webm|mkv|m4v)(?:$|[?#])/iu.test(sourceUrl)
+        ? "mp4"
+        : "mp3",
+      objectKey = `live-recordings/${experienceId}/recording.${extension}`;
 
-    return `${publicUrl.replace(/\/+$/u, "")}/${objectKey}`;
-  } catch {
-    return null;
-  }
-};
+    try {
+      const response = await fetch(sourceUrl);
+
+      if (!response.ok || !response.body) {
+        return null;
+      }
+
+      await bucket.put(objectKey, response.body, {
+        httpMetadata: {
+          contentType: extension === "mp4" ? "video/mp4" : "audio/mpeg",
+        },
+      });
+
+      return `${publicUrl.replace(/\/+$/u, "")}/${objectKey}`;
+    } catch {
+      return null;
+    }
+  };
 
 export const publishDueLiveRecordings = async ({
   limit = 10,
@@ -881,24 +871,24 @@ export const publishDueLiveRecordings = async ({
   }
 
   const db = createDb(),
-   jobs = await db
-    .select()
-    .from(workflowJobs)
-    .where(
-      and(
-        eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
-        inArray(workflowJobs.status, ["queued", "running"]),
-        lte(workflowJobs.scheduledAt, now)
+    jobs = await db
+      .select()
+      .from(workflowJobs)
+      .where(
+        and(
+          eq(workflowJobs.jobType, LIVE_RECORDING_PUBLISH_JOB_TYPE),
+          inArray(workflowJobs.status, ["queued", "running"]),
+          lte(workflowJobs.scheduledAt, now)
+        )
       )
-    )
-    .limit(Math.max(1, Math.min(limit, 50)));
+      .limit(Math.max(1, Math.min(limit, 50)));
 
   let done = 0,
-   failed = 0;
+    failed = 0;
 
   for (const job of jobs) {
     const input = (job.input ?? {}) as { recordingUrl?: string },
-     experience = await loadLiveExperienceById(job.targetId);
+      experience = await loadLiveExperienceById(job.targetId);
 
     if (!experience || !input.recordingUrl) {
       await db
@@ -1040,11 +1030,13 @@ export const applyBattleBotAction = async ({
   }
 
   const db = createDb(),
-   [battle] = await db
-    .select({ id: battles.id, status: battles.status })
-    .from(battles)
-    .where(or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId)))
-    .limit(1);
+    [battle] = await db
+      .select({ id: battles.id, status: battles.status })
+      .from(battles)
+      .where(
+        or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
+      )
+      .limit(1);
 
   if (!battle) {
     return {
@@ -1054,24 +1046,22 @@ export const applyBattleBotAction = async ({
   }
 
   const roundRows = await db
-    .select({
-      id: battleRounds.id,
-      isTiebreaker: battleRounds.isTiebreaker,
-      roundNumber: battleRounds.roundNumber,
-      status: battleRounds.status,
-      trackOneId: battleRounds.trackOneId,
-      trackOneVotes: battleRounds.trackOneVotes,
-      trackTwoId: battleRounds.trackTwoId,
-      trackTwoVotes: battleRounds.trackTwoVotes,
-    })
-    .from(battleRounds)
-    .where(eq(battleRounds.battleId, battle.id))
-    .orderBy(asc(battleRounds.roundNumber)),
-
-   activeRound =
-    roundRows.find((round) => round.status === "active") ?? null,
-   upcomingRound =
-    roundRows.find((round) => round.status === "upcoming") ?? null;
+      .select({
+        id: battleRounds.id,
+        isTiebreaker: battleRounds.isTiebreaker,
+        roundNumber: battleRounds.roundNumber,
+        status: battleRounds.status,
+        trackOneId: battleRounds.trackOneId,
+        trackOneVotes: battleRounds.trackOneVotes,
+        trackTwoId: battleRounds.trackTwoId,
+        trackTwoVotes: battleRounds.trackTwoVotes,
+      })
+      .from(battleRounds)
+      .where(eq(battleRounds.battleId, battle.id))
+      .orderBy(asc(battleRounds.roundNumber)),
+    activeRound = roundRows.find((round) => round.status === "active") ?? null,
+    upcomingRound =
+      roundRows.find((round) => round.status === "upcoming") ?? null;
 
   if (action === "open_lobby") {
     await db
@@ -1145,11 +1135,11 @@ export const applyBattleBotAction = async ({
         .where(eq(battleRounds.id, nextRound.id));
 
       const nonVoters = participants
-        .filter((participant) => !participant.voted)
-        .map(({ id }) => id),
-       inLobby = participants
-        .filter((participant) => participant.inLobby)
-        .map(({ id }) => id);
+          .filter((participant) => !participant.voted)
+          .map(({ id }) => id),
+        inLobby = participants
+          .filter((participant) => participant.inLobby)
+          .map(({ id }) => id);
 
       return {
         admitted: inLobby,
@@ -1190,11 +1180,11 @@ export const applyBattleBotAction = async ({
   }
 
   const inLobby = participants
-    .filter((participant) => participant.inLobby)
-    .map(({ id }) => id),
-   nonVoters = participants
-    .filter((participant) => !participant.voted)
-    .map(({ id }) => id);
+      .filter((participant) => participant.inLobby)
+      .map(({ id }) => id),
+    nonVoters = participants
+      .filter((participant) => !participant.voted)
+      .map(({ id }) => id);
 
   return {
     nextPhase: "between_rounds",

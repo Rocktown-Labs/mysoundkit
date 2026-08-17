@@ -32,32 +32,31 @@ export function ArtistLeaderboardCard({
   showBorder = true,
 }: ArtistLeaderboardCardProps) {
   const getStatIcon = () => {
-    switch (type) {
-      case "rising": {
-        return <TrendingUp className="size-3 text-primary" />;
+      switch (type) {
+        case "rising": {
+          return <TrendingUp className="size-3 text-primary" />;
+        }
+        case "new": {
+          return <Users className="size-3 text-green-500" />;
+        }
+        case "top": {
+          return <Trophy className="size-3 text-amber-500" />;
+        }
       }
-      case "new": {
-        return <Users className="size-3 text-green-500" />;
+    },
+    getStatLabel = (artist: LeaderboardArtist) => {
+      switch (type) {
+        case "rising": {
+          return `${artist.stats.plays} plays this week`;
+        }
+        case "new": {
+          return `Joined recently • ${artist.stats.followers} followers`;
+        }
+        case "top": {
+          return `${artist.stats.followers} followers • ${artist.stats.battleWins} wins`;
+        }
       }
-      case "top": {
-        return <Trophy className="size-3 text-amber-500" />;
-      }
-    }
-  },
-
-   getStatLabel = (artist: LeaderboardArtist) => {
-    switch (type) {
-      case "rising": {
-        return `${artist.stats.plays} plays this week`;
-      }
-      case "new": {
-        return `Joined recently • ${artist.stats.followers} followers`;
-      }
-      case "top": {
-        return `${artist.stats.followers} followers • ${artist.stats.battleWins} wins`;
-      }
-    }
-  };
+    };
 
   return (
     <div

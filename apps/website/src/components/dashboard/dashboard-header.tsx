@@ -20,15 +20,14 @@ import {
 } from "@/lib/soundkit-api-hooks";
 
 const SEARCH_DEBOUNCE_MS = 250,
-
- resultLinkClassName =
-  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent";
+  resultLinkClassName =
+    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent";
 
 export function DashboardHeader() {
   const [searchValue, setSearchValue] = useState(""),
-   [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
-   searchInputRef = useRef<HTMLInputElement>(null),
-   trimmedSearchValue = debouncedSearchValue.trim();
+    [debouncedSearchValue, setDebouncedSearchValue] = useState(""),
+    searchInputRef = useRef<HTMLInputElement>(null),
+    trimmedSearchValue = debouncedSearchValue.trim();
 
   useHotkey("Mod+K", (event) => {
     event.preventDefault();
@@ -37,20 +36,19 @@ export function DashboardHeader() {
   });
 
   const notificationsQuery = useNotificationsQuery(),
-   markReadMutation = useMarkNotificationsReadMutation(),
-
-   notifications = notificationsQuery.data?.items ?? [],
-   unreadCount = notificationsQuery.data?.unreadCount ?? 0,
-   searchQuery = useSearchQuery({
-    limit: "8",
-    q: trimmedSearchValue,
-    type: "all",
-  }),
-   results = searchQuery.data,
-   resultCount =
-    (results?.artists.length ?? 0) +
-    (results?.tracks.length ?? 0) +
-    (results?.projects.length ?? 0);
+    markReadMutation = useMarkNotificationsReadMutation(),
+    notifications = notificationsQuery.data?.items ?? [],
+    unreadCount = notificationsQuery.data?.unreadCount ?? 0,
+    searchQuery = useSearchQuery({
+      limit: "8",
+      q: trimmedSearchValue,
+      type: "all",
+    }),
+    results = searchQuery.data,
+    resultCount =
+      (results?.artists.length ?? 0) +
+      (results?.tracks.length ?? 0) +
+      (results?.projects.length ?? 0);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

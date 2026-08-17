@@ -46,14 +46,14 @@ export function PostDetailModal({
   onNavigate,
 }: PostDetailModalProps) {
   const [isLiked, setIsLiked] = useState(false),
-   [isSaved, setIsSaved] = useState(false);
+    [isSaved, setIsSaved] = useState(false);
 
   if (!post) {
     return null;
   }
 
   const hasPrev = currentIndex > 0,
-   hasNext = currentIndex < allPosts.length - 1;
+    hasNext = currentIndex < allPosts.length - 1;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

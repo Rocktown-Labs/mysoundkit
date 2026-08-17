@@ -29,98 +29,95 @@ export const Route = createFileRoute("/signup/fan/onboarding")({
 
 function FanOnboardingPage() {
   const posthog = usePostHog(),
-   router = useRouter(),
-   [city, setCity] = useState(""),
-   [errorMessage, setErrorMessage] = useState<string | null>(null),
-   [isSubmitting, setIsSubmitting] = useState(false),
-   [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
-   [selectedPlanCode, setSelectedPlanCode] = useState(
-    "soundkit_premium_fan"
-  ),
-   [stateValue, setStateValue] = useState(""),
-   [step, setStep] = useState(1),
-   [selectedGenres, setSelectedGenres] = useState<string[]>([]),
-   [username, setUsername] = useState(""),
-   totalSteps = 4,
+    router = useRouter(),
+    [city, setCity] = useState(""),
+    [errorMessage, setErrorMessage] = useState<string | null>(null),
+    [isSubmitting, setIsSubmitting] = useState(false),
+    [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
+    [selectedPlanCode, setSelectedPlanCode] = useState("soundkit_premium_fan"),
+    [stateValue, setStateValue] = useState(""),
+    [step, setStep] = useState(1),
+    [selectedGenres, setSelectedGenres] = useState<string[]>([]),
+    [username, setUsername] = useState(""),
+    totalSteps = 4,
+    progress = (step / totalSteps) * 100,
+    genres = [
+      "Hip-Hop",
+      "R&B/Soul",
+      "Pop",
+      "Electronic",
+      "Spoken Word",
+      "Rock",
+      "Jazz",
+      "Afrobeats",
+      "Latin",
+      "Country",
+      "Reggae",
+      "Indie",
+      "Metal",
+      "Spoken Word",
+    ],
+    toggleGenre = (genre: string) => {
+      setSelectedGenres((prev) =>
+        prev.includes(genre)
+          ? prev.filter((g) => g !== genre)
+          : [...prev, genre]
+      );
+    },
+    completeOnboarding = async (planCode = selectedPlanCode) => {
+      setErrorMessage(null);
+      setIsSubmitting(true);
 
-   progress = (step / totalSteps) * 100,
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
+            body: JSON.stringify({
+              city: city || "Los Angeles",
+              genrePreferences: selectedGenres,
+              mediaLayout,
+              selectedPlanCode: planCode,
+              state: stateValue || "ca",
+              username: username || "soundkit-fan",
+            }),
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+          }),
+          payload = (await response.json().catch(() => null)) as {
+            checkoutUrl?: string | null;
+            message?: string;
+          } | null;
 
-   genres = [
-    "Hip-Hop",
-    "R&B/Soul",
-    "Pop",
-    "Electronic",
-    "Spoken Word",
-    "Rock",
-    "Jazz",
-    "Afrobeats",
-    "Latin",
-    "Country",
-    "Reggae",
-    "Indie",
-    "Metal",
-    "Spoken Word",
-  ],
+        if (!response.ok) {
+          setErrorMessage(
+            payload?.message ?? "Unable to complete onboarding right now."
+          );
+          return;
+        }
 
-   toggleGenre = (genre: string) => {
-    setSelectedGenres((prev) =>
-      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre]
-    );
-  },
+        posthog.capture("fan_onboarding_completed", {
+          genre_count: selectedGenres.length,
+          has_checkout: Boolean(payload?.checkoutUrl),
+          plan_code: planCode,
+          selected_genres: selectedGenres,
+        });
 
-   completeOnboarding = async (planCode = selectedPlanCode) => {
-    setErrorMessage(null);
-    setIsSubmitting(true);
+        if (payload?.checkoutUrl) {
+          window.location.assign(payload.checkoutUrl);
+          return;
+        }
 
-    try {
-      const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
-        body: JSON.stringify({
-          city: city || "Los Angeles",
-          genrePreferences: selectedGenres,
-          mediaLayout,
-          selectedPlanCode: planCode,
-          state: stateValue || "ca",
-          username: username || "soundkit-fan",
-        }),
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      }),
-
-       payload = (await response.json().catch(() => null)) as {
-        checkoutUrl?: string | null;
-        message?: string;
-      } | null;
-
-      if (!response.ok) {
+        await router.navigate({ to: "/" });
+      } catch (error) {
+        posthog.captureException(error);
         setErrorMessage(
-          payload?.message ?? "Unable to complete onboarding right now."
+          "Unable to reach SoundKit. Check your API credentials."
         );
-        return;
+      } finally {
+        setIsSubmitting(false);
       }
-
-      posthog.capture("fan_onboarding_completed", {
-        genre_count: selectedGenres.length,
-        has_checkout: Boolean(payload?.checkoutUrl),
-        plan_code: planCode,
-        selected_genres: selectedGenres,
-      });
-
-      if (payload?.checkoutUrl) {
-        window.location.assign(payload.checkoutUrl);
-        return;
-      }
-
-      await router.navigate({ to: "/" });
-    } catch (error) {
-      posthog.captureException(error);
-      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

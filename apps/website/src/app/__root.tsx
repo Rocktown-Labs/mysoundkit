@@ -27,12 +27,12 @@ export type RouterAppContext = Record<string, never>;
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   const posthogProjectToken = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN,
-   app = (
-    <AppProviders>
-      {children}
-      <Scripts />
-    </AppProviders>
-  );
+    app = (
+      <AppProviders>
+        {children}
+        <Scripts />
+      </AppProviders>
+    );
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>

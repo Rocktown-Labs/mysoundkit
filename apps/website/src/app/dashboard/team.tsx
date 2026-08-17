@@ -52,99 +52,92 @@ interface PlanMember {
   status: "active" | "invited";
 }
 
-export function TeamPage() {
+function TeamPage() {
   const { toast } = useToast(),
-   [isInviteOpen, setIsInviteOpen] = useState(false),
-   [isRenameOpen, setIsRenameOpen] = useState(false),
-   [newWorkspaceName, setNewWorkspaceName] = useState(""),
-   [searchQuery, setSearchQuery] = useState(""),
-
-   meQuery = useMeQuery(),
-   friendsQuery = useFriendsQuery(),
-   updateWorkspaceMutation = useUpdateWorkspaceMutation(),
-
-   user = meQuery.data?.user,
-   activeWorkspace = meQuery.data?.activeWorkspace,
-   collaborators = friendsQuery.data ?? [],
-
-  // Team Plan Seats state (5 total seats per subscription plan)
-   [teamMembers, setTeamMembers] = useState<PlanMember[]>([
-    {
-      email: user?.email ?? "owner@mysoundkit.com",
-      id: "member-owner",
-      name: user?.displayName ?? "Workspace Owner",
-      role: "Owner / Primary Account",
-      status: "active",
+    [isInviteOpen, setIsInviteOpen] = useState(false),
+    [isRenameOpen, setIsRenameOpen] = useState(false),
+    [newWorkspaceName, setNewWorkspaceName] = useState(""),
+    [searchQuery, setSearchQuery] = useState(""),
+    meQuery = useMeQuery(),
+    friendsQuery = useFriendsQuery(),
+    updateWorkspaceMutation = useUpdateWorkspaceMutation(),
+    user = meQuery.data?.user,
+    activeWorkspace = meQuery.data?.activeWorkspace,
+    collaborators = friendsQuery.data ?? [],
+    // Team Plan Seats state (5 total seats per subscription plan)
+    [teamMembers, setTeamMembers] = useState<PlanMember[]>([
+      {
+        email: user?.email ?? "owner@mysoundkit.com",
+        id: "member-owner",
+        name: user?.displayName ?? "Workspace Owner",
+        role: "Owner / Primary Account",
+        status: "active",
+      },
+    ]),
+    handleRenameWorkspace = async () => {
+      if (!newWorkspaceName.trim()) {
+        return;
+      }
+      try {
+        await updateWorkspaceMutation.mutateAsync({ name: newWorkspaceName });
+        setIsRenameOpen(false);
+        toast({
+          description: `Renamed workspace to "${newWorkspaceName}".`,
+          title: "Workspace Updated",
+        });
+      } catch {
+        toast({
+          description: "Could not rename workspace.",
+          title: "Error",
+          variant: "destructive",
+        });
+      }
     },
-  ]),
-
-   handleRenameWorkspace = async () => {
-    if (!newWorkspaceName.trim()) {
-      return;
-    }
-    try {
-      await updateWorkspaceMutation.mutateAsync({ name: newWorkspaceName });
-      setIsRenameOpen(false);
+    handleRevokeMember = (memberId: string) => {
+      setTeamMembers((prev) => prev.filter((m) => m.id !== memberId));
       toast({
-        description: `Renamed workspace to "${newWorkspaceName}".`,
-        title: "Workspace Updated",
+        description: "Member access revoked.",
+        title: "Plan Member Removed",
       });
-    } catch {
-      toast({
-        description: "Could not rename workspace.",
-        title: "Error",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleRevokeMember = (memberId: string) => {
-    setTeamMembers((prev) => prev.filter((m) => m.id !== memberId));
-    toast({
-      description: "Member access revoked.",
-      title: "Plan Member Removed",
-    });
-  },
-
-   filteredCollaborators = collaborators.filter((person) => {
-    if (person.id === user?.id) {
-      return false;
-    }
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return true;
-    }
-    return [person.name, person.username, person.email, person.role]
-      .filter((value): value is string => typeof value === "string")
-      .some((value) => value.toLowerCase().includes(query));
-  }),
-
-   teamStats = [
-    {
-      description: activeWorkspace?.name ?? "My Workspace",
-      icon: Users,
-      title: "Active Workspace",
-      value: "1",
     },
-    {
-      description: `${teamMembers.length} of 5 seats filled`,
-      icon: UserPlus,
-      title: "Plan Seats Used",
-      value: `${teamMembers.length} / 5`,
-    },
-    {
-      description: "People credited on your tracks & projects",
-      icon: UserCheck,
-      title: "Track Collaborators",
-      value: String(collaborators.length),
-    },
-    {
-      description: activeWorkspace?.role ?? "Owner",
-      icon: ShieldCheck,
-      title: "Your Role",
-      value: activeWorkspace?.role ?? "Owner",
-    },
-  ];
+    filteredCollaborators = collaborators.filter((person) => {
+      if (person.id === user?.id) {
+        return false;
+      }
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) {
+        return true;
+      }
+      return [person.name, person.username, person.email, person.role]
+        .filter((value): value is string => typeof value === "string")
+        .some((value) => value.toLowerCase().includes(query));
+    }),
+    teamStats = [
+      {
+        description: activeWorkspace?.name ?? "My Workspace",
+        icon: Users,
+        title: "Active Workspace",
+        value: "1",
+      },
+      {
+        description: `${teamMembers.length} of 5 seats filled`,
+        icon: UserPlus,
+        title: "Plan Seats Used",
+        value: `${teamMembers.length} / 5`,
+      },
+      {
+        description: "People credited on your tracks & projects",
+        icon: UserCheck,
+        title: "Track Collaborators",
+        value: String(collaborators.length),
+      },
+      {
+        description: activeWorkspace?.role ?? "Owner",
+        icon: ShieldCheck,
+        title: "Your Role",
+        value: activeWorkspace?.role ?? "Owner",
+      },
+    ];
 
   return (
     <div className="space-y-6">

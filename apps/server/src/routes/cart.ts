@@ -31,168 +31,217 @@ interface CartMutationResult {
 }
 
 const centsFromPrice = (price: string | null, priceCents: number | null) => {
-  if (typeof priceCents === "number") {
-    return priceCents;
-  }
+    if (typeof priceCents === "number") {
+      return priceCents;
+    }
 
-  if (!price) {
-    return null;
-  }
+    if (!price) {
+      return null;
+    }
 
-  return Math.round(Number(price) * 100);
-},
+    return Math.round(Number(price) * 100);
+  },
+  toCartResponse = async (user: AuthenticatedUser): Promise<CartResponse> => {
+    const db = createDb(),
+      [cart] = await db.select().from(carts).where(eq(carts.userId, user.id));
 
- toCartResponse = async (
-  user: AuthenticatedUser
-): Promise<CartResponse> => {
-  const db = createDb(),
-   [cart] = await db.select().from(carts).where(eq(carts.userId, user.id));
+    if (!cart) {
+      return {
+        currency: "USD",
+        id: null,
+        itemCount: 0,
+        items: [],
+        subtotalCents: 0,
+        totalCents: 0,
+      };
+    }
 
-  if (!cart) {
+    const rows = await db
+        .select()
+        .from(cartItems)
+        .where(eq(cartItems.cartId, cart.id)),
+      items: CartItemResponse[] = [];
+
+    for (const row of rows) {
+      let licenseName: string | null = null;
+
+      if (row.licenseOptionId) {
+        const [license] = await db
+          .select({ name: trackLicenseOptions.name })
+          .from(trackLicenseOptions)
+          .where(eq(trackLicenseOptions.id, row.licenseOptionId));
+        licenseName = license?.name ?? null;
+      }
+
+      const productId = row.trackId ?? row.projectId ?? row.id,
+        productType: "track" | "project" =
+          row.productType === "project" ? "project" : "track",
+        purchaseMode: "digital_download" | "license" = row.licenseOptionId
+          ? "license"
+          : "digital_download";
+
+      items.push({
+        artistName: null,
+        coverArtUrl: null,
+        currency: row.currency,
+        id: row.id,
+        licenseName,
+        licenseOptionId: row.licenseOptionId,
+        priceCents: row.priceCentsSnapshot,
+        productId,
+        productType,
+        projectId: row.projectId,
+        purchaseMode,
+        quantity: row.quantity,
+        title: row.titleSnapshot,
+        trackId: row.trackId,
+      });
+    }
+
+    const subtotalCents = items.reduce(
+        (sum, item) => sum + item.priceCents * item.quantity,
+        0
+      ),
+      itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
     return {
       currency: "USD",
-      id: null,
-      itemCount: 0,
-      items: [],
-      subtotalCents: 0,
-      totalCents: 0,
+      id: cart.id,
+      itemCount,
+      items,
+      subtotalCents,
+      totalCents: subtotalCents,
     };
-  }
-
-  const rows = await db
-    .select()
-    .from(cartItems)
-    .where(eq(cartItems.cartId, cart.id)),
-
-   items: CartItemResponse[] = [];
-
-  for (const row of rows) {
-    let licenseName: string | null = null;
-
-    if (row.licenseOptionId) {
-      const [license] = await db
-        .select({ name: trackLicenseOptions.name })
-        .from(trackLicenseOptions)
-        .where(eq(trackLicenseOptions.id, row.licenseOptionId));
-      licenseName = license?.name ?? null;
-    }
-
-    const productId = row.trackId ?? row.projectId ?? row.id,
-     productType: "track" | "project" =
-      row.productType === "project" ? "project" : "track",
-     purchaseMode: "digital_download" | "license" = row.licenseOptionId
-      ? "license"
-      : "digital_download";
-
-    items.push({
-      artistName: null,
-      coverArtUrl: null,
-      currency: row.currency,
-      id: row.id,
-      licenseName,
-      licenseOptionId: row.licenseOptionId,
-      priceCents: row.priceCentsSnapshot,
-      productId,
-      productType,
-      projectId: row.projectId,
-      purchaseMode,
-      quantity: row.quantity,
-      title: row.titleSnapshot,
-      trackId: row.trackId,
-    });
-  }
-
-  const subtotalCents = items.reduce(
-    (sum, item) => sum + item.priceCents * item.quantity,
-    0
-  ),
-   itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-
-  return {
-    currency: "USD",
-    id: cart.id,
-    itemCount,
-    items,
-    subtotalCents,
-    totalCents: subtotalCents,
-  };
-},
-
- getOrCreateCart = async (user: AuthenticatedUser) => {
-  const db = createDb(),
-   [existingCart] = await db
-    .select()
-    .from(carts)
-    .where(eq(carts.userId, user.id));
-
-  if (existingCart) {
-    return existingCart;
-  }
-
-  const [createdCart] = await db
-    .insert(carts)
-    .values({
-      id: crypto.randomUUID(),
-      userId: user.id,
-    })
-    .returning();
-
-  if (!createdCart) {
-    throw new Error("Unable to create cart.");
-  }
-
-  return createdCart;
-},
-
- addItemToCart = async ({
-  body,
-  user,
-}: {
-  body: z.infer<typeof addCartItemBodySchema>;
-  user: AuthenticatedUser;
-}): Promise<CartMutationResult> => {
-  const db = createDb(),
-   cart = await getOrCreateCart(user),
-   quantity = body.quantity ?? 1;
-
-  if (body.productType === "track") {
-    if (!body.trackId) {
-      return { error: "Track cart items require a trackId." };
-    }
-
-    const [track] = await db
-      .select()
-      .from(tracks)
-      .where(eq(tracks.id, body.trackId));
-
-    if (!track) {
-      return { error: "Track was not found." };
-    }
-
-    let priceCents = centsFromPrice(track.price, track.priceCents),
-     titleSnapshot = track.title;
-
-    if (body.licenseOptionId) {
-      const [license] = await db
+  },
+  getOrCreateCart = async (user: AuthenticatedUser) => {
+    const db = createDb(),
+      [existingCart] = await db
         .select()
-        .from(trackLicenseOptions)
+        .from(carts)
+        .where(eq(carts.userId, user.id));
+
+    if (existingCart) {
+      return existingCart;
+    }
+
+    const [createdCart] = await db
+      .insert(carts)
+      .values({
+        id: crypto.randomUUID(),
+        userId: user.id,
+      })
+      .returning();
+
+    if (!createdCart) {
+      throw new Error("Unable to create cart.");
+    }
+
+    return createdCart;
+  },
+  addItemToCart = async ({
+    body,
+    user,
+  }: {
+    body: z.infer<typeof addCartItemBodySchema>;
+    user: AuthenticatedUser;
+  }): Promise<CartMutationResult> => {
+    const db = createDb(),
+      cart = await getOrCreateCart(user),
+      quantity = body.quantity ?? 1;
+
+    if (body.productType === "track") {
+      if (!body.trackId) {
+        return { error: "Track cart items require a trackId." };
+      }
+
+      const [track] = await db
+        .select()
+        .from(tracks)
+        .where(eq(tracks.id, body.trackId));
+
+      if (!track) {
+        return { error: "Track was not found." };
+      }
+
+      let priceCents = centsFromPrice(track.price, track.priceCents),
+        titleSnapshot = track.title;
+
+      if (body.licenseOptionId) {
+        const [license] = await db
+          .select()
+          .from(trackLicenseOptions)
+          .where(
+            and(
+              eq(trackLicenseOptions.id, body.licenseOptionId),
+              eq(trackLicenseOptions.trackId, body.trackId)
+            )
+          );
+
+        if (!license) {
+          return { error: "License option was not found for this track." };
+        }
+
+        ({ priceCents } = license);
+        titleSnapshot = `${track.title} - ${license.name}`;
+      }
+
+      if (typeof priceCents !== "number") {
+        return { error: "This track is not priced for cart purchase." };
+      }
+
+      const [existingItem] = await db
+        .select()
+        .from(cartItems)
         .where(
           and(
-            eq(trackLicenseOptions.id, body.licenseOptionId),
-            eq(trackLicenseOptions.trackId, body.trackId)
+            eq(cartItems.cartId, cart.id),
+            eq(cartItems.productType, "track"),
+            eq(cartItems.trackId, body.trackId),
+            body.licenseOptionId
+              ? eq(cartItems.licenseOptionId, body.licenseOptionId)
+              : isNull(cartItems.licenseOptionId)
           )
         );
 
-      if (!license) {
-        return { error: "License option was not found for this track." };
+      if (existingItem) {
+        await db
+          .update(cartItems)
+          .set({ quantity: existingItem.quantity + quantity })
+          .where(eq(cartItems.id, existingItem.id));
+        return { error: null };
       }
 
-      ({ priceCents } = license);
-      titleSnapshot = `${track.title} - ${license.name}`;
+      await db.insert(cartItems).values({
+        cartId: cart.id,
+        currency: track.currency,
+        id: crypto.randomUUID(),
+        licenseOptionId: body.licenseOptionId,
+        priceCentsSnapshot: priceCents,
+        productType: "track",
+        quantity,
+        sellerUserId: track.ownerUserId,
+        titleSnapshot,
+        trackId: track.id,
+      });
+
+      return { error: null };
     }
 
-    if (typeof priceCents !== "number") {
-      return { error: "This track is not priced for cart purchase." };
+    if (!body.projectId) {
+      return { error: "Project cart items require a projectId." };
+    }
+
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, body.projectId));
+
+    if (!project) {
+      return { error: "Project was not found." };
+    }
+
+    if (typeof project.priceCents !== "number") {
+      return { error: "This project is not priced for cart purchase." };
     }
 
     const [existingItem] = await db
@@ -201,11 +250,8 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
       .where(
         and(
           eq(cartItems.cartId, cart.id),
-          eq(cartItems.productType, "track"),
-          eq(cartItems.trackId, body.trackId),
-          body.licenseOptionId
-            ? eq(cartItems.licenseOptionId, body.licenseOptionId)
-            : isNull(cartItems.licenseOptionId)
+          eq(cartItems.productType, "project"),
+          eq(cartItems.projectId, body.projectId)
         )
       );
 
@@ -219,70 +265,18 @@ const centsFromPrice = (price: string | null, priceCents: number | null) => {
 
     await db.insert(cartItems).values({
       cartId: cart.id,
-      currency: track.currency,
+      currency: project.currency,
       id: crypto.randomUUID(),
-      licenseOptionId: body.licenseOptionId,
-      priceCentsSnapshot: priceCents,
-      productType: "track",
+      priceCentsSnapshot: project.priceCents,
+      productType: "project",
+      projectId: project.id,
       quantity,
-      sellerUserId: track.ownerUserId,
-      titleSnapshot,
-      trackId: track.id,
+      sellerUserId: project.ownerUserId,
+      titleSnapshot: project.title,
     });
 
     return { error: null };
-  }
-
-  if (!body.projectId) {
-    return { error: "Project cart items require a projectId." };
-  }
-
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, body.projectId));
-
-  if (!project) {
-    return { error: "Project was not found." };
-  }
-
-  if (typeof project.priceCents !== "number") {
-    return { error: "This project is not priced for cart purchase." };
-  }
-
-  const [existingItem] = await db
-    .select()
-    .from(cartItems)
-    .where(
-      and(
-        eq(cartItems.cartId, cart.id),
-        eq(cartItems.productType, "project"),
-        eq(cartItems.projectId, body.projectId)
-      )
-    );
-
-  if (existingItem) {
-    await db
-      .update(cartItems)
-      .set({ quantity: existingItem.quantity + quantity })
-      .where(eq(cartItems.id, existingItem.id));
-    return { error: null };
-  }
-
-  await db.insert(cartItems).values({
-    cartId: cart.id,
-    currency: project.currency,
-    id: crypto.randomUUID(),
-    priceCentsSnapshot: project.priceCents,
-    productType: "project",
-    projectId: project.id,
-    quantity,
-    sellerUserId: project.ownerUserId,
-    titleSnapshot: project.title,
-  });
-
-  return { error: null };
-};
+  };
 
 app.openapi(
   createRoute({
@@ -378,9 +372,9 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     { cartItemId } = c.req.valid("param"),
-     db = createDb(),
-     cart = await getOrCreateCart(user);
+      { cartItemId } = c.req.valid("param"),
+      db = createDb(),
+      cart = await getOrCreateCart(user);
 
     await db
       .update(cartItems)
@@ -417,8 +411,8 @@ app.openapi(
     }
 
     const { cartItemId } = c.req.valid("param"),
-     db = createDb(),
-     cart = await getOrCreateCart(user);
+      db = createDb(),
+      cart = await getOrCreateCart(user);
 
     await db
       .delete(cartItems)
@@ -449,7 +443,7 @@ app.openapi(
     }
 
     const db = createDb(),
-     cart = await getOrCreateCart(user);
+      cart = await getOrCreateCart(user);
 
     await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
 

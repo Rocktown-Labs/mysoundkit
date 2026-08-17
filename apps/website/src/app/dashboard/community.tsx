@@ -13,31 +13,30 @@ export const Route = createFileRoute("/dashboard/community")({
 
 function CommunityDashboard() {
   const [description, setDescription] = useState(""),
-   [message, setMessage] = useState<string | null>(null),
-   [name, setName] = useState(""),
-   [price, setPrice] = useState("4.99"),
-
-   createCommunity = async () => {
-    const response = await fetch(`${API_V1_URL}/communities`, {
-      body: JSON.stringify({
-        description,
-        monthlyPriceCents: Math.round(Number(price) * 100),
-        name,
-      }),
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }),
-     payload = (await response.json()) as {
-      message?: string;
-      name?: string;
+    [message, setMessage] = useState<string | null>(null),
+    [name, setName] = useState(""),
+    [price, setPrice] = useState("4.99"),
+    createCommunity = async () => {
+      const response = await fetch(`${API_V1_URL}/communities`, {
+          body: JSON.stringify({
+            description,
+            monthlyPriceCents: Math.round(Number(price) * 100),
+            name,
+          }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }),
+        payload = (await response.json()) as {
+          message?: string;
+          name?: string;
+        };
+      setMessage(
+        response.ok
+          ? `${payload.name ?? name} is ready.`
+          : (payload.message ?? "Unable to create community.")
+      );
     };
-    setMessage(
-      response.ok
-        ? `${payload.name ?? name} is ready.`
-        : (payload.message ?? "Unable to create community.")
-    );
-  };
 
   return (
     <main className="mx-auto max-w-3xl p-6">

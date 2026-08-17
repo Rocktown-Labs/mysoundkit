@@ -1,14 +1,18 @@
+/* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-empty, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Compass,
   Disc,
   Flame,
+  Headphones,
   LocateFixed,
   MapPin,
   Music,
   Play,
+  Radio,
   RotateCcw,
   ShoppingBag,
+  Swords,
   Users,
   Video,
 } from "lucide-react";
@@ -33,6 +37,8 @@ import {
   useArtistsQuery,
   useBattlesQuery,
   useDiscoverHomeQuery,
+  useListeningPartiesQuery,
+  usePublicLiveExperiencesQuery,
   usePublicProjectsQuery,
   useTracksQuery,
   useVideosQuery,
@@ -62,121 +68,128 @@ function LocalExplorePage({
   startsWithAppWideTotals,
 }: Readonly<{ startsWithAppWideTotals: boolean }>) {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null),
-   [mapScope, setMapScope] = useState<MapScope>("global"),
-   [userLocation, setUserLocation] = useState<string | null>(null),
-   [isLoadingLocation, setIsLoadingLocation] = useState(false),
-   [locationPromptState, setLocationPromptState] = useState<
-    "idle" | "prompting" | "granted" | "denied" | "unsupported"
-  >("idle"),
-
-   activeRegion =
-    selectedRegion ??
-    (mapScope === "global"
-      ? "Global"
-      : (mapScopes.find((s) => s.id === mapScope)?.label ?? "SoundKit")),
-   isGlobalView = selectedRegion === null && mapScope === "global",
-
-   regionSlug = selectedRegion
-    ? selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")
-    : mapScope,
-   exploreRegionType = mapScope === "global" ? "global" : "north-america",
-   regionSearch = `regionType=${exploreRegionType}&region=${regionSlug}`,
-   battlesHref = `/live?${regionSearch}`,
-   tracksHref = `/tracks?${regionSearch}`,
-   releasesHref = `/tracks?${regionSearch}&sort=date-desc`,
-   artistsHref = `/artist?${regionSearch}`,
-   videosHref = `/videos?${regionSearch}`,
-   projectsHref = `/projects?${regionSearch}`,
-   publicExploreQuery = {
-    limit: 12,
-    region: regionSlug,
-    regionType: exploreRegionType,
-    scope: "public",
-  } as const,
-   { data: topTracks = [], isLoading: isLoadingTopTracks } =
-    useTracksQuery(undefined, {
-      ...publicExploreQuery,
-      sort: "plays-desc",
-    }),
-   { data: newTracks = [], isLoading: isLoadingNewTracks } =
-    useTracksQuery(undefined, {
-      ...publicExploreQuery,
-      sort: "date-desc",
-    }),
-   { data: videos = [], isLoading: isLoadingVideos } =
-    useVideosQuery(publicExploreQuery),
-   { data: projects = [], isLoading: isLoadingProjects } =
-    usePublicProjectsQuery({
+    [mapScope, setMapScope] = useState<MapScope>("global"),
+    [userLocation, setUserLocation] = useState<string | null>(null),
+    [isLoadingLocation, setIsLoadingLocation] = useState(false),
+    [locationPromptState, setLocationPromptState] = useState<
+      "idle" | "prompting" | "granted" | "denied" | "unsupported"
+    >("idle"),
+    activeRegion =
+      selectedRegion ??
+      (mapScope === "global"
+        ? "Global"
+        : (mapScopes.find((s) => s.id === mapScope)?.label ?? "SoundKit")),
+    isGlobalView = selectedRegion === null && mapScope === "global",
+    regionSlug = selectedRegion
+      ? selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")
+      : mapScope,
+    exploreRegionType = mapScope === "global" ? "global" : "north-america",
+    regionSearch = `regionType=${exploreRegionType}&region=${regionSlug}`,
+    battlesHref = `/live?${regionSearch}`,
+    tracksHref = `/tracks?${regionSearch}`,
+    releasesHref = `/tracks?${regionSearch}&sort=date-desc`,
+    artistsHref = `/artist?${regionSearch}`,
+    videosHref = `/videos?${regionSearch}`,
+    projectsHref = `/projects?${regionSearch}`,
+    streamsHref = `/live?kind=stream&${regionSearch}`,
+    partiesHref = `/live?kind=party&${regionSearch}`,
+    publicExploreQuery = {
       limit: 12,
       region: regionSlug,
       regionType: exploreRegionType,
-      sort: "date-desc",
-    }),
-   { data: artists = [], isLoading: isLoadingArtists } = useArtistsQuery({
-    category: "top",
-    limit: 10,
-    region: regionSlug,
-    regionType: exploreRegionType,
-    sort: "rank-asc",
-  }),
-   { data: battles = [], isLoading: isLoadingBattles } = useBattlesQuery(),
-
-   requestLocation = () => {
-    setIsLoadingLocation(true);
-
-    try {
-      if (!("geolocation" in navigator)) {
-        setLocationPromptState("unsupported");
-        setUserLocation(null);
-        setSelectedRegion(null);
-        setIsLoadingLocation(false);
-        return;
+      scope: "public",
+    } as const,
+    { data: topTracks = [], isLoading: isLoadingTopTracks } = useTracksQuery(
+      undefined,
+      {
+        ...publicExploreQuery,
+        sort: "plays-desc",
       }
+    ),
+    { data: newTracks = [], isLoading: isLoadingNewTracks } = useTracksQuery(
+      undefined,
+      {
+        ...publicExploreQuery,
+        sort: "date-desc",
+      }
+    ),
+    { data: videos = [], isLoading: isLoadingVideos } =
+      useVideosQuery(publicExploreQuery),
+    { data: projects = [], isLoading: isLoadingProjects } =
+      usePublicProjectsQuery({
+        limit: 12,
+        region: regionSlug,
+        regionType: exploreRegionType,
+        sort: "date-desc",
+      }),
+    { data: artists = [], isLoading: isLoadingArtists } = useArtistsQuery({
+      category: "top",
+      limit: 10,
+      region: regionSlug,
+      regionType: exploreRegionType,
+      sort: "rank-asc",
+    }),
+    { data: battles = [], isLoading: isLoadingBattles } = useBattlesQuery(),
+    { data: publicStreams = [], isLoading: isLoadingStreams } =
+      usePublicLiveExperiencesQuery("stream"),
+    { data: listeningParties = [], isLoading: isLoadingParties } =
+      useListeningPartiesQuery(),
+    requestLocation = () => {
+      setIsLoadingLocation(true);
 
-      setLocationPromptState("prompting");
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-
-          try {
-            const response = await fetch(
-              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
-            ),
-             data = await response.json(),
-             detectedState =
-              data.principalSubdivision || data.countryName || "California";
-            setUserLocation(detectedState);
-            setSelectedRegion(detectedState);
-            setMapScope("north-america");
-            try {
-              localStorage.setItem("soundkit_user_location", detectedState);
-            } catch {}
-          } catch {
-            const fallback = "California";
-            setUserLocation(fallback);
-            setSelectedRegion(fallback);
-            setMapScope("north-america");
-          }
-
-          setLocationPromptState("granted");
-          setIsLoadingLocation(false);
-        },
-        () => {
-          setLocationPromptState("denied");
+      try {
+        if (!("geolocation" in navigator)) {
+          setLocationPromptState("unsupported");
           setUserLocation(null);
           setSelectedRegion(null);
-          setMapScope("global");
           setIsLoadingLocation(false);
+          return;
         }
-      );
-    } catch {
-      setLocationPromptState("denied");
-      setUserLocation(null);
-      setSelectedRegion(null);
-      setMapScope("global");
-      setIsLoadingLocation(false);
-    }
-  };
+
+        setLocationPromptState("prompting");
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+
+            try {
+              const response = await fetch(
+                  `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+                ),
+                data = await response.json(),
+                detectedState =
+                  data.principalSubdivision || data.countryName || "California";
+              setUserLocation(detectedState);
+              setSelectedRegion(detectedState);
+              setMapScope("north-america");
+              try {
+                localStorage.setItem("soundkit_user_location", detectedState);
+              } catch {}
+            } catch {
+              const fallback = "California";
+              setUserLocation(fallback);
+              setSelectedRegion(fallback);
+              setMapScope("north-america");
+            }
+
+            setLocationPromptState("granted");
+            setIsLoadingLocation(false);
+          },
+          () => {
+            setLocationPromptState("denied");
+            setUserLocation(null);
+            setSelectedRegion(null);
+            setMapScope("global");
+            setIsLoadingLocation(false);
+          }
+        );
+      } catch {
+        setLocationPromptState("denied");
+        setUserLocation(null);
+        setSelectedRegion(null);
+        setMapScope("global");
+        setIsLoadingLocation(false);
+      }
+    };
 
   useEffect(() => {
     // Check saved user location in localStorage on mount
@@ -191,7 +204,19 @@ function LocalExplorePage({
       }
     } catch {}
 
-    // Default to global view with app-wide totals unless location is explicitly requested
+    // On initial visit without saved location, automatically request location
+    try {
+      const alreadyPrompted = sessionStorage.getItem(
+        "soundkit_location_prompted"
+      );
+      if (!alreadyPrompted && "geolocation" in navigator) {
+        sessionStorage.setItem("soundkit_location_prompted", "true");
+        requestLocation();
+        return;
+      }
+    } catch {}
+
+    // Default to global view with app-wide totals
     setSelectedRegion(null);
     setMapScope("global");
   }, [startsWithAppWideTotals]);
@@ -301,70 +326,20 @@ function LocalExplorePage({
           </section>
 
           <div className="space-y-6 md:space-y-8 lg:space-y-10 pb-8 md:pb-10 lg:pb-12">
+            {/* 1. Top Songs in {location} */}
             <section>
               <SectionHeader
-                title={
-                  isGlobalView
-                    ? "Featured Videos Across SoundKit"
-                    : `Featured Videos in ${activeRegion}`
-                }
-                description={
-                  isGlobalView
-                    ? "Official music videos, battle replays, and live recordings from the full app"
-                    : `Watch official drops and replays from ${activeRegion}`
-                }
-                icon={<Video className="size-5 md:size-6 text-primary" />}
-                viewAllHref={videosHref}
-              />
-              <HomeRail
-                empty="No videos are live for this view yet."
-                isLoading={isLoadingVideos}
-                items={videos}
-                renderItem={(video) => (
-                  <div className="w-[300px] shrink-0 md:w-[360px]">
-                    <VideoCard key={video.id} video={toExploreVideo(video)} />
-                  </div>
-                )}
-              />
-            </section>
-
-            <section>
-              <SectionHeader
-                title={
-                  isGlobalView
-                    ? "Live Battles Across SoundKit"
-                    : `Live Battles in ${activeRegion}`
-                }
-                description={
-                  isGlobalView
-                    ? "Top battles happening across the app right now"
-                    : `Vote for your favorite tracks in ${activeRegion}`
-                }
-                viewAllHref={battlesHref}
-              />
-              <HomeRail
-                empty="No battles are live for this view yet."
-                isLoading={isLoadingBattles}
-                items={battles}
-                renderItem={(battle) => (
-                  <BattleSummaryCard key={battle.id} battle={battle} />
-                )}
-              />
-            </section>
-
-            <section>
-              <SectionHeader
-                title={
-                  isGlobalView
-                    ? "Top Songs Across SoundKit"
-                    : `Top Songs in ${activeRegion}`
-                }
                 description={
                   isGlobalView
                     ? "Most played tracks across the app this week"
                     : `Most played tracks in ${activeRegion} this week`
                 }
                 icon={<Music className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "Top Songs Across SoundKit"
+                    : `Top Songs in ${activeRegion}`
+                }
                 viewAllHref={tracksHref}
               />
               <HomeRail
@@ -373,34 +348,35 @@ function LocalExplorePage({
                 items={topTracks}
                 renderItem={(track) => (
                   <TrackCard
-                    key={track.id}
-                    id={track.id}
-                    title={track.title}
                     artist={track.artistName}
                     artistSlug={track.artistUsername ?? "artist"}
                     cover={track.coverArtUrl ?? "/placeholder.svg"}
-                    plays={track.plays.toLocaleString()}
                     duration={track.duration}
+                    id={track.id}
+                    key={track.id}
+                    plays={track.plays.toLocaleString()}
                     regionSlug={track.regionSlug}
                     slug={track.slug}
+                    title={track.title}
                   />
                 )}
               />
             </section>
 
+            {/* 2. New Releases in {location} */}
             <section>
               <SectionHeader
-                title={
-                  isGlobalView
-                    ? "New Releases Across SoundKit"
-                    : `New Releases in ${activeRegion}`
-                }
                 description={
                   isGlobalView
                     ? "Fresh drops from every active scene"
                     : `Fresh tracks from artists in ${activeRegion}`
                 }
                 icon={<Flame className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "New Releases Across SoundKit"
+                    : `New Releases in ${activeRegion}`
+                }
                 viewAllHref={releasesHref}
               />
               <HomeRail
@@ -409,34 +385,61 @@ function LocalExplorePage({
                 items={newTracks}
                 renderItem={(track) => (
                   <TrackCard
-                    key={track.id}
-                    id={track.id}
-                    title={track.title}
                     artist={track.artistName}
                     artistSlug={track.artistUsername ?? "artist"}
                     cover={track.coverArtUrl ?? "/placeholder.svg"}
-                    plays={track.plays.toLocaleString()}
                     duration={track.duration}
+                    id={track.id}
+                    key={track.id}
+                    plays={track.plays.toLocaleString()}
                     regionSlug={track.regionSlug}
                     slug={track.slug}
+                    title={track.title}
                   />
                 )}
               />
             </section>
 
+            {/* 3. Live Battles */}
             <section>
               <SectionHeader
+                description={
+                  isGlobalView
+                    ? "Top beat battles happening across the app right now"
+                    : `Vote in head-to-head producer matchups in ${activeRegion}`
+                }
+                icon={<Swords className="size-5 md:size-6 text-primary" />}
                 title={
                   isGlobalView
-                    ? "Top Artists Across SoundKit"
-                    : `Top Artists in ${activeRegion}`
+                    ? "Live Battles Across SoundKit"
+                    : `Live Battles in ${activeRegion}`
                 }
+                viewAllHref={battlesHref}
+              />
+              <HomeRail
+                empty="No battles are live for this view yet."
+                isLoading={isLoadingBattles}
+                items={battles}
+                renderItem={(battle) => (
+                  <BattleSummaryCard battle={battle} key={battle.id} />
+                )}
+              />
+            </section>
+
+            {/* 4. Top Artists in {location} */}
+            <section>
+              <SectionHeader
                 description={
                   isGlobalView
                     ? "Rising stars and established artists across the app"
                     : `Rising stars and top performers in ${activeRegion}`
                 }
                 icon={<Users className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "Top Artists Across SoundKit"
+                    : `Top Artists in ${activeRegion}`
+                }
                 viewAllHref={artistsHref}
               />
               <HomeRail
@@ -445,28 +448,90 @@ function LocalExplorePage({
                 items={chunkArtists(artists, activeRegion)}
                 renderItem={(artistGroup) => (
                   <div
-                    key={artistGroup.map((artist) => artist.slug).join("-")}
                     className="w-[320px] shrink-0 md:w-[360px]"
+                    key={artistGroup.map((artist) => artist.slug).join("-")}
                   >
                     <ArtistLeaderboardCard
                       artists={artistGroup}
-                      type="rising"
                       showBorder={false}
+                      type="rising"
                     />
                   </div>
                 )}
               />
             </section>
 
+            {/* 5. Featured Videos */}
             <section>
               <SectionHeader
-                title="Featured Projects"
                 description={
                   isGlobalView
-                    ? "Albums, EPs, and mixtapes from across SoundKit"
+                    ? "Official music videos, studio sessions, and live drops from SoundKit artists"
+                    : `Watch official drops and visual releases from ${activeRegion}`
+                }
+                icon={<Video className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "Featured Videos Across SoundKit"
+                    : `Featured Videos in ${activeRegion}`
+                }
+                viewAllHref={videosHref}
+              />
+              <HomeRail
+                empty="No videos are live for this view yet."
+                isLoading={isLoadingVideos}
+                items={videos}
+                renderItem={(video) => (
+                  <div
+                    className="w-[300px] shrink-0 md:w-[360px]"
+                    key={video.id}
+                  >
+                    <VideoCard video={toExploreVideo(video)} />
+                  </div>
+                )}
+              />
+            </section>
+
+            {/* 6. Live Streams in {location} / Featured Streams */}
+            <section>
+              <SectionHeader
+                description={
+                  isGlobalView
+                    ? "Real-time broadcasts, studio sessions, and DJ sets live right now"
+                    : `Active live streams broadcasting in ${activeRegion}`
+                }
+                icon={<Radio className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "Featured Live Streams"
+                    : `Live Streams in ${activeRegion}`
+                }
+                viewAllHref={streamsHref}
+              />
+              <HomeRail
+                empty="No live streams currently broadcasting. Start one from your artist dashboard!"
+                isLoading={isLoadingStreams}
+                items={publicStreams}
+                renderItem={(stream) => (
+                  <LiveStreamSummaryCard key={stream.id} stream={stream} />
+                )}
+              />
+            </section>
+
+            {/* 7. Featured Projects / Mixtapes */}
+            <section>
+              <SectionHeader
+                description={
+                  isGlobalView
+                    ? "Albums, EPs, beat kits, and mixtapes from across SoundKit"
                     : `Albums, EPs, and mixtapes in ${activeRegion}`
                 }
                 icon={<Disc className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "Featured Projects & Albums"
+                    : `Featured Projects in ${activeRegion}`
+                }
                 viewAllHref={projectsHref}
               />
               <HomeRail
@@ -475,6 +540,32 @@ function LocalExplorePage({
                 items={projects}
                 renderItem={(project) => (
                   <HomeProjectCard key={project.id} project={project} />
+                )}
+              />
+            </section>
+
+            {/* 8. Upcoming Listening Parties */}
+            <section>
+              <SectionHeader
+                description={
+                  isGlobalView
+                    ? "Join community listening parties and track premieres with the creator"
+                    : `Upcoming album listening parties in ${activeRegion}`
+                }
+                icon={<Headphones className="size-5 md:size-6 text-primary" />}
+                title={
+                  isGlobalView
+                    ? "Upcoming Listening Parties"
+                    : `Listening Parties in ${activeRegion}`
+                }
+                viewAllHref={partiesHref}
+              />
+              <HomeRail
+                empty="No upcoming listening parties scheduled right now."
+                isLoading={isLoadingParties}
+                items={listeningParties}
+                renderItem={(party) => (
+                  <ListeningPartySummaryCard key={party.id} party={party} />
                 )}
               />
             </section>
@@ -514,70 +605,67 @@ function HomeRail<T>({
 }
 
 const formatCompactCount = (value?: number | null) => {
-  if (!value) {
-    return "0";
-  }
+    if (!value) {
+      return "0";
+    }
 
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
+    if (value >= 1_000_000) {
+      return `${(value / 1_000_000).toFixed(1)}M`;
+    }
 
-  if (value >= 1000) {
-    return `${Math.round(value / 1000)}K`;
-  }
+    if (value >= 1000) {
+      return `${Math.round(value / 1000)}K`;
+    }
 
-  return value.toLocaleString();
-},
-
- toLeaderboardArtist = (
-  artist: ArtistSummary,
-  index: number,
-  activeRegion: string
-): LeaderboardArtist => ({
-  avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
-  genre: artist.genre,
-  location: artist.location || artist.state || activeRegion,
-  name: artist.name,
-  rank:
-    typeof artist.rank === "number" && artist.rank > 0
-      ? artist.rank
-      : index + 1,
-  slug: artist.username,
-  stats: {
-    followers: formatCompactCount(artist.followers),
-    plays: formatCompactCount(artist.weeklyPlays),
+    return value.toLocaleString();
   },
-  verified: artist.verified,
-}),
+  toLeaderboardArtist = (
+    artist: ArtistSummary,
+    index: number,
+    activeRegion: string
+  ): LeaderboardArtist => ({
+    avatar: artist.avatarUrl ?? "/diverse-user-avatars.png",
+    genre: artist.genre,
+    location: artist.location || artist.state || activeRegion,
+    name: artist.name,
+    rank:
+      typeof artist.rank === "number" && artist.rank > 0
+        ? artist.rank
+        : index + 1,
+    slug: artist.username,
+    stats: {
+      followers: formatCompactCount(artist.followers),
+      plays: formatCompactCount(artist.weeklyPlays),
+    },
+    verified: artist.verified,
+  }),
+  chunkArtists = (artists: ArtistSummary[], activeRegion: string) => {
+    const leaderboardArtists = artists.map((artist, index) =>
+      toLeaderboardArtist(artist, index, activeRegion)
+    );
 
- chunkArtists = (artists: ArtistSummary[], activeRegion: string) => {
-  const leaderboardArtists = artists.map((artist, index) =>
-    toLeaderboardArtist(artist, index, activeRegion)
-  );
-
-  return [
-    leaderboardArtists.slice(0, 5),
-    leaderboardArtists.slice(5, 10),
-  ].filter((group) => group.length > 0);
-},
-
- toExploreVideo = (video: VideoSummary) => ({
-  creator: {
-    name: video.creatorName ?? "SoundKit creator",
-    slug: video.creatorUsername ?? "artist",
+    return [
+      leaderboardArtists.slice(0, 5),
+      leaderboardArtists.slice(5, 10),
+    ].filter((group) => group.length > 0);
   },
-  duration: video.duration ?? "0:00",
-  id: video.id,
-  playbackPolicy: video.playbackPolicy,
-  regionSlug: video.regionSlug,
-  slug: video.slug,
-  status: video.status,
-  thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
-  title: video.title,
-  verifiedOnPlatform: video.verifiedOnPlatform,
-  videoKind: video.videoKind,
-  viewCount: video.viewCount ?? "0",
-});
+  toExploreVideo = (video: VideoSummary) => ({
+    creator: {
+      name: video.creatorName ?? "SoundKit creator",
+      slug: video.creatorUsername ?? "artist",
+    },
+    duration: video.duration ?? "0:00",
+    id: video.id,
+    playbackPolicy: video.playbackPolicy,
+    regionSlug: video.regionSlug,
+    slug: video.slug,
+    status: video.status,
+    thumbnail: video.thumbnailUrl ?? "/placeholder.svg",
+    title: video.title,
+    verifiedOnPlatform: video.verifiedOnPlatform,
+    videoKind: video.videoKind,
+    viewCount: video.viewCount ?? "0",
+  });
 
 function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
   return (
@@ -611,6 +699,132 @@ function BattleSummaryCard({ battle }: { battle: BattleSummary }) {
             ) : (
               <span>Public</span>
             )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function LiveStreamSummaryCard({
+  stream,
+}: {
+  stream: {
+    creatorAvatar?: string | null;
+    creatorName?: string | null;
+    genre?: string | null;
+    id: string;
+    kind: string;
+    status: string;
+    title: string;
+    viewerCount: number;
+  };
+}) {
+  const isLive = stream.status === "live";
+
+  return (
+    <Link
+      className="block w-[260px] shrink-0 md:w-[300px]"
+      params={{ id: stream.id }}
+      to="/live/streams/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50 overflow-hidden">
+        <div className="relative aspect-video w-full bg-black/60">
+          <AppImage
+            alt={stream.title}
+            className="size-full object-cover opacity-80"
+            src="/night-music-album-cover.png"
+          />
+          <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+            <Badge
+              className="font-bold text-[10px]"
+              variant={isLive ? "destructive" : "secondary"}
+            >
+              {isLive ? "LIVE" : "SCHEDULED"}
+            </Badge>
+            {stream.genre && (
+              <Badge
+                className="bg-black/60 backdrop-blur-md text-[10px]"
+                variant="outline"
+              >
+                {stream.genre}
+              </Badge>
+            )}
+          </div>
+          <div className="absolute right-2.5 bottom-2.5">
+            <Badge
+              className="bg-black/70 backdrop-blur-md text-[10px] gap-1"
+              variant="outline"
+            >
+              <Radio className="size-2.5 text-destructive animate-pulse" />
+              {stream.viewerCount.toLocaleString()}
+            </Badge>
+          </div>
+        </div>
+        <CardContent className="space-y-1.5 p-3.5">
+          <h4 className="line-clamp-1 font-semibold text-sm text-foreground">
+            {stream.title}
+          </h4>
+          <p className="line-clamp-1 text-xs text-muted-foreground">
+            {stream.creatorName ?? "SoundKit Creator"}
+          </p>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function ListeningPartySummaryCard({
+  party,
+}: {
+  party: {
+    description?: string | null;
+    genre?: string | null;
+    id: string;
+    scheduledStartAt: string;
+    status: string;
+    title: string;
+  };
+}) {
+  const isLive = party.status === "live";
+
+  return (
+    <Link
+      className="block w-[260px] shrink-0 md:w-[300px]"
+      params={{ id: party.id }}
+      to="/live/parties/$id"
+    >
+      <Card className="h-full border-border/40 bg-card/60 transition-colors hover:border-primary/50 overflow-hidden">
+        <div className="relative aspect-video w-full bg-black/60">
+          <AppImage
+            alt={party.title}
+            className="size-full object-cover opacity-80"
+            src="/summer-music-album-cover.png"
+          />
+          <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+            <Badge
+              className="font-bold text-[10px]"
+              variant={isLive ? "destructive" : "secondary"}
+            >
+              {isLive ? "PARTY LIVE" : "UPCOMING PARTY"}
+            </Badge>
+          </div>
+        </div>
+        <CardContent className="space-y-1.5 p-3.5">
+          <h4 className="line-clamp-1 font-semibold text-sm text-foreground">
+            {party.title}
+          </h4>
+          <p className="line-clamp-1 text-xs text-muted-foreground">
+            {party.description || "Community Album Premiere & Listening Room"}
+          </p>
+          <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground">
+            <span>{party.genre ?? "Album Premiere"}</span>
+            <span className="font-mono text-primary">
+              {new Date(party.scheduledStartAt).toLocaleDateString([], {
+                day: "numeric",
+                month: "short",
+              })}
+            </span>
           </div>
         </CardContent>
       </Card>

@@ -20,7 +20,7 @@ import dotenv from "dotenv";
 import pg from "pg";
 
 const scriptDir = import.meta.dirname,
- repoRoot = path.resolve(scriptDir, "..", "..", "..");
+  repoRoot = path.resolve(scriptDir, "..", "..", "..");
 
 dotenv.config({
   path: path.join(repoRoot, "apps", "server", ".env"),
@@ -28,50 +28,48 @@ dotenv.config({
 });
 
 const args = process.argv.slice(2),
- dryRun = args.includes("--dry-run"),
- username = (args.find((arg) => !arg.startsWith("--")) ?? "cgstewart")
-  .trim()
-  .toLowerCase(),
-
- DEMO_AUDIO_DIR = path.join(
-  repoRoot,
-  "apps",
-  "website",
-  "public",
-  "demo-audio"
-),
-
-// Mirrors apps/server/src/lib/sample-data.ts so the seeded rows line up with
-// the sample catalog the app already references.
- DEMO_TRACKS = [
-  {
-    bpm: 96,
-    description: "Seeded demo track for playback and stream qualification.",
-    file: "fantasy26.wav",
-    genre: "R&B/Soul",
-    musicalKey: "C Major",
-    slug: "fantasy-26",
-    title: "Fantasy 26",
-  },
-  {
-    bpm: 92,
-    description: "Seeded demo track for playback and stream qualification.",
-    file: "dumbledore.wav",
-    genre: "R&B/Soul",
-    musicalKey: "Am",
-    slug: "midnight-vibes",
-    title: "DUMBLEDORE",
-  },
-  {
-    bpm: 128,
-    description: "Seeded demo track for playback and stream qualification.",
-    file: "long-way-26.wav",
-    genre: "Electronic",
-    musicalKey: "F#m",
-    slug: "long-way-26",
-    title: "Long Way 26",
-  },
-];
+  dryRun = args.includes("--dry-run"),
+  username = (args.find((arg) => !arg.startsWith("--")) ?? "cgstewart")
+    .trim()
+    .toLowerCase(),
+  DEMO_AUDIO_DIR = path.join(
+    repoRoot,
+    "apps",
+    "website",
+    "public",
+    "demo-audio"
+  ),
+  // Mirrors apps/server/src/lib/sample-data.ts so the seeded rows line up with
+  // the sample catalog the app already references.
+  DEMO_TRACKS = [
+    {
+      bpm: 96,
+      description: "Seeded demo track for playback and stream qualification.",
+      file: "fantasy26.wav",
+      genre: "R&B/Soul",
+      musicalKey: "C Major",
+      slug: "fantasy-26",
+      title: "Fantasy 26",
+    },
+    {
+      bpm: 92,
+      description: "Seeded demo track for playback and stream qualification.",
+      file: "dumbledore.wav",
+      genre: "R&B/Soul",
+      musicalKey: "Am",
+      slug: "midnight-vibes",
+      title: "DUMBLEDORE",
+    },
+    {
+      bpm: 128,
+      description: "Seeded demo track for playback and stream qualification.",
+      file: "long-way-26.wav",
+      genre: "Electronic",
+      musicalKey: "F#m",
+      slug: "long-way-26",
+      title: "Long Way 26",
+    },
+  ];
 
 /** Reads the fmt + data chunks of a WAV file and returns its duration in ms. */
 function readWavDurationMs(filePath) {
@@ -89,8 +87,8 @@ function readWavDurationMs(filePath) {
     }
 
     let byteRate = null,
-     dataSize = null,
-     offset = 12;
+      dataSize = null,
+      offset = 12;
     const chunkHeader = Buffer.alloc(8);
 
     while (byteRate === null || dataSize === null) {
@@ -98,7 +96,7 @@ function readWavDurationMs(filePath) {
         break;
       }
       const chunkId = chunkHeader.toString("ascii", 0, 4),
-       chunkSize = chunkHeader.readUInt32LE(4);
+        chunkSize = chunkHeader.readUInt32LE(4);
       if (chunkId === "fmt ") {
         const fmt = Buffer.alloc(16);
         readSync(fd, fmt, 0, 16, offset + 8);
@@ -156,10 +154,10 @@ async function main() {
 
   try {
     const { rows: owners } = await client.query(
-      "SELECT user_id AS id, username, display_name FROM user_profiles WHERE lower(username) = lower($1) LIMIT 1",
-      [username]
-    ),
-     owner = owners[0];
+        "SELECT user_id AS id, username, display_name FROM user_profiles WHERE lower(username) = lower($1) LIMIT 1",
+        [username]
+      ),
+      owner = owners[0];
     if (!owner) {
       console.error(`No user profile found with username "${username}".`);
       process.exit(1);
@@ -181,10 +179,10 @@ async function main() {
       }
 
       const genreSlug = demo.genre.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-"),
-       { rows: genreRows } = await client.query(
-        "SELECT id FROM genres WHERE slug = $1 LIMIT 1",
-        [genreSlug]
-      );
+        { rows: genreRows } = await client.query(
+          "SELECT id FROM genres WHERE slug = $1 LIMIT 1",
+          [genreSlug]
+        );
       let genreId = genreRows[0]?.id;
       if (!genreId) {
         genreId = crypto.randomUUID();

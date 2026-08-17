@@ -56,78 +56,77 @@ const battleKits = [
 
 function ChallengePage() {
   const { opponent } = Route.useSearch(),
-   [searchQuery, setSearchQuery] = useState(opponent),
-   [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
-   createChallenge = useCreateBattleChallengeMutation(),
-   genresQuery = useGenresQuery(),
-   battleConfig = liveExperienceConfigs.battle,
+    [searchQuery, setSearchQuery] = useState(opponent),
+    [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
+    createChallenge = useCreateBattleChallengeMutation(),
+    genresQuery = useGenresQuery(),
+    battleConfig = liveExperienceConfigs.battle,
+    genres =
+      genresQuery.data && genresQuery.data.length > 0
+        ? genresQuery.data.map((genre) => ({
+            label: genre.name,
+            value: genre.slug,
+          }))
+        : [
+            { label: "Hip-Hop", value: "hip-hop" },
+            { label: "R&B", value: "r-and-b" },
+            { label: "Electronic", value: "electronic" },
+            { label: "Pop", value: "pop" },
+            { label: "Trap", value: "trap" },
+            { label: "Afrobeats", value: "afrobeats" },
+          ],
+    submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget),
+        opponentUsername =
+          searchQuery.trim() ||
+          String(form.get("opponentUsername") ?? "").trim();
 
-   genres =
-    genresQuery.data && genresQuery.data.length > 0
-      ? genresQuery.data.map((genre) => ({
-          label: genre.name,
-          value: genre.slug,
-        }))
-      : [
-          { label: "Hip-Hop", value: "hip-hop" },
-          { label: "R&B", value: "r-and-b" },
-          { label: "Electronic", value: "electronic" },
-          { label: "Pop", value: "pop" },
-          { label: "Trap", value: "trap" },
-          { label: "Afrobeats", value: "afrobeats" },
-        ],
-
-   submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget),
-     opponentUsername =
-      searchQuery.trim() || String(form.get("opponentUsername") ?? "").trim();
-
-    if (!opponentUsername) {
-      toast({
-        description: "Choose an artist or enter a username to challenge.",
-        title: "Opponent required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const proposedDateValue = String(form.get("proposedDate") ?? ""),
-     proposedTimeValue = String(form.get("proposedTime") ?? ""),
-     proposedDateTime =
-      scheduleMode === "scheduled" && proposedDateValue && proposedTimeValue
-        ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
-        : null;
-
-    createChallenge.mutate(
-      {
-        format: String(form.get("format") ?? "best_of_5") as
-          | "best_of_3"
-          | "best_of_5"
-          | "best_of_7",
-        genre: String(form.get("genre") ?? "hip-hop"),
-        message: String(form.get("message") ?? ""),
-        opponentUsername,
-        proposedDate: proposedDateTime?.toISOString(),
-        proposedTimeLabel: proposedDateTime
-          ? proposedDateTime.toLocaleString(undefined, {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })
-          : "ASAP",
-      },
-      {
-        onSuccess: () => {
-          toast({
-            description:
-              "Notification sent to artist to prepare for the live battle.",
-            title: "Challenge sent",
-          });
-          event.currentTarget.reset();
-        },
+      if (!opponentUsername) {
+        toast({
+          description: "Choose an artist or enter a username to challenge.",
+          title: "Opponent required",
+          variant: "destructive",
+        });
+        return;
       }
-    );
-  };
+
+      const proposedDateValue = String(form.get("proposedDate") ?? ""),
+        proposedTimeValue = String(form.get("proposedTime") ?? ""),
+        proposedDateTime =
+          scheduleMode === "scheduled" && proposedDateValue && proposedTimeValue
+            ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
+            : null;
+
+      createChallenge.mutate(
+        {
+          format: String(form.get("format") ?? "best_of_5") as
+            | "best_of_3"
+            | "best_of_5"
+            | "best_of_7",
+          genre: String(form.get("genre") ?? "hip-hop"),
+          message: String(form.get("message") ?? ""),
+          opponentUsername,
+          proposedDate: proposedDateTime?.toISOString(),
+          proposedTimeLabel: proposedDateTime
+            ? proposedDateTime.toLocaleString(undefined, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })
+            : "ASAP",
+        },
+        {
+          onSuccess: () => {
+            toast({
+              description:
+                "Notification sent to artist to prepare for the live battle.",
+              title: "Challenge sent",
+            });
+            event.currentTarget.reset();
+          },
+        }
+      );
+    };
 
   return (
     <LiveExperienceAuthGuard

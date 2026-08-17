@@ -19,23 +19,21 @@ interface LiveRoomSocketMessage {
   type?: "chat" | "vote";
 }
 
-const STATE_STORAGE_KEY = "live-room-state",
- MAX_CHAT_MESSAGES = 80,
- voteVotersKey = (roundId: string) => `vote-voters:${roundId}`,
-
- jsonResponse = (body: unknown, status = 200) =>
-  Response.json(body, {
-    status,
-  }),
-
- notFoundResponse = () => jsonResponse({ message: "Not found" }, 404),
-
- isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const MAX_CHAT_MESSAGES = 80,
+  STATE_STORAGE_KEY = "live-room-state",
+  voteVotersKey = (roundId: string) => `vote-voters:${roundId}`,
+  jsonResponse = (body: unknown, status = 200) =>
+    Response.json(body, {
+      status,
+    }),
+  notFoundResponse = () => jsonResponse({ message: "Not found" }, 404),
+  isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
 
 export class LiveRoomDurableObject extends DurableObject {
   private roomState: LiveRoomState | null = null;
   private requestedRoomId: string | null = null;
+  private userLastMessageTimes = new Map<string, number[]>();
 
   async fetch(request: Request): Promise<Response> {
     this.requestedRoomId = request.headers.get("x-soundkit-live-room-id");
@@ -59,12 +57,12 @@ export class LiveRoomDurableObject extends DurableObject {
       }
 
       const storedState =
-        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY),
-       shouldReplaceStoredState =
-        !storedState ||
-        storedState.id !== body.id ||
-        storedState.kind !== body.kind ||
-        storedState.title !== body.title;
+          await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY),
+        shouldReplaceStoredState =
+          !storedState ||
+          storedState.id !== body.id ||
+          storedState.kind !== body.kind ||
+          storedState.title !== body.title;
 
       if (shouldReplaceStoredState) {
         await this.persist(body);
@@ -77,13 +75,13 @@ export class LiveRoomDurableObject extends DurableObject {
 
     if (request.method === "POST" && url.pathname === "/chat") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody,
-       room = await this.addChatMessage(body);
+        room = await this.addChatMessage(body);
       return jsonResponse(room, 201);
     }
 
     if (request.method === "POST" && url.pathname === "/vote") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomVoteBody,
-       result = await this.recordVote(body);
+        result = await this.recordVote(body);
 
       return jsonResponse(result.body, result.status);
     }
@@ -140,23 +138,36 @@ export class LiveRoomDurableObject extends DurableObject {
 
   private async addChatMessage(body: LiveRoomChatBody) {
     const room = await this.getState(),
-     message = body.message?.trim();
+      message = body.message?.trim();
 
     if (!message) {
       return room;
     }
 
-    const chatMessage: LiveRoomChatMessage = {
-      id: crypto.randomUUID(),
-      message,
-      sentAt: new Date().toISOString(),
-      userName: body.userName?.trim() || "Listener",
-    },
+    const userName = body.userName?.trim() || "Listener",
+      now = Date.now(),
+      timestamps = (this.userLastMessageTimes.get(userName) ?? []).filter(
+        (t) => now - t < 5000
+      );
 
-     nextRoom = {
-      ...room,
-      chat: [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
-    };
+    if (timestamps.length >= 5) {
+      // Rate limited: max 5 messages per 5 seconds per user
+      return room;
+    }
+
+    timestamps.push(now);
+    this.userLastMessageTimes.set(userName, timestamps);
+
+    const chatMessage: LiveRoomChatMessage = {
+        id: crypto.randomUUID(),
+        message,
+        sentAt: new Date().toISOString(),
+        userName,
+      },
+      nextRoom = {
+        ...room,
+        chat: [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
+      };
 
     await this.persist(nextRoom);
     this.broadcast({ room: nextRoom, type: "state" });
@@ -202,7 +213,7 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     const votersKey = voteVotersKey(round.id),
-     voters = await this.ctx.storage.get<string[]>(votersKey);
+      voters = await this.ctx.storage.get<string[]>(votersKey);
 
     if (voters?.includes(body.voterId)) {
       return {
@@ -214,28 +225,27 @@ export class LiveRoomDurableObject extends DurableObject {
     await this.ctx.storage.put(votersKey, [...(voters ?? []), body.voterId]);
 
     const nextRounds = room.battle.rounds.map((entry) => {
-      if (entry.id !== round.id) {
-        return entry;
-      }
+        if (entry.id !== round.id) {
+          return entry;
+        }
 
-      const currentVotes = entry.voteTotals[artist.id] ?? 0;
+        const currentVotes = entry.voteTotals[artist.id] ?? 0;
 
-      return {
-        ...entry,
-        voteTotals: {
-          ...entry.voteTotals,
-          [artist.id]: currentVotes + 1,
+        return {
+          ...entry,
+          voteTotals: {
+            ...entry.voteTotals,
+            [artist.id]: currentVotes + 1,
+          },
+        };
+      }),
+      nextRoom = {
+        ...room,
+        battle: {
+          ...room.battle,
+          rounds: nextRounds,
         },
       };
-    }),
-
-     nextRoom = {
-      ...room,
-      battle: {
-        ...room.battle,
-        rounds: nextRounds,
-      },
-    };
 
     await this.persist(nextRoom);
     this.broadcast({ room: nextRoom, type: "state" });
@@ -249,7 +259,7 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     const pair = new WebSocketPair(),
-     [client, server] = Object.values(pair) as [WebSocket, WebSocket];
+      [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     server.serializeAttachment({ connectedAt: Date.now() });
     this.ctx.acceptWebSocket(server);
     void this.sendInitialState(server);

@@ -78,56 +78,55 @@ export const timeoutError = (message: string, cause?: unknown) =>
   });
 
 const statusCodeFromError = (error: unknown) => {
-  if (isAppError(error)) {
-    return error.status;
-  }
+    if (isAppError(error)) {
+      return error.status;
+    }
 
-  if (error instanceof ZodError) {
-    return HttpStatusCodes.BAD_REQUEST;
-  }
+    if (error instanceof ZodError) {
+      return HttpStatusCodes.BAD_REQUEST;
+    }
 
-  if (error instanceof SyntaxError) {
-    return HttpStatusCodes.BAD_REQUEST;
-  }
+    if (error instanceof SyntaxError) {
+      return HttpStatusCodes.BAD_REQUEST;
+    }
 
-  return HttpStatusCodes.INTERNAL_SERVER_ERROR;
-},
+    return HttpStatusCodes.INTERNAL_SERVER_ERROR;
+  },
+  codeFromStatus = (status: number): ErrorCode => {
+    if (status === HttpStatusCodes.BAD_REQUEST) {
+      return "bad_request";
+    }
 
- codeFromStatus = (status: number): ErrorCode => {
-  if (status === HttpStatusCodes.BAD_REQUEST) {
-    return "bad_request";
-  }
+    if (status === HttpStatusCodes.UNAUTHORIZED) {
+      return "unauthorized";
+    }
 
-  if (status === HttpStatusCodes.UNAUTHORIZED) {
-    return "unauthorized";
-  }
+    if (status === HttpStatusCodes.FORBIDDEN) {
+      return "forbidden";
+    }
 
-  if (status === HttpStatusCodes.FORBIDDEN) {
-    return "forbidden";
-  }
+    if (status === HttpStatusCodes.NOT_FOUND) {
+      return "not_found";
+    }
 
-  if (status === HttpStatusCodes.NOT_FOUND) {
-    return "not_found";
-  }
+    if (status === HttpStatusCodes.CONFLICT) {
+      return "conflict";
+    }
 
-  if (status === HttpStatusCodes.CONFLICT) {
-    return "conflict";
-  }
+    if (status === HttpStatusCodes.TOO_MANY_REQUESTS) {
+      return "rate_limited";
+    }
 
-  if (status === HttpStatusCodes.TOO_MANY_REQUESTS) {
-    return "rate_limited";
-  }
+    if (status === HttpStatusCodes.GATEWAY_TIMEOUT) {
+      return "timeout";
+    }
 
-  if (status === HttpStatusCodes.GATEWAY_TIMEOUT) {
-    return "timeout";
-  }
+    if (status === HttpStatusCodes.SERVICE_UNAVAILABLE) {
+      return "service_unavailable";
+    }
 
-  if (status === HttpStatusCodes.SERVICE_UNAVAILABLE) {
-    return "service_unavailable";
-  }
-
-  return "internal_error";
-};
+    return "internal_error";
+  };
 
 export const errorPayload = ({
   error,
@@ -137,7 +136,7 @@ export const errorPayload = ({
   requestId: string;
 }) => {
   const status = statusCodeFromError(error),
-   code = isAppError(error) ? error.code : codeFromStatus(status);
+    code = isAppError(error) ? error.code : codeFromStatus(status);
   let message = "Something went wrong. Please try again.";
 
   if (isAppError(error) && error.expose) {
@@ -155,10 +154,10 @@ export const errorPayload = ({
 
 export const jsonError = (c: Context<AppEnv>, error: unknown) => {
   const status = statusCodeFromError(error),
-   payload = errorPayload({
-    error,
-    requestId: c.get("requestId"),
-  });
+    payload = errorPayload({
+      error,
+      requestId: c.get("requestId"),
+    });
 
   if (isAppError(error) && error.retryAfterSeconds) {
     c.header("Retry-After", String(error.retryAfterSeconds));

@@ -15,250 +15,242 @@ import type { AppEnv } from "@/lib/types";
 import { logInfo, logWarn } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
-
- uploadConfigKeys = [
-  "UPLOAD_BUCKET_NAME",
-  "CLOUDFLARE_ACCOUNT_ID",
-  "CLOUDFLARE_ACCESS_KEY_ID",
-  "CLOUDFLARE_SECRET_ACCESS_KEY",
-] as const;
+  uploadConfigKeys = [
+    "UPLOAD_BUCKET_NAME",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_ACCESS_KEY_ID",
+    "CLOUDFLARE_SECRET_ACCESS_KEY",
+  ] as const;
 
 type UploadConfigKey = (typeof uploadConfigKeys)[number];
 
 const getEnvValue = (key: UploadConfigKey | "CLOUDFLARE_R2_JURISDICTION") => {
-  const value = (env as unknown as Record<string, unknown>)[key];
+    const value = (env as unknown as Record<string, unknown>)[key];
 
-  return typeof value === "string" && value.length > 0 ? value : null;
-},
+    return typeof value === "string" && value.length > 0 ? value : null;
+  },
+  getUploadJurisdiction = (): "eu" | "fedramp" | undefined => {
+    const jurisdiction = getEnvValue("CLOUDFLARE_R2_JURISDICTION");
 
- getUploadJurisdiction = (): "eu" | "fedramp" | undefined => {
-  const jurisdiction = getEnvValue("CLOUDFLARE_R2_JURISDICTION");
+    if (jurisdiction === "eu" || jurisdiction === "fedramp") {
+      return jurisdiction;
+    }
 
-  if (jurisdiction === "eu" || jurisdiction === "fedramp") {
-    return jurisdiction;
-  }
+    return undefined;
+  },
+  getUploadConfig = () => {
+    const bucketName = getEnvValue("UPLOAD_BUCKET_NAME"),
+      accountId = getEnvValue("CLOUDFLARE_ACCOUNT_ID"),
+      accessKeyId = getEnvValue("CLOUDFLARE_ACCESS_KEY_ID"),
+      secretAccessKey = getEnvValue("CLOUDFLARE_SECRET_ACCESS_KEY"),
+      missing: UploadConfigKey[] = [];
 
-  return undefined;
-},
+    if (!bucketName) {
+      missing.push("UPLOAD_BUCKET_NAME");
+    }
+    if (!accountId) {
+      missing.push("CLOUDFLARE_ACCOUNT_ID");
+    }
+    if (!accessKeyId) {
+      missing.push("CLOUDFLARE_ACCESS_KEY_ID");
+    }
+    if (!secretAccessKey) {
+      missing.push("CLOUDFLARE_SECRET_ACCESS_KEY");
+    }
 
- getUploadConfig = () => {
-  const bucketName = getEnvValue("UPLOAD_BUCKET_NAME"),
-   accountId = getEnvValue("CLOUDFLARE_ACCOUNT_ID"),
-   accessKeyId = getEnvValue("CLOUDFLARE_ACCESS_KEY_ID"),
-   secretAccessKey = getEnvValue("CLOUDFLARE_SECRET_ACCESS_KEY"),
-   missing: UploadConfigKey[] = [];
+    if (!bucketName || !accountId || !accessKeyId || !secretAccessKey) {
+      return { missing, ready: false as const };
+    }
 
-  if (!bucketName) {
-    missing.push("UPLOAD_BUCKET_NAME");
-  }
-  if (!accountId) {
-    missing.push("CLOUDFLARE_ACCOUNT_ID");
-  }
-  if (!accessKeyId) {
-    missing.push("CLOUDFLARE_ACCESS_KEY_ID");
-  }
-  if (!secretAccessKey) {
-    missing.push("CLOUDFLARE_SECRET_ACCESS_KEY");
-  }
+    return {
+      accessKeyId,
+      accountId,
+      bucketName,
+      jurisdiction: getUploadJurisdiction(),
+      ready: true as const,
+      secretAccessKey,
+    };
+  },
+  uploadConfigMessage = (missing: readonly UploadConfigKey[]) =>
+    `Upload storage credentials are not configured yet. Missing: ${missing.join(
+      ", "
+    )}.`,
+  createObjectKey = ({
+    fileName,
+    prefix,
+    userId,
+  }: {
+    fileName: string;
+    prefix: string;
+    userId: string;
+  }) => {
+    const sanitizedName = fileName.replaceAll(/\s+/gu, "-");
 
-  if (!bucketName || !accountId || !accessKeyId || !secretAccessKey) {
-    return { missing, ready: false as const };
-  }
+    return `${prefix}/${userId}/${Date.now()}-${sanitizedName}`;
+  },
+  requireUploadUser = async (request: Request) => {
+    const session = await createAuth().api.getSession({
+      headers: request.headers,
+    });
 
-  return {
-    accessKeyId,
-    accountId,
-    bucketName,
-    jurisdiction: getUploadJurisdiction(),
-    ready: true as const,
-    secretAccessKey,
-  };
-},
+    if (!session?.user?.id) {
+      throw new RejectUpload("Sign in is required before uploading files.");
+    }
 
- uploadConfigMessage = (missing: readonly UploadConfigKey[]) =>
-  `Upload storage credentials are not configured yet. Missing: ${missing.join(
-    ", "
-  )}.`,
+    return session.user.id;
+  },
+  requireArtistUploadUser = async (request: Request) => {
+    const userId = await requireUploadUser(request);
 
- createObjectKey = ({
-  fileName,
-  prefix,
-  userId,
-}: {
-  fileName: string;
-  prefix: string;
-  userId: string;
-}) => {
-  const sanitizedName = fileName.replaceAll(/\s+/gu, "-");
+    if (!isDatabaseConfigured()) {
+      return userId;
+    }
 
-  return `${prefix}/${userId}/${Date.now()}-${sanitizedName}`;
-},
+    const db = createDb(),
+      [profile] = await db
+        .select({ accountType: userProfiles.accountType })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, userId))
+        .limit(1);
 
- requireUploadUser = async (request: Request) => {
-  const session = await createAuth().api.getSession({
-    headers: request.headers,
-  });
+    if (profile?.accountType !== "artist") {
+      throw new RejectUpload(
+        "Convert to an artist account before uploading tracks."
+      );
+    }
 
-  if (!session?.user?.id) {
-    throw new RejectUpload("Sign in is required before uploading files.");
-  }
-
-  return session.user.id;
-},
-
- requireArtistUploadUser = async (request: Request) => {
-  const userId = await requireUploadUser(request);
-
-  if (!isDatabaseConfigured()) {
     return userId;
-  }
+  },
+  createUploadRouter = (): Router | null => {
+    const uploadConfig = getUploadConfig();
 
-  const db = createDb(),
-   [profile] = await db
-    .select({ accountType: userProfiles.accountType })
-    .from(userProfiles)
-    .where(eq(userProfiles.userId, userId))
-    .limit(1);
+    if (!uploadConfig.ready) {
+      return null;
+    }
 
-  if (profile?.accountType !== "artist") {
-    throw new RejectUpload(
-      "Convert to an artist account before uploading tracks."
-    );
-  }
-
-  return userId;
-},
-
- createUploadRouter = (): Router | null => {
-  const uploadConfig = getUploadConfig();
-
-  if (!uploadConfig.ready) {
-    return null;
-  }
-
-  return {
-    bucketName: uploadConfig.bucketName,
-    client: cloudflare({
-      accessKeyId: uploadConfig.accessKeyId,
-      accountId: uploadConfig.accountId,
-      jurisdiction: uploadConfig.jurisdiction,
-      secretAccessKey: uploadConfig.secretAccessKey,
-    }),
-    routes: {
-      media: route({
-        fileTypes: [
-          "audio/*",
-          "image/*",
-          "video/*",
-          "application/octet-stream",
-        ],
-        maxFileSize: 1024 * 1024 * 1024 * 2,
-        multipart: true,
-        multipleFiles: true,
-        onBeforeUpload: async ({ files, req }) => {
-          if (files.length === 0) {
-            throw new RejectUpload("At least one file is required.");
-          }
-
-          const userId = await requireArtistUploadUser(req);
-
-          return {
-            generateObjectInfo: ({ file }) => ({
-              key: createObjectKey({
-                fileName: file.name,
-                prefix: "uploads",
-                userId,
-              }),
-            }),
-          };
-        },
+    return {
+      bucketName: uploadConfig.bucketName,
+      client: cloudflare({
+        accessKeyId: uploadConfig.accessKeyId,
+        accountId: uploadConfig.accountId,
+        jurisdiction: uploadConfig.jurisdiction,
+        secretAccessKey: uploadConfig.secretAccessKey,
       }),
-      "profile-media": route({
-        fileTypes: ["image/*"],
-        maxFileSize: 1024 * 1024 * 10,
-        maxFiles: 1,
-        multipleFiles: true,
-        onBeforeUpload: async ({ files, req }) => {
-          if (files.length === 0) {
-            throw new RejectUpload("Select an image before uploading.");
-          }
+      routes: {
+        media: route({
+          fileTypes: [
+            "audio/*",
+            "image/*",
+            "video/*",
+            "application/octet-stream",
+          ],
+          maxFileSize: 1024 * 1024 * 1024 * 2,
+          multipart: true,
+          multipleFiles: true,
+          onBeforeUpload: async ({ files, req }) => {
+            if (files.length === 0) {
+              throw new RejectUpload("At least one file is required.");
+            }
 
-          const userId = await requireUploadUser(req);
+            const userId = await requireArtistUploadUser(req);
 
-          return {
-            generateObjectInfo: ({ file }) => ({
-              key: createObjectKey({
-                fileName: file.name,
-                prefix: "profiles",
-                userId,
+            return {
+              generateObjectInfo: ({ file }) => ({
+                key: createObjectKey({
+                  fileName: file.name,
+                  prefix: "uploads",
+                  userId,
+                }),
               }),
-            }),
-          };
-        },
-      }),
-      "project-assets": route({
-        fileTypes: [
-          "audio/*",
-          "image/*",
-          "application/pdf",
-          "application/octet-stream",
-        ],
-        maxFileSize: 1024 * 1024 * 1024 * 2,
-        multipart: true,
-        multipleFiles: true,
-        onBeforeUpload: async ({ files, req }) => {
-          if (files.length === 0) {
-            throw new RejectUpload("At least one project file is required.");
-          }
+            };
+          },
+        }),
+        "profile-media": route({
+          fileTypes: ["image/*"],
+          maxFileSize: 1024 * 1024 * 10,
+          maxFiles: 1,
+          multipleFiles: true,
+          onBeforeUpload: async ({ files, req }) => {
+            if (files.length === 0) {
+              throw new RejectUpload("Select an image before uploading.");
+            }
 
-          const userId = await requireArtistUploadUser(req);
+            const userId = await requireUploadUser(req);
 
-          return {
-            generateObjectInfo: ({ file }) => ({
-              key: createObjectKey({
-                fileName: file.name,
-                prefix: "projects",
-                userId,
+            return {
+              generateObjectInfo: ({ file }) => ({
+                key: createObjectKey({
+                  fileName: file.name,
+                  prefix: "profiles",
+                  userId,
+                }),
               }),
-            }),
-          };
-        },
-      }),
-      "track-source": route({
-        fileTypes: ["audio/*", "application/octet-stream"],
-        maxFileSize: 1024 * 1024 * 1024 * 2,
-        multipart: true,
-        multipleFiles: true,
-        onBeforeUpload: async ({ files, req }) => {
-          if (files.length === 0) {
-            throw new RejectUpload("At least one track file is required.");
-          }
+            };
+          },
+        }),
+        "project-assets": route({
+          fileTypes: [
+            "audio/*",
+            "image/*",
+            "application/pdf",
+            "application/octet-stream",
+          ],
+          maxFileSize: 1024 * 1024 * 1024 * 2,
+          multipart: true,
+          multipleFiles: true,
+          onBeforeUpload: async ({ files, req }) => {
+            if (files.length === 0) {
+              throw new RejectUpload("At least one project file is required.");
+            }
 
-          const userId = await requireArtistUploadUser(req);
+            const userId = await requireArtistUploadUser(req);
 
-          logInfo({
-            event: "upload_presigned_url_requested",
-            fileCount: files.length,
-            fileNames: files.map((f) => f.name),
-            fileSizes: files.map((f) => f.size),
-            route: "track-source",
-            userId,
-          });
-
-          return {
-            generateObjectInfo: ({ file }) => ({
-              key: createObjectKey({
-                fileName: file.name,
-                prefix: "tracks",
-                userId,
+            return {
+              generateObjectInfo: ({ file }) => ({
+                key: createObjectKey({
+                  fileName: file.name,
+                  prefix: "projects",
+                  userId,
+                }),
               }),
-            }),
-          };
-        },
-      }),
-    },
+            };
+          },
+        }),
+        "track-source": route({
+          fileTypes: ["audio/*", "application/octet-stream"],
+          maxFileSize: 1024 * 1024 * 1024 * 2,
+          multipart: true,
+          multipleFiles: true,
+          onBeforeUpload: async ({ files, req }) => {
+            if (files.length === 0) {
+              throw new RejectUpload("At least one track file is required.");
+            }
+
+            const userId = await requireArtistUploadUser(req);
+
+            logInfo({
+              event: "upload_presigned_url_requested",
+              fileCount: files.length,
+              fileNames: files.map((f) => f.name),
+              fileSizes: files.map((f) => f.size),
+              route: "track-source",
+              userId,
+            });
+
+            return {
+              generateObjectInfo: ({ file }) => ({
+                key: createObjectKey({
+                  fileName: file.name,
+                  prefix: "tracks",
+                  userId,
+                }),
+              }),
+            };
+          },
+        }),
+      },
+    };
   };
-};
 
 app.openapi(
   createRoute({

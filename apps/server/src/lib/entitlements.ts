@@ -10,65 +10,61 @@ import { CONFIGURED_PAID_PLAN_CODES } from "./plan-codes";
 import type { AppEnv, AuthenticatedSession, AuthenticatedUser } from "./types";
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]),
-
- ENTITLEMENT_KEYS = {
-  canCreateLiveBattles: [
-    "can_create_live_battles",
-    "live_battles:create",
-  ] as const,
-  canHostLiveStreams: ["can_host_live_streams", "live_streams:host"] as const,
-  canOperatePaidCommunity: [
-    "can_operate_paid_community",
-    "communities:operate_paid",
-  ] as const,
-  canReceivePayouts: ["can_receive_payouts", "payouts:receive"] as const,
-  canSellProducts: ["can_sell_products", "products:sell"] as const,
-  canViewLiveBattles: ["can_view_live_battles", "live_battles:view"] as const,
-  canVoteLiveBattles: ["can_vote_live_battles", "live_battles:vote"] as const,
-  canWatchCreatorStreams: [
-    "can_watch_creator_streams",
-    "live_streams:view",
-  ] as const,
-  canWatchVod: ["can_watch_vod", "vod:view"] as const,
-  isPremium: ["is_premium", "premium_access"] as const,
-} as const,
-
- parseBoolean = (value: string | null | undefined): boolean | null => {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.trim().toLowerCase();
-
-  if (["1", "true", "yes", "enabled"].includes(normalized)) {
-    return true;
-  }
-
-  if (["0", "false", "no", "disabled"].includes(normalized)) {
-    return false;
-  }
-
-  return null;
-},
-
- uniq = <T>(values: T[]) => [...new Set(values)],
- isString = (value: string | null): value is string =>
-  typeof value === "string",
-
- entitlementValue = (
-  entitlements: Map<string, string>,
-  keys: readonly string[]
-): boolean | null => {
-  for (const key of keys) {
-    const value = parseBoolean(entitlements.get(key));
-
-    if (value !== null) {
-      return value;
+  ENTITLEMENT_KEYS = {
+    canCreateLiveBattles: [
+      "can_create_live_battles",
+      "live_battles:create",
+    ] as const,
+    canHostLiveStreams: ["can_host_live_streams", "live_streams:host"] as const,
+    canOperatePaidCommunity: [
+      "can_operate_paid_community",
+      "communities:operate_paid",
+    ] as const,
+    canReceivePayouts: ["can_receive_payouts", "payouts:receive"] as const,
+    canSellProducts: ["can_sell_products", "products:sell"] as const,
+    canViewLiveBattles: ["can_view_live_battles", "live_battles:view"] as const,
+    canVoteLiveBattles: ["can_vote_live_battles", "live_battles:vote"] as const,
+    canWatchCreatorStreams: [
+      "can_watch_creator_streams",
+      "live_streams:view",
+    ] as const,
+    canWatchVod: ["can_watch_vod", "vod:view"] as const,
+    isPremium: ["is_premium", "premium_access"] as const,
+  } as const,
+  parseBoolean = (value: string | null | undefined): boolean | null => {
+    if (!value) {
+      return null;
     }
-  }
 
-  return null;
-};
+    const normalized = value.trim().toLowerCase();
+
+    if (["1", "true", "yes", "enabled"].includes(normalized)) {
+      return true;
+    }
+
+    if (["0", "false", "no", "disabled"].includes(normalized)) {
+      return false;
+    }
+
+    return null;
+  },
+  uniq = <T>(values: T[]) => [...new Set(values)],
+  isString = (value: string | null): value is string =>
+    typeof value === "string",
+  entitlementValue = (
+    entitlements: Map<string, string>,
+    keys: readonly string[]
+  ): boolean | null => {
+    for (const key of keys) {
+      const value = parseBoolean(entitlements.get(key));
+
+      if (value !== null) {
+        return value;
+      }
+    }
+
+    return null;
+  };
 
 export interface EntitlementSnapshot {
   activePlanCode: string | null;
@@ -87,58 +83,55 @@ export interface EntitlementSnapshot {
 }
 
 const defaultEntitlements = (): EntitlementSnapshot => ({
-  activePlanCode: null,
-  canCreateLiveBattles: false,
-  canHostLiveStreams: false,
-  canOperatePaidCommunity: false,
-  canReceivePayouts: false,
-  canSellProducts: false,
-  canViewLiveBattles: false,
-  canVoteLiveBattles: false,
-  canWatchCreatorStreams: false,
-  canWatchVod: false,
-  isPremium: false,
-  referenceId: null,
-  status: null,
-}),
+    activePlanCode: null,
+    canCreateLiveBattles: false,
+    canHostLiveStreams: false,
+    canOperatePaidCommunity: false,
+    canReceivePayouts: false,
+    canSellProducts: false,
+    canViewLiveBattles: false,
+    canVoteLiveBattles: false,
+    canWatchCreatorStreams: false,
+    canWatchVod: false,
+    isPremium: false,
+    referenceId: null,
+    status: null,
+  }),
+  compareReferencePriority = (
+    candidateReferenceIds: string[],
+    left: string,
+    right: string
+  ) => {
+    const leftIndex = candidateReferenceIds.indexOf(left),
+      rightIndex = candidateReferenceIds.indexOf(right);
 
- compareReferencePriority = (
-  candidateReferenceIds: string[],
-  left: string,
-  right: string
-) => {
-  const leftIndex = candidateReferenceIds.indexOf(left),
-   rightIndex = candidateReferenceIds.indexOf(right);
+    if (leftIndex === rightIndex) {
+      return 0;
+    }
 
-  if (leftIndex === rightIndex) {
-    return 0;
-  }
+    if (leftIndex === -1) {
+      return 1;
+    }
 
-  if (leftIndex === -1) {
-    return 1;
-  }
+    if (rightIndex === -1) {
+      return -1;
+    }
 
-  if (rightIndex === -1) {
-    return -1;
-  }
+    return leftIndex - rightIndex;
+  },
+  statusPriority = (status: string) => {
+    if (status === "active") {
+      return 0;
+    }
 
-  return leftIndex - rightIndex;
-},
+    if (status === "trialing") {
+      return 1;
+    }
 
- statusPriority = (status: string) => {
-  if (status === "active") {
-    return 0;
-  }
-
-  if (status === "trialing") {
-    return 1;
-  }
-
-  return 2;
-},
-
- compareStatusPriority = (left: string, right: string) =>
-  statusPriority(left) - statusPriority(right);
+    return 2;
+  },
+  compareStatusPriority = (left: string, right: string) =>
+    statusPriority(left) - statusPriority(right);
 
 // The resolver intentionally combines workspace, subscription, catalog, and override precedence.
 // eslint-disable-next-line complexity
@@ -154,123 +147,119 @@ export const resolveEntitlements = async ({
   }
 
   const db = createDb(),
-   memberships = await db
-    .select({
-      organizationId: member.organizationId,
-    })
-    .from(member)
-    .where(eq(member.userId, user.id)),
-
-   candidateReferenceIds = uniq(
-    [
-      session?.activeOrganizationId ?? null,
-      user.id,
-      ...memberships.map(({ organizationId }) => organizationId),
-    ].filter(isString)
-  );
+    memberships = await db
+      .select({
+        organizationId: member.organizationId,
+      })
+      .from(member)
+      .where(eq(member.userId, user.id)),
+    candidateReferenceIds = uniq(
+      [
+        session?.activeOrganizationId ?? null,
+        user.id,
+        ...memberships.map(({ organizationId }) => organizationId),
+      ].filter(isString)
+    );
 
   if (candidateReferenceIds.length === 0) {
     return defaultEntitlements();
   }
 
   const subscriptions = await db
-    .select({
-      audience: planCatalog.audience,
-      monthlyPriceCents: planCatalog.monthlyPriceCents,
-      plan: subscription.plan,
-      planEntitlements: planCatalog.entitlements,
-      referenceId: subscription.referenceId,
-      status: subscription.status,
-      subscriptionId: subscription.id,
-    })
-    .from(subscription)
-    .leftJoin(planCatalog, eq(subscription.plan, planCatalog.code))
-    .where(
-      and(
-        inArray(subscription.referenceId, candidateReferenceIds),
-        inArray(subscription.status, [...ACTIVE_SUBSCRIPTION_STATUSES])
-      )
-    ),
+      .select({
+        audience: planCatalog.audience,
+        monthlyPriceCents: planCatalog.monthlyPriceCents,
+        plan: subscription.plan,
+        planEntitlements: planCatalog.entitlements,
+        referenceId: subscription.referenceId,
+        status: subscription.status,
+        subscriptionId: subscription.id,
+      })
+      .from(subscription)
+      .leftJoin(planCatalog, eq(subscription.plan, planCatalog.code))
+      .where(
+        and(
+          inArray(subscription.referenceId, candidateReferenceIds),
+          inArray(subscription.status, [...ACTIVE_SUBSCRIPTION_STATUSES])
+        )
+      ),
+    [activeSubscription] = subscriptions.toSorted((left, right) => {
+      const referencePriority = compareReferencePriority(
+        candidateReferenceIds,
+        left.referenceId,
+        right.referenceId
+      );
 
-   [activeSubscription] = subscriptions.toSorted((left, right) => {
-    const referencePriority = compareReferencePriority(
-      candidateReferenceIds,
-      left.referenceId,
-      right.referenceId
-    );
+      if (referencePriority !== 0) {
+        return referencePriority;
+      }
 
-    if (referencePriority !== 0) {
-      return referencePriority;
-    }
-
-    return compareStatusPriority(left.status, right.status);
-  });
+      return compareStatusPriority(left.status, right.status);
+    });
 
   if (!activeSubscription) {
     return defaultEntitlements();
   }
 
   const entitlementRows = await db
-    .select({
-      key: subscriptionEntitlements.entitlementKey,
-      value: subscriptionEntitlements.entitlementValue,
-    })
-    .from(subscriptionEntitlements)
-    .where(
-      eq(
-        subscriptionEntitlements.subscriptionId,
-        activeSubscription.subscriptionId
+      .select({
+        key: subscriptionEntitlements.entitlementKey,
+        value: subscriptionEntitlements.entitlementValue,
+      })
+      .from(subscriptionEntitlements)
+      .where(
+        eq(
+          subscriptionEntitlements.subscriptionId,
+          activeSubscription.subscriptionId
+        )
+      ),
+    entitlementMap = new Map(
+      entitlementRows.map(({ key, value }) => [key, value] as const)
+    ),
+    paidPlan =
+      CONFIGURED_PAID_PLAN_CODES.has(activeSubscription.plan) ||
+      (activeSubscription.monthlyPriceCents !== null &&
+        activeSubscription.monthlyPriceCents > 0),
+    artistPlan =
+      activeSubscription.audience === "artist" ||
+      activeSubscription.plan.startsWith("artist_"),
+    catalogEntitlements = new Map(
+      Object.entries(activeSubscription.planEntitlements ?? {}).map(
+        ([key, value]) => [key, String(value)] as const
       )
     ),
-
-   entitlementMap = new Map(
-    entitlementRows.map(({ key, value }) => [key, value] as const)
-  ),
-
-   paidPlan =
-    CONFIGURED_PAID_PLAN_CODES.has(activeSubscription.plan) ||
-    (activeSubscription.monthlyPriceCents !== null &&
-      activeSubscription.monthlyPriceCents > 0),
-   artistPlan =
-    activeSubscription.audience === "artist" ||
-    activeSubscription.plan.startsWith("artist_"),
-   catalogEntitlements = new Map(
-    Object.entries(activeSubscription.planEntitlements ?? {}).map(
-      ([key, value]) => [key, String(value)] as const
-    )
-  ),
-   resolveValue = (keys: readonly string[]) =>
-    entitlementValue(entitlementMap, keys) ??
-    entitlementValue(catalogEntitlements, keys),
-
-   canViewLiveBattles =
-    resolveValue(ENTITLEMENT_KEYS.canViewLiveBattles) ?? paidPlan,
-   canVoteLiveBattles =
-    resolveValue(ENTITLEMENT_KEYS.canVoteLiveBattles) ?? canViewLiveBattles,
-   canHostLiveStreams =
-    resolveValue(ENTITLEMENT_KEYS.canHostLiveStreams) ??
-    (artistPlan && paidPlan),
-   canCreateLiveBattles =
-    resolveValue(ENTITLEMENT_KEYS.canCreateLiveBattles) ??
-    (artistPlan && paidPlan),
-   canWatchCreatorStreams =
-    resolveValue(ENTITLEMENT_KEYS.canWatchCreatorStreams) ?? paidPlan,
-   canWatchVod = resolveValue(ENTITLEMENT_KEYS.canWatchVod) ?? paidPlan,
-   canSellProducts =
-    resolveValue(ENTITLEMENT_KEYS.canSellProducts) ?? (artistPlan && paidPlan),
-   canReceivePayouts =
-    resolveValue(ENTITLEMENT_KEYS.canReceivePayouts) ??
-    (artistPlan && paidPlan),
-   canOperatePaidCommunity =
-    resolveValue(ENTITLEMENT_KEYS.canOperatePaidCommunity) ??
-    (artistPlan && paidPlan),
-   isPremiumOverride = resolveValue(ENTITLEMENT_KEYS.isPremium),
-   isPremium =
-    isPremiumOverride ??
-    (paidPlan ||
-      canHostLiveStreams ||
-      canCreateLiveBattles ||
-      canWatchCreatorStreams);
+    resolveValue = (keys: readonly string[]) =>
+      entitlementValue(entitlementMap, keys) ??
+      entitlementValue(catalogEntitlements, keys),
+    canViewLiveBattles =
+      resolveValue(ENTITLEMENT_KEYS.canViewLiveBattles) ?? paidPlan,
+    canVoteLiveBattles =
+      resolveValue(ENTITLEMENT_KEYS.canVoteLiveBattles) ?? canViewLiveBattles,
+    canHostLiveStreams =
+      resolveValue(ENTITLEMENT_KEYS.canHostLiveStreams) ??
+      (artistPlan && paidPlan),
+    canCreateLiveBattles =
+      resolveValue(ENTITLEMENT_KEYS.canCreateLiveBattles) ??
+      (artistPlan && paidPlan),
+    canWatchCreatorStreams =
+      resolveValue(ENTITLEMENT_KEYS.canWatchCreatorStreams) ?? paidPlan,
+    canWatchVod = resolveValue(ENTITLEMENT_KEYS.canWatchVod) ?? paidPlan,
+    canSellProducts =
+      resolveValue(ENTITLEMENT_KEYS.canSellProducts) ??
+      (artistPlan && paidPlan),
+    canReceivePayouts =
+      resolveValue(ENTITLEMENT_KEYS.canReceivePayouts) ??
+      (artistPlan && paidPlan),
+    canOperatePaidCommunity =
+      resolveValue(ENTITLEMENT_KEYS.canOperatePaidCommunity) ??
+      (artistPlan && paidPlan),
+    isPremiumOverride = resolveValue(ENTITLEMENT_KEYS.isPremium),
+    isPremium =
+      isPremiumOverride ??
+      (paidPlan ||
+        canHostLiveStreams ||
+        canCreateLiveBattles ||
+        canWatchCreatorStreams);
 
   return {
     activePlanCode: activeSubscription.plan,

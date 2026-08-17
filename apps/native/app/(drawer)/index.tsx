@@ -15,8 +15,8 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function Home() {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-   { data: session } = authClient.useSession();
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    { data: session } = authClient.useSession();
 
   return (
     <Container>

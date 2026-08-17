@@ -33,40 +33,41 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const router = useRouter(),
-   { redirect } = Route.useSearch(),
-   posthog = usePostHog(),
-   [email, setEmail] = useState(""),
-   [errorMessage, setErrorMessage] = useState<string | null>(null),
-   [isSubmitting, setIsSubmitting] = useState(false),
-   [password, setPassword] = useState(""),
+    { redirect } = Route.useSearch(),
+    posthog = usePostHog(),
+    [email, setEmail] = useState(""),
+    [errorMessage, setErrorMessage] = useState<string | null>(null),
+    [isSubmitting, setIsSubmitting] = useState(false),
+    [password, setPassword] = useState(""),
+    handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setErrorMessage(null);
+      setIsSubmitting(true);
 
-   handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setErrorMessage(null);
-    setIsSubmitting(true);
+      try {
+        const result = await authClient.signIn.email({
+          email,
+          password,
+        });
 
-    try {
-      const result = await authClient.signIn.email({
-        email,
-        password,
-      });
+        if (result.error) {
+          setErrorMessage(result.error.message ?? "Unable to sign in.");
+          return;
+        }
 
-      if (result.error) {
-        setErrorMessage(result.error.message ?? "Unable to sign in.");
-        return;
+        posthog.identify(email, { email });
+        posthog.capture("user_signed_in", { method: "email" });
+
+        await router.navigate({ to: redirect });
+      } catch (error) {
+        posthog.captureException(error);
+        setErrorMessage(
+          "Unable to reach SoundKit. Check your API credentials."
+        );
+      } finally {
+        setIsSubmitting(false);
       }
-
-      posthog.identify(email, { email });
-      posthog.capture("user_signed_in", { method: "email" });
-
-      await router.navigate({ to: redirect });
-    } catch (error) {
-      posthog.captureException(error);
-      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

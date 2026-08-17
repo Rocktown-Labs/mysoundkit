@@ -17,8 +17,8 @@ import {
 export { mapScopes, type MapScope } from "../../lib/map-scopes";
 
 const usGeoUrl = "https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json",
- worldGeoUrl =
-  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+  worldGeoUrl =
+    "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 interface WorldAndUSAMapProps {
   mapScope: MapScope;
@@ -36,19 +36,16 @@ export function WorldAndUSAMap({
   selectedRegions,
 }: WorldAndUSAMapProps) {
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null),
-
-   scopeConfig = mapScopes.find((s) => s.id === mapScope) ?? mapScopes[0],
-
-   isUSScope = mapScope === "north-america",
-   geoUrl = isUSScope ? usGeoUrl : worldGeoUrl,
-
-   displayRegion =
-    hoveredRegion ||
-    selectedRegion ||
-    (selectedRegions?.length ? `${selectedRegions.length} selected` : null),
-   selectedRegionSet = new Set(
-    (selectedRegions ?? []).map((region) => region.toLowerCase())
-  );
+    scopeConfig = mapScopes.find((s) => s.id === mapScope) ?? mapScopes[0],
+    isUSScope = mapScope === "north-america",
+    geoUrl = isUSScope ? usGeoUrl : worldGeoUrl,
+    displayRegion =
+      hoveredRegion ||
+      selectedRegion ||
+      (selectedRegions?.length ? `${selectedRegions.length} selected` : null),
+    selectedRegionSet = new Set(
+      (selectedRegions ?? []).map((region) => region.toLowerCase())
+    );
 
   return (
     <div className="relative w-full max-w-full bg-muted/30 rounded-lg overflow-hidden border border-border/50">
@@ -137,9 +134,9 @@ export function WorldAndUSAMap({
                 }
 
                 const normalizedName = name.toLowerCase(),
-                 isSelected =
-                  selectedRegion?.toLowerCase() === normalizedName ||
-                  selectedRegionSet.has(normalizedName);
+                  isSelected =
+                    selectedRegion?.toLowerCase() === normalizedName ||
+                    selectedRegionSet.has(normalizedName);
                 return (
                   <Geography
                     key={geo.rsmKey}

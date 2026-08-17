@@ -6,13 +6,13 @@ import { resolve } from "node:path";
 import process from "node:process";
 
 const CACHE_DIRECTORY = resolve(import.meta.dirname, ".cache"),
- DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
+  DEFAULT_TTL_SECONDS = 15 * 60; // 15 minutes
 
 export async function fetchCached(url) {
   await mkdir(CACHE_DIRECTORY, { recursive: true });
 
   const cacheFile = resolve(CACHE_DIRECTORY, `${hashUrl(url)}.json`),
-   cached = await loadCacheEntry(cacheFile);
+    cached = await loadCacheEntry(cacheFile);
   if (cached && cached.expires > Math.floor(Date.now() / 1000)) {
     return cached.data;
   }
@@ -38,8 +38,8 @@ export async function fetchCached(url) {
   }
 
   const etag = response.headers.get("etag"),
-   data = await response.text(),
-   expires = getExpires(response.headers);
+    data = await response.text(),
+    expires = getExpires(response.headers);
 
   await saveCacheEntry(cacheFile, { data, etag, expires, url });
 
@@ -64,9 +64,8 @@ async function saveCacheEntry(cacheFile, entry) {
 
 function getExpires(headers) {
   const now = Math.floor(Date.now() / 1000),
-
-  // Prefer Cache-Control: max-age
-   maxAgeSeconds = parseMaxAge(headers.get("cache-control"));
+    // Prefer Cache-Control: max-age
+    maxAgeSeconds = parseMaxAge(headers.get("cache-control"));
   if (maxAgeSeconds != null) {
     return now + maxAgeSeconds;
   }

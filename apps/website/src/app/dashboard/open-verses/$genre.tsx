@@ -21,27 +21,26 @@ const titleFromSlug = (slug: string) =>
 
 function OpenVerseListItem({ listing }: { listing: OpenVerseListing }) {
   const { setCurrentTrack, setQueue } = useAudioPlayer(),
+    playListing = () => {
+      if (!listing.playbackUrl) {
+        return;
+      }
 
-   playListing = () => {
-    if (!listing.playbackUrl) {
-      return;
-    }
+      const playerTrack = {
+        artist: listing.artistName,
+        artistHref: listing.artistUsername
+          ? `/artist/${listing.artistUsername}`
+          : "/dashboard/profile",
+        cover: listing.coverArtUrl ?? "/placeholder.svg",
+        id: listing.trackId,
+        src: listing.playbackUrl,
+        title: listing.trackTitle,
+        trackHref: `/tracks/${listing.trackId}`,
+      };
 
-    const playerTrack = {
-      artist: listing.artistName,
-      artistHref: listing.artistUsername
-        ? `/artist/${listing.artistUsername}`
-        : "/dashboard/profile",
-      cover: listing.coverArtUrl ?? "/placeholder.svg",
-      id: listing.trackId,
-      src: listing.playbackUrl,
-      title: listing.trackTitle,
-      trackHref: `/tracks/${listing.trackId}`,
+      setQueue([playerTrack]);
+      setCurrentTrack(playerTrack);
     };
-
-    setQueue([playerTrack]);
-    setCurrentTrack(playerTrack);
-  };
 
   return (
     <Card className="border-border/40 bg-card/50">
@@ -89,9 +88,9 @@ function OpenVerseListItem({ listing }: { listing: OpenVerseListing }) {
 
 function OpenVerseGenrePage() {
   const { genre } = Route.useParams(),
-   query = useOpenVersesInfiniteQuery({ genre, limit: "20" }),
-   listings = query.data?.pages.flatMap((page) => page.items) ?? [],
-   { inView, ref } = useInView({ rootMargin: "320px" });
+    query = useOpenVersesInfiniteQuery({ genre, limit: "20" }),
+    listings = query.data?.pages.flatMap((page) => page.items) ?? [],
+    { inView, ref } = useInView({ rootMargin: "320px" });
 
   useEffect(() => {
     if (inView && query.hasNextPage && !query.isFetchingNextPage) {

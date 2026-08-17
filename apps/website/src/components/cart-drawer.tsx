@@ -17,49 +17,42 @@ import { API_V1_URL } from "@/lib/api";
 
 export function CartDrawer() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null),
-   [isCheckingOut, setIsCheckingOut] = useState(false),
-   {
-    cart,
-    clearCart,
-    isCartOpen,
-    removeItem,
-    setIsCartOpen,
-    updateQuantity,
-  } = useCart(),
+    [isCheckingOut, setIsCheckingOut] = useState(false),
+    { cart, clearCart, isCartOpen, removeItem, setIsCartOpen, updateQuantity } =
+      useCart(),
+    startCheckout = async () => {
+      setCheckoutError(null);
+      setIsCheckingOut(true);
 
-   startCheckout = async () => {
-    setCheckoutError(null);
-    setIsCheckingOut(true);
+      try {
+        const response = await fetch(`${API_V1_URL}/payments/checkout`, {
+            body: JSON.stringify({
+              cancelUrl: window.location.href,
+              successUrl: `${window.location.origin}/library/purchased`,
+            }),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }),
+          payload = (await response.json()) as {
+            checkoutUrl?: string | null;
+            message?: string;
+          };
 
-    try {
-      const response = await fetch(`${API_V1_URL}/payments/checkout`, {
-        body: JSON.stringify({
-          cancelUrl: window.location.href,
-          successUrl: `${window.location.origin}/library/purchased`,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }),
-       payload = (await response.json()) as {
-        checkoutUrl?: string | null;
-        message?: string;
-      };
+        if (!response.ok || !payload.checkoutUrl) {
+          setCheckoutError(
+            payload.message ?? "Checkout is not available for this cart yet."
+          );
+          return;
+        }
 
-      if (!response.ok || !payload.checkoutUrl) {
-        setCheckoutError(
-          payload.message ?? "Checkout is not available for this cart yet."
-        );
-        return;
+        window.location.assign(payload.checkoutUrl);
+      } catch {
+        setCheckoutError("Unable to start checkout right now.");
+      } finally {
+        setIsCheckingOut(false);
       }
-
-      window.location.assign(payload.checkoutUrl);
-    } catch {
-      setCheckoutError("Unable to start checkout right now.");
-    } finally {
-      setIsCheckingOut(false);
-    }
-  };
+    };
 
   return (
     <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>

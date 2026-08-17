@@ -22,13 +22,12 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
-
- subscriptionSummarySchema = z.object({
-  activePlanCode: z.string().nullable(),
-  entitlements: entitlementSummarySchema,
-  status: z.string().nullable(),
-  workspace: workspaceSummarySchema.nullable(),
-});
+  subscriptionSummarySchema = z.object({
+    activePlanCode: z.string().nullable(),
+    entitlements: entitlementSummarySchema,
+    status: z.string().nullable(),
+    workspace: workspaceSummarySchema.nullable(),
+  });
 
 app.openapi(
   createRoute({
@@ -96,20 +95,20 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     session = c.get("session"),
-     referenceId =
-      body.referenceId ??
-      (isAuthenticatedSession(session)
-        ? (session.activeOrganizationId ?? user.id)
-        : user.id),
-     checkout = await checkoutForPlan({
-      cancelUrl: body.cancelUrl,
-      planCode: body.planCode,
-      referenceId,
-      request: c.req.raw,
-      seats: body.seats,
-      successUrl: body.successUrl,
-    });
+      session = c.get("session"),
+      referenceId =
+        body.referenceId ??
+        (isAuthenticatedSession(session)
+          ? (session.activeOrganizationId ?? user.id)
+          : user.id),
+      checkout = await checkoutForPlan({
+        cancelUrl: body.cancelUrl,
+        planCode: body.planCode,
+        referenceId,
+        request: c.req.raw,
+        seats: body.seats,
+        successUrl: body.successUrl,
+      });
 
     return c.json(checkout, HttpStatusCodes.OK);
   }
@@ -139,10 +138,10 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
 
     return c.json(
       {

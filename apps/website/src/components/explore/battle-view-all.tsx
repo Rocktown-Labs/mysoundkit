@@ -39,163 +39,154 @@ interface BattleFiltersState {
 }
 
 const sortOptionsMap = {
-  leaderboard: [
-    { label: "Rank: 1 to 100", value: "rank-asc" },
-    { label: "Rank: 100 to 1", value: "rank-desc" },
-    { label: "Most Wins", value: "wins-desc" },
-    { label: "Highest Win Rate", value: "win-rate-desc" },
-  ],
-  live: [
-    { label: "Most Viewers", value: "viewers-desc" },
-    { label: "Least Viewers", value: "viewers-asc" },
-    { label: "Started First", value: "time-asc" },
-    { label: "Started Last", value: "time-desc" },
-  ],
-  "must-see": [
-    { label: "Most Viewed", value: "views-desc" },
-    { label: "Least Viewed", value: "views-asc" },
-    { label: "Most Recent", value: "date-desc" },
-    { label: "Oldest", value: "date-asc" },
-  ],
-  upcoming: [
-    { label: "Soonest First", value: "time-asc" },
-    { label: "Latest First", value: "time-desc" },
-    { label: "Most Anticipated", value: "hype-desc" },
-  ],
-},
+    leaderboard: [
+      { label: "Rank: 1 to 100", value: "rank-asc" },
+      { label: "Rank: 100 to 1", value: "rank-desc" },
+      { label: "Most Wins", value: "wins-desc" },
+      { label: "Highest Win Rate", value: "win-rate-desc" },
+    ],
+    live: [
+      { label: "Most Viewers", value: "viewers-desc" },
+      { label: "Least Viewers", value: "viewers-asc" },
+      { label: "Started First", value: "time-asc" },
+      { label: "Started Last", value: "time-desc" },
+    ],
+    "must-see": [
+      { label: "Most Viewed", value: "views-desc" },
+      { label: "Least Viewed", value: "views-asc" },
+      { label: "Most Recent", value: "date-desc" },
+      { label: "Oldest", value: "date-asc" },
+    ],
+    upcoming: [
+      { label: "Soonest First", value: "time-asc" },
+      { label: "Latest First", value: "time-desc" },
+      { label: "Most Anticipated", value: "hype-desc" },
+    ],
+  },
+  battleGenres = ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"] as const,
+  DEFAULT_REGION = "all",
+  DEFAULT_REGION_TYPE = "north-america" as const,
+  DEFAULT_GENRE = "all",
+  readSavedBattleFilters = (): Partial<BattleFiltersState> | null => {
+    if (typeof window === "undefined") {
+      return null;
+    }
 
- battleGenres = ["Hip-Hop", "R&B/Soul", "Electronic", "Pop"] as const,
- DEFAULT_REGION = "all",
- DEFAULT_REGION_TYPE = "north-america" as const,
- DEFAULT_GENRE = "all",
- readSavedBattleFilters = (): Partial<BattleFiltersState> | null => {
-  if (typeof window === "undefined") {
-    return null;
-  }
+    const savedFilters = window.localStorage.getItem("battleFilters");
 
-  const savedFilters = window.localStorage.getItem("battleFilters");
+    if (!savedFilters) {
+      return null;
+    }
 
-  if (!savedFilters) {
-    return null;
-  }
+    try {
+      return JSON.parse(savedFilters) as Partial<BattleFiltersState>;
+    } catch {
+      return null;
+    }
+  },
+  generateLeaderboardArtists = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      artist: `Artist ${i + 1}`,
+      avatar: `/placeholder.svg?height=80&width=80&query=artist${i + 1}`,
+      genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
+      location: "California, US",
+      losses: Math.floor(Math.random() * 20),
+      rank: i + 1,
+      winRate: Math.floor(Math.random() * 40) + 60,
+      wins: Math.floor(Math.random() * 50) + 10,
+    })),
+  generateMustSeeBattles = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      artist1: `Artist ${i * 2 + 1}`,
+      artist1Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 1}`,
+      artist2: `Artist ${i * 2 + 2}`,
+      artist2Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 2}`,
+      date: new Date(
+        Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+      genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
+      id: `past-${i}`,
+      location: "Texas, US",
+      views: Math.floor(Math.random() * 100_000) + 1000,
+      winner: Math.random() > 0.5 ? "artist1" : "artist2",
+    })),
+  generateUpcomingBattles = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      anticipation: Math.floor(Math.random() * 5000) + 100,
+      artist1: `Artist ${i * 2 + 1}`,
+      artist1Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 1}`,
+      artist1Stats: {
+        losses: Math.floor(Math.random() * 15),
+        topSongs: ["Track A", "Track B", "Track C"],
+        winRate: Math.floor(Math.random() * 40) + 50,
+        wins: Math.floor(Math.random() * 30) + 5,
+      },
+      artist2: `Artist ${i * 2 + 2}`,
+      artist2Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 2}`,
+      artist2Stats: {
+        losses: Math.floor(Math.random() * 15),
+        topSongs: ["Track X", "Track Y", "Track Z"],
+        winRate: Math.floor(Math.random() * 40) + 50,
+        wins: Math.floor(Math.random() * 30) + 5,
+      },
+      genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
+      id: `upcoming-${i}`,
+      location: "Florida, US",
+      scheduledTime: new Date(
+        Date.now() + Math.random() * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    })),
+  normalizedGenreValue = (value: string) => {
+    const normalized = value
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-|-$/gu, "");
 
-  try {
-    return JSON.parse(savedFilters) as Partial<BattleFiltersState>;
-  } catch {
-    return null;
-  }
-},
+    return normalized === "r-b-soul" ? "rb-soul" : normalized;
+  },
+  matchesSelectedGenre = (battle: BattleSummary, selectedGenre: string) =>
+    selectedGenre === DEFAULT_GENRE ||
+    normalizedGenreValue(battle.genre) === selectedGenre,
+  sortedLiveBattles = (battles: BattleSummary[], sort: string) => {
+    const ordered = [...battles];
 
- generateLeaderboardArtists = (count: number) =>
-  Array.from({ length: count }, (_, i) => ({
-    artist: `Artist ${i + 1}`,
-    avatar: `/placeholder.svg?height=80&width=80&query=artist${i + 1}`,
-    genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
-    location: "California, US",
-    losses: Math.floor(Math.random() * 20),
-    rank: i + 1,
-    winRate: Math.floor(Math.random() * 40) + 60,
-    wins: Math.floor(Math.random() * 50) + 10,
-  })),
+    if (sort === "viewers-asc") {
+      return ordered.toSorted(
+        (first, second) => first.viewerCount - second.viewerCount
+      );
+    }
 
- generateMustSeeBattles = (count: number) =>
-  Array.from({ length: count }, (_, i) => ({
-    artist1: `Artist ${i * 2 + 1}`,
-    artist1Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 1}`,
-    artist2: `Artist ${i * 2 + 2}`,
-    artist2Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 2}`,
-    date: new Date(
-      Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
-    ).toISOString(),
-    genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
-    id: `past-${i}`,
-    location: "Texas, US",
-    views: Math.floor(Math.random() * 100_000) + 1000,
-    winner: Math.random() > 0.5 ? "artist1" : "artist2",
-  })),
-
- generateUpcomingBattles = (count: number) =>
-  Array.from({ length: count }, (_, i) => ({
-    anticipation: Math.floor(Math.random() * 5000) + 100,
-    artist1: `Artist ${i * 2 + 1}`,
-    artist1Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 1}`,
-    artist1Stats: {
-      losses: Math.floor(Math.random() * 15),
-      topSongs: ["Track A", "Track B", "Track C"],
-      winRate: Math.floor(Math.random() * 40) + 50,
-      wins: Math.floor(Math.random() * 30) + 5,
-    },
-    artist2: `Artist ${i * 2 + 2}`,
-    artist2Image: `/placeholder.svg?height=100&width=100&query=artist${i * 2 + 2}`,
-    artist2Stats: {
-      losses: Math.floor(Math.random() * 15),
-      topSongs: ["Track X", "Track Y", "Track Z"],
-      winRate: Math.floor(Math.random() * 40) + 50,
-      wins: Math.floor(Math.random() * 30) + 5,
-    },
-    genre: battleGenres[Math.floor(Math.random() * battleGenres.length)],
-    id: `upcoming-${i}`,
-    location: "Florida, US",
-    scheduledTime: new Date(
-      Date.now() + Math.random() * 24 * 60 * 60 * 1000
-    ).toISOString(),
-  })),
-
- normalizedGenreValue = (value: string) => {
-  const normalized = value
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/gu, "-")
-    .replaceAll(/^-|-$/gu, "");
-
-  return normalized === "r-b-soul" ? "rb-soul" : normalized;
-},
-
- matchesSelectedGenre = (battle: BattleSummary, selectedGenre: string) =>
-  selectedGenre === DEFAULT_GENRE ||
-  normalizedGenreValue(battle.genre) === selectedGenre,
-
- sortedLiveBattles = (battles: BattleSummary[], sort: string) => {
-  const ordered = [...battles];
-
-  if (sort === "viewers-asc") {
     return ordered.toSorted(
-      (first, second) => first.viewerCount - second.viewerCount
+      (first, second) => second.viewerCount - first.viewerCount
     );
-  }
+  },
+  groupBattlesByGenre = (battles: BattleSummary[]) => {
+    const grouped = new Map<string, BattleSummary[]>();
 
-  return ordered.toSorted(
-    (first, second) => second.viewerCount - first.viewerCount
-  );
-},
+    for (const battle of battles) {
+      const groupKey = normalizedGenreValue(battle.genre),
+        group = grouped.get(groupKey) ?? [];
+      group.push(battle);
+      grouped.set(groupKey, group);
+    }
 
- groupBattlesByGenre = (battles: BattleSummary[]) => {
-  const grouped = new Map<string, BattleSummary[]>();
+    const knownGenreValues = new Set(musicGenres.map((genre) => genre.value)),
+      orderedGenres = musicGenres.map((genre) => ({
+        battles: grouped.get(genre.value) ?? [],
+        genre: genre.label,
+        value: genre.value,
+      })),
+      customGenres = [...grouped.keys()]
+        .filter((genreValue) => !knownGenreValues.has(genreValue))
+        .toSorted((first, second) => first.localeCompare(second))
+        .map((genreValue) => ({
+          battles: grouped.get(genreValue) ?? [],
+          genre: genreValue.replaceAll("-", " "),
+          value: genreValue,
+        }));
 
-  for (const battle of battles) {
-    const groupKey = normalizedGenreValue(battle.genre),
-     group = grouped.get(groupKey) ?? [];
-    group.push(battle);
-    grouped.set(groupKey, group);
-  }
-
-  const knownGenreValues = new Set(musicGenres.map((genre) => genre.value)),
-   orderedGenres = musicGenres.map((genre) => ({
-    battles: grouped.get(genre.value) ?? [],
-    genre: genre.label,
-    value: genre.value,
-  })),
-
-   customGenres = [...grouped.keys()]
-    .filter((genreValue) => !knownGenreValues.has(genreValue))
-    .toSorted((first, second) => first.localeCompare(second))
-    .map((genreValue) => ({
-      battles: grouped.get(genreValue) ?? [],
-      genre: genreValue.replaceAll("-", " "),
-      value: genreValue,
-    }));
-
-  return [...orderedGenres, ...customGenres];
-};
+    return [...orderedGenres, ...customGenres];
+  };
 
 function LiveBattleSummaryCard({
   battle,
@@ -208,7 +199,7 @@ function LiveBattleSummaryCard({
 
   if (tracks.length >= 2) {
     return (
-      <div className="min-w-[280px] max-w-[320px]">
+      <div className="w-full min-w-0">
         <BattleCard
           currentRound={battle.round?.current ?? 1}
           genre={battle.genre}
@@ -242,7 +233,7 @@ function LiveBattleSummaryCard({
     <Link
       to="/live/battles/$id"
       params={{ id: battle.id }}
-      className="block min-w-[280px] max-w-[320px]"
+      className="block w-full min-w-0"
     >
       <Card className="h-full transition-colors hover:bg-accent">
         <CardContent className="space-y-4 p-4">
@@ -312,8 +303,8 @@ function BattleRail({
         </div>
       </div>
       {battles.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {battles.map((battle) => (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          {battles.slice(0, 6).map((battle) => (
             <LiveBattleSummaryCard
               battle={battle}
               isPremiumUser={isPremiumUser}
@@ -336,43 +327,37 @@ export function BattleViewAll({
   description,
 }: BattleViewAllProps) {
   const locationSearch = useRouterState({ select: (s) => s.location.search }),
-   searchParams = new URLSearchParams(
-    typeof locationSearch === "string" ? locationSearch : ""
-  ),
-   [selectedMatchup, setSelectedMatchup] = useState<
-    ReturnType<typeof generateUpcomingBattles>[number] | null
-  >(null),
-   isInitialMount = useRef(true),
-   defaultSort = sortOptionsMap[type][0].value,
-   regionTypeFromSearch = searchParams.get("regionType"),
-   regionFromSearch = searchParams.get("region"),
-   genreFromSearch = searchParams.get("genre"),
-   sortFromSearch = searchParams.get("sort"),
-   hasSearchFilters =
-    regionTypeFromSearch !== null ||
-    regionFromSearch !== null ||
-    genreFromSearch !== null ||
-    sortFromSearch !== null,
-
-   [regionType, setRegionType] = useState<"north-america" | "global">(
-    () => (regionTypeFromSearch === "global" ? "global" : DEFAULT_REGION_TYPE)
-  ),
-
-   [region, setRegion] = useState(
-    () => regionFromSearch ?? DEFAULT_REGION
-  ),
-
-   [genre, setGenre] = useState(() => genreFromSearch ?? DEFAULT_GENRE),
-
-   [sort, setSort] = useState(() => sortFromSearch ?? defaultSort),
-   { data: battleSummaries = [], isLoading: isLoadingBattles } =
-    useBattlesQuery(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   isPremiumUser = Boolean(
-    entitlementsQuery.data?.isPremium ||
-    entitlementsQuery.data?.canViewLiveBattles ||
-    entitlementsQuery.data?.canVoteLiveBattles
-  );
+    searchParams = new URLSearchParams(
+      typeof locationSearch === "string" ? locationSearch : ""
+    ),
+    [selectedMatchup, setSelectedMatchup] = useState<
+      ReturnType<typeof generateUpcomingBattles>[number] | null
+    >(null),
+    isInitialMount = useRef(true),
+    defaultSort = sortOptionsMap[type][0].value,
+    regionTypeFromSearch = searchParams.get("regionType"),
+    regionFromSearch = searchParams.get("region"),
+    genreFromSearch = searchParams.get("genre"),
+    sortFromSearch = searchParams.get("sort"),
+    hasSearchFilters =
+      regionTypeFromSearch !== null ||
+      regionFromSearch !== null ||
+      genreFromSearch !== null ||
+      sortFromSearch !== null,
+    [regionType, setRegionType] = useState<"north-america" | "global">(() =>
+      regionTypeFromSearch === "global" ? "global" : DEFAULT_REGION_TYPE
+    ),
+    [region, setRegion] = useState(() => regionFromSearch ?? DEFAULT_REGION),
+    [genre, setGenre] = useState(() => genreFromSearch ?? DEFAULT_GENRE),
+    [sort, setSort] = useState(() => sortFromSearch ?? defaultSort),
+    { data: battleSummaries = [], isLoading: isLoadingBattles } =
+      useBattlesQuery(),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    isPremiumUser = Boolean(
+      entitlementsQuery.data?.isPremium ||
+      entitlementsQuery.data?.canViewLiveBattles ||
+      entitlementsQuery.data?.canVoteLiveBattles
+    );
 
   useEffect(() => {
     if (hasSearchFilters) {
@@ -413,79 +398,76 @@ export function BattleViewAll({
   }, [regionType, region, genre, sort]);
 
   const liveBattleSections = useMemo(() => {
-    const filtered = sortedLiveBattles(
-      battleSummaries.filter(
-        (battle) =>
-          battle.status === "live" && matchesSelectedGenre(battle, genre)
-      ),
-      sort
-    ),
-     featured = filtered
-      .filter((battle) => battle.isFeatured)
-      .toSorted(
-        (first, second) =>
-          (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
-          (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
-      ),
-     byGenre = groupBattlesByGenre(filtered);
+      const filtered = sortedLiveBattles(
+          battleSummaries.filter(
+            (battle) =>
+              battle.status === "live" && matchesSelectedGenre(battle, genre)
+          ),
+          sort
+        ),
+        featured = filtered
+          .filter((battle) => battle.isFeatured)
+          .toSorted(
+            (first, second) =>
+              (first.featuredRank ?? Number.MAX_SAFE_INTEGER) -
+              (second.featuredRank ?? Number.MAX_SAFE_INTEGER)
+          ),
+        byGenre = groupBattlesByGenre(filtered);
 
-    return { byGenre, featured, total: filtered.length };
-  }, [battleSummaries, genre, sort]),
+      return { byGenre, featured, total: filtered.length };
+    }, [battleSummaries, genre, sort]),
+    data = useMemo(() => {
+      if (type === "leaderboard") {
+        return generateLeaderboardArtists(100);
+      }
 
-   data = useMemo(() => {
-    if (type === "leaderboard") {
-      return generateLeaderboardArtists(100);
-    }
+      if (type === "must-see") {
+        return generateMustSeeBattles(50);
+      }
 
-    if (type === "must-see") {
-      return generateMustSeeBattles(50);
-    }
+      return generateUpcomingBattles(30);
+    }, [type]),
+    liveBattleContent = useMemo(() => {
+      if (isLoadingBattles) {
+        return (
+          <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+            Loading live battles...
+          </div>
+        );
+      }
 
-    return generateUpcomingBattles(30);
-  }, [type]),
-
-   liveBattleContent = useMemo(() => {
-    if (isLoadingBattles) {
       return (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Loading live battles...
-        </div>
-      );
-    }
-
-    return (
-      <>
-        <BattleRail
-          battles={liveBattleSections.featured}
-          isPremiumUser={isPremiumUser}
-          title="Featured"
-        />
-        {liveBattleSections.byGenre.map((section) => (
+        <>
           <BattleRail
-            key={section.genre}
-            battles={section.battles}
+            battles={liveBattleSections.featured}
             isPremiumUser={isPremiumUser}
-            title={section.genre}
-            viewAllGenre={section.value}
+            title="Featured"
           />
-        ))}
-      </>
-    );
-  }, [isLoadingBattles, liveBattleSections]),
-
-   getBattleTypeIcon = (battleType: BattleType) => {
-    switch (battleType) {
-      case "leaderboard": {
-        return <Trophy className="size-6 text-primary md:size-8" />;
+          {liveBattleSections.byGenre.map((section) => (
+            <BattleRail
+              key={section.genre}
+              battles={section.battles}
+              isPremiumUser={isPremiumUser}
+              title={section.genre}
+              viewAllGenre={section.value}
+            />
+          ))}
+        </>
+      );
+    }, [isLoadingBattles, liveBattleSections]),
+    getBattleTypeIcon = (battleType: BattleType) => {
+      switch (battleType) {
+        case "leaderboard": {
+          return <Trophy className="size-6 text-primary md:size-8" />;
+        }
+        case "must-see": {
+          return <TrendingUp className="size-6 text-primary md:size-8" />;
+        }
+        default: {
+          return <Swords className="size-6 text-primary md:size-8" />;
+        }
       }
-      case "must-see": {
-        return <TrendingUp className="size-6 text-primary md:size-8" />;
-      }
-      default: {
-        return <Swords className="size-6 text-primary md:size-8" />;
-      }
-    }
-  };
+    };
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

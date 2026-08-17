@@ -77,7 +77,7 @@ export const downloadFileFromApi = async ({
   url: string;
 }) => {
   const href = url.startsWith("http") ? url : `${API_BASE_URL}${url}`,
-   response = await fetch(href, { credentials: "include" });
+    response = await fetch(href, { credentials: "include" });
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as {
@@ -91,8 +91,8 @@ export const downloadFileFromApi = async ({
   }
 
   const blob = await response.blob(),
-   objectUrl = URL.createObjectURL(blob),
-   anchor = document.createElement("a");
+    objectUrl = URL.createObjectURL(blob),
+    anchor = document.createElement("a");
   anchor.href = objectUrl;
   anchor.download =
     fileNameFromContentDisposition(
