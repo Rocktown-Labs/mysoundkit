@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Sparkles, TrendingUp, Trophy } from "lucide-react";
 
@@ -218,13 +219,24 @@ function ArtistPage() {
         ? null
         : localStorage.getItem("exploreRegion"),
     regionType = search.regionType ?? savedRegionType ?? "north-america",
-    region = search.region ?? savedRegion ?? "us-arkansas",
+    region =
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
     genre = search.genre ?? "all",
     q = search.q ?? "",
     sort = search.sort ?? "rank-asc",
     updateFilters = (next: Partial<ArtistSearch>) => {
       const nextRegionType = next.regionType ?? regionType,
-        nextRegion = next.region ?? region;
+        nextRegion =
+          next.region ??
+          (next.regionType === "global" && regionType !== "global"
+            ? "all"
+            : next.regionType === "north-america" &&
+                regionType !== "north-america"
+              ? "us-arkansas"
+              : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
         localStorage.setItem("exploreRegion", nextRegion);

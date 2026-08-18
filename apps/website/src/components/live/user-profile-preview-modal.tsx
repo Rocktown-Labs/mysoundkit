@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable complexity, no-unused-vars, sort-vars, one-var */
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary */
 
 import {
   CheckCircle2,
@@ -50,43 +50,53 @@ export function UserProfilePreviewModal({
   const meQuery = useMeQuery();
   const meUser = meQuery.data?.user;
   const meProfile = meQuery.data?.profile;
-  const artistQuery = useArtistQuery(user?.username ?? "");
+
+  const isCurrentUser = Boolean(
+    user &&
+    (user.displayName.toLowerCase() === "you" ||
+      user.id === meUser?.id ||
+      (meProfile?.username &&
+        user.username.toLowerCase() === meProfile.username.toLowerCase()))
+  );
+
+  const lookupKey = isCurrentUser
+    ? meProfile?.username || meUser?.id || ""
+    : user?.username || user?.displayName || user?.id || "";
+
+  const artistQuery = useArtistQuery(lookupKey);
   const artistData = artistQuery.data;
 
   if (!user) {
     return null;
   }
 
-  const isCurrentUser = Boolean(
-    user.displayName.toLowerCase() === "you" ||
-    user.id === meUser?.id ||
-    (meProfile?.username &&
-      user.username.toLowerCase() === meProfile.username.toLowerCase())
-  );
-
   const displayName = isCurrentUser
-    ? (meProfile?.displayName ?? meUser?.name ?? "You")
+    ? (artistData?.name ?? meProfile?.displayName ?? meUser?.name ?? "You")
     : (artistData?.name ?? user.displayName);
   const username = isCurrentUser
-    ? (meProfile?.username ?? meUser?.email?.split("@")[0] ?? "you")
+    ? (artistData?.username ??
+      meProfile?.username ??
+      meUser?.email?.split("@")[0] ??
+      "you")
     : (artistData?.username ?? user.username);
   const avatarUrl = isCurrentUser
-    ? (meProfile?.avatarUrl ?? meUser?.image ?? "/diverse-user-avatars.png")
+    ? (artistData?.avatarUrl ??
+      meProfile?.avatarUrl ??
+      meUser?.image ??
+      "/diverse-user-avatars.png")
     : (artistData?.avatarUrl ?? user.avatarUrl ?? "/diverse-user-avatars.png");
   const bio = isCurrentUser
-    ? (meProfile?.bio ?? "SoundKit artist & creator.")
+    ? (artistData?.bio ?? meProfile?.bio ?? "SoundKit artist & creator.")
     : (artistData?.bio ??
       user.bio ??
       "Music creator & community member on SoundKit.");
-  const followersCount = isCurrentUser
-    ? 1250
-    : (artistData?.followers ?? user.followersCount ?? 450) +
-      (isFollowing ? 1 : 0);
+  const followersCount =
+    (artistData?.followers ?? user.followersCount ?? 0) + (isFollowing ? 1 : 0);
   const genre = isCurrentUser
-    ? "SoundKit Creator"
+    ? (artistData?.genre ?? "SoundKit Creator")
     : (artistData?.genre ?? user.genre ?? "SoundKit Creator");
   const isVerified = isCurrentUser
-    ? true
+    ? (artistData?.verified ?? true)
     : (artistData?.verified ?? user.verified ?? false);
 
   const handleToggleFollow = () => {
@@ -108,7 +118,7 @@ export function UserProfilePreviewModal({
 
         {/* Ambient Gradient Banner */}
         <div className="relative h-28 bg-gradient-to-br from-primary/30 via-secondary/20 to-accent/30 p-4 flex items-end justify-end">
-          <Badge className="bg-background/80 backdrop-blur-md text-xs font-semibold">
+          <Badge className="bg-black/90 text-white border border-white/20 backdrop-blur-md text-xs font-semibold px-2.5 py-1 shadow-md">
             {user.role ?? "SoundKit Member"}
           </Badge>
         </div>

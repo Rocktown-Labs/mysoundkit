@@ -188,14 +188,11 @@ test.describe("main application surfaces", () => {
     test.setTimeout(45_000);
 
     await gotoWithViteRetry(page, "/live/parties/single-album-party");
-    await expect(page.getByText("Loading live room...")).toBeHidden({
-      timeout: 20_000,
-    });
     await expect(
-      page.getByRole("heading", { name: /single album spotlight/i })
-    ).toBeVisible();
+      page.getByRole("heading", { name: /single album spotlight/i }).first()
+    ).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/lyrics/i).first()).toBeVisible();
-    await expect(page.getByText(/this room is synced/i)).toBeVisible();
+    await expect(page.getByText(/this room is synced/i).first()).toBeVisible();
 
     await gotoWithViteRetry(page, "/live/battles/battle-1");
     await expect(

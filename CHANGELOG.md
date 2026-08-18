@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-### Fixed
-
+- Fixed StemSplit track processing workflow by requesting vocals only (`outputType: "VOCALS"`), removing unnecessary stem storage, making stem asset database writes idempotent via `onConflictDoUpdate`, and automatically publishing tracks upon completion when marked for immediate release.
+- Fixed interactive discovery map region syncing across homepage sections, tracks, videos, projects, and artist routes with bidirectional URL search parameter propagation and global/regional filter persistence.
+- Fixed live chat `UserProfilePreviewModal` to query dynamic artist profile stats (real avatar, bio, follower count, track count) and styled role badges for high contrast.
 - Fixed audio playback on shared music attachments by routing track payloads through `useAudioPlayer` context methods (`setCurrentTrack`, `setQueue`, `setIsPlaying`).
 - Fixed sender perspective in floating chat collaboration proposal cards to correctly display Cancel / Open actions instead of Accept / Decline.
 - Enabled invited and accepted collaborators to sequence project tracklists and update project metadata in `/v1/projects/:projectId`.

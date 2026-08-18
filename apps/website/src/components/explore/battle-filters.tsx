@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -110,11 +111,14 @@ export function BattleFilters({
               onRegionTypeChange("north-america");
               onRegionChange(value);
             }}
-            disabled={regionType === "global"}
           >
             <SelectTrigger
               id="north-america"
-              className={regionType === "global" ? "opacity-50" : ""}
+              className={
+                regionType === "north-america"
+                  ? "border-primary/50 bg-primary/5 text-foreground ring-1 ring-primary/20"
+                  : "text-muted-foreground"
+              }
             >
               <SelectValue placeholder="Select location" />
             </SelectTrigger>
@@ -139,11 +143,14 @@ export function BattleFilters({
               onRegionTypeChange("global");
               onRegionChange(value);
             }}
-            disabled={regionType === "north-america"}
           >
             <SelectTrigger
               id="global"
-              className={regionType === "north-america" ? "opacity-50" : ""}
+              className={
+                regionType === "global"
+                  ? "border-primary/50 bg-primary/5 text-foreground ring-1 ring-primary/20"
+                  : "text-muted-foreground"
+              }
             >
               <SelectValue placeholder="Select continent" />
             </SelectTrigger>

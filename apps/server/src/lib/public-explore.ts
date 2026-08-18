@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, require-unicode-regexp, complexity */
 import { canonicalGenreSlug } from "@/lib/genre-catalog";
 
 const northAmericaStates = {
@@ -63,11 +64,34 @@ export const stateFromExploreRegion = ({
   region?: string;
   regionType?: string;
 }) => {
-  if (regionType !== "north-america" || !region || region === "all") {
+  if (
+    !region ||
+    region === "all" ||
+    region === "global" ||
+    regionType === "global"
+  ) {
     return null;
   }
 
-  return northAmericaStates[region as keyof typeof northAmericaStates] ?? null;
+  const direct = northAmericaStates[region as keyof typeof northAmericaStates];
+  if (direct) {
+    return direct;
+  }
+
+  const normalized = region.trim().toLowerCase().replace(/^us-/, "");
+  for (const [key, value] of Object.entries(northAmericaStates)) {
+    const keyWithoutUs = key.replace(/^us-/, "");
+    if (
+      key === region.toLowerCase() ||
+      keyWithoutUs === normalized ||
+      value.abbreviation.toLowerCase() === normalized ||
+      value.name.toLowerCase() === normalized
+    ) {
+      return value;
+    }
+  }
+
+  return null;
 };
 
 const regionEntryByStateValue = (state?: string | null) => {

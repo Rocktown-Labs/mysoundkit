@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, no-unused-vars */
 
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Disc, Play, Search, ShoppingBag } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Disc, Play, Search, ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -16,8 +17,8 @@ import { usePublicProjectsQuery } from "@/lib/soundkit-api-hooks";
 import type { PublicProjectSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
-    { label: "Newest", value: "date-desc" },
-    { label: "Oldest", value: "date-asc" },
+    { label: "Newest Releases", value: "date-desc" },
+    { label: "Oldest Releases", value: "date-asc" },
     { label: "Title (A-Z)", value: "title-asc" },
     { label: "Title (Z-A)", value: "title-desc" },
   ],
@@ -62,8 +63,7 @@ export const Route = createFileRoute("/_explore/projects/")({
 });
 
 function ExploreProjectsPage() {
-  const router = useRouter(),
-    navigate = Route.useNavigate(),
+  const navigate = Route.useNavigate(),
     search = Route.useSearch(),
     savedRegionType =
       typeof window === "undefined"
@@ -77,7 +77,11 @@ function ExploreProjectsPage() {
         ? null
         : localStorage.getItem("exploreRegion"),
     regionType = search.regionType ?? savedRegionType ?? "north-america",
-    region = search.region ?? savedRegion ?? "us-arkansas",
+    region =
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
     genre = search.genre ?? "all",
     sort = search.sort ?? "date-desc",
     forSale = search.forSale ?? false,
@@ -87,7 +91,14 @@ function ExploreProjectsPage() {
     isFilteredView = Boolean(type || forSale || q || genre !== "all"),
     updateFilters = (next: ProjectFilterUpdate) => {
       const nextRegionType = next.regionType ?? regionType,
-        nextRegion = next.region ?? region;
+        nextRegion =
+          next.region ??
+          (next.regionType === "global" && regionType !== "global"
+            ? "all"
+            : next.regionType === "north-america" &&
+                regionType !== "north-america"
+              ? "us-arkansas"
+              : region);
 
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);

@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -9,7 +10,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -251,7 +252,16 @@ app.openapi(
           )
           .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
           .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
-          .where(eq(userProfiles.username, username))
+          .where(
+            or(
+              eq(userProfiles.username, username),
+              ilike(userProfiles.username, username),
+              eq(userProfiles.userId, username),
+              ilike(userProfiles.displayName, username),
+              ilike(artistProfiles.stageName, username),
+              ilike(authUser.name, username)
+            )
+          )
           .limit(1);
 
       if (artist) {
@@ -266,9 +276,9 @@ app.openapi(
             links.map((link) => [
               link.platform === "apple_music"
                 ? "apple"
-                : (link.platform === "personal_site"
+                : link.platform === "personal_site"
                   ? "personalSite"
-                  : link.platform),
+                  : link.platform,
               link.url,
             ])
           ),
@@ -280,9 +290,9 @@ app.openapi(
             Number(artist.followerCount) > 0 ||
             Number(artist.battleCount) > 0,
           rank = hasActivity
-            ? (artist.battleCount
+            ? artist.battleCount
               ? `#${artist.battleCount}`
-              : "#1")
+              : "#1"
             : null,
           [playsRow] = await db
             .select({

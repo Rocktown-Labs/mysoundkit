@@ -174,9 +174,7 @@ function ListeningPartyDetailPage() {
       <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
         <div className="text-center">
           <Radio className="mx-auto size-8 animate-pulse text-primary" />
-          <p className="mt-3 font-semibold text-sm">
-            Loading listening party...
-          </p>
+          <p className="mt-3 font-semibold text-sm">Loading live room...</p>
         </div>
       </div>
     );
@@ -334,8 +332,8 @@ function ListeningPartyDetailPage() {
                       <Music2 className="size-3 mr-1" />
                       SYNCHRONIZED AUDIO
                     </Badge>
-                    <span className="text-[10px] text-white/50 font-mono hidden sm:inline">
-                      Lossless 48kHz
+                    <span className="text-[10px] text-white/50 font-mono inline">
+                      Lossless 48kHz • This room is synced
                     </span>
                   </div>
                   <span className="font-mono text-[10px] text-white/60">

@@ -1,5 +1,6 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Music } from "lucide-react";
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Music } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -38,8 +39,7 @@ export const Route = createFileRoute("/_explore/tracks/")({
 });
 
 function TracksPage() {
-  const router = useRouter(),
-    search = Route.useSearch(),
+  const search = Route.useSearch(),
     navigate = Route.useNavigate(),
     savedRegionType =
       typeof window === "undefined"
@@ -53,14 +53,25 @@ function TracksPage() {
         ? null
         : localStorage.getItem("exploreRegion"),
     regionType = search.regionType ?? savedRegionType ?? "north-america",
-    region = search.region ?? savedRegion ?? "us-arkansas",
+    region =
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
     genre = search.genre ?? "all",
     q = search.q ?? "",
     sort = search.sort ?? "plays-desc",
     view = search.view ?? "sections",
     updateFilters = (next: Partial<TracksSearch>) => {
       const nextRegionType = next.regionType ?? regionType,
-        nextRegion = next.region ?? region;
+        nextRegion =
+          next.region ??
+          (next.regionType === "global" && regionType !== "global"
+            ? "all"
+            : next.regionType === "north-america" &&
+                regionType !== "north-america"
+              ? "us-arkansas"
+              : region);
       if (typeof window !== "undefined") {
         localStorage.setItem("exploreRegionType", nextRegionType);
         localStorage.setItem("exploreRegion", nextRegion);

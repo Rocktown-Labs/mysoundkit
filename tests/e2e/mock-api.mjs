@@ -602,6 +602,24 @@ export const createMockApiServer = async ({
       return;
     }
 
+    const liveExperienceMatch = url.pathname.match(
+      /^\/v1\/live\/experiences\/([^/]+)$/
+    );
+
+    if (liveExperienceMatch) {
+      json(response, 200, liveRoom(liveExperienceMatch[1]), webOrigin);
+      return;
+    }
+
+    const listeningPartyDetailMatch = url.pathname.match(
+      /^\/v1\/listening-parties\/([^/]+)$/
+    );
+
+    if (listeningPartyDetailMatch) {
+      json(response, 200, liveRoom(listeningPartyDetailMatch[1]), webOrigin);
+      return;
+    }
+
     const liveRoomMutationMatch = url.pathname.match(
       /^\/v1\/live\/rooms\/([^/]+)\/(chat|vote)$/
     );

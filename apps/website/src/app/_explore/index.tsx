@@ -1,4 +1,4 @@
-/* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-empty, no-nested-ternary, unicorn/no-nested-ternary */
+/* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-empty, no-nested-ternary, unicorn/no-nested-ternary, react-hooks/exhaustive-deps */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Compass,
@@ -50,8 +50,25 @@ import type {
   VideoSummary,
 } from "@/lib/soundkit-api-hooks";
 
+interface ExploreSearch {
+  mapScope?: MapScope;
+  region?: string;
+  regionType?: "global" | "north-america";
+}
+
 export const Route = createFileRoute("/_explore/")({
   component: ExplorePage,
+  validateSearch: (search: Record<string, unknown>): ExploreSearch => ({
+    mapScope:
+      typeof search.mapScope === "string"
+        ? (search.mapScope as MapScope)
+        : undefined,
+    region: typeof search.region === "string" ? search.region : undefined,
+    regionType:
+      search.regionType === "global" || search.regionType === "north-america"
+        ? search.regionType
+        : undefined,
+  }),
 });
 
 function ExplorePage() {
@@ -65,15 +82,49 @@ function ExplorePage() {
 }
 
 function LocalExplorePage({
-  startsWithAppWideTotals,
+  startsWithAppWideTotals: _startsWithAppWideTotals,
 }: Readonly<{ startsWithAppWideTotals: boolean }>) {
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null),
-    [mapScope, setMapScope] = useState<MapScope>("global"),
-    [userLocation, setUserLocation] = useState<string | null>(null),
+  const search = Route.useSearch(),
+    navigate = Route.useNavigate(),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "global"
+            | "north-america"
+            | null),
+    savedUserLocation =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("soundkit_user_location"),
+    initialRegion = search.region ?? savedRegion ?? savedUserLocation ?? null,
+    initialRegionType: "global" | "north-america" =
+      search.regionType ??
+      savedRegionType ??
+      (initialRegion && initialRegion !== "all" ? "north-america" : "global"),
+    initialMapScope: MapScope =
+      search.mapScope ??
+      (initialRegionType === "global" ? "global" : "north-america"),
+    [selectedRegion, setSelectedRegion] = useState<string | null>(
+      initialRegionType === "global" || initialRegion === "all"
+        ? null
+        : initialRegion
+    ),
+    [mapScope, setMapScope] = useState<MapScope>(initialMapScope),
+    [userLocation, setUserLocation] = useState<string | null>(
+      savedUserLocation ??
+        (initialRegionType === "global" || initialRegion === "all"
+          ? null
+          : initialRegion)
+    ),
     [isLoadingLocation, setIsLoadingLocation] = useState(false),
     [locationPromptState, setLocationPromptState] = useState<
-      "idle" | "prompting" | "granted" | "denied" | "unsupported"
-    >("idle"),
+      "denied" | "granted" | "idle" | "prompting" | "unsupported"
+    >(savedUserLocation || savedRegion ? "granted" : "idle"),
     activeRegion =
       selectedRegion ??
       (mapScope === "global"
@@ -82,9 +133,17 @@ function LocalExplorePage({
     isGlobalView = selectedRegion === null && mapScope === "global",
     regionSlug = selectedRegion
       ? selectedRegion.toLowerCase().replaceAll(/\s+/g, "-")
-      : mapScope,
-    exploreRegionType = mapScope === "global" ? "global" : "north-america",
-    regionSearch = `regionType=${exploreRegionType}&region=${regionSlug}`,
+      : isGlobalView
+        ? "all"
+        : mapScope,
+    exploreRegionType: "global" | "north-america" = isGlobalView
+      ? "global"
+      : mapScope === "global"
+        ? "global"
+        : "north-america",
+    regionSearch = isGlobalView
+      ? "regionType=global&region=all"
+      : `regionType=${exploreRegionType}&region=${regionSlug}`,
     battlesHref = `/live?${regionSearch}`,
     tracksHref = `/tracks?${regionSearch}`,
     releasesHref = `/tracks?${regionSearch}&sort=date-desc`,
@@ -134,14 +193,52 @@ function LocalExplorePage({
       usePublicLiveExperiencesQuery("stream"),
     { data: listeningParties = [], isLoading: isLoadingParties } =
       useListeningPartiesQuery(),
+    syncLocation = ({
+      newMapScope,
+      newRegion,
+      newRegionType,
+    }: {
+      newMapScope: MapScope;
+      newRegion: string | null;
+      newRegionType: "global" | "north-america";
+    }) => {
+      setSelectedRegion(newRegion);
+      setMapScope(newMapScope);
+      const slug = newRegion
+        ? newRegion.toLowerCase().replaceAll(/\s+/g, "-")
+        : "all";
+      if (typeof window !== "undefined") {
+        if (newRegion) {
+          localStorage.setItem("exploreRegion", slug);
+          localStorage.setItem("exploreRegionType", newRegionType);
+          localStorage.setItem("soundkit_user_location", newRegion);
+        } else {
+          localStorage.setItem("exploreRegion", "all");
+          localStorage.setItem("exploreRegionType", "global");
+        }
+      }
+      navigate({
+        replace: true,
+        search: (prev) => ({
+          ...prev,
+          mapScope: newMapScope,
+          region: newRegion ?? undefined,
+          regionType: newRegionType,
+        }),
+      });
+    },
     requestLocation = () => {
       setIsLoadingLocation(true);
 
       try {
         if (!("geolocation" in navigator)) {
           setLocationPromptState("unsupported");
+          syncLocation({
+            newMapScope: "global",
+            newRegion: null,
+            newRegionType: "global",
+          });
           setUserLocation(null);
-          setSelectedRegion(null);
           setIsLoadingLocation(false);
           return;
         }
@@ -159,16 +256,19 @@ function LocalExplorePage({
                 detectedState =
                   data.principalSubdivision || data.countryName || "California";
               setUserLocation(detectedState);
-              setSelectedRegion(detectedState);
-              setMapScope("north-america");
-              try {
-                localStorage.setItem("soundkit_user_location", detectedState);
-              } catch {}
+              syncLocation({
+                newMapScope: "north-america",
+                newRegion: detectedState,
+                newRegionType: "north-america",
+              });
             } catch {
               const fallback = "California";
               setUserLocation(fallback);
-              setSelectedRegion(fallback);
-              setMapScope("north-america");
+              syncLocation({
+                newMapScope: "north-america",
+                newRegion: fallback,
+                newRegionType: "north-america",
+              });
             }
 
             setLocationPromptState("granted");
@@ -177,21 +277,30 @@ function LocalExplorePage({
           () => {
             setLocationPromptState("denied");
             setUserLocation(null);
-            setSelectedRegion(null);
-            setMapScope("global");
+            syncLocation({
+              newMapScope: "global",
+              newRegion: null,
+              newRegionType: "global",
+            });
             setIsLoadingLocation(false);
           }
         );
       } catch {
         setLocationPromptState("denied");
         setUserLocation(null);
-        setSelectedRegion(null);
-        setMapScope("global");
+        syncLocation({
+          newMapScope: "global",
+          newRegion: null,
+          newRegionType: "global",
+        });
         setIsLoadingLocation(false);
       }
     };
 
   useEffect(() => {
+    if (search.region || search.regionType) {
+      return;
+    }
     // Check saved user location in localStorage on mount
     try {
       const savedLocation = localStorage.getItem("soundkit_user_location");
@@ -212,18 +321,16 @@ function LocalExplorePage({
       if (!alreadyPrompted && "geolocation" in navigator) {
         sessionStorage.setItem("soundkit_location_prompted", "true");
         requestLocation();
-        return;
       }
     } catch {}
-
-    // Default to global view with app-wide totals
-    setSelectedRegion(null);
-    setMapScope("global");
-  }, [startsWithAppWideTotals]);
+  }, [search.region, search.regionType]);
 
   const handleResetGlobal = () => {
-    setSelectedRegion(null);
-    setMapScope("global");
+    syncLocation({
+      newMapScope: "global",
+      newRegion: null,
+      newRegionType: "global",
+    });
   };
 
   return (
@@ -313,12 +420,20 @@ function LocalExplorePage({
                 <WorldAndUSAMap
                   mapScope={mapScope}
                   selectedRegion={selectedRegion}
-                  onRegionSelect={(reg) => setSelectedRegion(reg)}
+                  onRegionSelect={(reg) => {
+                    syncLocation({
+                      newMapScope: "north-america",
+                      newRegion: reg,
+                      newRegionType: "north-america",
+                    });
+                  }}
                   onScopeChange={(scope) => {
-                    setMapScope(scope);
-                    if (scope === "global") {
-                      setSelectedRegion(null);
-                    }
+                    syncLocation({
+                      newMapScope: scope,
+                      newRegion: scope === "global" ? null : selectedRegion,
+                      newRegionType:
+                        scope === "global" ? "global" : "north-america",
+                    });
                   }}
                 />
               </CardContent>
