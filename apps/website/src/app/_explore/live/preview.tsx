@@ -21,6 +21,7 @@ import {
   Music2,
   Pause,
   Play,
+  Plus,
   Radio,
   RotateCcw,
   ShoppingBag,
@@ -1298,8 +1299,28 @@ function PartyPreviewSection({
     [isFullscreen, setIsFullscreen] = useState(false),
     [isLiked, setIsLiked] = useState(false),
     [isSaved, setIsSaved] = useState(false),
+    [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
     [currentTrackIndex, setCurrentTrackIndex] = useState(2),
     activeTrack = partyAlbumTracks[currentTrackIndex],
+    handleToggleSaveTrack = (trackId: string, trackTitle: string) => {
+      setSavedTrackIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(trackId)) {
+          next.delete(trackId);
+          toast({
+            description: `"${trackTitle}" removed from your saved tracks.`,
+            title: "Removed from Library",
+          });
+        } else {
+          next.add(trackId);
+          toast({
+            description: `"${trackTitle}" saved to your music library!`,
+            title: "Track Saved",
+          });
+        }
+        return next;
+      });
+    },
     handleReplaySong = (index = currentTrackIndex) => {
       setCurrentTrackIndex(index);
       toast({
@@ -1342,9 +1363,13 @@ function PartyPreviewSection({
             >
               Synced Audio Stream
             </Badge>
-            {perspective === "artist" && (
+            {perspective === "artist" ? (
               <Badge className="bg-primary/80 font-semibold text-primary-foreground">
                 HOST MODE: FULL CONTROL
+              </Badge>
+            ) : (
+              <Badge className="bg-white/10 font-semibold text-white border-white/20">
+                FAN MODE: LIVE LISTENER
               </Badge>
             )}
           </div>
@@ -1493,15 +1518,43 @@ function PartyPreviewSection({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                      onClick={() => handleReplaySong(currentTrackIndex)}
-                      size="icon"
-                      title="Replay Current Track"
-                      variant="ghost"
-                    >
-                      <RotateCcw className="size-3.5" />
-                    </Button>
+                    {perspective === "artist" ? (
+                      <Button
+                        className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                        onClick={() => handleReplaySong(currentTrackIndex)}
+                        size="icon"
+                        title="Replay Current Track (Host Control)"
+                        variant="ghost"
+                      >
+                        <RotateCcw className="size-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        className={cn(
+                          "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
+                          savedTrackIds.has(activeTrack.id) && "text-primary"
+                        )}
+                        onClick={() =>
+                          handleToggleSaveTrack(
+                            activeTrack.id,
+                            activeTrack.title
+                          )
+                        }
+                        size="icon"
+                        title={
+                          savedTrackIds.has(activeTrack.id)
+                            ? "Saved to Library"
+                            : "Save Track to Library"
+                        }
+                        variant="ghost"
+                      >
+                        {savedTrackIds.has(activeTrack.id) ? (
+                          <BookmarkCheck className="size-3.5 text-primary" />
+                        ) : (
+                          <Plus className="size-3.5" />
+                        )}
+                      </Button>
+                    )}
                     <Button
                       className={cn(
                         "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
@@ -1594,15 +1647,40 @@ function PartyPreviewSection({
                             </Badge>
                           )}
 
-                          <Button
-                            className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                            onClick={() => handleReplaySong(idx)}
-                            size="icon"
-                            title="Play or Replay this track for the party"
-                            variant="ghost"
-                          >
-                            <RotateCcw className="size-3" />
-                          </Button>
+                          {perspective === "artist" ? (
+                            <Button
+                              className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                              onClick={() => handleReplaySong(idx)}
+                              size="icon"
+                              title="Play or Replay this track for the party (Host)"
+                              variant="ghost"
+                            >
+                              <RotateCcw className="size-3" />
+                            </Button>
+                          ) : (
+                            <Button
+                              className={cn(
+                                "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
+                                savedTrackIds.has(track.id) && "text-primary"
+                              )}
+                              onClick={() =>
+                                handleToggleSaveTrack(track.id, track.title)
+                              }
+                              size="icon"
+                              title={
+                                savedTrackIds.has(track.id)
+                                  ? "Saved to Library"
+                                  : "Save Track to Library"
+                              }
+                              variant="ghost"
+                            >
+                              {savedTrackIds.has(track.id) ? (
+                                <BookmarkCheck className="size-3.5 text-primary" />
+                              ) : (
+                                <Plus className="size-3.5" />
+                              )}
+                            </Button>
+                          )}
 
                           <span className="font-mono text-[11px] text-white/50 w-10 text-right">
                             {track.duration}

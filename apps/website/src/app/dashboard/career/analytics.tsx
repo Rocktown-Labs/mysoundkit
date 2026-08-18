@@ -15,14 +15,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, Bar, BarChart, XAxis, YAxis } from "recharts";
 
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";

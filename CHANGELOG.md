@@ -7,6 +7,9 @@
 - Fixed Artist leaderboard ordering: "Top Artists" ranks by overall momentum and total plays + follower count, "Rising Stars" ranks by live 7-day streams, and "New Artists" orders strictly by account join date (`authUser.createdAt DESC`).
 - Formatted Recent Plays timestamps in `/library/recent` into clean, human-readable relative times ("Just now", "5m ago", "2h ago", "Yesterday", "Aug 18, 2026") replacing raw ISO timestamp strings.
 - Upgraded Open Verse workflow (`/dashboard/open-verses` and `/dashboard/open-verses/:genre/:id`) with proper genre badge capitalization, audio take file picker & uploader dropzone, and stem auditioning.
+- Added `VisualWaveformSlotTrimmer` component with interactive amplitude waveform bars, draggable hook start & open slot end trim markers, live playhead line, selection duration stats, zoom, and playback preview.
+- Reordered Step 1 of New Track creation (`/dashboard/tracks/new`) so Cover Artwork is positioned at the top before metadata fields, and enforced cover art requirements for public releases with automatic SoundKit placeholder fallbacks for drafts and open verses.
+- Updated Listening Party interactive preview (`/live/preview`) with fan-mode quick-save (`+` / Save to Library) controls on the synchronized player and tracklist rows while reserving replay actions for host perspective.
 - Fixed track duration backfill scanner and duration resolution in `mapTrackSummary` to evaluate all audio asset kinds and fall back to existing audio durations on track cards.
 - Cleaned up new track upload form (`/dashboard/tracks/new`) to keep dropzones clean and streamlined.
 

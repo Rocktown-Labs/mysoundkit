@@ -19,8 +19,6 @@ export const allGenreOptions = [
   ...musicGenres,
 ] as const;
 
-export type MusicGenre = (typeof musicGenres)[number];
-
 export const genreLabelFromValue = (value: string) =>
   musicGenres.find((genre) => genre.value === value)?.label ?? value;
 
@@ -35,4 +33,23 @@ export const genreValueFromLabel = (label: string) => {
   }
 
   return normalized === "hip-hop-rap" ? "hip-hop-rap" : normalized;
+};
+
+export const canonicalGenreName = (value?: string | null) => {
+  if (!value || value.trim().length === 0) {
+    return "Hip-Hop/Rap";
+  }
+  const normalized = value.toLowerCase().trim(),
+    found = musicGenres.find(
+      (genre) =>
+        genre.value.toLowerCase() === normalized ||
+        genre.label.toLowerCase() === normalized
+    );
+  if (found) {
+    return found.label;
+  }
+  return value
+    .split(/[-_\s]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 };

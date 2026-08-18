@@ -30,6 +30,7 @@ import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
+import { VisualWaveformSlotTrimmer } from "@/components/studio/visual-waveform-slot-trimmer";
 import {
   Accordion,
   AccordionContent,
@@ -1590,6 +1591,63 @@ export function NewTrackForm({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-primary">
+                    Cover Artwork
+                  </Label>
+                  <FileUploadZone
+                    title={
+                      selectedCoverFile || coverUpload?.remoteUrl
+                        ? "Cover Artwork Attached"
+                        : "Upload Track Cover"
+                    }
+                    description="High resolution artwork (PNG, JPG, JPEG) • Required for public release"
+                    acceptedTypes=".png,.jpg,.jpeg"
+                    previewUrl={
+                      selectedCoverFile
+                        ? URL.createObjectURL(selectedCoverFile)
+                        : coverUpload?.remoteUrl || null
+                    }
+                    onRemove={() => {
+                      setSelectedCoverFile(null);
+                      setCoverUpload(null);
+                      form.setValue("coverObjectKey", "");
+                    }}
+                    files={
+                      selectedCoverFile
+                        ? [
+                            {
+                              name: selectedCoverFile.name,
+                              status: isCoverUploading
+                                ? "Uploading to R2"
+                                : "Selected",
+                            },
+                          ]
+                        : coverUpload
+                          ? [
+                              {
+                                name: coverUpload.fileName,
+                                status: "R2 Stored",
+                              },
+                            ]
+                          : []
+                    }
+                    onFileUpload={handleCoverUpload}
+                    progress={isCoverUploading ? coverProgress : undefined}
+                    status={
+                      isCoverUploading
+                        ? `${Math.round(coverProgress)}% uploading to R2`
+                        : undefined
+                    }
+                    variant="default"
+                  />
+                  <FormField
+                    control={form.control}
+                    name="coverObjectKey"
+                    render={() => <FormMessage />}
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
@@ -1701,63 +1759,6 @@ export function NewTrackForm({
                     </FormItem>
                   )}
                 />
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-primary">
-                    Cover Artwork
-                  </Label>
-                  <FileUploadZone
-                    title={
-                      selectedCoverFile || coverUpload?.remoteUrl
-                        ? "Cover Artwork Attached"
-                        : "Upload Track Cover"
-                    }
-                    description="High resolution artwork (PNG, JPG, JPEG)"
-                    acceptedTypes=".png,.jpg,.jpeg"
-                    previewUrl={
-                      selectedCoverFile
-                        ? URL.createObjectURL(selectedCoverFile)
-                        : coverUpload?.remoteUrl || null
-                    }
-                    onRemove={() => {
-                      setSelectedCoverFile(null);
-                      setCoverUpload(null);
-                      form.setValue("coverObjectKey", "");
-                    }}
-                    files={
-                      selectedCoverFile
-                        ? [
-                            {
-                              name: selectedCoverFile.name,
-                              status: isCoverUploading
-                                ? "Uploading to R2"
-                                : "Selected",
-                            },
-                          ]
-                        : coverUpload
-                          ? [
-                              {
-                                name: coverUpload.fileName,
-                                status: "R2 Stored",
-                              },
-                            ]
-                          : []
-                    }
-                    onFileUpload={handleCoverUpload}
-                    progress={isCoverUploading ? coverProgress : undefined}
-                    status={
-                      isCoverUploading
-                        ? `${Math.round(coverProgress)}% uploading to R2`
-                        : undefined
-                    }
-                    variant="default"
-                  />
-                  <FormField
-                    control={form.control}
-                    name="coverObjectKey"
-                    render={() => <FormMessage />}
-                  />
-                </div>
 
                 <div className="flex justify-end pt-4">
                   <Button
@@ -2513,6 +2514,37 @@ export function NewTrackForm({
                           )}
                         />
 
+                        <div className="space-y-2 pt-2">
+                          <Label className="text-xs font-semibold text-zinc-300">
+                            Visual Waveform & Open Verse Slot Trimmer
+                          </Label>
+                          <VisualWaveformSlotTrimmer
+                            audioFile={selectedMasterFile}
+                            audioUrl={masterUpload?.remoteUrl}
+                            durationSeconds={
+                              masterDurationMs
+                                ? Math.round(masterDurationMs / 1000)
+                                : 214
+                            }
+                            slotStartsAt={
+                              Number(form.watch("openVerseSlotStartsAt")) || 30
+                            }
+                            slotEndsAt={
+                              Number(form.watch("openVerseSlotEndsAt")) || 75
+                            }
+                            trackTitle={
+                              form.watch("name") || "Open Verse Preview"
+                            }
+                            onChangeSlot={(start, end) => {
+                              form.setValue(
+                                "openVerseSlotStartsAt",
+                                String(start)
+                              );
+                              form.setValue("openVerseSlotEndsAt", String(end));
+                            }}
+                          />
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4">
                           <FormField
                             control={form.control}
@@ -2523,8 +2555,8 @@ export function NewTrackForm({
                                 <FormControl>
                                   <Input
                                     type="number"
-                                    placeholder="e.g. 45"
-                                    className="bg-background/50 h-9 text-sm"
+                                    placeholder="e.g. 30"
+                                    className="bg-background/50 h-9 text-sm font-mono"
                                     {...field}
                                   />
                                 </FormControl>
@@ -2543,7 +2575,7 @@ export function NewTrackForm({
                                   <Input
                                     type="number"
                                     placeholder="e.g. 75"
-                                    className="bg-background/50 h-9 text-sm"
+                                    className="bg-background/50 h-9 text-sm font-mono"
                                     {...field}
                                   />
                                 </FormControl>
