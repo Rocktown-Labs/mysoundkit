@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Integrated client-side `mediabunny` and `@mediabunny/aac-encoder` audio studio engine for instant in-browser audio metadata reading, waveform peak generation, and WebCodecs/WASM AAC preview optimization.
+- Added browser-based `BrowserStudioRecorder` (Beta) component with live VU meter visualizer, device selector, real-time waveform inspection, and one-click take attachment to track uploads.
+- Added dedicated unit tests in `track-settlement.test.ts` for non-complete public track visibility, soft-archiving deletion protection when purchases exist, and Whisper payload slicing.
 - Implemented "Settle First, Enrich Later" pipeline for tracks and projects: newly uploaded public tracks are immediately discoverable and playable across Explore, Map, and Search without waiting for external AI workflows, and public query productionStatus restrictions have been removed.
 - Made OpenAI Whisper lyric transcription resilient to large uncompressed WAV vocal files (> 25MB) by slicing audio payloads within Whisper size limits and isolating transcription errors so tracks always remain published, playable, and healthy.
 - Preserved lifetime buyer library access when creators delete tracks by archiving/unpublishing rather than cascading deletion of purchased media assets.
