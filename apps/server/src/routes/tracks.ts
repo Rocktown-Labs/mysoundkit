@@ -450,10 +450,7 @@ app.openapi(
       const db = createDb(),
         genreSlug = genreSlugFromExploreFilter(query.genre),
         state = stateFromExploreRegion(query),
-        publicTrackConditions = [
-          eq(tracks.isPublic, true),
-          eq(tracks.productionStatus, "complete"),
-        ];
+        publicTrackConditions = [eq(tracks.isPublic, true)];
 
       if (query.forSale) {
         publicTrackConditions.push(eq(tracks.isForSale, true));
@@ -1525,6 +1522,29 @@ app.openapi(
         user,
       }),
       db = createDb();
+
+    const [purchase] = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .where(eq(purchases.trackId, trackId))
+      .limit(1);
+
+    if (purchase) {
+      await db
+        .update(tracks)
+        .set({
+          isForSale: false,
+          isPublic: false,
+          releaseStrategy: "private",
+          updatedAt: new Date(),
+        })
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }));
+
+      return c.json(
+        { message: "Track removed from public catalog." },
+        HttpStatusCodes.OK
+      );
+    }
 
     await db
       .delete(tracks)

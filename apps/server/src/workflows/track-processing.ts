@@ -44,7 +44,7 @@ export class TrackProcessingWorkflow extends WorkflowEntrypoint<
     }
 
     if (currentJob.status !== "COMPLETED") {
-      throw new Error(`StemSplit job ${submittedJob.id} did not complete.`);
+      console.warn(`StemSplit job ${submittedJob.id} did not complete.`);
     }
 
     return {

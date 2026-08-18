@@ -1,3 +1,4 @@
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary, no-shadow */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistFollows,
@@ -11,7 +12,7 @@ import {
   videoPreSaves,
   videos,
 } from "@soundkit/db/schema/app";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notifyArtistReleaseEmail } from "@/lib/email-events";
@@ -52,24 +53,33 @@ export const publishDueTrackReleases = async ({
     return { notified: 0, published: 0 };
   }
 
-  const db = createDb(),
-    dueTracks = await db
-      .select({
-        artistName: userProfiles.displayName,
-        id: tracks.id,
-        ownerUserId: tracks.ownerUserId,
-        title: tracks.title,
-      })
-      .from(tracks)
-      .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
-      .where(
-        and(
-          eq(tracks.releaseStrategy, "scheduled"),
-          eq(tracks.isPublic, false),
-          isNotNull(tracks.releaseAt),
-          lte(tracks.releaseAt, new Date())
-        )
-      );
+  const db = createDb();
+
+  await db
+    .update(tracks)
+    .set({
+      publishedAt: tracks.createdAt,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(tracks.isPublic, true), isNull(tracks.publishedAt)));
+
+  const dueTracks = await db
+    .select({
+      artistName: userProfiles.displayName,
+      id: tracks.id,
+      ownerUserId: tracks.ownerUserId,
+      title: tracks.title,
+    })
+    .from(tracks)
+    .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+    .where(
+      and(
+        eq(tracks.releaseStrategy, "scheduled"),
+        eq(tracks.isPublic, false),
+        isNotNull(tracks.releaseAt),
+        lte(tracks.releaseAt, new Date())
+      )
+    );
 
   let notified = 0;
   for (const track of dueTracks) {

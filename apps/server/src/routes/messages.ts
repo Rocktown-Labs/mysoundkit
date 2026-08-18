@@ -700,95 +700,118 @@ app.openapi(
     }
 
     const db = createDb(),
-      [followRows, followerRows, friendRows, collaboratorRows] =
-        await Promise.all([
-          db
-            .select({
-              avatarUrl: userProfiles.avatarUrl,
-              displayName: userProfiles.displayName,
-              email: authUser.email,
-              id: authUser.id,
-              name: authUser.name,
-              username: userProfiles.username,
-            })
-            .from(artistFollows)
-            .innerJoin(authUser, eq(authUser.id, artistFollows.artistUserId))
-            .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-            .where(eq(artistFollows.followerUserId, user.id))
-            .limit(100),
-          db
-            .select({
-              avatarUrl: userProfiles.avatarUrl,
-              displayName: userProfiles.displayName,
-              email: authUser.email,
-              id: authUser.id,
-              name: authUser.name,
-              username: userProfiles.username,
-            })
-            .from(artistFollows)
-            .innerJoin(authUser, eq(authUser.id, artistFollows.followerUserId))
-            .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-            .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
-            .where(
-              and(
-                eq(artistFollows.artistUserId, user.id),
-                sql`${artistProfiles.userId} is null`
-              )
+      [
+        followRows,
+        followerRows,
+        sentFriendRows,
+        receivedFriendRows,
+        collaboratorRows,
+      ] = await Promise.all([
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            email: authUser.email,
+            id: authUser.id,
+            name: authUser.name,
+            username: userProfiles.username,
+          })
+          .from(artistFollows)
+          .innerJoin(authUser, eq(authUser.id, artistFollows.artistUserId))
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .where(eq(artistFollows.followerUserId, user.id))
+          .limit(100),
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            email: authUser.email,
+            id: authUser.id,
+            name: authUser.name,
+            username: userProfiles.username,
+          })
+          .from(artistFollows)
+          .innerJoin(authUser, eq(authUser.id, artistFollows.followerUserId))
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
+          .where(
+            and(
+              eq(artistFollows.artistUserId, user.id),
+              sql`${artistProfiles.userId} is null`
             )
-            .limit(100),
-          db
-            .select({
-              avatarUrl: userProfiles.avatarUrl,
-              displayName: userProfiles.displayName,
-              email: authUser.email,
-              id: authUser.id,
-              name: authUser.name,
-              requestCreatedAt: artistFriendRequests.createdAt,
-              username: userProfiles.username,
-            })
-            .from(artistFriendRequests)
-            .innerJoin(
-              authUser,
-              eq(
-                authUser.id,
-                sql`case when ${artistFriendRequests.requesterUserId} = ${user.id} then ${artistFriendRequests.recipientUserId} else ${artistFriendRequests.requesterUserId} end`
-              )
+          )
+          .limit(100),
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            email: authUser.email,
+            id: authUser.id,
+            name: authUser.name,
+            requestCreatedAt: artistFriendRequests.createdAt,
+            username: userProfiles.username,
+          })
+          .from(artistFriendRequests)
+          .innerJoin(
+            authUser,
+            eq(authUser.id, artistFriendRequests.recipientUserId)
+          )
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .where(
+            and(
+              eq(artistFriendRequests.status, "accepted"),
+              eq(artistFriendRequests.requesterUserId, user.id)
             )
-            .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-            .where(
-              and(
-                eq(artistFriendRequests.status, "accepted"),
-                or(
-                  eq(artistFriendRequests.requesterUserId, user.id),
-                  eq(artistFriendRequests.recipientUserId, user.id)
-                )
-              )
+          )
+          .limit(50),
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            email: authUser.email,
+            id: authUser.id,
+            name: authUser.name,
+            requestCreatedAt: artistFriendRequests.createdAt,
+            username: userProfiles.username,
+          })
+          .from(artistFriendRequests)
+          .innerJoin(
+            authUser,
+            eq(authUser.id, artistFriendRequests.requesterUserId)
+          )
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .where(
+            and(
+              eq(artistFriendRequests.status, "accepted"),
+              eq(artistFriendRequests.recipientUserId, user.id)
             )
-            .limit(100),
-          db
-            .select({
-              avatarUrl: userProfiles.avatarUrl,
-              collaboratorUserId: trackCollaborators.collaboratorUserId,
-              createdAt: trackCollaborators.createdAt,
-              displayName: userProfiles.displayName,
-              email: trackCollaborators.inviteEmail,
-              role: trackCollaborators.collaboratorRole,
-              username: userProfiles.username,
-            })
-            .from(trackCollaborators)
-            .leftJoin(
-              userProfiles,
-              eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
+          )
+          .limit(50),
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            collaboratorUserId: trackCollaborators.collaboratorUserId,
+            createdAt: trackCollaborators.createdAt,
+            displayName: userProfiles.displayName,
+            email: trackCollaborators.inviteEmail,
+            role: trackCollaborators.collaboratorRole,
+            username: userProfiles.username,
+          })
+          .from(trackCollaborators)
+          .leftJoin(
+            userProfiles,
+            eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
+          )
+          .where(
+            or(
+              eq(trackCollaborators.invitedByUserId, user.id),
+              eq(trackCollaborators.collaboratorUserId, user.id)
             )
-            .where(
-              or(
-                eq(trackCollaborators.invitedByUserId, user.id),
-                eq(trackCollaborators.collaboratorUserId, user.id)
-              )
-            )
-            .orderBy(desc(trackCollaborators.createdAt))
-            .limit(100),
-        ]),
+          )
+          .orderBy(desc(trackCollaborators.createdAt))
+          .limit(100),
+      ]),
+      friendRows = [...sentFriendRows, ...receivedFriendRows],
       friends = new Map<string, z.infer<typeof friendSummarySchema>>();
 
     for (const row of followRows) {

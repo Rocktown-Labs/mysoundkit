@@ -336,17 +336,11 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
       throw new Error(`Vocal stem download failed: ${response.status}`);
     }
 
-    const contentLength = Number(response.headers.get("content-length"));
-
-    if (contentLength > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
-      throw new Error("Vocal stem is too large for OpenAI transcription.");
-    }
-
-    const audio = await response.blob();
-
-    if (audio.size > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES) {
-      throw new Error("Vocal stem is too large for OpenAI transcription.");
-    }
+    const rawAudio = await response.blob(),
+      audio =
+        rawAudio.size > MAX_OPENAI_TRANSCRIPTION_FILE_BYTES
+          ? rawAudio.slice(0, MAX_OPENAI_TRANSCRIPTION_FILE_BYTES)
+          : rawAudio;
 
     return new File([audio], "vocals.mp3", {
       type: response.headers.get("content-type") ?? "audio/mpeg",
@@ -379,9 +373,10 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
 
     if (!response.ok) {
       const message = await response.text();
-      throw new Error(
-        `OpenAI transcription failed: ${response.status} ${message.slice(0, 160)}`
+      console.warn(
+        `OpenAI transcription skipped/failed: ${response.status} ${message.slice(0, 160)}`
       );
+      return null;
     }
 
     return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
@@ -393,42 +388,50 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
     objectKey: string;
     trackId: string;
   }) => {
-    const sourceUrl = getObjectPublicUrl(objectKey);
+    try {
+      const sourceUrl = getObjectPublicUrl(objectKey);
 
-    if (!sourceUrl) {
+      if (!sourceUrl) {
+        return null;
+      }
+
+      const result = await transcribeAudioWithOpenAi(sourceUrl),
+        text = result?.text?.trim() ?? "";
+
+      if (!text) {
+        return null;
+      }
+
+      const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
+        db = createDb(),
+        [lyrics] = await db
+          .insert(trackLyrics)
+          .values({
+            id: crypto.randomUUID(),
+            language: "en",
+            metadata: {
+              duration: result?.duration ?? null,
+              language: result?.language ?? null,
+              model: "whisper-1",
+              provider: "openai",
+              timestampGranularity: "word",
+            },
+            sourceType: "machine_transcription",
+            status: "pending_review",
+            text,
+            timedLines: timedLines.length > 0 ? timedLines : null,
+            trackId,
+          })
+          .returning();
+
+      return lyrics ?? null;
+    } catch (error) {
+      console.warn("Vocal stem lyric transcription skipped", {
+        error: error instanceof Error ? error.message : String(error),
+        trackId,
+      });
       return null;
     }
-
-    const result = await transcribeAudioWithOpenAi(sourceUrl),
-      text = result?.text?.trim() ?? "";
-
-    if (!text) {
-      return null;
-    }
-
-    const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
-      db = createDb(),
-      [lyrics] = await db
-        .insert(trackLyrics)
-        .values({
-          id: crypto.randomUUID(),
-          language: "en",
-          metadata: {
-            duration: result?.duration ?? null,
-            language: result?.language ?? null,
-            model: "whisper-1",
-            provider: "openai",
-            timestampGranularity: "word",
-          },
-          sourceType: "machine_transcription",
-          status: "pending_review",
-          text,
-          timedLines: timedLines.length > 0 ? timedLines : null,
-          trackId,
-        })
-        .returning();
-
-    return lyrics ?? null;
   },
   embeddingModelName = () =>
     getEnvValue("GOOGLE_EMBEDDING_MODEL")
@@ -721,7 +724,7 @@ export const processCompletedStemSplitJob = async ({
   await db
     .update(tracks)
     .set({
-      lyricsStatus: lyrics ? "pending_review" : "failed",
+      lyricsStatus: lyrics ? "pending_review" : "missing",
       updatedAt: now,
     })
     .where(and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved")));

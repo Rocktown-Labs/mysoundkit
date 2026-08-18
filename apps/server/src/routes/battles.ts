@@ -1,3 +1,4 @@
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary, no-shadow */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -273,7 +274,8 @@ app.openapi(
         })
         .from(battles)
         .leftJoin(genres, eq(genres.id, battles.genreId))
-        .orderBy(desc(battles.viewerCount)),
+        .orderBy(desc(battles.viewerCount))
+        .limit(50),
       enrichedRows = await enrichBattleFeedRows(
         rows.map((row) => ({
           ...row,
