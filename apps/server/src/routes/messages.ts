@@ -23,6 +23,7 @@ import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import {
+  notifyCollaboratorAcceptedEmail,
   notifyCollaboratorInviteEmail,
   notifyFriendRequestEmail,
 } from "@/lib/email-events";
@@ -1936,6 +1937,15 @@ app.openapi(
           title: "Collaboration Accepted",
           type: "collaborator_accepted",
           userId: ownerUserId,
+        });
+
+        await notifyCollaboratorAcceptedEmail({
+          actionPath: href,
+          collaboratorName: user.name ?? "An artist",
+          ownerUserId,
+          queue: c.env.EMAIL_DELIVERY_QUEUE,
+          workTitle,
+          workType: project ? "project" : "track",
         });
       }
     } else if (action === "decline" || action === "cancel") {

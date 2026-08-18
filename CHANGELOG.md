@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Synced dual-channel alerts across billing, battles, payouts, and collaborations: added in-app notifications for failed subscription invoices (`/dashboard/billing`), in-app battle starting soon and results recap alerts (`/live/battles/:id`), Stripe Connect payout requirement alerts (`/dashboard/settings/payouts`), and companion transactional emails for accepted collaboration proposals.
 - Fixed collaboration invites and notifications to ensure emails and in-app alerts are delivered exclusively to recipient collaborators and never to the creator/owner when adding credits, sending chat `/collab` proposals, or scheduling live events.
 - Added full collaborator workspace access and editing permissions across track and project details (`GET`, `PATCH`, `assets`, `lyrics`) so invited collaborators can immediately view, edit, and contribute to shared workspaces.
 - Fixed floating chat and messages page `/collab` command handling to automatically parse proposal titles, deliver email notifications to target chat participants, and notify the owner upon collaborator acceptance/rejection.
