@@ -1,5 +1,5 @@
 "use client";
-/* eslint-disable complexity, no-nested-ternary, no-promise-executor-return, no-unused-vars, no-use-before-define, react-hooks/exhaustive-deps, react-perf/jsx-no-new-function-as-prop, react/jsx-handler-names, react/no-array-index-key, no-empty-function, promise/avoid-new, promise/param-names, promise/prefer-await-to-then, require-await, require-unicode-regexp */
+/* eslint-disable complexity, no-nested-ternary, no-promise-executor-return, no-unused-vars, no-use-before-define, react-hooks/exhaustive-deps, react-perf/jsx-no-new-function-as-prop, react/jsx-handler-names, react/no-array-index-key, no-empty-function, promise/avoid-new, promise/param-names, promise/prefer-await-to-then, require-await, require-unicode-regexp, sort-vars, one-var, unicorn/consistent-function-scoping, prefer-destructuring, func-names */
 
 import { useUploadFiles } from "@better-upload/client";
 import { usePostHog } from "@posthog/react";
@@ -30,6 +30,7 @@ import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
+import { BrowserStudioRecorder } from "@/components/studio/browser-studio-recorder";
 import {
   Accordion,
   AccordionContent,
@@ -297,6 +298,9 @@ export function NewTrackForm({
         Number(initialTrack.playCount ?? initialTrack.plays ?? 0) > 0)
     ),
     [step, setStep] = useState("details"),
+    [assetInputMode, setAssetInputMode] = useState<"upload" | "studio">(
+      "upload"
+    ),
     [isSubmitting, setIsSubmitting] = useState(false),
     [submitStage, setSubmitStage] = useState<
       "idle" | "uploading" | "creating" | "processing" | "complete" | "settled"
@@ -1886,6 +1890,51 @@ export function NewTrackForm({
                       </div>
                     </div>
                   </Card>
+                )}
+
+                <div className="flex items-center gap-2 p-1 bg-secondary/40 border border-border/50 rounded-xl w-fit">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={assetInputMode === "upload" ? "default" : "ghost"}
+                    onClick={() => setAssetInputMode("upload")}
+                    className="h-8 text-xs font-medium rounded-lg"
+                  >
+                    <CloudUpload className="size-3.5 mr-1.5" />
+                    File Upload
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={assetInputMode === "studio" ? "default" : "ghost"}
+                    onClick={() => setAssetInputMode("studio")}
+                    className={cn(
+                      "h-8 text-xs font-medium rounded-lg",
+                      assetInputMode === "studio"
+                        ? "bg-purple-600 hover:bg-purple-700 text-white"
+                        : "text-purple-400"
+                    )}
+                  >
+                    <Zap className="size-3.5 mr-1.5 text-amber-400" />
+                    Live Studio (Beta)
+                  </Button>
+                </div>
+
+                {assetInputMode === "studio" && (
+                  <BrowserStudioRecorder
+                    onRecordingComplete={(file) => {
+                      const fileList = {
+                        0: file,
+                        item: () => file,
+                        length: 1,
+                        *[Symbol.iterator]() {
+                          yield file;
+                        },
+                      } as unknown as FileList;
+                      handleMasterUpload(fileList);
+                      setAssetInputMode("upload");
+                    }}
+                  />
                 )}
 
                 <div className="space-y-4">
