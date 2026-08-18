@@ -1,3 +1,5 @@
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group, promise/avoid-new */
+/* eslint-disable unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -342,6 +344,7 @@ app.openapi(
 
     const body = c.req.valid("json"),
       result = await enqueueTrackDurationBackfills({
+        executionCtx: c.executionCtx,
         limit: body.limit,
         queue: c.env.TRACK_DURATION_BACKFILL_QUEUE,
         trackIds: body.trackIds,

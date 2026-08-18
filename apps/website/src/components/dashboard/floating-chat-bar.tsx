@@ -346,23 +346,34 @@ export function FloatingChatBar() {
     },
     handleSendMessage = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const text = messageInput.trim();
+      const rawText = messageInput.trim();
 
-      if (text.startsWith("/collab")) {
-        setIsCollabDialogOpen(true);
+      if (rawText === "/collab" || rawText.startsWith("/collab ")) {
+        const customTitle = rawText.replace(/^\/collab\s*/iu, "").trim();
+        setCollabTitle(customTitle || "Collaboration Project");
+        setShowInlineCollab(true);
+        setShowMusicPicker(false);
         setMessageInput("");
         return;
       }
-      if (text.startsWith("/share")) {
+      if (rawText === "/share") {
         setShowMusicPicker(true);
         setMessageInput("");
         return;
       }
-      if (text.startsWith("/help")) {
+      if (rawText.startsWith("/share ") && attachments.length === 0) {
+        const remaining = rawText.replace(/^\/share\s*/iu, "").trim();
+        setMessageInput(remaining);
+        setShowMusicPicker(true);
+        return;
+      }
+      if (rawText === "/help") {
         setShowHelpGuide(true);
         setMessageInput("");
         return;
       }
+
+      const text = rawText.replace(/^\/share\s*/iu, "").trim();
 
       if (!text && attachments.length === 0) {
         return;
@@ -981,7 +992,9 @@ export function FloatingChatBar() {
                           setShowMusicPicker(true);
                           setShowInlineCollab(false);
                           setShowHelpGuide(false);
-                          setMessageInput("");
+                          setMessageInput((curr) =>
+                            curr.replace(/^\/share\s*/iu, "").trim()
+                          );
                         } else if (cmd.command === "/help") {
                           setShowHelpGuide(true);
                           setShowMusicPicker(false);
@@ -1062,14 +1075,8 @@ export function FloatingChatBar() {
                       size="sm"
                       disabled={isSubmittingCollab || !collabTitle.trim()}
                       onClick={async () => {
-                        await handleSendCollabInvitation({
-                          initialTracks: [],
-                          isProjectLevel: true,
-                          projectType: collabProjectType,
-                          title: collabTitle.trim() || "Collaboration Project",
-                        });
+                        await handleSendProposal();
                         setShowInlineCollab(false);
-                        setCollabTitle("");
                       }}
                       className="w-full h-7 text-xs bg-primary gap-1"
                     >

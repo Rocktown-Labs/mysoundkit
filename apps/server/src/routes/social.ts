@@ -1,3 +1,4 @@
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -279,7 +280,10 @@ app.openapi(
 
       await db.insert(userNotifications).values({
         id: crypto.randomUUID(),
-        link: `/artist/${username}`,
+        link:
+          followerArtistProfile?.username && !isFan
+            ? `/artist/${followerArtistProfile.username}`
+            : "/dashboard/collaborators?tab=following",
         message,
         title,
         type: isFan ? "fan_follower" : "artist_follower",

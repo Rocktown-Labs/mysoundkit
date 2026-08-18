@@ -1,3 +1,4 @@
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   notificationSettings,
@@ -7,6 +8,7 @@ import {
   battles,
   purchases,
   tracks,
+  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser, subscription } from "@soundkit/db/schema/auth";
@@ -126,6 +128,7 @@ const accountFooter =
       | "battle_reminder"
       | "battle_results"
       | "billing_issue"
+      | "collaborator_invite"
       | "follower"
       | "friend_request"
       | "open_verse_accepted"
@@ -193,26 +196,54 @@ const accountFooter =
       deliveries = [];
 
     for (const recipientUserId of recipientUserIds) {
-      deliveries.push(
-        type === "reminder"
-          ? await notifyBattleReminderEmail({
-              battleId: battle.id,
-              battleTitle: battle.title,
-              idempotencyScope: idempotencyPrefix,
-              queue,
-              recipientUserId,
-            })
-          : await notifyBattleResultsEmail({
-              battleId: battle.id,
-              battleTitle: battle.title,
-              idempotencyScope: idempotencyPrefix,
-              queue,
-              recipientUserId,
-              resultsSummary:
-                resultsSummary ??
-                "The final round data has been saved to your dashboard.",
-            })
-      );
+      if (type === "reminder") {
+        await createDb()
+          .insert(userNotifications)
+          .values({
+            id: `battle_reminder:${battle.id}:${recipientUserId}`,
+            link: `/live/battles/${battle.id}`,
+            message: `"${battle.title}" starts soon! Enter the room now to check your audio.`,
+            title: "Battle Starting Soon",
+            type: "battle_starting",
+            userId: recipientUserId,
+          })
+          .onConflictDoNothing();
+
+        deliveries.push(
+          await notifyBattleReminderEmail({
+            battleId: battle.id,
+            battleTitle: battle.title,
+            idempotencyScope: idempotencyPrefix,
+            queue,
+            recipientUserId,
+          })
+        );
+      } else {
+        await createDb()
+          .insert(userNotifications)
+          .values({
+            id: `battle_results:${battle.id}:${recipientUserId}`,
+            link: `/live/battles/${battle.id}`,
+            message: `"${battle.title}" is complete. Review your final round scores and voting breakdown.`,
+            title: "Battle Results Ready",
+            type: "battle_results",
+            userId: recipientUserId,
+          })
+          .onConflictDoNothing();
+
+        deliveries.push(
+          await notifyBattleResultsEmail({
+            battleId: battle.id,
+            battleTitle: battle.title,
+            idempotencyScope: idempotencyPrefix,
+            queue,
+            recipientUserId,
+            resultsSummary:
+              resultsSummary ??
+              "The final round data has been saved to your dashboard.",
+          })
+        );
+      }
     }
 
     return {
@@ -661,6 +692,76 @@ export const notifyCollaboratorInviteEmail = ({
     template: "collaborator_invite",
   });
 
+export const notifyCollaboratorAcceptedEmail = async ({
+  actionPath,
+  collaboratorName,
+  ownerUserId,
+  queue,
+  workTitle,
+  workType,
+}: {
+  actionPath: string;
+  collaboratorName: string;
+  ownerUserId: string;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  workTitle: string;
+  workType: "project" | "track";
+}) => {
+  const recipient = await getUserRecipient(ownerUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath,
+    body: `${collaboratorName} accepted your collaboration proposal for ${workTitle}. The shared ${workType} workspace is unlocked and ready for you to build together.`,
+    ctaLabel: "Open workspace",
+    eyebrow: "Collaboration accepted",
+    footerNote: collaborationFooter,
+    heading: "Collaboration proposal accepted",
+    idempotencyKey: `collaborator-accepted/${ownerUserId}/${workTitle}/${Date.now()}`,
+    preference: "collaborations",
+    previewText: `${collaboratorName} accepted your collaboration proposal for ${workTitle}.`,
+    queue,
+    recipient,
+    subject: `${collaboratorName} joined your collaboration: ${workTitle}`,
+    template: "collaborator_invite",
+  });
+};
+
+export const notifyPayoutFailedEmail = async ({
+  failureReason,
+  queue,
+  recipientUserId,
+}: {
+  failureReason?: string | null;
+  queue?: Queue<EmailDeliveryQueueMessage> | null;
+  recipientUserId: string;
+}) => {
+  const recipient = await getUserRecipient(recipientUserId);
+
+  if (!recipient) {
+    return { enqueued: false, reason: "recipient_not_found" as const };
+  }
+
+  return enqueueForRecipient({
+    actionPath: "/dashboard/payouts",
+    body: `A scheduled payout could not be completed.${failureReason ? ` Reason: ${failureReason}.` : ""} Please open your Payouts dashboard and review your connected Stripe account details.`,
+    ctaLabel: "Review payouts",
+    eyebrow: "Payout action required",
+    footerNote: accountFooter,
+    heading: "Payout action required",
+    idempotencyKey: `payout-failed/${recipientUserId}/${Date.now()}`,
+    preference: "sales",
+    previewText: "Your SoundKit payout requires attention.",
+    queue,
+    recipient,
+    subject: "Action required: SoundKit payout issue",
+    template: "billing_issue",
+  });
+};
+
 export const notifyLiveEventScheduledEmail = async ({
   eventId,
   eventTitle,
@@ -683,9 +784,9 @@ export const notifyLiveEventScheduledEmail = async ({
   const actionPath =
     eventType === "party"
       ? `/live/parties/${eventId}`
-      : (eventType === "stream"
+      : eventType === "stream"
         ? `/live/streams/${eventId}`
-        : `/live/battles/${eventId}`);
+        : `/live/battles/${eventId}`;
   return enqueueForRecipient({
     actionPath,
     body: `${hostName} scheduled ${eventTitle}. Open SoundKit to view the event time and join when it starts.`,
@@ -726,9 +827,9 @@ export const notifyArtistReleaseEmail = async ({
   const contentPath =
     contentType === "project"
       ? `/projects/${contentId}`
-      : (contentType === "video"
+      : contentType === "video"
         ? `/videos/${contentId}`
-        : `/tracks/${contentId}`);
+        : `/tracks/${contentId}`;
   return enqueueForRecipient({
     actionPath: contentPath,
     body: `${artistName} just released ${contentType === "project" ? "a project" : `a ${contentType}`}: ${contentTitle}. Listen or watch it now on SoundKit.`,

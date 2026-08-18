@@ -301,6 +301,7 @@ function MessagesPage() {
             body: JSON.stringify({
               initialTracks: [],
               isProjectLevel: true,
+              kind: "project",
               projectType,
               title,
             }),
@@ -328,16 +329,12 @@ function MessagesPage() {
         });
       }
     },
-    submitMessage = (event: FormEvent<HTMLFormElement>) => {
+    handleSendMessage = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const body = composerText.trim();
+      const rawText = composerText.trim();
 
-      if (!(selectedId && (body || attachments.length > 0))) {
-        return;
-      }
-
-      if (body.startsWith("/collab")) {
-        const title = body.replace(/^\/collab\s*/, "").trim();
+      if (rawText === "/collab" || rawText.startsWith("/collab ")) {
+        const title = rawText.replace(/^\/collab\s*/iu, "").trim();
         setCollabTitle(title || "Collaboration Project");
         setShowInlineCollab(true);
         setShowMusicPicker(false);
@@ -345,16 +342,30 @@ function MessagesPage() {
         return;
       }
 
-      if (body === "/share" || body.startsWith("/share")) {
+      if (rawText === "/share") {
         setShowMusicPicker(true);
         setShowInlineCollab(false);
         setComposerText("");
         return;
       }
 
-      if (body === "/help") {
+      if (rawText.startsWith("/share ") && attachments.length === 0) {
+        const remaining = rawText.replace(/^\/share\s*/iu, "").trim();
+        setComposerText(remaining);
+        setShowMusicPicker(true);
+        setShowInlineCollab(false);
+        return;
+      }
+
+      if (rawText === "/help") {
         setIsHelpOpen(true);
         setComposerText("");
+        return;
+      }
+
+      const body = rawText.replace(/^\/share\s*/iu, "").trim();
+
+      if (!body && attachments.length === 0) {
         return;
       }
 
@@ -488,7 +499,11 @@ function MessagesPage() {
                       }
                     />
                     <AvatarFallback>
-                      {initials(selectedConversation.title)}
+                      {initials(
+                        selectedConversation.participantName ||
+                          selectedConversation.title ||
+                          "Direct"
+                      )}
                     </AvatarFallback>
                   </Avatar>
                   <span
@@ -502,7 +517,10 @@ function MessagesPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-sm leading-none">
-                    {selectedConversation.title}
+                    {selectedConversation.participantName ||
+                      (selectedConversation.title === "Untitled conversation"
+                        ? "Direct Message"
+                        : selectedConversation.title)}
                   </h3>
                   <div className="flex items-center gap-2 mt-1.5">
                     <Badge
@@ -776,7 +794,7 @@ function MessagesPage() {
 
             <form
               className="border-t border-border/20 bg-white/[0.01] p-4"
-              onSubmit={submitMessage}
+              onSubmit={handleSendMessage}
             >
               {attachments.length > 0 ? (
                 <div className="mb-2 flex flex-wrap gap-2">
@@ -825,7 +843,9 @@ function MessagesPage() {
                         } else if (cmd.command === "/share") {
                           setShowMusicPicker(true);
                           setShowInlineCollab(false);
-                          setComposerText("");
+                          setComposerText((curr) =>
+                            curr.replace(/^\/share\s*/iu, "").trim()
+                          );
                         } else if (cmd.command === "/help") {
                           setIsHelpOpen(true);
                           setComposerText("");
@@ -1728,7 +1748,9 @@ function ConversationItem({
         <Avatar className="size-11 border-2 border-border/10 transition-colors group-hover:border-primary/20">
           <AvatarImage src={conversation.participantAvatarUrl ?? undefined} />
           <AvatarFallback className="bg-muted text-xs">
-            {initials(conversation.title)}
+            {initials(
+              conversation.participantName || conversation.title || "Direct"
+            )}
           </AvatarFallback>
         </Avatar>
         <span
@@ -1748,7 +1770,10 @@ function ConversationItem({
               isSelected ? "text-primary" : "text-foreground"
             )}
           >
-            {conversation.title}
+            {conversation.participantName ||
+              (conversation.title === "Untitled conversation"
+                ? "Direct Message"
+                : conversation.title)}
           </p>
           <span className="font-medium text-[10px] text-muted-foreground/60">
             {new Date(conversation.updatedAt).toLocaleDateString()}

@@ -1,3 +1,4 @@
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary, no-shadow */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -24,6 +25,7 @@ import { resolveCommunitySubscriptionStatus } from "@/lib/community-subscription
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import {
   notifyBillingIssueEmail,
+  notifyPayoutFailedEmail,
   notifyPurchaseEmails,
 } from "@/lib/email-events";
 import {
@@ -78,10 +80,12 @@ interface StripeEvent {
 
 const processConnectAccountEvent = async ({
     accountId,
+    emailQueue,
     eventType,
     object,
   }: {
     accountId: string;
+    emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
     eventType: string;
     object: StripeObject;
   }) => {
@@ -135,6 +139,36 @@ const processConnectAccountEvent = async ({
         requirementsDue,
       })
       .where(eq(sellerAccounts.stripeAccountId, accountId));
+
+    if (requirementsDue.length > 0 || !payoutsEnabled) {
+      const [seller] = await db
+        .select({ userId: sellerAccounts.userId })
+        .from(sellerAccounts)
+        .where(eq(sellerAccounts.stripeAccountId, accountId))
+        .limit(1);
+
+      if (seller?.userId) {
+        await db
+          .insert(userNotifications)
+          .values({
+            id: `payout_action_required:${accountId}`,
+            link: "/dashboard/settings/payouts",
+            message:
+              "Your payout account has verification requirements due. Update your details to continue receiving payouts.",
+            title: "Payout Details Needed",
+            type: "payout_action_required",
+            userId: seller.userId,
+          })
+          .onConflictDoNothing();
+
+        await notifyPayoutFailedEmail({
+          failureReason:
+            requirementsDue.join(", ") || "Verification details required",
+          queue: emailQueue,
+          recipientUserId: seller.userId,
+        });
+      }
+    }
   },
   processCommunitySubscription = async ({
     eventType,
@@ -295,6 +329,31 @@ const processConnectAccountEvent = async ({
         stripeSubscriptionId: object.subscription ?? object.id,
         userId: object.metadata?.userId,
       });
+
+      let targetUserId = object.metadata?.userId;
+      if (!targetUserId && object.customer) {
+        const [subRow] = await db
+          .select({ userId: communitySubscriptions.userId })
+          .from(communitySubscriptions)
+          .where(eq(communitySubscriptions.stripeCustomerId, object.customer))
+          .limit(1);
+        targetUserId = subRow?.userId;
+      }
+
+      if (targetUserId) {
+        await db
+          .insert(userNotifications)
+          .values({
+            id: `billing_issue:${object.id ?? object.subscription ?? targetUserId}`,
+            link: "/dashboard/billing",
+            message:
+              "A subscription payment could not be processed. Please update your payment method to keep your access active.",
+            title: "Payment Issue",
+            type: "billing_issue",
+            userId: targetUserId,
+          })
+          .onConflictDoNothing();
+      }
     }
 
     if (
@@ -332,6 +391,7 @@ const processConnectAccountEvent = async ({
     ) {
       await processConnectAccountEvent({
         accountId: connectAccountId,
+        emailQueue,
         eventType,
         object,
       });

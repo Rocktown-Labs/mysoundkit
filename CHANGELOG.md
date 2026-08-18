@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Implemented "Settle First, Enrich Later" pipeline for tracks and projects: newly uploaded public tracks are immediately discoverable and playable across Explore, Map, and Search without waiting for external AI workflows, and public query productionStatus restrictions have been removed.
+- Made OpenAI Whisper lyric transcription resilient to large uncompressed WAV vocal files (> 25MB) by slicing audio payloads within Whisper size limits and isolating transcription errors so tracks always remain published, playable, and healthy.
+- Preserved lifetime buyer library access when creators delete tracks by archiving/unpublishing rather than cascading deletion of purchased media assets.
+- Optimized database query performance and eliminated Cloudflare Worker hanging on `GET /v1/messages/friends` (replacing unindexed dynamic CASE WHEN join with separate indexed lookups) and added query bounds to `GET /v1/battles`.
+- Synced dual-channel alerts across billing, battles, payouts, and collaborations: added in-app notifications for failed subscription invoices (`/dashboard/billing`), in-app battle starting soon and results recap alerts (`/live/battles/:id`), Stripe Connect payout requirement alerts (`/dashboard/settings/payouts`), and companion transactional emails for accepted collaboration proposals.
+- Fixed collaboration invites and notifications to ensure emails and in-app alerts are delivered exclusively to recipient collaborators and never to the creator/owner when adding credits, sending chat `/collab` proposals, or scheduling live events.
+- Added full collaborator workspace access and editing permissions across track and project details (`GET`, `PATCH`, `assets`, `lyrics`) so invited collaborators can immediately view, edit, and contribute to shared workspaces.
+- Fixed floating chat and messages page `/collab` command handling to automatically parse proposal titles, deliver email notifications to target chat participants, and notify the owner upon collaborator acceptance/rejection.
+- Fixed floating chat and messages page `/share` command to preserve user's typed message alongside attached music and send both body text and track attachment seamlessly.
+- Fixed direct message conversation deduplication and title resolution so multiple threads between the same users are merged into a single thread and displayed with the artist/friend's real name instead of "Untitled conversation".
+- Implemented zero-RAM fast audio duration header parser supporting WAV (RIFF `fmt`/`data` chunks), MP3 (ID3v2 tags and Xing/VBRI/CBR frames), and FLAC (`STREAMINFO` block) in `< 1ms` via R2 byte-range requests (`bytes=0-131071`) to eliminate Cloudflare Worker 128MB OOM crashes during media uploads and duration backfills.
+- Added admin track duration backfill fallback supporting background execution via `executionCtx.waitUntil(...)` when queue bindings are omitted.
 - Fixed StemSplit track processing workflow by requesting vocals only (`outputType: "VOCALS"`), removing unnecessary stem storage, making stem asset database writes idempotent via `onConflictDoUpdate`, and automatically publishing tracks upon completion when marked for immediate release.
 - Fixed interactive discovery map region syncing across homepage sections, tracks, videos, projects, and artist routes with bidirectional URL search parameter propagation and global/regional filter persistence.
 - Fixed live chat `UserProfilePreviewModal` to query dynamic artist profile stats (real avatar, bio, follower count, track count) and styled role badges for high contrast.

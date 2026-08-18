@@ -15,6 +15,7 @@ import {
   userFollows,
   userNotifications,
 } from "@soundkit/db/schema/app";
+import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
@@ -607,7 +608,10 @@ app.openapi(
         await db.insert(projectCollaborators).values(collaboratorRows);
 
         for (const collaborator of collaboratorRows) {
-          if (collaborator.collaboratorUserId) {
+          if (
+            collaborator.collaboratorUserId &&
+            collaborator.collaboratorUserId !== user.id
+          ) {
             await db
               .insert(userNotifications)
               .values({
@@ -621,10 +625,28 @@ app.openapi(
               .onConflictDoNothing();
           }
 
-          if (collaborator.inviteEmail) {
+          let recipientEmail = collaborator.inviteEmail ?? null;
+          if (
+            !recipientEmail &&
+            collaborator.collaboratorUserId &&
+            collaborator.collaboratorUserId !== user.id
+          ) {
+            const [collaboratorUser] = await db
+              .select({ email: authUser.email })
+              .from(authUser)
+              .where(eq(authUser.id, collaborator.collaboratorUserId))
+              .limit(1);
+            recipientEmail = collaboratorUser?.email ?? null;
+          }
+
+          if (
+            recipientEmail &&
+            recipientEmail.toLowerCase() !== (user.email ?? "").toLowerCase() &&
+            collaborator.collaboratorUserId !== user.id
+          ) {
             await notifyCollaboratorInviteEmail({
               actionPath: `/dashboard/projects/${projectId}`,
-              inviteEmail: collaborator.inviteEmail,
+              inviteEmail: recipientEmail,
               inviteId: collaborator.id,
               inviterName: user.name ?? "Someone",
               queue: c.env.EMAIL_DELIVERY_QUEUE,

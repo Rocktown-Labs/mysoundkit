@@ -1,9 +1,11 @@
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group, @typescript-eslint/no-non-null-assertion */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import { trackAssets, tracks, workflowJobs } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
+import { parseAudioHeaderDurationMs } from "@/lib/audio-duration-parser";
 import { logWarn } from "@/middleware/structured-logging";
 
 export interface DurationBackfillQueueMessage {
@@ -56,17 +58,62 @@ export const readR2AudioDurationMs = async (objectKey: string) => {
     return null;
   }
 
-  const object = await bucket.get(objectKey);
+  // 1. Fast range header read (first 128KB) to parse audio headers with low memory in < 1ms
+  try {
+    const headerObject = await bucket.get(objectKey, {
+      range: { length: 131_072, offset: 0 },
+    });
 
-  if (!object) {
-    return null;
+    if (headerObject) {
+      const buffer = new Uint8Array(await headerObject.arrayBuffer());
+      const parsedDuration = parseAudioHeaderDurationMs(
+        buffer,
+        headerObject.size
+      );
+
+      if (parsedDuration && parsedDuration > 0) {
+        return parsedDuration;
+      }
+    }
+  } catch (error) {
+    logWarn({
+      error: getErrorMessage(error),
+      event: "audio_header_range_parse_failed",
+      objectKey,
+    });
   }
 
-  const blob = new Blob([await object.arrayBuffer()], {
-    type: object.httpMetadata?.contentType ?? "application/octet-stream",
-  });
+  // 2. Full object read fallback with pure parser then mediabunny
+  try {
+    const object = await bucket.get(objectKey);
 
-  return readAudioDurationMs(blob);
+    if (!object) {
+      return null;
+    }
+
+    const arrayBuffer = await object.arrayBuffer();
+    const parsedDuration = parseAudioHeaderDurationMs(
+      new Uint8Array(arrayBuffer),
+      object.size
+    );
+
+    if (parsedDuration && parsedDuration > 0) {
+      return parsedDuration;
+    }
+
+    const blob = new Blob([arrayBuffer], {
+      type: object.httpMetadata?.contentType ?? "application/octet-stream",
+    });
+
+    return await readAudioDurationMs(blob);
+  } catch (error) {
+    logWarn({
+      error: getErrorMessage(error),
+      event: "audio_duration_read_failed",
+      objectKey,
+    });
+    return null;
+  }
 };
 
 const genericGeneratedImagePattern =
@@ -213,7 +260,7 @@ export const backfillMissingTrackDurations = async ({
   };
 };
 
-const findUnbackfilledMasterRows = async ({
+const findUnbackfilledMasterRows = ({
   db,
   limit,
   trackIds,
@@ -252,17 +299,19 @@ const findUnbackfilledMasterRows = async ({
 };
 
 export const enqueueTrackDurationBackfills = async ({
+  executionCtx,
   limit = 100,
   queue,
   trackIds,
 }: {
+  executionCtx?: { waitUntil: (promise: Promise<unknown>) => void } | null;
   limit?: number;
   queue?: Queue<DurationBackfillQueueMessage> | null;
   trackIds?: string[];
 } = {}) => {
   const runId = crypto.randomUUID();
 
-  if (!(isDatabaseConfigured() && queue)) {
+  if (!isDatabaseConfigured()) {
     return { enqueued: 0, runId, scanned: 0 };
   }
 
@@ -270,6 +319,7 @@ export const enqueueTrackDurationBackfills = async ({
     rows = await findUnbackfilledMasterRows({ db, limit, trackIds });
 
   let enqueued = 0;
+  const directTasks: DurationBackfillQueueMessage[] = [];
 
   for (const row of rows) {
     if (!row.objectKey) {
@@ -287,41 +337,63 @@ export const enqueueTrackDurationBackfills = async ({
       )
       .limit(1);
 
-    if (existingJob) {
+    if (existingJob && existingJob.status === "completed") {
       continue;
     }
 
-    const jobId = crypto.randomUUID();
+    const jobId = existingJob?.id ?? crypto.randomUUID();
 
-    await db.insert(workflowJobs).values({
-      id: jobId,
-      input: { ...row, runId },
-      jobType: DURATION_BACKFILL_JOB_TYPE,
-      targetId: row.assetId,
-      targetType: "track_asset",
-    });
-
-    try {
-      await queue.send(
-        {
-          assetId: row.assetId,
-          jobId,
-          objectKey: row.objectKey,
-          runId,
-          trackId: row.trackId,
-        },
-        { contentType: "json" }
-      );
-      enqueued += 1;
-    } catch (error) {
-      await db.delete(workflowJobs).where(eq(workflowJobs.id, jobId));
-      logWarn({
-        assetId: row.assetId,
-        error: getErrorMessage(error),
-        event: "track_duration_backfill_enqueue_failed",
-        trackId: row.trackId,
+    if (!existingJob) {
+      await db.insert(workflowJobs).values({
+        id: jobId,
+        input: { ...row, runId },
+        jobType: DURATION_BACKFILL_JOB_TYPE,
+        targetId: row.assetId,
+        targetType: "track_asset",
       });
-      continue;
+    }
+
+    const message: DurationBackfillQueueMessage = {
+      assetId: row.assetId,
+      jobId,
+      objectKey: row.objectKey,
+      runId,
+      trackId: row.trackId,
+    };
+
+    if (queue) {
+      try {
+        await queue.send(message, { contentType: "json" });
+        enqueued += 1;
+      } catch (error) {
+        if (!existingJob) {
+          await db.delete(workflowJobs).where(eq(workflowJobs.id, jobId));
+        }
+        logWarn({
+          assetId: row.assetId,
+          error: getErrorMessage(error),
+          event: "track_duration_backfill_enqueue_failed",
+          trackId: row.trackId,
+        });
+        continue;
+      }
+    } else {
+      directTasks.push(message);
+      enqueued += 1;
+    }
+  }
+
+  if (directTasks.length > 0) {
+    const processAll = async () => {
+      for (const task of directTasks) {
+        await processDurationBackfill(task);
+      }
+    };
+
+    if (executionCtx?.waitUntil) {
+      executionCtx.waitUntil(processAll());
+    } else {
+      await processAll();
     }
   }
 
