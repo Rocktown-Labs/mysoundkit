@@ -896,22 +896,33 @@ app.openapi(
         )
         .where(eq(conversationParticipants.userId, user.id))
         .orderBy(desc(conversations.updatedAt))
-        .limit(50),
+        .limit(100),
       conversationIds = rows.map((row) => row.id),
       otherParticipants =
         conversationIds.length > 0
           ? await db
               .select({
-                avatarUrl: userProfiles.avatarUrl,
+                artistStageName: artistProfiles.stageName,
+                authAvatarUrl: authUser.image,
+                authName: authUser.name,
                 conversationId: conversationParticipants.conversationId,
-                displayName: userProfiles.displayName,
-                userId: userProfiles.userId,
+                profileAvatarUrl: userProfiles.avatarUrl,
+                profileDisplayName: userProfiles.displayName,
+                userId: conversationParticipants.userId,
                 username: userProfiles.username,
               })
               .from(conversationParticipants)
-              .innerJoin(
+              .leftJoin(
                 userProfiles,
                 eq(userProfiles.userId, conversationParticipants.userId)
+              )
+              .leftJoin(
+                artistProfiles,
+                eq(artistProfiles.userId, conversationParticipants.userId)
+              )
+              .leftJoin(
+                authUser,
+                eq(authUser.id, conversationParticipants.userId)
               )
               .where(
                 and(
@@ -930,25 +941,50 @@ app.openapi(
         ])
       );
 
-    return c.json(
-      rows.map((row) => {
-        const participant = participantByConversationId.get(row.id);
+    const summaries: z.infer<typeof conversationSummarySchema>[] = [];
+    const seenDirectParticipantIds = new Set<string>();
 
-        return {
-          conversationType: row.conversationType,
-          id: row.id,
-          participantAvatarUrl: participant?.avatarUrl ?? null,
-          participantId: participant?.userId ?? null,
-          participantName:
-            participant?.displayName ?? participant?.username ?? null,
-          participantUsername: participant?.username ?? null,
-          title: row.title ?? "Untitled conversation",
-          unreadCount: 0,
-          updatedAt: toIso(row.updatedAt),
-        };
-      }),
-      HttpStatusCodes.OK
-    );
+    for (const row of rows) {
+      const participant = participantByConversationId.get(row.id);
+      const participantId = participant?.userId ?? null;
+
+      // Deduplicate direct conversations by participant ID so each user only has 1 thread
+      if (row.conversationType === "direct" && participantId) {
+        if (seenDirectParticipantIds.has(participantId)) {
+          continue;
+        }
+        seenDirectParticipantIds.add(participantId);
+      }
+
+      const participantName =
+        participant?.artistStageName ??
+        participant?.profileDisplayName ??
+        participant?.authName ??
+        participant?.username ??
+        null;
+
+      const participantAvatarUrl =
+        participant?.profileAvatarUrl ?? participant?.authAvatarUrl ?? null;
+
+      const displayTitle =
+        row.title && row.title !== "Untitled conversation"
+          ? row.title
+          : (participantName ?? "Direct Message");
+
+      summaries.push({
+        conversationType: row.conversationType,
+        id: row.id,
+        participantAvatarUrl,
+        participantId,
+        participantName,
+        participantUsername: participant?.username ?? null,
+        title: displayTitle,
+        unreadCount: 0,
+        updatedAt: toIso(row.updatedAt),
+      });
+    }
+
+    return c.json(summaries, HttpStatusCodes.OK);
   }
 );
 
@@ -1005,7 +1041,6 @@ app.openapi(
     }
 
     const db = createDb(),
-      conversationId = crypto.randomUUID(),
       participantUserIds = [...new Set([user.id, ...body.participantUserIds])],
       requestedParticipantUserIds = participantUserIds.filter(
         (participantUserId) => participantUserId !== user.id
@@ -1094,13 +1129,149 @@ app.openapi(
       );
     }
 
+    // Reuse existing direct conversation if one already exists between the two users
+    const [targetUserId] = requestedParticipantUserIds;
+    if (conversationType === "direct" && targetUserId) {
+      const directConvos = await db
+        .select({
+          id: conversations.id,
+          title: conversations.title,
+          updatedAt: conversations.updatedAt,
+        })
+        .from(conversations)
+        .innerJoin(
+          conversationParticipants,
+          eq(conversationParticipants.conversationId, conversations.id)
+        )
+        .where(
+          and(
+            eq(conversations.conversationType, "direct"),
+            eq(conversationParticipants.userId, user.id)
+          )
+        )
+        .orderBy(desc(conversations.updatedAt));
+
+      if (directConvos.length > 0) {
+        const convoIds = directConvos.map((convo) => convo.id);
+        const [existingParticipant] = await db
+          .select({
+            conversationId: conversationParticipants.conversationId,
+          })
+          .from(conversationParticipants)
+          .where(
+            and(
+              inArray(conversationParticipants.conversationId, convoIds),
+              eq(conversationParticipants.userId, targetUserId)
+            )
+          )
+          .limit(1);
+
+        if (existingParticipant) {
+          const existing = directConvos.find(
+            (convo) => convo.id === existingParticipant.conversationId
+          );
+
+          const [participantProfile] = await db
+            .select({
+              artistName: artistProfiles.stageName,
+              authAvatar: authUser.image,
+              authName: authUser.name,
+              profileAvatar: userProfiles.avatarUrl,
+              profileName: userProfiles.displayName,
+              username: userProfiles.username,
+            })
+            .from(conversationParticipants)
+            .leftJoin(
+              userProfiles,
+              eq(userProfiles.userId, conversationParticipants.userId)
+            )
+            .leftJoin(
+              artistProfiles,
+              eq(artistProfiles.userId, conversationParticipants.userId)
+            )
+            .leftJoin(
+              authUser,
+              eq(authUser.id, conversationParticipants.userId)
+            )
+            .where(
+              and(
+                eq(
+                  conversationParticipants.conversationId,
+                  existingParticipant.conversationId
+                ),
+                eq(conversationParticipants.userId, targetUserId)
+              )
+            )
+            .limit(1);
+
+          const participantName =
+            participantProfile?.artistName ??
+            participantProfile?.profileName ??
+            participantProfile?.authName ??
+            participantProfile?.username ??
+            null;
+
+          return c.json(
+            {
+              conversationType: "direct" as const,
+              id: existingParticipant.conversationId,
+              participantAvatarUrl:
+                participantProfile?.profileAvatar ??
+                participantProfile?.authAvatar ??
+                null,
+              participantId: targetUserId,
+              participantName,
+              participantUsername: participantProfile?.username ?? null,
+              title:
+                existing?.title && existing.title !== "Untitled conversation"
+                  ? existing.title
+                  : (participantName ?? "Direct Message"),
+              unreadCount: 0,
+              updatedAt: toIso(existing?.updatedAt ?? now),
+            },
+            HttpStatusCodes.CREATED
+          );
+        }
+      }
+    }
+
+    const conversationId = crypto.randomUUID();
+
+    // Look up recipient details for new conversation title fallback
+    let initialTitle = body.title ?? null;
+    if (
+      !initialTitle &&
+      conversationType === "direct" &&
+      requestedParticipantUserIds[0]
+    ) {
+      const [targetProfile] = await db
+        .select({
+          artistName: artistProfiles.stageName,
+          authName: authUser.name,
+          profileName: userProfiles.displayName,
+          username: userProfiles.username,
+        })
+        .from(authUser)
+        .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+        .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
+        .where(eq(authUser.id, requestedParticipantUserIds[0]))
+        .limit(1);
+
+      initialTitle =
+        targetProfile?.artistName ??
+        targetProfile?.profileName ??
+        targetProfile?.authName ??
+        targetProfile?.username ??
+        null;
+    }
+
     const [conversation] = await db
       .insert(conversations)
       .values({
         conversationType,
         createdByUserId: user.id,
         id: conversationId,
-        title: body.title ?? null,
+        title: initialTitle,
         updatedAt: now,
       })
       .returning();
@@ -1117,9 +1288,10 @@ app.openapi(
         conversationType,
         id: conversation?.id ?? conversationId,
         participantAvatarUrl: null,
-        participantName: null,
+        participantId: requestedParticipantUserIds[0] ?? null,
+        participantName: initialTitle,
         participantUsername: null,
-        title: conversation?.title ?? body.title ?? "New conversation",
+        title: conversation?.title ?? initialTitle ?? "Direct Message",
         unreadCount: 0,
         updatedAt: toIso(conversation?.updatedAt ?? now),
       },
@@ -1181,6 +1353,66 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    const [targetConvo] = await db
+      .select({
+        conversationType: conversations.conversationType,
+      })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+
+    let convoIdsToFetch = [conversationId];
+
+    if (targetConvo?.conversationType === "direct") {
+      const [otherParticipantRow] = await db
+        .select({ userId: conversationParticipants.userId })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            ne(conversationParticipants.userId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (otherParticipantRow?.userId) {
+        const userDirectConvos = await db
+          .select({ id: conversations.id })
+          .from(conversations)
+          .innerJoin(
+            conversationParticipants,
+            eq(conversationParticipants.conversationId, conversations.id)
+          )
+          .where(
+            and(
+              eq(conversations.conversationType, "direct"),
+              eq(conversationParticipants.userId, user.id)
+            )
+          );
+
+        if (userDirectConvos.length > 0) {
+          const directIds = userDirectConvos.map((convo) => convo.id);
+          const matchingConvos = await db
+            .select({
+              conversationId: conversationParticipants.conversationId,
+            })
+            .from(conversationParticipants)
+            .where(
+              and(
+                inArray(conversationParticipants.conversationId, directIds),
+                eq(conversationParticipants.userId, otherParticipantRow.userId)
+              )
+            );
+
+          if (matchingConvos.length > 0) {
+            convoIdsToFetch = [
+              ...new Set(matchingConvos.map((item) => item.conversationId)),
+            ];
+          }
+        }
+      }
+    }
+
     const rows = await db
         .select({
           body: messages.body,
@@ -1190,7 +1422,7 @@ app.openapi(
           status: messages.status,
         })
         .from(messages)
-        .where(eq(messages.conversationId, conversationId))
+        .where(inArray(messages.conversationId, convoIdsToFetch))
         .orderBy(asc(messages.createdAt))
         .limit(200),
       messageIds = rows.map((row) => row.id),

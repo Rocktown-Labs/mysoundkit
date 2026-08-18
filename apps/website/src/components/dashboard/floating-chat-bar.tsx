@@ -346,23 +346,36 @@ export function FloatingChatBar() {
     },
     handleSendMessage = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const text = messageInput.trim();
+      const rawText = messageInput.trim();
 
-      if (text.startsWith("/collab")) {
+      if (rawText === "/collab") {
         setIsCollabDialogOpen(true);
         setMessageInput("");
         return;
       }
-      if (text.startsWith("/share")) {
+      if (rawText.startsWith("/collab ")) {
+        setIsCollabDialogOpen(true);
+        setMessageInput("");
+        return;
+      }
+      if (rawText === "/share") {
         setShowMusicPicker(true);
         setMessageInput("");
         return;
       }
-      if (text.startsWith("/help")) {
+      if (rawText.startsWith("/share ") && attachments.length === 0) {
+        const remaining = rawText.replace(/^\/share\s*/iu, "").trim();
+        setMessageInput(remaining);
+        setShowMusicPicker(true);
+        return;
+      }
+      if (rawText === "/help") {
         setShowHelpGuide(true);
         setMessageInput("");
         return;
       }
+
+      const text = rawText.replace(/^\/share\s*/iu, "").trim();
 
       if (!text && attachments.length === 0) {
         return;
@@ -981,7 +994,9 @@ export function FloatingChatBar() {
                           setShowMusicPicker(true);
                           setShowInlineCollab(false);
                           setShowHelpGuide(false);
-                          setMessageInput("");
+                          setMessageInput((curr) =>
+                            curr.replace(/^\/share\s*/iu, "").trim()
+                          );
                         } else if (cmd.command === "/help") {
                           setShowHelpGuide(true);
                           setShowMusicPicker(false);
