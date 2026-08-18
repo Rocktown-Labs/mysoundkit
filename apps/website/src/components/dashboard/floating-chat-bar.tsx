@@ -348,13 +348,11 @@ export function FloatingChatBar() {
       event.preventDefault();
       const rawText = messageInput.trim();
 
-      if (rawText === "/collab") {
-        setIsCollabDialogOpen(true);
-        setMessageInput("");
-        return;
-      }
-      if (rawText.startsWith("/collab ")) {
-        setIsCollabDialogOpen(true);
+      if (rawText === "/collab" || rawText.startsWith("/collab ")) {
+        const customTitle = rawText.replace(/^\/collab\s*/iu, "").trim();
+        setCollabTitle(customTitle || "Collaboration Project");
+        setShowInlineCollab(true);
+        setShowMusicPicker(false);
         setMessageInput("");
         return;
       }
@@ -1077,14 +1075,8 @@ export function FloatingChatBar() {
                       size="sm"
                       disabled={isSubmittingCollab || !collabTitle.trim()}
                       onClick={async () => {
-                        await handleSendCollabInvitation({
-                          initialTracks: [],
-                          isProjectLevel: true,
-                          projectType: collabProjectType,
-                          title: collabTitle.trim() || "Collaboration Project",
-                        });
+                        await handleSendProposal();
                         setShowInlineCollab(false);
-                        setCollabTitle("");
                       }}
                       className="w-full h-7 text-xs bg-primary gap-1"
                     >

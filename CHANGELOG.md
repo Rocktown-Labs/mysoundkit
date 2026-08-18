@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed collaboration invites and notifications to ensure emails and in-app alerts are delivered exclusively to recipient collaborators and never to the creator/owner when adding credits, sending chat `/collab` proposals, or scheduling live events.
+- Added full collaborator workspace access and editing permissions across track and project details (`GET`, `PATCH`, `assets`, `lyrics`) so invited collaborators can immediately view, edit, and contribute to shared workspaces.
+- Fixed floating chat and messages page `/collab` command handling to automatically parse proposal titles, deliver email notifications to target chat participants, and notify the owner upon collaborator acceptance/rejection.
 - Fixed floating chat and messages page `/share` command to preserve user's typed message alongside attached music and send both body text and track attachment seamlessly.
 - Fixed direct message conversation deduplication and title resolution so multiple threads between the same users are merged into a single thread and displayed with the artist/friend's real name instead of "Untitled conversation".
 - Implemented zero-RAM fast audio duration header parser supporting WAV (RIFF `fmt`/`data` chunks), MP3 (ID3v2 tags and Xing/VBRI/CBR frames), and FLAC (`STREAMINFO` block) in `< 1ms` via R2 byte-range requests (`bytes=0-131071`) to eliminate Cloudflare Worker 128MB OOM crashes during media uploads and duration backfills.

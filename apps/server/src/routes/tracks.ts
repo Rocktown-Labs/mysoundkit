@@ -1,4 +1,4 @@
-/* eslint-disable complexity */
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -22,7 +22,18 @@ import {
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
-import { and, asc, desc, eq, gt, ilike, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -1133,15 +1144,15 @@ app.openapi(
         rawPriceNum =
           typeof body.price === "number"
             ? body.price
-            : (body.price
+            : body.price
               ? Number(body.price)
-              : null);
+              : null;
       const salePriceUsd =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_USD
-          : (rawPriceNum !== null && !isNaN(rawPriceNum)
+          : rawPriceNum !== null && !isNaN(rawPriceNum)
             ? rawPriceNum
-            : null);
+            : null;
       const salePriceCents =
           body.isForSale && isSingle
             ? SINGLE_TRACK_PRICE_CENTS
@@ -1222,7 +1233,10 @@ app.openapi(
         );
 
         for (const collaborator of collaboratorRows) {
-          if (collaborator.collaboratorUserId) {
+          if (
+            collaborator.collaboratorUserId &&
+            collaborator.collaboratorUserId !== user.id
+          ) {
             await db
               .insert(userNotifications)
               .values({
@@ -1236,10 +1250,28 @@ app.openapi(
               .onConflictDoNothing();
           }
 
-          if (collaborator.inviteEmail) {
+          let recipientEmail = collaborator.inviteEmail ?? null;
+          if (
+            !recipientEmail &&
+            collaborator.collaboratorUserId &&
+            collaborator.collaboratorUserId !== user.id
+          ) {
+            const [collaboratorUser] = await db
+              .select({ email: authUser.email })
+              .from(authUser)
+              .where(eq(authUser.id, collaborator.collaboratorUserId))
+              .limit(1);
+            recipientEmail = collaboratorUser?.email ?? null;
+          }
+
+          if (
+            recipientEmail &&
+            recipientEmail.toLowerCase() !== (user.email ?? "").toLowerCase() &&
+            collaborator.collaboratorUserId !== user.id
+          ) {
             await notifyCollaboratorInviteEmail({
               actionPath: `/dashboard/tracks/${trackId}`,
-              inviteEmail: collaborator.inviteEmail,
+              inviteEmail: recipientEmail,
               inviteId: collaborator.id,
               inviterName: user.name ?? "Someone",
               queue: c.env.EMAIL_DELIVERY_QUEUE,
@@ -1350,6 +1382,41 @@ app.openapi(
       exclusiveUntil = new Date(body.exclusiveUntil);
     }
 
+    const [existingTrack] = await db
+      .select()
+      .from(tracks)
+      .where(eq(tracks.id, trackId))
+      .limit(1);
+
+    if (!existingTrack) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const isOwner =
+        existingTrack.ownerUserId === user.id ||
+        (organizationId && existingTrack.organizationId === organizationId),
+      isCollaborator =
+        (
+          await db
+            .select({ id: trackCollaborators.id })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.trackId, trackId),
+                eq(trackCollaborators.collaboratorUserId, user.id),
+                inArray(trackCollaborators.invitationStatus, [
+                  "accepted",
+                  "pending",
+                ])
+              )
+            )
+            .limit(1)
+        ).length > 0;
+
+    if (!isOwner && !isCollaborator) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
     const [track] = await db
       .update(tracks)
       .set({
@@ -1374,7 +1441,7 @@ app.openapi(
         title: body.title,
         updatedAt: new Date(),
       })
-      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+      .where(eq(tracks.id, trackId))
       .returning();
 
     if (!track) {
@@ -1535,11 +1602,36 @@ app.openapi(
       [track] = await db
         .select()
         .from(tracks)
-        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .where(eq(tracks.id, trackId))
         .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const isOwner =
+        track.ownerUserId === user.id ||
+        (organizationId && track.organizationId === organizationId),
+      isCollaborator =
+        (
+          await db
+            .select({ id: trackCollaborators.id })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.trackId, trackId),
+                eq(trackCollaborators.collaboratorUserId, user.id),
+                inArray(trackCollaborators.invitationStatus, [
+                  "accepted",
+                  "pending",
+                ])
+              )
+            )
+            .limit(1)
+        ).length > 0;
+
+    if (!isOwner && !isCollaborator) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
     const [existingAsset] = await withRetry("find existing track asset", () =>
@@ -1908,13 +2000,42 @@ app.openapi(
       }),
       db = createDb(),
       [track] = await db
-        .select({ id: tracks.id })
+        .select({
+          id: tracks.id,
+          organizationId: tracks.organizationId,
+          ownerUserId: tracks.ownerUserId,
+        })
         .from(tracks)
-        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .where(eq(tracks.id, trackId))
         .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const isOwner =
+        track.ownerUserId === user.id ||
+        (organizationId && track.organizationId === organizationId),
+      isCollaborator =
+        (
+          await db
+            .select({ id: trackCollaborators.id })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.trackId, trackId),
+                eq(trackCollaborators.collaboratorUserId, user.id),
+                inArray(trackCollaborators.invitationStatus, [
+                  "accepted",
+                  "pending",
+                ])
+              )
+            )
+            .limit(1)
+        ).length > 0;
+
+    if (!isOwner && !isCollaborator) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
     const [revision] = await db
@@ -2358,6 +2479,35 @@ app.openapi(
 
       if (ownedTrack) {
         return c.json(await buildTrackDetail(ownedTrack), HttpStatusCodes.OK);
+      }
+
+      const [collaboratorRow] = await db
+        .select({ id: trackCollaborators.id })
+        .from(trackCollaborators)
+        .where(
+          and(
+            eq(trackCollaborators.trackId, trackId),
+            eq(trackCollaborators.collaboratorUserId, currentUser.id),
+            inArray(trackCollaborators.invitationStatus, [
+              "accepted",
+              "pending",
+            ])
+          )
+        )
+        .limit(1);
+
+      if (collaboratorRow) {
+        const [collaboratedTrack] = await db
+          .select()
+          .from(tracks)
+          .where(eq(tracks.id, trackId))
+          .limit(1);
+        if (collaboratedTrack) {
+          return c.json(
+            await buildTrackDetail(collaboratedTrack),
+            HttpStatusCodes.OK
+          );
+        }
       }
     }
 

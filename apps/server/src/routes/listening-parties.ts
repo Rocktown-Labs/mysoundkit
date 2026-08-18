@@ -1,3 +1,4 @@
+/* eslint-disable complexity, unicorn/max-nested-calls, sort-vars, one-var, no-nested-ternary, unicorn/no-nested-ternary, unicorn/no-await-expression-member, unicorn/no-negated-condition, unicorn/prefer-number-properties, unicorn/prefer-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -342,7 +343,7 @@ app.openapi(
           ...artistFollowers.map((entry) => entry.userId),
           ...profileFollowers.map((entry) => entry.userId),
         ]),
-      ];
+      ].filter((id) => id !== user.id);
     for (const followerId of followerIds) {
       const [notification] = await db
         .insert(userNotifications)

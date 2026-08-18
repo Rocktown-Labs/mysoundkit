@@ -301,6 +301,7 @@ function MessagesPage() {
             body: JSON.stringify({
               initialTracks: [],
               isProjectLevel: true,
+              kind: "project",
               projectType,
               title,
             }),

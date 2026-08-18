@@ -1,4 +1,4 @@
-/* eslint-disable complexity, sort-vars, unicorn/max-nested-calls, one-var, no-nested-ternary */
+/* eslint-disable complexity, sort-vars, unicorn/max-nested-calls, one-var, no-nested-ternary, unicorn/no-negated-condition */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -22,7 +22,10 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { notifyFriendRequestEmail } from "@/lib/email-events";
+import {
+  notifyCollaboratorInviteEmail,
+  notifyFriendRequestEmail,
+} from "@/lib/email-events";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { sampleConversations, sampleMessages } from "@/lib/sample-data";
 import {
@@ -1631,7 +1634,10 @@ app.openapi(
     request: {
       body: jsonContentRequired(
         z.object({
-          kind: z.enum(["project", "track"]),
+          initialTracks: z.array(z.string()).optional(),
+          isProjectLevel: z.boolean().optional(),
+          kind: z.enum(["project", "track"]).default("project").optional(),
+          projectType: z.enum(["album", "ep", "single"]).optional(),
           title: z.string().trim().min(1).max(160),
         }),
         "Collaboration workspace"
@@ -1662,30 +1668,67 @@ app.openapi(
 
     const { conversationId } = c.req.valid("param"),
       body = c.req.valid("json"),
+      kind = body.kind ?? "project",
       db = createDb(),
+      [convRow] = await db
+        .select({
+          conversationType: conversations.conversationType,
+        })
+        .from(conversations)
+        .where(eq(conversations.id, conversationId))
+        .limit(1),
       participants = await db
         .select({ userId: conversationParticipants.userId })
         .from(conversationParticipants)
         .where(eq(conversationParticipants.conversationId, conversationId));
+
     if (!participants.some((participant) => participant.userId === user.id)) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
-    const collaboratorIds = participants
-        .map((participant) => participant.userId)
-        .filter((participantId) => participantId !== user.id),
-      workspaceId = crypto.randomUUID(),
+
+    let collaboratorIds = participants
+      .map((participant) => participant.userId)
+      .filter((participantId) => participantId !== user.id);
+
+    if (
+      collaboratorIds.length === 0 &&
+      convRow?.conversationType === "direct"
+    ) {
+      const otherConvoParticipants = await db
+        .select({
+          userId: conversationParticipants.userId,
+        })
+        .from(conversationParticipants)
+        .innerJoin(
+          conversations,
+          eq(conversations.id, conversationParticipants.conversationId)
+        )
+        .where(
+          and(
+            eq(conversations.conversationType, "direct"),
+            ne(conversationParticipants.userId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (otherConvoParticipants[0]?.userId) {
+        collaboratorIds = [otherConvoParticipants[0].userId];
+      }
+    }
+
+    const workspaceId = crypto.randomUUID(),
       href =
-        body.kind === "project"
+        kind === "project"
           ? `/dashboard/projects/${workspaceId}`
           : `/dashboard/tracks/${workspaceId}`;
 
-    if (body.kind === "project") {
+    if (kind === "project") {
       await db.insert(projects).values({
         description: "Shared collaboration started from SoundKit Messages.",
         id: workspaceId,
         isPublic: false,
         ownerUserId: user.id,
-        projectType: "single",
+        projectType: body.projectType ?? "single",
         slug: `collaboration-${workspaceId}`,
         status: "draft",
         title: body.title,
@@ -1735,7 +1778,7 @@ app.openapi(
 
     const messageId = crypto.randomUUID();
     await db.insert(messages).values({
-      body: `Started shared ${body.kind}: ${body.title} · ${href}`,
+      body: `Started shared ${kind}: ${body.title} · ${href}`,
       conversationId,
       id: messageId,
       senderUserId: user.id,
@@ -1747,25 +1790,49 @@ app.openapi(
       mimeType: "soundkit/collaboration-proposal",
       objectKey: null,
       sizeBytes: null,
-      sourceProjectId: body.kind === "project" ? workspaceId : null,
-      sourceTrackId: body.kind === "track" ? workspaceId : null,
+      sourceProjectId: kind === "project" ? workspaceId : null,
+      sourceTrackId: kind === "track" ? workspaceId : null,
       url: href,
     });
+
     for (const collaboratorId of collaboratorIds) {
-      await db.insert(userNotifications).values({
-        id: `chat_collaboration:${workspaceId}:${collaboratorId}`,
-        link: href,
-        message: `${user.name ?? "A collaborator"} started ${body.title} with you.`,
-        title: "New shared music workspace",
-        type: "collaboration_started",
-        userId: collaboratorId,
-      });
+      if (collaboratorId !== user.id) {
+        const [recipientUser] = await db
+          .select({
+            email: authUser.email,
+            name: authUser.name,
+          })
+          .from(authUser)
+          .where(eq(authUser.id, collaboratorId))
+          .limit(1);
+
+        await db.insert(userNotifications).values({
+          id: `chat_collaboration:${workspaceId}:${collaboratorId}`,
+          link: href,
+          message: `${user.name ?? "An artist"} started a shared ${kind} "${body.title}" with you.`,
+          title: "New Collaboration Workspace",
+          type: "collaboration_started",
+          userId: collaboratorId,
+        });
+
+        if (
+          recipientUser?.email &&
+          recipientUser.email.toLowerCase() !== (user.email ?? "").toLowerCase()
+        ) {
+          await notifyCollaboratorInviteEmail({
+            actionPath: href,
+            inviteEmail: recipientUser.email,
+            inviteId: workspaceId,
+            inviterName: user.name ?? "An artist",
+            queue: c.env.EMAIL_DELIVERY_QUEUE,
+            workTitle: body.title,
+            workType: kind,
+          });
+        }
+      }
     }
 
-    return c.json(
-      { href, id: workspaceId, kind: body.kind },
-      HttpStatusCodes.CREATED
-    );
+    return c.json({ href, id: workspaceId, kind }, HttpStatusCodes.CREATED);
   }
 );
 
@@ -1811,7 +1878,29 @@ app.openapi(
     const { collaborationId, conversationId } = c.req.valid("param"),
       { action } = c.req.valid("json"),
       db = createDb(),
-      href = `/dashboard/projects/${collaborationId}`;
+      href = `/dashboard/projects/${collaborationId}`,
+      [project] = await db
+        .select({
+          id: projects.id,
+          ownerUserId: projects.ownerUserId,
+          title: projects.title,
+        })
+        .from(projects)
+        .where(eq(projects.id, collaborationId))
+        .limit(1),
+      [track] = project
+        ? [null]
+        : await db
+            .select({
+              id: tracks.id,
+              ownerUserId: tracks.ownerUserId,
+              title: tracks.title,
+            })
+            .from(tracks)
+            .where(eq(tracks.id, collaborationId))
+            .limit(1),
+      ownerUserId = project?.ownerUserId ?? track?.ownerUserId,
+      workTitle = project?.title ?? track?.title ?? "collaboration";
 
     if (action === "accept") {
       await db
@@ -1838,6 +1927,17 @@ app.openapi(
         id: crypto.randomUUID(),
         senderUserId: user.id,
       });
+
+      if (ownerUserId && ownerUserId !== user.id) {
+        await db.insert(userNotifications).values({
+          id: `collab_accepted:${collaborationId}:${user.id}`,
+          link: href,
+          message: `${user.name ?? "A collaborator"} accepted your collaboration proposal for "${workTitle}".`,
+          title: "Collaboration Accepted",
+          type: "collaborator_accepted",
+          userId: ownerUserId,
+        });
+      }
     } else if (action === "decline" || action === "cancel") {
       const attachmentRows = await db
         .select({ messageId: messageAttachments.messageId })
@@ -1878,6 +1978,17 @@ app.openapi(
         id: crypto.randomUUID(),
         senderUserId: user.id,
       });
+
+      if (ownerUserId && ownerUserId !== user.id) {
+        await db.insert(userNotifications).values({
+          id: `collab_declined:${collaborationId}:${user.id}`,
+          link: "/dashboard/messages",
+          message: `${user.name ?? "A collaborator"} declined the collaboration proposal for "${workTitle}".`,
+          title: "Collaboration Declined",
+          type: "collaborator_declined",
+          userId: ownerUserId,
+        });
+      }
     }
 
     return c.json(
