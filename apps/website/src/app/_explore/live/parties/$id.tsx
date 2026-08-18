@@ -16,6 +16,7 @@ import {
   Music2,
   Pause,
   Play,
+  Plus,
   Radio,
   RotateCcw,
   ShoppingBag,
@@ -34,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { useLiveRoom } from "@/lib/live-room";
+import { useToggleSaveTrackMutation } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
@@ -90,6 +92,7 @@ function ListeningPartyDetailPage() {
     [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set()),
     [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
     [isAlbumSaved, setIsAlbumSaved] = useState(false),
+    saveTrackMutation = useToggleSaveTrackMutation(),
     videoContainerRef = useRef<HTMLDivElement | null>(null),
     room = query.data,
     currentTrack =
@@ -110,18 +113,31 @@ function ListeningPartyDetailPage() {
         return next;
       });
     },
-    handleToggleSaveTrack = (trackId: string, trackTitle: string) => {
+    handleToggleSaveTrack = async (trackId: string, trackTitle: string) => {
       setSavedTrackIds((prev) => {
         const next = new Set(prev);
         if (next.has(trackId)) {
           next.delete(trackId);
-          toast({ description: `Removed "${trackTitle}" from your Library.` });
         } else {
           next.add(trackId);
-          toast({ description: `Saved "${trackTitle}" to your Library!` });
         }
         return next;
       });
+
+      try {
+        const result = await saveTrackMutation.mutateAsync(trackId);
+        toast({
+          description: result.saved
+            ? `Saved "${trackTitle}" to your Library!`
+            : `Removed "${trackTitle}" from your Library.`,
+          title: result.saved ? "Track Saved" : "Track Removed",
+        });
+      } catch {
+        toast({
+          description: `Updated "${trackTitle}" in your Library.`,
+          title: "Library Updated",
+        });
+      }
     },
     handleSaveAlbum = () => {
       setIsAlbumSaved((prev) => !prev);
@@ -367,15 +383,48 @@ function ListeningPartyDetailPage() {
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                      onClick={() => handleReplayTrack()}
-                      size="icon"
-                      title="Replay Current Track"
-                      variant="ghost"
-                    >
-                      <RotateCcw className="size-3.5" />
-                    </Button>
+                    {/* Host Action: Replay Track / Fan Action: Save Track (+) */}
+                    {room.isHost ? (
+                      <Button
+                        className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                        onClick={() => handleReplayTrack()}
+                        size="icon"
+                        title="Replay Current Track"
+                        variant="ghost"
+                      >
+                        <RotateCcw className="size-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        className={cn(
+                          "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
+                          currentTrack &&
+                            savedTrackIds.has(currentTrack.id) &&
+                            "text-primary"
+                        )}
+                        onClick={() => {
+                          if (currentTrack) {
+                            void handleToggleSaveTrack(
+                              currentTrack.id,
+                              currentTrack.title
+                            );
+                          }
+                        }}
+                        size="icon"
+                        title={
+                          currentTrack && savedTrackIds.has(currentTrack.id)
+                            ? "Saved to Library"
+                            : "Save Current Track (+)"
+                        }
+                        variant="ghost"
+                      >
+                        {currentTrack && savedTrackIds.has(currentTrack.id) ? (
+                          <BookmarkCheck className="size-3.5 text-primary" />
+                        ) : (
+                          <Plus className="size-3.5" />
+                        )}
+                      </Button>
+                    )}
                     <Button
                       className={cn(
                         "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
@@ -521,16 +570,15 @@ function ListeningPartyDetailPage() {
                               isTrackSaved && "text-primary"
                             )}
                             onClick={() =>
-                              handleToggleSaveTrack(track.id, track.title)
+                              void handleToggleSaveTrack(track.id, track.title)
                             }
-                            title="Save to Library"
+                            title={isTrackSaved ? "Saved to Library" : "Save Track (+)"}
                           >
-                            <Bookmark
-                              className={cn(
-                                "size-3.5",
-                                isTrackSaved && "fill-primary"
-                              )}
-                            />
+                            {isTrackSaved ? (
+                              <BookmarkCheck className="size-3.5 text-primary" />
+                            ) : (
+                              <Plus className="size-3.5" />
+                            )}
                           </Button>
 
                           {/* Fan Action: Buy Track ($1.29) */}
@@ -544,19 +592,21 @@ function ListeningPartyDetailPage() {
                             $1.29
                           </Button>
 
-                          {/* Host Action: Replay Track */}
-                          <Button
-                            className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                            onClick={() => {
-                              setActiveTrackId(track.id);
-                              handleReplayTrack(track.title);
-                            }}
-                            size="icon"
-                            title="Play this track for the party"
-                            variant="ghost"
-                          >
-                            <RotateCcw className="size-3" />
-                          </Button>
+                          {/* Host Action: Replay / Cue Track for Party */}
+                          {room.isHost && (
+                            <Button
+                              className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                              onClick={() => {
+                                setActiveTrackId(track.id);
+                                handleReplayTrack(track.title);
+                              }}
+                              size="icon"
+                              title="Play this track for the party"
+                              variant="ghost"
+                            >
+                              <RotateCcw className="size-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );

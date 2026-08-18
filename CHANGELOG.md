@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Implemented "Auto-Play to Unlock" UX flow on track detail downloads: when a download is attempted on a track requiring first play, playback starts automatically in the music player accompanied by a guidance toast so fans can unlock and download files immediately.
+- Added individual track saving (`+` / Save to Library) and stream actions across Project / Album tracklists (`/projects/:id`), enabling fans to bookmark specific album tracks to their library.
+- Enhanced Listening Party fan controls (`/live/parties/:id`) by replacing host replay buttons with instant `+` / Save to Library buttons in both the synchronized player bar and tracklist.
 - Upgraded Explore, Projects, Tracks, and Videos collection grids to a responsive 2-column base layout (`grid-cols-2` on mobile) eliminating single-column full-width stretching and excessive empty space on mobile browsers.
 - Implemented smooth infinite scrolling across Artist leaderboards (`/artist/rising-stars`, `/artist/new`, `/artist/top`), Tracks (`/tracks`), Videos (`/videos`), and New Releases (`/new-releases`) using TanStack Infinite Queries and reusable `InfiniteScrollSentinel` with `IntersectionObserver`.
 - Added dynamic 7-day live weekly play aggregation and sorting for rising artists on `GET /v1/artists` and `GET /v1/artists/:username`, with fallback to total play counts.

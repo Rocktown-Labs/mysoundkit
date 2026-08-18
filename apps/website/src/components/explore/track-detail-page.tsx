@@ -567,6 +567,19 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
           url: asset.downloadUrl,
         });
       } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (
+          message.toLowerCase().includes("play this track once") ||
+          message.toLowerCase().includes("first play")
+        ) {
+          playCurrentTrack();
+          toast({
+            description: `Playing "${item.title}" to unlock download — enjoy the track and click Download again once started!`,
+            title: "Starting Playback to Unlock",
+          });
+          return;
+        }
+
         toast({
           description:
             error instanceof Error
