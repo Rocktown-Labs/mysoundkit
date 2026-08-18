@@ -7,8 +7,12 @@ import { BattleFilters } from "@/components/explore/battle-filters";
 import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
 import { VideoCard } from "@/components/explore/video-card";
 import { Button } from "@/components/ui/button";
+import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
 import { musicGenres } from "@/lib/music-genres";
-import { useVideosQuery } from "@/lib/soundkit-api-hooks";
+import {
+  useVideosInfiniteQuery,
+  useVideosQuery,
+} from "@/lib/soundkit-api-hooks";
 import type { VideoSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
@@ -90,7 +94,22 @@ function VideosPage() {
         }),
       });
     },
-    { data: videos = [], isLoading } = useVideosQuery({
+    {
+      data: infiniteData,
+      fetchNextPage,
+      hasNextPage,
+      isFetchingNextPage,
+      isLoading: isLoadingInfinite,
+    } = useVideosInfiniteQuery({
+      genre,
+      limit: 24,
+      region,
+      regionType,
+      scope: "public",
+      sort,
+    }),
+    allVideos = infiniteData?.pages.flat() ?? [],
+    { data: sectionVideos = [], isLoading: isLoadingSection } = useVideosQuery({
       genre,
       limit: "48",
       region,
@@ -129,8 +148,15 @@ function VideosPage() {
       {view === "all" ? (
         <ExploreCollectionGrid
           empty="No videos found for the selected filters."
-          isLoading={isLoading}
-          items={videos}
+          footer={
+            <InfiniteScrollSentinel
+              fetchNextPage={fetchNextPage}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+            />
+          }
+          isLoading={isLoadingInfinite}
+          items={allVideos}
           title={genre === "all" ? "All Videos" : "Matching Videos"}
         >
           {(video) => <ExploreVideoCard video={video} />}
@@ -161,9 +187,9 @@ function VideosPage() {
               </Link>
             </Button>
           </div>
-          {isLoading || videos.length > 0 ? (
+          {isLoadingSection || sectionVideos.length > 0 ? (
             <div className="flex gap-4 overflow-x-auto pb-2">
-              {videos.slice(0, 12).map((video) => (
+              {sectionVideos.slice(0, 12).map((video) => (
                 <div className="min-w-[320px] max-w-[420px]" key={video.id}>
                   <ExploreVideoCard video={video} />
                 </div>

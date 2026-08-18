@@ -794,6 +794,33 @@ export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>
     queryKey: soundkitQueryKeys.artists(query),
   });
 
+export const useArtistsInfiniteQuery = (query: ArtistRankingQuery = {}) => {
+  const pageSize = Number(query.limit ?? 24);
+
+  return useInfiniteQuery({
+    getNextPageParam: (
+      lastPage: ArtistSummary[],
+      allPages: ArtistSummary[][]
+    ) => {
+      if (lastPage.length < pageSize) {
+        return;
+      }
+      return allPages.length + 1;
+    },
+    initialPageParam: 1,
+    queryFn: async ({ pageParam = 1 }) =>
+      rpcJson(
+        await artistsGet({
+          query: {
+            ...query,
+            page: String(pageParam),
+          },
+        })
+      ),
+    queryKey: [...soundkitQueryKeys.artists(query), "infinite"],
+  });
+};
+
 export const useFollowArtistMutation = (username: string) => {
   const queryClient = useQueryClient();
 
@@ -849,6 +876,33 @@ export const useTracksQuery = (
     queryFn: async () => rpcJson(await tracksGet({ query })),
     queryKey: soundkitQueryKeys.tracks(query),
   });
+
+export const useTracksInfiniteQuery = (query: PublicExploreQuery = {}) => {
+  const pageSize = Number(query.limit ?? 24);
+
+  return useInfiniteQuery({
+    getNextPageParam: (
+      lastPage: TrackSummary[],
+      allPages: TrackSummary[][]
+    ) => {
+      if (lastPage.length < pageSize) {
+        return;
+      }
+      return allPages.length + 1;
+    },
+    initialPageParam: 1,
+    queryFn: async ({ pageParam = 1 }) =>
+      rpcJson(
+        await tracksGet({
+          query: {
+            ...query,
+            page: String(pageParam),
+          },
+        })
+      ),
+    queryKey: [...soundkitQueryKeys.tracks(query), "infinite"],
+  });
+};
 
 export const useTrackQuery = (trackId: string) =>
   useQuery({
@@ -1501,6 +1555,33 @@ export const useVideosQuery = (query: PublicExploreQuery = {}) =>
     queryFn: async () => rpcJson(await videosGet({ query })),
     queryKey: soundkitQueryKeys.videos(query),
   });
+
+export const useVideosInfiniteQuery = (query: PublicExploreQuery = {}) => {
+  const pageSize = Number(query.limit ?? 24);
+
+  return useInfiniteQuery({
+    getNextPageParam: (
+      lastPage: VideoSummary[],
+      allPages: VideoSummary[][]
+    ) => {
+      if (lastPage.length < pageSize) {
+        return;
+      }
+      return allPages.length + 1;
+    },
+    initialPageParam: 1,
+    queryFn: async ({ pageParam = 1 }) =>
+      rpcJson(
+        await videosGet({
+          query: {
+            ...query,
+            page: String(pageParam),
+          },
+        })
+      ),
+    queryKey: [...soundkitQueryKeys.videos(query), "infinite"],
+  });
+};
 
 export const useCreateVideoMutation = () => {
   const queryClient = useQueryClient();

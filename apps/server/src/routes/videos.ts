@@ -293,7 +293,10 @@ app.openapi(
       );
     }
 
-    const order = publicVideoOrderBy(query.sort),
+    const limit = query.limit ?? 24,
+      page = query.page ?? 1,
+      offset = (page - 1) * limit,
+      order = publicVideoOrderBy(query.sort),
       rows = await db
         .select({
           displayName: userProfiles.displayName,
@@ -307,7 +310,8 @@ app.openapi(
         .leftJoin(authUser, eq(authUser.id, videos.ownerUserId))
         .where(and(...publicVideoConditions))
         .orderBy(order)
-        .limit(query.limit ?? 24);
+        .limit(limit)
+        .offset(offset);
 
     return c.json(
       rows.map((row) => ({

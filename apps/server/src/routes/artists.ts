@@ -49,7 +49,19 @@ export const capitalizeWords = (input?: string | null) => {
     .join(" ");
 };
 
-const artistMomentumRank = sql<number>`count(${tracks.id})::int`,
+const artistWeeklyPlays = sql<number>`coalesce((
+    select count(${playbackSessions.id})::int
+    from ${playbackSessions}
+    inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
+    where ${tracks.ownerUserId} = ${artistProfiles.userId}
+      and ${playbackSessions.startedAt} >= now() - interval '7 days'
+  ), 0)`,
+  artistTotalPlays = sql<number>`coalesce((
+    select count(${playbackSessions.id})::int
+    from ${playbackSessions}
+    inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
+    where ${tracks.ownerUserId} = ${artistProfiles.userId}
+  ), 0)`,
   artistOrderBy = (query: {
     category?: "rising" | "new" | "top";
     sort?: string;
@@ -70,8 +82,8 @@ const artistMomentumRank = sql<number>`count(${tracks.id})::int`,
 
     if (query.category === "rising") {
       return query.sort === "rank-desc"
-        ? asc(artistMomentumRank)
-        : desc(artistMomentumRank);
+        ? asc(artistWeeklyPlays)
+        : desc(artistWeeklyPlays);
     }
 
     return query.sort === "rank-desc"
@@ -147,8 +159,10 @@ app.openapi(
           name: authUser.name,
           stageName: artistProfiles.stageName,
           state: userProfiles.state,
+          totalPlays: artistTotalPlays,
           trackCount: sql<number>`count(${tracks.id})::int`,
           username: userProfiles.username,
+          weeklyPlays: artistWeeklyPlays,
         })
         .from(artistProfiles)
         .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
@@ -157,16 +171,18 @@ app.openapi(
         .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
         .where(and(...publicArtistConditions))
         .groupBy(
-          userProfiles.userId,
-          userProfiles.city,
-          userProfiles.displayName,
-          userProfiles.state,
-          userProfiles.username,
           artistProfiles.followerCount,
           artistProfiles.isVerified,
           artistProfiles.stageName,
+          artistProfiles.userId,
+          authUser.name,
           genres.name,
-          authUser.name
+          userProfiles.city,
+          userProfiles.createdAt,
+          userProfiles.displayName,
+          userProfiles.state,
+          userProfiles.userId,
+          userProfiles.username
         )
         .orderBy(order)
         .limit(limit)
@@ -179,7 +195,11 @@ app.openapi(
           genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
           hasActivity =
             Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0,
-          rank = hasActivity ? index + offset + 1 : null;
+          rank = hasActivity ? index + offset + 1 : null,
+          weeklyPlays =
+            artist.weeklyPlays > 0
+              ? artist.weeklyPlays
+              : (artist.totalPlays ?? 0);
 
         return {
           avatarUrl: artist.avatarUrl,
@@ -194,7 +214,7 @@ app.openapi(
           state: artist.state,
           username: artist.username,
           verified: artist.isVerified,
-          weeklyPlays: 0,
+          weeklyPlays,
         };
       }),
       HttpStatusCodes.OK
@@ -297,11 +317,16 @@ app.openapi(
           [playsRow] = await db
             .select({
               totalPlays: sql<number>`count(${playbackSessions.id})::int`,
+              weeklyPlays: sql<number>`coalesce(count(case when ${playbackSessions.startedAt} >= now() - interval '7 days' then 1 end)::int, 0)`,
             })
             .from(playbackSessions)
             .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
             .where(eq(tracks.ownerUserId, artist.id)),
-          totalPlays = playsRow?.totalPlays ?? 0;
+          totalPlays = playsRow?.totalPlays ?? 0,
+          weeklyPlays =
+            (playsRow?.weeklyPlays ?? 0) > 0
+              ? (playsRow?.weeklyPlays ?? 0)
+              : totalPlays;
 
         return c.json(
           {
@@ -323,7 +348,7 @@ app.openapi(
             trackCount: artist.trackCount,
             username: artist.username,
             verified: artist.isVerified,
-            weeklyPlays: totalPlays,
+            weeklyPlays,
           },
           HttpStatusCodes.OK
         );

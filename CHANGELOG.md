@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Upgraded Explore, Projects, Tracks, and Videos collection grids to a responsive 2-column base layout (`grid-cols-2` on mobile) eliminating single-column full-width stretching and excessive empty space on mobile browsers.
+- Implemented smooth infinite scrolling across Artist leaderboards (`/artist/rising-stars`, `/artist/new`, `/artist/top`), Tracks (`/tracks`), Videos (`/videos`), and New Releases (`/new-releases`) using TanStack Infinite Queries and reusable `InfiniteScrollSentinel` with `IntersectionObserver`.
+- Added dynamic 7-day live weekly play aggregation and sorting for rising artists on `GET /v1/artists` and `GET /v1/artists/:username`, with fallback to total play counts.
+- Connected real stream playback counts into dashboard track listings and `/v1/analytics/overview` so creator dashboard analytics and career statistics accurately display all-time streams, retention, and listener loyalty.
+- Enhanced public track and release ordering to prioritize releases published within a 30-day window while seamlessly falling back to catalog tracks.
 - Integrated client-side `mediabunny` and `@mediabunny/aac-encoder` audio studio engine for instant in-browser audio metadata reading, waveform peak generation, and WebCodecs/WASM AAC preview optimization.
 - Added browser-based `BrowserStudioRecorder` (Beta) component with live VU meter visualizer, device selector, real-time waveform inspection, and one-click take attachment to track uploads.
 - Added dedicated unit tests in `track-settlement.test.ts` for non-complete public track visibility, soft-archiving deletion protection when purchases exist, and Whisper payload slicing.

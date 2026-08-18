@@ -458,11 +458,22 @@ export const trackSummarySchema = z.object({
   fileAvailability: z
     .object({
       adlibs: z.boolean(),
+      alternateMixes: z.number().int().optional(),
+      artworks: z.number().int().optional(),
+      booklets: z.number().int().optional(),
+      cleanVersions: z.number().int().optional(),
       coverArt: z.boolean(),
       instrumental: z.boolean(),
+      instrumentals: z.number().int().optional(),
+      licenses: z.number().int().optional(),
       master: z.boolean(),
+      masters: z.number().int().optional(),
+      midi: z.number().int().optional(),
       reference: z.boolean(),
       session: z.boolean(),
+      stems: z.number().int().optional(),
+      taggedMp3s: z.number().int().optional(),
+      untaggedWavs: z.number().int().optional(),
       vocals: z.number().int(),
     })
     .optional(),

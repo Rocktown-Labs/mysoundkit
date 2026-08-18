@@ -2,6 +2,7 @@
 import { createDb } from "@soundkit/db";
 import {
   genres,
+  playbackSessions,
   projectAssets,
   projectCollaborators,
   projectTracks,
@@ -101,12 +102,38 @@ const formatDuration = (durationMs: number | null | undefined) => {
   fileAvailabilityFromAssets = (
     assets: InferSelectModel<typeof trackAssets>[]
   ) => ({
-    adlibs: assets.some((asset) => asset.assetKind === "adlib"),
-    coverArt: assets.some((asset) => asset.assetKind === "cover_art"),
+    adlibs: false,
+    alternateMixes: assets.filter(
+      (asset) => asset.assetKind === "alternate_mix"
+    ).length,
+    artworks: assets.filter(
+      (asset) =>
+        asset.assetKind === "cover_art" || asset.assetKind === "artwork"
+    ).length,
+    booklets: assets.filter((asset) => asset.assetKind === "booklet").length,
+    cleanVersions: assets.filter((asset) => asset.assetKind === "clean").length,
+    coverArt: assets.some(
+      (asset) =>
+        asset.assetKind === "cover_art" || asset.assetKind === "artwork"
+    ),
     instrumental: assets.some((asset) => asset.assetKind === "instrumental"),
-    master: assets.some((asset) => asset.assetKind === "master"),
+    instrumentals: assets.filter((asset) => asset.assetKind === "instrumental")
+      .length,
+    licenses: assets.filter((asset) => asset.assetKind === "license_pdf")
+      .length,
+    master: assets.some(
+      (asset) =>
+        asset.assetKind === "master" || asset.assetKind === "untagged_wav"
+    ),
+    masters: assets.filter((asset) => asset.assetKind === "master").length,
+    midi: assets.filter((asset) => asset.assetKind === "midi").length,
     reference: assets.some((asset) => asset.assetKind === "reference_audio"),
     session: assets.some((asset) => asset.assetKind === "session_file"),
+    stems: assets.filter((asset) => asset.assetKind === "stems").length,
+    taggedMp3s: assets.filter((asset) => asset.assetKind === "tagged_mp3")
+      .length,
+    untaggedWavs: assets.filter((asset) => asset.assetKind === "untagged_wav")
+      .length,
     vocals: assets.filter(
       (asset) =>
         asset.assetKind === "vocal_stem" || asset.assetKind === "verse_vocal"
@@ -119,6 +146,7 @@ export const mapTrackSummary = ({
   assets,
   collaboratorCount,
   genre,
+  plays = 0,
   regionSlug = null,
   row,
 }: {
@@ -127,6 +155,7 @@ export const mapTrackSummary = ({
   assets: InferSelectModel<typeof trackAssets>[];
   collaboratorCount: number;
   genre: string | null;
+  plays?: number;
   regionSlug?: string | null;
   row: InferSelectModel<typeof tracks>;
 }) => {
@@ -178,7 +207,7 @@ export const mapTrackSummary = ({
       (!row.exclusiveUntil || row.exclusiveUntil > new Date())
         ? null
         : publicAssetUrl(primaryAudioAsset),
-    plays: 0,
+    plays: plays ?? 0,
     previewUrl: publicAssetUrl(previewAsset),
     price: row.price ? Number(row.price) : null,
     priceCents: row.priceCents,
@@ -205,7 +234,8 @@ export const mapTrackSummary = ({
 };
 
 export const buildTrackSummary = async (
-  row: InferSelectModel<typeof tracks>
+  row: InferSelectModel<typeof tracks>,
+  playCountOverride?: number
 ) => {
   const db = createDb(),
     [profile] = await db
@@ -226,13 +256,23 @@ export const buildTrackSummary = async (
           .where(eq(genres.id, row.genreId))
           .limit(1)
       : [],
-    [assetRows, collaboratorRows] = await Promise.all([
+    [assetRows, collaboratorRows, playCountRow] = await Promise.all([
       db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
       db
         .select({ id: trackCollaborators.id })
         .from(trackCollaborators)
         .where(eq(trackCollaborators.trackId, row.id)),
-    ]);
+      playCountOverride === undefined
+        ? db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(playbackSessions)
+            .where(eq(playbackSessions.trackId, row.id))
+        : Promise.resolve([]),
+    ]),
+    actualPlays =
+      playCountOverride === undefined
+        ? (playCountRow[0]?.count ?? 0)
+        : playCountOverride;
 
   return mapTrackSummary({
     artistName: profile?.displayName ?? profile?.userName ?? "SoundKit Artist",
@@ -240,6 +280,7 @@ export const buildTrackSummary = async (
     assets: assetRows,
     collaboratorCount: collaboratorRows.length,
     genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
+    plays: actualPlays,
     regionSlug: regionSlugFromUser(profile?.state) ?? null,
     row,
   });

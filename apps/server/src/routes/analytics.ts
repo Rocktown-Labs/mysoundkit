@@ -5,14 +5,18 @@ import {
   playbackSessions,
   tracks,
 } from "@soundkit/db/schema/app";
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
-import { isAuthenticatedUser } from "@/lib/entitlements";
+import {
+  isAuthenticatedSession,
+  isAuthenticatedUser,
+} from "@/lib/entitlements";
 import { sampleAnalyticsOverview } from "@/lib/sample-data";
 import { analyticsOverviewSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
+import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
 
@@ -36,11 +40,27 @@ app.openapi(
     }
 
     const db = createDb(),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
       userTracks = await db
         .select({ id: tracks.id })
         .from(tracks)
-        .where(eq(tracks.ownerUserId, user.id)),
-      trackIds = userTracks.map((t) => t.id);
+        .where(
+          organizationId
+            ? or(
+                eq(tracks.organizationId, organizationId),
+                eq(tracks.ownerUserId, user.id)
+              )
+            : eq(tracks.ownerUserId, user.id)
+        ),
+      trackIds = userTracks.map((t) => t.id),
+      [followerCount] = await db
+        .select({ count: count() })
+        .from(artistFollows)
+        .where(eq(artistFollows.artistUserId, user.id));
 
     let totalPlays = 0;
     if (trackIds.length > 0) {
@@ -50,11 +70,6 @@ app.openapi(
         .where(inArray(playbackSessions.trackId, trackIds));
       totalPlays = Number(sessionCount?.count ?? 0);
     }
-
-    const [followerCount] = await db
-      .select({ count: count() })
-      .from(artistFollows)
-      .where(eq(artistFollows.artistUserId, user.id));
 
     return c.json(
       {

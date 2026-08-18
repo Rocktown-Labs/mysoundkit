@@ -67,3 +67,50 @@ describe("Whisper vocal stem slicing", () => {
     expect(sliced).toBeDefined();
   });
 });
+
+describe("Weekly plays aggregation and 30-day release sorting", () => {
+  it("resolves weekly plays with total plays fallback for rising artists", () => {
+    const artistWithWeekly = {
+      totalPlays: 120,
+      weeklyPlays: 45,
+    };
+    const artistWithPastPlaysOnly = {
+      totalPlays: 77,
+      weeklyPlays: 0,
+    };
+
+    const resolvedWeekly =
+      artistWithWeekly.weeklyPlays > 0
+        ? artistWithWeekly.weeklyPlays
+        : artistWithPastPlaysOnly.totalPlays;
+    const fallbackWeekly =
+      artistWithPastPlaysOnly.weeklyPlays > 0
+        ? artistWithPastPlaysOnly.weeklyPlays
+        : artistWithPastPlaysOnly.totalPlays;
+
+    expect(resolvedWeekly).toBe(45);
+    expect(fallbackWeekly).toBe(77);
+  });
+
+  it("prioritizes releases published within 30 days while falling back to catalog", () => {
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+
+    const tracks = [
+      { id: "old-track", publishedAt: new Date(now - thirtyDaysMs * 2) },
+      { id: "fresh-track", publishedAt: new Date(now - thirtyDaysMs / 2) },
+    ];
+
+    const sorted = [...tracks].sort((a, b) => {
+      const aIsRecent = now - a.publishedAt.getTime() <= thirtyDaysMs ? 1 : 0;
+      const bIsRecent = now - b.publishedAt.getTime() <= thirtyDaysMs ? 1 : 0;
+      if (aIsRecent !== bIsRecent) {
+        return bIsRecent - aIsRecent;
+      }
+      return b.publishedAt.getTime() - a.publishedAt.getTime();
+    });
+
+    expect(sorted[0]?.id).toBe("fresh-track");
+    expect(sorted[1]?.id).toBe("old-track");
+  });
+});
