@@ -113,7 +113,10 @@ const meGet = apiClient.v1.me.index.$get,
   sellerStatusGet = apiClient.v1.seller.status.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
-    apiClient.v1.battles["track-history"][":trackId"].$get;
+    apiClient.v1.battles["track-history"][":trackId"].$get,
+  analyticsOverviewGet = apiClient.v1.analytics.overview.$get,
+  sellerCatalogStripePricingPut =
+    apiClient.v1.seller.catalog["stripe-pricing"].$put;
 
 type ArtistOnboardingBody = InferRequestType<
   typeof artistOnboardingPost
@@ -334,6 +337,7 @@ export const soundkitQueryKeys = {
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   adminSettings: ["admin", "settings"] as const,
+  analyticsOverview: ["analytics", "overview"] as const,
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battleChallenges: ["battles", "challenges"] as const,
@@ -1488,6 +1492,18 @@ export const useLiveSessionLockCheckMutation = (experienceId: string) =>
           param: { experienceId },
         })
       ),
+  });
+
+export type AnalyticsOverview = InferResponseType<
+  typeof analyticsOverviewGet,
+  200
+>;
+
+export const useAnalyticsOverviewQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<AnalyticsOverview> =>
+      rpcJson(await analyticsOverviewGet()),
+    queryKey: soundkitQueryKeys.analyticsOverview,
   });
 
 const defaultOpenVerseQuery: OpenVerseQuery = { limit: "10" };

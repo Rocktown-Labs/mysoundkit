@@ -5,6 +5,7 @@ import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { canonicalGenreName } from "@/lib/music-genres";
 import { useOpenVersesInfiniteQuery } from "@/lib/soundkit-api-hooks";
 import type { OpenVerseListing } from "@/lib/soundkit-api-hooks";
 
@@ -66,7 +67,7 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{listing.genre}</Badge>
+          <Badge variant="secondary">{canonicalGenreName(listing.genre)}</Badge>
           <Badge variant="outline">{listing.submissionCount} submitted</Badge>
         </div>
         <Button asChild={true} className="w-full" size="sm" variant="outline">

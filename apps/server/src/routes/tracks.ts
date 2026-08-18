@@ -518,7 +518,10 @@ app.openapi(
           .from(tracks)
           .where(
             organizationId
-              ? eq(tracks.organizationId, organizationId)
+              ? or(
+                  eq(tracks.organizationId, organizationId),
+                  eq(tracks.ownerUserId, user.id)
+                )
               : eq(tracks.ownerUserId, user.id)
           )
           .orderBy(desc(tracks.updatedAt))

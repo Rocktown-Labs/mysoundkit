@@ -1,15 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   CheckCircle2,
+  Download,
+  FileAudio,
   LoaderCircle,
   Mic2,
   PlayCircle,
   Plus,
   Send,
+  Upload,
   UserCheck,
 } from "lucide-react";
-import type { FormEvent } from "react";
-import { useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useRef, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { canonicalGenreName } from "@/lib/music-genres";
 import {
   useOpenVerseQuery,
   useSubmitOpenVerseMutation,
@@ -50,8 +54,10 @@ function OpenVerseDetailPage() {
     submitMutation = useSubmitOpenVerseMutation(id),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     [assetId, setAssetId] = useState(""),
+    [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null),
     [message, setMessage] = useState(""),
     [acceptedSubId, setAcceptedSubId] = useState<string | null>(null),
+    fileInputRef = useRef<HTMLInputElement | null>(null),
     listing = query.data,
     handleAcceptSubmission = (subId: string, artistName: string) => {
       setAcceptedSubId(subId);
@@ -80,8 +86,28 @@ function OpenVerseDetailPage() {
       setQueue([playerTrack]);
       setCurrentTrack(playerTrack);
     },
+    handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        setSelectedAudioFile(file);
+        setAssetId(file.name);
+        toast({
+          description: `Attached "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB). Ready to submit!`,
+          title: "Vocal Take Attached",
+        });
+      }
+    },
     submitVerse = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      if (!selectedAudioFile && !assetId.trim()) {
+        toast({
+          description: "Please attach your audio take file (WAV or MP3).",
+          title: "Audio Take Required",
+          variant: "destructive",
+        });
+        return;
+      }
+
       submitMutation.mutate({
         assetId: assetId.trim() || undefined,
         message: message.trim() || undefined,
@@ -140,7 +166,9 @@ function OpenVerseDetailPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">{listing.genre}</Badge>
+              <Badge variant="secondary">
+                {canonicalGenreName(listing.genre)}
+              </Badge>
               {listing.bpm && (
                 <Badge variant="outline">{listing.bpm} BPM</Badge>
               )}
@@ -282,7 +310,7 @@ function OpenVerseDetailPage() {
         </Card>
       </section>
 
-      <aside>
+      <aside className="space-y-6">
         <Card className="border-border/40 bg-card/50">
           <CardHeader>
             <CardTitle>Submit Your Verse</CardTitle>
@@ -290,25 +318,51 @@ function OpenVerseDetailPage() {
           <CardContent>
             <form className="space-y-4" onSubmit={submitVerse}>
               <div className="space-y-2">
-                <Label htmlFor="assetId">Uploaded verse asset ID</Label>
-                <Input
-                  id="assetId"
-                  onChange={(event) => setAssetId(event.target.value)}
-                  placeholder="Optional until upload picker is connected"
-                  value={assetId}
+                <Label>Vocal Take Audio File (.wav, .mp3)</Label>
+                <input
+                  type="file"
+                  accept="audio/*,.wav,.mp3,.m4a,.aac"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-dashed h-20 flex flex-col items-center justify-center gap-1 hover:bg-accent/40"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {selectedAudioFile ? (
+                    <div className="flex items-center gap-2 text-primary font-semibold text-xs">
+                      <FileAudio className="size-5" />
+                      <span className="truncate max-w-[220px]">
+                        {selectedAudioFile.name}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="size-5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Click to select your recorded verse take
+                      </span>
+                    </>
+                  )}
+                </Button>
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="message">Message</Label>
+                <Label htmlFor="message">Message to Creator</Label>
                 <Textarea
                   id="message"
                   onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Tell the artist what you want to bring to the song."
+                  placeholder="Tell the artist about your style, verse concept, and what you brought to the track."
                   value={message}
+                  rows={3}
                 />
               </div>
+
               <Button
-                className="w-full"
+                className="w-full font-bold"
                 disabled={submitMutation.isPending}
                 type="submit"
               >
@@ -317,11 +371,11 @@ function OpenVerseDetailPage() {
                 ) : (
                   <Send className="mr-2 size-4" />
                 )}
-                Submit
+                Submit Verse Take
               </Button>
               {submitMutation.isSuccess && (
-                <p className="text-sm text-muted-foreground">
-                  Submission received.
+                <p className="text-sm text-emerald-400 font-medium text-center">
+                  Vocal take submitted successfully!
                 </p>
               )}
             </form>

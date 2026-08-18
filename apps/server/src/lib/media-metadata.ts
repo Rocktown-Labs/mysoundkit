@@ -270,11 +270,16 @@ const findUnbackfilledMasterRows = ({
   trackIds?: string[];
 }) => {
   const whereClauses: SQL[] = [
-    eq(trackAssets.assetKind, "master"),
+    inArray(trackAssets.assetKind, [
+      "master",
+      "untagged_wav",
+      "tagged_mp3",
+      "alternate_mix",
+      "instrumental",
+    ]),
     eq(trackAssets.storageProvider, "r2"),
     isNotNull(trackAssets.objectKey),
     isNull(trackAssets.durationMs),
-    isNull(workflowJobs.id),
     trackIds && trackIds.length > 0
       ? inArray(trackAssets.trackId, trackIds)
       : undefined,
@@ -287,13 +292,6 @@ const findUnbackfilledMasterRows = ({
       trackId: trackAssets.trackId,
     })
     .from(trackAssets)
-    .leftJoin(
-      workflowJobs,
-      and(
-        eq(workflowJobs.targetId, trackAssets.id),
-        eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
-      )
-    )
     .where(and(...whereClauses))
     .limit(Math.max(1, Math.min(limit, 500)));
 };
@@ -343,7 +341,15 @@ export const enqueueTrackDurationBackfills = async ({
 
     const jobId = existingJob?.id ?? crypto.randomUUID();
 
-    if (!existingJob) {
+    if (existingJob) {
+      await db
+        .update(workflowJobs)
+        .set({
+          input: { ...row, runId },
+          status: "queued",
+        })
+        .where(eq(workflowJobs.id, jobId));
+    } else {
       await db.insert(workflowJobs).values({
         id: jobId,
         input: { ...row, runId },

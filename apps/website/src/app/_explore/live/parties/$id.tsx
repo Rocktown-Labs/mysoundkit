@@ -572,7 +572,11 @@ function ListeningPartyDetailPage() {
                             onClick={() =>
                               void handleToggleSaveTrack(track.id, track.title)
                             }
-                            title={isTrackSaved ? "Saved to Library" : "Save Track (+)"}
+                            title={
+                              isTrackSaved
+                                ? "Saved to Library"
+                                : "Save Track (+)"
+                            }
                           >
                             {isTrackSaved ? (
                               <BookmarkCheck className="size-3.5 text-primary" />

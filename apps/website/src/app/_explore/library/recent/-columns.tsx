@@ -18,6 +18,35 @@ export interface RecentTrack {
   slug?: string | null;
 }
 
+const formatRecentTime = (dateStr?: string) => {
+  if (!dateStr) {
+    return "Recently";
+  }
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    return dateStr;
+  }
+  const now = new Date(),
+    diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffSec < 60) {
+    return "Just now";
+  }
+  if (diffSec < 3600) {
+    return `${Math.floor(diffSec / 60)}m ago`;
+  }
+  if (diffSec < 86_400) {
+    return `${Math.floor(diffSec / 3600)}h ago`;
+  }
+  if (diffSec < 604_800) {
+    return `${Math.floor(diffSec / 86_400)}d ago`;
+  }
+  return date.toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 export const columns: ColumnDef<RecentTrack>[] = [
   {
     accessorKey: "cover",
@@ -107,6 +136,11 @@ export const columns: ColumnDef<RecentTrack>[] = [
   },
   {
     accessorKey: "lastPlayed",
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground font-mono">
+        {formatRecentTime(row.getValue("lastPlayed"))}
+      </span>
+    ),
     header: ({ column }) => (
       <Button
         variant="ghost"

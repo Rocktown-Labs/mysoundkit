@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed Dashboard career analytics computation (`/dashboard/career/analytics`) by querying both active workspace organization ID and personal user ownership (`tracks.organizationId` OR `tracks.ownerUserId`), and wiring `useAnalyticsOverviewQuery` so real stream counts, trends, and listener loyalty never show 0.
+- Preserved exact user input casing on artist stage and display names across backend ranking endpoints and frontend leaderboard cards (e.g., "CG Stewart", "MF DOOM"), removing destructive title-case normalization.
+- Fixed Artist leaderboard ordering: "Top Artists" ranks by overall momentum and total plays + follower count, "Rising Stars" ranks by live 7-day streams, and "New Artists" orders strictly by account join date (`authUser.createdAt DESC`).
+- Formatted Recent Plays timestamps in `/library/recent` into clean, human-readable relative times ("Just now", "5m ago", "2h ago", "Yesterday", "Aug 18, 2026") replacing raw ISO timestamp strings.
+- Upgraded Open Verse workflow (`/dashboard/open-verses` and `/dashboard/open-verses/:genre/:id`) with proper genre badge capitalization, audio take file picker & uploader dropzone, and stem auditioning.
+- Fixed track duration backfill scanner and duration resolution in `mapTrackSummary` to evaluate all audio asset kinds and fall back to existing audio durations on track cards.
+- Cleaned up new track upload form (`/dashboard/tracks/new`) to keep dropzones clean and streamlined.
+
 - Implemented "Auto-Play to Unlock" UX flow on track detail downloads: when a download is attempted on a track requiring first play, playback starts automatically in the music player accompanied by a guidance toast so fans can unlock and download files immediately.
 - Added individual track saving (`+` / Save to Library) and stream actions across Project / Album tracklists (`/projects/:id`), enabling fans to bookmark specific album tracks to their library.
 - Enhanced Listening Party fan controls (`/live/parties/:id`) by replacing host replay buttons with instant `+` / Save to Library buttons in both the synchronized player bar and tracklist.

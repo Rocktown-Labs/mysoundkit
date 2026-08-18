@@ -1,20 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   CalendarDays,
+  DollarSign,
   Eye,
+  Flame,
   FolderOpen,
+  Heart,
+  Layers,
+  MapPin,
+  PieChart as PieIcon,
   Radio,
   Trophy,
-  TrendingUp,
-  Heart,
-  DollarSign,
-  MapPin,
-  Flame,
-  BarChart3,
-  PieChart as PieIcon,
-  Layers,
-  Activity,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
@@ -22,11 +20,6 @@ import {
   AreaChart,
   Bar,
   BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -58,6 +51,7 @@ import {
   computeStreamTrends7d,
 } from "@/lib/analytics-calculations";
 import {
+  useAnalyticsOverviewQuery,
   useBattlesQuery,
   useListeningPartiesQuery,
   useMeQuery,
@@ -93,17 +87,23 @@ const areaChartConfig: ChartConfig = {
 function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d"),
     meQuery = useMeQuery(),
+    overviewQuery = useAnalyticsOverviewQuery(),
     tracksQuery = useTracksQuery(),
     projectsQuery = useProjectsQuery(),
-    videosQuery = useVideosQuery(),
     partiesQuery = useListeningPartiesQuery(),
     battlesQuery = useBattlesQuery(),
     tracks = tracksQuery.data ?? [],
     projects = projectsQuery.data ?? [],
-    videos = videosQuery.data ?? [],
     parties = partiesQuery.data ?? [],
     battles = battlesQuery.data ?? [],
-    totalPlays = tracks.reduce((total, track) => total + (track.plays ?? 0), 0),
+    overview = overviewQuery.data,
+    computedPlays = tracks.reduce(
+      (total, track) => total + (track.plays ?? 0),
+      0
+    ),
+    totalPlays = overview?.totalPlays
+      ? Math.max(overview.totalPlays, computedPlays)
+      : computedPlays,
     qualifiedPlays = Math.round(totalPlays * 0.72),
     totalSaves =
       Math.round(totalPlays * 0.18) +
@@ -565,7 +565,7 @@ function AnalyticsPage() {
                 <span>{loyalty.lapsedPlays} plays</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Former listeners who haven't played a track in 28+ days.
+                Former listeners who haven&apos;t played a track in 28+ days.
               </p>
             </div>
           </CardContent>

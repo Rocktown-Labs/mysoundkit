@@ -236,7 +236,9 @@ function PublicProjectDetailPage() {
             >
               <Heart
                 className={
-                  isProjectLiked ? "size-5 fill-rose-500 text-rose-500" : "size-5"
+                  isProjectLiked
+                    ? "size-5 fill-rose-500 text-rose-500"
+                    : "size-5"
                 }
               />
             </Button>
@@ -302,7 +304,11 @@ function PublicProjectDetailPage() {
                         onClick={() =>
                           void handleToggleSaveTrack(track.id, track.title)
                         }
-                        title={isTrackSaved ? "Saved to Library" : "Save Track to Library"}
+                        title={
+                          isTrackSaved
+                            ? "Saved to Library"
+                            : "Save Track to Library"
+                        }
                       >
                         {isTrackSaved ? (
                           <BookmarkCheck className="size-3.5 text-primary" />

@@ -36,17 +36,7 @@ export const capitalizeWords = (input?: string | null) => {
   if (!input || input.trim().length === 0) {
     return "";
   }
-  return input
-    .split(" ")
-    .map((word) =>
-      word.includes("-")
-        ? word
-            .split("-")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-            .join("-")
-        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    )
-    .join(" ");
+  return input.trim();
 };
 
 const artistWeeklyPlays = sql<number>`coalesce((
@@ -75,9 +65,7 @@ const artistWeeklyPlays = sql<number>`coalesce((
     }
 
     if (query.category === "new") {
-      return query.sort === "rank-desc"
-        ? asc(userProfiles.createdAt)
-        : desc(userProfiles.createdAt);
+      return desc(authUser.createdAt);
     }
 
     if (query.category === "rising") {
@@ -88,7 +76,9 @@ const artistWeeklyPlays = sql<number>`coalesce((
 
     return query.sort === "rank-desc"
       ? asc(artistProfiles.followerCount)
-      : desc(artistProfiles.followerCount);
+      : desc(
+          sql`coalesce(${artistTotalPlays}, 0) * 10 + ${artistProfiles.followerCount} * 5 + coalesce(${artistWeeklyPlays}, 0) * 20`
+        );
   };
 
 app.openapi(
@@ -156,6 +146,7 @@ app.openapi(
           genre: genres.name,
           id: userProfiles.userId,
           isVerified: artistProfiles.isVerified,
+          joinedAt: authUser.createdAt,
           name: authUser.name,
           stageName: artistProfiles.stageName,
           state: userProfiles.state,
@@ -175,6 +166,7 @@ app.openapi(
           artistProfiles.isVerified,
           artistProfiles.stageName,
           artistProfiles.userId,
+          authUser.createdAt,
           authUser.name,
           genres.name,
           userProfiles.city,
@@ -206,7 +198,7 @@ app.openapi(
           followers: artist.followerCount,
           genre,
           id: artist.id,
-          joinedAt: artist.createdAt.toISOString(),
+          joinedAt: (artist.joinedAt ?? artist.createdAt).toISOString(),
           location: locationLabel({ city: artist.city, state: artist.state }),
           name,
           rank,

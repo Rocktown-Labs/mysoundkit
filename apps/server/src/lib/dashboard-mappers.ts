@@ -162,7 +162,20 @@ export const mapTrackSummary = ({
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
     primaryAudioAsset =
       assets.find((asset) => asset.assetKind === "master") ??
-      assets.find((asset) => asset.durationMs),
+      assets.find(
+        (asset) => typeof asset.durationMs === "number" && asset.durationMs > 0
+      ) ??
+      assets.find(
+        (asset) =>
+          asset.assetKind === "untagged_wav" ||
+          asset.assetKind === "tagged_mp3" ||
+          asset.assetKind === "instrumental"
+      ),
+    resolvedDurationMs =
+      primaryAudioAsset?.durationMs ??
+      assets.find(
+        (asset) => typeof asset.durationMs === "number" && asset.durationMs > 0
+      )?.durationMs,
     previewAsset = assets.find(
       (asset) =>
         asset.assetKind === "variant_audio" &&
@@ -189,7 +202,7 @@ export const mapTrackSummary = ({
     downloadsAllowed: row.downloadsAllowed,
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
     downloadsRequirePurchase: row.downloadsRequirePurchase,
-    duration: formatDuration(primaryAudioAsset?.durationMs),
+    duration: formatDuration(resolvedDurationMs),
     exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     fileAvailability: fileAvailabilityFromAssets(assets),
     genre: genre ? canonicalGenreName(genre) : "Uncategorized",

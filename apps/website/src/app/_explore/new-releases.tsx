@@ -61,7 +61,7 @@ function NewReleasesPage() {
               />
             </div>
           ))
-        ) : isLoading ? (
+        ) : (isLoading ? (
           <div className="col-span-full py-12 text-center text-muted-foreground text-sm">
             Loading releases...
           </div>
@@ -69,7 +69,7 @@ function NewReleasesPage() {
           <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
             No public releases are live yet.
           </div>
-        )}
+        ))}
       </div>
 
       <InfiniteScrollSentinel
