@@ -24,207 +24,203 @@ interface Recipient {
   userId: string;
 }
 
-const collaborationFooter =
-  "You are receiving this because collaboration emails are turned on for your SoundKit account.",
- salesFooter =
-  "You are receiving this because sales emails are turned on for your SoundKit account.",
- accountFooter =
-  "You are receiving this because this email is about billing or account access.",
- followerFooter =
-  "You are receiving this because follower emails are turned on for your SoundKit account.",
+const accountFooter =
+    "You are receiving this because this email is about billing or account access.",
+  collaborationFooter =
+    "You are receiving this because collaboration emails are turned on for your SoundKit account.",
+  followerFooter =
+    "You are receiving this because follower emails are turned on for your SoundKit account.",
+  salesFooter =
+    "You are receiving this because sales emails are turned on for your SoundKit account.",
+  formatBattleFormat = (format: string) => format.replaceAll("_", " "),
+  formatMoney = (amountCents: number | null | undefined) =>
+    typeof amountCents === "number"
+      ? new Intl.NumberFormat("en-US", {
+          currency: "USD",
+          style: "currency",
+        }).format(amountCents / 100)
+      : "the order total",
+  getUserRecipient = async (userId: string): Promise<Recipient | null> => {
+    if (!isDatabaseConfigured()) {
+      return null;
+    }
 
- formatBattleFormat = (format: string) => format.replaceAll("_", " "),
+    const [recipient] = await createDb()
+      .select({
+        email: authUser.email,
+        name: authUser.name,
+        userId: authUser.id,
+      })
+      .from(authUser)
+      .where(eq(authUser.id, userId))
+      .limit(1);
 
- formatMoney = (amountCents: number | null | undefined) =>
-  typeof amountCents === "number"
-    ? new Intl.NumberFormat("en-US", {
-        currency: "USD",
-        style: "currency",
-      }).format(amountCents / 100)
-    : "the order total",
+    return recipient
+      ? {
+          email: recipient.email,
+          name: recipient.name ?? "there",
+          userId: recipient.userId,
+        }
+      : null;
+  },
+  shouldSendEmail = async ({
+    preference,
+    userId,
+  }: {
+    preference?: EmailPreference;
+    userId?: string | null;
+  }) => {
+    if (!(preference && userId && isDatabaseConfigured())) {
+      return true;
+    }
 
- getUserRecipient = async (userId: string): Promise<Recipient | null> => {
-  if (!isDatabaseConfigured()) {
-    return null;
-  }
+    const [settings] = await createDb()
+      .select({
+        emailCollaborations: notificationSettings.emailCollaborations,
+        emailFollowers: notificationSettings.emailFollowers,
+        emailSales: notificationSettings.emailSales,
+      })
+      .from(notificationSettings)
+      .where(eq(notificationSettings.userId, userId))
+      .limit(1);
 
-  const [recipient] = await createDb()
-    .select({
-      email: authUser.email,
-      name: authUser.name,
-      userId: authUser.id,
-    })
-    .from(authUser)
-    .where(eq(authUser.id, userId))
-    .limit(1);
+    if (preference === "sales") {
+      return settings?.emailSales ?? true;
+    }
 
-  return recipient
-    ? {
-        email: recipient.email,
-        name: recipient.name ?? "there",
-        userId: recipient.userId,
-      }
-    : null;
-},
+    if (preference === "followers") {
+      return settings?.emailFollowers ?? true;
+    }
 
- shouldSendEmail = async ({
-  preference,
-  userId,
-}: {
-  preference?: EmailPreference;
-  userId?: string | null;
-}) => {
-  if (!(preference && userId && isDatabaseConfigured())) {
-    return true;
-  }
-
-  const [settings] = await createDb()
-    .select({
-      emailCollaborations: notificationSettings.emailCollaborations,
-      emailFollowers: notificationSettings.emailFollowers,
-      emailSales: notificationSettings.emailSales,
-    })
-    .from(notificationSettings)
-    .where(eq(notificationSettings.userId, userId))
-    .limit(1);
-
-  if (preference === "sales") {
-    return settings?.emailSales ?? true;
-  }
-
-  if (preference === "followers") {
-    return settings?.emailFollowers ?? true;
-  }
-
-  return settings?.emailCollaborations ?? true;
-},
-
- enqueueForRecipient = async ({
-  actionPath,
-  body,
-  ctaLabel,
-  eyebrow,
-  footerNote,
-  heading,
-  idempotencyKey,
-  preference,
-  previewText,
-  queue,
-  recipient,
-  subject,
-  template,
-}: {
-  actionPath: string;
-  body: string;
-  ctaLabel: string;
-  eyebrow: string;
-  footerNote: string;
-  heading: string;
-  idempotencyKey: string;
-  preference?: EmailPreference;
-  previewText: string;
-  queue?: Queue<EmailDeliveryQueueMessage> | null;
-  recipient: Recipient;
-  subject: string;
-  template:
-    | "battle_challenge"
-    | "battle_reminder"
-    | "battle_results"
-    | "billing_issue"
-    | "follower"
-    | "friend_request"
-    | "open_verse_accepted"
-    | "open_verse_submitted"
-    | "purchase_receipt"
-    | "sale_notification";
-}) => {
-  if (!(await shouldSendEmail({ preference, userId: recipient.userId }))) {
-    return { enqueued: false, reason: "preference_disabled" as const };
-  }
-
-  return enqueueTransactionalEmail({
+    return settings?.emailCollaborations ?? true;
+  },
+  enqueueForRecipient = async ({
     actionPath,
+    body,
+    ctaLabel,
+    eyebrow,
+    footerNote,
+    heading,
     idempotencyKey,
-    payload: {
-      body,
-      ctaLabel,
-      eyebrow,
-      footerNote,
-      heading,
-      previewText,
-      subject,
-    },
+    preference,
+    previewText,
     queue,
-    recipientEmail: recipient.email,
-    recipientName: recipient.name,
+    recipient,
+    subject,
     template,
-    userId: recipient.userId,
-  });
-},
+  }: {
+    actionPath: string;
+    body: string;
+    ctaLabel: string;
+    eyebrow: string;
+    footerNote: string;
+    heading: string;
+    idempotencyKey: string;
+    preference?: EmailPreference;
+    previewText: string;
+    queue?: Queue<EmailDeliveryQueueMessage> | null;
+    recipient: Recipient;
+    subject: string;
+    template:
+      | "battle_challenge"
+      | "battle_reminder"
+      | "battle_results"
+      | "billing_issue"
+      | "follower"
+      | "friend_request"
+      | "open_verse_accepted"
+      | "open_verse_submitted"
+      | "purchase_receipt"
+      | "sale_notification";
+  }) => {
+    if (!(await shouldSendEmail({ preference, userId: recipient.userId }))) {
+      return { enqueued: false, reason: "preference_disabled" as const };
+    }
 
- notifyBattleRecipients = async ({
-  battleId,
-  idempotencyPrefix,
-  queue,
-  resultsSummary,
-  type,
-}: {
-  battleId: string;
-  idempotencyPrefix: string;
-  queue?: Queue<EmailDeliveryQueueMessage> | null;
-  resultsSummary?: string | null;
-  type: "reminder" | "results";
-}) => {
-  const [battle] = await createDb()
-    .select({
-      challengerArtistUserId: battles.challengerArtistUserId,
-      id: battles.id,
-      opponentArtistUserId: battles.opponentArtistUserId,
-      title: battles.title,
-    })
-    .from(battles)
-    .where(or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId)))
-    .limit(1);
-
-  if (!battle) {
-    return { enqueued: false, reason: "battle_not_found" as const };
-  }
-
-  const recipientUserIds = [
-    battle.challengerArtistUserId,
-    battle.opponentArtistUserId,
-  ].filter((userId): userId is string => Boolean(userId)),
-   deliveries = [];
-
-  for (const recipientUserId of recipientUserIds) {
-    deliveries.push(
-      type === "reminder"
-        ? await notifyBattleReminderEmail({
-            battleId: battle.id,
-            battleTitle: battle.title,
-            idempotencyScope: idempotencyPrefix,
-            queue,
-            recipientUserId,
-          })
-        : await notifyBattleResultsEmail({
-            battleId: battle.id,
-            battleTitle: battle.title,
-            idempotencyScope: idempotencyPrefix,
-            queue,
-            recipientUserId,
-            resultsSummary:
-              resultsSummary ??
-              "The final round data has been saved to your dashboard.",
-          })
-    );
-  }
-
-  return {
-    deliveries,
-    enqueued: deliveries.length > 0,
+    return enqueueTransactionalEmail({
+      actionPath,
+      idempotencyKey,
+      payload: {
+        body,
+        ctaLabel,
+        eyebrow,
+        footerNote,
+        heading,
+        previewText,
+        subject,
+      },
+      queue,
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      template,
+      userId: recipient.userId,
+    });
+  },
+  notifyBattleRecipients = async ({
+    battleId,
     idempotencyPrefix,
+    queue,
+    resultsSummary,
+    type,
+  }: {
+    battleId: string;
+    idempotencyPrefix: string;
+    queue?: Queue<EmailDeliveryQueueMessage> | null;
+    resultsSummary?: string | null;
+    type: "reminder" | "results";
+  }) => {
+    const [battle] = await createDb()
+      .select({
+        challengerArtistUserId: battles.challengerArtistUserId,
+        id: battles.id,
+        opponentArtistUserId: battles.opponentArtistUserId,
+        title: battles.title,
+      })
+      .from(battles)
+      .where(
+        or(eq(battles.id, battleId), eq(battles.externalBattleId, battleId))
+      )
+      .limit(1);
+
+    if (!battle) {
+      return { enqueued: false, reason: "battle_not_found" as const };
+    }
+
+    const recipientUserIds = [
+        battle.challengerArtistUserId,
+        battle.opponentArtistUserId,
+      ].filter((userId): userId is string => Boolean(userId)),
+      deliveries = [];
+
+    for (const recipientUserId of recipientUserIds) {
+      deliveries.push(
+        type === "reminder"
+          ? await notifyBattleReminderEmail({
+              battleId: battle.id,
+              battleTitle: battle.title,
+              idempotencyScope: idempotencyPrefix,
+              queue,
+              recipientUserId,
+            })
+          : await notifyBattleResultsEmail({
+              battleId: battle.id,
+              battleTitle: battle.title,
+              idempotencyScope: idempotencyPrefix,
+              queue,
+              recipientUserId,
+              resultsSummary:
+                resultsSummary ??
+                "The final round data has been saved to your dashboard.",
+            })
+      );
+    }
+
+    return {
+      deliveries,
+      enqueued: deliveries.length > 0,
+      idempotencyPrefix,
+    };
   };
-};
 
 export const notifyBattleChallengeEmail = async ({
   battleFormat,
@@ -434,14 +430,14 @@ export const notifyOpenVerseAcceptedEmail = async ({
   submitterUserId: string;
 }) => {
   const [listing] = await createDb()
-    .select({
-      trackTitle: tracks.title,
-    })
-    .from(openVerseListings)
-    .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
-    .where(eq(openVerseListings.id, listingId))
-    .limit(1),
-   recipient = await getUserRecipient(submitterUserId);
+      .select({
+        trackTitle: tracks.title,
+      })
+      .from(openVerseListings)
+      .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+      .where(eq(openVerseListings.id, listingId))
+      .limit(1),
+    recipient = await getUserRecipient(submitterUserId);
 
   if (!(listing && recipient)) {
     return { enqueued: false, reason: "recipient_not_found" as const };
@@ -472,35 +468,37 @@ export const notifyPurchaseEmails = async ({
   queue?: Queue<EmailDeliveryQueueMessage> | null;
 }) => {
   const db = createDb(),
-   [order] = await db
-    .select()
-    .from(orders)
-    .where(eq(orders.id, orderId))
-    .limit(1);
+    [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
 
   if (!order) {
     return { enqueued: false, reason: "order_not_found" as const };
   }
 
   const [buyer, seller, items] = await Promise.all([
-    getUserRecipient(order.buyerUserId),
-    order.sellerUserId ? getUserRecipient(order.sellerUserId) : null,
-    db.select().from(orderItems).where(eq(orderItems.orderId, order.id)),
-  ]),
-   itemTitle = items[0]?.titleSnapshot ?? "your purchase",
-   itemSummary =
-    items.length > 1 ? `${itemTitle} and ${items.length - 1} more` : itemTitle,
-   amount = formatMoney(order.totalCents),
-   firstPurchase = await db
-    .select({ id: purchases.id })
-    .from(purchases)
-    .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
-    .where(eq(orderItems.orderId, order.id))
-    .limit(1),
-   purchasePath = firstPurchase[0]?.id
-    ? `/library/purchased/${firstPurchase[0].id}`
-    : "/library/purchased",
-   deliveries = [];
+      getUserRecipient(order.buyerUserId),
+      order.sellerUserId ? getUserRecipient(order.sellerUserId) : null,
+      db.select().from(orderItems).where(eq(orderItems.orderId, order.id)),
+    ]),
+    itemTitle = items[0]?.titleSnapshot ?? "your purchase",
+    itemSummary =
+      items.length > 1
+        ? `${itemTitle} and ${items.length - 1} more`
+        : itemTitle,
+    amount = formatMoney(order.totalCents),
+    firstPurchase = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .innerJoin(orderItems, eq(orderItems.id, purchases.orderItemId))
+      .where(eq(orderItems.orderId, order.id))
+      .limit(1),
+    purchasePath = firstPurchase[0]?.id
+      ? `/library/purchased/${firstPurchase[0].id}`
+      : "/library/purchased",
+    deliveries = [];
 
   if (buyer) {
     deliveries.push(

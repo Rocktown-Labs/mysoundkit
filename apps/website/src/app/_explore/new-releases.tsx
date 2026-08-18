@@ -12,15 +12,15 @@ export const Route = createFileRoute("/_explore/new-releases")({
 
 function NewReleasesPage() {
   const router = useRouter(),
-   searchParams = new URLSearchParams(
-    typeof window === "undefined" ? "" : window.location.search
-  ),
-   location = searchParams.get("location") || "All Locations",
-   { data: tracks = [] } = useTracksQuery(undefined, {
-    limit: 24,
-    scope: "public",
-    sort: "title-desc",
-  });
+    searchParams = new URLSearchParams(
+      typeof window === "undefined" ? "" : window.location.search
+    ),
+    location = searchParams.get("location") || "All Locations",
+    { data: tracks = [] } = useTracksQuery(undefined, {
+      limit: 24,
+      scope: "public",
+      sort: "title-desc",
+    });
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

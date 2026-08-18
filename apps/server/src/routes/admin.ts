@@ -72,196 +72,196 @@ app.get("/embeddings/status", async (c) => {
 });
 
 const emptyOverview = () => ({
-  commerce: {
-    grossRevenueCents: 0,
-    platformFeeCents: 0,
-    successfulTransactions: 0,
+    commerce: {
+      grossRevenueCents: 0,
+      platformFeeCents: 0,
+      successfulTransactions: 0,
+    },
+    content: {
+      communities: 0,
+      listeningParties: 0,
+      openVerses: 0,
+      projects: 0,
+      tracks: 0,
+      videos: 0,
+    },
+    operations: {
+      activeOpenVerses: 0,
+      publishedTracks: 0,
+      readyVideos: 0,
+      releasedProjects: 0,
+      scheduledListeningParties: 0,
+      tracksMissingDuration: 0,
+    },
+    people: {
+      admins: 0,
+      artists: 0,
+      bannedUsers: 0,
+      fans: 0,
+      users: 0,
+    },
+  }),
+  loadPeople = async () => {
+    const db = createDb(),
+      [[users], [artists], [fans], [admins], [bannedUsers]] = await Promise.all(
+        [
+          db.select({ value: count() }).from(user),
+          db.select({ value: count() }).from(artistProfiles),
+          db.select({ value: count() }).from(fanProfiles),
+          db
+            .select({ value: count() })
+            .from(user)
+            .where(eq(user.role, "admin")),
+          db.select({ value: count() }).from(user).where(eq(user.banned, true)),
+        ]
+      );
+
+    return {
+      admins: admins?.value ?? 0,
+      artists: artists?.value ?? 0,
+      bannedUsers: bannedUsers?.value ?? 0,
+      fans: fans?.value ?? 0,
+      users: users?.value ?? 0,
+    };
   },
-  content: {
-    communities: 0,
-    listeningParties: 0,
-    openVerses: 0,
-    projects: 0,
-    tracks: 0,
-    videos: 0,
+  loadContent = async () => {
+    const db = createDb(),
+      [
+        [trackCount],
+        [projectCount],
+        [videoCount],
+        [communityCount],
+        [partyCount],
+        [openVerseCount],
+      ] = await Promise.all([
+        db.select({ value: count() }).from(tracks),
+        db.select({ value: count() }).from(projects),
+        db.select({ value: count() }).from(videos),
+        db.select({ value: count() }).from(communities),
+        db.select({ value: count() }).from(listeningParties),
+        db.select({ value: count() }).from(openVerseListings),
+      ]);
+
+    return {
+      communities: communityCount?.value ?? 0,
+      listeningParties: partyCount?.value ?? 0,
+      openVerses: openVerseCount?.value ?? 0,
+      projects: projectCount?.value ?? 0,
+      tracks: trackCount?.value ?? 0,
+      videos: videoCount?.value ?? 0,
+    };
   },
-  operations: {
-    activeOpenVerses: 0,
-    publishedTracks: 0,
-    readyVideos: 0,
-    releasedProjects: 0,
-    scheduledListeningParties: 0,
-    tracksMissingDuration: 0,
+  loadOperations = async () => {
+    const db = createDb(),
+      [
+        [publishedTracks],
+        [releasedProjects],
+        [readyVideos],
+        [scheduledListeningParties],
+        [activeOpenVerses],
+        [tracksMissingDuration],
+      ] = await Promise.all([
+        db
+          .select({ value: count() })
+          .from(tracks)
+          .where(eq(tracks.isPublic, true)),
+        db
+          .select({ value: count() })
+          .from(projects)
+          .where(eq(projects.status, "released")),
+        db
+          .select({ value: count() })
+          .from(videos)
+          .where(eq(videos.status, "ready")),
+        db
+          .select({ value: count() })
+          .from(listeningParties)
+          .where(eq(listeningParties.status, "scheduled")),
+        db
+          .select({ value: count() })
+          .from(openVerseListings)
+          .where(eq(openVerseListings.status, "open")),
+        db
+          .select({ value: count() })
+          .from(trackAssets)
+          .where(
+            and(
+              eq(trackAssets.assetKind, "master"),
+              eq(trackAssets.storageProvider, "r2"),
+              isNotNull(trackAssets.objectKey),
+              isNull(trackAssets.durationMs)
+            )
+          ),
+      ]);
+
+    return {
+      activeOpenVerses: activeOpenVerses?.value ?? 0,
+      publishedTracks: publishedTracks?.value ?? 0,
+      readyVideos: readyVideos?.value ?? 0,
+      releasedProjects: releasedProjects?.value ?? 0,
+      scheduledListeningParties: scheduledListeningParties?.value ?? 0,
+      tracksMissingDuration: tracksMissingDuration?.value ?? 0,
+    };
   },
-  people: {
-    admins: 0,
-    artists: 0,
-    bannedUsers: 0,
-    fans: 0,
-    users: 0,
+  loadCommerce = async () => {
+    const db = createDb(),
+      [[transactionSummary], [feeSummary]] = await Promise.all([
+        db
+          .select({
+            amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+            count: count(),
+          })
+          .from(transactions)
+          .where(eq(transactions.status, "succeeded")),
+        db
+          .select({
+            amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
+          })
+          .from(platformFees),
+      ]);
+
+    return {
+      grossRevenueCents: Number(transactionSummary?.amountCents ?? 0),
+      platformFeeCents: Number(feeSummary?.amountCents ?? 0),
+      successfulTransactions: Number(transactionSummary?.count ?? 0),
+    };
   },
-}),
+  overviewSectionTimeoutMs = 8000,
+  loadOverviewSection = async <T>(
+    task: Promise<T>,
+    fallback: T,
+    section: string
+  ): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<T>((resolve) => {
+      timeoutId = setTimeout(() => {
+        console.error("Admin overview section timed out", { section });
+        resolve(fallback);
+      }, overviewSectionTimeoutMs);
+    });
 
- loadPeople = async () => {
-  const db = createDb(),
-   [[users], [artists], [fans], [admins], [bannedUsers]] =
-    await Promise.all([
-      db.select({ value: count() }).from(user),
-      db.select({ value: count() }).from(artistProfiles),
-      db.select({ value: count() }).from(fanProfiles),
-      db.select({ value: count() }).from(user).where(eq(user.role, "admin")),
-      db.select({ value: count() }).from(user).where(eq(user.banned, true)),
-    ]);
-
-  return {
-    admins: admins?.value ?? 0,
-    artists: artists?.value ?? 0,
-    bannedUsers: bannedUsers?.value ?? 0,
-    fans: fans?.value ?? 0,
-    users: users?.value ?? 0,
-  };
-},
-
- loadContent = async () => {
-  const db = createDb(),
-   [
-    [trackCount],
-    [projectCount],
-    [videoCount],
-    [communityCount],
-    [partyCount],
-    [openVerseCount],
-  ] = await Promise.all([
-    db.select({ value: count() }).from(tracks),
-    db.select({ value: count() }).from(projects),
-    db.select({ value: count() }).from(videos),
-    db.select({ value: count() }).from(communities),
-    db.select({ value: count() }).from(listeningParties),
-    db.select({ value: count() }).from(openVerseListings),
-  ]);
-
-  return {
-    communities: communityCount?.value ?? 0,
-    listeningParties: partyCount?.value ?? 0,
-    openVerses: openVerseCount?.value ?? 0,
-    projects: projectCount?.value ?? 0,
-    tracks: trackCount?.value ?? 0,
-    videos: videoCount?.value ?? 0,
-  };
-},
-
- loadOperations = async () => {
-  const db = createDb(),
-   [
-    [publishedTracks],
-    [releasedProjects],
-    [readyVideos],
-    [scheduledListeningParties],
-    [activeOpenVerses],
-    [tracksMissingDuration],
-  ] = await Promise.all([
-    db.select({ value: count() }).from(tracks).where(eq(tracks.isPublic, true)),
-    db
-      .select({ value: count() })
-      .from(projects)
-      .where(eq(projects.status, "released")),
-    db
-      .select({ value: count() })
-      .from(videos)
-      .where(eq(videos.status, "ready")),
-    db
-      .select({ value: count() })
-      .from(listeningParties)
-      .where(eq(listeningParties.status, "scheduled")),
-    db
-      .select({ value: count() })
-      .from(openVerseListings)
-      .where(eq(openVerseListings.status, "open")),
-    db
-      .select({ value: count() })
-      .from(trackAssets)
-      .where(
-        and(
-          eq(trackAssets.assetKind, "master"),
-          eq(trackAssets.storageProvider, "r2"),
-          isNotNull(trackAssets.objectKey),
-          isNull(trackAssets.durationMs)
-        )
-      ),
-  ]);
-
-  return {
-    activeOpenVerses: activeOpenVerses?.value ?? 0,
-    publishedTracks: publishedTracks?.value ?? 0,
-    readyVideos: readyVideos?.value ?? 0,
-    releasedProjects: releasedProjects?.value ?? 0,
-    scheduledListeningParties: scheduledListeningParties?.value ?? 0,
-    tracksMissingDuration: tracksMissingDuration?.value ?? 0,
-  };
-},
-
- loadCommerce = async () => {
-  const db = createDb(),
-   [[transactionSummary], [feeSummary]] = await Promise.all([
-    db
-      .select({
-        amountCents: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
-        count: count(),
-      })
-      .from(transactions)
-      .where(eq(transactions.status, "succeeded")),
-    db
-      .select({
-        amountCents: sql<number>`coalesce(sum(${platformFees.amountCents}), 0)`,
-      })
-      .from(platformFees),
-  ]);
-
-  return {
-    grossRevenueCents: Number(transactionSummary?.amountCents ?? 0),
-    platformFeeCents: Number(feeSummary?.amountCents ?? 0),
-    successfulTransactions: Number(transactionSummary?.count ?? 0),
-  };
-},
-
- overviewSectionTimeoutMs = 8000;
-
-const loadOverviewSection = async <T>(
-  task: Promise<T>,
-  fallback: T,
-  section: string
-): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<T>((resolve) => {
-    timeoutId = setTimeout(() => {
-      console.error("Admin overview section timed out", { section });
-      resolve(fallback);
-    }, overviewSectionTimeoutMs);
-  });
-
-  try {
-    return await Promise.race([task, timeout]);
-  } catch (error) {
-    console.error("Admin overview section failed", { error, section });
-    return fallback;
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
+    try {
+      return await Promise.race([task, timeout]);
+    } catch (error) {
+      console.error("Admin overview section failed", { error, section });
+      return fallback;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     }
-  }
-},
+  },
+  loadOverview = async () => {
+    const empty = emptyOverview(),
+      [people, content, operations, commerce] = await Promise.all([
+        loadOverviewSection(loadPeople(), empty.people, "people"),
+        loadOverviewSection(loadContent(), empty.content, "content"),
+        loadOverviewSection(loadOperations(), empty.operations, "operations"),
+        loadOverviewSection(loadCommerce(), empty.commerce, "commerce"),
+      ]);
 
- loadOverview = async () => {
-  const empty = emptyOverview(),
-   [people, content, operations, commerce] = await Promise.all([
-    loadOverviewSection(loadPeople(), empty.people, "people"),
-    loadOverviewSection(loadContent(), empty.content, "content"),
-    loadOverviewSection(loadOperations(), empty.operations, "operations"),
-    loadOverviewSection(loadCommerce(), empty.commerce, "commerce"),
-  ]);
-
-  return { commerce, content, operations, people };
-};
+    return { commerce, content, operations, people };
+  };
 
 app.openapi(
   createRoute({
@@ -341,11 +341,11 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     result = await enqueueTrackDurationBackfills({
-      limit: body.limit,
-      queue: c.env.TRACK_DURATION_BACKFILL_QUEUE,
-      trackIds: body.trackIds,
-    });
+      result = await enqueueTrackDurationBackfills({
+        limit: body.limit,
+        queue: c.env.TRACK_DURATION_BACKFILL_QUEUE,
+        trackIds: body.trackIds,
+      });
 
     return c.json(result, HttpStatusCodes.OK);
   }
@@ -448,10 +448,10 @@ app.openapi(
     }
 
     const body = updatePlatformSettingsBodySchema.parse(await c.req.json()),
-     nextSettings = platformSettingsSchema.parse({
-      ...(await loadPlatformSettings()),
-      ...body,
-    });
+      nextSettings = platformSettingsSchema.parse({
+        ...(await loadPlatformSettings()),
+        ...body,
+      });
 
     if (isDatabaseConfigured()) {
       await createDb()

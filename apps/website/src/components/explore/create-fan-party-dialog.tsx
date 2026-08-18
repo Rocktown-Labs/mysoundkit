@@ -37,101 +37,98 @@ interface CreateFanPartyDialogProps {
 }
 
 const padDateTimePart = (value: number) => value.toString().padStart(2, "0"),
-
- toLocalDateTimeInputValue = (date: Date) =>
-  `${date.getFullYear()}-${padDateTimePart(date.getMonth() + 1)}-${padDateTimePart(date.getDate())}T${padDateTimePart(date.getHours())}:${padDateTimePart(date.getMinutes())}`;
+  toLocalDateTimeInputValue = (date: Date) =>
+    `${date.getFullYear()}-${padDateTimePart(date.getMonth() + 1)}-${padDateTimePart(date.getDate())}T${padDateTimePart(date.getHours())}:${padDateTimePart(date.getMinutes())}`;
 
 export function CreateFanPartyDialog({ children }: CreateFanPartyDialogProps) {
   const { data: session } = authClient.useSession(),
-   user = session?.user,
-   isAuthenticated = Boolean(user),
-
-   entitlementsQuery = useMeEntitlementsQuery(),
-   createParty = useCreateListeningPartyMutation(),
-   sourcesQuery = useQuery({
-    enabled: isAuthenticated,
-    queryFn: async () => {
-      const response = await fetch(`${API_V1_URL}/listening-parties/sources`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Could not load listening party sources.");
-      }
-      return (await response.json()) as {
-        accountType: "artist" | "fan";
-        playlists: { id: string; title: string }[];
-        projects: { id: string; releaseDate: string | null; title: string }[];
-      };
-    },
-    queryKey: ["listening-party-sources"],
-  }),
-
-   [open, setOpen] = useState(false),
-   [createdRoomId, setCreatedRoomId] = useState<string | null>(null),
-   [copied, setCopied] = useState(false),
-   [selectedProjectId, setSelectedProjectId] = useState<string>(""),
-   [title, setTitle] = useState(""),
-   [scheduledStartAt, setScheduledStartAt] = useState(""),
-
-   projects = sourcesQuery.data?.projects ?? [],
-   playlists = sourcesQuery.data?.playlists ?? [],
-
-   handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedProjectId) {
-      toast({
-        description:
-          "Please select an EP, album, or playlist to listen to with friends.",
-        title: "Tracklist required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const startAt = new Date(scheduledStartAt).toISOString(),
-     [sourceType, sourceId] = selectedProjectId.split(":", 2);
-
-    createParty.mutate(
-      {
-        description: `Fan listening party created by @${user?.name || "listener"}. Chat and synced playback enabled.`,
-        playbackMode: "artist_hosted",
-        playlistId: sourceType === "playlist" ? sourceId : undefined,
-        projectId: sourceType === "project" ? sourceId : undefined,
-        scheduledStartAt: startAt,
-        title: title.trim() || `${user?.name || "Fan"}'s Listening Room`,
+    user = session?.user,
+    isAuthenticated = Boolean(user),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    createParty = useCreateListeningPartyMutation(),
+    sourcesQuery = useQuery({
+      enabled: isAuthenticated,
+      queryFn: async () => {
+        const response = await fetch(
+          `${API_V1_URL}/listening-parties/sources`,
+          {
+            credentials: "include",
+          }
+        );
+        if (!response.ok) {
+          throw new Error("Could not load listening party sources.");
+        }
+        return (await response.json()) as {
+          accountType: "artist" | "fan";
+          playlists: { id: string; title: string }[];
+          projects: { id: string; releaseDate: string | null; title: string }[];
+        };
       },
-      {
-        onSuccess: (res) => {
-          const roomId = res.liveRoomId || res.id;
-          setCreatedRoomId(roomId);
-          toast({
-            description:
-              "Your fan listening party is ready! Share the link with friends to listen together.",
-            title: "Party Created",
-          });
-        },
-      }
-    );
-  },
+      queryKey: ["listening-party-sources"],
+    }),
+    [open, setOpen] = useState(false),
+    [createdRoomId, setCreatedRoomId] = useState<string | null>(null),
+    [copied, setCopied] = useState(false),
+    [selectedProjectId, setSelectedProjectId] = useState<string>(""),
+    [title, setTitle] = useState(""),
+    [scheduledStartAt, setScheduledStartAt] = useState(""),
+    projects = sourcesQuery.data?.projects ?? [],
+    playlists = sourcesQuery.data?.playlists ?? [],
+    handleCreate = (e: React.FormEvent) => {
+      e.preventDefault();
 
-   copyShareLink = () => {
-    if (!createdRoomId) {
-      return;
-    }
-    const url = `${window.location.origin}/live/parties/${createdRoomId}`;
-    void navigator.clipboard
-      .writeText(url)
-      .then(() => {
-        setCopied(true);
+      if (!selectedProjectId) {
         toast({
-          description: "Party link copied to clipboard.",
-          title: "Link Copied",
+          description:
+            "Please select an EP, album, or playlist to listen to with friends.",
+          title: "Tracklist required",
+          variant: "destructive",
         });
-        setTimeout(() => setCopied(false), 2000);
-      })
-      .catch(() => {});
-  };
+        return;
+      }
+
+      const startAt = new Date(scheduledStartAt).toISOString(),
+        [sourceType, sourceId] = selectedProjectId.split(":", 2);
+
+      createParty.mutate(
+        {
+          description: `Fan listening party created by @${user?.name || "listener"}. Chat and synced playback enabled.`,
+          playbackMode: "artist_hosted",
+          playlistId: sourceType === "playlist" ? sourceId : undefined,
+          projectId: sourceType === "project" ? sourceId : undefined,
+          scheduledStartAt: startAt,
+          title: title.trim() || `${user?.name || "Fan"}'s Listening Room`,
+        },
+        {
+          onSuccess: (res) => {
+            const roomId = res.liveRoomId || res.id;
+            setCreatedRoomId(roomId);
+            toast({
+              description:
+                "Your fan listening party is ready! Share the link with friends to listen together.",
+              title: "Party Created",
+            });
+          },
+        }
+      );
+    },
+    copyShareLink = () => {
+      if (!createdRoomId) {
+        return;
+      }
+      const url = `${window.location.origin}/live/parties/${createdRoomId}`;
+      void navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setCopied(true);
+          toast({
+            description: "Party link copied to clipboard.",
+            title: "Link Copied",
+          });
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {});
+    };
 
   if (!isAuthenticated) {
     return (

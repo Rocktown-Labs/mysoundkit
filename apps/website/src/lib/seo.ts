@@ -11,11 +11,10 @@ export const absoluteSiteUrl = (pathOrUrl: string) => {
 };
 
 const normalize = (value: string) => value.replaceAll(/\s+/gu, " ").trim(),
-
- truncateTo = (value: string, maxLength: number) =>
-  value.length > maxLength
-    ? `${value.slice(0, maxLength - 1).trimEnd()}…`
-    : value;
+  truncateTo = (value: string, maxLength: number) =>
+    value.length > maxLength
+      ? `${value.slice(0, maxLength - 1).trimEnd()}…`
+      : value;
 
 /**
  * Returns the platform `description` copy truncated to a sensible ceiling.
@@ -63,19 +62,19 @@ export const createShareMeta = ({
   type?: "music.album" | "music.song" | "profile" | "website";
 }) => {
   const canonicalUrl = absoluteSiteUrl(canonicalPath),
-   socialImage = seoImageUrl(imageUrl),
-   sharedDescription = normalize(ogDescription || description),
-   usesFallbackImage = !imageUrl || imageUrl === "/placeholder.svg",
-  // Only declare dimensions when the image is the known-good 1200x630 social
-  // card. For user-uploaded art the dimensions are unknown server-side;
-  // emitting wrong hints would break the LinkedIn/Facebook card more than
-  // omitting them.
-   imageDimensionMeta = usesFallbackImage
-    ? [
-        { content: "1200", property: "og:image:width" },
-        { content: "630", property: "og:image:height" },
-      ]
-    : [];
+    socialImage = seoImageUrl(imageUrl),
+    sharedDescription = normalize(ogDescription || description),
+    usesFallbackImage = !imageUrl || imageUrl === "/placeholder.svg",
+    // Only declare dimensions when the image is the known-good 1200x630 social
+    // card. For user-uploaded art the dimensions are unknown server-side;
+    // emitting wrong hints would break the LinkedIn/Facebook card more than
+    // omitting them.
+    imageDimensionMeta = usesFallbackImage
+      ? [
+          { content: "1200", property: "og:image:width" },
+          { content: "630", property: "og:image:height" },
+        ]
+      : [];
 
   return {
     links: [

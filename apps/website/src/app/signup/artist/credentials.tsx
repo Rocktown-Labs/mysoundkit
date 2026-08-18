@@ -29,50 +29,51 @@ export const Route = createFileRoute("/signup/artist/credentials")({
 
 function ArtistCredentialsPage() {
   const [authMethod, setAuthMethod] = useState<"email" | "oauth" | null>(null),
-   posthog = usePostHog(),
-   router = useRouter(),
-   [confirmPassword, setConfirmPassword] = useState(""),
-   [email, setEmail] = useState(""),
-   [errorMessage, setErrorMessage] = useState<string | null>(null),
-   [isSubmitting, setIsSubmitting] = useState(false),
-   [password, setPassword] = useState(""),
+    posthog = usePostHog(),
+    router = useRouter(),
+    [confirmPassword, setConfirmPassword] = useState(""),
+    [email, setEmail] = useState(""),
+    [errorMessage, setErrorMessage] = useState<string | null>(null),
+    [isSubmitting, setIsSubmitting] = useState(false),
+    [password, setPassword] = useState(""),
+    handleEmailSignup = async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setErrorMessage(null);
 
-   handleEmailSignup = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setErrorMessage(null);
-
-    if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const result = await authClient.signUp.email({
-        email,
-        name: email.split("@")[0] ?? "Artist",
-        password,
-      });
-
-      if (result.error) {
-        setErrorMessage(result.error.message ?? "Unable to create account.");
+      if (password !== confirmPassword) {
+        setErrorMessage("Passwords do not match.");
         return;
       }
 
-      posthog.identify(email, { account_type: "artist", email });
-      posthog.capture("user_signed_up", {
-        account_type: "artist",
-        method: "email",
-      });
+      setIsSubmitting(true);
+      try {
+        const result = await authClient.signUp.email({
+          email,
+          name: email.split("@")[0] ?? "Artist",
+          password,
+        });
 
-      await router.navigate({ to: "/signup/artist/onboarding" });
-    } catch (error) {
-      posthog.captureException(error);
-      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+        if (result.error) {
+          setErrorMessage(result.error.message ?? "Unable to create account.");
+          return;
+        }
+
+        posthog.identify(email, { account_type: "artist", email });
+        posthog.capture("user_signed_up", {
+          account_type: "artist",
+          method: "email",
+        });
+
+        await router.navigate({ to: "/signup/artist/onboarding" });
+      } catch (error) {
+        posthog.captureException(error);
+        setErrorMessage(
+          "Unable to reach SoundKit. Check your API credentials."
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

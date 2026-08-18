@@ -67,219 +67,220 @@ interface LocationSuggestion {
 }
 
 const USERNAME_PATTERN = /^[a-z0-9_]{3,32}$/u,
- RESERVED_USERNAMES = new Set(["soundkit"]),
- ARTIST_PREMIUM_PLAN_DESCRIPTION =
-  "Live hosting, selling, rewards, analytics, and up to 3 workspace seats",
- wizardText = {
-  addAnother: "+ Add Another",
-  appleMusicLabel: "Apple Music URL",
-  artistTeamDescription: "Artist Premium workspace for up to 5 seats",
-  artistTeamPrice: "$24.99/mo",
-  artistTeamTitle: "Artist Team",
-  avatarContinue: "Continue",
-  avatarSkip: "Skip for Now",
-  avatarSubtitle: "Optional. You can skip this and add one later.",
-  avatarTitle: "Add a Profile Picture",
-  back: "Back",
-  complete: "Complete Setup",
-  completing: "Completing...",
-  continue: "Continue",
-  freeDescription: "Basic features to get started",
-  freePrice: "$0/mo",
-  freeTitle: "Free Account",
-  genreAfrobeats: "Afrobeats",
-  genreElectronic: "Electronic",
-  genreHipHop: "Hip-Hop",
-  genreLabel: "Primary Genre",
-  genrePlaceholder: "Select genre",
-  genrePop: "Pop",
-  genreRbSoul: "R&B/Soul",
-  genreRock: "Rock",
-  genreSpokenWord: "Spoken Word",
-  genreSubtitle: "Help fans find your style",
-  genreTitle: "What's Your Genre?",
-  instagramLabel: "Instagram",
-  locationConfigError:
-    "Enter a city and state like Little Rock, AR. Add VITE_RADAR_PUBLISHABLE_KEY to enable Radar validation.",
-  locationEmpty: "Choose a valid US city from the results.",
-  locationError: "Location validation is unavailable right now.",
-  locationIdle: "Start typing a city and state, then choose a verified result.",
-  locationLabel: "City or state",
-  locationPlaceholder: "Little Rock, AR",
-  locationReady: "Choose a city from the results to continue.",
-  locationSearching: "Searching verified places...",
-  locationSubtitle: "Help fans discover local talent",
-  locationSuggestionCountry: "United States",
-  locationTitle: "Where Do You Make Music?",
-  musicianDescription: "Release songs, albums, EPs, videos, and battle tracks.",
-  musicianTitle: "Musician",
-  planRecommended: "Recommended",
-  planTitle: "Choose Your Plan",
-  premiumPrice: "$22.99/mo",
-  premiumTitle: "Premium",
-  producerDescription:
-    "Sell or stream beats, license instrumentals, and battle.",
-  producerTitle: "Producer",
-  publishingSubtitle:
-    "Use your writer name and PRO details for credits and royalties.",
-  publishingTitle: "Credits & Publishing",
-  rolesSubtitle: "Choose one or both. The dashboard stays the same.",
-  rolesTitle: "What Do You Create?",
-  setupTitle: "Set Up Your Artist Profile",
-  socialsSubtitle: "Link your social media (optional)",
-  socialsTitle: "Connect Your Socials",
-  spotifyLabel: "Spotify Artist URL",
-  streamingSubtitle: "Link your streaming profiles (optional)",
-  streamingTitle: "Connect Your Music",
-  teamEmailLabel: "Team Member Email",
-  teamSubtitle: "Collaborate with producers, managers, and more",
-  teamTitle: "Invite Your Team",
-  tiktokLabel: "TikTok",
-  twitterLabel: "X (Twitter)",
-  usernameGuidance: "Can only contain letters, numbers, and underscores",
-  usernameLabel: "Username",
-  usernamePlaceholder: "@yourartistname",
-  usernameSubtitle: "This is how fans will find you",
-  usernameTitle: "Choose Your Username",
-  youtubeLabel: "YouTube Channel URL",
-} as const,
- US_STATES_BY_NAME: Record<string, string> = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY",
-},
- US_STATE_CODES = new Set(Object.values(US_STATES_BY_NAME)),
- normalizeUsername = (value: string) =>
-  value.trim().replace(/^@/u, "").toLowerCase(),
- parseManualLocation = (value: string) => {
-  const [cityPart, statePart] = value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
+  RESERVED_USERNAMES = new Set(["soundkit"]),
+  ARTIST_PREMIUM_PLAN_DESCRIPTION =
+    "Live hosting, selling, rewards, analytics, and up to 3 workspace seats",
+  wizardText = {
+    addAnother: "+ Add Another",
+    appleMusicLabel: "Apple Music URL",
+    artistTeamDescription: "Artist Premium workspace for up to 5 seats",
+    artistTeamPrice: "$24.99/mo",
+    artistTeamTitle: "Artist Team",
+    avatarContinue: "Continue",
+    avatarSkip: "Skip for Now",
+    avatarSubtitle: "Optional. You can skip this and add one later.",
+    avatarTitle: "Add a Profile Picture",
+    back: "Back",
+    complete: "Complete Setup",
+    completing: "Completing...",
+    continue: "Continue",
+    freeDescription: "Basic features to get started",
+    freePrice: "$0/mo",
+    freeTitle: "Free Account",
+    genreAfrobeats: "Afrobeats",
+    genreElectronic: "Electronic",
+    genreHipHop: "Hip-Hop",
+    genreLabel: "Primary Genre",
+    genrePlaceholder: "Select genre",
+    genrePop: "Pop",
+    genreRbSoul: "R&B/Soul",
+    genreRock: "Rock",
+    genreSpokenWord: "Spoken Word",
+    genreSubtitle: "Help fans find your style",
+    genreTitle: "What's Your Genre?",
+    instagramLabel: "Instagram",
+    locationConfigError:
+      "Enter a city and state like Little Rock, AR. Add VITE_RADAR_PUBLISHABLE_KEY to enable Radar validation.",
+    locationEmpty: "Choose a valid US city from the results.",
+    locationError: "Location validation is unavailable right now.",
+    locationIdle:
+      "Start typing a city and state, then choose a verified result.",
+    locationLabel: "City or state",
+    locationPlaceholder: "Little Rock, AR",
+    locationReady: "Choose a city from the results to continue.",
+    locationSearching: "Searching verified places...",
+    locationSubtitle: "Help fans discover local talent",
+    locationSuggestionCountry: "United States",
+    locationTitle: "Where Do You Make Music?",
+    musicianDescription:
+      "Release songs, albums, EPs, videos, and battle tracks.",
+    musicianTitle: "Musician",
+    planRecommended: "Recommended",
+    planTitle: "Choose Your Plan",
+    premiumPrice: "$22.99/mo",
+    premiumTitle: "Premium",
+    producerDescription:
+      "Sell or stream beats, license instrumentals, and battle.",
+    producerTitle: "Producer",
+    publishingSubtitle:
+      "Use your writer name and PRO details for credits and royalties.",
+    publishingTitle: "Credits & Publishing",
+    rolesSubtitle: "Choose one or both. The dashboard stays the same.",
+    rolesTitle: "What Do You Create?",
+    setupTitle: "Set Up Your Artist Profile",
+    socialsSubtitle: "Link your social media (optional)",
+    socialsTitle: "Connect Your Socials",
+    spotifyLabel: "Spotify Artist URL",
+    streamingSubtitle: "Link your streaming profiles (optional)",
+    streamingTitle: "Connect Your Music",
+    teamEmailLabel: "Team Member Email",
+    teamSubtitle: "Collaborate with producers, managers, and more",
+    teamTitle: "Invite Your Team",
+    tiktokLabel: "TikTok",
+    twitterLabel: "X (Twitter)",
+    usernameGuidance: "Can only contain letters, numbers, and underscores",
+    usernameLabel: "Username",
+    usernamePlaceholder: "@yourartistname",
+    usernameSubtitle: "This is how fans will find you",
+    usernameTitle: "Choose Your Username",
+    youtubeLabel: "YouTube Channel URL",
+  } as const,
+  US_STATES_BY_NAME: Record<string, string> = {
+    alabama: "AL",
+    alaska: "AK",
+    arizona: "AZ",
+    arkansas: "AR",
+    california: "CA",
+    colorado: "CO",
+    connecticut: "CT",
+    delaware: "DE",
+    florida: "FL",
+    georgia: "GA",
+    hawaii: "HI",
+    idaho: "ID",
+    illinois: "IL",
+    indiana: "IN",
+    iowa: "IA",
+    kansas: "KS",
+    kentucky: "KY",
+    louisiana: "LA",
+    maine: "ME",
+    maryland: "MD",
+    massachusetts: "MA",
+    michigan: "MI",
+    minnesota: "MN",
+    mississippi: "MS",
+    missouri: "MO",
+    montana: "MT",
+    nebraska: "NE",
+    nevada: "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    ohio: "OH",
+    oklahoma: "OK",
+    oregon: "OR",
+    pennsylvania: "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    tennessee: "TN",
+    texas: "TX",
+    utah: "UT",
+    vermont: "VT",
+    virginia: "VA",
+    washington: "WA",
+    "west virginia": "WV",
+    wisconsin: "WI",
+    wyoming: "WY",
+  },
+  US_STATE_CODES = new Set(Object.values(US_STATES_BY_NAME)),
+  normalizeUsername = (value: string) =>
+    value.trim().replace(/^@/u, "").toLowerCase(),
+  parseManualLocation = (value: string) => {
+    const [cityPart, statePart] = value
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
 
-  if (!(cityPart && statePart)) {
-    return null;
-  }
+    if (!(cityPart && statePart)) {
+      return null;
+    }
 
-  const normalizedState = statePart.toLowerCase(),
-   stateCode =
-    US_STATES_BY_NAME[normalizedState] ?? statePart.toUpperCase();
+    const normalizedState = statePart.toLowerCase(),
+      stateCode = US_STATES_BY_NAME[normalizedState] ?? statePart.toUpperCase();
 
-  if (!US_STATE_CODES.has(stateCode)) {
-    return null;
-  }
+    if (!US_STATE_CODES.has(stateCode)) {
+      return null;
+    }
 
-  return {
-    city: cityPart,
-    stateCode,
+    return {
+      city: cityPart,
+      stateCode,
+    };
+  },
+  getAddressStateCode = (address: RadarAutocompleteAddress) => {
+    const rawStateCode = address.stateCode?.toUpperCase();
+
+    if (rawStateCode && US_STATE_CODES.has(rawStateCode)) {
+      return rawStateCode;
+    }
+
+    const normalizedState = address.state?.toLowerCase();
+
+    return normalizedState ? US_STATES_BY_NAME[normalizedState] : undefined;
+  },
+  getAddressCity = (address: RadarAutocompleteAddress) =>
+    address.city ?? address.placeLabel ?? address.addressLabel,
+  locationLabel = (address: RadarAutocompleteAddress) => {
+    const city = getAddressCity(address),
+      state = getAddressStateCode(address) ?? address.state;
+
+    return [city, state].filter(Boolean).join(", ");
+  },
+  toLocationSuggestion = (
+    address: RadarAutocompleteAddress
+  ): LocationSuggestion | null => {
+    const city = getAddressCity(address),
+      stateCode = getAddressStateCode(address),
+      state = address.state ?? stateCode,
+      countryCode = address.countryCode?.toUpperCase();
+
+    if (!(city && state && stateCode && countryCode === "US")) {
+      return null;
+    }
+
+    return {
+      city,
+      countryCode,
+      id: `${city}-${stateCode}-${address.latitude}-${address.longitude}`,
+      label: locationLabel(address),
+      latitude: address.latitude,
+      longitude: address.longitude,
+      state,
+      stateCode,
+    };
+  },
+  usernameStatusClassName = (status: UsernameStatus) => {
+    if (status === "available") {
+      return "text-emerald-400";
+    }
+
+    return status === "checking" ? "text-muted-foreground" : "text-destructive";
+  },
+  locationStatusClassName = (status: LocationStatus) => {
+    if (status === "selected") {
+      return "text-emerald-400";
+    }
+
+    const isError =
+      status === "config_error" || status === "empty" || status === "error";
+
+    return isError ? "text-destructive" : "text-muted-foreground";
   };
-},
- getAddressStateCode = (address: RadarAutocompleteAddress) => {
-  const rawStateCode = address.stateCode?.toUpperCase();
-
-  if (rawStateCode && US_STATE_CODES.has(rawStateCode)) {
-    return rawStateCode;
-  }
-
-  const normalizedState = address.state?.toLowerCase();
-
-  return normalizedState ? US_STATES_BY_NAME[normalizedState] : undefined;
-},
- getAddressCity = (address: RadarAutocompleteAddress) =>
-  address.city ?? address.placeLabel ?? address.addressLabel,
- locationLabel = (address: RadarAutocompleteAddress) => {
-  const city = getAddressCity(address),
-   state = getAddressStateCode(address) ?? address.state;
-
-  return [city, state].filter(Boolean).join(", ");
-},
- toLocationSuggestion = (
-  address: RadarAutocompleteAddress
-): LocationSuggestion | null => {
-  const city = getAddressCity(address),
-   stateCode = getAddressStateCode(address),
-   state = address.state ?? stateCode,
-   countryCode = address.countryCode?.toUpperCase();
-
-  if (!(city && state && stateCode && countryCode === "US")) {
-    return null;
-  }
-
-  return {
-    city,
-    countryCode,
-    id: `${city}-${stateCode}-${address.latitude}-${address.longitude}`,
-    label: locationLabel(address),
-    latitude: address.latitude,
-    longitude: address.longitude,
-    state,
-    stateCode,
-  };
-},
- usernameStatusClassName = (status: UsernameStatus) => {
-  if (status === "available") {
-    return "text-emerald-400";
-  }
-
-  return status === "checking" ? "text-muted-foreground" : "text-destructive";
-},
- locationStatusClassName = (status: LocationStatus) => {
-  if (status === "selected") {
-    return "text-emerald-400";
-  }
-
-  const isError =
-    status === "config_error" || status === "empty" || status === "error";
-
-  return isError ? "text-destructive" : "text-muted-foreground";
-};
 
 export const Route = createFileRoute("/signup/artist/onboarding")({
   beforeLoad: () =>
@@ -289,175 +290,174 @@ export const Route = createFileRoute("/signup/artist/onboarding")({
 
 function ArtistOnboardingPage() {
   const posthog = usePostHog(),
-   router = useRouter(),
-   [step, setStep] = useState(1),
-   [avatarObjectKey, setAvatarObjectKey] = useState(""),
-   [avatarUrl, setAvatarUrl] = useState(""),
-   [roles, setRoles] = useState<ArtistRole[]>(["musician"]),
-   [username, setUsername] = useState(""),
-   [usernameMessage, setUsernameMessage] = useState(""),
-   [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle"),
-   [city, setCity] = useState(""),
-   [errorMessage, setErrorMessage] = useState<string | null>(null),
-   [isSubmitting, setIsSubmitting] = useState(false),
-   [stateValue, setStateValue] = useState(""),
-   [locationQuery, setLocationQuery] = useState(""),
-   [locationSuggestions, setLocationSuggestions] = useState<
-    LocationSuggestion[]
-  >([]),
-   [locationStatus, setLocationStatus] = useState<LocationStatus>("idle"),
-   [primaryGenre, setPrimaryGenre] = useState(""),
-   [appleMusicUrl, setAppleMusicUrl] = useState(""),
-   [instagramHandle, setInstagramHandle] = useState(""),
-   [proAffiliation, setProAffiliation] = useState(""),
-   [proMemberId, setProMemberId] = useState(""),
-   [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
-   [selectedPlanCode, setSelectedPlanCode] = useState(
-    "soundkit_premium_artist"
-  ),
-   [songwriterLegalName, setSongwriterLegalName] = useState(""),
-   [spotifyUrl, setSpotifyUrl] = useState(""),
-   [tiktokHandle, setTiktokHandle] = useState(""),
-   [twitterHandle, setTwitterHandle] = useState(""),
-   [youtubeUrl, setYoutubeUrl] = useState(""),
-   [isDraftReady, setIsDraftReady] = useState(false),
-   radarInitializedRef = useRef(false),
-   selectedLocationQueryRef = useRef(""),
-   usernameRequestIdRef = useRef(0),
-   locationRequestIdRef = useRef(0),
-   totalSteps = 8,
+    router = useRouter(),
+    [step, setStep] = useState(1),
+    [avatarObjectKey, setAvatarObjectKey] = useState(""),
+    [avatarUrl, setAvatarUrl] = useState(""),
+    [roles, setRoles] = useState<ArtistRole[]>(["musician"]),
+    [username, setUsername] = useState(""),
+    [usernameMessage, setUsernameMessage] = useState(""),
+    [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle"),
+    [city, setCity] = useState(""),
+    [errorMessage, setErrorMessage] = useState<string | null>(null),
+    [isSubmitting, setIsSubmitting] = useState(false),
+    [stateValue, setStateValue] = useState(""),
+    [locationQuery, setLocationQuery] = useState(""),
+    [locationSuggestions, setLocationSuggestions] = useState<
+      LocationSuggestion[]
+    >([]),
+    [locationStatus, setLocationStatus] = useState<LocationStatus>("idle"),
+    [primaryGenre, setPrimaryGenre] = useState(""),
+    [appleMusicUrl, setAppleMusicUrl] = useState(""),
+    [instagramHandle, setInstagramHandle] = useState(""),
+    [proAffiliation, setProAffiliation] = useState(""),
+    [proMemberId, setProMemberId] = useState(""),
+    [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
+    [selectedPlanCode, setSelectedPlanCode] = useState(
+      "soundkit_premium_artist"
+    ),
+    [songwriterLegalName, setSongwriterLegalName] = useState(""),
+    [spotifyUrl, setSpotifyUrl] = useState(""),
+    [tiktokHandle, setTiktokHandle] = useState(""),
+    [twitterHandle, setTwitterHandle] = useState(""),
+    [youtubeUrl, setYoutubeUrl] = useState(""),
+    [isDraftReady, setIsDraftReady] = useState(false),
+    radarInitializedRef = useRef(false),
+    selectedLocationQueryRef = useRef(""),
+    usernameRequestIdRef = useRef(0),
+    locationRequestIdRef = useRef(0),
+    totalSteps = 8,
+    progress = (step / totalSteps) * 100,
+    normalizedUsername = normalizeUsername(username),
+    canContinueFromUsername = usernameStatus === "available",
+    canContinueFromLocation =
+      locationStatus === "selected" || locationStatus === "manual_ready",
+    ensureRadarInitialized = () => {
+      if (radarInitializedRef.current) {
+        return true;
+      }
 
-   progress = (step / totalSteps) * 100,
-   normalizedUsername = normalizeUsername(username),
-   canContinueFromUsername = usernameStatus === "available",
-   canContinueFromLocation =
-    locationStatus === "selected" || locationStatus === "manual_ready",
+      if (!env.VITE_RADAR_PUBLISHABLE_KEY) {
+        setLocationSuggestions([]);
+        return false;
+      }
 
-   ensureRadarInitialized = () => {
-    if (radarInitializedRef.current) {
+      RadarClient.initialize(env.VITE_RADAR_PUBLISHABLE_KEY);
+      radarInitializedRef.current = true;
       return true;
-    }
+    },
+    checkUsername = useAsyncDebouncedCallback(
+      async (value: string, requestId: number) => {
+        let response: Response;
+        try {
+          response = await fetch(
+            `${API_V1_URL}/onboarding/username-availability?username=${encodeURIComponent(
+              value
+            )}`,
+            { credentials: "include" }
+          );
+        } catch {
+          if (requestId === usernameRequestIdRef.current) {
+            setUsernameStatus("error");
+            setUsernameMessage("Could not check that username right now.");
+          }
+          return;
+        }
 
-    if (!env.VITE_RADAR_PUBLISHABLE_KEY) {
-      setLocationSuggestions([]);
-      return false;
-    }
+        const payload = (await response.json().catch(() => null)) as {
+          available?: boolean;
+          message?: string;
+          reason?: "available" | "reserved" | "taken";
+        } | null;
 
-    RadarClient.initialize(env.VITE_RADAR_PUBLISHABLE_KEY);
-    radarInitializedRef.current = true;
-    return true;
-  },
+        if (requestId !== usernameRequestIdRef.current) {
+          return;
+        }
 
-   checkUsername = useAsyncDebouncedCallback(
-    async (value: string, requestId: number) => {
-      let response: Response;
-      try {
-        response = await fetch(
-          `${API_V1_URL}/onboarding/username-availability?username=${encodeURIComponent(
-            value
-          )}`,
-          { credentials: "include" }
-        );
-      } catch {
-        if (requestId === usernameRequestIdRef.current) {
+        if (!(response.ok && payload)) {
           setUsernameStatus("error");
           setUsernameMessage("Could not check that username right now.");
+          return;
         }
-        return;
-      }
 
-      const payload = (await response.json().catch(() => null)) as {
-        available?: boolean;
-        message?: string;
-        reason?: "available" | "reserved" | "taken";
-      } | null;
+        if (payload.available) {
+          setUsernameStatus("available");
+          setUsernameMessage(payload.message ?? "Username is available.");
+          return;
+        }
 
-      if (requestId !== usernameRequestIdRef.current) {
-        return;
-      }
-
-      if (!(response.ok && payload)) {
-        setUsernameStatus("error");
-        setUsernameMessage("Could not check that username right now.");
-        return;
-      }
-
-      if (payload.available) {
-        setUsernameStatus("available");
-        setUsernameMessage(payload.message ?? "Username is available.");
-        return;
-      }
-
-      setUsernameStatus(payload.reason === "reserved" ? "reserved" : "taken");
-      setUsernameMessage(payload.message ?? "That username is not available.");
-    },
-    { wait: 400 }
-  ),
-
-   searchLocations = useAsyncDebouncedCallback(
-    async (query: string, requestId: number) => {
-      if (!ensureRadarInitialized()) {
-        return;
-      }
-
-      let result: Awaited<ReturnType<typeof RadarClient.autocomplete>>;
-      try {
-        result = await RadarClient.autocomplete(
-          {
-            countryCode: "US",
-            layers: ["locality", "place"],
-            limit: 6,
-            query,
-          },
-          `artist-onboarding-location-${requestId}`
+        setUsernameStatus(payload.reason === "reserved" ? "reserved" : "taken");
+        setUsernameMessage(
+          payload.message ?? "That username is not available."
         );
-      } catch {
-        if (requestId === locationRequestIdRef.current) {
-          const manualLocation = parseManualLocation(query);
-          setLocationSuggestions([]);
+      },
+      { wait: 400 }
+    ),
+    searchLocations = useAsyncDebouncedCallback(
+      async (query: string, requestId: number) => {
+        if (!ensureRadarInitialized()) {
+          return;
+        }
 
-          if (manualLocation) {
-            setCity(manualLocation.city);
-            setStateValue(manualLocation.stateCode);
-            setLocationStatus("manual_ready");
-            return;
+        let result: Awaited<ReturnType<typeof RadarClient.autocomplete>>;
+        try {
+          result = await RadarClient.autocomplete(
+            {
+              countryCode: "US",
+              layers: ["locality", "place"],
+              limit: 6,
+              query,
+            },
+            `artist-onboarding-location-${requestId}`
+          );
+        } catch {
+          if (requestId === locationRequestIdRef.current) {
+            const manualLocation = parseManualLocation(query);
+            setLocationSuggestions([]);
+
+            if (manualLocation) {
+              setCity(manualLocation.city);
+              setStateValue(manualLocation.stateCode);
+              setLocationStatus("manual_ready");
+              return;
+            }
+
+            setLocationStatus("error");
           }
-
-          setLocationStatus("error");
+          return;
         }
-        return;
-      }
 
-      if (requestId !== locationRequestIdRef.current) {
-        return;
-      }
+        if (requestId !== locationRequestIdRef.current) {
+          return;
+        }
 
-      const suggestions = result.addresses
-        .map(toLocationSuggestion)
-        .filter(
-          (suggestion): suggestion is LocationSuggestion => suggestion !== null
-        );
+        const suggestions = result.addresses
+          .map(toLocationSuggestion)
+          .filter(
+            (suggestion): suggestion is LocationSuggestion =>
+              suggestion !== null
+          );
 
-      if (suggestions.length > 0) {
-        setLocationSuggestions(suggestions);
-        setLocationStatus("ready");
-        return;
-      }
+        if (suggestions.length > 0) {
+          setLocationSuggestions(suggestions);
+          setLocationStatus("ready");
+          return;
+        }
 
-      const manualLocation = parseManualLocation(query);
-      setLocationSuggestions([]);
+        const manualLocation = parseManualLocation(query);
+        setLocationSuggestions([]);
 
-      if (manualLocation) {
-        setCity(manualLocation.city);
-        setStateValue(manualLocation.stateCode);
-        setLocationStatus("manual_ready");
-        return;
-      }
+        if (manualLocation) {
+          setCity(manualLocation.city);
+          setStateValue(manualLocation.stateCode);
+          setLocationStatus("manual_ready");
+          return;
+        }
 
-      setLocationStatus("empty");
-    },
-    { wait: 350 }
-  );
+        setLocationStatus("empty");
+      },
+      { wait: 350 }
+    );
 
   useEffect(() => {
     const requestId = usernameRequestIdRef.current + 1;
@@ -555,7 +555,7 @@ function ArtistOnboardingPage() {
 
   useEffect(() => {
     const query = locationQuery.trim(),
-     requestId = locationRequestIdRef.current + 1;
+      requestId = locationRequestIdRef.current + 1;
     locationRequestIdRef.current = requestId;
 
     if (!query) {
@@ -597,122 +597,123 @@ function ArtistOnboardingPage() {
   }, [locationQuery, searchLocations]);
 
   const toggleRole = (role: ArtistRole) => {
-    setRoles((currentRoles) => {
-      if (currentRoles.includes(role) && currentRoles.length > 1) {
-        return currentRoles.filter((currentRole) => currentRole !== role);
-      }
+      setRoles((currentRoles) => {
+        if (currentRoles.includes(role) && currentRoles.length > 1) {
+          return currentRoles.filter((currentRole) => currentRole !== role);
+        }
 
-      if (currentRoles.includes(role)) {
-        return currentRoles;
-      }
+        if (currentRoles.includes(role)) {
+          return currentRoles;
+        }
 
-      return [...currentRoles, role];
-    });
-  },
-   updateUsername = (value: string) => {
-    setUsername(value.replaceAll(/\s+/gu, ""));
-  },
-   selectLocation = (suggestion: LocationSuggestion) => {
-    selectedLocationQueryRef.current = suggestion.label;
-    setCity(suggestion.city);
-    setStateValue(suggestion.stateCode);
-    setLocationQuery(suggestion.label);
-    setLocationSuggestions([]);
-    setLocationStatus("selected");
-  },
-   continueFromUsername = () => {
-    if (canContinueFromUsername) {
-      setStep(3);
-      return;
-    }
-
-    setUsernameMessage("Choose an available username before continuing.");
-  },
-   continueFromLocation = () => {
-    const manualLocation = parseManualLocation(locationQuery);
-    if (manualLocation && locationStatus === "manual_ready") {
-      setCity(manualLocation.city);
-      setStateValue(manualLocation.stateCode);
-      setStep(5);
-      return;
-    }
-
-    if (canContinueFromLocation) {
-      setStep(5);
-      return;
-    }
-
-    setLocationStatus(locationQuery ? "empty" : "idle");
-  },
-   completeOnboarding = async () => {
-    setErrorMessage(null);
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`${API_V1_URL}/onboarding/artist`, {
-        body: JSON.stringify({
-          appleMusicUrl: appleMusicUrl || undefined,
-          avatarObjectKey: avatarObjectKey || undefined,
-          avatarUrl: avatarUrl || undefined,
-          city: city || "Los Angeles",
-          instagramHandle: instagramHandle || undefined,
-          mediaLayout,
-          primaryGenre: primaryGenre || "Hip-Hop",
-          proAffiliation: proAffiliation || "None",
-          proMemberId: proMemberId || undefined,
-          roles,
-          selectedPlanCode,
-          songwriterLegalName: songwriterLegalName || undefined,
-          spotifyUrl: spotifyUrl || undefined,
-          state: stateValue || "CA",
-          teamInviteEmails: [],
-          tiktokHandle: tiktokHandle || undefined,
-          twitterHandle: twitterHandle || undefined,
-          username: normalizedUsername,
-          youtubeUrl: youtubeUrl || undefined,
-        }),
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      }),
-
-       payload = (await response.json().catch(() => null)) as {
-        checkoutUrl?: string | null;
-        message?: string;
-      } | null;
-
-      if (!response.ok) {
-        setErrorMessage(
-          payload?.message ?? "Unable to complete onboarding right now."
-        );
-        return;
-      }
-
-      posthog.capture("artist_onboarding_completed", {
-        has_checkout: Boolean(payload?.checkoutUrl),
-        has_profile_picture: Boolean(avatarUrl),
-        plan_code: selectedPlanCode,
-        primary_genre: primaryGenre,
-        roles,
+        return [...currentRoles, role];
       });
-
-      if (payload?.checkoutUrl) {
-        window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
-        window.location.assign(payload.checkoutUrl);
+    },
+    updateUsername = (value: string) => {
+      setUsername(value.replaceAll(/\s+/gu, ""));
+    },
+    selectLocation = (suggestion: LocationSuggestion) => {
+      selectedLocationQueryRef.current = suggestion.label;
+      setCity(suggestion.city);
+      setStateValue(suggestion.stateCode);
+      setLocationQuery(suggestion.label);
+      setLocationSuggestions([]);
+      setLocationStatus("selected");
+    },
+    continueFromUsername = () => {
+      if (canContinueFromUsername) {
+        setStep(3);
         return;
       }
 
-      window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
-      await router.navigate({ to: "/dashboard" });
-    } catch (error) {
-      posthog.captureException(error);
-      setErrorMessage("Unable to reach SoundKit. Check your API credentials.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      setUsernameMessage("Choose an available username before continuing.");
+    },
+    continueFromLocation = () => {
+      const manualLocation = parseManualLocation(locationQuery);
+      if (manualLocation && locationStatus === "manual_ready") {
+        setCity(manualLocation.city);
+        setStateValue(manualLocation.stateCode);
+        setStep(5);
+        return;
+      }
+
+      if (canContinueFromLocation) {
+        setStep(5);
+        return;
+      }
+
+      setLocationStatus(locationQuery ? "empty" : "idle");
+    },
+    completeOnboarding = async () => {
+      setErrorMessage(null);
+      setIsSubmitting(true);
+
+      try {
+        const response = await fetch(`${API_V1_URL}/onboarding/artist`, {
+            body: JSON.stringify({
+              appleMusicUrl: appleMusicUrl || undefined,
+              avatarObjectKey: avatarObjectKey || undefined,
+              avatarUrl: avatarUrl || undefined,
+              city: city || "Los Angeles",
+              instagramHandle: instagramHandle || undefined,
+              mediaLayout,
+              primaryGenre: primaryGenre || "Hip-Hop",
+              proAffiliation: proAffiliation || "None",
+              proMemberId: proMemberId || undefined,
+              roles,
+              selectedPlanCode,
+              songwriterLegalName: songwriterLegalName || undefined,
+              spotifyUrl: spotifyUrl || undefined,
+              state: stateValue || "CA",
+              teamInviteEmails: [],
+              tiktokHandle: tiktokHandle || undefined,
+              twitterHandle: twitterHandle || undefined,
+              username: normalizedUsername,
+              youtubeUrl: youtubeUrl || undefined,
+            }),
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+          }),
+          payload = (await response.json().catch(() => null)) as {
+            checkoutUrl?: string | null;
+            message?: string;
+          } | null;
+
+        if (!response.ok) {
+          setErrorMessage(
+            payload?.message ?? "Unable to complete onboarding right now."
+          );
+          return;
+        }
+
+        posthog.capture("artist_onboarding_completed", {
+          has_checkout: Boolean(payload?.checkoutUrl),
+          has_profile_picture: Boolean(avatarUrl),
+          plan_code: selectedPlanCode,
+          primary_genre: primaryGenre,
+          roles,
+        });
+
+        if (payload?.checkoutUrl) {
+          window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
+          window.location.assign(payload.checkoutUrl);
+          return;
+        }
+
+        window.localStorage.removeItem(ARTIST_ONBOARDING_DRAFT_KEY);
+        await router.navigate({ to: "/dashboard" });
+      } catch (error) {
+        posthog.captureException(error);
+        setErrorMessage(
+          "Unable to reach SoundKit. Check your API credentials."
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">

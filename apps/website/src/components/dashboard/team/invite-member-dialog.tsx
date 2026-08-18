@@ -1,6 +1,3 @@
-"use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
   UserPlus,
   LoaderCircle,
@@ -39,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { zodResolver } from "@/lib/zod-resolver";
 
 const inviteFormSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -62,40 +60,38 @@ export function InviteMemberDialog({
   totalSeats,
 }: InviteMemberDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false),
-   isAtLimit = seatsUsed >= totalSeats,
+    isAtLimit = seatsUsed >= totalSeats,
+    form = useForm<InviteFormValues>({
+      defaultValues: {
+        email: "",
+        message: "",
+        role: "manager",
+      },
+      resolver: zodResolver(inviteFormSchema),
+    }),
+    onSubmit = async (values: InviteFormValues) => {
+      setIsSubmitting(true);
+      try {
+        // Simulate API call to @apps/server
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
-   form = useForm<InviteFormValues>({
-    defaultValues: {
-      email: "",
-      message: "",
-      role: "manager",
-    },
-    resolver: zodResolver(inviteFormSchema),
-  }),
+        toast({
+          description: `We've sent an invite to ${values.email}.`,
+          title: "Invitation Sent",
+        });
 
-   onSubmit = async (values: InviteFormValues) => {
-    setIsSubmitting(true);
-    try {
-      // Simulate API call to @apps/server
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      toast({
-        description: `We've sent an invite to ${values.email}.`,
-        title: "Invitation Sent",
-      });
-
-      onOpenChange(false);
-      form.reset();
-    } catch {
-      toast({
-        description: "Failed to send invitation. Please try again.",
-        title: "Error",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+        onOpenChange(false);
+        form.reset();
+      } catch {
+        toast({
+          description: "Failed to send invitation. Please try again.",
+          title: "Error",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

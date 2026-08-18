@@ -7,12 +7,23 @@ import {
   ListMusic,
   MessageSquare,
   Plus,
+  Trash2,
   Users,
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +48,7 @@ import { toast } from "@/hooks/use-toast";
 import type { LiveScheduleMode } from "@/lib/live-experience";
 import {
   useCreateListeningPartyMutation,
+  useDeleteLiveExperienceMutation,
   useListeningPartiesQuery,
   useProjectsQuery,
 } from "@/lib/soundkit-api-hooks";
@@ -48,117 +60,128 @@ export const Route = createFileRoute("/dashboard/live/parties")({
 type PartyCreationType = "release_auto" | "artist_manual";
 
 const buildPartyTitle = ({
-  creationType,
-  projectTitle,
-}: {
-  creationType: PartyCreationType;
-  projectTitle?: string;
-}) => {
-  if (!projectTitle) {
-    return "SoundKit Live Party";
-  }
+    creationType,
+    projectTitle,
+  }: {
+    creationType: PartyCreationType;
+    projectTitle?: string;
+  }) => {
+    if (!projectTitle) {
+      return "SoundKit Live Party";
+    }
 
-  return creationType === "release_auto"
-    ? `${projectTitle} Premiere`
-    : `${projectTitle} Live Party`;
-},
+    return creationType === "release_auto"
+      ? `${projectTitle} Premiere`
+      : `${projectTitle} Live Party`;
+  },
+  resolveScheduledStartAt = ({
+    creationType,
+    fallbackValue,
+    releaseDate,
+    scheduleMode,
+  }: {
+    creationType: PartyCreationType;
+    fallbackValue: FormDataEntryValue | null;
+    releaseDate?: null | string;
+    scheduleMode: LiveScheduleMode;
+  }) => {
+    if (creationType === "release_auto" && releaseDate) {
+      return new Date(releaseDate).toISOString();
+    }
 
- resolveScheduledStartAt = ({
-  creationType,
-  fallbackValue,
-  releaseDate,
-  scheduleMode,
-}: {
-  creationType: PartyCreationType;
-  fallbackValue: FormDataEntryValue | null;
-  releaseDate?: null | string;
-  scheduleMode: LiveScheduleMode;
-}) => {
-  if (creationType === "release_auto" && releaseDate) {
-    return new Date(releaseDate).toISOString();
-  }
+    if (scheduleMode === "asap") {
+      return new Date().toISOString();
+    }
 
-  if (scheduleMode === "asap") {
-    return new Date().toISOString();
-  }
-
-  return new Date(String(fallbackValue ?? Date.now())).toISOString();
-};
+    return new Date(String(fallbackValue ?? Date.now())).toISOString();
+  };
 
 function DashboardLivePartiesPage() {
   const creationType: PartyCreationType = "release_auto",
-   scheduleMode: LiveScheduleMode = "scheduled",
-   [hostPresence, setHostPresence] = useState<"video" | "chat">("chat"),
-   [selectedProjectId, setSelectedProjectId] = useState(""),
-
-   partiesQuery = useListeningPartiesQuery(),
-   projectsQuery = useProjectsQuery(),
-   createParty = useCreateListeningPartyMutation(),
-
-   parties = partiesQuery.data ?? [],
-   projects = projectsQuery.data ?? [],
-   selectedProject = projects.find(
-    (project) => project.id === selectedProjectId
-  ),
-   suggestedTitle = buildPartyTitle({
-    creationType,
-    projectTitle: selectedProject?.title,
-  }),
-   liveParties = parties.filter((party) => party.status === "live"),
-   scheduledParties = parties.filter(
-    (party) => party.status === "scheduled"
-  ),
-
-   submitParty = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget),
-
-     title = String(form.get("title") ?? "").trim(),
-     projectId = selectedProjectId,
-     description = String(form.get("description") ?? ""),
-
-     scheduledStartAt = resolveScheduledStartAt({
+    scheduleMode: LiveScheduleMode = "scheduled",
+    [cancellingId, setCancellingId] = useState<string | null>(null),
+    [confirmText, setConfirmText] = useState(""),
+    [hostPresence, setHostPresence] = useState<"video" | "chat">("chat"),
+    [selectedProjectId, setSelectedProjectId] = useState(""),
+    partiesQuery = useListeningPartiesQuery(),
+    projectsQuery = useProjectsQuery(),
+    createParty = useCreateListeningPartyMutation(),
+    deleteExperience = useDeleteLiveExperienceMutation(),
+    parties = partiesQuery.data ?? [],
+    projects = projectsQuery.data ?? [],
+    selectedProject = projects.find(
+      (project) => project.id === selectedProjectId
+    ),
+    suggestedTitle = buildPartyTitle({
       creationType,
-      fallbackValue: form.get("scheduledStartAt"),
-      releaseDate: selectedProject?.releaseDate,
-      scheduleMode,
+      projectTitle: selectedProject?.title,
     }),
-
-     effectivePlaybackMode =
-      creationType === "release_auto" ? "programmed_release" : "artist_hosted",
-
-     partyTitle = title || suggestedTitle;
-
-    if (!projectId) {
-      toast({
-        description: "Choose an album, EP, or mixtape before scheduling.",
-        title: "Release required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createParty.mutate(
-      {
-        description,
-        playbackMode: effectivePlaybackMode,
-        projectId,
-        scheduledStartAt,
-        title: partyTitle,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            description:
-              "Listening party created! Fans can join to listen together and chat.",
-            title: "Party Created",
-          });
-          event.currentTarget.reset();
-          setSelectedProjectId("");
-        },
+    liveParties = parties.filter((party) => party.status === "live"),
+    scheduledParties = parties.filter((party) => party.status === "scheduled"),
+    targetParty = parties.find((p) => (p.liveRoomId ?? p.id) === cancellingId),
+    handleCancelParty = async (id: string) => {
+      try {
+        await deleteExperience.mutateAsync(id);
+        toast({
+          description: "Listening party has been cancelled.",
+          title: "Party cancelled",
+        });
+      } catch {
+        toast({
+          description: "Failed to cancel listening party. Please try again.",
+          title: "Cancellation failed",
+          variant: "destructive",
+        });
       }
-    );
-  };
+    },
+    submitParty = (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget),
+        title = String(form.get("title") ?? "").trim(),
+        projectId = selectedProjectId,
+        description = String(form.get("description") ?? ""),
+        scheduledStartAt = resolveScheduledStartAt({
+          creationType,
+          fallbackValue: form.get("scheduledStartAt"),
+          releaseDate: selectedProject?.releaseDate,
+          scheduleMode,
+        }),
+        effectivePlaybackMode =
+          creationType === "release_auto"
+            ? "programmed_release"
+            : "artist_hosted",
+        partyTitle = title || suggestedTitle;
+
+      if (!projectId) {
+        toast({
+          description: "Choose an album, EP, or mixtape before scheduling.",
+          title: "Release required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      createParty.mutate(
+        {
+          description,
+          playbackMode: effectivePlaybackMode,
+          projectId,
+          scheduledStartAt,
+          title: partyTitle,
+        },
+        {
+          onSuccess: () => {
+            toast({
+              description:
+                "Listening party created! Fans can join to listen together and chat.",
+              title: "Party Created",
+            });
+            event.currentTarget.reset();
+            setSelectedProjectId("");
+          },
+        }
+      );
+    };
 
   return (
     <LiveExperienceAuthGuard
@@ -445,48 +468,126 @@ function DashboardLivePartiesPage() {
                   </div>
                 )}
 
-                {parties.map((party) => (
-                  <div
-                    key={party.id}
-                    className="rounded-lg border p-4 space-y-2 bg-background/50"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-sm">{party.title}</p>
+                {parties.map((party) => {
+                  const partyId = party.liveRoomId ?? party.id;
+                  return (
+                    <div
+                      key={party.id}
+                      className="rounded-lg border p-4 space-y-2 bg-background/50"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm">
+                              {party.title}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(party.scheduledStartAt).toLocaleString()}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(party.scheduledStartAt).toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          party.status === "live" ? "destructive" : "outline"
-                        }
-                      >
-                        {party.status}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                      <span className="capitalize">
-                        {party.playbackMode.replaceAll("_", " ")}
-                      </span>
-                      <Button asChild size="sm">
-                        <Link
-                          params={{
-                            id: party.liveRoomId ?? party.id,
-                          }}
-                          to="/live/parties/$id"
+                        <Badge
+                          variant={
+                            party.status === "live" ? "destructive" : "outline"
+                          }
                         >
-                          Open Room
-                        </Link>
-                      </Button>
+                          {party.status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
+                        <span className="capitalize text-[11px] truncate">
+                          {party.playbackMode.replaceAll("_", " ")}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button asChild className="h-8 text-xs" size="sm">
+                            <Link
+                              params={{
+                                id: partyId,
+                              }}
+                              to="/live/parties/$id"
+                            >
+                              Open Room
+                            </Link>
+                          </Button>
+                          <Button
+                            className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={deleteExperience.isPending}
+                            onClick={() => {
+                              setCancellingId(partyId);
+                              setConfirmText("");
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
+
+            <AlertDialog
+              open={Boolean(cancellingId)}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setCancellingId(null);
+                  setConfirmText("");
+                }
+              }}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel Listening Party?</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2 text-sm">
+                    <span>
+                      Cancelling &quot;{targetParty?.title}&quot; will remove
+                      the synchronized listening room and notification links for
+                      fans.
+                    </span>
+                    <span className="block font-medium text-foreground">
+                      Type{" "}
+                      <span className="font-mono font-bold text-destructive">
+                        CANCEL
+                      </span>{" "}
+                      to confirm:
+                    </span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="my-2">
+                  <Input
+                    autoFocus
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder="Type CANCEL to confirm"
+                    value={confirmText}
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep Party</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={
+                      confirmText.trim() !== "CANCEL" ||
+                      deleteExperience.isPending
+                    }
+                    onClick={() => {
+                      if (cancellingId) {
+                        void handleCancelParty(cancellingId);
+                        setCancellingId(null);
+                        setConfirmText("");
+                      }
+                    }}
+                  >
+                    {deleteExperience.isPending
+                      ? "Cancelling..."
+                      : "Confirm Cancellation"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <Card>
               <CardHeader>

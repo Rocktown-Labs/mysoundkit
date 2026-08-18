@@ -1,6 +1,3 @@
-"use client";
-
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -49,6 +46,7 @@ import { toast } from "@/hooks/use-toast";
 import { API_V1_URL } from "@/lib/api";
 import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
 import { uploadVideoFile, validateVideoFile } from "@/lib/video-upload";
+import { zodResolver } from "@/lib/zod-resolver";
 
 const videoFormSchema = z.object({
   description: z.string().optional(),
@@ -74,159 +72,156 @@ interface AddVideoDialogProps {
 }
 
 const uploadDirectVideo = async (
-  values: VideoFormValues,
-  videoFile: File,
-  onProgress: (percent: number) => void
-): Promise<void> => {
-  const createResponse = await fetch(`${API_V1_URL}/videos/direct-upload`, {
-    body: JSON.stringify({
-      description: values.description || undefined,
-      playbackPolicy: values.playbackPolicy,
-      sourceProjectId: values.sourceProjectId || undefined,
-      sourceTrackId: values.sourceTrackId || undefined,
-      title: values.title,
-      videoKind: values.videoKind,
-    }),
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  }),
+    values: VideoFormValues,
+    videoFile: File,
+    onProgress: (percent: number) => void
+  ): Promise<void> => {
+    const createResponse = await fetch(`${API_V1_URL}/videos/direct-upload`, {
+        body: JSON.stringify({
+          description: values.description || undefined,
+          playbackPolicy: values.playbackPolicy,
+          sourceProjectId: values.sourceProjectId || undefined,
+          sourceTrackId: values.sourceTrackId || undefined,
+          title: values.title,
+          videoKind: values.videoKind,
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+      createPayload = (await createResponse.json()) as {
+        message?: string;
+        uploadUrl?: string;
+      };
+    if (!createResponse.ok || !createPayload.uploadUrl) {
+      throw new Error(createPayload.message ?? "Failed to create upload.");
+    }
 
-   createPayload = (await createResponse.json()) as {
-    message?: string;
-    uploadUrl?: string;
+    await uploadVideoFile({
+      file: videoFile,
+      onProgress,
+      uploadUrl: createPayload.uploadUrl,
+    });
+  },
+  saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
+    const createResponse = await fetch(`${API_V1_URL}/videos`, {
+        body: JSON.stringify({
+          description: values.description || undefined,
+          externalPlaybackUrl: values.youtubeUrl,
+          playbackPolicy: "public",
+          sourceProjectId: values.sourceProjectId || undefined,
+          sourceProvider: "external",
+          sourceTrackId: values.sourceTrackId || undefined,
+          title: values.title,
+          videoKind: values.videoKind,
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+      createPayload = (await createResponse.json()) as {
+        message?: string;
+      };
+
+    if (!createResponse.ok) {
+      throw new Error(
+        createPayload.message ?? "Failed to save external video."
+      );
+    }
   };
-  if (!createResponse.ok || !createPayload.uploadUrl) {
-    throw new Error(createPayload.message ?? "Failed to create upload.");
-  }
-
-  await uploadVideoFile({
-    file: videoFile,
-    onProgress,
-    uploadUrl: createPayload.uploadUrl,
-  });
-},
-
- saveExternalVideo = async (values: VideoFormValues): Promise<void> => {
-  const createResponse = await fetch(`${API_V1_URL}/videos`, {
-    body: JSON.stringify({
-      description: values.description || undefined,
-      externalPlaybackUrl: values.youtubeUrl,
-      playbackPolicy: "public",
-      sourceProjectId: values.sourceProjectId || undefined,
-      sourceProvider: "external",
-      sourceTrackId: values.sourceTrackId || undefined,
-      title: values.title,
-      videoKind: values.videoKind,
-    }),
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  }),
-   createPayload = (await createResponse.json()) as {
-    message?: string;
-  };
-
-  if (!createResponse.ok) {
-    throw new Error(createPayload.message ?? "Failed to save external video.");
-  }
-};
 
 export function AddVideoDialog({ isOpen, onOpenChange }: AddVideoDialogProps) {
   const [step, setStep] = useState(1),
-   [isUploading, setIsUploading] = useState(false),
-   [uploadProgress, setUploadProgress] = useState<number | null>(null),
-   [videoFile, setVideoFile] = useState<File | null>(null),
-   [previewData, setPreviewData] = useState<{
-    muxPlaybackId?: string;
-    externalPlaybackUrl?: string;
-    title: string;
-  } | null>(null),
-   { data: entitlements, isLoading: isEntitlementsLoading } =
-    useMeEntitlementsQuery(),
-   isPremium = entitlements?.isPremium ?? true,
-
-   form = useForm<VideoFormValues>({
-    defaultValues: {
-      description: "",
-      genre: "",
-      playbackPolicy: "public",
-      sourceProjectId: "",
-      sourceTrackId: "",
-      sourceType: "upload",
-      title: "",
-      videoKind: "music_video",
-      youtubeUrl: "",
-    },
-    resolver: zodResolver(videoFormSchema),
-  }),
-
-   sourceType = form.watch("sourceType"),
-
-   onSubmit = async (values: VideoFormValues) => {
-    if (values.sourceType === "upload" && !videoFile) {
-      toast({
-        description: "Please select a video file to upload.",
-        title: "File required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (values.sourceType === "upload" && !isPremium) {
-      toast({
-        description: "A premium artist subscription is required to upload.",
-        title: "Premium required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (step === 1) {
-      // Prepare preview
-      setPreviewData({
-        externalPlaybackUrl:
-          values.sourceType === "youtube" ? values.youtubeUrl : undefined,
-        title: values.title,
-        // For upload, we don't have a playback ID yet, so it will show the placeholder
-      });
-      setStep(2);
-      return;
-    }
-
-    // Final submission
-    setIsUploading(true);
-    try {
-      if (values.sourceType === "upload" && videoFile) {
-        await uploadDirectVideo(values, videoFile, setUploadProgress);
+    [isUploading, setIsUploading] = useState(false),
+    [uploadProgress, setUploadProgress] = useState<number | null>(null),
+    [videoFile, setVideoFile] = useState<File | null>(null),
+    [previewData, setPreviewData] = useState<{
+      muxPlaybackId?: string;
+      externalPlaybackUrl?: string;
+      title: string;
+    } | null>(null),
+    { data: entitlements, isLoading: isEntitlementsLoading } =
+      useMeEntitlementsQuery(),
+    isPremium = entitlements?.isPremium ?? true,
+    form = useForm<VideoFormValues>({
+      defaultValues: {
+        description: "",
+        genre: "",
+        playbackPolicy: "public",
+        sourceProjectId: "",
+        sourceTrackId: "",
+        sourceType: "upload",
+        title: "",
+        videoKind: "music_video",
+        youtubeUrl: "",
+      },
+      resolver: zodResolver(videoFormSchema),
+    }),
+    sourceType = form.watch("sourceType"),
+    onSubmit = async (values: VideoFormValues) => {
+      if (values.sourceType === "upload" && !videoFile) {
         toast({
-          description: "Your video is being processed by Mux.",
-          title: "Upload started",
+          description: "Please select a video file to upload.",
+          title: "File required",
+          variant: "destructive",
         });
-      } else {
-        await saveExternalVideo(values);
-        toast({
-          description: "Your YouTube video has been linked successfully.",
-          title: "Video linked",
-        });
+        return;
       }
 
-      onOpenChange(false);
-      setStep(1);
-      form.reset();
-      setVideoFile(null);
-      setUploadProgress(null);
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Something went wrong",
-        title: "Error",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
+      if (values.sourceType === "upload" && !isPremium) {
+        toast({
+          description: "A premium artist subscription is required to upload.",
+          title: "Premium required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (step === 1) {
+        // Prepare preview
+        setPreviewData({
+          externalPlaybackUrl:
+            values.sourceType === "youtube" ? values.youtubeUrl : undefined,
+          title: values.title,
+          // For upload, we don't have a playback ID yet, so it will show the placeholder
+        });
+        setStep(2);
+        return;
+      }
+
+      // Final submission
+      setIsUploading(true);
+      try {
+        if (values.sourceType === "upload" && videoFile) {
+          await uploadDirectVideo(values, videoFile, setUploadProgress);
+          toast({
+            description: "Your video is being processed by Mux.",
+            title: "Upload started",
+          });
+        } else {
+          await saveExternalVideo(values);
+          toast({
+            description: "Your YouTube video has been linked successfully.",
+            title: "Video linked",
+          });
+        }
+
+        onOpenChange(false);
+        setStep(1);
+        form.reset();
+        setVideoFile(null);
+        setUploadProgress(null);
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Something went wrong",
+          title: "Error",
+          variant: "destructive",
+        });
+      } finally {
+        setIsUploading(false);
+      }
+    };
 
   let submitButtonContent = (
     <>

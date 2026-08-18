@@ -7,7 +7,7 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 export default function NotFoundScreen() {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light;
 
   return (
     <>

@@ -20,7 +20,7 @@ interface Community {
 
 function CommunitiesPage() {
   const [communities, setCommunities] = useState<Community[]>([]),
-   [message, setMessage] = useState<string | null>(null);
+    [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCommunities = async () => {
@@ -39,19 +39,19 @@ function CommunitiesPage() {
 
   const joinCommunity = async (communityId: string) => {
     const response = await fetch(`${API_V1_URL}/community-billing/checkout`, {
-      body: JSON.stringify({
-        cancelUrl: window.location.href,
-        communityId,
-        successUrl: window.location.href,
+        body: JSON.stringify({
+          cancelUrl: window.location.href,
+          communityId,
+          successUrl: window.location.href,
+        }),
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
       }),
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }),
-     payload = (await response.json()) as {
-      checkoutUrl?: string | null;
-      message?: string;
-    };
+      payload = (await response.json()) as {
+        checkoutUrl?: string | null;
+        message?: string;
+      };
 
     if (payload.checkoutUrl) {
       window.location.assign(payload.checkoutUrl);

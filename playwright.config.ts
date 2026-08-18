@@ -1,8 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const webBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4311",
- serverBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://127.0.0.1:3000",
- useExternalWeb = Boolean(process.env.PLAYWRIGHT_BASE_URL);
+const serverBaseUrl = process.env.PLAYWRIGHT_API_URL ?? "http://127.0.0.1:3000",
+  useExternalWeb = Boolean(process.env.PLAYWRIGHT_BASE_URL),
+  webBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:4311";
 
 export default defineConfig({
   expect: {

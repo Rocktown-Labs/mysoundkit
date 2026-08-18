@@ -18,24 +18,22 @@ export function AppImage({
   ...props
 }: AppImageProps) {
   const [imgSrc, setImgSrc] = useState<string>(src || "/placeholder.svg"),
-   hasErroredRef = useRef(false),
-
-   handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    if (!hasErroredRef.current) {
-      hasErroredRef.current = true;
-      setImgSrc("/placeholder.svg");
-    }
-    if (onError) {
-      onError(e);
-    }
-  },
-
-   effectiveSrc = imgSrc || "/placeholder.svg",
-   isBlobOrDataOrFallback =
-    effectiveSrc.startsWith("blob:") ||
-    effectiveSrc.startsWith("data:") ||
-    effectiveSrc.startsWith("/") ||
-    hasErroredRef.current;
+    hasErroredRef = useRef(false),
+    handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      if (!hasErroredRef.current) {
+        hasErroredRef.current = true;
+        setImgSrc("/placeholder.svg");
+      }
+      if (onError) {
+        onError(e);
+      }
+    },
+    effectiveSrc = imgSrc || "/placeholder.svg",
+    isBlobOrDataOrFallback =
+      effectiveSrc.startsWith("blob:") ||
+      effectiveSrc.startsWith("data:") ||
+      effectiveSrc.startsWith("/") ||
+      hasErroredRef.current;
 
   if (isBlobOrDataOrFallback) {
     return (

@@ -47,7 +47,7 @@ export const stripeRequest = async <T>({
 
   const query = method === "GET" && params ? `?${params.toString()}` : "",
     response = await fetch(`https://api.stripe.com/v1${path}${query}`, {
-      body: method === "POST" ? params : undefined,
+      body: method === "POST" ? (params ? params.toString() : "") : undefined,
       headers,
       method,
     }),
@@ -134,13 +134,18 @@ export const retrieveStripePrice = (priceId: string) => {
 
 export const createStripeProduct = ({
   code,
+  description,
   name,
 }: {
   code: string;
+  description?: string;
   name: string;
 }) => {
   const params = new URLSearchParams();
   appendValue(params, "name", name);
+  if (description) {
+    appendValue(params, "description", description);
+  }
   appendValue(params, "metadata[soundkit_plan_code]", code);
 
   return stripeRequest<StripeProductSummary>({

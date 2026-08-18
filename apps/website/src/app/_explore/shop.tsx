@@ -46,35 +46,29 @@ const PAGE_SIZE = 20;
 
 function ShopPage() {
   const search = Route.useSearch(),
-   activeGenre = search.genre ?? "all",
-   [viewMode, setViewMode] = useState<"grid" | "list">(
-    search.view ?? "grid"
-  ),
-   [currentPage, setCurrentPage] = useState(1),
-
-   { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
-    forSale: true,
-    genre: activeGenre,
-    limit: 100,
-    region: "us-arkansas",
-    regionType: "north-america",
-    scope: "public",
-    sort: "plays-desc",
-  }),
-
-  // Ensure we filter for purchasability if backend flags it
-   shopTracks = rawTracks.filter(
-    (t) => t.isPurchasable ?? t.isForSale ?? true
-  ),
-
-   totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1,
-   paginatedTracks = shopTracks.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  ),
-
-   activeGenreLabel =
-    musicGenres.find((g) => g.value === activeGenre)?.label ?? "All Genres";
+    activeGenre = search.genre ?? "all",
+    [viewMode, setViewMode] = useState<"grid" | "list">(search.view ?? "grid"),
+    [currentPage, setCurrentPage] = useState(1),
+    { data: rawTracks = [], isLoading } = useTracksQuery(undefined, {
+      forSale: true,
+      genre: activeGenre,
+      limit: 100,
+      region: "us-arkansas",
+      regionType: "north-america",
+      scope: "public",
+      sort: "plays-desc",
+    }),
+    // Ensure we filter for purchasability if backend flags it
+    shopTracks = rawTracks.filter(
+      (t) => t.isPurchasable ?? t.isForSale ?? true
+    ),
+    totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1,
+    paginatedTracks = shopTracks.slice(
+      (currentPage - 1) * PAGE_SIZE,
+      currentPage * PAGE_SIZE
+    ),
+    activeGenreLabel =
+      musicGenres.find((g) => g.value === activeGenre)?.label ?? "All Genres";
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
@@ -406,18 +400,15 @@ function GenreShopRail({
   viewMode: "grid" | "list";
 }) {
   const { data: tracks = [] } = useTracksQuery(undefined, {
-    forSale: true,
-    genre: genre.value,
-    limit: 12,
-    region: "us-arkansas",
-    regionType: "north-america",
-    scope: "public",
-    sort: "plays-desc",
-  }),
-
-   shopTracks = tracks.filter(
-    (t) => t.isPurchasable ?? t.isForSale ?? true
-  );
+      forSale: true,
+      genre: genre.value,
+      limit: 12,
+      region: "us-arkansas",
+      regionType: "north-america",
+      scope: "public",
+      sort: "plays-desc",
+    }),
+    shopTracks = tracks.filter((t) => t.isPurchasable ?? t.isForSale ?? true);
 
   return (
     <section>

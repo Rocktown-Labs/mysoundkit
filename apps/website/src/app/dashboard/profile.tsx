@@ -50,47 +50,47 @@ const fetchPosts = async ({ pageParam = 0 }) => {
 
 function DashboardProfilePage() {
   const { ref, inView } = useInView(),
-   meQuery = useMeQuery(),
-   profile = meQuery.data?.user,
-   user = {
-    avatar: profile?.avatarUrl ?? "/diverse-user-avatars.png",
-    battleRecord: "0",
-    bio: profile?.bio ?? "No public bio yet.",
-    coverImage: profile?.headerUrl ?? "",
-    followers: "0",
-    following: "0",
-    genre: "Hip-Hop",
-    joinedDate: profile?.onboardingCompletedAt
-      ? new Intl.DateTimeFormat("en", {
-          month: "short",
-          year: "numeric",
-        }).format(new Date(profile.onboardingCompletedAt))
-      : "SoundKit",
-    links: {
-      appleMusic: profile?.links?.appleMusic,
-      instagram: profile?.links?.instagram,
-      personalSite: profile?.links?.personalSite,
-      soundcloud: profile?.links?.soundcloud,
-      spotify: profile?.links?.spotify,
-      tiktok: profile?.links?.tiktok,
-      twitter: profile?.links?.twitter,
-      youtube: profile?.links?.youtube,
+    meQuery = useMeQuery(),
+    profile = meQuery.data?.user,
+    user = {
+      avatar: profile?.avatarUrl ?? "/diverse-user-avatars.png",
+      battleRecord: "0",
+      bio: profile?.bio ?? "No public bio yet.",
+      coverImage: profile?.headerUrl ?? "",
+      followers: "0",
+      following: "0",
+      genre: "Hip-Hop",
+      joinedDate: profile?.onboardingCompletedAt
+        ? new Intl.DateTimeFormat("en", {
+            month: "short",
+            year: "numeric",
+          }).format(new Date(profile.onboardingCompletedAt))
+        : "SoundKit",
+      links: {
+        appleMusic: profile?.links?.appleMusic,
+        instagram: profile?.links?.instagram,
+        personalSite: profile?.links?.personalSite,
+        soundcloud: profile?.links?.soundcloud,
+        spotify: profile?.links?.spotify,
+        tiktok: profile?.links?.tiktok,
+        twitter: profile?.links?.twitter,
+        youtube: profile?.links?.youtube,
+      },
+      location: [profile?.city, profile?.state].filter(Boolean).join(", "),
+      monthlyListeners: "0",
+      name: profile?.stageName ?? profile?.displayName ?? "SoundKit Artist",
+      tracks: 0,
+      username: profile?.username ?? "profile",
+      verified: false,
     },
-    location: [profile?.city, profile?.state].filter(Boolean).join(", "),
-    monthlyListeners: "0",
-    name: profile?.stageName ?? profile?.displayName ?? "SoundKit Artist",
-    tracks: 0,
-    username: profile?.username ?? "profile",
-    verified: false,
-  },
-
-   { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useInfiniteQuery({
-      getNextPageParam: (lastPage, allPages) => allPages.length,
-      initialPageParam: 0,
-      queryFn: fetchPosts,
-      queryKey: ["profile-posts", user.username],
-    });
+    { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(
+      {
+        getNextPageParam: (lastPage, allPages) => allPages.length,
+        initialPageParam: 0,
+        queryFn: fetchPosts,
+        queryKey: ["profile-posts", user.username],
+      }
+    );
 
   useEffect(() => {
     if (inView && hasNextPage) {

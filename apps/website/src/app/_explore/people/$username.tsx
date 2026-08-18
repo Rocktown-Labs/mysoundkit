@@ -16,48 +16,48 @@ export const Route = createFileRoute("/_explore/people/$username")({
 
 function PublicUserProfilePage() {
   const { username } = Route.useParams(),
-   meQuery = useMeQuery(),
-   profileQuery = useQuery({
-    queryFn: async () => {
-      const response = await fetch(
-        `${API_V1_URL}/social/profiles/${encodeURIComponent(username)}`,
-        { credentials: "include" }
-      );
-      if (!response.ok) {
-        throw new Error("Profile not found.");
-      }
-      return (await response.json()) as {
-        accountType: "artist" | "fan";
-        avatarUrl: string | null;
-        bio: string | null;
-        displayName: string;
-        followerCount: number;
-        location: string | null;
-        username: string;
-      };
-    },
-    queryKey: ["public-profile", username],
-  }),
-   followMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(
-        `${API_V1_URL}/social/profiles/${encodeURIComponent(username)}/follow`,
-        { credentials: "include", method: "POST" }
-      );
-      if (!response.ok) {
-        throw new Error("Sign in to follow this profile.");
-      }
-      return (await response.json()) as { followerCount: number };
-    },
-    onSuccess: async () => {
-      await profileQuery.refetch();
-      toast({
-        description: `You now follow @${username}.`,
-        title: "Following",
-      });
-    },
-  }),
-   profile = profileQuery.data;
+    meQuery = useMeQuery(),
+    profileQuery = useQuery({
+      queryFn: async () => {
+        const response = await fetch(
+          `${API_V1_URL}/social/profiles/${encodeURIComponent(username)}`,
+          { credentials: "include" }
+        );
+        if (!response.ok) {
+          throw new Error("Profile not found.");
+        }
+        return (await response.json()) as {
+          accountType: "artist" | "fan";
+          avatarUrl: string | null;
+          bio: string | null;
+          displayName: string;
+          followerCount: number;
+          location: string | null;
+          username: string;
+        };
+      },
+      queryKey: ["public-profile", username],
+    }),
+    followMutation = useMutation({
+      mutationFn: async () => {
+        const response = await fetch(
+          `${API_V1_URL}/social/profiles/${encodeURIComponent(username)}/follow`,
+          { credentials: "include", method: "POST" }
+        );
+        if (!response.ok) {
+          throw new Error("Sign in to follow this profile.");
+        }
+        return (await response.json()) as { followerCount: number };
+      },
+      onSuccess: async () => {
+        await profileQuery.refetch();
+        toast({
+          description: `You now follow @${username}.`,
+          title: "Following",
+        });
+      },
+    }),
+    profile = profileQuery.data;
 
   if (profileQuery.isLoading) {
     return (

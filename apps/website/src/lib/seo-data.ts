@@ -49,12 +49,11 @@ export interface VideoSeoData {
 }
 
 const readObject = (value: unknown): Record<string, unknown> =>
-  typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : {},
-
- readString = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)
+      : {},
+  readString = (value: unknown): string | null =>
+    typeof value === "string" && value.trim() ? value.trim() : null;
 
 export const loadPublicTrackSeo = async (
   lookupId: string
@@ -68,9 +67,9 @@ export const loadPublicTrackSeo = async (
   }
 
   const rawTrack = readObject(await response.json()),
-   rawArtist = readObject(rawTrack.artist),
-   id = readString(rawTrack.id),
-   title = readString(rawTrack.title);
+    rawArtist = readObject(rawTrack.artist),
+    id = readString(rawTrack.id),
+    title = readString(rawTrack.title);
 
   if (!(id && title)) {
     return null;
@@ -109,8 +108,8 @@ export const loadPublicArtistSeo = async (
   }
 
   const rawArtist = readObject(await response.json()),
-   artistName = readString(rawArtist.name),
-   artistUsername = readString(rawArtist.username);
+    artistName = readString(rawArtist.name),
+    artistUsername = readString(rawArtist.username);
 
   if (!(artistName && artistUsername)) {
     return null;
@@ -138,8 +137,8 @@ export const loadPublicProjectSeo = async (
   }
 
   const rawProject = readObject(await response.json()),
-   id = readString(rawProject.id),
-   title = readString(rawProject.title);
+    id = readString(rawProject.id),
+    title = readString(rawProject.title);
 
   if (!(id && title)) {
     return null;
@@ -170,8 +169,8 @@ export const loadPublicVideoSeo = async (
   }
 
   const rawVideo = readObject(await response.json()),
-   id = readString(rawVideo.id),
-   title = readString(rawVideo.title);
+    id = readString(rawVideo.id),
+    title = readString(rawVideo.title);
 
   if (!(id && title)) {
     return null;

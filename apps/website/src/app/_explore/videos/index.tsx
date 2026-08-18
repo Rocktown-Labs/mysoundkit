@@ -1,5 +1,6 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Video } from "lucide-react";
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary */
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Video } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -30,9 +31,9 @@ export const Route = createFileRoute("/_explore/videos/")({
     genre:
       search.genre === "hip-hop"
         ? "hip-hop-rap"
-        : (typeof search.genre === "string"
+        : typeof search.genre === "string"
           ? search.genre
-          : undefined),
+          : undefined,
     region: typeof search.region === "string" ? search.region : undefined,
     regionType: search.regionType === "global" ? "global" : "north-america",
     sort: typeof search.sort === "string" ? search.sort : undefined,
@@ -41,56 +42,62 @@ export const Route = createFileRoute("/_explore/videos/")({
 });
 
 function VideosPage() {
-  const router = useRouter(),
-   search = Route.useSearch(),
-   navigate = Route.useNavigate(),
-
-   savedRegionType =
-    typeof window === "undefined"
-      ? null
-      : (localStorage.getItem("exploreRegionType") as
-          | "north-america"
-          | "global"
-          | null),
-   savedRegion =
-    typeof window === "undefined"
-      ? null
-      : localStorage.getItem("exploreRegion"),
-
-   regionType = search.regionType ?? savedRegionType ?? "north-america",
-   region = search.region ?? savedRegion ?? "us-arkansas",
-   genre = search.genre ?? "all",
-   sort = search.sort ?? "views-desc",
-   view = search.view ?? "sections",
-
-   updateFilters = (next: Partial<VideosSearch>) => {
-    const nextRegionType = next.regionType ?? regionType,
-     nextRegion = next.region ?? region;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("exploreRegionType", nextRegionType);
-      localStorage.setItem("exploreRegion", nextRegion);
-    }
-    navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        genre: next.genre ?? genre,
-        region: nextRegion,
-        regionType: nextRegionType,
-        sort: next.sort ?? sort,
-        view: next.view ?? view,
-      }),
+  const search = Route.useSearch(),
+    navigate = Route.useNavigate(),
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    region =
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+    genre = search.genre ?? "all",
+    sort = search.sort ?? "views-desc",
+    view = search.view ?? "sections",
+    updateFilters = (next: Partial<VideosSearch>) => {
+      const nextRegionType = next.regionType ?? regionType,
+        nextRegion =
+          next.region ??
+          (next.regionType === "global" && regionType !== "global"
+            ? "all"
+            : next.regionType === "north-america" &&
+                regionType !== "north-america"
+              ? "us-arkansas"
+              : region);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("exploreRegionType", nextRegionType);
+        localStorage.setItem("exploreRegion", nextRegion);
+      }
+      navigate({
+        replace: true,
+        search: (prev) => ({
+          ...prev,
+          genre: next.genre ?? genre,
+          region: nextRegion,
+          regionType: nextRegionType,
+          sort: next.sort ?? sort,
+          view: next.view ?? view,
+        }),
+      });
+    },
+    { data: videos = [], isLoading } = useVideosQuery({
+      genre,
+      limit: "48",
+      region,
+      regionType,
+      scope: "public",
+      sort,
     });
-  },
-
-   { data: videos = [], isLoading } = useVideosQuery({
-    genre,
-    limit: "48",
-    region,
-    regionType,
-    scope: "public",
-    sort,
-  });
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">

@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, Headphones, Mic, Radio } from "lucide-react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  Disc3,
+  Headphones,
+  Mic,
+  Play,
+  Radio,
+  Users,
+} from "lucide-react";
 
 import { CreateFanPartyDialog } from "@/components/explore/create-fan-party-dialog";
 import {
@@ -7,9 +16,12 @@ import {
   ExploreCollectionSection,
 } from "@/components/explore/explore-collection";
 import { LiveCollectionFilters } from "@/components/explore/live-collection-filters";
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { filterAndSortLiveItems } from "@/lib/live-collection";
+import {
+  filterAndSortLiveItems,
+  normalizeGenreValue,
+} from "@/lib/live-collection";
 import { musicGenres } from "@/lib/music-genres";
 import { useListeningPartiesQuery } from "@/lib/soundkit-api-hooks";
 import type { ListeningPartySummary } from "@/lib/soundkit-api-hooks";
@@ -45,79 +57,132 @@ const formatPartyDate = (value: string) =>
   }).format(new Date(value));
 
 function PartySummaryCard({ party }: { party: PartyCollectionItem }) {
-  const isLive = party.status === "live";
+  const isLive = party.status === "live",
+    coverArt =
+      party.playbackMode === "artist_hosted"
+        ? "/summer-music-album-cover.png"
+        : "/night-music-album-cover.png",
+    categoryLabel =
+      party.playbackMode === "artist_hosted"
+        ? "Artist Hosted"
+        : "Release Party",
+    tags = [
+      party.genre,
+      party.playbackMode.replaceAll("_", " "),
+      isLive ? "live" : "upcoming",
+    ].filter(Boolean) as string[];
 
   return (
     <Link
-      className="block w-full min-w-[280px]"
+      className="group block w-full text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
       params={{ id: party.liveRoomId ?? party.id }}
       to="/live/parties/$id"
     >
-      <Card className="h-full overflow-hidden border-border/50 bg-card/60 transition-colors hover:border-primary/60">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Badge variant={isLive ? "destructive" : "secondary"}>
-              {isLive ? (
-                <>
-                  <Radio className="mr-1 size-3" />
-                  Live
-                </>
-              ) : (
-                "Scheduled"
-              )}
-            </Badge>
-            <Badge variant="outline">
-              {party.playbackMode === "artist_hosted" ? (
-                <>
-                  <Mic className="mr-1 size-3" />
-                  Artist Hosted
-                </>
-              ) : (
-                "Release Party"
-              )}
-            </Badge>
+      <div className="flex flex-col gap-2.5">
+        {/* Album Cover Art Poster with responsive overlays */}
+        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted transition-transform duration-300 group-hover:scale-[1.02]">
+          <AppImage
+            alt={party.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            height={720}
+            src={coverArt}
+            width={1280}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+
+          {/* Top-left status badge */}
+          <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+            {isLive ? (
+              <span className="flex items-center gap-1 rounded bg-red-600 px-1.5 py-0.5 font-bold text-[11px] text-white uppercase tracking-wider shadow-sm">
+                <Radio className="size-3 animate-pulse" />
+                LIVE
+              </span>
+            ) : (
+              <span className="rounded bg-black/75 px-1.5 py-0.5 font-medium text-[11px] text-white/90 backdrop-blur-sm">
+                {formatPartyDate(party.scheduledStartAt)}
+              </span>
+            )}
           </div>
-          <div>
-            <h3 className="line-clamp-2 font-bold text-lg">{party.title}</h3>
-            <p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
-              {party.description ?? party.genre ?? "Listening party"}
+
+          {/* Bottom-left listeners / tracks badge */}
+          <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1.5">
+            <span className="flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] text-white/90 backdrop-blur-sm">
+              <Headphones className="size-3" />
+              {party.playbackMode === "artist_hosted"
+                ? "Artist Room"
+                : "Album Premiere"}
+            </span>
+          </div>
+
+          {/* Hover play button */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-black/30">
+            <div className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform duration-200 group-hover:scale-110">
+              <Play className="size-5 fill-current ml-0.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Party Details */}
+        <div className="flex gap-2.5">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted border border-border/40 text-primary">
+            <Disc3 className="size-4 animate-spin-slow" />
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <h3 className="truncate font-semibold text-foreground text-sm leading-snug transition-colors group-hover:text-primary">
+              {party.title}
+            </h3>
+
+            <div className="flex items-center gap-1 text-muted-foreground text-xs">
+              <span className="truncate">{categoryLabel}</span>
+              <CheckCircle2 className="size-3 text-primary shrink-0" />
+            </div>
+
+            <p className="truncate text-muted-foreground/80 text-xs">
+              {party.genre ?? "Listening Party"}
             </p>
+
+            <div className="flex flex-wrap items-center gap-1 pt-1">
+              {tags.slice(0, 3).map((tag) => (
+                <span
+                  className="rounded-full bg-muted/80 px-2 py-0.5 font-medium text-[10px] text-muted-foreground hover:bg-muted"
+                  key={tag}
+                >
+                  {tag.toLowerCase()}
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <CalendarClock className="size-4 text-primary" />
-            <span>{formatPartyDate(party.scheduledStartAt)}</span>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </Link>
   );
 }
 
 function LivePartiesPage() {
   const navigate = Route.useNavigate(),
-   search = Route.useSearch(),
-   { data: parties = [], isLoading } = useListeningPartiesQuery(),
-   genre = search.genre ?? "all",
-   sort = search.sort ?? "starts-asc",
-   status = search.status ?? "all",
-   view = search.view ?? "sections",
-   partyItems: PartyCollectionItem[] = parties.map((party) => ({
-    ...party,
-    startsAt: party.scheduledStartAt,
-    viewerCount: 0,
-  })),
-   filteredParties = filterAndSortLiveItems({
-    genre,
-    items: partyItems,
-    sort,
-    status,
-  }),
-
-   openCollection = (next: Partial<LivePartiesSearch>) => {
-    void navigate({
-      search: (previous) => ({ ...previous, ...next, view: "all" }),
-    });
-  };
+    search = Route.useSearch(),
+    { data: parties = [], isLoading } = useListeningPartiesQuery(),
+    genre = search.genre ?? "all",
+    sort = search.sort ?? "starts-asc",
+    status = search.status ?? "all",
+    view = search.view ?? "sections",
+    partyItems: PartyCollectionItem[] = parties.map((party) => ({
+      ...party,
+      startsAt: party.scheduledStartAt,
+      viewerCount: 0,
+    })),
+    filteredParties = filterAndSortLiveItems({
+      genre,
+      items: partyItems,
+      sort,
+      status,
+    }),
+    openCollection = (next: Partial<LivePartiesSearch>) => {
+      void navigate({
+        search: (previous) => ({ ...previous, ...next, view: "all" }),
+      });
+    };
 
   return (
     <div className="space-y-8 pb-8">
@@ -178,19 +243,30 @@ function LivePartiesPage() {
           >
             {(party) => <PartySummaryCard party={party} />}
           </ExploreCollectionSection>
-          {musicGenres.map((sectionGenre) => (
-            <ExploreCollectionSection
-              empty={`No ${sectionGenre.label} parties are scheduled.`}
-              items={partyItems.filter(
-                (party) => party.genre === sectionGenre.value
-              )}
-              key={sectionGenre.value}
-              onViewAll={() => openCollection({ genre: sectionGenre.value })}
-              title={sectionGenre.label}
-            >
-              {(party) => <PartySummaryCard party={party} />}
-            </ExploreCollectionSection>
-          ))}
+          {musicGenres.map((sectionGenre) => {
+            const sectionSlug = normalizeGenreValue(sectionGenre.value),
+              sectionLabel = normalizeGenreValue(sectionGenre.label);
+            return (
+              <ExploreCollectionSection
+                empty={`No ${sectionGenre.label} parties are scheduled.`}
+                items={partyItems.filter((party) => {
+                  const itemGenre = normalizeGenreValue(party.genre);
+                  return (
+                    party.genre === sectionGenre.value ||
+                    itemGenre === sectionSlug ||
+                    itemGenre === sectionLabel ||
+                    itemGenre.startsWith(sectionSlug) ||
+                    sectionSlug.startsWith(itemGenre)
+                  );
+                })}
+                key={sectionGenre.value}
+                onViewAll={() => openCollection({ genre: sectionGenre.value })}
+                title={sectionGenre.label}
+              >
+                {(party) => <PartySummaryCard party={party} />}
+              </ExploreCollectionSection>
+            );
+          })}
         </>
       )}
     </div>

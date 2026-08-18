@@ -21,27 +21,26 @@ const genreRows = [
 
 function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
   const { setCurrentTrack, setQueue } = useAudioPlayer(),
+    playListing = () => {
+      if (!listing.playbackUrl) {
+        return;
+      }
 
-   playListing = () => {
-    if (!listing.playbackUrl) {
-      return;
-    }
+      const playerTrack = {
+        artist: listing.artistName,
+        artistHref: listing.artistUsername
+          ? `/artist/${listing.artistUsername}`
+          : "/dashboard/profile",
+        cover: listing.coverArtUrl ?? "/placeholder.svg",
+        id: listing.trackId,
+        src: listing.playbackUrl,
+        title: listing.trackTitle,
+        trackHref: `/tracks/${listing.trackId}`,
+      };
 
-    const playerTrack = {
-      artist: listing.artistName,
-      artistHref: listing.artistUsername
-        ? `/artist/${listing.artistUsername}`
-        : "/dashboard/profile",
-      cover: listing.coverArtUrl ?? "/placeholder.svg",
-      id: listing.trackId,
-      src: listing.playbackUrl,
-      title: listing.trackTitle,
-      trackHref: `/tracks/${listing.trackId}`,
+      setQueue([playerTrack]);
+      setCurrentTrack(playerTrack);
     };
-
-    setQueue([playerTrack]);
-    setCurrentTrack(playerTrack);
-  };
 
   return (
     <Card className="w-72 shrink-0 border-border/40 bg-card/50">
@@ -85,9 +84,9 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
 
 function GenreRow({ label, slug }: { label: string; slug?: string }) {
   const query = useOpenVersesInfiniteQuery(
-    slug ? { genre: slug, limit: "10" } : { limit: "10" }
-  ),
-   listings = query.data?.pages.flatMap((page) => page.items) ?? [];
+      slug ? { genre: slug, limit: "10" } : { limit: "10" }
+    ),
+    listings = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <section className="space-y-3">

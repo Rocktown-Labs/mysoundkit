@@ -30,17 +30,17 @@ const buildApp = () => {
 describe("json body middleware", () => {
   it("leaves the request body stream readable for handlers using c.req.raw", async () => {
     const app = buildApp(),
-     response = await app.request(
-      "http://soundkit.test/v1/uploads/track-source",
-      {
-        body: JSON.stringify({
-          files: [{ name: "master.wav", size: 100, type: "audio/wav" }],
-          route: "track-source",
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
+      response = await app.request(
+        "http://soundkit.test/v1/uploads/track-source",
+        {
+          body: JSON.stringify({
+            files: [{ name: "master.wav", size: 100, type: "audio/wav" }],
+            route: "track-source",
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }
+      );
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -54,14 +54,14 @@ describe("json body middleware", () => {
 
   it("rejects malformed JSON before it reaches the handler", async () => {
     const app = buildApp(),
-     response = await app.request(
-      "http://soundkit.test/v1/uploads/track-source",
-      {
-        body: "{not json",
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }
-    );
+      response = await app.request(
+        "http://soundkit.test/v1/uploads/track-source",
+        {
+          body: "{not json",
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }
+      );
 
     expect(response.status).toBe(400);
     const body = await response.json<{

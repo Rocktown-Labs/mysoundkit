@@ -70,56 +70,55 @@ export interface LiveRoomState {
 }
 
 const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
+  fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
+    const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
+      credentials: "include",
+    });
 
- fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
-  const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
-    credentials: "include",
-  });
+    if (!response.ok) {
+      throw new Error(`Unable to load live room: ${response.status}`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Unable to load live room: ${response.status}`);
-  }
+    return response.json() as Promise<LiveRoomState>;
+  },
+  postLiveRoom = async (
+    roomId: string,
+    path: "chat" | "vote",
+    body: unknown
+  ): Promise<LiveRoomState> => {
+    const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}/${path}`, {
+      body: JSON.stringify(body),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
 
-  return response.json() as Promise<LiveRoomState>;
-},
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        message?: string;
+      } | null;
+      throw new Error(
+        payload?.message ?? `Live room update failed: ${response.status}`
+      );
+    }
 
- postLiveRoom = async (
-  roomId: string,
-  path: "chat" | "vote",
-  body: unknown
-): Promise<LiveRoomState> => {
-  const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}/${path}`, {
-    body: JSON.stringify(body),
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      message?: string;
-    } | null;
-    throw new Error(
-      payload?.message ?? `Live room update failed: ${response.status}`
-    );
-  }
-
-  return response.json() as Promise<LiveRoomState>;
-},
-
- wsUrlForRoom = (roomId: string) => {
-  const url = new URL(`${API_BASE_URL}/v1/live/rooms/${roomId}/ws`);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  return url.toString();
-};
+    return response.json() as Promise<LiveRoomState>;
+  },
+  wsUrlForRoom = (roomId: string) => {
+    const url = new URL(`${API_BASE_URL}/v1/live/rooms/${roomId}/ws`);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    return url.toString();
+  };
 
 export const useLiveRoom = (roomId: string) => {
   const queryClient = useQueryClient(),
-   query = useQuery({
-    queryFn: () => fetchLiveRoom(roomId),
-    queryKey: liveRoomKey(roomId),
-    refetchInterval: 30_000,
-  });
+    query = useQuery({
+      enabled: Boolean(roomId),
+      queryFn: () => fetchLiveRoom(roomId),
+      queryKey: liveRoomKey(roomId),
+      refetchInterval: 30_000,
+      retry: false,
+    });
 
   useEffect(() => {
     if (typeof window === "undefined" || !roomId) {
@@ -143,19 +142,18 @@ export const useLiveRoom = (roomId: string) => {
   }, [queryClient, roomId]);
 
   const chatMutation = useMutation({
-    mutationFn: (body: { message: string; userName?: string }) =>
-      postLiveRoom(roomId, "chat", body),
-    onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
-  }),
-
-   voteMutation = useMutation({
-    mutationFn: (body: {
-      artistId: string;
-      roundId: string;
-      voterId?: string;
-    }) => postLiveRoom(roomId, "vote", body),
-    onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
-  });
+      mutationFn: (body: { message: string; userName?: string }) =>
+        postLiveRoom(roomId, "chat", body),
+      onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
+    }),
+    voteMutation = useMutation({
+      mutationFn: (body: {
+        artistId: string;
+        roundId: string;
+        voterId?: string;
+      }) => postLiveRoom(roomId, "vote", body),
+      onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
+    });
 
   return {
     chat: chatMutation,

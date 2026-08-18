@@ -1,3 +1,4 @@
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group */
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -187,14 +188,11 @@ test.describe("main application surfaces", () => {
     test.setTimeout(45_000);
 
     await gotoWithViteRetry(page, "/live/parties/single-album-party");
-    await expect(page.getByText("Loading live room...")).toBeHidden({
-      timeout: 20_000,
-    });
     await expect(
-      page.getByRole("heading", { name: /single album spotlight/i })
-    ).toBeVisible();
+      page.getByRole("heading", { name: /single album spotlight/i }).first()
+    ).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/lyrics/i).first()).toBeVisible();
-    await expect(page.getByText(/this room is synced/i)).toBeVisible();
+    await expect(page.getByText(/this room is synced/i).first()).toBeVisible();
 
     await gotoWithViteRetry(page, "/live/battles/battle-1");
     await expect(
@@ -212,8 +210,37 @@ test.describe("main application surfaces", () => {
         name: /beat making from the first drum hit/i,
       })
     ).toBeVisible();
-    await expect(page.getByText("Media Path", { exact: true })).toBeVisible();
-    await expect(page.getByText("Live Signals")).toBeVisible();
+    await expect(page.getByRole("tab", { name: "About" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Music" })).toBeVisible();
+
+    // Verify Twitch-style chat collapse & expand
+    await expect(page.getByText("Stream Chat")).toBeVisible();
+    await page.getByTitle("Collapse Chat").click();
+    await expect(page.getByText("Stream Chat")).toBeHidden();
+    const expandChatButton = page.getByRole("button", {
+      name: /(expand chat|open live chat)/i,
+    });
+    await expect(expandChatButton).toBeVisible();
+    await expandChatButton.click();
+    await expect(page.getByText("Stream Chat")).toBeVisible();
+
+    // Verify video detail route chat collapse & expand
+    await gotoWithViteRetry(page, "/videos/video-1");
+    await expect(page.getByText("Comments & Chat").first()).toBeVisible();
+    await page.getByTitle("Collapse Chat").click();
+    await expect(page.getByText("Comments & Chat")).toBeHidden();
+    const expandVideoChat = page.getByRole("button", {
+      name: /(expand chat|open live chat)/i,
+    });
+    await expect(expandVideoChat).toBeVisible();
+    await expandVideoChat.click();
+    await expect(page.getByText("Comments & Chat").first()).toBeVisible();
+
+    // Verify Live Index retains standard layout & hero
+    await gotoWithViteRetry(page, "/live");
+    await expect(
+      page.getByRole("heading", { name: /the pulse of soundkit/i })
+    ).toBeVisible();
   });
 
   test("signup surfaces load without console errors", async ({ page }) => {

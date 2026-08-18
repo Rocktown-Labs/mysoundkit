@@ -70,98 +70,98 @@ export const Route = createFileRoute("/dashboard/tracks/")({
 
 function TracksPage() {
   const initialTracks = Route.useLoaderData(),
-   { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks),
-   deleteTrackMutation = useDeleteTrackMutation(),
-   meQuery = useMeQuery(),
-   { setCurrentTrack, setQueue } = useAudioPlayer(),
-   [deleteCandidate, setDeleteCandidate] = useState<{
-    id: string;
-    title: string;
-  } | null>(null),
-   [deleteConfirmation, setDeleteConfirmation] = useState(""),
-   completedCount = tracks.filter(
-    (track) => track.productionStatus === "complete"
-  ).length,
-   trackStats = [
-    {
-      description: "Across all genres and projects",
-      icon: Music,
-      title: "Total Tracks",
-      value: String(tracks.length),
+    { data: tracks = [], error, isLoading } = useTracksQuery(initialTracks),
+    deleteTrackMutation = useDeleteTrackMutation(),
+    meQuery = useMeQuery(),
+    { setCurrentTrack, setQueue } = useAudioPlayer(),
+    [deleteCandidate, setDeleteCandidate] = useState<{
+      id: string;
+      title: string;
+    } | null>(null),
+    [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    completedCount = tracks.filter(
+      (track) => track.productionStatus === "complete"
+    ).length,
+    trackStats = [
+      {
+        description: "Across all genres and projects",
+        icon: Music,
+        title: "Total Tracks",
+        value: String(tracks.length),
+      },
+      {
+        description: "Active recording and processing",
+        icon: Mic2,
+        title: "In Production",
+        value: String(Math.max(tracks.length - completedCount, 0)),
+      },
+      {
+        description: "Mixed, mastered and ready",
+        icon: Disc,
+        title: "Completed",
+        value: String(completedCount),
+      },
+      {
+        description: "Platform-wide engagement",
+        icon: PlayCircle,
+        title: "Total Plays",
+        value: String(tracks.reduce((total, track) => total + track.plays, 0)),
+      },
+    ],
+    playableTracks = tracks
+      .filter((track) => Boolean(track.playbackUrl))
+      .map((track) => ({
+        artist: track.artistName,
+        artistHref: track.artistUsername
+          ? `/artist/${track.artistUsername}`
+          : "/dashboard/profile",
+        cover: track.coverArtUrl ?? "/placeholder.svg",
+        id: track.id,
+        src: track.playbackUrl ?? "",
+        title: track.title,
+        trackHref: `/tracks/${track.id}`,
+      })),
+    playTrack = (trackId: string) => {
+      const track = playableTracks.find((entry) => entry.id === trackId);
+
+      if (!track) {
+        return;
+      }
+
+      setQueue(playableTracks);
+      setCurrentTrack(track);
     },
-    {
-      description: "Active recording and processing",
-      icon: Mic2,
-      title: "In Production",
-      value: String(Math.max(tracks.length - completedCount, 0)),
-    },
-    {
-      description: "Mixed, mastered and ready",
-      icon: Disc,
-      title: "Completed",
-      value: String(completedCount),
-    },
-    {
-      description: "Platform-wide engagement",
-      icon: PlayCircle,
-      title: "Total Plays",
-      value: String(tracks.reduce((total, track) => total + track.plays, 0)),
-    },
-  ],
+    downloadTrackMaster = async (track: (typeof tracks)[number]) => {
+      if (!track.downloadUrl) {
+        toast({
+          description:
+            "No guarded master download is available for this track.",
+          title: "Download unavailable",
+          variant: "destructive",
+        });
+        return;
+      }
 
-   playableTracks = tracks
-    .filter((track) => Boolean(track.playbackUrl))
-    .map((track) => ({
-      artist: track.artistName,
-      artistHref: track.artistUsername
-        ? `/artist/${track.artistUsername}`
-        : "/dashboard/profile",
-      cover: track.coverArtUrl ?? "/placeholder.svg",
-      id: track.id,
-      src: track.playbackUrl ?? "",
-      title: track.title,
-      trackHref: `/tracks/${track.id}`,
-    })),
-
-   playTrack = (trackId: string) => {
-    const track = playableTracks.find((entry) => entry.id === trackId);
-
-    if (!track) {
-      return;
-    }
-
-    setQueue(playableTracks);
-    setCurrentTrack(track);
-  },
-
-   downloadTrackMaster = async (track: (typeof tracks)[number]) => {
-    if (!track.downloadUrl) {
-      toast({
-        description: "No guarded master download is available for this track.",
-        title: "Download unavailable",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await downloadFileFromApi({
-        fallbackFileName: `${track.title}.download`,
-        url: track.downloadUrl,
-      });
-      toast({
-        description: `Downloading ${track.title}...`,
-        title: "Starting Download",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Unable to download master.",
-        title: "Download unavailable",
-        variant: "destructive",
-      });
-    }
-  };
+      try {
+        await downloadFileFromApi({
+          fallbackFileName: `${track.title}.download`,
+          url: track.downloadUrl,
+        });
+        toast({
+          description: `Downloading ${track.title}...`,
+          title: "Starting Download",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to download master.",
+          title: "Download unavailable",
+          variant: "destructive",
+        });
+      }
+    };
 
   return (
     <div className="space-y-6">

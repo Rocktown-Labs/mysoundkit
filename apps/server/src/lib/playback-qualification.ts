@@ -26,30 +26,28 @@ import {
 type SoundKitDb = ReturnType<typeof createDb>;
 
 const defaultRewardConfig = {
-  currency: "USD",
-  deduplicationWindowHours: 24,
-  id: null as string | null,
-  playbackThresholdPercent: 70,
-  playbackThresholdSeconds: 0,
-  version: streamQualificationRuleVersion,
-},
-
- qualifyingAssetKinds = [
-  "master",
-  "tagged_mp3",
-  "untagged_wav",
-  "variant_audio",
-  "instrumental",
-] as const,
-
- financialCollaboratorRoles = [
-  "artist",
-  "producer",
-  "vocalist",
-  "songwriter",
-] as const,
- activeSubscriptionStatuses = ["active", "trialing"] as const,
- artistPremiumPlanCodes = ["soundkit_premium_artist", "artist_team"];
+    currency: "USD",
+    deduplicationWindowHours: 24,
+    id: null as string | null,
+    playbackThresholdPercent: 70,
+    playbackThresholdSeconds: 0,
+    version: streamQualificationRuleVersion,
+  },
+  qualifyingAssetKinds = [
+    "master",
+    "tagged_mp3",
+    "untagged_wav",
+    "variant_audio",
+    "instrumental",
+  ] as const,
+  financialCollaboratorRoles = [
+    "artist",
+    "producer",
+    "vocalist",
+    "songwriter",
+  ] as const,
+  activeSubscriptionStatuses = ["active", "trialing"] as const,
+  artistPremiumPlanCodes = ["soundkit_premium_artist", "artist_team"];
 
 export interface PlaybackEntitlementSnapshot {
   activePlanCode: string | null;
@@ -88,278 +86,273 @@ export type PlaybackQualificationResult =
   | "qualified";
 
 const monthWindow = (date: Date) => {
-  const startsAt = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
-  ),
-   endsAt = new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)
-  );
-
-  return { endsAt, startsAt };
-},
-
- getActiveRewardConfig = async (db: SoundKitDb) => {
-  const [config] = await db
-    .select({
-      currency: rewardConfigurationVersions.currency,
-      deduplicationWindowHours:
-        rewardConfigurationVersions.deduplicationWindowHours,
-      id: rewardConfigurationVersions.id,
-      playbackThresholdPercent:
-        rewardConfigurationVersions.playbackThresholdPercent,
-      playbackThresholdSeconds:
-        rewardConfigurationVersions.playbackThresholdSeconds,
-      version: rewardConfigurationVersions.version,
-    })
-    .from(rewardConfigurationVersions)
-    .where(eq(rewardConfigurationVersions.status, "active"))
-    .orderBy(desc(rewardConfigurationVersions.version))
-    .limit(1);
-
-  return config ?? defaultRewardConfig;
-},
-
- getOrCreateAccountingPeriod = async ({
-  configurationVersionId,
-  currency,
-  db,
-  now,
-}: {
-  configurationVersionId: string | null;
-  currency: string;
-  db: SoundKitDb;
-  now: Date;
-}) => {
-  const { endsAt, startsAt } = monthWindow(now),
-   [existing] = await db
-    .select({ id: accountingPeriods.id })
-    .from(accountingPeriods)
-    .where(
-      and(
-        eq(accountingPeriods.periodType, "monthly"),
-        eq(accountingPeriods.currency, currency),
-        eq(accountingPeriods.startsAt, startsAt),
-        eq(accountingPeriods.endsAt, endsAt)
-      )
-    )
-    .limit(1);
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = crypto.randomUUID();
-  await db
-    .insert(accountingPeriods)
-    .values({
-      configurationVersionId,
-      currency,
-      endsAt,
-      id,
-      periodType: "monthly",
-      startsAt,
-      status: "open",
-    })
-    .onConflictDoNothing();
-
-  const [period] = await db
-    .select({ id: accountingPeriods.id })
-    .from(accountingPeriods)
-    .where(
-      and(
-        eq(accountingPeriods.periodType, "monthly"),
-        eq(accountingPeriods.currency, currency),
-        eq(accountingPeriods.startsAt, startsAt),
-        eq(accountingPeriods.endsAt, endsAt)
-      )
-    )
-    .limit(1);
-
-  return period?.id ?? id;
-},
-
- getPublicTrackWithPrimaryAsset = async ({
-  db,
-  trackId,
-}: {
-  db: SoundKitDb;
-  trackId: string;
-}) => {
-  const [track] = await db
-    .select({
-      id: tracks.id,
-      isPublic: tracks.isPublic,
-      organizationId: tracks.organizationId,
-      ownerUserId: tracks.ownerUserId,
-    })
-    .from(tracks)
-    .where(eq(tracks.id, trackId))
-    .limit(1);
-
-  if (!track?.isPublic) {
-    return null;
-  }
-
-  // Projects listed for sale stay purchase-only until the artist opens streaming.
-  // Give creators a sales window before Premium streams qualify on those cuts.
-  const [forSaleProject] = await db
-    .select({ projectId: projects.id })
-    .from(projectTracks)
-    .innerJoin(projects, eq(projects.id, projectTracks.projectId))
-    .where(
-      and(eq(projectTracks.trackId, trackId), eq(projects.isForSale, true))
-    )
-    .limit(1);
-
-  if (forSaleProject) {
-    return null;
-  }
-
-  const [asset] = await db
-    .select({
-      durationMs: trackAssets.durationMs,
-      id: trackAssets.id,
-    })
-    .from(trackAssets)
-    .where(
-      and(
-        eq(trackAssets.trackId, trackId),
-        inArray(trackAssets.assetKind, [...qualifyingAssetKinds])
-      )
-    )
-    .orderBy(desc(trackAssets.durationMs))
-    .limit(1);
-
-  return {
-    ...track,
-    assetId: asset?.id ?? null,
-    durationMs: asset?.durationMs ?? null,
-  };
-},
-
- listenerHasFinancialInterest = async ({
-  db,
-  listenerUserId,
-  organizationId,
-  ownerUserId,
-  trackId,
-}: {
-  db: SoundKitDb;
-  listenerUserId: string;
-  organizationId: string | null;
-  ownerUserId: string;
-  trackId: string;
-}) => {
-  if (listenerUserId === ownerUserId) {
-    return true;
-  }
-
-  if (organizationId) {
-    const rows = await db
-      .select({ memberUserId: member.userId })
-      .from(member)
-      .innerJoin(
-        subscription,
-        eq(subscription.referenceId, member.organizationId)
-      )
-      .where(
-        and(
-          eq(member.organizationId, organizationId),
-          inArray(subscription.plan, artistPremiumPlanCodes),
-          inArray(subscription.status, [...activeSubscriptionStatuses])
-        )
+    const startsAt = new Date(
+        Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
+      ),
+      endsAt = new Date(
+        Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)
       );
 
-    if (
-      shouldExcludeArtistSeatStream({
-        artistPlanMemberUserIds: rows.map(({ memberUserId }) => memberUserId),
-        listenerUserId,
+    return { endsAt, startsAt };
+  },
+  getActiveRewardConfig = async (db: SoundKitDb) => {
+    const [config] = await db
+      .select({
+        currency: rewardConfigurationVersions.currency,
+        deduplicationWindowHours:
+          rewardConfigurationVersions.deduplicationWindowHours,
+        id: rewardConfigurationVersions.id,
+        playbackThresholdPercent:
+          rewardConfigurationVersions.playbackThresholdPercent,
+        playbackThresholdSeconds:
+          rewardConfigurationVersions.playbackThresholdSeconds,
+        version: rewardConfigurationVersions.version,
       })
-    ) {
-      return true;
+      .from(rewardConfigurationVersions)
+      .where(eq(rewardConfigurationVersions.status, "active"))
+      .orderBy(desc(rewardConfigurationVersions.version))
+      .limit(1);
+
+    return config ?? defaultRewardConfig;
+  },
+  getOrCreateAccountingPeriod = async ({
+    configurationVersionId,
+    currency,
+    db,
+    now,
+  }: {
+    configurationVersionId: string | null;
+    currency: string;
+    db: SoundKitDb;
+    now: Date;
+  }) => {
+    const { endsAt, startsAt } = monthWindow(now),
+      [existing] = await db
+        .select({ id: accountingPeriods.id })
+        .from(accountingPeriods)
+        .where(
+          and(
+            eq(accountingPeriods.periodType, "monthly"),
+            eq(accountingPeriods.currency, currency),
+            eq(accountingPeriods.startsAt, startsAt),
+            eq(accountingPeriods.endsAt, endsAt)
+          )
+        )
+        .limit(1);
+
+    if (existing) {
+      return existing.id;
     }
-  }
 
-  const [collaborator] = await db
-    .select({ id: trackCollaborators.id })
-    .from(trackCollaborators)
-    .where(
-      and(
-        eq(trackCollaborators.trackId, trackId),
-        eq(trackCollaborators.collaboratorUserId, listenerUserId),
-        eq(trackCollaborators.invitationStatus, "accepted"),
-        inArray(trackCollaborators.collaboratorRole, [
-          ...financialCollaboratorRoles,
-        ])
-      )
-    )
-    .limit(1);
+    const id = crypto.randomUUID();
+    await db
+      .insert(accountingPeriods)
+      .values({
+        configurationVersionId,
+        currency,
+        endsAt,
+        id,
+        periodType: "monthly",
+        startsAt,
+        status: "open",
+      })
+      .onConflictDoNothing();
 
-  if (collaborator) {
-    return true;
-  }
-
-  const [rightsholder] = await db
-    .select({ id: recordingRightsholders.id })
-    .from(recordingRightsholders)
-    .where(
-      and(
-        eq(recordingRightsholders.trackId, trackId),
-        eq(recordingRightsholders.payeeType, "artist"),
-        eq(recordingRightsholders.payeeId, listenerUserId),
-        eq(recordingRightsholders.status, "active"),
-        or(
-          isNull(recordingRightsholders.effectiveTo),
-          gt(recordingRightsholders.effectiveTo, new Date())
+    const [period] = await db
+      .select({ id: accountingPeriods.id })
+      .from(accountingPeriods)
+      .where(
+        and(
+          eq(accountingPeriods.periodType, "monthly"),
+          eq(accountingPeriods.currency, currency),
+          eq(accountingPeriods.startsAt, startsAt),
+          eq(accountingPeriods.endsAt, endsAt)
         )
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  return Boolean(rightsholder);
-},
-
- updateRecentPlay = async ({
-  db,
-  listenerUserId,
-  now,
-  trackId,
-}: {
-  db: SoundKitDb;
-  listenerUserId: string;
-  now: Date;
-  trackId: string;
-}) => {
-  const [existing] = await db
-    .select({ id: recentPlays.id, playCount: recentPlays.playCount })
-    .from(recentPlays)
-    .where(
-      and(
-        eq(recentPlays.userId, listenerUserId),
-        eq(recentPlays.trackId, trackId)
-      )
-    )
-    .limit(1);
-
-  if (existing) {
-    await db
-      .update(recentPlays)
-      .set({
-        lastPlayedAt: now,
-        playCount: sql`${recentPlays.playCount} + 1`,
-      })
-      .where(eq(recentPlays.id, existing.id));
-    return;
-  }
-
-  await db.insert(recentPlays).values({
-    id: crypto.randomUUID(),
-    lastPlayedAt: now,
-    playCount: 1,
+    return period?.id ?? id;
+  },
+  getPublicTrackWithPrimaryAsset = async ({
+    db,
     trackId,
-    userId: listenerUserId,
-  });
-};
+  }: {
+    db: SoundKitDb;
+    trackId: string;
+  }) => {
+    const [track] = await db
+      .select({
+        id: tracks.id,
+        isPublic: tracks.isPublic,
+        organizationId: tracks.organizationId,
+        ownerUserId: tracks.ownerUserId,
+      })
+      .from(tracks)
+      .where(eq(tracks.id, trackId))
+      .limit(1);
+
+    if (!track?.isPublic) {
+      return null;
+    }
+
+    // Projects listed for sale stay purchase-only until the artist opens streaming.
+    // Give creators a sales window before Premium streams qualify on those cuts.
+    const [forSaleProject] = await db
+      .select({ projectId: projects.id })
+      .from(projectTracks)
+      .innerJoin(projects, eq(projects.id, projectTracks.projectId))
+      .where(
+        and(eq(projectTracks.trackId, trackId), eq(projects.isForSale, true))
+      )
+      .limit(1);
+
+    if (forSaleProject) {
+      return null;
+    }
+
+    const [asset] = await db
+      .select({
+        durationMs: trackAssets.durationMs,
+        id: trackAssets.id,
+      })
+      .from(trackAssets)
+      .where(
+        and(
+          eq(trackAssets.trackId, trackId),
+          inArray(trackAssets.assetKind, [...qualifyingAssetKinds])
+        )
+      )
+      .orderBy(desc(trackAssets.durationMs))
+      .limit(1);
+
+    return {
+      ...track,
+      assetId: asset?.id ?? null,
+      durationMs: asset?.durationMs ?? null,
+    };
+  },
+  listenerHasFinancialInterest = async ({
+    db,
+    listenerUserId,
+    organizationId,
+    ownerUserId,
+    trackId,
+  }: {
+    db: SoundKitDb;
+    listenerUserId: string;
+    organizationId: string | null;
+    ownerUserId: string;
+    trackId: string;
+  }) => {
+    if (listenerUserId === ownerUserId) {
+      return true;
+    }
+
+    if (organizationId) {
+      const rows = await db
+        .select({ memberUserId: member.userId })
+        .from(member)
+        .innerJoin(
+          subscription,
+          eq(subscription.referenceId, member.organizationId)
+        )
+        .where(
+          and(
+            eq(member.organizationId, organizationId),
+            inArray(subscription.plan, artistPremiumPlanCodes),
+            inArray(subscription.status, [...activeSubscriptionStatuses])
+          )
+        );
+
+      if (
+        shouldExcludeArtistSeatStream({
+          artistPlanMemberUserIds: rows.map(({ memberUserId }) => memberUserId),
+          listenerUserId,
+        })
+      ) {
+        return true;
+      }
+    }
+
+    const [collaborator] = await db
+      .select({ id: trackCollaborators.id })
+      .from(trackCollaborators)
+      .where(
+        and(
+          eq(trackCollaborators.trackId, trackId),
+          eq(trackCollaborators.collaboratorUserId, listenerUserId),
+          eq(trackCollaborators.invitationStatus, "accepted"),
+          inArray(trackCollaborators.collaboratorRole, [
+            ...financialCollaboratorRoles,
+          ])
+        )
+      )
+      .limit(1);
+
+    if (collaborator) {
+      return true;
+    }
+
+    const [rightsholder] = await db
+      .select({ id: recordingRightsholders.id })
+      .from(recordingRightsholders)
+      .where(
+        and(
+          eq(recordingRightsholders.trackId, trackId),
+          eq(recordingRightsholders.payeeType, "artist"),
+          eq(recordingRightsholders.payeeId, listenerUserId),
+          eq(recordingRightsholders.status, "active"),
+          or(
+            isNull(recordingRightsholders.effectiveTo),
+            gt(recordingRightsholders.effectiveTo, new Date())
+          )
+        )
+      )
+      .limit(1);
+
+    return Boolean(rightsholder);
+  },
+  updateRecentPlay = async ({
+    db,
+    listenerUserId,
+    now,
+    trackId,
+  }: {
+    db: SoundKitDb;
+    listenerUserId: string;
+    now: Date;
+    trackId: string;
+  }) => {
+    const [existing] = await db
+      .select({ id: recentPlays.id, playCount: recentPlays.playCount })
+      .from(recentPlays)
+      .where(
+        and(
+          eq(recentPlays.userId, listenerUserId),
+          eq(recentPlays.trackId, trackId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(recentPlays)
+        .set({
+          lastPlayedAt: now,
+          playCount: sql`${recentPlays.playCount} + 1`,
+        })
+        .where(eq(recentPlays.id, existing.id));
+      return;
+    }
+
+    await db.insert(recentPlays).values({
+      id: crypto.randomUUID(),
+      lastPlayedAt: now,
+      playCount: 1,
+      trackId,
+      userId: listenerUserId,
+    });
+  };
 
 export const createTrackPlaybackSession = async ({
   db,
@@ -378,7 +371,7 @@ export const createTrackPlaybackSession = async ({
   }
 
   const now = new Date(),
-   id = crypto.randomUUID();
+    id = crypto.randomUUID();
   await db.insert(playbackSessions).values({
     assetId: track.assetId,
     city: input.city,
@@ -422,17 +415,17 @@ export const recordPlaybackProgress = async ({
   input: PlaybackProgressInput;
 }) => {
   const now = new Date(),
-   [session] = await db
-    .select()
-    .from(playbackSessions)
-    .where(
-      and(
-        eq(playbackSessions.id, input.sessionId),
-        eq(playbackSessions.trackId, input.trackId),
-        eq(playbackSessions.userId, input.listenerUserId)
+    [session] = await db
+      .select()
+      .from(playbackSessions)
+      .where(
+        and(
+          eq(playbackSessions.id, input.sessionId),
+          eq(playbackSessions.trackId, input.trackId),
+          eq(playbackSessions.userId, input.listenerUserId)
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
   if (!session || session.status === "rejected") {
     return { result: "ineligible" as PlaybackQualificationResult };
@@ -476,9 +469,9 @@ export const recordPlaybackProgress = async ({
   }
 
   const durationSeconds =
-    input.durationSeconds ??
-    (track.durationMs ? Math.ceil(track.durationMs / 1000) : 0),
-   config = await getActiveRewardConfig(db);
+      input.durationSeconds ??
+      (track.durationMs ? Math.ceil(track.durationMs / 1000) : 0),
+    config = await getActiveRewardConfig(db);
 
   if (
     !hasReachedQualifiedPlayback({
@@ -504,36 +497,36 @@ export const recordPlaybackProgress = async ({
   }
 
   const duplicateCutoff = new Date(
-    now.getTime() - config.deduplicationWindowHours * 60 * 60 * 1000
-  ),
-   [recentQualified] = await db
-    .select({ id: qualifiedStreams.id })
-    .from(qualifiedStreams)
-    .where(
-      and(
-        eq(qualifiedStreams.userId, input.listenerUserId),
-        eq(qualifiedStreams.trackId, input.trackId),
-        gt(qualifiedStreams.qualifiedAt, duplicateCutoff),
-        inArray(qualifiedStreams.status, ["qualified", "held"])
+      now.getTime() - config.deduplicationWindowHours * 60 * 60 * 1000
+    ),
+    [recentQualified] = await db
+      .select({ id: qualifiedStreams.id })
+      .from(qualifiedStreams)
+      .where(
+        and(
+          eq(qualifiedStreams.userId, input.listenerUserId),
+          eq(qualifiedStreams.trackId, input.trackId),
+          gt(qualifiedStreams.qualifiedAt, duplicateCutoff),
+          inArray(qualifiedStreams.status, ["qualified", "held"])
+        )
       )
-    )
-    .limit(1);
+      .limit(1);
 
   if (recentQualified) {
     return { result: "duplicate" as PlaybackQualificationResult };
   }
 
   const accountingPeriodId = await getOrCreateAccountingPeriod({
-    configurationVersionId: config.id,
-    currency: config.currency,
-    db,
-    now,
-  }),
-   qualifiedStreamId = crypto.randomUUID(),
-   windowKey = qualificationWindowKey({
-    deduplicationWindowHours: config.deduplicationWindowHours,
-    occurredAt: now,
-  });
+      configurationVersionId: config.id,
+      currency: config.currency,
+      db,
+      now,
+    }),
+    qualifiedStreamId = crypto.randomUUID(),
+    windowKey = qualificationWindowKey({
+      deduplicationWindowHours: config.deduplicationWindowHours,
+      occurredAt: now,
+    });
 
   await db
     .insert(qualifiedStreams)
@@ -607,16 +600,15 @@ export const recordLiveSessionTrackPlayback = async ({
   trackId: string;
 }) => {
   const results: {
-    listenerUserId: string;
-    result: PlaybackQualificationResult;
-  }[] = [],
-
-   sourceType =
-    kind === "live_battle"
-      ? "battle"
-      : (kind === "live_stream"
-        ? "vod"
-        : "listening_party");
+      listenerUserId: string;
+      result: PlaybackQualificationResult;
+    }[] = [],
+    sourceType =
+      kind === "live_battle"
+        ? "battle"
+        : (kind === "live_stream"
+          ? "vod"
+          : "listening_party");
 
   for (const listenerUserId of listenerUserIds) {
     const session = await createTrackPlaybackSession({

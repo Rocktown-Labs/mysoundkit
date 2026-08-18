@@ -9,19 +9,18 @@ import { isAuthenticatedUser } from "@/lib/entitlements";
 import type { AppEnv } from "@/lib/types";
 
 const notificationSchema = z.object({
-  createdAt: z.string(),
-  id: z.string(),
-  link: z.string().nullable(),
-  message: z.string(),
-  read: z.boolean(),
-  title: z.string(),
-  type: z.string(),
-}),
-
- notificationsResponseSchema = z.object({
-  items: z.array(notificationSchema),
-  unreadCount: z.number(),
-});
+    createdAt: z.string(),
+    id: z.string(),
+    link: z.string().nullable(),
+    message: z.string(),
+    read: z.boolean(),
+    title: z.string(),
+    type: z.string(),
+  }),
+  notificationsResponseSchema = z.object({
+    items: z.array(notificationSchema),
+    unreadCount: z.number(),
+  });
 
 type NotificationItem = z.infer<typeof notificationSchema>;
 
@@ -59,24 +58,22 @@ app.openapi(
 
     try {
       const db = createDb(),
-       rows = await db
-        .select()
-        .from(userNotifications)
-        .where(eq(userNotifications.userId, user.id))
-        .orderBy(desc(userNotifications.createdAt))
-        .limit(20),
-
-       items: NotificationItem[] = rows.map((r) => ({
-        createdAt: r.createdAt.toISOString(),
-        id: r.id,
-        link: r.link ?? null,
-        message: r.message,
-        read: r.read,
-        title: r.title,
-        type: r.type,
-      })),
-
-       unreadCount = items.filter((i) => !i.read).length;
+        rows = await db
+          .select()
+          .from(userNotifications)
+          .where(eq(userNotifications.userId, user.id))
+          .orderBy(desc(userNotifications.createdAt))
+          .limit(20),
+        items: NotificationItem[] = rows.map((r) => ({
+          createdAt: r.createdAt.toISOString(),
+          id: r.id,
+          link: r.link ?? null,
+          message: r.message,
+          read: r.read,
+          title: r.title,
+          type: r.type,
+        })),
+        unreadCount = items.filter((i) => !i.read).length;
 
       return c.json({ items, unreadCount }, HttpStatusCodes.OK);
     } catch {

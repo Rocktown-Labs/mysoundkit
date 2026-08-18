@@ -24,39 +24,41 @@ import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, slugify } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
- communitySchema = z.object({
-  artistUserId: z.string(),
-  description: z.string().nullable(),
-  id: z.string(),
-  monthlyPriceCents: z.number().int(),
-  name: z.string(),
-  slug: z.string(),
-}),
- createCommunitySchema = z.object({
-  description: z.string().max(2000).optional(),
-  monthlyPriceCents: z.number().int().min(299).max(9999),
-  name: z.string().min(1).max(100),
-}),
- createPostSchema = z.object({
-  body: z.string().max(10_000).optional(),
-  mediaUrl: z.url().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  postType: z.enum(["text", "image", "audio", "video", "poll"]).default("text"),
-}),
- createMessageSchema = z.object({ body: z.string().min(1).max(2000) }),
- communityPostSchema = createPostSchema.extend({
-  body: z.string().nullable(),
-  createdAt: z.string(),
-  id: z.string(),
-  mediaUrl: z.string().nullable(),
-  metadata: z.unknown().nullable(),
-  userId: z.string(),
-}),
- communityMessageSchema = createMessageSchema.extend({
-  createdAt: z.string(),
-  id: z.string(),
-  userId: z.string(),
-});
+  communitySchema = z.object({
+    artistUserId: z.string(),
+    description: z.string().nullable(),
+    id: z.string(),
+    monthlyPriceCents: z.number().int(),
+    name: z.string(),
+    slug: z.string(),
+  }),
+  createCommunitySchema = z.object({
+    description: z.string().max(2000).optional(),
+    monthlyPriceCents: z.number().int().min(299).max(9999),
+    name: z.string().min(1).max(100),
+  }),
+  createPostSchema = z.object({
+    body: z.string().max(10_000).optional(),
+    mediaUrl: z.url().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    postType: z
+      .enum(["text", "image", "audio", "video", "poll"])
+      .default("text"),
+  }),
+  createMessageSchema = z.object({ body: z.string().min(1).max(2000) }),
+  communityPostSchema = createPostSchema.extend({
+    body: z.string().nullable(),
+    createdAt: z.string(),
+    id: z.string(),
+    mediaUrl: z.string().nullable(),
+    metadata: z.unknown().nullable(),
+    userId: z.string(),
+  }),
+  communityMessageSchema = createMessageSchema.extend({
+    createdAt: z.string(),
+    id: z.string(),
+    userId: z.string(),
+  });
 
 app.openapi(
   createRoute({
@@ -108,14 +110,14 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
 
     if (
       !entitlements.canOperatePaidCommunity ||
@@ -130,14 +132,14 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     row = {
-      artistUserId: user.id,
-      description: body.description ?? null,
-      id: crypto.randomUUID(),
-      monthlyPriceCents: body.monthlyPriceCents,
-      name: body.name,
-      slug: `${slugify(body.name)}-${user.id.slice(0, 6)}`,
-    };
+      row = {
+        artistUserId: user.id,
+        description: body.description ?? null,
+        id: crypto.randomUUID(),
+        monthlyPriceCents: body.monthlyPriceCents,
+        name: body.name,
+        slug: `${slugify(body.name)}-${user.id.slice(0, 6)}`,
+      };
 
     if (isDatabaseConfigured()) {
       await createDb().insert(communities).values(row);
@@ -148,33 +150,36 @@ app.openapi(
 );
 
 const requireCommunityAccess = ({
-  communityId,
-  userId,
-}: {
-  communityId: string;
-  userId: string;
-}) => canAccessCommunity({ communityId, userId }),
- requireCommunityOwner = async ({
-  communityId,
-  userId,
-}: {
-  communityId: string;
-  userId: string;
-}) => {
-  if (!isDatabaseConfigured()) {
-    return false;
-  }
+    communityId,
+    userId,
+  }: {
+    communityId: string;
+    userId: string;
+  }) => canAccessCommunity({ communityId, userId }),
+  requireCommunityOwner = async ({
+    communityId,
+    userId,
+  }: {
+    communityId: string;
+    userId: string;
+  }) => {
+    if (!isDatabaseConfigured()) {
+      return false;
+    }
 
-  const [community] = await createDb()
-    .select({ id: communities.id })
-    .from(communities)
-    .where(
-      and(eq(communities.id, communityId), eq(communities.artistUserId, userId))
-    )
-    .limit(1);
+    const [community] = await createDb()
+      .select({ id: communities.id })
+      .from(communities)
+      .where(
+        and(
+          eq(communities.id, communityId),
+          eq(communities.artistUserId, userId)
+        )
+      )
+      .limit(1);
 
-  return Boolean(community);
-};
+    return Boolean(community);
+  };
 
 app.openapi(
   createRoute({
@@ -195,7 +200,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { communityId } = c.req.valid("param");
+      { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -238,7 +243,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { communityId } = c.req.valid("param");
+      { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -251,17 +256,17 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     createdAt = new Date(),
-     row = {
-      body: body.body ?? null,
-      communityId,
-      createdAt,
-      id: crypto.randomUUID(),
-      mediaUrl: body.mediaUrl ?? null,
-      metadata: body.metadata ?? null,
-      postType: body.postType,
-      userId: user.id,
-    };
+      createdAt = new Date(),
+      row = {
+        body: body.body ?? null,
+        communityId,
+        createdAt,
+        id: crypto.randomUUID(),
+        mediaUrl: body.mediaUrl ?? null,
+        metadata: body.metadata ?? null,
+        postType: body.postType,
+        userId: user.id,
+      };
     await createDb().insert(communityPosts).values(row);
     return c.json(
       { ...row, createdAt: createdAt.toISOString() },
@@ -289,7 +294,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { communityId } = c.req.valid("param");
+      { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -332,7 +337,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { communityId } = c.req.valid("param");
+      { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -345,13 +350,13 @@ app.openapi(
     }
 
     const createdAt = new Date(),
-     row = {
-      body: c.req.valid("json").body,
-      communityId,
-      createdAt,
-      id: crypto.randomUUID(),
-      userId: user.id,
-    };
+      row = {
+        body: c.req.valid("json").body,
+        communityId,
+        createdAt,
+        id: crypto.randomUUID(),
+        userId: user.id,
+      };
     await createDb().insert(communityMessages).values(row);
     return c.json(
       { ...row, createdAt: createdAt.toISOString() },
@@ -385,7 +390,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { communityId } = c.req.valid("param");
+      { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -432,7 +437,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     { communityId } = c.req.valid("param");
+      { communityId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(user) ||
@@ -445,22 +450,22 @@ app.openapi(
     }
 
     const db = createDb(),
-     [community] = await db
-      .select({ monthlyPriceCents: communities.monthlyPriceCents })
-      .from(communities)
-      .where(eq(communities.id, communityId))
-      .limit(1),
-     rows = await db
-      .select({
-        count: sql<number>`count(*)`,
-        status: communitySubscriptions.status,
-      })
-      .from(communitySubscriptions)
-      .where(eq(communitySubscriptions.communityId, communityId))
-      .groupBy(communitySubscriptions.status),
-     countFor = (status: (typeof rows)[number]["status"]) =>
-      Number(rows.find((row) => row.status === status)?.count ?? 0),
-     activeSubscribers = countFor("active");
+      [community] = await db
+        .select({ monthlyPriceCents: communities.monthlyPriceCents })
+        .from(communities)
+        .where(eq(communities.id, communityId))
+        .limit(1),
+      rows = await db
+        .select({
+          count: sql<number>`count(*)`,
+          status: communitySubscriptions.status,
+        })
+        .from(communitySubscriptions)
+        .where(eq(communitySubscriptions.communityId, communityId))
+        .groupBy(communitySubscriptions.status),
+      countFor = (status: (typeof rows)[number]["status"]) =>
+        Number(rows.find((row) => row.status === status)?.count ?? 0),
+      activeSubscribers = countFor("active");
 
     return c.json(
       {
@@ -500,7 +505,7 @@ app.openapi(
   }),
   async (c) => {
     const currentUser = c.get("user"),
-     { communityId, userId } = c.req.valid("param");
+      { communityId, userId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(currentUser) ||
@@ -546,7 +551,7 @@ app.openapi(
   }),
   async (c) => {
     const currentUser = c.get("user"),
-     { communityId, userId } = c.req.valid("param");
+      { communityId, userId } = c.req.valid("param");
 
     if (
       !isAuthenticatedUser(currentUser) ||

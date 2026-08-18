@@ -29,47 +29,47 @@ export const Route = createFileRoute("/dashboard/career/profile")({
 
 function ProfilePage() {
   const meQuery = useMeQuery(),
-   tracksQuery = useTracksQuery(),
-   projectsQuery = useProjectsQuery(),
-   videosQuery = useVideosQuery(),
-   { setCurrentTrack, setQueue } = useAudioPlayer(),
-   user = meQuery.data?.user,
-   tracks = tracksQuery.data ?? [],
-   projects = projectsQuery.data ?? [],
-   videos = videosQuery.data ?? [],
-   playableTracks = tracks
-    .filter((track) => Boolean(track.playbackUrl))
-    .map((track) => ({
-      artist: track.artistName,
-      artistHref: track.artistUsername
-        ? `/artist/${track.artistUsername}`
-        : "/dashboard/career/profile",
-      cover: track.coverArtUrl ?? "/placeholder.svg",
-      id: track.id,
-      src: track.playbackUrl ?? "",
-      title: track.title,
-      trackHref: `/dashboard/tracks/${track.id}`,
-    })),
+    tracksQuery = useTracksQuery(),
+    projectsQuery = useProjectsQuery(),
+    videosQuery = useVideosQuery(),
+    { setCurrentTrack, setQueue } = useAudioPlayer(),
+    user = meQuery.data?.user,
+    tracks = tracksQuery.data ?? [],
+    projects = projectsQuery.data ?? [],
+    videos = videosQuery.data ?? [],
+    playableTracks = tracks
+      .filter((track) => Boolean(track.playbackUrl))
+      .map((track) => ({
+        artist: track.artistName,
+        artistHref: track.artistUsername
+          ? `/artist/${track.artistUsername}`
+          : "/dashboard/career/profile",
+        cover: track.coverArtUrl ?? "/placeholder.svg",
+        id: track.id,
+        src: track.playbackUrl ?? "",
+        title: track.title,
+        trackHref: `/dashboard/tracks/${track.id}`,
+      })),
+    playTrack = (track: TrackSummary) => {
+      const playableTrack = playableTracks.find(
+        (entry) => entry.id === track.id
+      );
 
-   playTrack = (track: TrackSummary) => {
-    const playableTrack = playableTracks.find((entry) => entry.id === track.id);
+      if (!playableTrack) {
+        return;
+      }
 
-    if (!playableTrack) {
-      return;
-    }
-
-    setQueue(playableTracks);
-    setCurrentTrack(playableTrack);
-  },
-
-   displayName = user?.displayName ?? "Artist",
-   initials = displayName
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase(),
-   location = [user?.city, user?.state].filter(Boolean).join(", ");
+      setQueue(playableTracks);
+      setCurrentTrack(playableTrack);
+    },
+    displayName = user?.displayName ?? "Artist",
+    initials = displayName
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase(),
+    location = [user?.city, user?.state].filter(Boolean).join(", ");
 
   return (
     <div className="space-y-6">

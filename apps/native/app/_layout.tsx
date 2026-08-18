@@ -14,13 +14,13 @@ import { NAV_THEME } from "@/lib/constants";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
 const LIGHT_THEME: Theme = {
-  ...DefaultTheme,
-  colors: NAV_THEME.light,
-},
- DARK_THEME: Theme = {
-  ...DarkTheme,
-  colors: NAV_THEME.dark,
-};
+    ...DefaultTheme,
+    colors: NAV_THEME.light,
+  },
+  DARK_THEME: Theme = {
+    ...DarkTheme,
+    colors: NAV_THEME.dark,
+  };
 
 export const unstable_settings = {
   initialRouteName: "(drawer)",

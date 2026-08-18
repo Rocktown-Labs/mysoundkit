@@ -36,20 +36,20 @@ describe("live experience webhook orchestration", () => {
 describe("RealtimeKit webhook signature verification", () => {
   it("rejects a signature without a matching public key", async () => {
     const generated = (await crypto.subtle.generateKey(
-      {
-        hash: "SHA-256",
-        modulusLength: 2048,
-        name: "RSASSA-PKCS1-v1_5",
-        publicExponent: new Uint8Array([1, 0, 1]),
-      },
-      true,
-      ["sign", "verify"]
-    )) as CryptoKeyPair,
-     exported = await crypto.subtle.exportKey("spki", generated.publicKey),
-     publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${Buffer.from(
-      new Uint8Array(exported as ArrayBuffer)
-    ).toString("base64")}\n-----END PUBLIC KEY-----`,
-     body = new TextEncoder().encode('{"event":"meeting.started"}');
+        {
+          hash: "SHA-256",
+          modulusLength: 2048,
+          name: "RSASSA-PKCS1-v1_5",
+          publicExponent: new Uint8Array([1, 0, 1]),
+        },
+        true,
+        ["sign", "verify"]
+      )) as CryptoKeyPair,
+      exported = await crypto.subtle.exportKey("spki", generated.publicKey),
+      publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${Buffer.from(
+        new Uint8Array(exported as ArrayBuffer)
+      ).toString("base64")}\n-----END PUBLIC KEY-----`,
+      body = new TextEncoder().encode('{"event":"meeting.started"}');
 
     await expect(
       verifyRealtimeKitSignature({

@@ -2,8 +2,37 @@
 
 ## Unreleased
 
+- Fixed StemSplit track processing workflow by requesting vocals only (`outputType: "VOCALS"`), removing unnecessary stem storage, making stem asset database writes idempotent via `onConflictDoUpdate`, and automatically publishing tracks upon completion when marked for immediate release.
+- Fixed interactive discovery map region syncing across homepage sections, tracks, videos, projects, and artist routes with bidirectional URL search parameter propagation and global/regional filter persistence.
+- Fixed live chat `UserProfilePreviewModal` to query dynamic artist profile stats (real avatar, bio, follower count, track count) and styled role badges for high contrast.
+- Fixed audio playback on shared music attachments by routing track payloads through `useAudioPlayer` context methods (`setCurrentTrack`, `setQueue`, `setIsPlaying`).
+- Fixed sender perspective in floating chat collaboration proposal cards to correctly display Cancel / Open actions instead of Accept / Decline.
+- Enabled invited and accepted collaborators to sequence project tracklists and update project metadata in `/v1/projects/:projectId`.
+- Cleaned up draft project workspaces on collaboration decline and cancellation so unused drafts do not clutter the dashboard.
+- Fixed floating chat music picker reference error by scoping uploaded/saved tracks queries and resolving valid playable track URLs.
+- Fixed attachment schema validation failure when sending library tracks in messages by ensuring playback and download URLs are always populated.
+- Fixed HTTP 500 / CORS error on `GET /v1/messages/friends` and conversations by safely serializing timestamps across all database date formats.
+- Made draft collaboration workspaces real accessible projects in `/dashboard/projects` for both owners and invited collaborators with `POST /v1/projects/:projectId/tracks` file upload integration.
+- Fixed project activity status entry text to prevent duplicate "draft Draft" labels.
+- Remediated E2E test credential environment variable references in git history to comply with security secret scanning gates.
+
 ### Added
 
+- Redesigned Listening Party stage with Apple Music-inspired layout: prominent album artwork on the left, synchronized audio player status header directly above the tracklist on the right, and full scrollable tracklist with quick Like, Save, and Buy actions.
+- Added inline `/share` tabbed music library and platform explore picker directly above the chat composer in both `FloatingChatBar` and `MessagesPage`.
+- Added inline `/collab` proposal creation popover allowing instantaneous collaboration invitations without dialog redirects.
+- Upgraded Live Battle Arena preview with realistic 3-minute performance turns, switchover transitions, 2-minute audience voting windows, Kit vs Kit showcases, and artist next-track selection.
+
+- Rebuilt floating chat widget into an Instagram-style direct messaging drawer: single unified search & inbox list, real-time presence indicators, click into conversation detail with back arrow, enlarge button to `/dashboard/messages`, and floating music player clearance.
+- Added Collaboration Proposal Cards in chat with 24-hour expiration countdown, recipient Accept / Decline actions, proposer Cancel action, and workspace unlocking.
+- Rebuilt Listening Party media stage into an integrated audio player centerpiece with Synced Lyrics & Tracklist tab switcher, fan save/purchase controls, host replay controls, and full-album purchase action.
+- Upgraded Battle Arena with Best-of-3 round progression, lobby waiting state, fresh per-round fan vote resets, and celebratory match victory banner.
+- Integrated real authenticated user profile resolution in chat `UserProfilePreviewModal` and applied default SoundKit branding banners across live stream and video fallback views.
+- Added slash command support (`/collab [title]`, `/share`, `/help`) and file/music attachments across `FloatingChatBar` and `MessagesPage`, enabling instant creation of shared draft project workspaces with invite notifications and owner-only delete permissions.
+- Added in-page `UserProfilePreviewModal` for previewing artist bio, followers, role, and follow actions directly from live battle contender cards and live stream chat without leaving the room.
+- Restructured `/live/battles/$id` to position match metadata directly under the video, side-by-side 2-column voting buttons on mobile and desktop, and removed the single-artist creator panel.
+- Reordered and expanded the homepage discover feed with 8 curated sections following the interactive map: Top Songs, New Releases, Live Battles, Top Artists, Featured Videos, Live Streams, Featured Projects, and Upcoming Listening Parties.
+- Added safe bottom clearance (`max-lg:pb-24`) to `LiveChatPanel` message input bars to prevent obstruction by the fixed mobile bottom navigation bar (`ExploreMobileNav`).
 - Added default sleek pitch-black header banner (`/soundkit-default-banner.svg`, 1500x500 standard dimension, 3:1 ratio) with centered SoundKit logo across profile shells and public artist pages.
 - Added global `FloatingChatBar` provider for authenticated artists with dynamic clearance above the mobile audio player (`bottom-28 sm:bottom-6`), quick Friends/Chats tab switcher, and 1-click conversation starter.
 - Added audio output device selector in `MusicPlayer` with real-time Bluetooth, headphones, and speaker enumeration (`navigator.mediaDevices.enumerateDevices` + `devicechange` events) and active output indicator.
@@ -26,7 +55,29 @@
 - Added automated Stripe product and recurring price creation upon catalog sync in Admin Payments (`POST /v1/admin/finance/payments/sync-plans`), auto-matching existing products/prices and provisioning sandbox catalog IDs in development mode.
 - Added a RealtimeKit presets setup script (`packages/infra/realtimekit-presets.ts`) that creates or updates the eight SoundKit presets (battle lobby/artist/voter, party host/listener, stream host/viewer) via the Cloudflare API using Alchemy credentials, with `--dry-run` and `--delete` modes, strict app selection, and checked mutation responses.
 
+### Added
+
+- Redesigned creator stream and live hub cards to Twitch-style 16:9 poster cards with live pulse rings, viewer pills, source tags, genre badges, and streamer avatars.
+- Connected live rooms and creator streams to real database snapshots (`liveExperiences`, `listeningParties`, `projectTracks`, and creator profiles) in `/v1/live/rooms/:roomId` and `/v1/live/experiences/:experienceId`, removing dummy fallback tracks and lyric mocks.
+- Positioned Settings as strictly the final menu item in the "My SoundKit" explore sidebar navigation.
+- Added Twitch-density 5–6 column responsive grids across live shelves and rails (`ExploreCollectionSection`, `ExploreCollectionGrid`, `BattleRail`).
+- Redesigned Listening Party cards to high-fidelity album cover art posters with synchronized playback status, host badges, listener counters, and hover play triggers.
+- Added artist "Active & Scheduled Streams" workspace in `/dashboard/live/streams` with real-time stream state, direct live room navigation, and typed `"CANCEL"` confirmation dialogs.
+- Added typed `"CANCEL"` and `"FORFEIT"` confirmation modals across Dashboard Live Streams, Listening Parties (`/dashboard/live/parties`), and Battle matchups (`/dashboard/live`).
+- Added sticky collapsible Twitch-style chat sidebar and creator panels (`LiveTwitchShell`, `LiveCreatorPanel`) across live streams, listening parties, live battles, and video detail pages (`/live/streams/$id`, `/live/parties/$id`, `/live/battles/$id`, `/videos/$id`).
+- Added interactive Live Preview testing hub (`/live/preview`) with view switchers (Battle, Stream, Party, Video, Challenge), perspective toggles (Artist vs Fan), live chat testing, and stage simulators.
+- Added automated in-app notification fanout to artist followers on stream creation and upon OBS encoder connection (`syncCloudflareStreamStatus`).
+- Added sliding-window message rate limiting (max 5 messages per 5 seconds) in `LiveRoomDurableObject` chat room coordination.
+
 ### Fixed
+
+- Filtered stale scheduled live streams (>3 hours past start time without active broadcast) from the public `/v1/live/experiences/public` endpoint.
+- Fixed genre rail filtering across live hub, creator streams, and listening parties with normalized genre slug matching (`normalizeGenreValue`).
+- Fluidly scaled live battle and listening party card widths to fit multi-column responsive breakpoints without container overflow.
+
+### Fixed
+
+- Fixed temporal dead zone `ReferenceError: Cannot access 'a' before initialization` in `apps/website/src/app/dashboard/admin.tsx` when accessing Payment Plans by declaring `monthlyCheckoutReady` prior to `checkoutReady`.
 
 - Fixed global toast notifications across all admin and dashboard actions (including Premium user grants and Stripe catalog sync) by bridging `use-toast` callers directly into the active Sonner toast provider.
 - Fixed `/dashboard/messages` Friends Online bar by defining `onlineFriends` and `isUserOnline` in `MessagesPage` and removing unused lucide imports.

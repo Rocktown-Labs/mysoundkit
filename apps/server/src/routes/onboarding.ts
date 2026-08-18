@@ -33,7 +33,7 @@ import type { AppEnv } from "@/lib/types";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
- RESERVED_USERNAMES = new Set(["soundkit"]);
+  RESERVED_USERNAMES = new Set(["soundkit"]);
 
 type UsernameAvailability =
   | {
@@ -50,120 +50,117 @@ type UsernameAvailability =
     };
 
 const checkUsernameAvailability = async (
-  username: string,
-  currentUserId?: string
-): Promise<UsernameAvailability> => {
-  if (RESERVED_USERNAMES.has(username)) {
-    return {
-      available: false,
-      message: "That username is reserved.",
-      reason: "reserved",
-      username,
-    };
-  }
+    username: string,
+    currentUserId?: string
+  ): Promise<UsernameAvailability> => {
+    if (RESERVED_USERNAMES.has(username)) {
+      return {
+        available: false,
+        message: "That username is reserved.",
+        reason: "reserved",
+        username,
+      };
+    }
 
-  if (!isDatabaseConfigured()) {
+    if (!isDatabaseConfigured()) {
+      return {
+        available: true,
+        message: "Username is available.",
+        reason: "available",
+        username,
+      };
+    }
+
+    const db = createDb(),
+      [existing] = await db
+        .select({ userId: userProfiles.userId })
+        .from(userProfiles)
+        .where(sql`lower(${userProfiles.username}) = ${username}`)
+        .limit(1);
+
+    if (existing && existing.userId !== currentUserId) {
+      return {
+        available: false,
+        message: "That username is already taken.",
+        reason: "taken",
+        username,
+      };
+    }
+
     return {
       available: true,
       message: "Username is available.",
       reason: "available",
       username,
     };
-  }
+  },
+  ensureGenre = async (name: string) => {
+    const db = createDb(),
+      canonicalName = canonicalGenreName(name),
+      slug = canonicalGenreSlug(name),
+      [existing] = await db
+        .select({ id: genres.id })
+        .from(genres)
+        .where(eq(genres.slug, slug))
+        .limit(1);
 
-  const db = createDb(),
-   [existing] = await db
-    .select({ userId: userProfiles.userId })
-    .from(userProfiles)
-    .where(sql`lower(${userProfiles.username}) = ${username}`)
-    .limit(1);
+    if (existing) {
+      return existing.id;
+    }
 
-  if (existing && existing.userId !== currentUserId) {
-    return {
-      available: false,
-      message: "That username is already taken.",
-      reason: "taken",
-      username,
-    };
-  }
+    const genreId = crypto.randomUUID();
+    await db.insert(genres).values({
+      id: genreId,
+      name: canonicalName,
+      slug,
+    });
 
-  return {
-    available: true,
-    message: "Username is available.",
-    reason: "available",
-    username,
-  };
-},
-
- ensureGenre = async (name: string) => {
-  const db = createDb(),
-   canonicalName = canonicalGenreName(name),
-   slug = canonicalGenreSlug(name),
-   [existing] = await db
-    .select({ id: genres.id })
-    .from(genres)
-    .where(eq(genres.slug, slug))
-    .limit(1);
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const genreId = crypto.randomUUID();
-  await db.insert(genres).values({
-    id: genreId,
-    name: canonicalName,
-    slug,
-  });
-
-  return genreId;
-},
-
- ensureFreeSubscription = async ({
-  planCode,
-  referenceId,
-}: {
-  planCode: string;
-  referenceId: string;
-}) => {
-  if (!isFreePlan(planCode)) {
-    return;
-  }
-
-  const db = createDb(),
-   [existing] = await db
-    .select({ id: subscription.id })
-    .from(subscription)
-    .where(
-      and(
-        eq(subscription.referenceId, referenceId),
-        eq(subscription.plan, planCode),
-        eq(subscription.status, "active")
-      )
-    )
-    .limit(1);
-
-  if (existing) {
-    return;
-  }
-
-  await db.insert(subscription).values({
-    id: crypto.randomUUID(),
-    plan: planCode,
+    return genreId;
+  },
+  ensureFreeSubscription = async ({
+    planCode,
     referenceId,
-    status: "active",
-  });
-},
+  }: {
+    planCode: string;
+    referenceId: string;
+  }) => {
+    if (!isFreePlan(planCode)) {
+      return;
+    }
 
- onboardingUrls = (request: Request) => {
-  const url = new URL(request.url),
-   { origin } = url;
+    const db = createDb(),
+      [existing] = await db
+        .select({ id: subscription.id })
+        .from(subscription)
+        .where(
+          and(
+            eq(subscription.referenceId, referenceId),
+            eq(subscription.plan, planCode),
+            eq(subscription.status, "active")
+          )
+        )
+        .limit(1);
 
-  return {
-    cancelUrl: `${origin}/signup`,
-    successUrl: `${origin}/dashboard`,
+    if (existing) {
+      return;
+    }
+
+    await db.insert(subscription).values({
+      id: crypto.randomUUID(),
+      plan: planCode,
+      referenceId,
+      status: "active",
+    });
+  },
+  onboardingUrls = (request: Request) => {
+    const url = new URL(request.url),
+      { origin } = url;
+
+    return {
+      cancelUrl: `${origin}/signup`,
+      successUrl: `${origin}/dashboard`,
+    };
   };
-};
 
 app.openapi(
   createRoute({
@@ -182,11 +179,11 @@ app.openapi(
   }),
   async (c) => {
     const { username } = c.req.valid("query"),
-     user = c.get("user"),
-     availability = await checkUsernameAvailability(
-      username,
-      isAuthenticatedUser(user) ? user.id : undefined
-    );
+      user = c.get("user"),
+      availability = await checkUsernameAvailability(
+        username,
+        isAuthenticatedUser(user) ? user.id : undefined
+      );
 
     return c.json(availability, HttpStatusCodes.OK);
   }
@@ -224,7 +221,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     body = c.req.valid("json");
+      body = c.req.valid("json");
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -262,20 +259,20 @@ app.openapi(
       }
 
       const db = createDb(),
-       now = new Date(),
-       genreId = await ensureGenre(body.primaryGenre),
-       avatar =
-        body.avatarObjectKey && body.avatarUrl
-          ? {
-              avatarObjectKey: body.avatarObjectKey,
-              avatarUrl: body.avatarUrl,
-            }
-          : {},
-       workspaceId = await ensureWorkspaceForUser({
-        accountType: "artist",
-        displayName: user.name ?? body.username,
-        user,
-      });
+        now = new Date(),
+        genreId = await ensureGenre(body.primaryGenre),
+        avatar =
+          body.avatarObjectKey && body.avatarUrl
+            ? {
+                avatarObjectKey: body.avatarObjectKey,
+                avatarUrl: body.avatarUrl,
+              }
+            : {},
+        workspaceId = await ensureWorkspaceForUser({
+          accountType: "artist",
+          displayName: user.name ?? body.username,
+          user,
+        });
 
       await db
         .insert(userProfiles)
@@ -446,7 +443,7 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user"),
-     body = c.req.valid("json");
+      body = c.req.valid("json");
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
@@ -466,12 +463,12 @@ app.openapi(
 
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
       const db = createDb(),
-       now = new Date(),
-       workspaceId = await ensureWorkspaceForUser({
-        accountType: "fan",
-        displayName: user.name ?? body.username,
-        user,
-      });
+        now = new Date(),
+        workspaceId = await ensureWorkspaceForUser({
+          accountType: "fan",
+          displayName: user.name ?? body.username,
+          user,
+        });
 
       await db
         .insert(userProfiles)

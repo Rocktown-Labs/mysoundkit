@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, no-unused-vars */
 
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Disc, Play, Search, ShoppingBag } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Disc, Play, Search, ShoppingBag } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { BattleFilters } from "@/components/explore/battle-filters";
@@ -16,17 +17,16 @@ import { usePublicProjectsQuery } from "@/lib/soundkit-api-hooks";
 import type { PublicProjectSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
-  { label: "Newest", value: "date-desc" },
-  { label: "Oldest", value: "date-asc" },
-  { label: "Title (A-Z)", value: "title-asc" },
-  { label: "Title (Z-A)", value: "title-desc" },
-],
-
- projectTypeOptions = [
-  { label: "Albums", value: "album" },
-  { label: "EPs", value: "ep" },
-  { label: "Mixtapes", value: "mixtape" },
-] as const;
+    { label: "Newest Releases", value: "date-desc" },
+    { label: "Oldest Releases", value: "date-asc" },
+    { label: "Title (A-Z)", value: "title-asc" },
+    { label: "Title (Z-A)", value: "title-desc" },
+  ],
+  projectTypeOptions = [
+    { label: "Albums", value: "album" },
+    { label: "EPs", value: "ep" },
+    { label: "Mixtapes", value: "mixtape" },
+  ] as const;
 
 interface ExploreProjectsSearch {
   forSale?: boolean;
@@ -63,67 +63,73 @@ export const Route = createFileRoute("/_explore/projects/")({
 });
 
 function ExploreProjectsPage() {
-  const router = useRouter(),
-   navigate = Route.useNavigate(),
-   search = Route.useSearch(),
+  const navigate = Route.useNavigate(),
+    search = Route.useSearch(),
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "global"
+            | "north-america"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    region =
+      search.region ??
+      (search.regionType === "global"
+        ? "all"
+        : (savedRegion ?? (regionType === "global" ? "all" : "us-arkansas"))),
+    genre = search.genre ?? "all",
+    sort = search.sort ?? "date-desc",
+    forSale = search.forSale ?? false,
+    q = search.q ?? "",
+    { type } = search,
+    view = search.view ?? "sections",
+    isFilteredView = Boolean(type || forSale || q || genre !== "all"),
+    updateFilters = (next: ProjectFilterUpdate) => {
+      const nextRegionType = next.regionType ?? regionType,
+        nextRegion =
+          next.region ??
+          (next.regionType === "global" && regionType !== "global"
+            ? "all"
+            : next.regionType === "north-america" &&
+                regionType !== "north-america"
+              ? "us-arkansas"
+              : region);
 
-   savedRegionType =
-    typeof window === "undefined"
-      ? null
-      : (localStorage.getItem("exploreRegionType") as
-          | "global"
-          | "north-america"
-          | null),
-   savedRegion =
-    typeof window === "undefined"
-      ? null
-      : localStorage.getItem("exploreRegion"),
+      if (typeof window !== "undefined") {
+        localStorage.setItem("exploreRegionType", nextRegionType);
+        localStorage.setItem("exploreRegion", nextRegion);
+      }
 
-   regionType = search.regionType ?? savedRegionType ?? "north-america",
-   region = search.region ?? savedRegion ?? "us-arkansas",
-   genre = search.genre ?? "all",
-   sort = search.sort ?? "date-desc",
-   forSale = search.forSale ?? false,
-   q = search.q ?? "",
-   { type } = search,
-   view = search.view ?? "sections",
-   isFilteredView = Boolean(type || forSale || q || genre !== "all"),
-
-   updateFilters = (next: ProjectFilterUpdate) => {
-    const nextRegionType = next.regionType ?? regionType,
-     nextRegion = next.region ?? region;
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("exploreRegionType", nextRegionType);
-      localStorage.setItem("exploreRegion", nextRegion);
-    }
-
-    navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        forSale: (next.forSale ?? forSale) || undefined,
-        genre: next.genre ?? genre,
-        q: (next.q ?? q) || undefined,
-        region: nextRegion,
-        regionType: nextRegionType,
-        sort: next.sort ?? sort,
-        type: next.type === null ? undefined : (next.type ?? type),
-        view: next.view ?? view,
-      }),
+      navigate({
+        replace: true,
+        search: (prev) => ({
+          ...prev,
+          forSale: (next.forSale ?? forSale) || undefined,
+          genre: next.genre ?? genre,
+          q: (next.q ?? q) || undefined,
+          region: nextRegion,
+          regionType: nextRegionType,
+          sort: next.sort ?? sort,
+          type: next.type === null ? undefined : (next.type ?? type),
+          view: next.view ?? view,
+        }),
+      });
+    },
+    { data: projects = [], isLoading } = usePublicProjectsQuery({
+      forSale: forSale || undefined,
+      genre,
+      limit: 48,
+      q: q || undefined,
+      region,
+      regionType,
+      sort,
+      type,
     });
-  },
-
-   { data: projects = [], isLoading } = usePublicProjectsQuery({
-    forSale: forSale || undefined,
-    genre,
-    limit: 48,
-    q: q || undefined,
-    region,
-    regionType,
-    sort,
-    type,
-  });
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">

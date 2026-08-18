@@ -63,130 +63,119 @@ interface KanbanTask {
 
 function CareerCalendarPage() {
   const { toast } = useToast(),
-   projectsQuery = useProjectsQuery(),
-   tracksQuery = useTracksQuery(),
-   partiesQuery = useListeningPartiesQuery(),
-
-   [activeTab, setActiveTab] = useState<"calendar" | "kanban">("calendar"),
-   [selectedMonth, setSelectedMonth] = useState(new Date()),
-   [newTaskTitle, setNewTaskTitle] = useState(""),
-   [newTaskCol, setNewTaskCol] = useState<
-    "todo" | "in_progress" | "scheduled" | "released"
-  >("todo"),
-   [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false),
-
-   projects = useMemo(
-    () => projectsQuery.data ?? [],
-    [projectsQuery.data]
-  ),
-   tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]),
-   parties = useMemo(() => partiesQuery.data ?? [], [partiesQuery.data]),
-
-  // Initial Kanban State derived from Projects + Tracks + Custom tasks
-   [customTasks, setCustomTasks] = useState<KanbanTask[]>([
-    {
-      category: "promo",
-      column: "in_progress",
-      date: "2026-07-28",
-      id: "k-1",
-      title: "Record TikTok & Reels Cover Teaser",
-    },
-    {
-      category: "battle",
-      column: "todo",
-      date: "2026-07-30",
-      id: "k-2",
-      title: "Battle 3 Top Artists in Rap Arena",
-    },
-    {
-      category: "promo",
-      column: "scheduled",
-      date: "2026-08-02",
-      id: "k-3",
-      title: "Send Post-Battle Summary Email to Fans",
-    },
-  ]),
-
-   allKanbanTasks: KanbanTask[] = useMemo(() => {
-    const projectTasks: KanbanTask[] = projects.map((p) => ({
-      category: "project",
-      column: p.releaseDate ? "scheduled" : "in_progress",
-      date: p.releaseDate,
-      id: `proj-${p.id}`,
-      title: `Project Release: ${p.title}`,
-    })),
-
-     trackTasks: KanbanTask[] = tracks.map((t) => ({
-      category: "track",
-      column: t.isPurchasable ? "released" : "in_progress",
-      id: `track-${t.id}`,
-      title: `Single Track Promo: ${t.title}`,
-    }));
-
-    return [...projectTasks, ...trackTasks, ...customTasks];
-  }, [projects, tracks, customTasks]),
-
-   moveTask = (
-    taskId: string,
-    newCol: "todo" | "in_progress" | "scheduled" | "released"
-  ) => {
-    setCustomTasks((current) =>
-      current.map((task) =>
-        task.id === taskId ? { ...task, column: newCol } : task
-      )
-    );
-    toast({
-      description: `Task updated to ${newCol.replace("_", " ").toUpperCase()}`,
-      title: "Kanban Updated",
-    });
-  },
-
-   handleCreateTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) {
-      return;
-    }
-
-    setCustomTasks((current) => [
-      ...current,
+    projectsQuery = useProjectsQuery(),
+    tracksQuery = useTracksQuery(),
+    partiesQuery = useListeningPartiesQuery(),
+    [activeTab, setActiveTab] = useState<"calendar" | "kanban">("calendar"),
+    [selectedMonth, setSelectedMonth] = useState(new Date()),
+    [newTaskTitle, setNewTaskTitle] = useState(""),
+    [newTaskCol, setNewTaskCol] = useState<
+      "todo" | "in_progress" | "scheduled" | "released"
+    >("todo"),
+    [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false),
+    projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]),
+    tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]),
+    parties = useMemo(() => partiesQuery.data ?? [], [partiesQuery.data]),
+    // Initial Kanban State derived from Projects + Tracks + Custom tasks
+    [customTasks, setCustomTasks] = useState<KanbanTask[]>([
       {
         category: "promo",
-        column: newTaskCol,
-        id: `custom-${Date.now()}`,
-        title: newTaskTitle.trim(),
+        column: "in_progress",
+        date: "2026-07-28",
+        id: "k-1",
+        title: "Record TikTok & Reels Cover Teaser",
       },
-    ]);
+      {
+        category: "battle",
+        column: "todo",
+        date: "2026-07-30",
+        id: "k-2",
+        title: "Battle 3 Top Artists in Rap Arena",
+      },
+      {
+        category: "promo",
+        column: "scheduled",
+        date: "2026-08-02",
+        id: "k-3",
+        title: "Send Post-Battle Summary Email to Fans",
+      },
+    ]),
+    allKanbanTasks: KanbanTask[] = useMemo(() => {
+      const projectTasks: KanbanTask[] = projects.map((p) => ({
+          category: "project",
+          column: p.releaseDate ? "scheduled" : "in_progress",
+          date: p.releaseDate,
+          id: `proj-${p.id}`,
+          title: `Project Release: ${p.title}`,
+        })),
+        trackTasks: KanbanTask[] = tracks.map((t) => ({
+          category: "track",
+          column: t.isPurchasable ? "released" : "in_progress",
+          id: `track-${t.id}`,
+          title: `Single Track Promo: ${t.title}`,
+        }));
 
-    setNewTaskTitle("");
-    setIsTaskDialogOpen(false);
-    toast({
-      description: "Added promotional milestone to your release Kanban board.",
-      title: "Task Created 🎯",
-    });
-  },
+      return [...projectTasks, ...trackTasks, ...customTasks];
+    }, [projects, tracks, customTasks]),
+    moveTask = (
+      taskId: string,
+      newCol: "todo" | "in_progress" | "scheduled" | "released"
+    ) => {
+      setCustomTasks((current) =>
+        current.map((task) =>
+          task.id === taskId ? { ...task, column: newCol } : task
+        )
+      );
+      toast({
+        description: `Task updated to ${newCol.replace("_", " ").toUpperCase()}`,
+        title: "Kanban Updated",
+      });
+    },
+    handleCreateTask = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newTaskTitle.trim()) {
+        return;
+      }
 
-  // Calendar Math
-   year = selectedMonth.getFullYear(),
-   month = selectedMonth.getMonth(),
-   daysInMonth = new Date(year, month + 1, 0).getDate(),
-   firstDayOfWeek = new Date(year, month, 1).getDay(),
+      setCustomTasks((current) => [
+        ...current,
+        {
+          category: "promo",
+          column: newTaskCol,
+          id: `custom-${Date.now()}`,
+          title: newTaskTitle.trim(),
+        },
+      ]);
 
-   calendarDays = useMemo(() => {
-    const days: {
-      dateStr: string;
-      dayNum: number;
-      isCurrentMonth: boolean;
-    }[] = [];
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      days.push({ dateStr: "", dayNum: 0, isCurrentMonth: false });
-    }
-    for (let d = 1; d <= daysInMonth; d++) {
-      const pad = (num: number) => String(num).padStart(2, "0"),
-       dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
-      days.push({ dateStr, dayNum: d, isCurrentMonth: true });
-    }
-    return days;
-  }, [year, month, daysInMonth, firstDayOfWeek]);
+      setNewTaskTitle("");
+      setIsTaskDialogOpen(false);
+      toast({
+        description:
+          "Added promotional milestone to your release Kanban board.",
+        title: "Task Created 🎯",
+      });
+    },
+    // Calendar Math
+    year = selectedMonth.getFullYear(),
+    month = selectedMonth.getMonth(),
+    daysInMonth = new Date(year, month + 1, 0).getDate(),
+    firstDayOfWeek = new Date(year, month, 1).getDay(),
+    calendarDays = useMemo(() => {
+      const days: {
+        dateStr: string;
+        dayNum: number;
+        isCurrentMonth: boolean;
+      }[] = [];
+      for (let i = 0; i < firstDayOfWeek; i++) {
+        days.push({ dateStr: "", dayNum: 0, isCurrentMonth: false });
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const pad = (num: number) => String(num).padStart(2, "0"),
+          dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
+        days.push({ dateStr, dayNum: d, isCurrentMonth: true });
+      }
+      return days;
+    }, [year, month, daysInMonth, firstDayOfWeek]);
 
   return (
     <div className="space-y-6">
@@ -329,13 +318,13 @@ function CareerCalendarPage() {
                   }
 
                   const matchedProjects = projects.filter(
-                    (p) => p.releaseDate === cd.dateStr
-                  ),
-                   matchedParties = parties.filter((p) =>
-                    p.scheduledStartAt.startsWith(cd.dateStr)
-                  ),
-                   isToday =
-                    cd.dateStr === new Date().toISOString().slice(0, 10);
+                      (p) => p.releaseDate === cd.dateStr
+                    ),
+                    matchedParties = parties.filter((p) =>
+                      p.scheduledStartAt.startsWith(cd.dateStr)
+                    ),
+                    isToday =
+                      cd.dateStr === new Date().toISOString().slice(0, 10);
 
                   return (
                     <div

@@ -86,343 +86,332 @@ import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
- databaseUnavailableMessage = {
-  message: "Database is not configured.",
-},
+  databaseUnavailableMessage = {
+    message: "Database is not configured.",
+  },
+  formatDuration = (durationMs: number | null) => {
+    if (!durationMs) {
+      return null;
+    }
 
- formatDuration = (durationMs: number | null) => {
-  if (!durationMs) {
+    const totalSeconds = Math.round(durationMs / 1000),
+      minutes = Math.floor(totalSeconds / 60),
+      seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  },
+  formatPrice = (priceCents: number | null) => {
+    if (typeof priceCents !== "number") {
+      return "";
+    }
+
+    return `$${(priceCents / 100).toFixed(2)}`;
+  },
+  priceCentsFromTrack = ({
+    price,
+    priceCents,
+  }: {
+    price: string | null;
+    priceCents: number | null;
+  }) => {
+    if (typeof priceCents === "number") {
+      return priceCents;
+    }
+
+    if (!price) {
+      return null;
+    }
+
+    return Math.round(Number(price) * 100);
+  },
+  objectUrlFromMetadata = (metadata: unknown) => {
+    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+      return null;
+    }
+
+    const { url } = metadata as { url?: unknown };
+
+    return typeof url === "string" ? url : null;
+  },
+  publicTrackAssetUrl = (
+    asset: typeof trackAssets.$inferSelect | undefined
+  ) => {
+    if (!asset) {
+      return null;
+    }
+
+    const metadataUrl = objectUrlFromMetadata(asset.metadata);
+
+    if (metadataUrl) {
+      return metadataUrl;
+    }
+
+    const baseUrl = (
+      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+        .MEDIA_PUBLIC_URL ??
+      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+        .VITE_MEDIA_URL ??
+      ""
+    ).replace(/\/+$/u, "");
+
+    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+  },
+  trackAssetFileName = (asset: typeof trackAssets.$inferSelect | undefined) => {
+    if (!asset) {
+      return null;
+    }
+
+    const metadata = asset.metadata as
+        | Record<string, unknown>
+        | null
+        | undefined,
+      metadataFileName = metadata?.originalFileName;
+    if (typeof metadataFileName === "string" && metadataFileName.trim()) {
+      return metadataFileName;
+    }
+
+    if (asset.objectKey) {
+      return asset.objectKey.split("/").pop() ?? null;
+    }
+
     return null;
-  }
-
-  const totalSeconds = Math.round(durationMs / 1000),
-   minutes = Math.floor(totalSeconds / 60),
-   seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-},
-
- formatPrice = (priceCents: number | null) => {
-  if (typeof priceCents !== "number") {
-    return "";
-  }
-
-  return `$${(priceCents / 100).toFixed(2)}`;
-},
-
- priceCentsFromTrack = ({
-  price,
-  priceCents,
-}: {
-  price: string | null;
-  priceCents: number | null;
-}) => {
-  if (typeof priceCents === "number") {
-    return priceCents;
-  }
-
-  if (!price) {
-    return null;
-  }
-
-  return Math.round(Number(price) * 100);
-},
-
- objectUrlFromMetadata = (metadata: unknown) => {
-  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-    return null;
-  }
-
-  const { url } = metadata as { url?: unknown };
-
-  return typeof url === "string" ? url : null;
-},
-
- publicTrackAssetUrl = (
-  asset: typeof trackAssets.$inferSelect | undefined
-) => {
-  if (!asset) {
-    return null;
-  }
-
-  const metadataUrl = objectUrlFromMetadata(asset.metadata);
-
-  if (metadataUrl) {
-    return metadataUrl;
-  }
-
-  const baseUrl = (
-    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-      .MEDIA_PUBLIC_URL ??
-    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-      .VITE_MEDIA_URL ??
-    ""
-  ).replace(/\/+$/u, "");
-
-  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-},
-
- trackAssetFileName = (
-  asset: typeof trackAssets.$inferSelect | undefined
-) => {
-  if (!asset) {
-    return null;
-  }
-
-  const metadata = asset.metadata as Record<string, unknown> | null | undefined,
-   metadataFileName = metadata?.originalFileName;
-  if (typeof metadataFileName === "string" && metadataFileName.trim()) {
-    return metadataFileName;
-  }
-
-  if (asset.objectKey) {
-    return asset.objectKey.split("/").pop() ?? null;
-  }
-
-  return null;
-},
-
- quotedDownloadFileName = (fileName: string) =>
-  fileName.replaceAll(/[\\"]/gu, "_"),
-
- getMediaBucket = (bindings: AppEnv["Bindings"]) =>
-  bindings.MEDIA_BUCKET ??
-  (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
-  null,
-
- hasPurchasedTrack = async ({
-  db,
-  trackId,
-  userId,
-}: {
-  db: ReturnType<typeof createDb>;
-  trackId: string;
-  userId: string;
-}) => {
-  const [directPurchase] = await db
-    .select({ id: purchases.id })
-    .from(purchases)
-    .where(
-      and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
-    )
-    .limit(1);
-
-  if (directPurchase) {
-    return true;
-  }
-
-  const [projectPurchase] = await db
-    .select({ id: purchases.id })
-    .from(purchases)
-    .innerJoin(projectTracks, eq(projectTracks.projectId, purchases.projectId))
-    .where(
-      and(eq(purchases.buyerUserId, userId), eq(projectTracks.trackId, trackId))
-    )
-    .limit(1);
-
-  return Boolean(projectPurchase);
-},
-
- hasPlayedTrackOnce = async ({
-  db,
-  trackId,
-  userId,
-}: {
-  db: ReturnType<typeof createDb>;
-  trackId: string;
-  userId: string;
-}) => {
-  const [qualified] = await db
-    .select({ id: qualifiedStreams.id })
-    .from(qualifiedStreams)
-    .where(
-      and(
-        eq(qualifiedStreams.userId, userId),
-        eq(qualifiedStreams.trackId, trackId),
-        eq(qualifiedStreams.status, "qualified")
+  },
+  quotedDownloadFileName = (fileName: string) =>
+    fileName.replaceAll(/[\\"]/gu, "_"),
+  getMediaBucket = (bindings: AppEnv["Bindings"]) =>
+    bindings.MEDIA_BUCKET ??
+    (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
+    null,
+  hasPurchasedTrack = async ({
+    db,
+    trackId,
+    userId,
+  }: {
+    db: ReturnType<typeof createDb>;
+    trackId: string;
+    userId: string;
+  }) => {
+    const [directPurchase] = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .where(
+        and(eq(purchases.buyerUserId, userId), eq(purchases.trackId, trackId))
       )
-    )
-    .limit(1);
+      .limit(1);
 
-  if (qualified) {
-    return true;
-  }
+    if (directPurchase) {
+      return true;
+    }
 
-  const [endedSession] = await db
-    .select({ id: playbackSessions.id })
-    .from(playbackSessions)
-    .where(
-      and(
-        eq(playbackSessions.userId, userId),
-        eq(playbackSessions.trackId, trackId),
-        eq(playbackSessions.status, "ended"),
-        gt(playbackSessions.playedSeconds, 0)
+    const [projectPurchase] = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .innerJoin(
+        projectTracks,
+        eq(projectTracks.projectId, purchases.projectId)
       )
-    )
-    .limit(1);
+      .where(
+        and(
+          eq(purchases.buyerUserId, userId),
+          eq(projectTracks.trackId, trackId)
+        )
+      )
+      .limit(1);
 
-  return Boolean(endedSession);
-},
+    return Boolean(projectPurchase);
+  },
+  hasPlayedTrackOnce = async ({
+    db,
+    trackId,
+    userId,
+  }: {
+    db: ReturnType<typeof createDb>;
+    trackId: string;
+    userId: string;
+  }) => {
+    const [qualified] = await db
+      .select({ id: qualifiedStreams.id })
+      .from(qualifiedStreams)
+      .where(
+        and(
+          eq(qualifiedStreams.userId, userId),
+          eq(qualifiedStreams.trackId, trackId),
+          eq(qualifiedStreams.status, "qualified")
+        )
+      )
+      .limit(1);
 
- assetKindLabels = {
-  alternate_mix: "Alternate Mix",
-  artwork: "Artwork",
-  booklet: "Digital Booklet",
-  clean: "Clean Version",
-  cover_art: "Cover Artwork",
-  instrumental: "Instrumental",
-  license_pdf: "License Agreement",
-  master: "High Quality Master",
-  midi: "MIDI Files",
-  stems: "Track Stems",
-  tagged_mp3: "Tagged MP3",
-  untagged_wav: "Untagged WAV",
-} as const,
+    if (qualified) {
+      return true;
+    }
 
- catalogAssetKinds = new Set(Object.keys(assetKindLabels)),
+    const [endedSession] = await db
+      .select({ id: playbackSessions.id })
+      .from(playbackSessions)
+      .where(
+        and(
+          eq(playbackSessions.userId, userId),
+          eq(playbackSessions.trackId, trackId),
+          eq(playbackSessions.status, "ended"),
+          gt(playbackSessions.playedSeconds, 0)
+        )
+      )
+      .limit(1);
 
- trackPlayCount = sql<number>`(
+    return Boolean(endedSession);
+  },
+  assetKindLabels = {
+    alternate_mix: "Alternate Mix",
+    artwork: "Artwork",
+    booklet: "Digital Booklet",
+    clean: "Clean Version",
+    cover_art: "Cover Artwork",
+    instrumental: "Instrumental",
+    license_pdf: "License Agreement",
+    master: "High Quality Master",
+    midi: "MIDI Files",
+    stems: "Track Stems",
+    tagged_mp3: "Tagged MP3",
+    untagged_wav: "Untagged WAV",
+  } as const,
+  catalogAssetKinds = new Set(Object.keys(assetKindLabels)),
+  trackPlayCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.trackId} = ${tracks.id}
 )`,
-
- publicTrackOrderBy = (sort?: string) => {
-  if (sort === "title-asc") {
-    return asc(tracks.title);
-  }
-
-  if (sort === "title-desc") {
-    return desc(tracks.title);
-  }
-
-  if (sort === "date-asc") {
-    return asc(tracks.updatedAt);
-  }
-
-  if (sort === "date-desc") {
-    return desc(tracks.updatedAt);
-  }
-
-  if (sort === "plays-asc") {
-    return asc(trackPlayCount);
-  }
-
-  return desc(trackPlayCount);
-},
-
- getTrackProcessingWorkflow = () =>
-  (
-    env as unknown as {
-      TRACK_PROCESSING_WORKFLOW?: Workflow<TrackProcessingWorkflowPayload>;
+  publicTrackOrderBy = (sort?: string) => {
+    if (sort === "title-asc") {
+      return asc(tracks.title);
     }
-  ).TRACK_PROCESSING_WORKFLOW ?? null,
 
- isLiveRelease = ({
-  isPublic,
-  releaseAt,
-  releaseStrategy,
-}: {
-  isPublic: boolean;
-  releaseAt: Date | null;
-  releaseStrategy: "private" | "publish_when_ready" | "scheduled";
-}) =>
-  isPublic &&
-  releaseStrategy !== "private" &&
-  (!releaseAt || releaseAt.getTime() <= Date.now()),
+    if (sort === "title-desc") {
+      return desc(tracks.title);
+    }
 
- queueTrackAudioProcessing = async ({
-  masterAsset,
-  trackId,
-}: {
-  masterAsset: typeof trackAssets.$inferSelect;
-  trackId: string;
-}) => {
-  const db = createDb(),
-   [existingJob] = await withRetry("find existing stem job", () =>
-    db
-      .select()
-      .from(trackStemJobs)
-      .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
-      .limit(1)
-  ),
+    if (sort === "date-asc") {
+      return asc(tracks.updatedAt);
+    }
 
-   [job] =
-    existingJob?.status === "queued" || existingJob?.status === "processing"
-      ? [existingJob]
-      : await withRetry("create stem job", () =>
-          db
-            .insert(trackStemJobs)
-            .values({
-              id: crypto.randomUUID(),
-              inputAssetId: masterAsset.id,
-              outputFormat: "MP3",
-              outputType: "BOTH",
-              status: "queued" as const,
-              trackId,
-            })
-            .returning()
-        );
+    if (sort === "date-desc") {
+      return desc(tracks.updatedAt);
+    }
 
-  if (job && !job.workflowInstanceId) {
-    await withRetry("mark lyrics generating", () =>
-      db
-        .update(tracks)
-        .set({
-          lyricsStatus: "generating",
-          updatedAt: new Date(),
-        })
-        .where(eq(tracks.id, trackId))
-    );
+    if (sort === "plays-asc") {
+      return asc(trackPlayCount);
+    }
 
-    await withRetry("create workflow job row", () =>
-      createWorkflowJobRow({
-        input: {
-          assetId: masterAsset.id,
-          objectKey: masterAsset.objectKey,
-          trackId,
-        },
-        jobType: "track_audio_processing",
-        targetId: trackId,
-        targetType: "track",
-      })
-    );
-
-    const workflow = getTrackProcessingWorkflow();
-
-    if (workflow && masterAsset.objectKey) {
-      const instance = await workflow.create({
-        id: job.id,
-        params: {
-          assetId: masterAsset.id,
-          objectKey: masterAsset.objectKey,
-          trackId,
-        },
-        retention: {
-          errorRetention: "7 days",
-          successRetention: "7 days",
-        },
-      });
-
-      await withRetry("save workflow instance id", () =>
+    return desc(trackPlayCount);
+  },
+  getTrackProcessingWorkflow = () =>
+    (
+      env as unknown as {
+        TRACK_PROCESSING_WORKFLOW?: Workflow<TrackProcessingWorkflowPayload>;
+      }
+    ).TRACK_PROCESSING_WORKFLOW ?? null,
+  isLiveRelease = ({
+    isPublic,
+    releaseAt,
+    releaseStrategy,
+  }: {
+    isPublic: boolean;
+    releaseAt: Date | null;
+    releaseStrategy: "private" | "publish_when_ready" | "scheduled";
+  }) =>
+    isPublic &&
+    releaseStrategy !== "private" &&
+    (!releaseAt || releaseAt.getTime() <= Date.now()),
+  queueTrackAudioProcessing = async ({
+    masterAsset,
+    trackId,
+  }: {
+    masterAsset: typeof trackAssets.$inferSelect;
+    trackId: string;
+  }) => {
+    const db = createDb(),
+      [existingJob] = await withRetry("find existing stem job", () =>
         db
-          .update(trackStemJobs)
-          .set({
-            workflowInstanceId: instance.id,
-          })
-          .where(eq(trackStemJobs.id, job.id))
-      );
-    }
-  }
+          .select()
+          .from(trackStemJobs)
+          .where(eq(trackStemJobs.inputAssetId, masterAsset.id))
+          .limit(1)
+      ),
+      [job] =
+        existingJob?.status === "queued" || existingJob?.status === "processing"
+          ? [existingJob]
+          : await withRetry("create stem job", () =>
+              db
+                .insert(trackStemJobs)
+                .values({
+                  id: crypto.randomUUID(),
+                  inputAssetId: masterAsset.id,
+                  outputFormat: "MP3",
+                  outputType: "BOTH",
+                  status: "queued" as const,
+                  trackId,
+                })
+                .returning()
+            );
 
-  return {
-    jobId: job?.id ?? null,
-    message:
-      masterAsset.objectKey && getTrackProcessingWorkflow()
-        ? "Track processing workflow started."
-        : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
-    status: "queued" as const,
+    if (job && !job.workflowInstanceId) {
+      await withRetry("mark lyrics generating", () =>
+        db
+          .update(tracks)
+          .set({
+            lyricsStatus: "generating",
+            updatedAt: new Date(),
+          })
+          .where(eq(tracks.id, trackId))
+      );
+
+      await withRetry("create workflow job row", () =>
+        createWorkflowJobRow({
+          input: {
+            assetId: masterAsset.id,
+            objectKey: masterAsset.objectKey,
+            trackId,
+          },
+          jobType: "track_audio_processing",
+          targetId: trackId,
+          targetType: "track",
+        })
+      );
+
+      const workflow = getTrackProcessingWorkflow();
+
+      if (workflow && masterAsset.objectKey) {
+        const instance = await workflow.create({
+          id: job.id,
+          params: {
+            assetId: masterAsset.id,
+            objectKey: masterAsset.objectKey,
+            trackId,
+          },
+          retention: {
+            errorRetention: "7 days",
+            successRetention: "7 days",
+          },
+        });
+
+        await withRetry("save workflow instance id", () =>
+          db
+            .update(trackStemJobs)
+            .set({
+              workflowInstanceId: instance.id,
+            })
+            .where(eq(trackStemJobs.id, job.id))
+        );
+      }
+    }
+
+    return {
+      jobId: job?.id ?? null,
+      message:
+        masterAsset.objectKey && getTrackProcessingWorkflow()
+          ? "Track processing workflow started."
+          : "Track processing queued. Configure TRACK_PROCESSING_WORKFLOW, STEMSPLIT_API_KEY, MEDIA_PUBLIC_URL, MEDIA_BUCKET, and OPENAI_API_KEY to run it.",
+      status: "queued" as const,
+    };
   };
-};
 
 app.openapi(
   createRoute({
@@ -439,8 +428,8 @@ app.openapi(
   }),
   async (c) => {
     const query = c.req.valid("query"),
-     user = c.get("user"),
-     isPublicScope = query.scope === "public";
+      user = c.get("user"),
+      isPublicScope = query.scope === "public";
 
     if (!isDatabaseConfigured()) {
       return c.json([], HttpStatusCodes.OK);
@@ -448,12 +437,12 @@ app.openapi(
 
     if (isPublicScope || !isAuthenticatedUser(user)) {
       const db = createDb(),
-       genreSlug = genreSlugFromExploreFilter(query.genre),
-       state = stateFromExploreRegion(query),
-       publicTrackConditions = [
-        eq(tracks.isPublic, true),
-        eq(tracks.productionStatus, "complete"),
-      ];
+        genreSlug = genreSlugFromExploreFilter(query.genre),
+        state = stateFromExploreRegion(query),
+        publicTrackConditions = [
+          eq(tracks.isPublic, true),
+          eq(tracks.productionStatus, "complete"),
+        ];
 
       if (query.forSale) {
         publicTrackConditions.push(eq(tracks.isForSale, true));
@@ -474,21 +463,21 @@ app.openapi(
       }
 
       const order = publicTrackOrderBy(query.sort),
-       rows = await withRetry("list public tracks", () =>
-        db
-          .select({
-            playCount: trackPlayCount,
-            state: userProfiles.state,
-            track: tracks,
-          })
-          .from(tracks)
-          .leftJoin(genres, eq(genres.id, tracks.genreId))
-          .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
-          .where(and(...publicTrackConditions))
-          .orderBy(order)
-          .limit(query.limit ?? 24)
-      ),
-       summaries = [];
+        rows = await withRetry("list public tracks", () =>
+          db
+            .select({
+              playCount: trackPlayCount,
+              state: userProfiles.state,
+              track: tracks,
+            })
+            .from(tracks)
+            .leftJoin(genres, eq(genres.id, tracks.genreId))
+            .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
+            .where(and(...publicTrackConditions))
+            .orderBy(order)
+            .limit(query.limit ?? 24)
+        ),
+        summaries = [];
 
       for (const row of rows) {
         summaries.push({
@@ -502,24 +491,24 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     rows = await withRetry("list dashboard tracks", () =>
-      db
-        .select()
-        .from(tracks)
-        .where(
-          organizationId
-            ? eq(tracks.organizationId, organizationId)
-            : eq(tracks.ownerUserId, user.id)
-        )
-        .orderBy(desc(tracks.updatedAt))
-        .limit(100)
-    ),
-     summaries = [];
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      rows = await withRetry("list dashboard tracks", () =>
+        db
+          .select()
+          .from(tracks)
+          .where(
+            organizationId
+              ? eq(tracks.organizationId, organizationId)
+              : eq(tracks.ownerUserId, user.id)
+          )
+          .orderBy(desc(tracks.updatedAt))
+          .limit(100)
+      ),
+      summaries = [];
 
     for (const row of rows) {
       summaries.push(await buildTrackSummary(row));
@@ -581,37 +570,37 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     [trackPolicy] = await db
-      .select({
-        exclusiveUntil: tracks.exclusiveUntil,
-        isForSale: tracks.isForSale,
-        listeningAccess: tracks.listeningAccess,
-      })
-      .from(tracks)
-      .where(eq(tracks.id, trackId))
-      .limit(1);
+      body = c.req.valid("json"),
+      session = c.get("session"),
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [trackPolicy] = await db
+        .select({
+          exclusiveUntil: tracks.exclusiveUntil,
+          isForSale: tracks.isForSale,
+          listeningAccess: tracks.listeningAccess,
+        })
+        .from(tracks)
+        .where(eq(tracks.id, trackId))
+        .limit(1);
 
     if (!trackPolicy) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const hasPurchase = await hasPurchasedTrack({
-      db,
-      trackId,
-      userId: user.id,
-    }),
-     access = resolveListeningAccess({
-      hasPurchase,
-      isPremium: entitlements.isPremium,
-      policy: trackPolicy,
-    });
+        db,
+        trackId,
+        userId: user.id,
+      }),
+      access = resolveListeningAccess({
+        hasPurchase,
+        isPremium: entitlements.isPremium,
+        policy: trackPolicy,
+      });
 
     if (!access.canListen) {
       return c.json(
@@ -711,19 +700,19 @@ app.openapi(
     }
 
     const { sessionId, trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     result = await recordPlaybackProgress({
-      db: createDb(),
-      input: {
-        durationSeconds: body.durationSeconds,
-        ended: body.ended,
-        isMuted: body.isMuted,
-        listenerUserId: user.id,
-        playedSeconds: body.playedSeconds,
-        sessionId,
-        trackId,
-      },
-    });
+      body = c.req.valid("json"),
+      result = await recordPlaybackProgress({
+        db: createDb(),
+        input: {
+          durationSeconds: body.durationSeconds,
+          ended: body.ended,
+          isMuted: body.isMuted,
+          listenerUserId: user.id,
+          playedSeconds: body.playedSeconds,
+          sessionId,
+          trackId,
+        },
+      });
 
     return c.json(
       {
@@ -783,19 +772,19 @@ app.openapi(
     }
 
     const { sessionId, trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     result = await recordPlaybackProgress({
-      db: createDb(),
-      input: {
-        durationSeconds: body.durationSeconds,
-        ended: true,
-        isMuted: body.isMuted,
-        listenerUserId: user.id,
-        playedSeconds: body.playedSeconds ?? 0,
-        sessionId,
-        trackId,
-      },
-    });
+      body = c.req.valid("json"),
+      result = await recordPlaybackProgress({
+        db: createDb(),
+        input: {
+          durationSeconds: body.durationSeconds,
+          ended: true,
+          isMuted: body.isMuted,
+          listenerUserId: user.id,
+          playedSeconds: body.playedSeconds ?? 0,
+          sessionId,
+          trackId,
+        },
+      });
 
     return c.json(
       {
@@ -835,27 +824,27 @@ app.openapi(
     }
 
     const db = createDb(),
-     [revision] = await db
-      .select({
-        approvedAt: trackLyrics.approvedAt,
-        id: trackLyrics.id,
-        language: trackLyrics.language,
-        sourceType: trackLyrics.sourceType,
-        status: trackLyrics.status,
-        text: trackLyrics.text,
-        timedLines: trackLyrics.timedLines,
-        trackId: trackLyrics.trackId,
-      })
-      .from(trackLyrics)
-      .innerJoin(tracks, eq(tracks.id, trackLyrics.trackId))
-      .where(
-        and(
-          eq(trackLyrics.trackId, trackId),
-          eq(trackLyrics.status, "approved"),
-          eq(tracks.isPublic, true)
+      [revision] = await db
+        .select({
+          approvedAt: trackLyrics.approvedAt,
+          id: trackLyrics.id,
+          language: trackLyrics.language,
+          sourceType: trackLyrics.sourceType,
+          status: trackLyrics.status,
+          text: trackLyrics.text,
+          timedLines: trackLyrics.timedLines,
+          trackId: trackLyrics.trackId,
+        })
+        .from(trackLyrics)
+        .innerJoin(tracks, eq(tracks.id, trackLyrics.trackId))
+        .where(
+          and(
+            eq(trackLyrics.trackId, trackId),
+            eq(trackLyrics.status, "approved"),
+            eq(tracks.isPublic, true)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
     if (!revision) {
       return c.json(null, HttpStatusCodes.OK);
@@ -913,13 +902,13 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     db = createDb(),
-     [track] = await db
-      .select({ id: tracks.id })
-      .from(tracks)
-      .where(and(eq(tracks.id, trackId), eq(tracks.isPublic, true)))
-      .limit(1);
+      body = c.req.valid("json"),
+      db = createDb(),
+      [track] = await db
+        .select({ id: tracks.id })
+        .from(tracks)
+        .where(and(eq(tracks.id, trackId), eq(tracks.isPublic, true)))
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -994,7 +983,7 @@ app.openapi(
     }
 
     const body = c.req.valid("json"),
-     session = c.get("session");
+      session = c.get("session");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -1044,15 +1033,15 @@ app.openapi(
 
     try {
       const db = createDb(),
-       organizationId = await resolveActiveOrganizationId({
-        session: isAuthenticatedSession(session) ? session : null,
-        user,
-      }),
-       [profile] = await db
-        .select({ accountType: userProfiles.accountType })
-        .from(userProfiles)
-        .where(eq(userProfiles.userId, user.id))
-        .limit(1);
+        organizationId = await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(session) ? session : null,
+          user,
+        }),
+        [profile] = await db
+          .select({ accountType: userProfiles.accountType })
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, user.id))
+          .limit(1);
 
       if (profile?.accountType !== "artist") {
         return c.json(
@@ -1119,14 +1108,14 @@ app.openapi(
       }
 
       const genreSlug = canonicalGenreSlug(body.genre),
-       [genreRow] = await withRetry("find track genre", () =>
-        db
-          .select({ id: genres.id })
-          .from(genres)
-          .where(eq(genres.slug, genreSlug))
-          .limit(1)
-      ),
-       genreId = genreRow?.id ?? crypto.randomUUID();
+        [genreRow] = await withRetry("find track genre", () =>
+          db
+            .select({ id: genres.id })
+            .from(genres)
+            .where(eq(genres.slug, genreSlug))
+            .limit(1)
+        ),
+        genreId = genreRow?.id ?? crypto.randomUUID();
 
       if (!genreRow) {
         await withRetry("create track genre", () =>
@@ -1139,14 +1128,14 @@ app.openapi(
       }
 
       const trackId = crypto.randomUUID(),
-       now = new Date(),
-       isSingle = body.catalogItemType === "single",
-       rawPriceNum =
-        typeof body.price === "number"
-          ? body.price
-          : (body.price
-            ? Number(body.price)
-            : null);
+        now = new Date(),
+        isSingle = body.catalogItemType === "single",
+        rawPriceNum =
+          typeof body.price === "number"
+            ? body.price
+            : (body.price
+              ? Number(body.price)
+              : null);
       const salePriceUsd =
         body.isForSale && isSingle
           ? SINGLE_TRACK_PRICE_USD
@@ -1154,47 +1143,49 @@ app.openapi(
             ? rawPriceNum
             : null);
       const salePriceCents =
-        body.isForSale && isSingle
-          ? SINGLE_TRACK_PRICE_CENTS
-          : (body.priceCents ??
-            (salePriceUsd === null ? null : Math.round(salePriceUsd * 100))),
-       [track] = await withRetry("create track", () =>
-        db
-          .insert(tracks)
-          .values({
-            bpm: body.bpm ?? null,
-            catalogItemType: body.catalogItemType,
-            createdAt: now,
-            description: body.description ?? null,
-            downloadsAllowed: body.downloadsAllowed,
-            downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
-            downloadsRequirePurchase: body.downloadsRequirePurchase,
-            exclusiveUntil: body.exclusiveUntil
-              ? new Date(body.exclusiveUntil)
-              : null,
-            genreId,
-            id: trackId,
-            isForSale: body.isForSale,
-            isPublic: body.isPublic,
-            isrc: body.isrc ?? null,
-            listeningAccess: body.listeningAccess,
-            musicalKey: body.musicalKey ?? null,
-            organizationId,
-            ownerUserId: user.id,
-            price:
-              typeof salePriceUsd === "number" ? salePriceUsd.toFixed(2) : null,
-            priceCents: salePriceCents,
-            productionStatus: body.productionStatus,
-            publishedAt: body.isPublic ? now : null,
-            purchaseMode: body.purchaseMode,
-            releaseAt: body.releaseAt ? new Date(body.releaseAt) : null,
-            releaseStrategy: body.releaseStrategy,
-            slug: uniqueSlug(body.title),
-            title: body.title,
-            updatedAt: now,
-          })
-          .returning()
-      );
+          body.isForSale && isSingle
+            ? SINGLE_TRACK_PRICE_CENTS
+            : (body.priceCents ??
+              (salePriceUsd === null ? null : Math.round(salePriceUsd * 100))),
+        [track] = await withRetry("create track", () =>
+          db
+            .insert(tracks)
+            .values({
+              bpm: body.bpm ?? null,
+              catalogItemType: body.catalogItemType,
+              createdAt: now,
+              description: body.description ?? null,
+              downloadsAllowed: body.downloadsAllowed,
+              downloadsRequireFirstPlay: body.downloadsRequireFirstPlay,
+              downloadsRequirePurchase: body.downloadsRequirePurchase,
+              exclusiveUntil: body.exclusiveUntil
+                ? new Date(body.exclusiveUntil)
+                : null,
+              genreId,
+              id: trackId,
+              isForSale: body.isForSale,
+              isPublic: body.isPublic,
+              isrc: body.isrc ?? null,
+              listeningAccess: body.listeningAccess,
+              musicalKey: body.musicalKey ?? null,
+              organizationId,
+              ownerUserId: user.id,
+              price:
+                typeof salePriceUsd === "number"
+                  ? salePriceUsd.toFixed(2)
+                  : null,
+              priceCents: salePriceCents,
+              productionStatus: body.productionStatus,
+              publishedAt: body.isPublic ? now : null,
+              purchaseMode: body.purchaseMode,
+              releaseAt: body.releaseAt ? new Date(body.releaseAt) : null,
+              releaseStrategy: body.releaseStrategy,
+              slug: uniqueSlug(body.title),
+              title: body.title,
+              updatedAt: now,
+            })
+            .returning()
+        );
 
       if (body.assetIds.length > 0) {
         await withRetry("attach existing track asset", () =>
@@ -1317,7 +1308,7 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     body = c.req.valid("json");
+      body = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -1327,19 +1318,19 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb();
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb();
 
     let updatedGenreId: string | undefined;
     if (body.genre) {
       const genreSlug = canonicalGenreSlug(body.genre),
-       [genreRow] = await db
-        .select({ id: genres.id })
-        .from(genres)
-        .where(eq(genres.slug, genreSlug));
+        [genreRow] = await db
+          .select({ id: genres.id })
+          .from(genres)
+          .where(eq(genres.slug, genreSlug));
       if (genreRow) {
         updatedGenreId = genreRow.id;
       } else {
@@ -1461,12 +1452,12 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb();
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb();
 
     await db
       .delete(tracks)
@@ -1513,7 +1504,7 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     body = c.req.valid("json");
+      body = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
       const [sampleTrack] = sampleTracks;
@@ -1536,16 +1527,16 @@ app.openapi(
     }
 
     const session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     [track] = await db
-      .select()
-      .from(tracks)
-      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-      .limit(1);
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [track] = await db
+        .select()
+        .from(tracks)
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -1652,40 +1643,40 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     [track] = await db
-      .select()
-      .from(tracks)
-      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-      .limit(1);
+      body = c.req.valid("json"),
+      session = c.get("session"),
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [track] = await db
+        .select()
+        .from(tracks)
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
     const assetRows = await db
-      .select()
-      .from(trackAssets)
-      .where(eq(trackAssets.trackId, trackId)),
-     masterAsset = assetRows.find(
-      (asset) =>
-        asset.assetKind === "master" &&
-        Boolean(asset.objectKey) &&
-        (asset.status === "ready" || asset.status === "uploaded")
-    ),
-     coverAsset = assetRows.find(
-      (asset) => asset.assetKind === "cover_art" && Boolean(asset.objectKey)
-    );
+        .select()
+        .from(trackAssets)
+        .where(eq(trackAssets.trackId, trackId)),
+      masterAsset = assetRows.find(
+        (asset) =>
+          asset.assetKind === "master" &&
+          Boolean(asset.objectKey) &&
+          (asset.status === "ready" || asset.status === "uploaded")
+      ),
+      coverAsset = assetRows.find(
+        (asset) => asset.assetKind === "cover_art" && Boolean(asset.objectKey)
+      );
 
     if (!masterAsset) {
       return c.json(
@@ -1715,21 +1706,23 @@ app.openapi(
     );
 
     const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
-     shouldPublish = body.isPublic,
-     [settledTrack] = await withRetry("settle track", () =>
-      db
-        .update(tracks)
-        .set({
-          isPublic: shouldPublish,
-          productionStatus: body.productionStatus,
-          publishedAt: shouldPublish ? (track.publishedAt ?? new Date()) : null,
-          releaseAt,
-          releaseStrategy: body.releaseStrategy,
-          updatedAt: new Date(),
-        })
-        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-        .returning()
-    );
+      shouldPublish = body.isPublic,
+      [settledTrack] = await withRetry("settle track", () =>
+        db
+          .update(tracks)
+          .set({
+            isPublic: shouldPublish,
+            productionStatus: body.productionStatus,
+            publishedAt: shouldPublish
+              ? (track.publishedAt ?? new Date())
+              : null,
+            releaseAt,
+            releaseStrategy: body.releaseStrategy,
+            updatedAt: new Date(),
+          })
+          .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+          .returning()
+      );
 
     if (!settledTrack) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -1808,11 +1801,11 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     session = c.get("session"),
-     entitlements = await resolveEntitlements({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    });
+      session = c.get("session"),
+      entitlements = await resolveEntitlements({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
 
     if (!entitlements.isPremium) {
       return c.json(
@@ -1825,15 +1818,15 @@ app.openapi(
     }
 
     const organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     [track] = await db
-      .select()
-      .from(tracks)
-      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-      .limit(1);
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [track] = await db
+        .select()
+        .from(tracks)
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -1907,18 +1900,18 @@ app.openapi(
     }
 
     const { trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     [track] = await db
-      .select({ id: tracks.id })
-      .from(tracks)
-      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-      .limit(1);
+      body = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [track] = await db
+        .select({ id: tracks.id })
+        .from(tracks)
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -2009,18 +2002,18 @@ app.openapi(
     }
 
     const { lyricsId, trackId } = c.req.valid("param"),
-     body = c.req.valid("json"),
-     session = c.get("session"),
-     organizationId = await resolveActiveOrganizationId({
-      session: isAuthenticatedSession(session) ? session : null,
-      user,
-    }),
-     db = createDb(),
-     [track] = await db
-      .select({ id: tracks.id })
-      .from(tracks)
-      .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
-      .limit(1);
+      body = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [track] = await db
+        .select({ id: tracks.id })
+        .from(tracks)
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .limit(1);
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
@@ -2071,30 +2064,29 @@ app.openapi(
     }
 
     const [revision] = await db
-      .update(trackLyrics)
-      .set({
-        approvedAt,
-        approvedByUserId: body.status === "approved" ? user.id : null,
-        status: body.status,
-        updatedAt: new Date(),
-      })
-      .where(eq(trackLyrics.id, lyricsId))
-      .returning(),
-
-     [remainingApproved] =
-      body.status === "approved"
-        ? [revision]
-        : await db
-            .select({ id: trackLyrics.id })
-            .from(trackLyrics)
-            .where(
-              and(
-                eq(trackLyrics.trackId, trackId),
-                eq(trackLyrics.status, "approved")
+        .update(trackLyrics)
+        .set({
+          approvedAt,
+          approvedByUserId: body.status === "approved" ? user.id : null,
+          status: body.status,
+          updatedAt: new Date(),
+        })
+        .where(eq(trackLyrics.id, lyricsId))
+        .returning(),
+      [remainingApproved] =
+        body.status === "approved"
+          ? [revision]
+          : await db
+              .select({ id: trackLyrics.id })
+              .from(trackLyrics)
+              .where(
+                and(
+                  eq(trackLyrics.trackId, trackId),
+                  eq(trackLyrics.status, "approved")
+                )
               )
-            )
-            .limit(1),
-     nextLyricsStatus = remainingApproved ? "approved" : "missing";
+              .limit(1),
+      nextLyricsStatus = remainingApproved ? "approved" : "missing";
 
     await db
       .update(tracks)
@@ -2186,24 +2178,24 @@ app.openapi(
     }
 
     const { assetId, trackId } = c.req.valid("param"),
-     db = createDb(),
-     [row] = await db
-      .select({
-        asset: trackAssets,
-        track: {
-          downloadsAllowed: tracks.downloadsAllowed,
-          downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
-          downloadsRequirePurchase: tracks.downloadsRequirePurchase,
-          id: tracks.id,
-          isForSale: tracks.isForSale,
-          ownerUserId: tracks.ownerUserId,
-          title: tracks.title,
-        },
-      })
-      .from(trackAssets)
-      .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
-      .where(and(eq(trackAssets.id, assetId), eq(tracks.id, trackId)))
-      .limit(1);
+      db = createDb(),
+      [row] = await db
+        .select({
+          asset: trackAssets,
+          track: {
+            downloadsAllowed: tracks.downloadsAllowed,
+            downloadsRequireFirstPlay: tracks.downloadsRequireFirstPlay,
+            downloadsRequirePurchase: tracks.downloadsRequirePurchase,
+            id: tracks.id,
+            isForSale: tracks.isForSale,
+            ownerUserId: tracks.ownerUserId,
+            title: tracks.title,
+          },
+        })
+        .from(trackAssets)
+        .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
+        .where(and(eq(trackAssets.id, assetId), eq(tracks.id, trackId)))
+        .limit(1);
 
     if (!(row?.asset.objectKey && row.asset.status === "ready")) {
       return c.json(
@@ -2213,11 +2205,11 @@ app.openapi(
     }
 
     const isOwner = row.track.ownerUserId === user.id,
-     hasPurchase = await hasPurchasedTrack({
-      db,
-      trackId,
-      userId: user.id,
-    });
+      hasPurchase = await hasPurchasedTrack({
+        db,
+        trackId,
+        userId: user.id,
+      });
 
     if (!isOwner) {
       if (!row.track.downloadsAllowed) {
@@ -2250,18 +2242,18 @@ app.openapi(
     }
 
     const object = await bucket.get(row.asset.objectKey),
-     canonicalMediaUrl = (
-      env as unknown as { MEDIA_CANONICAL_URL?: string }
-    ).MEDIA_CANONICAL_URL?.replace(/\/+$/u, ""),
-     canonicalResponse =
-      !object && canonicalMediaUrl
-        ? await fetch(
-            `${canonicalMediaUrl}/${row.asset.objectKey
-              .split("/")
-              .map(encodeURIComponent)
-              .join("/")}`
-          ).catch(() => null)
-        : null;
+      canonicalMediaUrl = (
+        env as unknown as { MEDIA_CANONICAL_URL?: string }
+      ).MEDIA_CANONICAL_URL?.replace(/\/+$/u, ""),
+      canonicalResponse =
+        !object && canonicalMediaUrl
+          ? await fetch(
+              `${canonicalMediaUrl}/${row.asset.objectKey
+                .split("/")
+                .map(encodeURIComponent)
+                .join("/")}`
+            ).catch(() => null)
+          : null;
 
     if (!(object || canonicalResponse?.ok)) {
       return c.json(
@@ -2289,9 +2281,9 @@ app.openapi(
     }
 
     const fileName =
-      trackAssetFileName(row.asset) ??
-      `${uniqueSlug(row.track.title)}.download`,
-     headers = new Headers(canonicalResponse?.headers);
+        trackAssetFileName(row.asset) ??
+        `${uniqueSlug(row.track.title)}.download`,
+      headers = new Headers(canonicalResponse?.headers);
     object?.writeHttpMetadata(headers);
     headers.set(
       "Content-Disposition",
@@ -2344,25 +2336,25 @@ app.openapi(
     }
 
     const db = createDb(),
-     currentUser = c.get("user");
+      currentUser = c.get("user");
 
     if (isAuthenticatedUser(currentUser)) {
       const session = c.get("session"),
-       organizationId = await resolveActiveOrganizationId({
-        session: isAuthenticatedSession(session) ? session : null,
-        user: currentUser,
-      }),
-       [ownedTrack] = await db
-        .select()
-        .from(tracks)
-        .where(
-          ownedTrackWhere({
-            organizationId,
-            trackId,
-            userId: currentUser.id,
-          })
-        )
-        .limit(1);
+        organizationId = await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(session) ? session : null,
+          user: currentUser,
+        }),
+        [ownedTrack] = await db
+          .select()
+          .from(tracks)
+          .where(
+            ownedTrackWhere({
+              organizationId,
+              trackId,
+              userId: currentUser.id,
+            })
+          )
+          .limit(1);
 
       if (ownedTrack) {
         return c.json(await buildTrackDetail(ownedTrack), HttpStatusCodes.OK);
@@ -2412,83 +2404,80 @@ app.openapi(
     }
 
     const [roleRows, assetRows, licenseRows] = await Promise.all([
-      db
-        .select({ role: artistProfileRoles.role })
-        .from(artistProfileRoles)
-        .where(eq(artistProfileRoles.userId, row.ownerUserId)),
-      db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
-      db
-        .select()
-        .from(trackLicenseOptions)
-        .where(eq(trackLicenseOptions.trackId, row.id)),
-    ]),
+        db
+          .select({ role: artistProfileRoles.role })
+          .from(artistProfileRoles)
+          .where(eq(artistProfileRoles.userId, row.ownerUserId)),
+        db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
+        db
+          .select()
+          .from(trackLicenseOptions)
+          .where(eq(trackLicenseOptions.trackId, row.id)),
+      ]),
+      isAuthenticated = isAuthenticatedUser(currentUser),
+      entitlements = isAuthenticated
+        ? await resolveEntitlements({
+            session: isAuthenticatedSession(c.get("session"))
+              ? c.get("session")
+              : null,
+            user: currentUser,
+          })
+        : null,
+      hasPurchase = isAuthenticated
+        ? await hasPurchasedTrack({
+            db,
+            trackId: row.id,
+            userId: currentUser.id,
+          })
+        : false,
+      access = resolveListeningAccess({
+        hasPurchase,
+        isPremium: entitlements?.isPremium ?? false,
+        policy: row,
+      }),
+      isOwned = hasPurchase,
+      roles: ("musician" | "producer")[] =
+        roleRows.length > 0
+          ? roleRows.map((roleRow) => roleRow.role)
+          : ["musician"],
+      coverAsset =
+        assetRows.find(
+          (asset) => asset.assetKind === "cover_art" && asset.status === "ready"
+        ) ?? assetRows.find((asset) => asset.assetKind === "cover_art"),
+      firstAudioAsset =
+        assetRows.find((asset) => asset.assetKind === "master") ??
+        assetRows.find((asset) => asset.durationMs),
+      previewAsset = assetRows.find((asset) => {
+        if (asset.assetKind !== "variant_audio") {
+          return false;
+        }
 
-     isAuthenticated = isAuthenticatedUser(currentUser),
-     entitlements = isAuthenticated
-      ? await resolveEntitlements({
-          session: isAuthenticatedSession(c.get("session"))
-            ? c.get("session")
-            : null,
-          user: currentUser,
-        })
-      : null,
-     hasPurchase = isAuthenticated
-      ? await hasPurchasedTrack({
-          db,
-          trackId: row.id,
-          userId: currentUser.id,
-        })
-      : false,
-     access = resolveListeningAccess({
-      hasPurchase,
-      isPremium: entitlements?.isPremium ?? false,
-      policy: row,
-    }),
-     isOwned = hasPurchase,
-
-     roles: ("musician" | "producer")[] =
-      roleRows.length > 0
-        ? roleRows.map((roleRow) => roleRow.role)
-        : ["musician"],
-     coverAsset =
-      assetRows.find(
-        (asset) => asset.assetKind === "cover_art" && asset.status === "ready"
-      ) ?? assetRows.find((asset) => asset.assetKind === "cover_art"),
-     firstAudioAsset =
-      assetRows.find((asset) => asset.assetKind === "master") ??
-      assetRows.find((asset) => asset.durationMs),
-     previewAsset = assetRows.find((asset) => {
-      if (asset.assetKind !== "variant_audio") {
-        return false;
-      }
-
-      return (
-        typeof asset.metadata === "object" &&
-        asset.metadata !== null &&
-        "variant" in asset.metadata &&
-        asset.metadata.variant === "preview_30s"
-      );
-    }),
-     priceCents = priceCentsFromTrack({
-      price: row.price,
-      priceCents: row.priceCents,
-    }),
-
-     assets = assetRows
-      .filter((asset) => catalogAssetKinds.has(asset.assetKind))
-      .map((asset) => ({
-        downloadUrl: `/v1/tracks/${row.id}/assets/${asset.id}/download`,
-        duration: formatDuration(asset.durationMs),
-        fileName: trackAssetFileName(asset),
-        format: asset.mimeType,
-        id: asset.id,
-        included: asset.status === "ready",
-        kind: asset.assetKind as keyof typeof assetKindLabels,
-        label:
-          assetKindLabels[asset.assetKind as keyof typeof assetKindLabels] ??
-          "Track Asset",
-        subtitle: asset.mimeType,
-      }));
+        return (
+          typeof asset.metadata === "object" &&
+          asset.metadata !== null &&
+          "variant" in asset.metadata &&
+          asset.metadata.variant === "preview_30s"
+        );
+      }),
+      priceCents = priceCentsFromTrack({
+        price: row.price,
+        priceCents: row.priceCents,
+      }),
+      assets = assetRows
+        .filter((asset) => catalogAssetKinds.has(asset.assetKind))
+        .map((asset) => ({
+          downloadUrl: `/v1/tracks/${row.id}/assets/${asset.id}/download`,
+          duration: formatDuration(asset.durationMs),
+          fileName: trackAssetFileName(asset),
+          format: asset.mimeType,
+          id: asset.id,
+          included: asset.status === "ready",
+          kind: asset.assetKind as keyof typeof assetKindLabels,
+          label:
+            assetKindLabels[asset.assetKind as keyof typeof assetKindLabels] ??
+            "Track Asset",
+          subtitle: asset.mimeType,
+        }));
 
     return c.json(
       {
@@ -2584,7 +2573,7 @@ app.openapi(
   }),
   async (c) => {
     const { trackId } = c.req.valid("param"),
-     user = c.get("user");
+      user = c.get("user");
 
     if (!isAuthenticatedUser(user)) {
       return c.json(

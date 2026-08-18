@@ -19,67 +19,66 @@ import {
 import type { BattleSummary } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
-  { label: "Most Played", value: "plays-desc" },
-  { label: "Least Played", value: "plays-asc" },
-  { label: "Newest", value: "date-desc" },
-  { label: "Oldest", value: "date-asc" },
-  { label: "Title (A-Z)", value: "title-asc" },
-  { label: "Title (Z-A)", value: "title-desc" },
-],
-
- genreData: Record<
-  string,
-  { name: string; emoji: string; description: string; queryGenre: string }
-> = {
-  afrobeats: {
-    description: "African rhythms and melodies",
-    emoji: "🥁",
-    name: "Afrobeats",
-    queryGenre: "afrobeats",
-  },
-  electronic: {
-    description: "Digital sounds and beats",
-    emoji: "🎹",
-    name: "Electronic",
-    queryGenre: "electronic",
-  },
-  "hip-hop": {
-    description: "Beats, rhymes, and culture",
-    emoji: "🎤",
-    name: "Hip-Hop",
-    queryGenre: "hip-hop-rap",
-  },
-  jazz: {
-    description: "Improvisation and swing",
-    emoji: "🎺",
-    name: "Jazz",
-    queryGenre: "jazz",
-  },
-  latin: {
-    description: "Latin rhythms and passion",
-    emoji: "💃",
-    name: "Latin",
-    queryGenre: "latin",
-  },
-  pop: {
-    description: "Chart-topping hits",
-    emoji: "⭐",
-    name: "Pop",
-    queryGenre: "pop",
-  },
-  "rb-soul": {
-    description: "Smooth vibes and soulful vocals",
-    emoji: "🎵",
-    name: "R&B/Soul",
-    queryGenre: "rb-soul",
-  },
-  rock: {
-    description: "Guitar-driven anthems",
-    emoji: "🎸",
-    name: "Rock",
-    queryGenre: "rock",
-  },
-};
+    { label: "Most Played", value: "plays-desc" },
+    { label: "Least Played", value: "plays-asc" },
+    { label: "Newest", value: "date-desc" },
+    { label: "Oldest", value: "date-asc" },
+    { label: "Title (A-Z)", value: "title-asc" },
+    { label: "Title (Z-A)", value: "title-desc" },
+  ],
+  genreData: Record<
+    string,
+    { name: string; emoji: string; description: string; queryGenre: string }
+  > = {
+    afrobeats: {
+      description: "African rhythms and melodies",
+      emoji: "🥁",
+      name: "Afrobeats",
+      queryGenre: "afrobeats",
+    },
+    electronic: {
+      description: "Digital sounds and beats",
+      emoji: "🎹",
+      name: "Electronic",
+      queryGenre: "electronic",
+    },
+    "hip-hop": {
+      description: "Beats, rhymes, and culture",
+      emoji: "🎤",
+      name: "Hip-Hop",
+      queryGenre: "hip-hop-rap",
+    },
+    jazz: {
+      description: "Improvisation and swing",
+      emoji: "🎺",
+      name: "Jazz",
+      queryGenre: "jazz",
+    },
+    latin: {
+      description: "Latin rhythms and passion",
+      emoji: "💃",
+      name: "Latin",
+      queryGenre: "latin",
+    },
+    pop: {
+      description: "Chart-topping hits",
+      emoji: "⭐",
+      name: "Pop",
+      queryGenre: "pop",
+    },
+    "rb-soul": {
+      description: "Smooth vibes and soulful vocals",
+      emoji: "🎵",
+      name: "R&B/Soul",
+      queryGenre: "rb-soul",
+    },
+    rock: {
+      description: "Guitar-driven anthems",
+      emoji: "🎸",
+      name: "Rock",
+      queryGenre: "rock",
+    },
+  };
 
 export const Route = createFileRoute("/_explore/genres/$id")({
   component: GenreDetailPage,
@@ -91,24 +90,22 @@ export const Route = createFileRoute("/_explore/genres/$id")({
 });
 
 const genreRouteIdFromValue = (value: string) =>
-  value === "hip-hop-rap" ? "hip-hop" : value,
+    value === "hip-hop-rap" ? "hip-hop" : value,
+  formatFollowers = (followers: number) => {
+    if (followers >= 1000) {
+      return `${Math.round(followers / 1000)}K`;
+    }
 
- formatFollowers = (followers: number) => {
-  if (followers >= 1000) {
-    return `${Math.round(followers / 1000)}K`;
-  }
+    return followers.toLocaleString();
+  },
+  matchesGenre = (battle: BattleSummary, genreValue: string) => {
+    const normalized = battle.genre
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/gu, "-")
+      .replaceAll(/^-|-$/gu, "");
 
-  return followers.toLocaleString();
-},
-
- matchesGenre = (battle: BattleSummary, genreValue: string) => {
-  const normalized = battle.genre
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/gu, "-")
-    .replaceAll(/^-|-$/gu, "");
-
-  return normalized === genreValue;
-};
+    return normalized === genreValue;
+  };
 
 function GenreBattleCard({
   battle,
@@ -219,103 +216,97 @@ function GenreBattleRail({
 
 function useGenreBattles(genreValue: string) {
   const { data: battles = [] } = useBattlesQuery(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   isPremiumUser = Boolean(
-    entitlementsQuery.data?.isPremium ||
-    entitlementsQuery.data?.canViewLiveBattles ||
-    entitlementsQuery.data?.canVoteLiveBattles
-  ),
-   genreBattles = battles.filter((battle) =>
-    matchesGenre(battle, genreValue)
-  ),
-   sections = {
-    live: genreBattles.filter((battle) => battle.status === "live"),
-    mustSee: genreBattles.filter((battle) => battle.status === "completed"),
-    upcoming: genreBattles.filter((battle) => battle.status === "scheduled"),
-  };
+    entitlementsQuery = useMeEntitlementsQuery(),
+    isPremiumUser = Boolean(
+      entitlementsQuery.data?.isPremium ||
+      entitlementsQuery.data?.canViewLiveBattles ||
+      entitlementsQuery.data?.canVoteLiveBattles
+    ),
+    genreBattles = battles.filter((battle) => matchesGenre(battle, genreValue)),
+    sections = {
+      live: genreBattles.filter((battle) => battle.status === "live"),
+      mustSee: genreBattles.filter((battle) => battle.status === "completed"),
+      upcoming: genreBattles.filter((battle) => battle.status === "scheduled"),
+    };
 
   return { isPremiumUser, sections };
 }
 
 function GenreDetailPage() {
   const { id } = Route.useParams(),
-   search = Route.useSearch(),
-   navigate = Route.useNavigate(),
-   router = useRouter(),
-   genreOption = musicGenres.find(
-    (option) => genreRouteIdFromValue(option.value) === id
-  ),
-   genre = genreData[id] || {
-    description: "",
-    emoji: "🎵",
-    name: genreOption?.label ?? "Genre",
-    queryGenre: genreOption?.value ?? id,
-  },
+    search = Route.useSearch(),
+    navigate = Route.useNavigate(),
+    router = useRouter(),
+    genreOption = musicGenres.find(
+      (option) => genreRouteIdFromValue(option.value) === id
+    ),
+    genre = genreData[id] || {
+      description: "",
+      emoji: "🎵",
+      name: genreOption?.label ?? "Genre",
+      queryGenre: genreOption?.value ?? id,
+    },
+    savedRegionType =
+      typeof window === "undefined"
+        ? null
+        : (localStorage.getItem("exploreRegionType") as
+            | "north-america"
+            | "global"
+            | null),
+    savedRegion =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("exploreRegion"),
+    regionType = search.regionType ?? savedRegionType ?? "north-america",
+    region = search.region ?? savedRegion ?? "us-arkansas",
+    sort = search.sort ?? "plays-desc",
+    updateFilters = (next: {
+      region?: string;
+      regionType?: "north-america" | "global";
+      sort?: string;
+    }) => {
+      const nextRegionType = next.regionType ?? regionType,
+        nextRegion = next.region ?? region;
 
-   savedRegionType =
-    typeof window === "undefined"
-      ? null
-      : (localStorage.getItem("exploreRegionType") as
-          | "north-america"
-          | "global"
-          | null),
-   savedRegion =
-    typeof window === "undefined"
-      ? null
-      : localStorage.getItem("exploreRegion"),
+      if (typeof window !== "undefined") {
+        localStorage.setItem("exploreRegionType", nextRegionType);
+        localStorage.setItem("exploreRegion", nextRegion);
+      }
 
-   regionType = search.regionType ?? savedRegionType ?? "north-america",
-   region = search.region ?? savedRegion ?? "us-arkansas",
-   sort = search.sort ?? "plays-desc",
-
-   updateFilters = (next: {
-    region?: string;
-    regionType?: "north-america" | "global";
-    sort?: string;
-  }) => {
-    const nextRegionType = next.regionType ?? regionType,
-     nextRegion = next.region ?? region;
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("exploreRegionType", nextRegionType);
-      localStorage.setItem("exploreRegion", nextRegion);
-    }
-
-    navigate({
-      replace: true,
-      search: {
-        region: nextRegion,
-        regionType: nextRegionType,
-        sort: next.sort ?? sort,
-      },
-    });
-  },
-
-   { data: topTracks = [] } = useTracksQuery(undefined, {
-    genre: genre.queryGenre,
-    limit: 12,
-    region,
-    regionType,
-    scope: "public",
-    sort,
-  }),
-   { data: newTracks = [] } = useTracksQuery(undefined, {
-    genre: genre.queryGenre,
-    limit: 12,
-    region,
-    regionType,
-    scope: "public",
-    sort: "date-desc",
-  }),
-   { data: topArtists = [] } = useArtistsQuery({
-    category: "top",
-    genre: genre.queryGenre,
-    limit: 12,
-    region,
-    regionType,
-    sort: "rank-asc",
-  }),
-   { isPremiumUser, sections } = useGenreBattles(genre.queryGenre);
+      navigate({
+        replace: true,
+        search: {
+          region: nextRegion,
+          regionType: nextRegionType,
+          sort: next.sort ?? sort,
+        },
+      });
+    },
+    { data: topTracks = [] } = useTracksQuery(undefined, {
+      genre: genre.queryGenre,
+      limit: 12,
+      region,
+      regionType,
+      scope: "public",
+      sort,
+    }),
+    { data: newTracks = [] } = useTracksQuery(undefined, {
+      genre: genre.queryGenre,
+      limit: 12,
+      region,
+      regionType,
+      scope: "public",
+      sort: "date-desc",
+    }),
+    { data: topArtists = [] } = useArtistsQuery({
+      category: "top",
+      genre: genre.queryGenre,
+      limit: 12,
+      region,
+      regionType,
+      sort: "rank-asc",
+    }),
+    { isPremiumUser, sections } = useGenreBattles(genre.queryGenre);
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8 space-y-8 md:space-y-10">

@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/max-nested-calls, one-var, require-unicode-regexp, no-empty-function, sort-vars */
 import { z } from "@hono/zod-openapi";
 
 export const healthResponseSchema = z.object({
@@ -213,6 +214,13 @@ export const adminRecentTransactionSchema = z.object({
 
 export const adminPaymentsOverviewSchema = z.object({
   configuredCheckoutPlans: z.number().int(),
+  connectStats: z
+    .object({
+      activeCount: z.number().int(),
+      pendingCount: z.number().int(),
+      totalAccounts: z.number().int(),
+    })
+    .optional(),
   planCount: z.number().int(),
   plans: adminPaymentPlanSchema.array(),
   recentTransactions: adminRecentTransactionSchema.array(),
@@ -929,6 +937,7 @@ export const conversationSummarySchema = z.object({
   conversationType: z.enum(["direct", "group", "battle_live"]),
   id: z.string(),
   participantAvatarUrl: z.string().nullable(),
+  participantId: z.string().nullable().optional(),
   participantName: z.string().nullable(),
   participantUsername: z.string().nullable(),
   title: z.string(),

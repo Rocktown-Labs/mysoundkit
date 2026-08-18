@@ -22,42 +22,40 @@ interface FormFieldContextValue<
 }
 
 const FormFieldContext = React.createContext<FormFieldContextValue>(
-  {} as FormFieldContextValue
-),
+    {} as FormFieldContextValue
+  ),
+  FormField = <
+    TFieldValues extends FieldValues = FieldValues,
+    TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+  >({
+    ...props
+  }: ControllerProps<TFieldValues, TName>) => (
+    <FormFieldContext.Provider value={{ name: props.name }}>
+      <Controller {...props} />
+    </FormFieldContext.Provider>
+  ),
+  useFormField = () => {
+    const fieldContext = React.useContext(FormFieldContext),
+      itemContext = React.useContext(FormItemContext),
+      { getFieldState } = useFormContext(),
+      formState = useFormState({ name: fieldContext.name }),
+      fieldState = getFieldState(fieldContext.name, formState);
 
- FormField = <
-  TFieldValues extends FieldValues = FieldValues,
-  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
->({
-  ...props
-}: ControllerProps<TFieldValues, TName>) => (
-  <FormFieldContext.Provider value={{ name: props.name }}>
-    <Controller {...props} />
-  </FormFieldContext.Provider>
-),
+    if (!fieldContext) {
+      throw new Error("useFormField should be used within <FormField>");
+    }
 
- useFormField = () => {
-  const fieldContext = React.useContext(FormFieldContext),
-   itemContext = React.useContext(FormItemContext),
-   { getFieldState } = useFormContext(),
-   formState = useFormState({ name: fieldContext.name }),
-   fieldState = getFieldState(fieldContext.name, formState);
+    const { id } = itemContext;
 
-  if (!fieldContext) {
-    throw new Error("useFormField should be used within <FormField>");
-  }
-
-  const { id } = itemContext;
-
-  return {
-    formDescriptionId: `${id}-form-item-description`,
-    formItemId: `${id}-form-item`,
-    formMessageId: `${id}-form-item-message`,
-    id,
-    name: fieldContext.name,
-    ...fieldState,
+    return {
+      formDescriptionId: `${id}-form-item-description`,
+      formItemId: `${id}-form-item`,
+      formMessageId: `${id}-form-item-message`,
+      id,
+      name: fieldContext.name,
+      ...fieldState,
+    };
   };
-};
 
 interface FormItemContextValue {
   id: string;
@@ -130,7 +128,7 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
 
 function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
   const { error, formMessageId } = useFormField(),
-   body = error ? String(error?.message ?? "") : props.children;
+    body = error ? String(error?.message ?? "") : props.children;
 
   if (!body) {
     return null;

@@ -25,20 +25,19 @@ export interface WatchedItem {
 }
 
 const watchedItemLabel = (type: WatchedItem["type"]) => {
-  if (type === "party") {
-    return "listening party";
-  }
+    if (type === "party") {
+      return "listening party";
+    }
 
-  return type;
-},
+    return type;
+  },
+  watchedItemIcon = (type: WatchedItem["type"]) => {
+    if (type === "battle") {
+      return Sword;
+    }
 
- watchedItemIcon = (type: WatchedItem["type"]) => {
-  if (type === "battle") {
-    return Sword;
-  }
-
-  return Video;
-};
+    return Video;
+  };
 
 export const columns: ColumnDef<WatchedItem>[] = [
   {
@@ -66,57 +65,56 @@ export const columns: ColumnDef<WatchedItem>[] = [
     accessorKey: "title",
     cell: ({ row }) => {
       const Icon = watchedItemIcon(row.original.type),
-       title = row.getValue<string>("title"),
-       item = row.original,
-       linkClassName =
-        "font-medium hover:text-primary transition-colors line-clamp-1",
-
-       titleLink =
-        item.type === "battle" ? (
-          <Link
-            to="/live/battles/$id"
-            params={{ id: item.id }}
-            className={linkClassName}
-          >
-            {title}
-          </Link>
-        ) : item.type === "stream" ? (
-          <Link
-            to="/live/streams/$id"
-            params={{ id: item.id }}
-            className={linkClassName}
-          >
-            {title}
-          </Link>
-        ) : item.type === "party" ? (
-          <Link
-            to="/live/parties/$id"
-            params={{ id: item.id }}
-            className={linkClassName}
-          >
-            {title}
-          </Link>
-        ) : item.type === "community" ? (
-          <Link to="/communities" className={linkClassName}>
-            {title}
-          </Link>
-        ) : (
-          <Link
-            params={
-              item.regionSlug && item.slug
-                ? { regionSlug: item.regionSlug, slug: item.slug }
-                : { id: item.id }
-            }
-            to={
-              item.regionSlug && item.slug
-                ? "/videos/$regionSlug/$slug"
-                : "/videos/$id"
-            }
-            className={linkClassName}
-          >
-            {title}
-          </Link>
-        );
+        title = row.getValue<string>("title"),
+        item = row.original,
+        linkClassName =
+          "font-medium hover:text-primary transition-colors line-clamp-1",
+        titleLink =
+          item.type === "battle" ? (
+            <Link
+              to="/live/battles/$id"
+              params={{ id: item.id }}
+              className={linkClassName}
+            >
+              {title}
+            </Link>
+          ) : item.type === "stream" ? (
+            <Link
+              to="/live/streams/$id"
+              params={{ id: item.id }}
+              className={linkClassName}
+            >
+              {title}
+            </Link>
+          ) : item.type === "party" ? (
+            <Link
+              to="/live/parties/$id"
+              params={{ id: item.id }}
+              className={linkClassName}
+            >
+              {title}
+            </Link>
+          ) : item.type === "community" ? (
+            <Link to="/communities" className={linkClassName}>
+              {title}
+            </Link>
+          ) : (
+            <Link
+              params={
+                item.regionSlug && item.slug
+                  ? { regionSlug: item.regionSlug, slug: item.slug }
+                  : { id: item.id }
+              }
+              to={
+                item.regionSlug && item.slug
+                  ? "/videos/$regionSlug/$slug"
+                  : "/videos/$id"
+              }
+              className={linkClassName}
+            >
+              {title}
+            </Link>
+          );
 
       return (
         <div className="flex flex-col gap-1">

@@ -39,7 +39,7 @@ export class PresenceDurableObject extends DurableObject {
       }
 
       const pair = new WebSocketPair(),
-       [client, server] = [pair[0], pair[1]];
+        [client, server] = [pair[0], pair[1]];
 
       this.ctx.acceptWebSocket(server, [`user:${userId}`]);
 
@@ -66,7 +66,7 @@ export class PresenceDurableObject extends DurableObject {
         url.pathname === "/")
     ) {
       const now = Date.now(),
-       result: Record<string, UserPresence> = {};
+        result: Record<string, UserPresence> = {};
       for (const [id, user] of this.users) {
         if (now - user.lastSeen < 60_000 && user.status !== "offline") {
           result[id] = user;
@@ -99,19 +99,19 @@ export class PresenceDurableObject extends DurableObject {
     // HTTP POST: query online status for a specific list of user IDs
     if (request.method === "POST" && url.pathname === "/query") {
       const body = (await request.json().catch(() => ({}))) as {
-        userIds?: string[];
-      },
-       now = Date.now(),
-       requestedIds = body.userIds ?? [],
-       result: Record<
-        string,
-        { isOnline: boolean; lastSeen: number; status: string }
-      > = {};
+          userIds?: string[];
+        },
+        now = Date.now(),
+        requestedIds = body.userIds ?? [],
+        result: Record<
+          string,
+          { isOnline: boolean; lastSeen: number; status: string }
+        > = {};
       for (const id of requestedIds) {
         const user = this.users.get(id),
-         isOnline = Boolean(
-          user && now - user.lastSeen < 60_000 && user.status !== "offline"
-        );
+          isOnline = Boolean(
+            user && now - user.lastSeen < 60_000 && user.status !== "offline"
+          );
         result[id] = {
           isOnline,
           lastSeen: user?.lastSeen ?? 0,
@@ -223,7 +223,7 @@ export class PresenceDurableObject extends DurableObject {
 
   private broadcastPresence() {
     const now = Date.now(),
-     activeUsers: Record<string, UserPresence> = {};
+      activeUsers: Record<string, UserPresence> = {};
     for (const [id, user] of this.users) {
       if (now - user.lastSeen < 60_000 && user.status !== "offline") {
         activeUsers[id] = user;

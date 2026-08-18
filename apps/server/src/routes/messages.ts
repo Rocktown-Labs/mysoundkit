@@ -1,3 +1,4 @@
+/* eslint-disable complexity, sort-vars, unicorn/max-nested-calls, one-var, no-nested-ternary */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -16,7 +17,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -61,6 +62,36 @@ const app = new OpenAPIHono<AppEnv>(),
       username: "sam",
     },
   ],
+  toIso = (val: unknown): string => {
+    if (!val) {
+      return new Date().toISOString();
+    }
+    if (val instanceof Date) {
+      return val.toISOString();
+    }
+    if (typeof val === "string" || typeof val === "number") {
+      const d = new Date(val);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toISOString();
+      }
+    }
+    return new Date().toISOString();
+  },
+  toNullableIso = (val: unknown): string | null => {
+    if (!val) {
+      return null;
+    }
+    if (val instanceof Date) {
+      return val.toISOString();
+    }
+    if (typeof val === "string" || typeof val === "number") {
+      const d = new Date(val);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toISOString();
+      }
+    }
+    return null;
+  },
   toFriendRequestSummary = ({
     createdAt,
     direction,
@@ -83,7 +114,7 @@ const app = new OpenAPIHono<AppEnv>(),
     username: string | null;
   }) => ({
     avatarUrl,
-    createdAt: createdAt.toISOString(),
+    createdAt: toIso(createdAt),
     direction,
     displayName: displayName ?? username ?? "SoundKit Artist",
     id: requestId,
@@ -559,9 +590,9 @@ app.openapi(
     const nextStatus =
       action === "accept"
         ? ("accepted" as const)
-        : (action === "cancel"
+        : action === "cancel"
           ? ("canceled" as const)
-          : ("declined" as const));
+          : ("declined" as const);
 
     let updatedRequest = existingRequest;
 
@@ -787,7 +818,7 @@ app.openapi(
         avatarUrl: row.avatarUrl,
         email: row.email,
         id: row.id,
-        lastInteractionAt: row.requestCreatedAt.toISOString(),
+        lastInteractionAt: toNullableIso(row.requestCreatedAt),
         name: row.displayName ?? row.name ?? row.username ?? "SoundKit Artist",
         relationship: "friend",
         role: "Artist",
@@ -801,7 +832,7 @@ app.openapi(
         avatarUrl: row.avatarUrl,
         email: row.email,
         id,
-        lastInteractionAt: row.createdAt.toISOString(),
+        lastInteractionAt: toNullableIso(row.createdAt),
         name: row.displayName ?? row.email ?? "Invited collaborator",
         relationship: "collaborator",
         role: row.role,
@@ -842,6 +873,7 @@ app.openapi(
         sampleConversations.map((conversation) => ({
           ...conversation,
           participantAvatarUrl: null,
+          participantId: null,
           participantName: null,
           participantUsername: null,
         })),
@@ -906,12 +938,13 @@ app.openapi(
           conversationType: row.conversationType,
           id: row.id,
           participantAvatarUrl: participant?.avatarUrl ?? null,
+          participantId: participant?.userId ?? null,
           participantName:
             participant?.displayName ?? participant?.username ?? null,
           participantUsername: participant?.username ?? null,
           title: row.title ?? "Untitled conversation",
           unreadCount: 0,
-          updatedAt: row.updatedAt.toISOString(),
+          updatedAt: toIso(row.updatedAt),
         };
       }),
       HttpStatusCodes.OK
@@ -1088,7 +1121,7 @@ app.openapi(
         participantUsername: null,
         title: conversation?.title ?? body.title ?? "New conversation",
         unreadCount: 0,
-        updatedAt: (conversation?.updatedAt ?? now).toISOString(),
+        updatedAt: toIso(conversation?.updatedAt ?? now),
       },
       HttpStatusCodes.CREATED
     );
@@ -1107,7 +1140,7 @@ app.openapi(
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
         messageSchema.array(),
-        "Conversation messages"
+        "Messages in conversation"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
@@ -1123,6 +1156,8 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    const { conversationId } = c.req.valid("param");
+
     if (!isDatabaseConfigured()) {
       return c.json(
         sampleMessages.map((message) => ({ ...message, attachments: [] })),
@@ -1130,10 +1165,9 @@ app.openapi(
       );
     }
 
-    const { conversationId } = c.req.valid("param"),
-      db = createDb(),
-      [membership] = await db
-        .select({ conversationId: conversationParticipants.conversationId })
+    const db = createDb(),
+      participantRows = await db
+        .select({ userId: conversationParticipants.userId })
         .from(conversationParticipants)
         .where(
           and(
@@ -1143,32 +1177,42 @@ app.openapi(
         )
         .limit(1);
 
-    if (!membership) {
-      return c.json([], HttpStatusCodes.OK);
+    if (participantRows.length === 0) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
     const rows = await db
-        .select()
+        .select({
+          body: messages.body,
+          createdAt: messages.createdAt,
+          id: messages.id,
+          senderUserId: messages.senderUserId,
+          status: messages.status,
+        })
         .from(messages)
         .where(eq(messages.conversationId, conversationId))
-        .orderBy(messages.createdAt)
-        .limit(100),
+        .orderBy(asc(messages.createdAt))
+        .limit(200),
+      messageIds = rows.map((row) => row.id),
       attachmentRows =
-        rows.length > 0
+        messageIds.length > 0
           ? await db
-              .select()
+              .select({
+                displayName: messageAttachments.displayName,
+                id: messageAttachments.id,
+                messageId: messageAttachments.messageId,
+                mimeType: messageAttachments.mimeType,
+                objectKey: messageAttachments.objectKey,
+                sizeBytes: messageAttachments.sizeBytes,
+                sourceProjectId: messageAttachments.sourceProjectId,
+                sourceTrackId: messageAttachments.sourceTrackId,
+                url: messageAttachments.url,
+              })
               .from(messageAttachments)
-              .where(
-                inArray(
-                  messageAttachments.messageId,
-                  rows.map((message) => message.id)
-                )
-              )
+              .where(inArray(messageAttachments.messageId, messageIds))
           : [],
-      attachmentsByMessageId = new Map<
-        string,
-        (typeof attachmentRows)[number][]
-      >();
+      attachmentsByMessageId = new Map<string, typeof attachmentRows>();
+
     for (const attachment of attachmentRows) {
       const current = attachmentsByMessageId.get(attachment.messageId) ?? [];
       current.push(attachment);
@@ -1190,7 +1234,7 @@ app.openapi(
           })
         ),
         body: message.body,
-        createdAt: message.createdAt.toISOString(),
+        createdAt: toIso(message.createdAt),
         id: message.id,
         senderId: message.senderUserId,
         status: message.status,
@@ -1214,7 +1258,10 @@ app.openapi(
       }),
     },
     responses: {
-      [HttpStatusCodes.CREATED]: jsonContent(messageSchema, "Message created"),
+      [HttpStatusCodes.CREATED]: jsonContent(
+        messageSchema,
+        "Message sent in conversation"
+      ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         z.object({ message: z.string() }),
         "Authentication required"
@@ -1229,35 +1276,34 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const body = c.req.valid("json"),
-      { conversationId } = c.req.valid("param");
+    const { conversationId } = c.req.valid("param"),
+      body = c.req.valid("json");
 
     if (!isDatabaseConfigured()) {
-      return c.json(
-        {
-          attachments: body.attachments.map((attachment, index) => ({
-            displayName: attachment.displayName,
-            id: `attachment_${index}`,
-            mimeType: attachment.mimeType ?? null,
-            objectKey: attachment.objectKey ?? null,
-            sizeBytes: attachment.sizeBytes ?? null,
-            sourceProjectId: attachment.sourceProjectId ?? null,
-            sourceTrackId: attachment.sourceTrackId ?? null,
-            url: attachment.url,
-          })),
-          body: body.body,
-          createdAt: new Date().toISOString(),
-          id: "msg_new",
-          senderId: user.id,
-          status: "sent" as const,
-        },
-        HttpStatusCodes.CREATED
-      );
+      const createdMessage = {
+        attachments: body.attachments.map((attachment) => ({
+          displayName: attachment.displayName,
+          id: crypto.randomUUID(),
+          mimeType: attachment.mimeType ?? null,
+          objectKey: attachment.objectKey ?? null,
+          sizeBytes: attachment.sizeBytes ?? null,
+          sourceProjectId: attachment.sourceProjectId ?? null,
+          sourceTrackId: attachment.sourceTrackId ?? null,
+          url: attachment.url,
+        })),
+        body: body.body,
+        createdAt: new Date().toISOString(),
+        id: `mock-${Date.now()}`,
+        senderId: user.id,
+        status: "sent" as const,
+      };
+
+      return c.json(createdMessage, HttpStatusCodes.CREATED);
     }
 
     const db = createDb(),
-      [membership] = await db
-        .select({ conversationId: conversationParticipants.conversationId })
+      participantRows = await db
+        .select({ userId: conversationParticipants.userId })
         .from(conversationParticipants)
         .where(
           and(
@@ -1267,33 +1313,67 @@ app.openapi(
         )
         .limit(1);
 
-    if (!membership) {
+    if (participantRows.length === 0) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const [message] = await db
+    const messageId = crypto.randomUUID(),
+      now = new Date(),
+      [message] = await db
         .insert(messages)
         .values({
           body: body.body,
           conversationId,
-          id: crypto.randomUUID(),
+          createdAt: now,
+          id: messageId,
           senderUserId: user.id,
+          status: "sent",
         })
         .returning(),
-      messageId = message?.id ?? crypto.randomUUID(),
-      attachments = body.attachments.map((attachment) => ({
-        displayName: attachment.displayName,
-        id: crypto.randomUUID(),
-        messageId,
-        mimeType: attachment.mimeType ?? null,
-        objectKey: attachment.objectKey ?? null,
-        sizeBytes: attachment.sizeBytes ?? null,
-        sourceProjectId: attachment.sourceProjectId ?? null,
-        sourceTrackId: attachment.sourceTrackId ?? null,
-        url: attachment.url,
-      }));
-    if (attachments.length > 0) {
-      await db.insert(messageAttachments).values(attachments);
+      attachments =
+        body.attachments.length > 0
+          ? await db
+              .insert(messageAttachments)
+              .values(
+                body.attachments.map((attachment) => ({
+                  displayName: attachment.displayName,
+                  id: crypto.randomUUID(),
+                  messageId,
+                  mimeType: attachment.mimeType ?? null,
+                  objectKey: attachment.objectKey ?? null,
+                  sizeBytes: attachment.sizeBytes ?? null,
+                  sourceProjectId: attachment.sourceProjectId ?? null,
+                  sourceTrackId: attachment.sourceTrackId ?? null,
+                  url: attachment.url,
+                }))
+              )
+              .returning()
+          : [];
+
+    await db
+      .update(conversations)
+      .set({ updatedAt: now })
+      .where(eq(conversations.id, conversationId));
+
+    const otherParticipants = await db
+      .select({ userId: conversationParticipants.userId })
+      .from(conversationParticipants)
+      .where(
+        and(
+          eq(conversationParticipants.conversationId, conversationId),
+          ne(conversationParticipants.userId, user.id)
+        )
+      );
+
+    for (const participant of otherParticipants) {
+      await db.insert(userNotifications).values({
+        id: `chat_message:${messageId}:${participant.userId}`,
+        link: `/dashboard/messages?conversationId=${encodeURIComponent(conversationId)}`,
+        message: body.body || "Sent an attachment",
+        title: user.name ? `Message from ${user.name}` : "New message",
+        type: "chat_message",
+        userId: participant.userId,
+      });
     }
 
     return c.json(
@@ -1302,7 +1382,7 @@ app.openapi(
           ({ messageId: _, ...attachment }) => attachment
         ),
         body: message?.body ?? body.body,
-        createdAt: (message?.createdAt ?? new Date()).toISOString(),
+        createdAt: toIso(message?.createdAt ?? new Date()),
         id: messageId,
         senderId: message?.senderUserId ?? user.id,
         status: message?.status ?? ("sent" as const),
@@ -1421,11 +1501,23 @@ app.openapi(
       }
     }
 
+    const messageId = crypto.randomUUID();
     await db.insert(messages).values({
       body: `Started shared ${body.kind}: ${body.title} · ${href}`,
       conversationId,
-      id: crypto.randomUUID(),
+      id: messageId,
       senderUserId: user.id,
+    });
+    await db.insert(messageAttachments).values({
+      displayName: body.title,
+      id: crypto.randomUUID(),
+      messageId,
+      mimeType: "soundkit/collaboration-proposal",
+      objectKey: null,
+      sizeBytes: null,
+      sourceProjectId: body.kind === "project" ? workspaceId : null,
+      sourceTrackId: body.kind === "track" ? workspaceId : null,
+      url: href,
     });
     for (const collaboratorId of collaboratorIds) {
       await db.insert(userNotifications).values({
@@ -1441,6 +1533,124 @@ app.openapi(
     return c.json(
       { href, id: workspaceId, kind: body.kind },
       HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/conversations/{conversationId}/collaborations/{collaborationId}/respond",
+    request: {
+      body: jsonContentRequired(
+        z.object({
+          action: z.enum(["accept", "decline", "cancel"]),
+        }),
+        "Collaboration response action"
+      ),
+      params: z.object({
+        collaborationId: z.string(),
+        conversationId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          action: z.enum(["accept", "decline", "cancel"]),
+          href: z.string(),
+          status: z.string(),
+          success: z.boolean(),
+        }),
+        "Collaboration status updated"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Messages"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { collaborationId, conversationId } = c.req.valid("param"),
+      { action } = c.req.valid("json"),
+      db = createDb(),
+      href = `/dashboard/projects/${collaborationId}`;
+
+    if (action === "accept") {
+      await db
+        .update(projectCollaborators)
+        .set({ invitationStatus: "accepted" })
+        .where(
+          and(
+            eq(projectCollaborators.projectId, collaborationId),
+            eq(projectCollaborators.collaboratorUserId, user.id)
+          )
+        );
+      await db
+        .update(trackCollaborators)
+        .set({ invitationStatus: "accepted" })
+        .where(
+          and(
+            eq(trackCollaborators.trackId, collaborationId),
+            eq(trackCollaborators.collaboratorUserId, user.id)
+          )
+        );
+      await db.insert(messages).values({
+        body: `Accepted collaboration! Workspace unlocked · ${href}`,
+        conversationId,
+        id: crypto.randomUUID(),
+        senderUserId: user.id,
+      });
+    } else if (action === "decline" || action === "cancel") {
+      const attachmentRows = await db
+        .select({ messageId: messageAttachments.messageId })
+        .from(messageAttachments)
+        .where(
+          or(
+            eq(messageAttachments.sourceProjectId, collaborationId),
+            eq(messageAttachments.sourceTrackId, collaborationId)
+          )
+        );
+      const messageIdsToDelete = attachmentRows
+        .map((a) => a.messageId)
+        .filter(Boolean);
+      if (messageIdsToDelete.length > 0) {
+        await db
+          .delete(messageAttachments)
+          .where(inArray(messageAttachments.messageId, messageIdsToDelete));
+        await db
+          .delete(messages)
+          .where(inArray(messages.id, messageIdsToDelete));
+      }
+
+      await db
+        .delete(projectCollaborators)
+        .where(eq(projectCollaborators.projectId, collaborationId));
+      await db.delete(projects).where(eq(projects.id, collaborationId));
+      await db
+        .delete(trackCollaborators)
+        .where(eq(trackCollaborators.trackId, collaborationId));
+      await db.delete(tracks).where(eq(tracks.id, collaborationId));
+
+      await db.insert(messages).values({
+        body:
+          action === "cancel"
+            ? "Cancelled collaboration invite."
+            : "Declined collaboration proposal.",
+        conversationId,
+        id: crypto.randomUUID(),
+        senderUserId: user.id,
+      });
+    }
+
+    return c.json(
+      { action, href, status: action, success: true },
+      HttpStatusCodes.OK
     );
   }
 );

@@ -23,69 +23,62 @@ export interface NormalizedProfileLink {
 }
 
 const stripAt = (value: string) => value.replace(/^@+/u, ""),
+  stripTrailingSlash = (value: string) => value.replace(/\/+$/u, ""),
+  normalizedUrl = (value: string) => {
+    if (/^https?:\/\//iu.test(value)) {
+      return stripTrailingSlash(value);
+    }
 
- stripTrailingSlash = (value: string) => value.replace(/\/+$/u, ""),
-
- normalizedUrl = (value: string) => {
-  if (/^https?:\/\//iu.test(value)) {
-    return stripTrailingSlash(value);
-  }
-
-  return null;
-},
-
- platformUrlForHandle = (
-  platform: ProfileLinkPlatform,
-  handle: string
-) => {
-  const cleanHandle = stripAt(handle).trim();
-
-  if (!cleanHandle) {
     return null;
-  }
+  },
+  platformUrlForHandle = (platform: ProfileLinkPlatform, handle: string) => {
+    const cleanHandle = stripAt(handle).trim();
 
-  switch (platform) {
-    case "apple_music": {
-      return `https://music.apple.com/artist/${cleanHandle}`;
-    }
-    case "instagram": {
-      return `https://www.instagram.com/${cleanHandle}`;
-    }
-    case "personal_site": {
-      return normalizedUrl(cleanHandle) ?? `https://${cleanHandle}`;
-    }
-    case "soundcloud": {
-      return `https://soundcloud.com/${cleanHandle}`;
-    }
-    case "spotify": {
-      return `https://open.spotify.com/artist/${cleanHandle}`;
-    }
-    case "tiktok": {
-      return `https://www.tiktok.com/@${cleanHandle}`;
-    }
-    case "twitter": {
-      return `https://x.com/${cleanHandle}`;
-    }
-    case "youtube": {
-      return cleanHandle.startsWith("channel/")
-        ? `https://www.youtube.com/${cleanHandle}`
-        : `https://www.youtube.com/@${cleanHandle}`;
-    }
-    default: {
+    if (!cleanHandle) {
       return null;
     }
-  }
-},
 
- handleFromUrl = (url: string) => {
-  try {
-    const parsed = new URL(url),
-     path = parsed.pathname.split("/").findLast((part) => part.length > 0);
-    return path ? stripAt(decodeURIComponent(path)) : null;
-  } catch {
-    return null;
-  }
-};
+    switch (platform) {
+      case "apple_music": {
+        return `https://music.apple.com/artist/${cleanHandle}`;
+      }
+      case "instagram": {
+        return `https://www.instagram.com/${cleanHandle}`;
+      }
+      case "personal_site": {
+        return normalizedUrl(cleanHandle) ?? `https://${cleanHandle}`;
+      }
+      case "soundcloud": {
+        return `https://soundcloud.com/${cleanHandle}`;
+      }
+      case "spotify": {
+        return `https://open.spotify.com/artist/${cleanHandle}`;
+      }
+      case "tiktok": {
+        return `https://www.tiktok.com/@${cleanHandle}`;
+      }
+      case "twitter": {
+        return `https://x.com/${cleanHandle}`;
+      }
+      case "youtube": {
+        return cleanHandle.startsWith("channel/")
+          ? `https://www.youtube.com/${cleanHandle}`
+          : `https://www.youtube.com/@${cleanHandle}`;
+      }
+      default: {
+        return null;
+      }
+    }
+  },
+  handleFromUrl = (url: string) => {
+    try {
+      const parsed = new URL(url),
+        path = parsed.pathname.split("/").findLast((part) => part.length > 0);
+      return path ? stripAt(decodeURIComponent(path)) : null;
+    } catch {
+      return null;
+    }
+  };
 
 export const normalizeProfileLink = ({
   platform,
@@ -98,7 +91,7 @@ export const normalizeProfileLink = ({
   }
 
   const inputUrl = normalizedUrl(input),
-   url = inputUrl ?? platformUrlForHandle(platform, input);
+    url = inputUrl ?? platformUrlForHandle(platform, input);
 
   if (!url) {
     return null;

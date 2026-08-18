@@ -22,8 +22,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { WorldAndUSAMap } from '@/components/explore/world-and-usa-map';
-import type { MapScope } from '@/components/explore/world-and-usa-map';
+import { WorldAndUSAMap } from "@/components/explore/world-and-usa-map";
+import type { MapScope } from "@/components/explore/world-and-usa-map";
 import {
   Accordion,
   AccordionContent,
@@ -67,8 +67,21 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
-import { useAdCampaignsQuery, useAdWalletQuery, useBillingCheckoutMutation, useCreateAdCampaignMutation, useTracksQuery } from '@/lib/soundkit-api-hooks';
-import type { AdBillingType, AdCampaignSummary, AdCreativeFormat, AdPlacement, AdTarget, CreateAdCampaignBody } from '@/lib/soundkit-api-hooks';
+import {
+  useAdCampaignsQuery,
+  useAdWalletQuery,
+  useBillingCheckoutMutation,
+  useCreateAdCampaignMutation,
+  useTracksQuery,
+} from "@/lib/soundkit-api-hooks";
+import type {
+  AdBillingType,
+  AdCampaignSummary,
+  AdCreativeFormat,
+  AdPlacement,
+  AdTarget,
+  CreateAdCampaignBody,
+} from "@/lib/soundkit-api-hooks";
 
 interface AdsSearch {
   tab?: "builder" | "campaigns" | "library" | "wallet";
@@ -245,42 +258,37 @@ const targetOptions: readonly TargetOption[] = [
 
 function DashboardAdsPage() {
   const navigate = useNavigate(),
-   search = Route.useSearch(),
-   activeTab = search.tab ?? "campaigns",
-   { toast } = useToast(),
-
-   campaignsQuery = useAdCampaignsQuery(),
-   walletQuery = useAdWalletQuery(),
-   createCampaignMutation = useCreateAdCampaignMutation(),
-   checkoutMutation = useBillingCheckoutMutation(),
-
-   campaigns = campaignsQuery.data ?? [],
-   wallet = walletQuery.data,
-
-   [selectedCampaign, setSelectedCampaign] =
-    useState<AdCampaignSummary | null>(null),
-
-   handleTabChange = (val: string) => {
-    navigate({ search: { tab: val as AdsSearch["tab"] } });
-  },
-
-   handleTopUpWallet = async (amountCents: number) => {
-    try {
-      const result = await checkoutMutation.mutateAsync({
-        cancelUrl: window.location.href,
-        planCode: "artist_pro",
-        successUrl: window.location.href,
-      });
-      if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
+    search = Route.useSearch(),
+    activeTab = search.tab ?? "campaigns",
+    { toast } = useToast(),
+    campaignsQuery = useAdCampaignsQuery(),
+    walletQuery = useAdWalletQuery(),
+    createCampaignMutation = useCreateAdCampaignMutation(),
+    checkoutMutation = useBillingCheckoutMutation(),
+    campaigns = campaignsQuery.data ?? [],
+    wallet = walletQuery.data,
+    [selectedCampaign, setSelectedCampaign] =
+      useState<AdCampaignSummary | null>(null),
+    handleTabChange = (val: string) => {
+      navigate({ search: { tab: val as AdsSearch["tab"] } });
+    },
+    handleTopUpWallet = async (amountCents: number) => {
+      try {
+        const result = await checkoutMutation.mutateAsync({
+          cancelUrl: window.location.href,
+          planCode: "artist_pro",
+          successUrl: window.location.href,
+        });
+        if (result.checkoutUrl) {
+          window.location.href = result.checkoutUrl;
+        }
+      } catch {
+        toast({
+          description: "Redirecting to Stripe Billing checkout...",
+          title: "Stripe Billing",
+        });
       }
-    } catch {
-      toast({
-        description: "Redirecting to Stripe Billing checkout...",
-        title: "Stripe Billing",
-      });
-    }
-  };
+    };
 
   return (
     <div className="space-y-6">
@@ -693,108 +701,103 @@ function AccordionBuilderForm({
   onCreate: (body: CreateAdCampaignBody) => void;
 }) {
   const [activeStep, setActiveStep] = useState<string>("step-1"),
-   tracksQuery = useTracksQuery(),
-   catalogTracks = tracksQuery.data ?? [],
-
-  // Form State
-   [name, setName] = useState(""),
-   [placement, setPlacement] = useState<AdPlacement>("audio_preroll"),
-   [format, setFormat] = useState<AdCreativeFormat>("audio"),
-   [destinationUrl, setDestinationUrl] = useState(
-    "https://mysoundkit.com"
-  ),
-   [attachedFile, setAttachedFile] = useState<File | null>(null),
-   [mediaPreviewUrl, setMediaPreviewUrl] = useState(""),
-   [creativeUrl, setCreativeUrl] = useState(""),
-
-   [mapScope, setMapScope] = useState<MapScope>("north-america"),
-   [selectedCodes, setSelectedCodes] = useState<string[]>(["US-AR"]),
-
-   [billingType, setBillingType] =
-    useState<AdBillingType>("prepaid_wallet"),
-   [budgetDollars, setBudgetDollars] = useState(50),
-   { isPending: isUploading, upload } = useUploadFiles({
-    api: MEDIA_UPLOAD_URL,
-    credentials: "include",
-    onError: () => {
-      setCreativeUrl("");
+    tracksQuery = useTracksQuery(),
+    catalogTracks = tracksQuery.data ?? [],
+    // Form State
+    [name, setName] = useState(""),
+    [placement, setPlacement] = useState<AdPlacement>("audio_preroll"),
+    [format, setFormat] = useState<AdCreativeFormat>("audio"),
+    [destinationUrl, setDestinationUrl] = useState("https://mysoundkit.com"),
+    [attachedFile, setAttachedFile] = useState<File | null>(null),
+    [mediaPreviewUrl, setMediaPreviewUrl] = useState(""),
+    [creativeUrl, setCreativeUrl] = useState(""),
+    [mapScope, setMapScope] = useState<MapScope>("north-america"),
+    [selectedCodes, setSelectedCodes] = useState<string[]>(["US-AR"]),
+    [billingType, setBillingType] = useState<AdBillingType>("prepaid_wallet"),
+    [budgetDollars, setBudgetDollars] = useState(50),
+    { isPending: isUploading, upload } = useUploadFiles({
+      api: MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onError: () => {
+        setCreativeUrl("");
+      },
+      onUploadComplete: ({ files }) => {
+        const uploadedFile = files[0];
+        if (uploadedFile) {
+          setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
+        }
+      },
+    }),
+    handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) {
+        return;
+      }
+      const maxBytes = file.type.startsWith("image/")
+        ? 10 * 1024 * 1024
+        : 100 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        return;
+      }
+      setAttachedFile(file);
+      setMediaPreviewUrl(URL.createObjectURL(file));
+      const nextFormat = file.type.startsWith("video/")
+        ? "video"
+        : (file.type.startsWith("image/")
+          ? "image"
+          : "audio");
+      setFormat(nextFormat);
+      setPlacement(
+        nextFormat === "audio"
+          ? "audio_preroll"
+          : (nextFormat === "video"
+            ? "video_preroll"
+            : "video_overlay")
+      );
+      void upload([file]);
     },
-    onUploadComplete: ({ files }) => {
-      const uploadedFile = files[0];
-      if (uploadedFile) {
-        setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
+    handleMacroSelect = (
+      group: "africa" | "all" | "europe" | "north-america"
+    ) => {
+      if (group === "all") {
+        setSelectedCodes(targetOptions.map((t) => t.code));
+      } else {
+        setSelectedCodes(
+          targetOptions
+            .filter((t) => t.regionGroup === group)
+            .map((t) => t.code)
+        );
       }
     },
-  }),
+    handleSubmit = () => {
+      if (!name.trim()) {
+        return;
+      }
 
-   handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    const maxBytes = file.type.startsWith("image/")
-      ? 10 * 1024 * 1024
-      : 100 * 1024 * 1024;
-    if (file.size > maxBytes) {
-      return;
-    }
-    setAttachedFile(file);
-    setMediaPreviewUrl(URL.createObjectURL(file));
-    const nextFormat = file.type.startsWith("video/")
-      ? "video"
-      : (file.type.startsWith("image/")
-        ? "image"
-        : "audio");
-    setFormat(nextFormat);
-    setPlacement(
-      nextFormat === "audio"
-        ? "audio_preroll"
-        : (nextFormat === "video"
-          ? "video_preroll"
-          : "video_overlay")
-    );
-    void upload([file]);
-  },
+      const targets: AdTarget[] = selectedCodes.map((code) => {
+        const match = targetOptions.find((t) => t.code === code);
+        return {
+          targetCode: code,
+          targetType: match?.type ?? "state",
+        };
+      });
 
-   handleMacroSelect = (
-    group: "africa" | "all" | "europe" | "north-america"
-  ) => {
-    if (group === "all") {
-      setSelectedCodes(targetOptions.map((t) => t.code));
-    } else {
-      setSelectedCodes(
-        targetOptions.filter((t) => t.regionGroup === group).map((t) => t.code)
-      );
-    }
-  },
-
-   handleSubmit = () => {
-    if (!name.trim()) {return;}
-
-    const targets: AdTarget[] = selectedCodes.map((code) => {
-      const match = targetOptions.find((t) => t.code === code);
-      return {
-        targetCode: code,
-        targetType: match?.type ?? "state",
-      };
-    });
-
-    onCreate({
-      billingType,
-      clickthroughUrl: destinationUrl,
-      creativeFormat: format,
-      creativeImageUrl: format === "image" ? creativeUrl : undefined,
-      creativeUrl,
-      dailyBudgetCents: budgetDollars * 100,
-      dailyImpressionCap: 1000,
-      name,
-      placement,
-      targets:
-        targets.length > 0
-          ? targets
-          : [{ targetCode: "US-AR", targetType: "state" }],
-    });
-  };
+      onCreate({
+        billingType,
+        clickthroughUrl: destinationUrl,
+        creativeFormat: format,
+        creativeImageUrl: format === "image" ? creativeUrl : undefined,
+        creativeUrl,
+        dailyBudgetCents: budgetDollars * 100,
+        dailyImpressionCap: 1000,
+        name,
+        placement,
+        targets:
+          targets.length > 0
+            ? targets
+            : [{ targetCode: "US-AR", targetType: "state" }],
+      });
+    };
 
   return (
     <Card>

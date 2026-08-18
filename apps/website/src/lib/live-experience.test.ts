@@ -44,16 +44,15 @@ describe("live battle orchestration", () => {
 
   it("marks missing mandatory voters for removal before the next round", () => {
     const snapshot = createRoundVoterSnapshot({
-      activeParticipantIds: ["fan-1", "fan-2"],
-      lobbyParticipantIds: [],
-      roundId: "round-1",
-    }),
-
-     resolved = resolveMandatoryVoteResults({
-      now: "2026-07-22T15:03:00.000Z",
-      snapshot,
-      votedUserIds: ["fan-2"],
-    });
+        activeParticipantIds: ["fan-1", "fan-2"],
+        lobbyParticipantIds: [],
+        roundId: "round-1",
+      }),
+      resolved = resolveMandatoryVoteResults({
+        now: "2026-07-22T15:03:00.000Z",
+        snapshot,
+        votedUserIds: ["fan-2"],
+      });
 
     expect(resolved).toEqual([
       {
@@ -104,19 +103,19 @@ describe("live session locks", () => {
 
   it("ignores expired locks and non-overlapping windows", () => {
     const expiredLock: LiveSessionLock = {
-      ...baseLock,
-      expiresAt: "2026-07-22T14:55:00.000Z",
-    },
-     conflict = findLiveSessionConflict({
-      existingLocks: [expiredLock],
-      now: new Date("2026-07-22T15:30:00.000Z"),
-      requestedLock: {
         ...baseLock,
-        sessionId: "party-1",
-        sessionType: "party",
-        startsAt: "2026-07-22T17:00:00.000Z",
+        expiresAt: "2026-07-22T14:55:00.000Z",
       },
-    });
+      conflict = findLiveSessionConflict({
+        existingLocks: [expiredLock],
+        now: new Date("2026-07-22T15:30:00.000Z"),
+        requestedLock: {
+          ...baseLock,
+          sessionId: "party-1",
+          sessionType: "party",
+          startsAt: "2026-07-22T17:00:00.000Z",
+        },
+      });
 
     expect(conflict).toBeNull();
   });

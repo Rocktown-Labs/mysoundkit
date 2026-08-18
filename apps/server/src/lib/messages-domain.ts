@@ -20,7 +20,9 @@ export const filterSearchCandidates = ({
   return candidates
     .filter((user) => user.userId !== currentUserId)
     .filter((user) => {
-      if (!normalized) {return true;}
+      if (!normalized) {
+        return true;
+      }
       return [user.displayName, user.username, user.email, user.stageName]
         .filter(Boolean)
         .some((field) => field?.toLowerCase().includes(normalized));

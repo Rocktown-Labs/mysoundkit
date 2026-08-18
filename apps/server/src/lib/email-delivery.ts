@@ -37,18 +37,16 @@ export interface EnqueueTransactionalEmailOptions {
 }
 
 const absoluteUrl = (pathOrUrl: string) => {
-  if (/^https?:\/\//u.test(pathOrUrl)) {
-    return pathOrUrl;
-  }
+    if (/^https?:\/\//u.test(pathOrUrl)) {
+      return pathOrUrl;
+    }
 
-  return `${getPublicSiteUrl().replace(/\/$/u, "")}/${pathOrUrl.replace(/^\//u, "")}`;
-},
-
- getRetryDelaySeconds = (attempts: number) =>
-  Math.min(30 * 2 ** Math.max(0, attempts - 1), 60 * 60),
-
- getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+    return `${getPublicSiteUrl().replace(/\/$/u, "")}/${pathOrUrl.replace(/^\//u, "")}`;
+  },
+  getRetryDelaySeconds = (attempts: number) =>
+    Math.min(30 * 2 ** Math.max(0, attempts - 1), 60 * 60),
+  getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : String(error);
 
 export const enqueueTransactionalEmail = async ({
   actionPath,
@@ -65,23 +63,23 @@ export const enqueueTransactionalEmail = async ({
   }
 
   const db = createDb(),
-   [delivery] = await db
-    .insert(emailDeliveries)
-    .values({
-      id: crypto.randomUUID(),
-      idempotencyKey,
-      payload: {
-        actionUrl: absoluteUrl(actionPath),
+    [delivery] = await db
+      .insert(emailDeliveries)
+      .values({
+        id: crypto.randomUUID(),
+        idempotencyKey,
+        payload: {
+          actionUrl: absoluteUrl(actionPath),
+          recipientName,
+          ...payload,
+        },
+        recipientEmail,
         recipientName,
-        ...payload,
-      },
-      recipientEmail,
-      recipientName,
-      template,
-      userId: userId ?? null,
-    })
-    .onConflictDoNothing()
-    .returning({ id: emailDeliveries.id });
+        template,
+        userId: userId ?? null,
+      })
+      .onConflictDoNothing()
+      .returning({ id: emailDeliveries.id });
 
   if (!delivery) {
     return { enqueued: false, reason: "already_queued" as const };
@@ -138,16 +136,16 @@ export const retryDueEmailDeliveries = async ({
   }
 
   const db = createDb(),
-   retryIsDue = or(
-    isNull(emailDeliveries.nextAttemptAt),
-    lte(emailDeliveries.nextAttemptAt, new Date())
-  ),
-   failedAndDue = and(eq(emailDeliveries.status, "failed"), retryIsDue),
-   dueDeliveries = await db
-    .select({ id: emailDeliveries.id })
-    .from(emailDeliveries)
-    .where(failedAndDue)
-    .limit(limit);
+    retryIsDue = or(
+      isNull(emailDeliveries.nextAttemptAt),
+      lte(emailDeliveries.nextAttemptAt, new Date())
+    ),
+    failedAndDue = and(eq(emailDeliveries.status, "failed"), retryIsDue),
+    dueDeliveries = await db
+      .select({ id: emailDeliveries.id })
+      .from(emailDeliveries)
+      .where(failedAndDue)
+      .limit(limit);
 
   let requeued = 0;
   for (const delivery of dueDeliveries) {
@@ -178,11 +176,11 @@ export const deliverTransactionalEmail = async ({
   }
 
   const db = createDb(),
-   [delivery] = await db
-    .select()
-    .from(emailDeliveries)
-    .where(eq(emailDeliveries.id, deliveryId))
-    .limit(1);
+    [delivery] = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.id, deliveryId))
+      .limit(1);
 
   if (
     !delivery ||
@@ -205,29 +203,29 @@ export const deliverTransactionalEmail = async ({
 
   try {
     const payload = delivery.payload as {
-      actionUrl: string;
-      body?: string;
-      ctaLabel?: string;
-      eyebrow?: string;
-      footerNote?: string;
-      heading?: string;
-      links?: {
-        description?: string;
-        href: string;
-        label: string;
-      }[];
-      previewText?: string;
-      recipientName: string;
-      subject?: string;
-      trackId?: string;
-      trackTitle?: string;
-    },
-     result = await sendTransactionalEmail({
-      idempotencyKey: delivery.idempotencyKey,
-      payload,
-      recipientEmail: delivery.recipientEmail,
-      template: delivery.template as TransactionalEmailTemplate,
-    });
+        actionUrl: string;
+        body?: string;
+        ctaLabel?: string;
+        eyebrow?: string;
+        footerNote?: string;
+        heading?: string;
+        links?: {
+          description?: string;
+          href: string;
+          label: string;
+        }[];
+        previewText?: string;
+        recipientName: string;
+        subject?: string;
+        trackId?: string;
+        trackTitle?: string;
+      },
+      result = await sendTransactionalEmail({
+        idempotencyKey: delivery.idempotencyKey,
+        payload,
+        recipientEmail: delivery.recipientEmail,
+        template: delivery.template as TransactionalEmailTemplate,
+      });
 
     if (result.sent) {
       await db

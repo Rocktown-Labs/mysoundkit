@@ -57,35 +57,34 @@ function getErrorMessage(error: unknown): string | null {
 
 function SignIn() {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-   [error, setError] = useState<string | null>(null),
-
-   form = useForm({
-    defaultValues: {
-      email: "",
-      password: "",
-    },
-    onSubmit: async ({ value, formApi }) => {
-      await authClient.signIn.email(
-        {
-          email: value.email.trim(),
-          password: value.password,
-        },
-        {
-          onError(error) {
-            setError(error.error?.message || "Failed to sign in");
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    [error, setError] = useState<string | null>(null),
+    form = useForm({
+      defaultValues: {
+        email: "",
+        password: "",
+      },
+      onSubmit: async ({ value, formApi }) => {
+        await authClient.signIn.email(
+          {
+            email: value.email.trim(),
+            password: value.password,
           },
-          onSuccess() {
-            setError(null);
-            formApi.reset();
-          },
-        }
-      );
-    },
-    validators: {
-      onSubmit: signInSchema,
-    },
-  });
+          {
+            onError(error) {
+              setError(error.error?.message || "Failed to sign in");
+            },
+            onSuccess() {
+              setError(null);
+              formApi.reset();
+            },
+          }
+        );
+      },
+      validators: {
+        onSubmit: signInSchema,
+      },
+    });
 
   return (
     <View

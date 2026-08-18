@@ -1,23 +1,38 @@
 "use client";
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, promise/prefer-await-to-then */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  Activity,
+  Camera,
   CheckCircle2,
   Copy,
+  ExternalLink,
   Eye,
   EyeOff,
   LoaderCircle,
   MessageSquare,
+  Mic,
   MonitorUp,
   Radio,
+  RefreshCcw,
+  Trash2,
   Tv,
   Users,
   Video,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +60,9 @@ import type { LiveScheduleMode } from "@/lib/live-experience";
 import { musicGenres } from "@/lib/music-genres";
 import {
   useCreateLiveExperienceMutation,
+  useDeleteLiveExperienceMutation,
   useGenresQuery,
+  useMyLiveExperiencesQuery,
   useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
 
@@ -88,145 +105,210 @@ function readSavedStream() {
 
 function DashboardLiveStreamsPage() {
   const genresQuery = useGenresQuery(),
-   videosQuery = useVideosQuery(),
-   createLiveExperience = useCreateLiveExperienceMutation(),
-   videos = videosQuery.data ?? [],
-   liveRecordings = videos.filter(
-    (video) => video.videoKind === "live_recording"
-  ),
-   processingVideos = videos.filter(
-    (video) => video.status === "processing"
-  ),
-   streamConfig = liveExperienceConfigs.stream,
-
-   [setupStep, setSetupStep] = useState<SetupStep>("details"),
-   [streamTitle, setStreamTitle] = useState(""),
-   [description, setDescription] = useState(""),
-   genreOptions =
-    genresQuery.data && genresQuery.data.length > 0
-      ? genresQuery.data.map((genre) => genre.name)
-      : musicGenres.map((genre) => genre.label),
-   [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap"),
-   [visibility, setVisibility] = useState("Public"),
-   [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
-   [source, setSource] = useState<StreamSource>("obs"),
-   [activeStream, setActiveStream] = useState<ActiveStream | null>(() => {
-    const saved = readSavedStream();
-    return saved?.experienceId ? saved : null;
-  }),
-   [isRefreshing, setIsRefreshing] = useState(false),
-   [showStreamKey, setShowStreamKey] = useState(false),
-   [copiedField, setCopiedField] = useState<string | null>(null),
-
-   canCreate = streamTitle.trim().length > 0,
-   isCreatingStream = createLiveExperience.isPending,
-
-   handleStartStream = async () => {
-    try {
-      const created = await createLiveExperience.mutateAsync({
-        description,
-        genre,
-        kind: "stream",
-        scheduleMode,
-        source,
-        title: streamTitle.trim() || "My Live Stream",
-        visibility: visibility.toLowerCase() as
-          | "private"
-          | "public"
-          | "unlisted",
-      }),
-
-       stream =
-        created.streamInput ??
-        ({
-          experienceId: created.experience.id,
-          id: created.realtime.id,
-          playbackUrl: "",
-          rtmpsKey: "",
-          rtmpsUrl: "",
-          srtKey: "",
-          srtUrl: "",
-          status: created.experience.status,
-          title: created.experience.title,
-        } satisfies Pick<
-          ActiveStream,
-          | "experienceId"
-          | "id"
-          | "playbackUrl"
-          | "rtmpsKey"
-          | "rtmpsUrl"
-          | "srtKey"
-          | "srtUrl"
-          | "status"
-          | "title"
-        >),
-
-       nextStream: ActiveStream = {
-        ...stream,
-        description,
-        experienceId: created.experience.id,
-        genre,
-        realtimeMeetingId: created.realtime.id,
-        roomHref: created.experience.roomHref,
-        scheduleMode,
-        source,
-        visibility,
-      };
-      setActiveStream(nextStream);
-      localStorage.setItem(
-        "soundkit_active_creator_stream",
-        JSON.stringify(nextStream)
-      );
-      setSetupStep("ready");
-      toast({
-        description: "Stream room, chat, and encoder credentials are ready.",
-        title: "Live stream created",
-      });
-    } catch (error) {
-      const errorDescription =
-        error instanceof SoundKitApiError
-          ? error.message
-          : "Could not create the live stream room. Please try again.";
-      toast({
-        description: errorDescription,
-        title: "Error starting stream",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleRefreshStream = async () => {
-    if (!activeStream) {
-      return;
-    }
-    setIsRefreshing(true);
-    try {
-      const res = await apiClient.v1.live["cloudflare-stream"][
-        ":streamId"
-      ].$get({
-        param: { streamId: activeStream.id },
-      });
-      if (res.ok) {
-        const stream = await res.json(),
-         updated = { ...activeStream, status: stream.status };
-        setActiveStream(updated);
-        localStorage.setItem(
-          "soundkit_active_creator_stream",
-          JSON.stringify(updated)
-        );
+    videosQuery = useVideosQuery(),
+    createLiveExperience = useCreateLiveExperienceMutation(),
+    myExperiencesQuery = useMyLiveExperiencesQuery(),
+    deleteExperience = useDeleteLiveExperienceMutation(),
+    videos = videosQuery.data ?? [],
+    liveRecordings = videos.filter(
+      (video) => video.videoKind === "live_recording"
+    ),
+    processingVideos = videos.filter((video) => video.status === "processing"),
+    streamConfig = liveExperienceConfigs.stream,
+    [setupStep, setSetupStep] = useState<SetupStep>("details"),
+    [streamTitle, setStreamTitle] = useState(""),
+    [description, setDescription] = useState(""),
+    genreOptions =
+      genresQuery.data && genresQuery.data.length > 0
+        ? genresQuery.data.map((genre) => genre.name)
+        : musicGenres.map((genre) => genre.label),
+    [genre, setGenre] = useState(genreOptions[0] ?? "Hip-Hop/Rap"),
+    [visibility, setVisibility] = useState("Public"),
+    [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("asap"),
+    [source, setSource] = useState<StreamSource>("obs"),
+    [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]),
+    [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]),
+    [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState<string>(""),
+    [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState<string>(""),
+    [hasMediaPermissions, setHasMediaPermissions] = useState<boolean | null>(
+      null
+    ),
+    [mediaStream, setMediaStream] = useState<MediaStream | null>(null),
+    cameraPreviewRef = useRef<HTMLVideoElement | null>(null),
+    [activeStream, setActiveStream] = useState<ActiveStream | null>(() => {
+      const saved = readSavedStream();
+      return saved?.experienceId ? saved : null;
+    }),
+    [isRefreshing, setIsRefreshing] = useState(false),
+    [showStreamKey, setShowStreamKey] = useState(false),
+    [copiedField, setCopiedField] = useState<string | null>(null),
+    canCreate = streamTitle.trim().length > 0,
+    isCreatingStream = createLiveExperience.isPending,
+    handleDeleteExperience = async (id: string) => {
+      try {
+        await deleteExperience.mutateAsync(id);
+        if (activeStream?.experienceId === id) {
+          setActiveStream(null);
+          localStorage.removeItem("soundkit_active_creator_stream");
+        }
         toast({
-          description: `Current connection state: ${stream.status}`,
-          title: "Stream status updated",
+          description: "Live stream room removed.",
+          title: "Stream deleted",
+        });
+      } catch {
+        toast({
+          description: "Failed to delete stream room. Please try again.",
+          title: "Delete failed",
+          variant: "destructive",
         });
       }
-    } catch {
-      // Status refresh is optional
-    } finally {
-      setIsRefreshing(false);
-    }
-  },
+    },
+    requestMediaPermissions = async (
+      videoDeviceId?: string,
+      audioDeviceId?: string
+    ) => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setHasMediaPermissions(false);
+          return;
+        }
+        if (mediaStream) {
+          for (const track of mediaStream.getTracks()) {
+            track.stop();
+          }
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true,
+          video: videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true,
+        });
+        setMediaStream(stream);
+        setHasMediaPermissions(true);
 
-   activeStreamId = activeStream?.id;
+        const devices = await navigator.mediaDevices.enumerateDevices(),
+          vDevs = devices.filter((d) => d.kind === "videoinput"),
+          aDevs = devices.filter((d) => d.kind === "audioinput");
+        setVideoDevices(vDevs);
+        setAudioDevices(aDevs);
+        if (vDevs[0] && !selectedVideoDeviceId) {
+          setSelectedVideoDeviceId(videoDeviceId || vDevs[0].deviceId);
+        }
+        if (aDevs[0] && !selectedAudioDeviceId) {
+          setSelectedAudioDeviceId(audioDeviceId || aDevs[0].deviceId);
+        }
+      } catch {
+        setHasMediaPermissions(false);
+      }
+    },
+    handleVideoDeviceChange = (deviceId: string) => {
+      setSelectedVideoDeviceId(deviceId);
+      requestMediaPermissions(deviceId, selectedAudioDeviceId || undefined);
+    },
+    handleAudioDeviceChange = (deviceId: string) => {
+      setSelectedAudioDeviceId(deviceId);
+      requestMediaPermissions(selectedVideoDeviceId || undefined, deviceId);
+    },
+    handleStartStream = async () => {
+      try {
+        const created = await createLiveExperience.mutateAsync({
+            description,
+            genre,
+            kind: "stream",
+            scheduleMode,
+            source,
+            title: streamTitle.trim() || "My Live Stream",
+            visibility: visibility.toLowerCase() as
+              | "private"
+              | "public"
+              | "unlisted",
+          }),
+          stream =
+            created.streamInput ??
+            ({
+              experienceId: created.experience.id,
+              id: created.realtime.id,
+              playbackUrl: "",
+              rtmpsKey: "",
+              rtmpsUrl: "",
+              srtKey: "",
+              srtUrl: "",
+              status: created.experience.status,
+              title: created.experience.title,
+            } satisfies Pick<
+              ActiveStream,
+              | "experienceId"
+              | "id"
+              | "playbackUrl"
+              | "rtmpsKey"
+              | "rtmpsUrl"
+              | "srtKey"
+              | "srtUrl"
+              | "status"
+              | "title"
+            >),
+          nextStream: ActiveStream = {
+            ...stream,
+            description,
+            experienceId: created.experience.id,
+            genre,
+            realtimeMeetingId: created.realtime.id,
+            roomHref: created.experience.roomHref,
+            scheduleMode,
+            source,
+            visibility,
+          };
+        setActiveStream(nextStream);
+        localStorage.setItem(
+          "soundkit_active_creator_stream",
+          JSON.stringify(nextStream)
+        );
+        setSetupStep("ready");
+        toast({
+          description: "Stream room, chat, and encoder credentials are ready.",
+          title: "Live stream created",
+        });
+      } catch (error) {
+        const errorDescription =
+          error instanceof SoundKitApiError
+            ? error.message
+            : "Could not create the live stream room. Please try again.";
+        toast({
+          description: errorDescription,
+          title: "Error starting stream",
+          variant: "destructive",
+        });
+      }
+    },
+    handleRefreshStream = async () => {
+      if (!activeStream) {
+        return;
+      }
+      setIsRefreshing(true);
+      try {
+        const res = await apiClient.v1.live["cloudflare-stream"][
+          ":streamId"
+        ].$get({
+          param: { streamId: activeStream.id },
+        });
+        if (res.ok) {
+          const stream = await res.json(),
+            updated = { ...activeStream, status: stream.status };
+          setActiveStream(updated);
+          localStorage.setItem(
+            "soundkit_active_creator_stream",
+            JSON.stringify(updated)
+          );
+          toast({
+            description: `Current connection state: ${stream.status}`,
+            title: "Stream status updated",
+          });
+        }
+      } catch {
+        // Status refresh is optional
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    activeStreamId = activeStream?.id;
 
   useEffect(() => {
     if (!(activeStreamId && source === "obs")) {
@@ -265,51 +347,50 @@ function DashboardLiveStreamsPage() {
   }, [activeStreamId, source]);
 
   const handleEndStream = async () => {
-    if (activeStream?.source === "obs") {
-      try {
-        const response = await apiClient.v1.live["cloudflare-stream"][
-          ":streamId"
-        ].$delete({
-          param: { streamId: activeStream.id },
-        });
-        if (!response.ok) {
-          throw new Error(`Unable to stop stream: ${response.status}`);
+      if (activeStream?.source === "obs") {
+        try {
+          const response = await apiClient.v1.live["cloudflare-stream"][
+            ":streamId"
+          ].$delete({
+            param: { streamId: activeStream.id },
+          });
+          if (!response.ok) {
+            throw new Error(`Unable to stop stream: ${response.status}`);
+          }
+        } catch {
+          toast({
+            description:
+              "The local stream was cleared, but Cloudflare could not be stopped. Refresh the status and try again.",
+            title: "Stream stop incomplete",
+            variant: "destructive",
+          });
         }
+      }
+
+      setActiveStream(null);
+      localStorage.removeItem("soundkit_active_creator_stream");
+      toast({
+        description: "Live broadcast input cleared.",
+        title: "Stream Ended",
+      });
+    },
+    copyToClipboard = async (text: string, field: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopiedField(field);
+        toast({
+          description: `${field} copied to clipboard.`,
+          title: "Copied",
+        });
+        setTimeout(() => setCopiedField(null), 2000);
       } catch {
         toast({
-          description:
-            "The local stream was cleared, but Cloudflare could not be stopped. Refresh the status and try again.",
-          title: "Stream stop incomplete",
+          description: "Clipboard access is unavailable in this browser.",
+          title: "Copy unavailable",
           variant: "destructive",
         });
       }
-    }
-
-    setActiveStream(null);
-    localStorage.removeItem("soundkit_active_creator_stream");
-    toast({
-      description: "Live broadcast input cleared.",
-      title: "Stream Ended",
-    });
-  },
-
-   copyToClipboard = async (text: string, field: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(field);
-      toast({
-        description: `${field} copied to clipboard.`,
-        title: "Copied",
-      });
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch {
-      toast({
-        description: "Clipboard access is unavailable in this browser.",
-        title: "Copy unavailable",
-        variant: "destructive",
-      });
-    }
-  };
+    };
 
   return (
     <LiveExperienceAuthGuard
@@ -437,33 +518,39 @@ function DashboardLiveStreamsPage() {
                         </p>
                         <RadioGroup
                           className="grid gap-3 md:grid-cols-2"
-                          onValueChange={(val) =>
-                            setSource(val as StreamSource)
-                          }
+                          onValueChange={(val) => {
+                            const newSource = val as StreamSource;
+                            setSource(newSource);
+                            if (
+                              newSource === "browser" &&
+                              hasMediaPermissions === null
+                            ) {
+                              requestMediaPermissions();
+                            }
+                          }}
                           value={source}
                         >
                           <label
-                            className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+                            className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 hover:border-primary/50 transition-colors"
                             htmlFor="stream-source-browser"
                           >
                             <RadioGroupItem
-                              disabled
                               id="stream-source-browser"
                               value="browser"
                             />
                             <span>
-                              <span className="flex items-center gap-2 font-medium text-muted-foreground">
-                                <Video className="size-4" />
-                                Browser camera (coming soon)
+                              <span className="flex items-center gap-2 font-medium">
+                                <Video className="size-4 text-primary" />
+                                Browser camera &amp; mic
                               </span>
                               <span className="mt-1 block text-muted-foreground text-sm">
-                                Browser broadcasting will use the RealtimeKit
-                                host studio once the web SDK is connected.
+                                Broadcast directly from your webcam, USB mic, or
+                                audio interface.
                               </span>
                             </span>
                           </label>
                           <label
-                            className="flex cursor-pointer items-start gap-3 rounded-lg border p-4"
+                            className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 hover:border-primary/50 transition-colors"
                             htmlFor="stream-source-obs"
                           >
                             <RadioGroupItem
@@ -477,14 +564,144 @@ function DashboardLiveStreamsPage() {
                               </span>
                               <span className="mt-1 block text-muted-foreground text-sm">
                                 Get RTMPS / SRT stream key and push video from
-                                OBS.
+                                OBS or Meld Studio.
                               </span>
                             </span>
                           </label>
                         </RadioGroup>
+
+                        {source === "browser" && (
+                          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <p className="font-semibold text-xs text-foreground uppercase tracking-wider">
+                                Browser Devices &amp; Permissions
+                              </p>
+                              <Button
+                                onClick={() =>
+                                  requestMediaPermissions(
+                                    selectedVideoDeviceId,
+                                    selectedAudioDeviceId
+                                  )
+                                }
+                                size="sm"
+                                variant="outline"
+                              >
+                                <RefreshCcw className="mr-1.5 size-3" />
+                                Refresh Devices
+                              </Button>
+                            </div>
+
+                            {hasMediaPermissions ? (
+                              <div className="space-y-4">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                                      <Camera className="size-3.5 text-primary" />
+                                      Camera
+                                    </Label>
+                                    <Select
+                                      onValueChange={handleVideoDeviceChange}
+                                      value={selectedVideoDeviceId}
+                                    >
+                                      <SelectTrigger className="text-xs">
+                                        <SelectValue placeholder="Select camera" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {videoDevices.map((dev) => (
+                                          <SelectItem
+                                            key={dev.deviceId}
+                                            value={dev.deviceId}
+                                          >
+                                            {dev.label ||
+                                              `Camera (${dev.deviceId.slice(0, 6)})`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                                      <Mic className="size-3.5 text-primary" />
+                                      Microphone / Input
+                                    </Label>
+                                    <Select
+                                      onValueChange={handleAudioDeviceChange}
+                                      value={selectedAudioDeviceId}
+                                    >
+                                      <SelectTrigger className="text-xs">
+                                        <SelectValue placeholder="Select microphone" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {audioDevices.map((dev) => (
+                                          <SelectItem
+                                            key={dev.deviceId}
+                                            value={dev.deviceId}
+                                          >
+                                            {dev.label ||
+                                              `Mic (${dev.deviceId.slice(0, 6)})`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
+                                  <video
+                                    autoPlay
+                                    className="size-full object-cover"
+                                    muted
+                                    playsInline
+                                    ref={cameraPreviewRef}
+                                  />
+                                  <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-black/70 px-2 py-0.5 font-mono text-[10px] text-emerald-400 backdrop-blur-md">
+                                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    Live Preview Active
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
+                                <Camera className="mx-auto size-8 text-primary opacity-80" />
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-sm">
+                                    Camera &amp; Microphone Access
+                                  </p>
+                                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                                    Grant browser permissions to select your
+                                    video camera and microphone input.
+                                  </p>
+                                </div>
+                                <Button
+                                  onClick={() => requestMediaPermissions()}
+                                  size="sm"
+                                >
+                                  <Camera className="mr-1.5 size-3.5" />
+                                  Grant Device Permissions
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <ChecklistCard
-                        items={streamConfig.checklist}
+                        items={
+                          source === "browser"
+                            ? [
+                                hasMediaPermissions
+                                  ? "Camera & Microphone connected"
+                                  : "Grant camera & microphone permissions",
+                                selectedVideoDeviceId
+                                  ? "Video device selected"
+                                  : "Choose default camera",
+                                selectedAudioDeviceId
+                                  ? "Audio device selected"
+                                  : "Choose default microphone",
+                                "Low latency WebRTC stream ready",
+                              ]
+                            : streamConfig.checklist
+                        }
                         title="Device checklist"
                       />
                     </div>
@@ -564,68 +781,22 @@ function DashboardLiveStreamsPage() {
             />
           </main>
 
-          {/* Real Analytics Panel replacing static constants block */}
+          {/* Active and Scheduled Streams management panel in the sidebar */}
           <aside className="flex flex-col gap-4">
-            <RealAnalyticsPanel activeStream={activeStream} />
+            <ActiveScheduledStreamsSection
+              experiences={
+                myExperiencesQuery.data?.filter(
+                  (exp) => exp.kind === "stream"
+                ) ?? []
+              }
+              isDeleting={deleteExperience.isPending}
+              isLoading={myExperiencesQuery.isLoading}
+              onDelete={handleDeleteExperience}
+            />
           </aside>
         </div>
       </div>
     </LiveExperienceAuthGuard>
-  );
-}
-
-function RealAnalyticsPanel({
-  activeStream,
-}: {
-  activeStream: ActiveStream | null;
-}) {
-  return (
-    <Card className="border-primary/20 bg-card/80">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Activity className="size-5 text-primary" />
-          Realtime Stream Analytics
-        </CardTitle>
-        <CardDescription>
-          Live telemetry appears after OBS connects to the stream input.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 text-sm">
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Stream Input</span>
-          <Badge variant="outline">{activeStream?.status ?? "Offline"}</Badge>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Active Viewers</span>
-          <span className="font-bold text-foreground">0</span>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Stream Latency</span>
-          <Badge
-            variant="outline"
-            className="font-mono text-emerald-500 border-emerald-500/40"
-          >
-            {activeStream ? activeStream.status : "Offline"}
-          </Badge>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Chat Velocity</span>
-          <span className="font-mono text-xs font-semibold">0 msgs/min</span>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Peak Viewers</span>
-          <span className="font-semibold">0</span>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Retention Rate</span>
-          <span className="font-semibold text-primary">N/A</span>
-        </div>
-        <div className="flex items-center justify-between rounded-lg border p-3 bg-background/50">
-          <span className="text-muted-foreground">Encoding / Quality</span>
-          <span className="font-mono text-xs">N/A</span>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -924,6 +1095,195 @@ function MetricCard({
       </CardHeader>
       <CardContent className="text-3xl font-bold">{value}</CardContent>
     </Card>
+  );
+}
+
+function ActiveScheduledStreamsSection({
+  experiences,
+  isDeleting,
+  isLoading,
+  onDelete,
+}: {
+  experiences: {
+    genre: string | null;
+    id: string;
+    startsAt: string;
+    status: string;
+    streamInputId: string | null;
+    title: string;
+    viewerCount: number;
+  }[];
+  isDeleting: boolean;
+  isLoading: boolean;
+  onDelete: (id: string) => void;
+}) {
+  const [cancellingId, setCancellingId] = useState<string | null>(null),
+    [confirmText, setConfirmText] = useState(""),
+    targetStream = experiences.find((exp) => exp.id === cancellingId);
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Radio className="size-5 text-primary" />
+            Active &amp; Scheduled Streams
+          </CardTitle>
+          <CardDescription>
+            Manage your upcoming broadcasts and active live rooms.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading && (
+            <p className="text-muted-foreground text-sm">Loading streams...</p>
+          )}
+          {!isLoading && experiences.length === 0 && (
+            <div className="rounded-lg border border-dashed p-8 text-center">
+              <Radio className="mx-auto size-8 text-muted-foreground" />
+              <p className="mt-3 font-semibold text-sm">
+                No scheduled or active streams
+              </p>
+              <p className="mt-1 text-muted-foreground text-xs">
+                Create a stream above to get your OBS encoder keys and go live.
+              </p>
+            </div>
+          )}
+          <div className="space-y-3">
+            {experiences.map((exp) => {
+              const isLive = exp.status === "live",
+                statusVariant = (() => {
+                  if (isLive) {
+                    return "destructive";
+                  }
+                  if (exp.status === "ended") {
+                    return "secondary";
+                  }
+                  return "outline";
+                })(),
+                statusLabel = (() => {
+                  if (isLive) {
+                    return "LIVE";
+                  }
+                  if (exp.status === "scheduled") {
+                    return "Scheduled";
+                  }
+                  return exp.status;
+                })();
+
+              return (
+                <div
+                  className="space-y-3 rounded-lg border bg-card/60 p-3.5 transition-colors hover:bg-card/80"
+                  key={exp.id}
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-sm truncate">
+                        {exp.title}
+                      </p>
+                      <Badge className="shrink-0" variant={statusVariant}>
+                        {statusLabel}
+                      </Badge>
+                    </div>
+                    {exp.genre ? (
+                      <Badge className="w-fit text-[10px]" variant="secondary">
+                        {exp.genre}
+                      </Badge>
+                    ) : null}
+                    <p className="text-muted-foreground text-xs">
+                      Scheduled: {new Date(exp.startsAt).toLocaleString()}
+                      {isLive
+                        ? ` • ${exp.viewerCount.toLocaleString()} viewers`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                    <Button
+                      asChild
+                      className="flex-1 h-8 text-xs"
+                      size="sm"
+                      variant={isLive ? "default" : "outline"}
+                    >
+                      <Link params={{ id: exp.id }} to="/live/streams/$id">
+                        <ExternalLink className="mr-1.5 size-3.5" />
+                        {isLive ? "Live Room" : "View Room"}
+                      </Link>
+                    </Button>
+                    <Button
+                      className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 px-2.5"
+                      disabled={isDeleting}
+                      onClick={() => {
+                        setCancellingId(exp.id);
+                        setConfirmText("");
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Trash2 className="mr-1 size-3.5" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Confirmation dialog requiring typing CANCEL */}
+      <AlertDialog
+        open={Boolean(cancellingId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancellingId(null);
+            setConfirmText("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Live Stream?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-sm">
+              <span>
+                Cancelling &quot;{targetStream?.title}&quot; will permanently
+                remove this broadcast room and disconnect any encoder stream
+                keys.
+              </span>
+              <span className="block font-medium text-foreground">
+                Type{" "}
+                <span className="font-mono font-bold text-destructive">
+                  CANCEL
+                </span>{" "}
+                to confirm:
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="my-2">
+            <Input
+              autoFocus
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type CANCEL to confirm"
+              value={confirmText}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Stream</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={confirmText.trim() !== "CANCEL" || isDeleting}
+              onClick={() => {
+                if (cancellingId) {
+                  onDelete(cancellingId);
+                  setCancellingId(null);
+                  setConfirmText("");
+                }
+              }}
+            >
+              {isDeleting ? "Cancelling..." : "Confirm Cancellation"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

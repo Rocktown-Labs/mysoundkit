@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircle,
+  Flag,
   Music,
   Plus,
   Search,
   Swords,
+  Trash2,
   Trophy,
   UserCheck,
   UserX,
@@ -17,6 +19,16 @@ import { useEffect, useState } from "react";
 
 import { LiveExperienceAuthGuard } from "@/components/dashboard/live-experience-auth-guard";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +56,7 @@ import {
   useBattleChallengesQuery,
   useBattlesQuery,
   useCreateBattleChallengeMutation,
+  useDeleteLiveExperienceMutation,
   useGenresQuery,
   useMeQuery,
   useTracksQuery,
@@ -56,143 +69,156 @@ export const Route = createFileRoute("/dashboard/live/")({
 
 function BattleHubPage() {
   const meQuery = useMeQuery(),
-   tracksQuery = useTracksQuery(),
-   battlesQuery = useBattlesQuery(),
-   battleChallengesQuery = useBattleChallengesQuery(),
-   genresQuery = useGenresQuery(),
-   createChallenge = useCreateBattleChallengeMutation(),
-   updateChallenge = useUpdateBattleChallengeMutation(),
-
-   availableGenres =
-    genresQuery.data && genresQuery.data.length > 0
-      ? genresQuery.data.map((g) => ({ label: g.name, value: g.slug }))
-      : musicGenres,
-
-   defaultGenre = availableGenres[0]?.value ?? "hip-hop",
-   userTracks = tracksQuery.data ?? [],
-   hasNoTracksOrKits = userTracks.length === 0,
-
-   [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre),
-   [selectedFormat, setSelectedFormat] = useState<string>("best_of_5"),
-   [targetUsername, setTargetUsername] = useState<string>(""),
-   artistsQuery = useQuery({
-    enabled: targetUsername.trim().length > 0,
-    queryFn: async () => {
-      const query = new URLSearchParams({
-        genre: selectedGenre,
-        q: targetUsername.trim(),
-      }),
-       response = await fetch(`${API_V1_URL}/battles/opponents?${query}`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Could not search battle opponents.");
+    tracksQuery = useTracksQuery(),
+    battlesQuery = useBattlesQuery(),
+    battleChallengesQuery = useBattleChallengesQuery(),
+    genresQuery = useGenresQuery(),
+    createChallenge = useCreateBattleChallengeMutation(),
+    updateChallenge = useUpdateBattleChallengeMutation(),
+    deleteExperience = useDeleteLiveExperienceMutation(),
+    [cancellingBattleId, setCancellingBattleId] = useState<string | null>(null),
+    [confirmText, setConfirmText] = useState(""),
+    battles = battlesQuery.data ?? [],
+    targetBattle = battles.find((b) => b.id === cancellingBattleId),
+    availableGenres =
+      genresQuery.data && genresQuery.data.length > 0
+        ? genresQuery.data.map((g) => ({ label: g.name, value: g.slug }))
+        : musicGenres,
+    defaultGenre = availableGenres[0]?.value ?? "hip-hop",
+    userTracks = tracksQuery.data ?? [],
+    hasNoTracksOrKits = userTracks.length === 0,
+    [selectedGenre, setSelectedGenre] = useState<string>(defaultGenre),
+    [selectedFormat, setSelectedFormat] = useState<string>("best_of_5"),
+    [targetUsername, setTargetUsername] = useState<string>(""),
+    handleCancelBattle = async (id: string) => {
+      try {
+        await deleteExperience.mutateAsync(id);
+        toast({
+          description: "Battle matchup has been removed.",
+          title: "Battle cancelled",
+        });
+      } catch {
+        toast({
+          description: "Failed to forfeit/cancel battle. Please try again.",
+          title: "Action failed",
+          variant: "destructive",
+        });
       }
-      return (await response.json()) as {
-        genre: string | null;
-        name: string;
-        username: string;
-      }[];
     },
-    queryKey: ["battle-opponents", selectedGenre, targetUsername.trim()],
-  });
+    artistsQuery = useQuery({
+      enabled: targetUsername.trim().length > 0,
+      queryFn: async () => {
+        const query = new URLSearchParams({
+            genre: selectedGenre,
+            q: targetUsername.trim(),
+          }),
+          response = await fetch(`${API_V1_URL}/battles/opponents?${query}`, {
+            credentials: "include",
+          });
+        if (!response.ok) {
+          throw new Error("Could not search battle opponents.");
+        }
+        return (await response.json()) as {
+          genre: string | null;
+          name: string;
+          username: string;
+        }[];
+      },
+      queryKey: ["battle-opponents", selectedGenre, targetUsername.trim()],
+    });
 
   useEffect(() => {
     setSelectedGenre((current) => current || defaultGenre);
   }, [defaultGenre]);
 
-  const battles = battlesQuery.data ?? [],
-   incomingRequests = battleChallengesQuery.data?.incoming ?? [],
-   outgoingRequests = battleChallengesQuery.data?.outgoing ?? [],
-   candidateArtists = artistsQuery.data ?? [],
-   liveBattles = battles.filter((battle) => battle.status === "live"),
-   scheduledBattles = battles.filter(
-    (battle) => battle.status === "scheduled"
-  ),
+  const incomingRequests = battleChallengesQuery.data?.incoming ?? [],
+    outgoingRequests = battleChallengesQuery.data?.outgoing ?? [],
+    candidateArtists = artistsQuery.data ?? [],
+    liveBattles = battles.filter((battle) => battle.status === "live"),
+    scheduledBattles = battles.filter(
+      (battle) => battle.status === "scheduled"
+    ),
+    handleConfirmRequest = (id: string) => {
+      updateChallenge.mutate(
+        { challengeId: id, status: "accepted" },
+        {
+          onSuccess: () => {
+            toast({
+              description: "Battle challenge accepted.",
+              title: "Challenge Accepted",
+            });
+          },
+        }
+      );
+    },
+    handleDenyRequest = (id: string) => {
+      updateChallenge.mutate(
+        { challengeId: id, status: "declined" },
+        {
+          onSuccess: () => {
+            toast({
+              description: "Battle challenge request declined.",
+              title: "Challenge Declined",
+            });
+          },
+        }
+      );
+    },
+    submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget),
+        opponent =
+          targetUsername.trim() ||
+          String(form.get("opponentUsername") ?? "").trim();
 
-   handleConfirmRequest = (id: string) => {
-    updateChallenge.mutate(
-      { challengeId: id, status: "accepted" },
-      {
-        onSuccess: () => {
-          toast({
-            description: "Battle challenge accepted.",
-            title: "Challenge Accepted",
-          });
-        },
+      if (!opponent) {
+        toast({
+          description: "Choose or search for an artist to challenge.",
+          title: "Opponent Required",
+          variant: "destructive",
+        });
+        return;
       }
-    );
-  },
 
-   handleDenyRequest = (id: string) => {
-    updateChallenge.mutate(
-      { challengeId: id, status: "declined" },
-      {
-        onSuccess: () => {
-          toast({
-            description: "Battle challenge request declined.",
-            title: "Challenge Declined",
-          });
+      const proposedDateValue = String(form.get("proposedDate") ?? ""),
+        proposedTimeValue = String(form.get("proposedTime") ?? ""),
+        proposedDateTime =
+          proposedDateValue && proposedTimeValue
+            ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
+            : null,
+        proposedDate =
+          proposedDateTime && !Number.isNaN(proposedDateTime.getTime())
+            ? proposedDateTime.toISOString()
+            : "",
+        proposedTimeLabel = proposedDateTime
+          ? proposedDateTime.toLocaleString(undefined, {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })
+          : "",
+        message = String(form.get("message") ?? "");
+
+      createChallenge.mutate(
+        {
+          format: selectedFormat as "best_of_3" | "best_of_5" | "best_of_7",
+          genre: selectedGenre,
+          message,
+          opponentUsername: opponent,
+          proposedDate,
+          proposedTimeLabel,
         },
-      }
-    );
-  },
-
-   submitChallenge = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget),
-     opponent =
-      targetUsername.trim() ||
-      String(form.get("opponentUsername") ?? "").trim();
-
-    if (!opponent) {
-      toast({
-        description: "Choose or search for an artist to challenge.",
-        title: "Opponent Required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const proposedDateValue = String(form.get("proposedDate") ?? ""),
-     proposedTimeValue = String(form.get("proposedTime") ?? ""),
-     proposedDateTime =
-      proposedDateValue && proposedTimeValue
-        ? new Date(`${proposedDateValue}T${proposedTimeValue}`)
-        : null,
-     proposedDate =
-      proposedDateTime && !Number.isNaN(proposedDateTime.getTime())
-        ? proposedDateTime.toISOString()
-        : "",
-     proposedTimeLabel = proposedDateTime
-      ? proposedDateTime.toLocaleString(undefined, {
-          dateStyle: "medium",
-          timeStyle: "short",
-        })
-      : "",
-     message = String(form.get("message") ?? "");
-
-    createChallenge.mutate(
-      {
-        format: selectedFormat as "best_of_3" | "best_of_5" | "best_of_7",
-        genre: selectedGenre,
-        message,
-        opponentUsername: opponent,
-        proposedDate,
-        proposedTimeLabel,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            description: `Battle challenge request sent to @${opponent}.`,
-            title: "Challenge Sent",
-          });
-          setTargetUsername("");
-          event.currentTarget.reset();
-        },
-      }
-    );
-  };
+        {
+          onSuccess: () => {
+            toast({
+              description: `Battle challenge request sent to @${opponent}.`,
+              title: "Challenge Sent",
+            });
+            setTargetUsername("");
+            event.currentTarget.reset();
+          },
+        }
+      );
+    };
 
   return (
     <LiveExperienceAuthGuard
@@ -426,42 +452,131 @@ function BattleHubPage() {
                 )}
 
                 <div className="space-y-3">
-                  {battles.map((battle) => (
-                    <div
-                      className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-                      key={battle.id}
-                    >
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold">{battle.title}</p>
-                          <Badge
-                            variant={
-                              battle.status === "live"
-                                ? "destructive"
-                                : "outline"
-                            }
-                          >
-                            {battle.status}
-                          </Badge>
+                  {battles.map((battle) => {
+                    const isLive = battle.status === "live";
+                    return (
+                      <div
+                        className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                        key={battle.id}
+                      >
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold truncate">
+                              {battle.title}
+                            </p>
+                            <Badge variant={isLive ? "destructive" : "outline"}>
+                              {battle.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {battle.genre} &bull;{" "}
+                            {battle.format.replaceAll("_", " ")} &bull;{" "}
+                            {battle.viewerCount.toLocaleString()} viewers
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {battle.genre} &bull;{" "}
-                          {battle.format.replaceAll("_", " ")} &bull;{" "}
-                          {battle.viewerCount.toLocaleString()} viewers
-                        </p>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          <Button
+                            asChild
+                            className="w-full sm:w-auto"
+                            size="sm"
+                          >
+                            <Link
+                              params={{ id: battle.id }}
+                              to="/live/battles/$id"
+                            >
+                              {isLive ? "Join Battle" : "View Room"}
+                            </Link>
+                          </Button>
+                          <Button
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={deleteExperience.isPending}
+                            onClick={() => {
+                              setCancellingBattleId(battle.id);
+                              setConfirmText("");
+                            }}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Flag className="mr-1 size-3.5" />
+                            {isLive ? "Forfeit" : "Cancel"}
+                          </Button>
+                        </div>
                       </div>
-                      <Button asChild className="w-full sm:w-auto">
-                        <Link params={{ id: battle.id }} to="/live/battles/$id">
-                          {battle.status === "live"
-                            ? "Join Battle"
-                            : "View Room"}
-                        </Link>
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
+
+            {/* Forfeit / Cancel Battle Confirmation Dialog */}
+            <AlertDialog
+              open={Boolean(cancellingBattleId)}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setCancellingBattleId(null);
+                  setConfirmText("");
+                }
+              }}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {targetBattle?.status === "live"
+                      ? "Forfeit Active Battle?"
+                      : "Cancel Scheduled Battle?"}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2 text-sm">
+                    <span>
+                      {targetBattle?.status === "live"
+                        ? `Forfeiting "${targetBattle?.title}" will immediately conclude the match and award the win to the opponent.`
+                        : `Cancelling "${targetBattle?.title}" will delete the scheduled matchup room.`}
+                    </span>
+                    <span className="block font-medium text-foreground">
+                      Type{" "}
+                      <span className="font-mono font-bold text-destructive">
+                        {targetBattle?.status === "live" ? "FORFEIT" : "CANCEL"}
+                      </span>{" "}
+                      to confirm:
+                    </span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="my-2">
+                  <Input
+                    autoFocus
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder={`Type ${
+                      targetBattle?.status === "live" ? "FORFEIT" : "CANCEL"
+                    } to confirm`}
+                    value={confirmText}
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Stay in Battle</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    disabled={
+                      confirmText.trim() !==
+                        (targetBattle?.status === "live"
+                          ? "FORFEIT"
+                          : "CANCEL") || deleteExperience.isPending
+                    }
+                    onClick={() => {
+                      if (cancellingBattleId) {
+                        void handleCancelBattle(cancellingBattleId);
+                        setCancellingBattleId(null);
+                        setConfirmText("");
+                      }
+                    }}
+                  >
+                    {deleteExperience.isPending
+                      ? "Processing..."
+                      : (targetBattle?.status === "live"
+                        ? "Confirm Forfeit"
+                        : "Confirm Cancellation")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </main>
 
           {/* Wizard Sidebar */}

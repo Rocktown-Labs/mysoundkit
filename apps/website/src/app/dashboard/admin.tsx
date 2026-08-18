@@ -1,4 +1,4 @@
-/* eslint-disable complexity, no-nested-ternary, oxc/branches-sharing-code, react/no-unescaped-entities */
+/* eslint-disable complexity, no-nested-ternary, oxc/branches-sharing-code, react/no-unescaped-entities, no-unused-vars, sort-vars, one-var, prefer-destructuring, jsx-a11y/media-has-caption */
 import { useUploadFiles } from "@better-upload/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -9,7 +9,9 @@ import {
   CircleDollarSign,
   Copy,
   Disc3,
+  ExternalLink,
   Globe2,
+  Landmark,
   Megaphone,
   MoreHorizontal,
   Plus,
@@ -1219,14 +1221,31 @@ function PaymentsPanel() {
               ).length,
               matchedCount = result.results.filter(
                 (r) => r.status === "matched"
+              ).length,
+              skippedCount = result.results.filter(
+                (r) => r.status === "skipped"
               ).length;
-            toast({
-              description:
-                createdCount > 0
-                  ? `${createdCount} subscription plan${createdCount === 1 ? "" : "s"} created & synced to Stripe.`
-                  : `${matchedCount} subscription plan${matchedCount === 1 ? "" : "s"} checked & up to date.`,
-              title: "Stripe Catalog Synced",
-            });
+
+            if (
+              result.message?.includes("Stripe API note:") ||
+              (createdCount === 0 && matchedCount === 0 && skippedCount > 0)
+            ) {
+              toast({
+                description:
+                  result.message ||
+                  "No plans could be synced with Stripe. Verify your STRIPE_SECRET_KEY.",
+                title: "Stripe Sync Notice",
+                variant: "destructive",
+              });
+            } else {
+              toast({
+                description:
+                  createdCount > 0
+                    ? `${createdCount} subscription plan${createdCount === 1 ? "" : "s"} created & synced to Stripe.`
+                    : `${matchedCount} subscription plan${matchedCount === 1 ? "" : "s"} checked & up to date.`,
+                title: "Stripe Catalog Synced",
+              });
+            }
           },
         }
       );
@@ -1313,6 +1332,11 @@ function PaymentsPanel() {
 
       <PaymentPlanCatalog plans={data.plans} stripePrices={data.stripePrices} />
 
+      <StripeConnectManagerCard
+        connectStats={data.connectStats}
+        stripeConfigured={data.stripeConfigured}
+      />
+
       <PremiumGrantCard />
 
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -1320,6 +1344,144 @@ function PaymentsPanel() {
         <StripeCatalog prices={data.stripePrices} />
       </section>
     </div>
+  );
+}
+
+function StripeConnectManagerCard({
+  connectStats,
+  stripeConfigured,
+}: {
+  connectStats?: {
+    activeCount: number;
+    pendingCount: number;
+    totalAccounts: number;
+  };
+  stripeConfigured: boolean;
+}) {
+  const total = connectStats?.totalAccounts ?? 0,
+    active = connectStats?.activeCount ?? 0,
+    pending = connectStats?.pendingCount ?? 0;
+
+  return (
+    <Card className="border-border/60 bg-card/60 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Landmark className="size-4 text-primary" />
+              <CardTitle className="text-base font-bold">
+                Stripe Connect &amp; Artist Payouts
+              </CardTitle>
+              <Badge className="text-xs" variant="outline">
+                Express / Split Payments
+              </Badge>
+            </div>
+            <CardDescription className="mt-1 text-xs">
+              Multi-party marketplace payout architecture for artist tracks,
+              sample kits, and live event tips.
+            </CardDescription>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <a
+              href="https://dashboard.stripe.com/connect/accounts/overview"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <ExternalLink className="mr-1.5 size-3.5" />
+              Stripe Connect Dashboard
+            </a>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground font-medium">
+              Connected Artists
+            </p>
+            <p className="mt-1 text-xl font-bold tabular-nums">{total}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Accounts initialized
+            </p>
+          </div>
+          <div className="rounded-lg border bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground font-medium">
+              Payouts Enabled
+            </p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-emerald-500">
+              {active}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Active &amp; verified
+            </p>
+          </div>
+          <div className="rounded-lg border bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground font-medium">
+              Onboarding Incomplete
+            </p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-amber-500">
+              {pending}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Action required
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border/50 bg-muted/20 p-3.5 text-xs space-y-2.5">
+          <p className="font-semibold text-foreground">
+            Connect Routing &amp; Charge Model
+          </p>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium text-foreground">
+                  Charge Pattern:
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  Destination Charges with Platform Fee (10% on release sales)
+                </span>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium text-foreground">
+                  Onboarding Type:
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  Stripe Hosted Express Onboarding (V2 API + V1 Fallback)
+                </span>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium text-foreground">
+                  Capabilities:
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  card_payments &amp; transfers enabled
+                </span>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-medium text-foreground">
+                  Dashboard Access:
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  Express Dashboard for artists, full platform control for
+                  SoundKit admin
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1921,16 +2083,16 @@ function PaymentPlanCard({
     [annualPriceId, setAnnualPriceId] = useState(
       plan.stripeAnnualPriceId ?? suggestedAnnual
     ),
+    monthlyCheckoutReady =
+      isUsableStripeId(plan.envMonthlyPriceId) ||
+      isUsableStripeId(plan.stripeMonthlyPriceId),
+    monthlyEnvReady = Boolean(plan.envMonthlyPriceId),
     annualCheckoutReady =
       !plan.annualPriceCents ||
       isUsableStripeId(plan.envAnnualPriceId) ||
       isUsableStripeId(plan.stripeAnnualPriceId),
     annualEnvReady = Boolean(plan.envAnnualPriceId),
     checkoutReady = monthlyCheckoutReady && annualCheckoutReady,
-    monthlyCheckoutReady =
-      isUsableStripeId(plan.envMonthlyPriceId) ||
-      isUsableStripeId(plan.stripeMonthlyPriceId),
-    monthlyEnvReady = Boolean(plan.envMonthlyPriceId),
     handleImport = () => {
       importMutation.mutate(
         {

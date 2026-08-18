@@ -25,7 +25,7 @@ describe("player queue", () => {
 
   it("advances to the next track and consumes the completed track", () => {
     const first = track("one"),
-     second = track("two");
+      second = track("two");
 
     expect(
       completeQueuedTrack({
@@ -38,7 +38,7 @@ describe("player queue", () => {
 
   it("stops after the final queued track when repeat is off", () => {
     const first = track("one"),
-     second = track("two");
+      second = track("two");
 
     expect(
       completeQueuedTrack({
@@ -51,7 +51,7 @@ describe("player queue", () => {
 
   it("rotates completed tracks when repeat all is enabled", () => {
     const first = track("one"),
-     second = track("two");
+      second = track("two");
 
     expect(
       completeQueuedTrack({

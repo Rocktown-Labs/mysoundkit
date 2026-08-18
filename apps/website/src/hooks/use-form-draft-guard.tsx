@@ -17,13 +17,12 @@ import {
 
 // File/Blob values cannot be serialized into a draft; drop them.
 const draftReplacer = (_key: string, value: unknown) =>
-  value instanceof File || value instanceof Blob ? undefined : value,
-
- DIALOG_TITLE = "Leave without finishing?",
- DIALOG_DESCRIPTION =
-  "You have unsaved changes. If you leave, this attempt and any temporary uploads will be discarded.",
- DIALOG_CANCEL_LABEL = "Keep editing",
- DIALOG_CONFIRM_LABEL = "Leave";
+    value instanceof File || value instanceof Blob ? undefined : value,
+  DIALOG_CANCEL_LABEL = "Keep editing",
+  DIALOG_CONFIRM_LABEL = "Leave",
+  DIALOG_DESCRIPTION =
+    "You have unsaved changes. If you leave, this attempt and any temporary uploads will be discarded.",
+  DIALOG_TITLE = "Leave without finishing?";
 
 interface UseFormDraftGuardOptions<TFieldValues extends FieldValues> {
   /** Extra dirty state not tracked by react-hook-form (e.g. selected files). */
@@ -55,13 +54,12 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   defaultValues?: TFieldValues;
 }) {
   const [hasSavedDraft, setHasSavedDraft] = useState(false),
-   formIsDirty = form.formState.isDirty,
-   hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState),
-   skipNextPersistenceRef = useRef(false),
-   defaultValuesRef = useRef(defaultValues),
-
-  // Keep latest dirty state readable from blocker callbacks.
-   dirtyRef = useRef(hasUnsavedChanges);
+    formIsDirty = form.formState.isDirty,
+    hasUnsavedChanges = Boolean(formIsDirty || additionalDirtyState),
+    skipNextPersistenceRef = useRef(false),
+    defaultValuesRef = useRef(defaultValues),
+    // Keep latest dirty state readable from blocker callbacks.
+    dirtyRef = useRef(hasUnsavedChanges);
   dirtyRef.current = hasUnsavedChanges;
   const bypassRef = useRef(false);
 
@@ -110,76 +108,73 @@ export function useFormDraftGuard<TFieldValues extends FieldValues>({
   }, [form, persist, storageKey]);
 
   const { proceed, reset, status } = useBlocker({
-    enableBeforeUnload: () => dirtyRef.current && !bypassRef.current,
-    shouldBlockFn: () => dirtyRef.current && !bypassRef.current,
-    withResolver: true,
-  }),
-
-   allowNavigation = () => {
-    bypassRef.current = true;
-  },
-
-   clearDraft = () => {
-    try {
-      window.localStorage.removeItem(storageKey);
-      setHasSavedDraft(false);
-    } catch {
-      // Persistence is best-effort.
-    }
-  },
-
-   resetDraft = () => {
-    skipNextPersistenceRef.current = true;
-    clearDraft();
-    if (defaultValues) {
-      form.reset(defaultValues);
-    } else {
-      form.reset();
-    }
-    queueMicrotask(() => {
-      skipNextPersistenceRef.current = false;
-    });
-  },
-
-   discardAndProceed = async () => {
-    try {
-      await onDiscard?.();
-    } finally {
+      enableBeforeUnload: () => dirtyRef.current && !bypassRef.current,
+      shouldBlockFn: () => dirtyRef.current && !bypassRef.current,
+      withResolver: true,
+    }),
+    allowNavigation = () => {
+      bypassRef.current = true;
+    },
+    clearDraft = () => {
+      try {
+        window.localStorage.removeItem(storageKey);
+        setHasSavedDraft(false);
+      } catch {
+        // Persistence is best-effort.
+      }
+    },
+    resetDraft = () => {
+      skipNextPersistenceRef.current = true;
       clearDraft();
-      proceed?.();
-    }
-  },
-
-   blockerDialog = (
-    <AlertDialog
-      onOpenChange={(open) => {
-        if (!open) {
-          reset?.();
-        }
-      }}
-      open={status === "blocked"}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{DIALOG_TITLE}</AlertDialogTitle>
-          <AlertDialogDescription>{DIALOG_DESCRIPTION}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={reset}>
-            {DIALOG_CANCEL_LABEL}
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(event) => {
-              event.preventDefault();
-              void discardAndProceed();
-            }}
-          >
-            {DIALOG_CONFIRM_LABEL}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
+      if (defaultValues) {
+        form.reset(defaultValues);
+      } else {
+        form.reset();
+      }
+      queueMicrotask(() => {
+        skipNextPersistenceRef.current = false;
+      });
+    },
+    discardAndProceed = async () => {
+      try {
+        await onDiscard?.();
+      } finally {
+        clearDraft();
+        proceed?.();
+      }
+    },
+    blockerDialog = (
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            reset?.();
+          }
+        }}
+        open={status === "blocked"}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{DIALOG_TITLE}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {DIALOG_DESCRIPTION}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={reset}>
+              {DIALOG_CANCEL_LABEL}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void discardAndProceed();
+              }}
+            >
+              {DIALOG_CONFIRM_LABEL}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
 
   return {
     allowNavigation,

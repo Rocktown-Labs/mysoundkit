@@ -34,13 +34,13 @@ app.openapi(
       const id = c.env?.PRESENCE.idFromName("global"),
         stub = c.env?.PRESENCE.get(id),
         response = await stub.fetch(new Request("https://internal/presence")),
-       data = (await response.json()) as {
-        users: Record<string, { lastSeen: number; status: string }>;
-      },
-       users: Record<
-        string,
-        { isOnline: boolean; lastSeen: number; status: string }
-      > = {};
+        data = (await response.json()) as {
+          users: Record<string, { lastSeen: number; status: string }>;
+        },
+        users: Record<
+          string,
+          { isOnline: boolean; lastSeen: number; status: string }
+        > = {};
       for (const [uid, u] of Object.entries(data.users ?? {})) {
         users[uid] = {
           isOnline: true,
@@ -118,12 +118,12 @@ app.openapi(
             method: "POST",
           })
         ),
-       data = (await response.json()) as {
-        users: Record<
-          string,
-          { isOnline: boolean; lastSeen: number; status: string }
-        >;
-      };
+        data = (await response.json()) as {
+          users: Record<
+            string,
+            { isOnline: boolean; lastSeen: number; status: string }
+          >;
+        };
       return c.json({ users: data.users ?? {} }, HttpStatusCodes.OK);
     }
 

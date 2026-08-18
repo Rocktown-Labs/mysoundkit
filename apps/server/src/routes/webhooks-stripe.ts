@@ -104,17 +104,17 @@ const processConnectAccountEvent = async ({
     const v2TransferStatus =
         object.configuration?.recipient?.capabilities?.stripe_balance
           ?.stripe_transfers?.status,
-      chargesEnabled =
-        object.charges_enabled ?? (v2TransferStatus === "active"),
-      payoutsEnabled =
-        object.payouts_enabled ?? (v2TransferStatus === "active"),
+      chargesEnabled = object.charges_enabled ?? v2TransferStatus === "active",
+      payoutsEnabled = object.payouts_enabled ?? v2TransferStatus === "active",
       detailsSubmitted =
         object.details_submitted ??
-        (chargesEnabled || (object.requirements?.currently_due?.length === 0)),
+        (chargesEnabled || object.requirements?.currently_due?.length === 0),
       requirementsDue = [
         ...(object.requirements?.currently_due ?? []),
         ...(object.requirements?.past_due ?? []),
-        ...(object.requirements?.entries?.map((entry) => entry.field).filter(Boolean) ?? []),
+        ...(object.requirements?.entries
+          ?.map((entry) => entry.field)
+          .filter(Boolean) ?? []),
       ] as string[],
       onboardingStatus =
         chargesEnabled && payoutsEnabled
@@ -135,9 +135,8 @@ const processConnectAccountEvent = async ({
         requirementsDue,
       })
       .where(eq(sellerAccounts.stripeAccountId, accountId));
-  };
-
-const processCommunitySubscription = async ({
+  },
+  processCommunitySubscription = async ({
     eventType,
     object,
   }: {

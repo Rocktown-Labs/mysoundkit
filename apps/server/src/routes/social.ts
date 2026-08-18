@@ -23,30 +23,29 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
-
- followResponseSchema = z.object({
-  followed: z.boolean(),
-  followerCount: z.number().int().nonnegative(),
-}),
- usernameParamSchema = z.object({ username: z.string() }),
- postIdParamSchema = z.object({ postId: z.string() }),
- unauthorizedResponse = jsonContent(
-  messageResponseSchema,
-  "Authentication required"
-),
- notFoundResponse = jsonContent(messageResponseSchema, "Artist not found"),
- commentListResponse = jsonContent(commentSchema.array(), "Post comments"),
- commentCreatedResponse = jsonContent(commentSchema, "Comment created"),
- likeAppliedResponse = jsonContent(messageResponseSchema, "Like applied"),
- publicProfileSchema = z.object({
-  accountType: z.enum(["artist", "fan"]),
-  avatarUrl: z.string().nullable(),
-  bio: z.string().nullable(),
-  displayName: z.string(),
-  followerCount: z.number().int().nonnegative(),
-  location: z.string().nullable(),
-  username: z.string(),
-});
+  followResponseSchema = z.object({
+    followed: z.boolean(),
+    followerCount: z.number().int().nonnegative(),
+  }),
+  usernameParamSchema = z.object({ username: z.string() }),
+  postIdParamSchema = z.object({ postId: z.string() }),
+  unauthorizedResponse = jsonContent(
+    messageResponseSchema,
+    "Authentication required"
+  ),
+  notFoundResponse = jsonContent(messageResponseSchema, "Artist not found"),
+  commentListResponse = jsonContent(commentSchema.array(), "Post comments"),
+  commentCreatedResponse = jsonContent(commentSchema, "Comment created"),
+  likeAppliedResponse = jsonContent(messageResponseSchema, "Like applied"),
+  publicProfileSchema = z.object({
+    accountType: z.enum(["artist", "fan"]),
+    avatarUrl: z.string().nullable(),
+    bio: z.string().nullable(),
+    displayName: z.string(),
+    followerCount: z.number().int().nonnegative(),
+    location: z.string().nullable(),
+    username: z.string(),
+  });
 
 app.openapi(
   createRoute({
@@ -79,21 +78,21 @@ app.openapi(
     }
 
     const { username } = c.req.valid("param"),
-     db = createDb(),
-     [profile] = await db
-      .select({
-        accountType: userProfiles.accountType,
-        avatarUrl: userProfiles.avatarUrl,
-        bio: userProfiles.bio,
-        city: userProfiles.city,
-        displayName: userProfiles.displayName,
-        state: userProfiles.state,
-        userId: userProfiles.userId,
-        username: userProfiles.username,
-      })
-      .from(userProfiles)
-      .where(eq(userProfiles.username, username))
-      .limit(1);
+      db = createDb(),
+      [profile] = await db
+        .select({
+          accountType: userProfiles.accountType,
+          avatarUrl: userProfiles.avatarUrl,
+          bio: userProfiles.bio,
+          city: userProfiles.city,
+          displayName: userProfiles.displayName,
+          state: userProfiles.state,
+          userId: userProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .where(eq(userProfiles.username, username))
+        .limit(1);
 
     if (!(profile?.displayName && profile.username)) {
       return c.json(
@@ -145,12 +144,12 @@ app.openapi(
     }
 
     const { username } = c.req.valid("param"),
-     db = createDb(),
-     [target] = await db
-      .select({ userId: userProfiles.userId })
-      .from(userProfiles)
-      .where(eq(userProfiles.username, username))
-      .limit(1);
+      db = createDb(),
+      [target] = await db
+        .select({ userId: userProfiles.userId })
+        .from(userProfiles)
+        .where(eq(userProfiles.username, username))
+        .limit(1);
     if (!target || target.userId === user.id) {
       return c.json(
         { message: "Profile not found." },
@@ -216,16 +215,19 @@ app.openapi(
     }
 
     const db = createDb(),
-     [artist] = await db
-      .select({
-        displayName: userProfiles.displayName,
-        followerCount: artistProfiles.followerCount,
-        userId: userProfiles.userId,
-      })
-      .from(userProfiles)
-      .innerJoin(artistProfiles, eq(artistProfiles.userId, userProfiles.userId))
-      .where(eq(userProfiles.username, username))
-      .limit(1);
+      [artist] = await db
+        .select({
+          displayName: userProfiles.displayName,
+          followerCount: artistProfiles.followerCount,
+          userId: userProfiles.userId,
+        })
+        .from(userProfiles)
+        .innerJoin(
+          artistProfiles,
+          eq(artistProfiles.userId, userProfiles.userId)
+        )
+        .where(eq(userProfiles.username, username))
+        .limit(1);
 
     if (!artist) {
       return c.json(
@@ -257,24 +259,23 @@ app.openapi(
         .where(eq(artistProfiles.userId, artist.userId));
 
       const [followerArtistProfile] = await db
-        .select({
-          displayName: userProfiles.displayName,
-          userId: artistProfiles.userId,
-          username: userProfiles.username,
-        })
-        .from(userProfiles)
-        .leftJoin(
-          artistProfiles,
-          eq(artistProfiles.userId, userProfiles.userId)
-        )
-        .where(eq(userProfiles.userId, user.id))
-        .limit(1),
-
-       isFan = !followerArtistProfile?.userId,
-       title = isFan ? "New Fan" : "New Artist Follower",
-       message = isFan
-        ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
-        : `${user.name ?? "An artist"} followed your profile.`;
+          .select({
+            displayName: userProfiles.displayName,
+            userId: artistProfiles.userId,
+            username: userProfiles.username,
+          })
+          .from(userProfiles)
+          .leftJoin(
+            artistProfiles,
+            eq(artistProfiles.userId, userProfiles.userId)
+          )
+          .where(eq(userProfiles.userId, user.id))
+          .limit(1),
+        isFan = !followerArtistProfile?.userId,
+        title = isFan ? "New Fan" : "New Artist Follower",
+        message = isFan
+          ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
+          : `${user.name ?? "An artist"} followed your profile.`;
 
       await db.insert(userNotifications).values({
         id: crypto.randomUUID(),

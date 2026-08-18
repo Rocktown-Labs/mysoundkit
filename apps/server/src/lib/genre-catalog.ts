@@ -21,21 +21,20 @@ export const genreCatalog: GenreCatalogEntry[] = [
 ];
 
 const genreByName = new Map(
-  genreCatalog.map((genre) => [genre.name.toLowerCase(), genre])
-),
- genreBySlug = new Map(genreCatalog.map((genre) => [genre.slug, genre])),
-
- genreValueAliases = new Map([
-  ["hip-hop-rap", "hip-hop"],
-  ["hiphop", "hip-hop"],
-  ["rb", "rb-soul"],
-  ["r-b-soul", "rb-soul"],
-  ["r&b", "rb-soul"],
-  ["r&b/soul", "rb-soul"],
-  ["electronic-dance", "electronic"],
-  ["edm", "electronic"],
-  ["spokenword", "spoken-word"],
-]);
+    genreCatalog.map((genre) => [genre.name.toLowerCase(), genre])
+  ),
+  genreBySlug = new Map(genreCatalog.map((genre) => [genre.slug, genre])),
+  genreValueAliases = new Map([
+    ["hip-hop-rap", "hip-hop"],
+    ["hiphop", "hip-hop"],
+    ["rb", "rb-soul"],
+    ["r-b-soul", "rb-soul"],
+    ["r&b", "rb-soul"],
+    ["r&b/soul", "rb-soul"],
+    ["electronic-dance", "electronic"],
+    ["edm", "electronic"],
+    ["spokenword", "spoken-word"],
+  ]);
 
 export const slugifyGenre = (value: string) =>
   value

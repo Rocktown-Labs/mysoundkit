@@ -25,12 +25,12 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const router = useRouter(),
-   { data: me } = useMeQuery(),
-   pathname = useRouterState({
-    select: (state) => state.location.pathname,
-  }),
-   isSignupIndex =
-    pathname === Route.fullPath || pathname === `${Route.fullPath}/`;
+    { data: me } = useMeQuery(),
+    pathname = useRouterState({
+      select: (state) => state.location.pathname,
+    }),
+    isSignupIndex =
+      pathname === Route.fullPath || pathname === `${Route.fullPath}/`;
 
   useEffect(() => {
     if (!me?.user) {

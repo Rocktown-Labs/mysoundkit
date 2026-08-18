@@ -25,56 +25,55 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
-  { href: "/", icon: MapPin, label: "Discover" },
-  { icon: Music, isMenu: true, label: "Music" },
-  { href: "/artist", icon: Users, label: "Artists" },
-  { href: "/live", icon: Trophy, label: "Live" },
-  {
-    authRequired: true,
-    href: "/library",
-    icon: Library,
-    label: "My SoundKit",
-  },
-],
-
- musicLinks = [
-  {
-    description: "Songs, charts, and regional track discovery",
-    href: "/tracks",
-    icon: Music,
-    label: "Songs",
-  },
-  {
-    description: "Albums, EPs, mixtapes, and bundles",
-    href: "/projects",
-    icon: Disc,
-    label: "Projects",
-  },
-  {
-    description: "Music videos and visual releases",
-    href: "/videos",
-    icon: Video,
-    label: "Videos",
-  },
-  {
-    description: "Browse by sound, scene, and style",
-    href: "/genres",
-    icon: Tags,
-    label: "Genres",
-  },
-  {
-    description: "Paid drops and fan purchases",
-    href: "/shop",
-    icon: ShoppingBag,
-    label: "Shop",
-  },
-] as const;
+    { href: "/", icon: MapPin, label: "Discover" },
+    { icon: Music, isMenu: true, label: "Music" },
+    { href: "/artist", icon: Users, label: "Artists" },
+    { href: "/live", icon: Trophy, label: "Live" },
+    {
+      authRequired: true,
+      href: "/library",
+      icon: Library,
+      label: "My SoundKit",
+    },
+  ],
+  musicLinks = [
+    {
+      description: "Songs, charts, and regional track discovery",
+      href: "/tracks",
+      icon: Music,
+      label: "Songs",
+    },
+    {
+      description: "Albums, EPs, mixtapes, and bundles",
+      href: "/projects",
+      icon: Disc,
+      label: "Projects",
+    },
+    {
+      description: "Music videos and visual releases",
+      href: "/videos",
+      icon: Video,
+      label: "Videos",
+    },
+    {
+      description: "Browse by sound, scene, and style",
+      href: "/genres",
+      icon: Tags,
+      label: "Genres",
+    },
+    {
+      description: "Paid drops and fan purchases",
+      href: "/shop",
+      icon: ShoppingBag,
+      label: "Shop",
+    },
+  ] as const;
 
 export function ExploreMobileNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname }),
-   { data: session } = authClient.useSession(),
-   [mounted, setMounted] = useState(false),
-   [musicOpen, setMusicOpen] = useState(false);
+    { data: session } = authClient.useSession(),
+    [mounted, setMounted] = useState(false),
+    [musicOpen, setMusicOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -112,12 +111,12 @@ export function ExploreMobileNav() {
           }
 
           const isLibrary = link.href.includes("/library"),
-           href =
-            link.authRequired && mounted && !session ? "/login" : link.href,
-           isActive =
-            pathname === href ||
-            (href !== "/" && !isLibrary && pathname.startsWith(href)) ||
-            (isLibrary && pathname.startsWith("/library"));
+            href =
+              link.authRequired && mounted && !session ? "/login" : link.href,
+            isActive =
+              pathname === href ||
+              (href !== "/" && !isLibrary && pathname.startsWith(href)) ||
+              (isLibrary && pathname.startsWith("/library"));
 
           return (
             <Link

@@ -4,49 +4,46 @@ import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 const jsonRequest = (method: string, body: unknown) => ({
-  body: JSON.stringify(body),
-  headers: {
-    "content-type": "application/json",
-  },
-  method,
-}),
+    body: JSON.stringify(body),
+    headers: {
+      "content-type": "application/json",
+    },
+    method,
+  }),
+  readJson = <T>(response: Response): Promise<T> =>
+    response.json() as Promise<T>,
+  bytesToHex = (bytes: Uint8Array) =>
+    [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+  stripeSignature = async ({
+    payload,
+    timestamp = Math.floor(Date.now() / 1000),
+  }: {
+    payload: string;
+    timestamp?: number;
+  }) => {
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode("whsec_soundkit_test"),
+        { hash: "SHA-256", name: "HMAC" },
+        false,
+        ["sign"]
+      ),
+      digest = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        new TextEncoder().encode(`${timestamp}.${payload}`)
+      );
 
- readJson = <T>(response: Response): Promise<T> =>
-  response.json() as Promise<T>,
-
- bytesToHex = (bytes: Uint8Array) =>
-  [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
-
- stripeSignature = async ({
-  payload,
-  timestamp = Math.floor(Date.now() / 1000),
-}: {
-  payload: string;
-  timestamp?: number;
-}) => {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode("whsec_soundkit_test"),
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign"]
-  ),
-   digest = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${timestamp}.${payload}`)
-  );
-
-  return `t=${timestamp},v1=${bytesToHex(new Uint8Array(digest))}`;
-};
+    return `t=${timestamp},v1=${bytesToHex(new Uint8Array(digest))}`;
+  };
 
 describe("SoundKit Worker API", () => {
   it("exposes service health metadata", async () => {
     const response = await SELF.fetch("http://soundkit.test/health"),
-     body = await readJson<{
-      ok: boolean;
-      service: string;
-    }>(response);
+      body = await readJson<{
+        ok: boolean;
+        service: string;
+      }>(response);
 
     expect(response.status).toBe(200);
     expect(body.ok).toBe(true);
@@ -55,10 +52,10 @@ describe("SoundKit Worker API", () => {
 
   it("publishes an OpenAPI document", async () => {
     const response = await SELF.fetch("http://soundkit.test/api/openapi.json"),
-     body = await readJson<{
-      info: { title: string };
-      openapi: string;
-    }>(response);
+      body = await readJson<{
+        info: { title: string };
+        openapi: string;
+      }>(response);
 
     expect(response.status).toBe(200);
     expect(body.openapi).toBe("3.1.0");
@@ -67,20 +64,20 @@ describe("SoundKit Worker API", () => {
 
   it("verifies Stripe commerce webhooks without requiring storage", async () => {
     const payload = JSON.stringify({
-      data: { object: {} },
-      type: "checkout.session.completed",
-    }),
-     response = await SELF.fetch(
-      "http://soundkit.test/v1/webhooks/stripe-commerce",
-      {
-        body: payload,
-        headers: {
-          "stripe-signature": await stripeSignature({ payload }),
-        },
-        method: "POST",
-      }
-    ),
-     body = await readJson<{ message: string }>(response);
+        data: { object: {} },
+        type: "checkout.session.completed",
+      }),
+      response = await SELF.fetch(
+        "http://soundkit.test/v1/webhooks/stripe-commerce",
+        {
+          body: payload,
+          headers: {
+            "stripe-signature": await stripeSignature({ payload }),
+          },
+          method: "POST",
+        }
+      ),
+      body = await readJson<{ message: string }>(response);
 
     expect(response.status).toBe(200);
     expect(body.message).toBe("Stripe webhook accepted.");
@@ -104,19 +101,19 @@ describe("SoundKit Worker API", () => {
 
   it("rejects correctly signed but stale Stripe webhooks", async () => {
     const payload = JSON.stringify({ id: "evt_stale" }),
-     response = await SELF.fetch(
-      "http://soundkit.test/v1/webhooks/stripe-commerce",
-      {
-        body: payload,
-        headers: {
-          "stripe-signature": await stripeSignature({
-            payload,
-            timestamp: Math.floor(Date.now() / 1000) - 301,
-          }),
-        },
-        method: "POST",
-      }
-    );
+      response = await SELF.fetch(
+        "http://soundkit.test/v1/webhooks/stripe-commerce",
+        {
+          body: payload,
+          headers: {
+            "stripe-signature": await stripeSignature({
+              payload,
+              timestamp: Math.floor(Date.now() / 1000) - 301,
+            }),
+          },
+          method: "POST",
+        }
+      );
 
     expect(response.status).toBe(400);
   });
@@ -162,15 +159,15 @@ describe("SoundKit Worker API", () => {
     expect(projectsResponse.status).toBe(200);
 
     const tracks = await readJson<unknown[]>(tracksResponse),
-     videos = await readJson<unknown[]>(videosResponse),
-     battles = await readJson<unknown[]>(battlesResponse),
-     projects = await readJson<
-      {
-        genre: string | null;
-        projectType: string;
-        regionSlug: string | null;
-      }[]
-    >(projectsResponse);
+      videos = await readJson<unknown[]>(videosResponse),
+      battles = await readJson<unknown[]>(battlesResponse),
+      projects = await readJson<
+        {
+          genre: string | null;
+          projectType: string;
+          regionSlug: string | null;
+        }[]
+      >(projectsResponse);
 
     expect(tracks).toEqual([]);
     expect(videos.length).toBeGreaterThan(0);
@@ -186,9 +183,9 @@ describe("SoundKit Worker API", () => {
 
   it("filters public projects by sale state in no-storage mode", async () => {
     const response = await SELF.fetch(
-      "http://soundkit.test/v1/projects/public?forSale=true"
-    ),
-     projects = await readJson<unknown[]>(response);
+        "http://soundkit.test/v1/projects/public?forSale=true"
+      ),
+      projects = await readJson<unknown[]>(response);
 
     expect(response.status).toBe(200);
     expect(projects).toEqual([]);
@@ -196,13 +193,13 @@ describe("SoundKit Worker API", () => {
 
   it("reports live room state as unavailable without a Durable Object binding", async () => {
     const partyResponse = await SELF.fetch(
-      "http://soundkit.test/v1/live/rooms/single-album-party"
-    ),
-     battleResponse = await SELF.fetch(
-      "http://soundkit.test/v1/live/rooms/battle-1"
-    ),
-     party = await readJson<{ message: string }>(partyResponse),
-     battle = await readJson<{ message: string }>(battleResponse);
+        "http://soundkit.test/v1/live/rooms/single-album-party"
+      ),
+      battleResponse = await SELF.fetch(
+        "http://soundkit.test/v1/live/rooms/battle-1"
+      ),
+      party = await readJson<{ message: string }>(partyResponse),
+      battle = await readJson<{ message: string }>(battleResponse);
 
     expect(partyResponse.status).toBe(503);
     expect(party.message).toContain("Durable Object");
@@ -212,37 +209,37 @@ describe("SoundKit Worker API", () => {
 
   it("keeps dashboard and commerce mutations behind authentication", async () => {
     const createTrackResponse = await SELF.fetch(
-      "http://soundkit.test/v1/tracks",
-      jsonRequest("POST", {
-        assetIds: [],
-        catalogItemType: "single",
-        genre: "Hip-Hop",
-        isForSale: false,
-        isPublic: false,
-        productionStatus: "demo",
-        purchaseMode: "digital_download",
-        releaseStrategy: "private",
-        title: "Worker Test Track",
-      })
-    ),
-     cartResponse = await SELF.fetch("http://soundkit.test/v1/cart"),
-     friendsResponse = await SELF.fetch(
-      "http://soundkit.test/v1/messages/friends"
-    ),
-     conversationsResponse = await SELF.fetch(
-      "http://soundkit.test/v1/messages/conversations"
-    ),
-     conversationMessagesResponse = await SELF.fetch(
-      "http://soundkit.test/v1/messages/conversations/conv_sarah/messages"
-    ),
-     checkoutResponse = await SELF.fetch(
-      "http://soundkit.test/v1/billing/checkout",
-      jsonRequest("POST", {
-        cancelUrl: "http://127.0.0.1:3001/pricing",
-        planCode: "soundkit_premium_artist",
-        successUrl: "http://127.0.0.1:3001/dashboard",
-      })
-    );
+        "http://soundkit.test/v1/tracks",
+        jsonRequest("POST", {
+          assetIds: [],
+          catalogItemType: "single",
+          genre: "Hip-Hop",
+          isForSale: false,
+          isPublic: false,
+          productionStatus: "demo",
+          purchaseMode: "digital_download",
+          releaseStrategy: "private",
+          title: "Worker Test Track",
+        })
+      ),
+      cartResponse = await SELF.fetch("http://soundkit.test/v1/cart"),
+      friendsResponse = await SELF.fetch(
+        "http://soundkit.test/v1/messages/friends"
+      ),
+      conversationsResponse = await SELF.fetch(
+        "http://soundkit.test/v1/messages/conversations"
+      ),
+      conversationMessagesResponse = await SELF.fetch(
+        "http://soundkit.test/v1/messages/conversations/conv_sarah/messages"
+      ),
+      checkoutResponse = await SELF.fetch(
+        "http://soundkit.test/v1/billing/checkout",
+        jsonRequest("POST", {
+          cancelUrl: "http://127.0.0.1:3001/pricing",
+          planCode: "soundkit_premium_artist",
+          successUrl: "http://127.0.0.1:3001/dashboard",
+        })
+      );
 
     expect(createTrackResponse.status).toBe(401);
     expect(cartResponse.status).toBe(401);
@@ -254,14 +251,14 @@ describe("SoundKit Worker API", () => {
 
   it("reports upload routes as unavailable until storage credentials are bound", async () => {
     const statusResponse = await SELF.fetch("http://soundkit.test/v1/uploads"),
-     uploadResponse = await SELF.fetch(
-      "http://soundkit.test/v1/uploads/track-source",
-      {
-        method: "POST",
-      }
-    ),
-     statusBody = await readJson<{ message: string }>(statusResponse),
-     uploadBody = await readJson<{ message: string }>(uploadResponse);
+      uploadResponse = await SELF.fetch(
+        "http://soundkit.test/v1/uploads/track-source",
+        {
+          method: "POST",
+        }
+      ),
+      statusBody = await readJson<{ message: string }>(statusResponse),
+      uploadBody = await readJson<{ message: string }>(uploadResponse);
 
     expect(statusResponse.status).toBe(200);
     expect(statusBody.message).toContain("UPLOAD_BUCKET_NAME");
@@ -271,9 +268,9 @@ describe("SoundKit Worker API", () => {
 
   it("exposes the full genre catalog even when the database is not configured", async () => {
     const response = await SELF.fetch(
-      "http://soundkit.test/v1/discover/genres"
-    ),
-     body = await readJson<{ name: string; slug: string }[]>(response);
+        "http://soundkit.test/v1/discover/genres"
+      ),
+      body = await readJson<{ name: string; slug: string }[]>(response);
 
     expect(response.status).toBe(200);
     expect(body.length).toBeGreaterThanOrEqual(9);
@@ -294,14 +291,14 @@ describe("SoundKit Worker API", () => {
 
   it("guards live battle creation behind signed-in premium artist access", async () => {
     const response = await SELF.fetch(
-      "http://soundkit.test/v1/battles/challenge",
-      jsonRequest("POST", {
-        format: "best_of_3",
-        genre: "Hip-Hop",
-        opponentUsername: "rival-artist",
-      })
-    ),
-     body = await readJson<{ message: string }>(response);
+        "http://soundkit.test/v1/battles/challenge",
+        jsonRequest("POST", {
+          format: "best_of_3",
+          genre: "Hip-Hop",
+          opponentUsername: "rival-artist",
+        })
+      ),
+      body = await readJson<{ message: string }>(response);
 
     expect(response.status).toBe(401);
     expect(body.message).toContain("Authentication");
@@ -332,9 +329,9 @@ describe("SoundKit Worker API", () => {
 
   it("returns no approved public lyrics when storage is not configured", async () => {
     const response = await SELF.fetch(
-      "http://soundkit.test/v1/tracks/track_123/lyrics"
-    ),
-     body = await readJson<unknown>(response);
+        "http://soundkit.test/v1/tracks/track_123/lyrics"
+      ),
+      body = await readJson<unknown>(response);
 
     expect(response.status).toBe(200);
     expect(body).toBeNull();

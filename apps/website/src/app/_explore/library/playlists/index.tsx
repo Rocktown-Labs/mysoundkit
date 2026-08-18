@@ -49,85 +49,82 @@ export const Route = createFileRoute("/_explore/library/playlists/")({
 
 function PlaylistsPage() {
   const navigate = useNavigate(),
-   router = useRouter(),
-   { toast } = useToast(),
-   [open, setOpen] = useState(false),
-   [deleteCandidate, setDeleteCandidate] = useState<Playlist | null>(null),
-   [deleteConfirmation, setDeleteConfirmation] = useState(""),
-   [playlistName, setPlaylistName] = useState(""),
-   [playlistDescription, setPlaylistDescription] = useState(""),
-   { data: me } = useMeQuery(),
-   { data: playlists = [], isLoading } = useLibraryPlaylistsQuery(),
-   createPlaylistMutation = useCreatePlaylistMutation(),
-   deletePlaylistMutation = useDeletePlaylistMutation(),
-   isSignedIn = Boolean(me?.user),
-   tableData = playlists.map((playlist) => ({
-    description: playlist.description ?? "No description",
-    id: playlist.id,
-    name: playlist.title,
-    trackCount: playlist.trackCount,
-  })),
+    router = useRouter(),
+    { toast } = useToast(),
+    [open, setOpen] = useState(false),
+    [deleteCandidate, setDeleteCandidate] = useState<Playlist | null>(null),
+    [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    [playlistName, setPlaylistName] = useState(""),
+    [playlistDescription, setPlaylistDescription] = useState(""),
+    { data: me } = useMeQuery(),
+    { data: playlists = [], isLoading } = useLibraryPlaylistsQuery(),
+    createPlaylistMutation = useCreatePlaylistMutation(),
+    deletePlaylistMutation = useDeletePlaylistMutation(),
+    isSignedIn = Boolean(me?.user),
+    tableData = playlists.map((playlist) => ({
+      description: playlist.description ?? "No description",
+      id: playlist.id,
+      name: playlist.title,
+      trackCount: playlist.trackCount,
+    })),
+    handleCreatePlaylist = async () => {
+      if (!playlistName.trim()) {
+        return;
+      }
+      try {
+        const playlist = await createPlaylistMutation.mutateAsync({
+          description: playlistDescription,
+          title: playlistName,
+        });
+        setOpen(false);
+        setPlaylistName("");
+        setPlaylistDescription("");
+        toast({
+          description: `Created playlist "${playlist.title}".`,
+          title: "Playlist Created",
+        });
+        await router.invalidate();
+        navigate({
+          params: { id: playlist.id },
+          to: "/library/playlists/$id",
+        });
+      } catch {
+        toast({
+          description: "Could not create playlist. Please try again.",
+          title: "Error creating playlist",
+          variant: "destructive",
+        });
+      }
+    },
+    handleDeletePlaylist = useCallback(async () => {
+      if (!deleteCandidate) {
+        return;
+      }
 
-   handleCreatePlaylist = async () => {
-    if (!playlistName.trim()) {
-      return;
-    }
-    try {
-      const playlist = await createPlaylistMutation.mutateAsync({
-        description: playlistDescription,
-        title: playlistName,
-      });
-      setOpen(false);
-      setPlaylistName("");
-      setPlaylistDescription("");
-      toast({
-        description: `Created playlist "${playlist.title}".`,
-        title: "Playlist Created",
-      });
-      await router.invalidate();
-      navigate({
-        params: { id: playlist.id },
-        to: "/library/playlists/$id",
-      });
-    } catch {
-      toast({
-        description: "Could not create playlist. Please try again.",
-        title: "Error creating playlist",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleDeletePlaylist = useCallback(async () => {
-    if (!deleteCandidate) {
-      return;
-    }
-
-    try {
-      await deletePlaylistMutation.mutateAsync(deleteCandidate.id);
-      toast({
-        description: `"${deleteCandidate.name}" has been deleted.`,
-        title: "Playlist deleted",
-      });
-      setDeleteCandidate(null);
-      setDeleteConfirmation("");
-      await router.invalidate();
-    } catch {
-      toast({
-        description: "Could not delete this playlist. Please try again.",
-        title: "Delete failed",
-        variant: "destructive",
-      });
-    }
-  }, [deleteCandidate, deletePlaylistMutation, router, toast]),
-
-   columns = useMemo(
-    () =>
-      createPlaylistColumns({
-        onDelete: (playlist) => setDeleteCandidate(playlist),
-      }),
-    []
-  );
+      try {
+        await deletePlaylistMutation.mutateAsync(deleteCandidate.id);
+        toast({
+          description: `"${deleteCandidate.name}" has been deleted.`,
+          title: "Playlist deleted",
+        });
+        setDeleteCandidate(null);
+        setDeleteConfirmation("");
+        await router.invalidate();
+      } catch {
+        toast({
+          description: "Could not delete this playlist. Please try again.",
+          title: "Delete failed",
+          variant: "destructive",
+        });
+      }
+    }, [deleteCandidate, deletePlaylistMutation, router, toast]),
+    columns = useMemo(
+      () =>
+        createPlaylistColumns({
+          onDelete: (playlist) => setDeleteCandidate(playlist),
+        }),
+      []
+    );
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">

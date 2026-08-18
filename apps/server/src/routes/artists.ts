@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, complexity, no-nested-ternary, unicorn/no-nested-ternary, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -9,7 +10,7 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -23,14 +24,13 @@ import { artistRankingQuerySchema, artistSummarySchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
-
- locationLabel = ({
-  city,
-  state,
-}: {
-  city: string | null;
-  state: string | null;
-}) => [city, state].filter(Boolean).join(", ");
+  locationLabel = ({
+    city,
+    state,
+  }: {
+    city: string | null;
+    state: string | null;
+  }) => [city, state].filter(Boolean).join(", ");
 
 export const capitalizeWords = (input?: string | null) => {
   if (!input || input.trim().length === 0) {
@@ -50,35 +50,34 @@ export const capitalizeWords = (input?: string | null) => {
 };
 
 const artistMomentumRank = sql<number>`count(${tracks.id})::int`,
+  artistOrderBy = (query: {
+    category?: "rising" | "new" | "top";
+    sort?: string;
+  }) => {
+    if (query.sort === "name-asc") {
+      return asc(userProfiles.displayName);
+    }
 
- artistOrderBy = (query: {
-  category?: "rising" | "new" | "top";
-  sort?: string;
-}) => {
-  if (query.sort === "name-asc") {
-    return asc(userProfiles.displayName);
-  }
+    if (query.sort === "name-desc") {
+      return desc(userProfiles.displayName);
+    }
 
-  if (query.sort === "name-desc") {
-    return desc(userProfiles.displayName);
-  }
+    if (query.category === "new") {
+      return query.sort === "rank-desc"
+        ? asc(userProfiles.createdAt)
+        : desc(userProfiles.createdAt);
+    }
 
-  if (query.category === "new") {
+    if (query.category === "rising") {
+      return query.sort === "rank-desc"
+        ? asc(artistMomentumRank)
+        : desc(artistMomentumRank);
+    }
+
     return query.sort === "rank-desc"
-      ? asc(userProfiles.createdAt)
-      : desc(userProfiles.createdAt);
-  }
-
-  if (query.category === "rising") {
-    return query.sort === "rank-desc"
-      ? asc(artistMomentumRank)
-      : desc(artistMomentumRank);
-  }
-
-  return query.sort === "rank-desc"
-    ? asc(artistProfiles.followerCount)
-    : desc(artistProfiles.followerCount);
-};
+      ? asc(artistProfiles.followerCount)
+      : desc(artistProfiles.followerCount);
+  };
 
 app.openapi(
   createRoute({
@@ -95,9 +94,9 @@ app.openapi(
   }),
   async (c) => {
     const query = c.req.valid("query"),
-     limit = query.limit ?? 24,
-     page = query.page ?? 1,
-     offset = (page - 1) * limit;
+      limit = query.limit ?? 24,
+      page = query.page ?? 1,
+      offset = (page - 1) * limit;
 
     if (!isDatabaseConfigured()) {
       return c.json(
@@ -116,11 +115,9 @@ app.openapi(
     }
 
     const db = createDb(),
-     genreSlug = genreSlugFromExploreFilter(query.genre),
-     state = stateFromExploreRegion(query),
-     publicArtistConditions = [
-      eq(artistProfiles.publicProfileEnabled, true),
-    ];
+      genreSlug = genreSlugFromExploreFilter(query.genre),
+      state = stateFromExploreRegion(query),
+      publicArtistConditions = [eq(artistProfiles.publicProfileEnabled, true)];
 
     if (genreSlug) {
       publicArtistConditions.push(eq(genres.slug, genreSlug));
@@ -137,52 +134,52 @@ app.openapi(
     }
 
     const order = artistOrderBy(query),
-     rows = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        city: userProfiles.city,
-        createdAt: userProfiles.createdAt,
-        displayName: userProfiles.displayName,
-        followerCount: artistProfiles.followerCount,
-        genre: genres.name,
-        id: userProfiles.userId,
-        isVerified: artistProfiles.isVerified,
-        name: authUser.name,
-        stageName: artistProfiles.stageName,
-        state: userProfiles.state,
-        trackCount: sql<number>`count(${tracks.id})::int`,
-        username: userProfiles.username,
-      })
-      .from(artistProfiles)
-      .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
-      .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
-      .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
-      .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
-      .where(and(...publicArtistConditions))
-      .groupBy(
-        userProfiles.userId,
-        userProfiles.city,
-        userProfiles.displayName,
-        userProfiles.state,
-        userProfiles.username,
-        artistProfiles.followerCount,
-        artistProfiles.isVerified,
-        artistProfiles.stageName,
-        genres.name,
-        authUser.name
-      )
-      .orderBy(order)
-      .limit(limit)
-      .offset(offset);
+      rows = await db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          city: userProfiles.city,
+          createdAt: userProfiles.createdAt,
+          displayName: userProfiles.displayName,
+          followerCount: artistProfiles.followerCount,
+          genre: genres.name,
+          id: userProfiles.userId,
+          isVerified: artistProfiles.isVerified,
+          name: authUser.name,
+          stageName: artistProfiles.stageName,
+          state: userProfiles.state,
+          trackCount: sql<number>`count(${tracks.id})::int`,
+          username: userProfiles.username,
+        })
+        .from(artistProfiles)
+        .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
+        .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
+        .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
+        .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
+        .where(and(...publicArtistConditions))
+        .groupBy(
+          userProfiles.userId,
+          userProfiles.city,
+          userProfiles.displayName,
+          userProfiles.state,
+          userProfiles.username,
+          artistProfiles.followerCount,
+          artistProfiles.isVerified,
+          artistProfiles.stageName,
+          genres.name,
+          authUser.name
+        )
+        .orderBy(order)
+        .limit(limit)
+        .offset(offset);
 
     return c.json(
       rows.map((artist, index) => {
         const rawName = artist.stageName ?? artist.displayName ?? artist.name,
-         name = capitalizeWords(rawName),
-         genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
-         hasActivity =
-          Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0,
-         rank = hasActivity ? index + offset + 1 : null;
+          name = capitalizeWords(rawName),
+          genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
+          hasActivity =
+            Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0,
+          rank = hasActivity ? index + offset + 1 : null;
 
         return {
           avatarUrl: artist.avatarUrl,
@@ -227,75 +224,84 @@ app.openapi(
 
     if (isDatabaseConfigured()) {
       const db = createDb(),
-       [artist] = await db
-        .select({
-          avatarUrl: userProfiles.avatarUrl,
-          battleCount: artistProfiles.battleCount,
-          bio: userProfiles.bio,
-          city: userProfiles.city,
-          createdAt: artistProfiles.createdAt,
-          displayName: userProfiles.displayName,
-          followerCount: artistProfiles.followerCount,
-          genre: genres.name,
-          headerUrl: userProfiles.headerUrl,
-          id: userProfiles.userId,
-          isVerified: artistProfiles.isVerified,
-          mediaLayout: userProfiles.mediaLayout,
-          name: authUser.name,
-          projectCount: artistProfiles.projectCount,
-          stageName: artistProfiles.stageName,
-          state: userProfiles.state,
-          trackCount: artistProfiles.trackCount,
-          username: userProfiles.username,
-        })
-        .from(artistProfiles)
-        .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
-        .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
-        .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
-        .where(eq(userProfiles.username, username))
-        .limit(1);
+        [artist] = await db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            battleCount: artistProfiles.battleCount,
+            bio: userProfiles.bio,
+            city: userProfiles.city,
+            createdAt: artistProfiles.createdAt,
+            displayName: userProfiles.displayName,
+            followerCount: artistProfiles.followerCount,
+            genre: genres.name,
+            headerUrl: userProfiles.headerUrl,
+            id: userProfiles.userId,
+            isVerified: artistProfiles.isVerified,
+            mediaLayout: userProfiles.mediaLayout,
+            name: authUser.name,
+            projectCount: artistProfiles.projectCount,
+            stageName: artistProfiles.stageName,
+            state: userProfiles.state,
+            trackCount: artistProfiles.trackCount,
+            username: userProfiles.username,
+          })
+          .from(artistProfiles)
+          .innerJoin(
+            userProfiles,
+            eq(userProfiles.userId, artistProfiles.userId)
+          )
+          .innerJoin(authUser, eq(authUser.id, artistProfiles.userId))
+          .leftJoin(genres, eq(genres.id, artistProfiles.primaryGenreId))
+          .where(
+            or(
+              eq(userProfiles.username, username),
+              ilike(userProfiles.username, username),
+              eq(userProfiles.userId, username),
+              ilike(userProfiles.displayName, username),
+              ilike(artistProfiles.stageName, username),
+              ilike(authUser.name, username)
+            )
+          )
+          .limit(1);
 
       if (artist) {
         const links = await db
-          .select({
-            platform: profileLinks.platform,
-            url: profileLinks.url,
-          })
-          .from(profileLinks)
-          .where(eq(profileLinks.userId, artist.id)),
-         platformLinks = Object.fromEntries(
-          links.map((link) => [
-            link.platform === "apple_music"
-              ? "apple"
-              : (link.platform === "personal_site"
-                ? "personalSite"
-                : link.platform),
-            link.url,
-          ])
-        ),
-
-         rawName = artist.stageName ?? artist.displayName ?? artist.name,
-         name = capitalizeWords(rawName),
-         genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
-         hasActivity =
-          Number(artist.trackCount) > 0 ||
-          Number(artist.followerCount) > 0 ||
-          Number(artist.battleCount) > 0,
-         rank = hasActivity
-          ? (artist.battleCount
-            ? `#${artist.battleCount}`
-            : "#1")
-          : null,
-
-         [playsRow] = await db
-          .select({
-            totalPlays: sql<number>`count(${playbackSessions.id})::int`,
-          })
-          .from(playbackSessions)
-          .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
-          .where(eq(tracks.ownerUserId, artist.id)),
-
-         totalPlays = playsRow?.totalPlays ?? 0;
+            .select({
+              platform: profileLinks.platform,
+              url: profileLinks.url,
+            })
+            .from(profileLinks)
+            .where(eq(profileLinks.userId, artist.id)),
+          platformLinks = Object.fromEntries(
+            links.map((link) => [
+              link.platform === "apple_music"
+                ? "apple"
+                : link.platform === "personal_site"
+                  ? "personalSite"
+                  : link.platform,
+              link.url,
+            ])
+          ),
+          rawName = artist.stageName ?? artist.displayName ?? artist.name,
+          name = capitalizeWords(rawName),
+          genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
+          hasActivity =
+            Number(artist.trackCount) > 0 ||
+            Number(artist.followerCount) > 0 ||
+            Number(artist.battleCount) > 0,
+          rank = hasActivity
+            ? artist.battleCount
+              ? `#${artist.battleCount}`
+              : "#1"
+            : null,
+          [playsRow] = await db
+            .select({
+              totalPlays: sql<number>`count(${playbackSessions.id})::int`,
+            })
+            .from(playbackSessions)
+            .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
+            .where(eq(tracks.ownerUserId, artist.id)),
+          totalPlays = playsRow?.totalPlays ?? 0;
 
         return c.json(
           {

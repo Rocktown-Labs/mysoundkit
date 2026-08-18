@@ -46,9 +46,9 @@ export function ExploreCollectionSection<T>({
         ) : null}
       </div>
       {isLoading || items.length > 0 ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {items.map((item, index) => (
-            <div className="shrink-0" key={getItemKey(item, index)}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          {items.slice(0, 6).map((item, index) => (
+            <div className="min-w-0" key={getItemKey(item, index)}>
               {children(item)}
             </div>
           ))}
@@ -79,9 +79,11 @@ export function ExploreCollectionGrid<T>({
     <section className="mb-10">
       <h2 className="mb-3 font-semibold text-xl">{title}</h2>
       {isLoading || items.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {items.map((item, index) => (
-            <div key={getItemKey(item, index)}>{children(item)}</div>
+            <div className="min-w-0" key={getItemKey(item, index)}>
+              {children(item)}
+            </div>
           ))}
         </div>
       ) : (
@@ -101,7 +103,7 @@ export function ExploreCollectionEmpty({ children }: { children: ReactNode }) {
 
 const getItemKey = <T,>(item: T, index: number) => {
   if (typeof item === "object" && item !== null && "id" in item) {
-    const {id} = item;
+    const { id } = item;
     if (typeof id === "string" || typeof id === "number") {
       return id;
     }

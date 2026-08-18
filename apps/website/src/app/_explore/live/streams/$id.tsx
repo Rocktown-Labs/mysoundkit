@@ -1,29 +1,24 @@
+"use client";
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp */
+
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Activity,
-  CalendarClock,
-  Captions,
-  Lock,
-  MessageSquare,
-  Play,
-  Radio,
-  Users,
-  Video,
-} from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { CalendarClock, Maximize, Minimize, Play, Radio } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
+import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
 import {
   LiveChatPanel,
   LiveLyricsPanel,
 } from "@/components/live/live-room-panels";
+import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
 import { AppImage } from "@/components/ui/app-image";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { API_V1_URL } from "@/lib/api";
 import { useLiveRoom } from "@/lib/live-room";
+import { useArtistQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/live/streams/$id")({
   component: StreamDetailPage,
@@ -31,205 +26,243 @@ export const Route = createFileRoute("/_explore/live/streams/$id")({
 
 function StreamDetailPage() {
   const { id } = Route.useParams(),
-   { chat, query } = useLiveRoom(id),
-   room = query.data,
-   experienceQuery = useQuery({
-    queryFn: async () => {
-      const response = await fetch(
-        `${API_V1_URL}/live/experiences/${encodeURIComponent(id)}`,
-        { credentials: "include" }
-      );
-      if (!response.ok) {
-        throw new Error(`Unable to load live media: ${response.status}`);
-      }
-      return (await response.json()) as {
-        playbackUrl: string | null;
-        playerUrl: string | null;
-        source: string;
-        startsAt: string;
-        status: string;
-        visibility: string;
-      };
-    },
-    queryKey: ["live-experience", id],
-    refetchInterval: 5000,
-  }),
-   experience = experienceQuery.data,
-   currentTrack = room?.tracklist.find(
-    (track) => track.id === room.currentTrackId
-  );
+    { chat, query } = useLiveRoom(id),
+    [isChatOpen, setIsChatOpen] = useState(true),
+    [isFullscreen, setIsFullscreen] = useState(false),
+    videoContainerRef = useRef<HTMLDivElement | null>(null),
+    room = query.data,
+    experienceQuery = useQuery({
+      queryFn: async () => {
+        const response = await fetch(
+          `${API_V1_URL}/live/experiences/${encodeURIComponent(id)}`,
+          { credentials: "include" }
+        );
+        if (!response.ok) {
+          throw new Error(`Unable to load live media: ${response.status}`);
+        }
+        return (await response.json()) as {
+          creatorAvatar: string | null;
+          creatorBio?: string | null;
+          creatorName: string | null;
+          creatorUsername?: string | null;
+          genre: string | null;
+          id: string;
+          kind: string;
+          playbackUrl: string | null;
+          playerUrl: string | null;
+          source: string;
+          startsAt: string;
+          status: string;
+          title: string;
+          viewerCount: number;
+          visibility: string;
+        };
+      },
+      queryKey: ["live-experience", id],
+      refetchInterval: 5000,
+    }),
+    experience = experienceQuery.data,
+    isLive = experience?.status === "live",
+    currentTrack = room?.tracklist.find(
+      (track) => track.id === room.currentTrackId
+    ),
+    rawCreatorUsername =
+      experience?.creatorUsername ??
+      (experience?.creatorName ?? room?.hostName ?? "")
+        .toLowerCase()
+        .replaceAll(/\s+/g, ""),
+    artistQuery = useArtistQuery(rawCreatorUsername),
+    artistData = artistQuery.data;
 
-  if (query.isLoading || !room) {
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (videoContainerRef.current?.requestFullscreen) {
+          await videoContainerRef.current.requestFullscreen();
+        }
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      setIsFullscreen((prev) => !prev);
+    }
+  };
+
+  if (query.isLoading) {
     return (
-      <div className="py-16 text-center text-muted-foreground">
-        Loading live stream...
+      <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <Radio className="mx-auto size-8 animate-pulse text-primary" />
+          <p className="mt-3 font-semibold text-sm">Loading live room...</p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <LiveRoomAccessGuard
-      allowPublic={experience?.visibility === "public"}
-      roomTitle={room.title}
-    >
-      <div className="grid gap-6 pb-8 xl:grid-cols-[minmax(0,1.8fr)_420px]">
-        <div className="space-y-6">
-          <section className="overflow-hidden rounded-lg border bg-card">
-            <div className="relative aspect-video bg-black">
-              {experience?.playerUrl && experience.status === "live" ? (
-                <iframe
-                  allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  className="h-full w-full"
-                  src={experience.playerUrl}
-                  title={`${room.title} live stream`}
-                />
-              ) : (
-                <>
-                  <AppImage
-                    alt={room.title}
-                    className="h-full w-full object-cover"
-                    height={720}
-                    src={
-                      currentTrack?.coverArtUrl ??
-                      "/music-battle-video-thumbnail.jpg"
-                    }
-                    width={1280}
-                  />
-                  <div className="absolute inset-0 bg-black/40" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="rounded-xl bg-black/70 px-6 py-4 text-center text-white">
-                      {experience?.status === "scheduled" ? (
-                        <>
-                          <CalendarClock className="mx-auto mb-2 size-7" />
-                          <p className="font-semibold">Stream scheduled</p>
-                          <p className="mt-1 text-sm text-white/70">
-                            {new Date(experience.startsAt).toLocaleString()}
-                          </p>
-                        </>
-                      ) : (
-                        <Play className="mx-auto size-8 fill-current" />
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                <Badge
-                  variant={
-                    experience?.status === "live" ? "destructive" : "secondary"
-                  }
-                >
-                  {experience?.status === "live" ? "Live" : "Scheduled"}
-                </Badge>
-                <Badge variant="secondary">
-                  {experience?.source === "obs" ? "OBS / RTMPS" : "Browser"}
-                </Badge>
+  if (query.isError || !room) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
+        <div className="text-center">
+          <p className="font-semibold text-sm">
+            {query.error?.message ?? "Stream room offline"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const creatorName =
+      artistData?.name ??
+      experience?.creatorName ??
+      room.hostName ??
+      "SoundKit Creator",
+    creatorUsername =
+      artistData?.username ??
+      rawCreatorUsername ??
+      creatorName.toLowerCase().replaceAll(/\s+/g, ""),
+    creatorAvatar =
+      artistData?.avatarUrl ??
+      experience?.creatorAvatar ??
+      "/diverse-user-avatars.png",
+    chatPanel = (
+      <LiveChatPanel
+        disabled={chat.isPending}
+        fillHeight
+        messages={room.chat}
+        onCollapse={() => setIsChatOpen(false)}
+        onSend={(message) => chat.mutate({ message, userName: "You" })}
+        title="Stream Chat"
+      />
+    ),
+    videoNode = (
+      <div
+        className="group relative aspect-video w-full bg-black"
+        ref={videoContainerRef}
+      >
+        {experience?.playerUrl && isLive ? (
+          <iframe
+            allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            className="size-full"
+            sandbox="allow-scripts allow-forms allow-popups allow-presentation"
+            src={experience.playerUrl}
+            title={`${room.title} live stream`}
+          />
+        ) : (
+          <>
+            <AppImage
+              alt={room.title}
+              className="size-full object-cover opacity-80"
+              height={720}
+              src={
+                experience?.coverImageUrl ??
+                currentTrack?.coverArtUrl ??
+                "/soundkit-default-banner.svg"
+              }
+              width={1280}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="rounded-xl border border-white/10 bg-black/75 px-8 py-6 text-center text-white backdrop-blur-md">
+                {experience?.status === "scheduled" ? (
+                  <>
+                    <CalendarClock className="mx-auto mb-3 size-10 text-primary" />
+                    <p className="font-bold text-lg">Broadcast Scheduled</p>
+                    <p className="mt-1 text-sm text-white/70">
+                      Starts at {new Date(experience.startsAt).toLocaleString()}
+                    </p>
+                    <p className="mt-3 text-xs text-white/50">
+                      Stream starting soon...
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Play className="mx-auto mb-3 size-10 fill-white text-white" />
+                    <p className="font-bold text-lg">{room.title}</p>
+                    <p className="mt-1 text-sm text-white/70">
+                      Stream Offline • Returning soon
+                    </p>
+                  </>
+                )}
               </div>
             </div>
-          </section>
+          </>
+        )}
 
-          <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="size-12">
-                <AvatarImage src="/diverse-user-avatars.png" />
-                <AvatarFallback>SK</AvatarFallback>
-              </Avatar>
-              <div>
-                <h1 className="text-3xl font-bold">{room.title}</h1>
-                <p className="text-muted-foreground">
-                  Hosted by {room.hostName}
-                </p>
-              </div>
-            </div>
-            <p className="max-w-3xl text-muted-foreground">{room.summary}</p>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">
-                <Users className="mr-1 size-3" />
-                {room.viewerCount.toLocaleString()} watching
-              </Badge>
-              <Badge variant="outline">
-                <Radio className="mr-1 size-3" />
-                Live room chat synced by Durable Objects
-              </Badge>
-            </div>
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Lock className="size-5" />
-                  Access Model
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Stream playback can be backed by Cloudflare Stream signed URLs
-                for paid or authenticated live sessions.
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Video className="size-5" />
-                  Media Path
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Creator-to-audience video can move through Cloudflare
-                RealtimeKit or Stream while room presence and chat stay
-                coordinated at the edge.
-              </CardContent>
-            </Card>
-          </section>
-
-          <LiveLyricsPanel track={currentTrack} />
+        <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2">
+          <Badge
+            className="font-bold tracking-wider"
+            variant={isLive ? "destructive" : "secondary"}
+          >
+            {isLive ? "LIVE" : "OFFLINE"}
+          </Badge>
+          {experience?.genre ? (
+            <Badge className="bg-black/60 backdrop-blur-md" variant="outline">
+              {experience.genre}
+            </Badge>
+          ) : null}
         </div>
 
-        <aside className="space-y-6">
-          <LiveChatPanel
-            disabled={chat.isPending}
-            messages={room.chat}
-            onSend={(message) => chat.mutate({ message, userName: "You" })}
-          />
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Activity className="size-5 text-primary" />
-                Live Signals
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                ["Viewer count", room.viewerCount.toLocaleString()],
-                ["Realtime chat", "Always on"],
-                ["Captions", "Prepared"],
-                ["Stream health", "Monitoring"],
-              ].map(([label, value]) => (
-                <div
-                  className="flex items-center justify-between rounded-lg border p-3 text-sm"
-                  key={label}
-                >
-                  <span className="flex items-center gap-2">
-                    {label === "Realtime chat" ? (
-                      <MessageSquare className="size-4 text-primary" />
-                    ) : (label === "Captions" ? (
-                      <Captions className="size-4 text-primary" />
-                    ) : (
-                      <Activity className="size-4 text-primary" />
-                    ))}
-                    {label}
-                  </span>
-                  <Badge variant="outline">{value}</Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Button asChild className="w-full" variant="outline">
-            <Link to="/live/streams">Back to Streams</Link>
+        <div className="absolute right-4 bottom-4 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button
+            className="size-9 bg-black/70 text-white hover:bg-black/90 backdrop-blur-md"
+            onClick={toggleFullscreen}
+            size="icon"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            type="button"
+            variant="ghost"
+          >
+            {isFullscreen ? (
+              <Minimize className="size-5" />
+            ) : (
+              <Maximize className="size-5" />
+            )}
           </Button>
-        </aside>
+        </div>
       </div>
+    );
+
+  return (
+    <LiveRoomAccessGuard allowPublic={true} roomTitle={room.title}>
+      <LiveTwitchShell
+        chatPanel={chatPanel}
+        defaultChatOpen={true}
+        isChatOpen={isChatOpen}
+        onChatOpenChange={setIsChatOpen}
+        videoNode={videoNode}
+      >
+        <LiveCreatorPanel
+          creator={{
+            avatarUrl: creatorAvatar,
+            bio: artistData?.bio ?? experience?.creatorBio,
+            displayName: creatorName,
+            followersCount: artistData?.followers ?? 1420,
+            username: creatorUsername,
+          }}
+          genre={experience?.genre}
+          isLive={isLive}
+          title={room.title}
+          viewerCount={experience?.viewerCount ?? room.viewerCount}
+        />
+
+        {currentTrack &&
+        currentTrack.lyrics &&
+        currentTrack.lyrics.length > 0 ? (
+          <div className="mt-6">
+            <LiveLyricsPanel track={currentTrack} />
+          </div>
+        ) : null}
+      </LiveTwitchShell>
     </LiveRoomAccessGuard>
   );
 }

@@ -10,8 +10,8 @@ export const Route = createFileRoute("/dashboard/tracks/$id/edit")({
 
 function EditTrackPage() {
   const { id } = Route.useParams(),
-   trackQuery = useTrackQuery(id),
-   track = trackQuery.data;
+    trackQuery = useTrackQuery(id),
+    track = trackQuery.data;
 
   if (trackQuery.isLoading) {
     return (

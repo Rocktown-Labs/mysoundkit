@@ -58,15 +58,12 @@ export function BattleCard({
   isPremiumUser = false,
 }: BattleCardProps) {
   const battleIsLive = isLive || live,
-   timeLabel = endsIn ?? startsIn ?? views ?? "",
-   totalVotes = track1.votes + track2.votes,
-   track1Percentage =
-    totalVotes > 0 ? (track1.votes / totalVotes) * 100 : 0,
-   track2Percentage =
-    totalVotes > 0 ? (track2.votes / totalVotes) * 100 : 0,
-
-   [roundProgress, setRoundProgress] = useState(0),
-   [timeRemaining, setTimeRemaining] = useState(0);
+    timeLabel = endsIn ?? startsIn ?? views ?? "",
+    totalVotes = track1.votes + track2.votes,
+    track1Percentage = totalVotes > 0 ? (track1.votes / totalVotes) * 100 : 0,
+    track2Percentage = totalVotes > 0 ? (track2.votes / totalVotes) * 100 : 0,
+    [roundProgress, setRoundProgress] = useState(0),
+    [timeRemaining, setTimeRemaining] = useState(0);
 
   useEffect(() => {
     if (!battleIsLive) {
@@ -81,10 +78,10 @@ export function BattleCard({
       }
 
       const remainingSeconds = Math.max(
-        0,
-        Math.ceil((new Date(phaseEndsAt).getTime() - Date.now()) / 1000)
-      ),
-       phaseDuration = isVoting ? 60 : 180;
+          0,
+          Math.ceil((new Date(phaseEndsAt).getTime() - Date.now()) / 1000)
+        ),
+        phaseDuration = isVoting ? 60 : 180;
       setTimeRemaining(remainingSeconds);
       setRoundProgress(
         Math.min(
@@ -101,15 +98,15 @@ export function BattleCard({
   }, [battleIsLive, isVoting, phaseEndsAt]);
 
   const canJoinNow = battleIsLive && joinMode === "watch_now",
-   liveTimeLabel =
-    timeRemaining > 0
-      ? `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60)
-          .toString()
-          .padStart(2, "0")}`
-      : "Live";
+    liveTimeLabel =
+      timeRemaining > 0
+        ? `${Math.floor(timeRemaining / 60)}:${(timeRemaining % 60)
+            .toString()
+            .padStart(2, "0")}`
+        : "Live";
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow group min-w-[280px] md:min-w-0 w-[280px] md:w-auto">
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow group w-full">
       <CardContent className="p-3 md:p-4">
         <div className="flex items-center justify-between mb-3">
           <Badge variant="secondary" className="text-[10px] md:text-xs">

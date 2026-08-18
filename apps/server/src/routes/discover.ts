@@ -19,17 +19,16 @@ import { discoverHomeResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>(),
-
- genreCatalogSchema = z.array(
-  z.object({
-    id: z.string(),
-    name: z.string(),
-    slug: z.string(),
-    totalCount: z.number().int().nonnegative(),
-    trackCount: z.number().int().nonnegative(),
-    videoCount: z.number().int().nonnegative(),
-  })
-);
+  genreCatalogSchema = z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      slug: z.string(),
+      totalCount: z.number().int().nonnegative(),
+      trackCount: z.number().int().nonnegative(),
+      videoCount: z.number().int().nonnegative(),
+    })
+  );
 
 app.openapi(
   createRoute({
@@ -57,43 +56,41 @@ app.openapi(
     }
 
     const db = createDb(),
-     trackRows = await db
-      .select()
-      .from(tracks)
-      .where(eq(tracks.isPublic, true))
-      .orderBy(desc(tracks.updatedAt))
-      .limit(12),
-
-     featuredTracks = [];
+      trackRows = await db
+        .select()
+        .from(tracks)
+        .where(eq(tracks.isPublic, true))
+        .orderBy(desc(tracks.updatedAt))
+        .limit(12),
+      featuredTracks = [];
     for (const row of trackRows) {
       featuredTracks.push(await buildTrackSummary(row));
     }
 
     const artistRows = await db
-      .select({
-        followerCount: artistProfiles.followerCount,
-        id: artistProfiles.userId,
-        isVerified: artistProfiles.isVerified,
-        name: userProfiles.displayName,
-        stageName: artistProfiles.stageName,
-        username: userProfiles.username,
-      })
-      .from(artistProfiles)
-      .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
-      .where(eq(artistProfiles.publicProfileEnabled, true))
-      .orderBy(desc(artistProfiles.followerCount))
-      .limit(12),
-
-     featuredArtists = artistRows.map((row) => ({
-      followers: row.followerCount,
-      genre: "Music",
-      id: row.id,
-      location: "",
-      name: row.stageName ?? row.name ?? row.username ?? "Artist",
-      roles: ["musician"] as ("musician" | "producer")[],
-      username: row.username ?? row.id,
-      verified: row.isVerified,
-    }));
+        .select({
+          followerCount: artistProfiles.followerCount,
+          id: artistProfiles.userId,
+          isVerified: artistProfiles.isVerified,
+          name: userProfiles.displayName,
+          stageName: artistProfiles.stageName,
+          username: userProfiles.username,
+        })
+        .from(artistProfiles)
+        .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
+        .where(eq(artistProfiles.publicProfileEnabled, true))
+        .orderBy(desc(artistProfiles.followerCount))
+        .limit(12),
+      featuredArtists = artistRows.map((row) => ({
+        followers: row.followerCount,
+        genre: "Music",
+        id: row.id,
+        location: "",
+        name: row.stageName ?? row.name ?? row.username ?? "Artist",
+        roles: ["musician"] as ("musician" | "producer")[],
+        username: row.username ?? row.id,
+        verified: row.isVerified,
+      }));
 
     return c.json(
       {
@@ -139,32 +136,32 @@ app.openapi(
 
     try {
       const db = createDb(),
-       rows = await db.select().from(genres),
-       trackCountRows = await db
-        .select({
-          count: sql<number>`count(${tracks.id})::int`,
-          genreId: tracks.genreId,
-        })
-        .from(tracks)
-        .where(
-          and(
-            eq(tracks.isPublic, true),
-            eq(tracks.productionStatus, "complete")
+        rows = await db.select().from(genres),
+        trackCountRows = await db
+          .select({
+            count: sql<number>`count(${tracks.id})::int`,
+            genreId: tracks.genreId,
+          })
+          .from(tracks)
+          .where(
+            and(
+              eq(tracks.isPublic, true),
+              eq(tracks.productionStatus, "complete")
+            )
           )
-        )
-        .groupBy(tracks.genreId),
-       videoCountRows = await db
-        .select({
-          count: sql<number>`count(${videos.id})::int`,
-          genreId: videos.genreId,
-        })
-        .from(videos)
-        .where(eq(videos.isPublic, true))
-        .groupBy(videos.genreId),
-       countsByGenreId = new Map<
-        string,
-        { trackCount: number; videoCount: number }
-      >();
+          .groupBy(tracks.genreId),
+        videoCountRows = await db
+          .select({
+            count: sql<number>`count(${videos.id})::int`,
+            genreId: videos.genreId,
+          })
+          .from(videos)
+          .where(eq(videos.isPublic, true))
+          .groupBy(videos.genreId),
+        countsByGenreId = new Map<
+          string,
+          { trackCount: number; videoCount: number }
+        >();
 
       for (const row of trackCountRows) {
         if (!row.genreId) {

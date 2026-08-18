@@ -14,24 +14,24 @@ export const Route = createFileRoute("/_explore/videos/$regionSlug/$slug")({
   component: RegionSlugVideoPage,
   head: ({ loaderData, params }) => {
     const video = loaderData as VideoSeoData | null,
-     canonicalPath =
-      video?.regionSlug && video.slug
-        ? `/videos/${video.regionSlug}/${video.slug}`
-        : `/videos/${params.regionSlug}/${params.slug}`,
-     videoTitle = video?.title ?? "Video",
-     creatorName = video?.creatorName ?? "SoundKit creator",
-     title = `Watch ${videoTitle} by ${creatorName} on SoundKit`,
-     description = seoDescription(
-      video?.description,
-      `Watch ${videoTitle} by ${creatorName} on SoundKit.`
-    ),
-     head = createShareMeta({
-      canonicalPath,
-      description,
-      imageUrl: video?.thumbnailUrl,
-      title,
-      type: "website",
-    });
+      canonicalPath =
+        video?.regionSlug && video.slug
+          ? `/videos/${video.regionSlug}/${video.slug}`
+          : `/videos/${params.regionSlug}/${params.slug}`,
+      videoTitle = video?.title ?? "Video",
+      creatorName = video?.creatorName ?? "SoundKit creator",
+      title = `Watch ${videoTitle} by ${creatorName} on SoundKit`,
+      description = seoDescription(
+        video?.description,
+        `Watch ${videoTitle} by ${creatorName} on SoundKit.`
+      ),
+      head = createShareMeta({
+        canonicalPath,
+        description,
+        imageUrl: video?.thumbnailUrl,
+        title,
+        type: "website",
+      });
 
     return {
       ...head,

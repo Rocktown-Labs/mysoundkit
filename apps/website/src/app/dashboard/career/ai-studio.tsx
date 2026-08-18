@@ -81,74 +81,75 @@ interface TargetOption {
 }
 
 const targetOptions: readonly TargetOption[] = [
-  { code: "US-AL", label: "Alabama", scope: "north-america", type: "state" },
-  { code: "US-AK", label: "Alaska", scope: "north-america", type: "state" },
-  { code: "US-AZ", label: "Arizona", scope: "north-america", type: "state" },
-  { code: "US-AR", label: "Arkansas", scope: "north-america", type: "state" },
-  {
-    code: "US-CA",
-    label: "California",
-    scope: "north-america",
-    type: "state",
-  },
-  { code: "US-CO", label: "Colorado", scope: "north-america", type: "state" },
-  {
-    code: "US-FL",
-    label: "Florida",
-    scope: "north-america",
-    type: "state",
-  },
-  { code: "US-GA", label: "Georgia", scope: "north-america", type: "state" },
-  { code: "US-IL", label: "Illinois", scope: "north-america", type: "state" },
-  { code: "US-LA", label: "Louisiana", scope: "north-america", type: "state" },
-  { code: "US-NY", label: "New York", scope: "north-america", type: "state" },
-  {
-    code: "US-TN",
-    label: "Tennessee",
-    scope: "north-america",
-    type: "state",
-  },
-  { code: "US-TX", label: "Texas", scope: "north-america", type: "state" },
-  {
-    aliases: ["United States of America", "United States"],
-    code: "US",
-    label: "United States",
-    scope: "global",
-    type: "country",
-  },
-  { code: "CA", label: "Canada", scope: "global", type: "country" },
-  { code: "MX", label: "Mexico", scope: "latin-america", type: "country" },
-  { code: "BR", label: "Brazil", scope: "latin-america", type: "country" },
-  {
-    aliases: ["United Kingdom"],
-    code: "GB",
-    label: "United Kingdom",
-    scope: "europe",
-    type: "country",
-  },
-  { code: "FR", label: "France", scope: "europe", type: "country" },
-  { code: "DE", label: "Germany", scope: "europe", type: "country" },
-  { code: "NG", label: "Nigeria", scope: "africa", type: "country" },
-  { code: "ZA", label: "South Africa", scope: "africa", type: "country" },
-  { code: "JP", label: "Japan", scope: "asia", type: "country" },
-  { code: "KR", label: "South Korea", scope: "asia", type: "country" },
-  { code: "AU", label: "Australia", scope: "oceania", type: "country" },
-] as const,
-
- targetKey = (target: AdTarget) =>
-  `${target.targetType}:${target.targetCode}`,
-
- targetOptionByRegion = new Map(
-  targetOptions.flatMap((target) =>
-    [target.label, ...(target.aliases ?? [])].map(
-      (label) => [label.toLowerCase(), target] as const
+    { code: "US-AL", label: "Alabama", scope: "north-america", type: "state" },
+    { code: "US-AK", label: "Alaska", scope: "north-america", type: "state" },
+    { code: "US-AZ", label: "Arizona", scope: "north-america", type: "state" },
+    { code: "US-AR", label: "Arkansas", scope: "north-america", type: "state" },
+    {
+      code: "US-CA",
+      label: "California",
+      scope: "north-america",
+      type: "state",
+    },
+    { code: "US-CO", label: "Colorado", scope: "north-america", type: "state" },
+    {
+      code: "US-FL",
+      label: "Florida",
+      scope: "north-america",
+      type: "state",
+    },
+    { code: "US-GA", label: "Georgia", scope: "north-america", type: "state" },
+    { code: "US-IL", label: "Illinois", scope: "north-america", type: "state" },
+    {
+      code: "US-LA",
+      label: "Louisiana",
+      scope: "north-america",
+      type: "state",
+    },
+    { code: "US-NY", label: "New York", scope: "north-america", type: "state" },
+    {
+      code: "US-TN",
+      label: "Tennessee",
+      scope: "north-america",
+      type: "state",
+    },
+    { code: "US-TX", label: "Texas", scope: "north-america", type: "state" },
+    {
+      aliases: ["United States of America", "United States"],
+      code: "US",
+      label: "United States",
+      scope: "global",
+      type: "country",
+    },
+    { code: "CA", label: "Canada", scope: "global", type: "country" },
+    { code: "MX", label: "Mexico", scope: "latin-america", type: "country" },
+    { code: "BR", label: "Brazil", scope: "latin-america", type: "country" },
+    {
+      aliases: ["United Kingdom"],
+      code: "GB",
+      label: "United Kingdom",
+      scope: "europe",
+      type: "country",
+    },
+    { code: "FR", label: "France", scope: "europe", type: "country" },
+    { code: "DE", label: "Germany", scope: "europe", type: "country" },
+    { code: "NG", label: "Nigeria", scope: "africa", type: "country" },
+    { code: "ZA", label: "South Africa", scope: "africa", type: "country" },
+    { code: "JP", label: "Japan", scope: "asia", type: "country" },
+    { code: "KR", label: "South Korea", scope: "asia", type: "country" },
+    { code: "AU", label: "Australia", scope: "oceania", type: "country" },
+  ] as const,
+  targetKey = (target: AdTarget) => `${target.targetType}:${target.targetCode}`,
+  targetOptionByRegion = new Map(
+    targetOptions.flatMap((target) =>
+      [target.label, ...(target.aliases ?? [])].map(
+        (label) => [label.toLowerCase(), target] as const
+      )
     )
-  )
-),
-
- targetOptionByKey = new Map(
-  targetOptions.map((target) => [targetKey(toAdTarget(target)), target])
-);
+  ),
+  targetOptionByKey = new Map(
+    targetOptions.map((target) => [targetKey(toAdTarget(target)), target])
+  );
 
 function toAdTarget(target: TargetOption): AdTarget {
   return {
@@ -172,32 +173,31 @@ function targetRegionNames(target: AdTarget) {
 }
 
 const money = (cents: number | null | undefined) =>
-  cents === null || cents === undefined
-    ? "—"
-    : new Intl.NumberFormat("en-US", {
-        currency: "USD",
-        style: "currency",
-      }).format(cents / 100),
-
- formatPercent = (value: number) => `${value.toFixed(2)}%`;
+    cents === null || cents === undefined
+      ? "—"
+      : new Intl.NumberFormat("en-US", {
+          currency: "USD",
+          style: "currency",
+        }).format(cents / 100),
+  formatPercent = (value: number) => `${value.toFixed(2)}%`;
 
 function AdsManagerPage() {
   const { toast } = useToast(),
-   campaignsQuery = useAdCampaignsQuery(),
-   walletQuery = useAdWalletQuery(),
-   createCampaign = useCreateAdCampaignMutation(),
-   totals = useMemo(() => {
-    const nextTotals = { clicks: 0, impressions: 0, spendCents: 0 };
+    campaignsQuery = useAdCampaignsQuery(),
+    walletQuery = useAdWalletQuery(),
+    createCampaign = useCreateAdCampaignMutation(),
+    totals = useMemo(() => {
+      const nextTotals = { clicks: 0, impressions: 0, spendCents: 0 };
 
-    for (const campaign of campaignsQuery.data ?? []) {
-      nextTotals.clicks += campaign.metrics.clicks;
-      nextTotals.impressions += campaign.metrics.impressions;
-      nextTotals.spendCents += campaign.metrics.spendCents;
-    }
+      for (const campaign of campaignsQuery.data ?? []) {
+        nextTotals.clicks += campaign.metrics.clicks;
+        nextTotals.impressions += campaign.metrics.impressions;
+        nextTotals.spendCents += campaign.metrics.spendCents;
+      }
 
-    return nextTotals;
-  }, [campaignsQuery.data]),
-   campaigns = campaignsQuery.data ?? [];
+      return nextTotals;
+    }, [campaignsQuery.data]),
+    campaigns = campaignsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -367,75 +367,72 @@ function CampaignBuilder({
   onCreate: (body: CreateAdCampaignBody) => void;
 }) {
   const [name, setName] = useState("SoundKit house pre-roll"),
-   [creativeUrl, setCreativeUrl] = useState(""),
-   [creativeImageUrl, setCreativeImageUrl] = useState(""),
-   [clickthroughUrl, setClickthroughUrl] = useState(""),
-   [creativeFormat, setCreativeFormat] =
-    useState<AdCreativeFormat>("audio"),
-   [placement, setPlacement] = useState<AdPlacement>("audio_preroll"),
-   [billingType, setBillingType] =
-    useState<AdBillingType>("prepaid_wallet"),
-   [dailyBudgetCents, setDailyBudgetCents] = useState(500),
-   [dailyImpressionCap, setDailyImpressionCap] = useState(1000),
-   [mapScope, setMapScope] = useState<MapScope>("north-america"),
-   [selectedTargets, setSelectedTargets] = useState<AdTarget[]>([
-    { targetCode: "US-AR", targetType: "state" },
-  ]),
-
-   toggleTarget = (target: AdTarget) => {
-    setSelectedTargets((current) => {
-      const exists = current.some(
-        (item) =>
-          item.targetCode === target.targetCode &&
-          item.targetType === target.targetType
-      );
-
-      if (exists) {
-        return current.filter(
+    [creativeUrl, setCreativeUrl] = useState(""),
+    [creativeImageUrl, setCreativeImageUrl] = useState(""),
+    [clickthroughUrl, setClickthroughUrl] = useState(""),
+    [creativeFormat, setCreativeFormat] = useState<AdCreativeFormat>("audio"),
+    [placement, setPlacement] = useState<AdPlacement>("audio_preroll"),
+    [billingType, setBillingType] = useState<AdBillingType>("prepaid_wallet"),
+    [dailyBudgetCents, setDailyBudgetCents] = useState(500),
+    [dailyImpressionCap, setDailyImpressionCap] = useState(1000),
+    [mapScope, setMapScope] = useState<MapScope>("north-america"),
+    [selectedTargets, setSelectedTargets] = useState<AdTarget[]>([
+      { targetCode: "US-AR", targetType: "state" },
+    ]),
+    toggleTarget = (target: AdTarget) => {
+      setSelectedTargets((current) => {
+        const exists = current.some(
           (item) =>
-            !(
-              item.targetCode === target.targetCode &&
-              item.targetType === target.targetType
-            )
+            item.targetCode === target.targetCode &&
+            item.targetType === target.targetType
         );
+
+        if (exists) {
+          return current.filter(
+            (item) =>
+              !(
+                item.targetCode === target.targetCode &&
+                item.targetType === target.targetType
+              )
+          );
+        }
+
+        return [...current, target];
+      });
+    },
+    selectedTargetKeys = new Set(selectedTargets.map(targetKey)),
+    selectedTargetRegionNames = selectedTargets.flatMap(targetRegionNames),
+    availableTargets = targetOptions.filter(
+      (target) => !selectedTargetKeys.has(targetKey(toAdTarget(target)))
+    ),
+    addTargetFromMap = (regionName: string) => {
+      const option = targetOptionByRegion.get(regionName.toLowerCase());
+
+      if (!option) {
+        return;
       }
 
-      return [...current, target];
-    });
-  },
-   selectedTargetKeys = new Set(selectedTargets.map(targetKey)),
-   selectedTargetRegionNames = selectedTargets.flatMap(targetRegionNames),
-   availableTargets = targetOptions.filter(
-    (target) => !selectedTargetKeys.has(targetKey(toAdTarget(target)))
-  ),
-   addTargetFromMap = (regionName: string) => {
-    const option = targetOptionByRegion.get(regionName.toLowerCase());
+      toggleTarget(toAdTarget(option));
+    },
+    updateDailyBudget = (value: string) => {
+      const dollars = Number(value);
 
-    if (!option) {
-      return;
-    }
+      if (Number.isNaN(dollars)) {
+        return;
+      }
 
-    toggleTarget(toAdTarget(option));
-  },
-   updateDailyBudget = (value: string) => {
-    const dollars = Number(value);
+      const cents = Math.round(dollars * 100);
+      setDailyBudgetCents(Math.max(100, cents));
+    },
+    updateDailyImpressionCap = (value: string) => {
+      const impressions = Number(value);
 
-    if (Number.isNaN(dollars)) {
-      return;
-    }
+      if (Number.isNaN(impressions)) {
+        return;
+      }
 
-    const cents = Math.round(dollars * 100);
-    setDailyBudgetCents(Math.max(100, cents));
-  },
-   updateDailyImpressionCap = (value: string) => {
-    const impressions = Number(value);
-
-    if (Number.isNaN(impressions)) {
-      return;
-    }
-
-    setDailyImpressionCap(Math.max(100, Math.round(impressions)));
-  };
+      setDailyImpressionCap(Math.max(100, Math.round(impressions)));
+    };
 
   return (
     <Card>

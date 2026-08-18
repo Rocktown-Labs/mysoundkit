@@ -32,77 +32,83 @@ import {
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
 
 const discoverLinks: SidebarNavItem[] = [
-  { href: "/", icon: MapPin, label: "Home" },
-  { href: "/tracks", icon: Music, label: "Songs" },
-  { href: "/projects", icon: Disc, label: "Projects" },
-  { href: "/videos", icon: Video, label: "Videos" },
-  { href: "/artist", icon: Users, label: "Artists" },
-  { href: "/genres", icon: Tags, label: "Genres" },
-  { href: "/shop", icon: ShoppingBag, label: "Shop" },
-].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
-
- liveLinks: SidebarNavItem[] = [
-  { href: "/live/battles", icon: Swords, label: "Battles" },
-  { href: "/live/parties", icon: PartyPopper, label: "Parties" },
-  { href: "/live/streams", icon: TvMinimalPlay, label: "Streams" },
-].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
-
- libraryLinks: SidebarNavItem[] = [
-  { href: "/library/recent", icon: ListMusic, label: "Recently Played" },
-  { href: "/library/watched", icon: ListVideo, label: "Recently Watched" },
-  { href: "/library/playlists", icon: ListPlus, label: "Playlists" },
-  { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
-  { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
-  { href: "/library/settings", icon: Settings, label: "Account" },
-].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
+    { href: "/", icon: MapPin, label: "Home" },
+    { href: "/tracks", icon: Music, label: "Songs" },
+    { href: "/projects", icon: Disc, label: "Projects" },
+    { href: "/videos", icon: Video, label: "Videos" },
+    { href: "/artist", icon: Users, label: "Artists" },
+    { href: "/genres", icon: Tags, label: "Genres" },
+    { href: "/shop", icon: ShoppingBag, label: "Shop" },
+  ].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
+  liveLinks: SidebarNavItem[] = [
+    { href: "/live/battles", icon: Swords, label: "Battles" },
+    { href: "/live/parties", icon: PartyPopper, label: "Parties" },
+    { href: "/live/streams", icon: TvMinimalPlay, label: "Streams" },
+  ].map(({ href, icon, label }) => ({ icon, title: label, url: href })),
+  libraryLinks: SidebarNavItem[] = [
+    { href: "/library/recent", icon: ListMusic, label: "Recently Played" },
+    { href: "/library/watched", icon: ListVideo, label: "Recently Watched" },
+    { href: "/library/playlists", icon: ListPlus, label: "Playlists" },
+    { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
+    { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
+    { href: "/library/settings", icon: Settings, label: "Account" },
+  ].map(({ href, icon, label }) => ({ icon, title: label, url: href }));
 
 export function ExploreAppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname }),
-   meQuery = useMeQuery(),
-   isSignedIn = Boolean(meQuery.data),
-
-   isRouteActive = (href: string) =>
-    href === "/"
-      ? pathname === "/"
-      : pathname === href || pathname.startsWith(`${href}/`),
-
-   resolvedDiscoverLinks = discoverLinks.map((item) => ({
-    ...item,
-    isActive: isRouteActive(item.url ?? "/"),
-  })),
-
-   resolvedLiveLinks = liveLinks.map((item) => ({
-    ...item,
-    isActive: isRouteActive(item.url ?? "/live"),
-  })),
-
-   profileLink: SidebarNavItem | null = meQuery.data
-    ? {
-        icon: Users,
-        isActive:
-          meQuery.data.user.accountType === "artist"
-            ? pathname.startsWith("/dashboard")
-            : pathname.startsWith("/people/"),
-        title:
-          meQuery.data.user.accountType === "artist"
-            ? "Artist Dashboard"
-            : "My Fan Profile",
-        url:
-          meQuery.data.user.accountType === "artist"
-            ? "/dashboard"
-            : `/people/${meQuery.data.user.username}`,
-      }
-    : null,
-   resolvedLibraryLinks = [
-    ...(profileLink ? [profileLink] : []),
-    ...libraryLinks.map((item) => ({
+    meQuery = useMeQuery(),
+    isSignedIn = Boolean(meQuery.data),
+    isRouteActive = (href: string) =>
+      href === "/"
+        ? pathname === "/"
+        : pathname === href || pathname.startsWith(`${href}/`),
+    resolvedDiscoverLinks = discoverLinks.map((item) => ({
       ...item,
-      isActive: isRouteActive(item.url ?? "/library"),
-      url: isSignedIn
-        ? item.url
-        : `/login?redirect=${encodeURIComponent(item.url ?? "/library")}`,
+      isActive: isRouteActive(item.url ?? "/"),
     })),
-  ];
+    resolvedLiveLinks = liveLinks.map((item) => ({
+      ...item,
+      isActive: isRouteActive(item.url ?? "/live"),
+    })),
+    profileLink: SidebarNavItem | null = meQuery.data
+      ? {
+          icon: Users,
+          isActive:
+            meQuery.data.user.accountType === "artist"
+              ? pathname.startsWith("/dashboard")
+              : pathname.startsWith("/people/"),
+          title:
+            meQuery.data.user.accountType === "artist"
+              ? "Artist Dashboard"
+              : "My Fan Profile",
+          url:
+            meQuery.data.user.accountType === "artist"
+              ? "/dashboard"
+              : `/people/${meQuery.data.user.username}`,
+        }
+      : null,
+    baseLibraryLinks = libraryLinks
+      .filter((item) => item.url !== "/library/settings")
+      .map((item) => ({
+        ...item,
+        isActive: isRouteActive(item.url ?? "/library"),
+        url: isSignedIn
+          ? item.url
+          : `/login?redirect=${encodeURIComponent(item.url ?? "/library")}`,
+      })),
+    settingsItem: SidebarNavItem = {
+      icon: Settings,
+      isActive: isRouteActive("/library/settings"),
+      title: "Settings",
+      url: isSignedIn
+        ? "/library/settings"
+        : `/login?redirect=${encodeURIComponent("/library/settings")}`,
+    },
+    resolvedLibraryLinks = [
+      ...baseLibraryLinks,
+      ...(profileLink ? [profileLink] : []),
+      settingsItem,
+    ];
 
   return (
     <Sidebar collapsible="icon">

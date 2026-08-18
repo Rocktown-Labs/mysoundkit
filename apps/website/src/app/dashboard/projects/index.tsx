@@ -57,49 +57,49 @@ const getStatusClassName = (status: string) => {
 
 function ProjectsPage() {
   const { data: projects = [], error, isLoading } = useProjectsQuery(),
-   deleteProjectMutation = useDeleteProjectMutation(),
-   meQuery = useMeQuery(),
-   [deleteCandidate, setDeleteCandidate] = useState<{
-    id: string;
-    title: string;
-  } | null>(null),
-   [deleteConfirmation, setDeleteConfirmation] = useState(""),
-   releasedCount = projects.filter(
-    (project) => project.status === "released"
-  ).length,
-   activeCount = projects.filter((project) =>
-    ["draft", "scheduled"].includes(project.status)
-  ).length,
-   collaboratorCount = projects.reduce(
-    (total, project) => total + project.collaboratorCount,
-    0
-  ),
-   projectStats = [
-    {
-      description: "Albums, EPs and Singles",
-      icon: FolderOpen,
-      title: "Total Projects",
-      value: String(projects.length),
-    },
-    {
-      description: "Live in the catalog",
-      icon: CheckCircle2,
-      title: "Released",
-      value: String(releasedCount),
-    },
-    {
-      description: "Drafts and scheduled releases",
-      icon: Clock,
-      title: "In Progress",
-      value: String(activeCount),
-    },
-    {
-      description: "Across all active projects",
-      icon: Users,
-      title: "Collaborators",
-      value: String(collaboratorCount),
-    },
-  ];
+    deleteProjectMutation = useDeleteProjectMutation(),
+    meQuery = useMeQuery(),
+    [deleteCandidate, setDeleteCandidate] = useState<{
+      id: string;
+      title: string;
+    } | null>(null),
+    [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    releasedCount = projects.filter(
+      (project) => project.status === "released"
+    ).length,
+    activeCount = projects.filter((project) =>
+      ["draft", "scheduled"].includes(project.status)
+    ).length,
+    collaboratorCount = projects.reduce(
+      (total, project) => total + project.collaboratorCount,
+      0
+    ),
+    projectStats = [
+      {
+        description: "Albums, EPs and Singles",
+        icon: FolderOpen,
+        title: "Total Projects",
+        value: String(projects.length),
+      },
+      {
+        description: "Live in the catalog",
+        icon: CheckCircle2,
+        title: "Released",
+        value: String(releasedCount),
+      },
+      {
+        description: "Drafts and scheduled releases",
+        icon: Clock,
+        title: "In Progress",
+        value: String(activeCount),
+      },
+      {
+        description: "Across all active projects",
+        icon: Users,
+        title: "Collaborators",
+        value: String(collaboratorCount),
+      },
+    ];
 
   return (
     <div className="space-y-6">

@@ -62,37 +62,36 @@ function getErrorMessage(error: unknown): string | null {
 
 function SignUp() {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-   [error, setError] = useState<string | null>(null),
-
-   form = useForm({
-    defaultValues: {
-      email: "",
-      name: "",
-      password: "",
-    },
-    onSubmit: async ({ value, formApi }) => {
-      await authClient.signUp.email(
-        {
-          email: value.email.trim(),
-          name: value.name.trim(),
-          password: value.password,
-        },
-        {
-          onError(error) {
-            setError(error.error?.message || "Failed to sign up");
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    [error, setError] = useState<string | null>(null),
+    form = useForm({
+      defaultValues: {
+        email: "",
+        name: "",
+        password: "",
+      },
+      onSubmit: async ({ value, formApi }) => {
+        await authClient.signUp.email(
+          {
+            email: value.email.trim(),
+            name: value.name.trim(),
+            password: value.password,
           },
-          onSuccess() {
-            setError(null);
-            formApi.reset();
-          },
-        }
-      );
-    },
-    validators: {
-      onSubmit: signUpSchema,
-    },
-  });
+          {
+            onError(error) {
+              setError(error.error?.message || "Failed to sign up");
+            },
+            onSuccess() {
+              setError(null);
+              formApi.reset();
+            },
+          }
+        );
+      },
+      validators: {
+        onSubmit: signUpSchema,
+      },
+    });
 
   return (
     <View

@@ -21,102 +21,97 @@ import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
 
 const formatDuration = (durationMs: number | null | undefined) => {
-  if (!durationMs) {
-    return "0:00";
-  }
+    if (!durationMs) {
+      return "0:00";
+    }
 
-  const totalSeconds = Math.round(durationMs / 1000),
-   minutes = Math.floor(totalSeconds / 60),
-   seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-},
+    const totalSeconds = Math.round(durationMs / 1000),
+      minutes = Math.floor(totalSeconds / 60),
+      seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  },
+  objectUrlFromMetadata = (metadata: unknown) => {
+    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
+      return null;
+    }
 
- objectUrlFromMetadata = (metadata: unknown) => {
-  if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-    return null;
-  }
+    const { url } = metadata as { url?: unknown };
+    return typeof url === "string" ? url : null;
+  },
+  publicAssetUrl = (
+    asset: InferSelectModel<typeof trackAssets> | undefined
+  ) => {
+    if (!asset) {
+      return null;
+    }
 
-  const { url } = metadata as { url?: unknown };
-  return typeof url === "string" ? url : null;
-},
+    const metadataUrl = objectUrlFromMetadata(asset.metadata);
 
- publicAssetUrl = (
-  asset: InferSelectModel<typeof trackAssets> | undefined
-) => {
-  if (!asset) {
-    return null;
-  }
+    if (metadataUrl) {
+      return metadataUrl;
+    }
 
-  const metadataUrl = objectUrlFromMetadata(asset.metadata);
+    const baseUrl = (
+      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+        .MEDIA_PUBLIC_URL ??
+      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+        .VITE_MEDIA_URL ??
+      ""
+    ).replace(/\/+$/u, "");
 
-  if (metadataUrl) {
-    return metadataUrl;
-  }
+    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+  },
+  publicProjectAssetUrl = (
+    asset: InferSelectModel<typeof projectAssets> | undefined
+  ) => {
+    if (!asset) {
+      return null;
+    }
 
-  const baseUrl = (
-    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-      .MEDIA_PUBLIC_URL ??
-    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-      .VITE_MEDIA_URL ??
-    ""
-  ).replace(/\/+$/u, "");
+    const baseUrl = (
+      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+        .MEDIA_PUBLIC_URL ??
+      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
+        .VITE_MEDIA_URL ??
+      ""
+    ).replace(/\/+$/u, "");
 
-  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-},
-
- publicProjectAssetUrl = (
-  asset: InferSelectModel<typeof projectAssets> | undefined
-) => {
-  if (!asset) {
-    return null;
-  }
-
-  const baseUrl = (
-    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-      .MEDIA_PUBLIC_URL ??
-    (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-      .VITE_MEDIA_URL ??
-    ""
-  ).replace(/\/+$/u, "");
-
-  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-},
-
- mapAssetForDashboard = (
-  asset:
-    | InferSelectModel<typeof trackAssets>
-    | InferSelectModel<typeof projectAssets>
-) => ({
-  assetKind: asset.assetKind,
-  bucketName: asset.bucketName,
-  downloadUrl:
-    "trackId" in asset && asset.trackId
-      ? `/v1/tracks/${asset.trackId}/assets/${asset.id}/download`
-      : null,
-  durationMs: "durationMs" in asset ? asset.durationMs : null,
-  id: asset.id,
-  metadata: "metadata" in asset ? asset.metadata : null,
-  mimeType: asset.mimeType,
-  objectKey: asset.objectKey,
-  sizeBytes: asset.sizeBytes,
-  status: asset.status,
-  storageProvider: asset.storageProvider,
-}),
-
- fileAvailabilityFromAssets = (
-  assets: InferSelectModel<typeof trackAssets>[]
-) => ({
-  adlibs: assets.some((asset) => asset.assetKind === "adlib"),
-  coverArt: assets.some((asset) => asset.assetKind === "cover_art"),
-  instrumental: assets.some((asset) => asset.assetKind === "instrumental"),
-  master: assets.some((asset) => asset.assetKind === "master"),
-  reference: assets.some((asset) => asset.assetKind === "reference_audio"),
-  session: assets.some((asset) => asset.assetKind === "session_file"),
-  vocals: assets.filter(
-    (asset) =>
-      asset.assetKind === "vocal_stem" || asset.assetKind === "verse_vocal"
-  ).length,
-});
+    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+  },
+  mapAssetForDashboard = (
+    asset:
+      | InferSelectModel<typeof trackAssets>
+      | InferSelectModel<typeof projectAssets>
+  ) => ({
+    assetKind: asset.assetKind,
+    bucketName: asset.bucketName,
+    downloadUrl:
+      "trackId" in asset && asset.trackId
+        ? `/v1/tracks/${asset.trackId}/assets/${asset.id}/download`
+        : null,
+    durationMs: "durationMs" in asset ? asset.durationMs : null,
+    id: asset.id,
+    metadata: "metadata" in asset ? asset.metadata : null,
+    mimeType: asset.mimeType,
+    objectKey: asset.objectKey,
+    sizeBytes: asset.sizeBytes,
+    status: asset.status,
+    storageProvider: asset.storageProvider,
+  }),
+  fileAvailabilityFromAssets = (
+    assets: InferSelectModel<typeof trackAssets>[]
+  ) => ({
+    adlibs: assets.some((asset) => asset.assetKind === "adlib"),
+    coverArt: assets.some((asset) => asset.assetKind === "cover_art"),
+    instrumental: assets.some((asset) => asset.assetKind === "instrumental"),
+    master: assets.some((asset) => asset.assetKind === "master"),
+    reference: assets.some((asset) => asset.assetKind === "reference_audio"),
+    session: assets.some((asset) => asset.assetKind === "session_file"),
+    vocals: assets.filter(
+      (asset) =>
+        asset.assetKind === "vocal_stem" || asset.assetKind === "verse_vocal"
+    ).length,
+  });
 
 export const mapTrackSummary = ({
   artistName,
@@ -136,20 +131,20 @@ export const mapTrackSummary = ({
   row: InferSelectModel<typeof tracks>;
 }) => {
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
-   primaryAudioAsset =
-    assets.find((asset) => asset.assetKind === "master") ??
-    assets.find((asset) => asset.durationMs),
-   previewAsset = assets.find(
-    (asset) =>
-      asset.assetKind === "variant_audio" &&
-      typeof asset.metadata === "object" &&
-      asset.metadata !== null &&
-      "variant" in asset.metadata &&
-      asset.metadata.variant === "preview_30s"
-  ),
-   assetStatus = assets.some((asset) => asset.status === "processing")
-    ? "processing"
-    : (primaryAudioAsset?.status ?? null);
+    primaryAudioAsset =
+      assets.find((asset) => asset.assetKind === "master") ??
+      assets.find((asset) => asset.durationMs),
+    previewAsset = assets.find(
+      (asset) =>
+        asset.assetKind === "variant_audio" &&
+        typeof asset.metadata === "object" &&
+        asset.metadata !== null &&
+        "variant" in asset.metadata &&
+        asset.metadata.variant === "preview_30s"
+    ),
+    assetStatus = assets.some((asset) => asset.status === "processing")
+      ? "processing"
+      : (primaryAudioAsset?.status ?? null);
 
   return {
     artistName,
@@ -213,32 +208,31 @@ export const buildTrackSummary = async (
   row: InferSelectModel<typeof tracks>
 ) => {
   const db = createDb(),
-   [profile] = await db
-    .select({
-      displayName: userProfiles.displayName,
-      state: userProfiles.state,
-      userName: authUser.name,
-      username: userProfiles.username,
-    })
-    .from(authUser)
-    .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-    .where(eq(authUser.id, row.ownerUserId))
-    .limit(1),
-   [genreRow] = row.genreId
-    ? await db
-        .select({ name: genres.name })
-        .from(genres)
-        .where(eq(genres.id, row.genreId))
-        .limit(1)
-    : [],
-
-   [assetRows, collaboratorRows] = await Promise.all([
-    db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
-    db
-      .select({ id: trackCollaborators.id })
-      .from(trackCollaborators)
-      .where(eq(trackCollaborators.trackId, row.id)),
-  ]);
+    [profile] = await db
+      .select({
+        displayName: userProfiles.displayName,
+        state: userProfiles.state,
+        userName: authUser.name,
+        username: userProfiles.username,
+      })
+      .from(authUser)
+      .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+      .where(eq(authUser.id, row.ownerUserId))
+      .limit(1),
+    [genreRow] = row.genreId
+      ? await db
+          .select({ name: genres.name })
+          .from(genres)
+          .where(eq(genres.id, row.genreId))
+          .limit(1)
+      : [],
+    [assetRows, collaboratorRows] = await Promise.all([
+      db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
+      db
+        .select({ id: trackCollaborators.id })
+        .from(trackCollaborators)
+        .where(eq(trackCollaborators.trackId, row.id)),
+    ]);
 
   return mapTrackSummary({
     artistName: profile?.displayName ?? profile?.userName ?? "SoundKit Artist",
@@ -255,45 +249,45 @@ export const buildTrackDetail = async (
   row: InferSelectModel<typeof tracks>
 ) => {
   const db = createDb(),
-   [summary, assetRows, collaboratorRows, lyricsRows] = await Promise.all([
-    buildTrackSummary(row),
-    db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
-    db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        canDelete: trackCollaborators.canDelete,
-        canEdit: trackCollaborators.canEdit,
-        canUpload: trackCollaborators.canUpload,
-        email: trackCollaborators.inviteEmail,
-        id: trackCollaborators.id,
-        name: userProfiles.displayName,
-        role: trackCollaborators.collaboratorRole,
-        status: trackCollaborators.invitationStatus,
-      })
-      .from(trackCollaborators)
-      .leftJoin(
-        userProfiles,
-        eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
-      )
-      .where(eq(trackCollaborators.trackId, row.id)),
-    db
-      .select({
-        approvedAt: trackLyrics.approvedAt,
-        id: trackLyrics.id,
-        language: trackLyrics.language,
-        sourceType: trackLyrics.sourceType,
-        status: trackLyrics.status,
-        text: trackLyrics.text,
-        timedLines: trackLyrics.timedLines,
-      })
-      .from(trackLyrics)
-      .where(eq(trackLyrics.trackId, row.id))
-      .orderBy(
-        sql`${trackLyrics.approvedAt} desc nulls last`,
-        sql`${trackLyrics.createdAt} desc`
-      )
-      .limit(1),
-  ]);
+    [summary, assetRows, collaboratorRows, lyricsRows] = await Promise.all([
+      buildTrackSummary(row),
+      db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
+      db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          canDelete: trackCollaborators.canDelete,
+          canEdit: trackCollaborators.canEdit,
+          canUpload: trackCollaborators.canUpload,
+          email: trackCollaborators.inviteEmail,
+          id: trackCollaborators.id,
+          name: userProfiles.displayName,
+          role: trackCollaborators.collaboratorRole,
+          status: trackCollaborators.invitationStatus,
+        })
+        .from(trackCollaborators)
+        .leftJoin(
+          userProfiles,
+          eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
+        )
+        .where(eq(trackCollaborators.trackId, row.id)),
+      db
+        .select({
+          approvedAt: trackLyrics.approvedAt,
+          id: trackLyrics.id,
+          language: trackLyrics.language,
+          sourceType: trackLyrics.sourceType,
+          status: trackLyrics.status,
+          text: trackLyrics.text,
+          timedLines: trackLyrics.timedLines,
+        })
+        .from(trackLyrics)
+        .where(eq(trackLyrics.trackId, row.id))
+        .orderBy(
+          sql`${trackLyrics.approvedAt} desc nulls last`,
+          sql`${trackLyrics.createdAt} desc`
+        )
+        .limit(1),
+    ]);
 
   return {
     ...summary,
@@ -319,8 +313,7 @@ export const buildProjectSummary = async (
   row: InferSelectModel<typeof projects>
 ) => {
   const db = createDb(),
-   [trackRows, assetRows, collaboratorRows, profileRows] =
-    await Promise.all([
+    [trackRows, assetRows, collaboratorRows, profileRows] = await Promise.all([
       db
         .select({
           genreName: genres.name,
@@ -350,21 +343,21 @@ export const buildProjectSummary = async (
         .where(eq(authUser.id, row.ownerUserId))
         .limit(1),
     ]),
-   trackIds = trackRows.map((track) => track.id),
-   primaryGenre = trackRows.find((track) => track.genreName)?.genreName,
-   [ownerProfile] = profileRows,
-   durationAssetRows =
-    trackIds.length > 0
-      ? await db
-          .select({
-            assetKind: trackAssets.assetKind,
-            durationMs: trackAssets.durationMs,
-            trackId: trackAssets.trackId,
-          })
-          .from(trackAssets)
-          .where(inArray(trackAssets.trackId, trackIds))
-      : [],
-   durationByTrackId = new Map<string, number>();
+    trackIds = trackRows.map((track) => track.id),
+    primaryGenre = trackRows.find((track) => track.genreName)?.genreName,
+    [ownerProfile] = profileRows,
+    durationAssetRows =
+      trackIds.length > 0
+        ? await db
+            .select({
+              assetKind: trackAssets.assetKind,
+              durationMs: trackAssets.durationMs,
+              trackId: trackAssets.trackId,
+            })
+            .from(trackAssets)
+            .where(inArray(trackAssets.trackId, trackIds))
+        : [],
+    durationByTrackId = new Map<string, number>();
 
   for (const asset of durationAssetRows) {
     if (!(asset.trackId && asset.durationMs)) {
@@ -439,36 +432,38 @@ export const buildProjectDetail = async (
   row: InferSelectModel<typeof projects>
 ) => {
   const db = createDb(),
-   [summary, assetRows, collaboratorRows, trackRows] = await Promise.all([
-    buildProjectSummary(row),
-    db.select().from(projectAssets).where(eq(projectAssets.projectId, row.id)),
-    db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        canDelete: projectCollaborators.canDelete,
-        canEdit: projectCollaborators.canEdit,
-        canUpload: projectCollaborators.canUpload,
-        email: projectCollaborators.inviteEmail,
-        id: projectCollaborators.id,
-        name: userProfiles.displayName,
-        role: projectCollaborators.collaboratorRole,
-        status: projectCollaborators.invitationStatus,
-      })
-      .from(projectCollaborators)
-      .leftJoin(
-        userProfiles,
-        eq(userProfiles.userId, projectCollaborators.collaboratorUserId)
-      )
-      .where(eq(projectCollaborators.projectId, row.id)),
-    db
-      .select({ row: tracks })
-      .from(projectTracks)
-      .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
-      .where(eq(projectTracks.projectId, row.id))
-      .orderBy(asc(projectTracks.position)),
-  ]),
-
-   trackSummaries = [];
+    [summary, assetRows, collaboratorRows, trackRows] = await Promise.all([
+      buildProjectSummary(row),
+      db
+        .select()
+        .from(projectAssets)
+        .where(eq(projectAssets.projectId, row.id)),
+      db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          canDelete: projectCollaborators.canDelete,
+          canEdit: projectCollaborators.canEdit,
+          canUpload: projectCollaborators.canUpload,
+          email: projectCollaborators.inviteEmail,
+          id: projectCollaborators.id,
+          name: userProfiles.displayName,
+          role: projectCollaborators.collaboratorRole,
+          status: projectCollaborators.invitationStatus,
+        })
+        .from(projectCollaborators)
+        .leftJoin(
+          userProfiles,
+          eq(userProfiles.userId, projectCollaborators.collaboratorUserId)
+        )
+        .where(eq(projectCollaborators.projectId, row.id)),
+      db
+        .select({ row: tracks })
+        .from(projectTracks)
+        .innerJoin(tracks, eq(tracks.id, projectTracks.trackId))
+        .where(eq(projectTracks.projectId, row.id))
+        .orderBy(asc(projectTracks.position)),
+    ]),
+    trackSummaries = [];
 
   for (const trackRow of trackRows) {
     trackSummaries.push(await buildTrackSummary(trackRow.row));

@@ -32,16 +32,16 @@ const generateAPIUrl = (relativePath: string) => {
 
 export default function AIScreen() {
   const { colorScheme } = useColorScheme(),
-   theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
-   [input, setInput] = useState(""),
-   { messages, error, sendMessage } = useChat({
-    onError: (error) => console.error(error, "AI Chat Error"),
-    transport: new DefaultChatTransport({
-      api: generateAPIUrl("/ai"),
-      fetch: expoFetch as unknown as typeof globalThis.fetch,
+    theme = colorScheme === "dark" ? NAV_THEME.dark : NAV_THEME.light,
+    [input, setInput] = useState(""),
+    { messages, error, sendMessage } = useChat({
+      onError: (error) => console.error(error, "AI Chat Error"),
+      transport: new DefaultChatTransport({
+        api: generateAPIUrl("/ai"),
+        fetch: expoFetch as unknown as typeof globalThis.fetch,
+      }),
     }),
-  }),
-   scrollViewRef = useRef<ScrollView>(null);
+    scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });

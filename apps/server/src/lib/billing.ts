@@ -53,37 +53,36 @@ export const createPlanCheckout = async ({
 
   try {
     const upgradeSubscription = auth.api.upgradeSubscription as (input: {
-      body: {
-        cancelUrl: string;
-        customerType: "organization";
-        disableRedirect: boolean;
-        plan: string;
-        referenceId: string;
-        seats?: number;
-        successUrl: string;
-      };
-      headers: Headers;
-    }) => Promise<unknown>,
-     result = await upgradeSubscription({
-      body: {
-        cancelUrl,
-        customerType: "organization",
-        disableRedirect: true,
-        plan: planCode,
-        referenceId,
-        seats: billableSeatsForCheckout({ planCode, seats }),
-        successUrl,
-      },
-      headers: request.headers,
-    }),
-
-     url =
-      typeof result === "object" &&
-      result !== null &&
-      "url" in result &&
-      typeof result.url === "string"
-        ? result.url
-        : null;
+        body: {
+          cancelUrl: string;
+          customerType: "organization";
+          disableRedirect: boolean;
+          plan: string;
+          referenceId: string;
+          seats?: number;
+          successUrl: string;
+        };
+        headers: Headers;
+      }) => Promise<unknown>,
+      result = await upgradeSubscription({
+        body: {
+          cancelUrl,
+          customerType: "organization",
+          disableRedirect: true,
+          plan: planCode,
+          referenceId,
+          seats: billableSeatsForCheckout({ planCode, seats }),
+          successUrl,
+        },
+        headers: request.headers,
+      }),
+      url =
+        typeof result === "object" &&
+        result !== null &&
+        "url" in result &&
+        typeof result.url === "string"
+          ? result.url
+          : null;
 
     return {
       checkoutUrl: url,
@@ -105,7 +104,7 @@ export const getPlanRows = async () => {
   }
 
   const db = createDb(),
-   rows = await db.select().from(planCatalog);
+    rows = await db.select().from(planCatalog);
 
   if (rows.length === 0) {
     return [];
@@ -120,11 +119,11 @@ export const getPlanByCode = async (code: string) => {
   }
 
   const db = createDb(),
-   [plan] = await db
-    .select()
-    .from(planCatalog)
-    .where(eq(planCatalog.code, code))
-    .limit(1);
+    [plan] = await db
+      .select()
+      .from(planCatalog)
+      .where(eq(planCatalog.code, code))
+      .limit(1);
 
   return plan ?? null;
 };

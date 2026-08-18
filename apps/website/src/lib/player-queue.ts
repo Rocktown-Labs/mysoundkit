@@ -22,9 +22,11 @@ export const completeQueuedTrack = ({
   }
 
   const currentIndex = queue.findIndex((track) => track.id === currentTrack.id),
-   sequentialNextTrack =
-    currentIndex !== -1 ? (queue[currentIndex + 1] ?? null) : (queue[0] ?? null),
-   remainingQueue = queue.filter((track) => track.id !== currentTrack.id);
+    sequentialNextTrack =
+      currentIndex === -1
+        ? (queue[0] ?? null)
+        : (queue[currentIndex + 1] ?? null),
+    remainingQueue = queue.filter((track) => track.id !== currentTrack.id);
 
   if (repeatMode === "all") {
     if (remainingQueue.length === 0) {

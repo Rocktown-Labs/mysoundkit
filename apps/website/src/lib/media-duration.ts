@@ -8,9 +8,9 @@ export const readAudioDurationMs = async (file: File) => {
 
   try {
     const metadataDuration = await input.getDurationFromMetadata(),
-     durationSeconds =
-      metadataDuration ??
-      (await input.computeDuration(undefined, { skipLiveWait: true }));
+      durationSeconds =
+        metadataDuration ??
+        (await input.computeDuration(undefined, { skipLiveWait: true }));
 
     return Number.isFinite(durationSeconds)
       ? Math.max(0, Math.round(durationSeconds * 1000))

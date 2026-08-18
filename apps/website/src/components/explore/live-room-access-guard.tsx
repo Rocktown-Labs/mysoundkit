@@ -27,20 +27,22 @@ export function LiveRoomAccessGuard({
   children,
   roomTitle = "Live Room",
 }: LiveRoomAccessGuardProps) {
-  const { data: session, isPending: isAuthPending } = authClient.useSession(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   user = session?.user,
-   isSignedIn = Boolean(user),
-   isLoading =
-    isAuthPending || (isSignedIn && entitlementsQuery.isLoading),
+  if (allowPublic) {
+    return children;
+  }
 
-   entitlements = entitlementsQuery.data,
-   isPremium = Boolean(
-    entitlements?.isPremium ||
-    entitlements?.canWatchCreatorStreams ||
-    entitlements?.canCreateLiveBattles ||
-    entitlements?.canHostLiveStreams
-  );
+  const { data: session, isPending: isAuthPending } = authClient.useSession(),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    user = session?.user,
+    isSignedIn = Boolean(user),
+    isLoading = isAuthPending || (isSignedIn && entitlementsQuery.isLoading),
+    entitlements = entitlementsQuery.data,
+    isPremium = Boolean(
+      entitlements?.isPremium ||
+      entitlements?.canWatchCreatorStreams ||
+      entitlements?.canCreateLiveBattles ||
+      entitlements?.canHostLiveStreams
+    );
 
   if (isLoading) {
     return (
@@ -51,7 +53,7 @@ export function LiveRoomAccessGuard({
   }
 
   // Grant access if user is authenticated and holds a Premium plan
-  if (allowPublic || (isSignedIn && isPremium)) {
+  if (isSignedIn && isPremium) {
     return children;
   }
 

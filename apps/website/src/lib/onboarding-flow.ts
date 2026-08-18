@@ -48,15 +48,14 @@ export const signupRedirectForUser = ({
 };
 
 const isArtistRole = (value: unknown): value is ArtistRole =>
-  value === "musician" || value === "producer",
+    value === "musician" || value === "producer",
+  clampStep = (value: unknown) => {
+    if (typeof value !== "number") {
+      return 1;
+    }
 
- clampStep = (value: unknown) => {
-  if (typeof value !== "number") {
-    return 1;
-  }
-
-  return Math.min(Math.max(Math.trunc(value), 1), 8);
-};
+    return Math.min(Math.max(Math.trunc(value), 1), 8);
+  };
 
 export const parseArtistOnboardingDraft = (
   value: string | null
@@ -66,9 +65,9 @@ export const parseArtistOnboardingDraft = (
   }
 
   const parsed = JSON.parse(value) as Partial<ArtistOnboardingDraft>,
-   roles = Array.isArray(parsed.roles)
-    ? parsed.roles.filter(isArtistRole)
-    : [];
+    roles = Array.isArray(parsed.roles)
+      ? parsed.roles.filter(isArtistRole)
+      : [];
 
   return {
     avatarObjectKey:

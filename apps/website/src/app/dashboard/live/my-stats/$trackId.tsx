@@ -28,11 +28,11 @@ export const Route = createFileRoute("/dashboard/live/my-stats/$trackId")({
 
 function TrackBattleHistoryPage() {
   const { trackId } = Route.useParams(),
-   {
-    data: trackHistory,
-    isLoading,
-    error,
-  } = useTrackBattleHistoryQuery(trackId);
+    {
+      data: trackHistory,
+      isLoading,
+      error,
+    } = useTrackBattleHistoryQuery(trackId);
 
   if (isLoading) {
     return (
@@ -66,10 +66,8 @@ function TrackBattleHistoryPage() {
   }
 
   const { trackName, stats, history } = trackHistory,
-   totalRounds = history.length,
-   winRate = Math.round(
-    (stats.wins / (stats.wins + stats.losses || 1)) * 100
-  );
+    totalRounds = history.length,
+    winRate = Math.round((stats.wins / (stats.wins + stats.losses || 1)) * 100);
 
   return (
     <div className="space-y-6">
@@ -199,11 +197,11 @@ function TrackBattleHistoryPage() {
             <div className="space-y-4">
               {history.map((round) => {
                 const totalVotes = round.votesFor + round.votesAgainst,
-                 votePercentage =
-                  totalVotes > 0
-                    ? Math.round((round.votesFor / totalVotes) * 100)
-                    : 50,
-                 isWinner = round.winningTrackId === trackId;
+                  votePercentage =
+                    totalVotes > 0
+                      ? Math.round((round.votesFor / totalVotes) * 100)
+                      : 50,
+                  isWinner = round.winningTrackId === trackId;
 
                 return (
                   <div

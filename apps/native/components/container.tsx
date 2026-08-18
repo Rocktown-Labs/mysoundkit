@@ -7,10 +7,10 @@ import { useColorScheme } from "@/lib/use-color-scheme";
 
 export function Container({ children }: { children: React.ReactNode }) {
   const { colorScheme } = useColorScheme(),
-   backgroundColor =
-    colorScheme === "dark"
-      ? NAV_THEME.dark.background
-      : NAV_THEME.light.background;
+    backgroundColor =
+      colorScheme === "dark"
+        ? NAV_THEME.dark.background
+        : NAV_THEME.light.background;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor }]}>

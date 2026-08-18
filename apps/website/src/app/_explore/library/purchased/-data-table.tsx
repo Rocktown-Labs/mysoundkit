@@ -42,29 +42,27 @@ export function DataTable<TData extends { id: string }, TValue>({
   data,
 }: DataTableProps<TData, TValue>) {
   const navigate = useNavigate(),
-   [sorting, setSorting] = React.useState<SortingState>([]),
-   [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  ),
-   [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({}),
-
-   table = useReactTable({
-    columns,
-    data,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onSortingChange: setSorting,
-    state: {
-      columnFilters,
-      columnVisibility,
-      sorting,
-    },
-  });
+    [sorting, setSorting] = React.useState<SortingState>([]),
+    [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]),
+    [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
+      {}
+    ),
+    table = useReactTable({
+      columns,
+      data,
+      getCoreRowModel: getCoreRowModel(),
+      getFilteredRowModel: getFilteredRowModel(),
+      getPaginationRowModel: getPaginationRowModel(),
+      getSortedRowModel: getSortedRowModel(),
+      onColumnFiltersChange: setColumnFilters,
+      onColumnVisibilityChange: setColumnVisibility,
+      onSortingChange: setSorting,
+      state: {
+        columnFilters,
+        columnVisibility,
+        sorting,
+      },
+    });
 
   return (
     <div className="w-full">

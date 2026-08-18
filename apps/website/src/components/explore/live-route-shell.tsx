@@ -1,3 +1,4 @@
+/* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group */
 import { useRouterState } from "@tanstack/react-router";
 import { Flame, Headphones, Radio, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -5,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { LiveHero } from "@/components/explore/live-hero";
 import { authClient } from "@/lib/auth-client";
+import { isLiveExperienceDetailRoute } from "@/lib/immersive-route";
 import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
 
 interface LiveHeroConfig {
@@ -15,79 +17,82 @@ interface LiveHeroConfig {
 }
 
 const liveHeroImage =
-  "/images/excited-audience-watching-confetti-fireworks-having-fun-music-festival-night-copy-space.jpg",
+    "/images/excited-audience-watching-confetti-fireworks-having-fun-music-festival-night-copy-space.jpg",
+  isMainLiveIndexPage = (pathname: string): boolean => {
+    const normalized = pathname.replace(/\/$/, "");
+    return (
+      normalized === "/live" ||
+      normalized === "/live/battles" ||
+      normalized === "/live/parties" ||
+      normalized === "/live/streams"
+    );
+  },
+  getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
+    if (pathname.startsWith("/live/parties")) {
+      return {
+        badgeIcon: Headphones,
+        badgeText: "Live Parties",
+        description:
+          "Jump into live listening parties for one album at a time or alternating album faceoffs with chat, likes, saves, and playlist actions after every track.",
+        title: "Live Listening Parties",
+      };
+    }
 
- isMainLiveIndexPage = (pathname: string): boolean => {
-  const normalized = pathname.replace(/\/$/, "");
-  return (
-    normalized === "/live" ||
-    normalized === "/live/battles" ||
-    normalized === "/live/parties" ||
-    normalized === "/live/streams"
-  );
-},
+    if (pathname.startsWith("/live/streams")) {
+      return {
+        badgeIcon: Radio,
+        badgeText: "Live Streams",
+        description:
+          "Creator streams flex between live broadcasts, studio sessions, and replay states. Premium unlocks live video access while completed sessions stay ready for playback.",
+        title: "Creator Streams",
+      };
+    }
 
- getLiveHeroConfig = (pathname: string): LiveHeroConfig => {
-  if (pathname.startsWith("/live/parties")) {
+    if (pathname.startsWith("/live/battles")) {
+      return {
+        badgeIcon: Zap,
+        badgeText: "Live Battles",
+        description:
+          "Watch tracks go head to head in real time, vote live as a premium member, and come back for completed replays once the battle closes.",
+        title: "Live Battles",
+      };
+    }
+
     return {
-      badgeIcon: Headphones,
-      badgeText: "Live Parties",
+      badgeIcon: Flame,
+      badgeText: "Live Hub",
       description:
-        "Jump into live listening parties for one album at a time or alternating album faceoffs with chat, likes, saves, and playlist actions after every track.",
-      title: "Live Listening Parties",
+        "Start at the live hub, then move into battles, listening parties, and creator streams as the session unfolds.",
+      title: "The Pulse of SoundKit",
     };
-  }
-
-  if (pathname.startsWith("/live/streams")) {
-    return {
-      badgeIcon: Radio,
-      badgeText: "Live Streams",
-      description:
-        "Creator streams flex between live broadcasts, studio sessions, and replay states. Premium unlocks live video access while completed sessions stay ready for playback.",
-      title: "Creator Streams",
-    };
-  }
-
-  if (pathname.startsWith("/live/battles")) {
-    return {
-      badgeIcon: Zap,
-      badgeText: "Live Battles",
-      description:
-        "Watch tracks go head to head in real time, vote live as a premium member, and come back for completed replays once the battle closes.",
-      title: "Live Battles",
-    };
-  }
-
-  return {
-    badgeIcon: Flame,
-    badgeText: "Live Hub",
-    description:
-      "Start at the live hub, then move into battles, listening parties, and creator streams as the session unfolds.",
-    title: "The Pulse of SoundKit",
   };
-};
 
 export function LiveRouteShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({
-    select: (state) => state.location.pathname,
-  }),
+      select: (state) => state.location.pathname,
+    }),
+    { data: session } = authClient.useSession(),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    entitlements = entitlementsQuery.data,
+    showHeroHeader = isMainLiveIndexPage(pathname),
+    hero = getLiveHeroConfig(pathname),
+    isPremiumArtist = Boolean(
+      entitlements?.canCreateLiveBattles || entitlements?.canHostLiveStreams
+    ),
+    isPremium = Boolean(
+      entitlements?.isPremium ||
+      entitlements?.canWatchCreatorStreams ||
+      isPremiumArtist
+    ),
+    isPremiumFan = isPremium && !isPremiumArtist;
 
-   { data: session } = authClient.useSession(),
-   entitlementsQuery = useMeEntitlementsQuery(),
-   entitlements = entitlementsQuery.data,
-
-   showHeroHeader = isMainLiveIndexPage(pathname),
-   hero = getLiveHeroConfig(pathname),
-
-   isPremiumArtist = Boolean(
-    entitlements?.canCreateLiveBattles || entitlements?.canHostLiveStreams
-  ),
-   isPremium = Boolean(
-    entitlements?.isPremium ||
-    entitlements?.canWatchCreatorStreams ||
-    isPremiumArtist
-  ),
-   isPremiumFan = isPremium && !isPremiumArtist;
+  if (isLiveExperienceDetailRoute(pathname)) {
+    return (
+      <section className="h-full min-h-0 w-full bg-background overflow-hidden">
+        {children}
+      </section>
+    );
+  }
 
   return (
     <section className="min-h-screen bg-background pb-20 md:pb-8">

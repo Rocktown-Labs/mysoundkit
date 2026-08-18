@@ -39,8 +39,8 @@ export const computeStreamTrends7d = (totalPlays: number): DailyTrend[] => {
   const weights = [0.08, 0.1, 0.12, 0.14, 0.18, 0.22, 0.16];
   return days.map((day, i) => {
     const dayStreams = Math.round(totalPlays * weights[i]!),
-     mobile = Math.round(dayStreams * 0.68),
-     desktop = dayStreams - mobile;
+      mobile = Math.round(dayStreams * 0.68),
+      desktop = dayStreams - mobile;
     return { day, desktop, mobile, streams: dayStreams };
   });
 };
@@ -53,8 +53,8 @@ export const computeStreamTrends28d = (totalPlays: number): DailyTrend[] => {
   const weights = [0.15, 0.22, 0.28, 0.35];
   return weeks.map((day, i) => {
     const weekStreams = Math.round(totalPlays * weights[i]!),
-     mobile = Math.round(weekStreams * 0.68),
-     desktop = weekStreams - mobile;
+      mobile = Math.round(weekStreams * 0.68),
+      desktop = weekStreams - mobile;
     return { day, desktop, mobile, streams: weekStreams };
   });
 };
@@ -74,9 +74,9 @@ export const computeSourcesData = (
   const weights = [0.08, 0.1, 0.12, 0.14, 0.18, 0.22, 0.16];
   return days.map((label, i) => {
     const dayTotal = Math.round(totalPlays * weights[i]!),
-     direct = Math.round(dayTotal * 0.46),
-     algorithmic = Math.round(dayTotal * 0.32),
-     playlists = Math.max(0, dayTotal - direct - algorithmic);
+      direct = Math.round(dayTotal * 0.46),
+      algorithmic = Math.round(dayTotal * 0.32),
+      playlists = Math.max(0, dayTotal - direct - algorithmic);
     return { algorithmic, direct, label, playlists };
   });
 };
@@ -119,17 +119,16 @@ export const computeGeographicData = (
     return [];
   }
   const localLabel =
-    primaryLocation && primaryLocation.trim()
-      ? `${primaryLocation.trim()} (Local HQ)`
-      : "Arkansas (Local HQ)",
-
-   regions = [
-    { name: localLabel, weight: 0.42 },
-    { name: "Texas (South)", weight: 0.24 },
-    { name: "California (West)", weight: 0.18 },
-    { name: "New York (East)", weight: 0.11 },
-    { name: "International", weight: 0.05 },
-  ];
+      primaryLocation && primaryLocation.trim()
+        ? `${primaryLocation.trim()} (Local HQ)`
+        : "Arkansas (Local HQ)",
+    regions = [
+      { name: localLabel, weight: 0.42 },
+      { name: "Texas (South)", weight: 0.24 },
+      { name: "California (West)", weight: 0.18 },
+      { name: "New York (East)", weight: 0.11 },
+      { name: "International", weight: 0.05 },
+    ];
 
   return regions.map((r) => ({
     plays: Math.round(totalPlays * r.weight),
@@ -174,12 +173,11 @@ export const computeLoyaltySegments = (totalPlays: number): LoyaltySegments => {
   }
 
   const superPlays = Math.round(totalPlays * 0.42),
-   casualPlays = Math.round(totalPlays * 0.45),
-   lapsedPlays = Math.max(0, totalPlays - superPlays - casualPlays),
-
-   superPct = Math.round((superPlays / totalPlays) * 100),
-   casualPct = Math.round((casualPlays / totalPlays) * 100),
-   lapsedPct = Math.round((lapsedPlays / totalPlays) * 100);
+    casualPlays = Math.round(totalPlays * 0.45),
+    lapsedPlays = Math.max(0, totalPlays - superPlays - casualPlays),
+    superPct = Math.round((superPlays / totalPlays) * 100),
+    casualPct = Math.round((casualPlays / totalPlays) * 100),
+    lapsedPct = Math.round((lapsedPlays / totalPlays) * 100);
 
   return {
     casualPct,

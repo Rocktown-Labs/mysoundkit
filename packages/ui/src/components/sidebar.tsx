@@ -24,11 +24,11 @@ import { PanelLeftIcon } from "lucide-react";
 import * as React from "react";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state",
- SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7,
- SIDEBAR_WIDTH = "16rem",
- SIDEBAR_WIDTH_MOBILE = "18rem",
- SIDEBAR_WIDTH_ICON = "3rem",
- SIDEBAR_KEYBOARD_SHORTCUT = "b";
+  SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7,
+  SIDEBAR_KEYBOARD_SHORTCUT = "b",
+  SIDEBAR_WIDTH = "16rem",
+  SIDEBAR_WIDTH_ICON = "3rem",
+  SIDEBAR_WIDTH_MOBILE = "18rem";
 
 interface SidebarContextProps {
   state: "expanded" | "collapsed";
@@ -65,33 +65,31 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile(),
-   [openMobile, setOpenMobile] = React.useState(false),
+    [openMobile, setOpenMobile] = React.useState(false),
+    // This is the internal state of the sidebar.
+    // We use openProp and setOpenProp for control from outside the component.
+    [_open, _setOpen] = React.useState(defaultOpen),
+    open = openProp ?? _open,
+    setOpen = React.useCallback(
+      (value: boolean | ((value: boolean) => boolean)) => {
+        const openState = typeof value === "function" ? value(open) : value;
+        if (setOpenProp) {
+          setOpenProp(openState);
+        } else {
+          _setOpen(openState);
+        }
 
-  // This is the internal state of the sidebar.
-  // We use openProp and setOpenProp for control from outside the component.
-   [_open, _setOpen] = React.useState(defaultOpen),
-   open = openProp ?? _open,
-   setOpen = React.useCallback(
-    (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(open) : value;
-      if (setOpenProp) {
-        setOpenProp(openState);
-      } else {
-        _setOpen(openState);
-      }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
-    },
-    [setOpenProp, open]
-  ),
-
-  // Helper to toggle the sidebar.
-   toggleSidebar = React.useCallback(
-    () =>
-      isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open),
-    [isMobile, setOpen, setOpenMobile]
-  );
+        // This sets the cookie to keep the sidebar state.
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+      },
+      [setOpenProp, open]
+    ),
+    // Helper to toggle the sidebar.
+    toggleSidebar = React.useCallback(
+      () =>
+        isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open),
+      [isMobile, setOpen, setOpenMobile]
+    );
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -112,19 +110,18 @@ function SidebarProvider({
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed",
-
-   contextValue = React.useMemo<SidebarContextProps>(
-    () => ({
-      isMobile,
-      open,
-      openMobile,
-      setOpen,
-      setOpenMobile,
-      state,
-      toggleSidebar,
-    }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
-  );
+    contextValue = React.useMemo<SidebarContextProps>(
+      () => ({
+        isMobile,
+        open,
+        openMobile,
+        setOpen,
+        setOpenMobile,
+        state,
+        toggleSidebar,
+      }),
+      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    );
 
   return (
     <SidebarContext.Provider value={contextValue}>
@@ -510,22 +507,25 @@ function SidebarMenuButton({
     tooltip?: string | React.ComponentProps<typeof TooltipContent>;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar(),
-   comp = useRender({
-    defaultTagName: "button",
-    props: mergeProps<"button">(
-      {
-        className: cn(sidebarMenuButtonVariants({ size, variant }), className),
+    comp = useRender({
+      defaultTagName: "button",
+      props: mergeProps<"button">(
+        {
+          className: cn(
+            sidebarMenuButtonVariants({ size, variant }),
+            className
+          ),
+        },
+        props
+      ),
+      render: tooltip ? <TooltipTrigger render={render} /> : render,
+      state: {
+        active: isActive,
+        sidebar: "menu-button",
+        size,
+        slot: "sidebar-menu-button",
       },
-      props
-    ),
-    render: tooltip ? <TooltipTrigger render={render} /> : render,
-    state: {
-      active: isActive,
-      sidebar: "menu-button",
-      size,
-      slot: "sidebar-menu-button",
-    },
-  });
+    });
 
   if (!tooltip) {
     return comp;

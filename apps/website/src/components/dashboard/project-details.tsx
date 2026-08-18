@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars */
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -34,46 +35,45 @@ interface ProjectDetailsProps {
 }
 
 const STATUS_META: Record<
-  string,
-  { className: string; icon: typeof Clock; label: string }
-> = {
-  archived: {
-    className: "bg-muted/50 text-muted-foreground border-border/40",
-    icon: FolderOpen,
-    label: "Archived",
+    string,
+    { className: string; icon: typeof Clock; label: string }
+  > = {
+    archived: {
+      className: "bg-muted/50 text-muted-foreground border-border/40",
+      icon: FolderOpen,
+      label: "Archived",
+    },
+    draft: {
+      className: "bg-muted/50 text-muted-foreground border-border/40",
+      icon: Clock,
+      label: "Draft",
+    },
+    released: {
+      className: "bg-primary/20 text-primary border-primary/30",
+      icon: CheckCircle,
+      label: "Released",
+    },
+    scheduled: {
+      className: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+      icon: Clock,
+      label: "Scheduled",
+    },
   },
-  draft: {
-    className: "bg-muted/50 text-muted-foreground border-border/40",
-    icon: Clock,
-    label: "Draft",
-  },
-  released: {
-    className: "bg-primary/20 text-primary border-primary/30",
-    icon: CheckCircle,
-    label: "Released",
-  },
-  scheduled: {
-    className: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-    icon: Clock,
-    label: "Scheduled",
-  },
-},
-
- formatDate = (value: string | null | undefined) => {
-  if (!value) {
-    return "—";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-  return date.toLocaleDateString(undefined, { dateStyle: "medium" });
-};
+  formatDate = (value: string | null | undefined) => {
+    if (!value) {
+      return "—";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+    return date.toLocaleDateString(undefined, { dateStyle: "medium" });
+  };
 
 export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   const projectQuery = useProjectQuery(projectId),
-   updateProjectMutation = useUpdateProjectMutation(projectId),
-   project = projectQuery.data;
+    updateProjectMutation = useUpdateProjectMutation(projectId),
+    project = projectQuery.data;
 
   if (projectQuery.isLoading) {
     return (
@@ -102,52 +102,63 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
   }
 
   const statusMeta = STATUS_META[project.status] ??
-    STATUS_META.draft ?? {
-      className: "bg-muted/50 text-muted-foreground border-border/40",
-      icon: Clock,
-      label: project.status,
+      STATUS_META.draft ?? {
+        className: "bg-muted/50 text-muted-foreground border-border/40",
+        icon: Clock,
+        label: project.status,
+      },
+    StatusIcon = statusMeta.icon,
+    primaryGenre = project.tracks.find((track) => track.genre)?.genre ?? "—",
+    coverArt =
+      project.coverArtUrl && project.coverArtUrl.length > 0
+        ? project.coverArtUrl
+        : null,
+    collaborators = Array.isArray(project.collaborators)
+      ? project.collaborators
+      : [],
+    handleReleaseNow = async () => {
+      try {
+        await updateProjectMutation.mutateAsync({
+          isPublic: true,
+          releaseDate: new Date().toISOString(),
+          status: "released",
+        });
+        toast({
+          description: `${project.title} is now public.`,
+          title: "Project released",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not release project.",
+          title: "Release failed",
+          variant: "destructive",
+        });
+      }
     },
-   StatusIcon = statusMeta.icon,
-   primaryGenre =
-    project.tracks.find((track) => track.genre)?.genre ?? "—",
-   coverArt =
-    project.coverArtUrl && project.coverArtUrl.length > 0
-      ? project.coverArtUrl
-      : null,
-   collaborators = Array.isArray(project.collaborators)
-    ? project.collaborators
-    : [],
-
-   handleReleaseNow = async () => {
-    try {
-      await updateProjectMutation.mutateAsync({
-        isPublic: true,
-        releaseDate: new Date().toISOString(),
-        status: "released",
-      });
-      toast({
-        description: `${project.title} is now public.`,
-        title: "Project released",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Could not release project.",
-        title: "Release failed",
-        variant: "destructive",
-      });
-    }
-  },
-
-   handleShare = () => {
-    const shareUrl =
-      typeof window === "undefined"
-        ? `/projects/${project.id}`
-        : `${window.location.origin}/projects/${project.id}`;
-    if (navigator.clipboard) {
-      void navigator.clipboard.writeText(shareUrl).catch(() => {});
-    }
-  };
+    handleShare = async () => {
+      const shareUrl =
+        typeof window === "undefined"
+          ? `/projects/${project.id}`
+          : `${window.location.origin}/projects/${project.id}`;
+      if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(shareUrl);
+          toast({
+            description: "Project link copied to clipboard.",
+            title: "Link copied",
+          });
+        } catch {
+          toast({
+            description: "Could not copy link to clipboard.",
+            title: "Copy failed",
+            variant: "destructive",
+          });
+        }
+      }
+    };
 
   return (
     <div className="space-y-6">
@@ -205,20 +216,45 @@ export function ProjectDetails({ projectId }: ProjectDetailsProps) {
                   Release now
                 </Button>
               ) : null}
-              <Link
-                to="/dashboard/projects/$id/edit"
-                params={{ id: projectId }}
-              >
-                <Button variant="outline">
+              <Button asChild variant="outline">
+                <Link
+                  params={{ id: projectId }}
+                  to="/dashboard/projects/$id/edit"
+                >
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
-                </Button>
-              </Link>
+                </Link>
+              </Button>
               <Button onClick={handleShare} variant="outline">
                 <Share className="h-4 w-4 mr-2" />
                 Share
               </Button>
-              <Button className="bg-primary hover:bg-primary/90">
+              <Button
+                className="bg-primary hover:bg-primary/90"
+                onClick={() => {
+                  const downloadableTracks = project.tracks.filter(
+                    (t) => t.downloadUrl || t.playbackUrl
+                  );
+                  if (downloadableTracks.length === 0) {
+                    toast({
+                      description:
+                        "No audio files uploaded to this project yet.",
+                      title: "No files available",
+                    });
+                    return;
+                  }
+                  for (const track of downloadableTracks) {
+                    const url = track.downloadUrl || track.playbackUrl;
+                    if (url) {
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    }
+                  }
+                  toast({
+                    description: `Started download for ${downloadableTracks.length} track${downloadableTracks.length === 1 ? "" : "s"}.`,
+                    title: "Downloading files",
+                  });
+                }}
+              >
                 <Download className="h-4 w-4 mr-2" />
                 Download All
               </Button>

@@ -34,13 +34,12 @@ export function ImageCropperDialog({
   title,
 }: ImageCropperDialogProps) {
   const [zoom, setZoom] = useState(1),
-   [position, setPosition] = useState({ x: 0, y: 0 }),
-   [isDragging, setIsDragging] = useState(false),
-   [dragStart, setDragStart] = useState({ x: 0, y: 0 }),
-   [isCropping, setIsCropping] = useState(false),
-
-   containerRef = useRef<HTMLDivElement>(null),
-   imageRef = useRef<HTMLImageElement>(null);
+    [position, setPosition] = useState({ x: 0, y: 0 }),
+    [isDragging, setIsDragging] = useState(false),
+    [dragStart, setDragStart] = useState({ x: 0, y: 0 }),
+    [isCropping, setIsCropping] = useState(false),
+    containerRef = useRef<HTMLDivElement>(null),
+    imageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -50,77 +49,73 @@ export function ImageCropperDialog({
   }, [open]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  },
-
-   handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) {
-      return;
-    }
-    setPosition({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
-  },
-
-   handleMouseUp = () => {
-    setIsDragging(false);
-  },
-
-   handleReset = () => {
-    setZoom(1);
-    setPosition({ x: 0, y: 0 });
-  },
-
-   confirmCrop = async () => {
-    if (!file || !objectUrl || !imageRef.current) {
-      return;
-    }
-
-    setIsCropping(true);
-    try {
-      const img = imageRef.current,
-       outputWidth = aspectRatio === 1 ? 800 : 1600,
-       outputHeight = Math.round(outputWidth / aspectRatio),
-
-       canvas = document.createElement("canvas");
-      canvas.width = outputWidth;
-      canvas.height = outputHeight;
-      const ctx = canvas.getContext("2d");
-
-      if (ctx) {
-        ctx.fillStyle = "#000000";
-        ctx.fillRect(0, 0, outputWidth, outputHeight);
-
-        const scale = zoom,
-         drawWidth = outputWidth * scale,
-         drawHeight =
-          (outputWidth / (img.naturalWidth / img.naturalHeight)) * scale,
-
-         offsetX = (outputWidth - drawWidth) / 2 + position.x * 2,
-         offsetY = (outputHeight - drawHeight) / 2 + position.y * 2;
-
-        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(resolve, file.type || "image/jpeg", 0.92)
-        );
-
-        if (blob) {
-          const croppedFile = new File([blob], file.name, { type: blob.type }),
-           previewUrl = URL.createObjectURL(croppedFile);
-          await onCropped(croppedFile, previewUrl);
-        }
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    },
+    handleMouseMove = (e: React.MouseEvent) => {
+      if (!isDragging) {
+        return;
       }
-    } catch (error) {
-      console.error("Cropping failed:", error);
-    } finally {
-      setIsCropping(false);
-      handleReset();
-    }
-  };
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    },
+    handleMouseUp = () => {
+      setIsDragging(false);
+    },
+    handleReset = () => {
+      setZoom(1);
+      setPosition({ x: 0, y: 0 });
+    },
+    confirmCrop = async () => {
+      if (!file || !objectUrl || !imageRef.current) {
+        return;
+      }
+
+      setIsCropping(true);
+      try {
+        const img = imageRef.current,
+          outputWidth = aspectRatio === 1 ? 800 : 1600,
+          outputHeight = Math.round(outputWidth / aspectRatio),
+          canvas = document.createElement("canvas");
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
+        const ctx = canvas.getContext("2d");
+
+        if (ctx) {
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, outputWidth, outputHeight);
+
+          const scale = zoom,
+            drawWidth = outputWidth * scale,
+            drawHeight =
+              (outputWidth / (img.naturalWidth / img.naturalHeight)) * scale,
+            offsetX = (outputWidth - drawWidth) / 2 + position.x * 2,
+            offsetY = (outputHeight - drawHeight) / 2 + position.y * 2;
+
+          ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+          const blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, file.type || "image/jpeg", 0.92)
+          );
+
+          if (blob) {
+            const croppedFile = new File([blob], file.name, {
+                type: blob.type,
+              }),
+              previewUrl = URL.createObjectURL(croppedFile);
+            await onCropped(croppedFile, previewUrl);
+          }
+        }
+      } catch (error) {
+        console.error("Cropping failed:", error);
+      } finally {
+        setIsCropping(false);
+        handleReset();
+      }
+    };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>

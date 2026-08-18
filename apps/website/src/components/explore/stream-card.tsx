@@ -1,110 +1,165 @@
 import { Link } from "@tanstack/react-router";
-import { Play, Users, Eye, Lock } from "lucide-react";
+import { CalendarClock, CheckCircle2 } from "lucide-react";
 
 import { AppImage } from "@/components/ui/app-image";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 
-interface StreamCardProps {
+export interface StreamCardProps {
+  category?: string;
+  creatorAvatar?: null | string;
+  creatorName?: null | string;
+  genre?: null | string;
   id: string;
-  title: string;
-  creatorName: string;
-  creatorAvatar: string;
-  thumbnailUrl: string;
-  viewerCount: number;
-  category: string;
   isLive?: boolean;
-  isPremiumUser?: boolean;
+  source?: string;
+  startsAt?: null | string;
+  status?: string;
+  tags?: string[];
+  thumbnailUrl?: null | string;
+  title: string;
+  viewerCount?: number;
+}
+
+function formatViewerCount(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (count >= 1000) {
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  }
+  return count.toLocaleString();
 }
 
 export function StreamCard({
-  id,
-  title,
-  creatorName,
-  creatorAvatar,
-  thumbnailUrl,
-  viewerCount,
   category,
-  isLive = true,
-  isPremiumUser = false,
+  creatorAvatar,
+  creatorName = "SoundKit Creator",
+  genre,
+  id,
+  isLive,
+  startsAt,
+  status,
+  tags,
+  thumbnailUrl,
+  title,
+  viewerCount = 0,
 }: StreamCardProps) {
+  const isCurrentlyLive = isLive ?? status === "live",
+    isScheduled =
+      !isCurrentlyLive && (status === "scheduled" || Boolean(startsAt)),
+    resolvedCategory = genre || category || "Music",
+    displayName = creatorName || "SoundKit Creator",
+    posterImage =
+      thumbnailUrl ||
+      (isCurrentlyLive
+        ? "/music-battle-video-thumbnail.jpg"
+        : "/night-music-album-cover.png"),
+    // Derive relevant tag pills (e.g. genre, language/style)
+    resolvedTags =
+      tags && tags.length > 0
+        ? tags
+        : [
+            resolvedCategory.toLowerCase(),
+            isCurrentlyLive ? "live" : "upcoming",
+          ].filter(Boolean);
+
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow group flex-shrink-0 w-[280px] md:w-[320px] bg-card border-border">
-      <CardContent className="p-0">
-        <Link
-          to={isPremiumUser ? "/live/streams/$id" : "/pricing"}
-          params={isPremiumUser ? { id } : undefined}
-        >
-          <div className="relative aspect-video overflow-hidden">
-            <AppImage
-              src={thumbnailUrl}
-              alt={title}
-              width={320}
-              height={180}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+    <Link
+      className="group block w-full text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
+      params={{ id }}
+      to="/live/streams/$id"
+    >
+      <div className="flex flex-col gap-2.5">
+        {/* 16:9 Thumbnail Poster with authentic Twitch overlays */}
+        <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted transition-transform duration-300 group-hover:scale-[1.02]">
+          <AppImage
+            alt={title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            height={720}
+            src={posterImage}
+            width={1280}
+          />
 
-            <div className="absolute top-2 left-2 flex gap-2">
-              {isLive && (
-                <Badge
-                  variant="destructive"
-                  className="bg-red-600 font-bold text-[10px] uppercase tracking-wider"
-                >
-                  Live
-                </Badge>
-              )}
-              <Badge
-                variant="secondary"
-                className="bg-black/60 backdrop-blur text-white text-[10px] border-none"
-              >
-                <Eye className="size-3 mr-1" />
-                {viewerCount.toLocaleString()}
-              </Badge>
-            </div>
-
-            <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur px-2 py-1 rounded text-xs font-semibold text-white">
-              {category}
-            </div>
-
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {isPremiumUser ? (
-                <div className="size-12 rounded-full bg-primary/90 flex items-center justify-center backdrop-blur shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all">
-                  <Play className="size-6 text-primary-foreground fill-primary-foreground ml-1" />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-2">
-                  <div className="size-12 rounded-full bg-background/90 flex items-center justify-center backdrop-blur shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-all">
-                    <Lock className="size-5 text-foreground" />
-                  </div>
-                  <Badge
-                    variant="secondary"
-                    className="bg-background/90 font-bold transform translate-y-4 group-hover:translate-y-0 transition-all delay-75"
-                  >
-                    Upgrade to Watch
-                  </Badge>
-                </div>
-              )}
-            </div>
+          {/* Top-Left Live / Scheduled Badge */}
+          <div className="absolute left-2 top-2">
+            {isCurrentlyLive ? (
+              <div className="rounded-[4px] bg-red-600 px-1.5 py-0.5 font-bold text-[11px] uppercase tracking-wider text-white shadow-sm">
+                LIVE
+              </div>
+            ) : (isScheduled ? (
+              <div className="flex items-center gap-1 rounded-[4px] bg-black/75 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                <CalendarClock className="size-3 text-primary" />
+                Scheduled
+              </div>
+            ) : (
+              <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur">
+                Ended
+              </div>
+            ))}
           </div>
-        </Link>
 
-        <div className="p-4 flex gap-3">
-          <Avatar className="size-10 border border-border shrink-0">
-            <AvatarImage src={creatorAvatar} alt={creatorName} />
-            <AvatarFallback>{creatorName.slice(0, 2)}</AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-sm leading-tight mb-1 truncate group-hover:text-primary transition-colors">
-              {title}
-            </h3>
-            <p className="text-xs text-muted-foreground truncate">
-              {creatorName}
-            </p>
+          {/* Bottom-Left Viewer Count / Scheduled Time */}
+          <div className="absolute bottom-2 left-2">
+            {isCurrentlyLive ? (
+              <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
+                {formatViewerCount(viewerCount)} viewers
+              </div>
+            ) : (startsAt ? (
+              <div className="flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                <CalendarClock className="size-3 text-primary" />
+                {new Date(startsAt).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </div>
+            ) : null)}
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Stream Details under thumbnail */}
+        <div className="flex items-start gap-2.5 px-0.5">
+          <Avatar className="size-9 shrink-0">
+            <AvatarImage
+              alt={displayName}
+              src={creatorAvatar ?? "/diverse-user-avatars.png"}
+            />
+            <AvatarFallback>
+              {displayName.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="min-w-0 flex-1 space-y-0.5">
+            {/* Title */}
+            <h3 className="line-clamp-1 font-bold text-sm leading-tight text-foreground transition-colors group-hover:text-primary">
+              {title}
+            </h3>
+
+            {/* Streamer Name */}
+            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+              <span>{displayName}</span>
+              <CheckCircle2 className="size-3 fill-primary/20 text-primary shrink-0" />
+            </p>
+
+            {/* Category / Genre */}
+            <p className="truncate text-xs text-muted-foreground">
+              {resolvedCategory}
+            </p>
+
+            {/* Tag Pills */}
+            <div className="flex flex-wrap items-center gap-1 pt-1">
+              {resolvedTags.map((tag) => (
+                <span
+                  className="rounded-full bg-secondary/80 px-2 py-0.5 text-[10px] font-medium text-secondary-foreground transition-colors hover:bg-secondary"
+                  key={tag}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }

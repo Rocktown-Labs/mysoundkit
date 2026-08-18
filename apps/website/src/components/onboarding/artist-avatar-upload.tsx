@@ -23,58 +23,55 @@ export function ArtistAvatarUpload({
   onUploaded: (avatar: UploadedAvatar) => void;
 }) {
   const inputId = useId(),
-   [localPreviewUrl, setLocalPreviewUrl] = useState(""),
-   [selectedFile, setSelectedFile] = useState<File | null>(null),
-   [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
-   [statusMessage, setStatusMessage] = useState(""),
+    [localPreviewUrl, setLocalPreviewUrl] = useState(""),
+    [selectedFile, setSelectedFile] = useState<File | null>(null),
+    [selectedObjectUrl, setSelectedObjectUrl] = useState(""),
+    [statusMessage, setStatusMessage] = useState(""),
+    { averageProgress, isPending, upload } = useUploadFiles({
+      api: PROFILE_MEDIA_UPLOAD_URL,
+      credentials: "include",
+      onError: (uploadError) => {
+        setStatusMessage(
+          `${uploadError.message} You can skip this and add one later.`
+        );
+      },
+      onUploadComplete: ({ files }) => {
+        const [file] = files;
 
-   { averageProgress, isPending, upload } = useUploadFiles({
-    api: PROFILE_MEDIA_UPLOAD_URL,
-    credentials: "include",
-    onError: (uploadError) => {
-      setStatusMessage(
-        `${uploadError.message} You can skip this and add one later.`
-      );
-    },
-    onUploadComplete: ({ files }) => {
-      const [file] = files;
+        if (!file) {
+          setStatusMessage(
+            "The upload did not return a profile picture. You can skip this and add one later."
+          );
+          return;
+        }
+
+        const objectKey = file.objectInfo.key,
+          url = `${MEDIA_BASE_URL}/${objectKey}`;
+
+        onUploaded({ objectKey, url });
+        setLocalPreviewUrl("");
+        setStatusMessage("Profile picture uploaded.");
+      },
+      route: "profile-media",
+    }),
+    handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
 
       if (!file) {
-        setStatusMessage(
-          "The upload did not return a profile picture. You can skip this and add one later."
-        );
         return;
       }
 
-      const objectKey = file.objectInfo.key,
-       url = `${MEDIA_BASE_URL}/${objectKey}`;
-
-      onUploaded({ objectKey, url });
-      setLocalPreviewUrl("");
-      setStatusMessage("Profile picture uploaded.");
+      setSelectedFile(file);
+      setSelectedObjectUrl(URL.createObjectURL(file));
     },
-    route: "profile-media",
-  }),
-
-   handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    setSelectedFile(file);
-    setSelectedObjectUrl(URL.createObjectURL(file));
-  },
-
-   uploadCroppedFile = async (file: File, previewUrl: string) => {
-    setLocalPreviewUrl(previewUrl);
-    setSelectedFile(null);
-    setSelectedObjectUrl("");
-    setStatusMessage("Uploading your profile picture...");
-    await upload([file]);
-  };
+    uploadCroppedFile = async (file: File, previewUrl: string) => {
+      setLocalPreviewUrl(previewUrl);
+      setSelectedFile(null);
+      setSelectedObjectUrl("");
+      setStatusMessage("Uploading your profile picture...");
+      await upload([file]);
+    };
 
   return (
     <div className="space-y-4">

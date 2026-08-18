@@ -16,45 +16,43 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 const discoverLinks = [
-  { href: "/", icon: MapPin, label: "Home" },
-  { href: "/tracks", icon: Music, label: "Songs" },
-  { href: "/projects", icon: Disc, label: "Projects" },
-  { href: "/videos", icon: Video, label: "Videos" },
-  { href: "/artist", icon: Users, label: "Artists" },
-  { href: "/shop", icon: ShoppingBag, label: "Shop" },
-  { href: "/live", icon: Trophy, label: "Live" },
-],
-
- libraryLinks = [
-  { href: "/library/recent", icon: Clock, label: "Recently Played" },
-  { href: "/library/playlists", icon: Music, label: "Playlists" },
-  { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
-  { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
-  { href: "/library/settings", icon: Settings, label: "Account" },
-],
-
- genres = [
-  { id: "hip-hop", name: "Hip-Hop" },
-  { id: "rb-soul", name: "R&B/Soul" },
-  { id: "electronic", name: "Electronic" },
-  { id: "pop", name: "Pop" },
-  { id: "rock", name: "Rock" },
-  { id: "jazz", name: "Jazz" },
-  { id: "afrobeats", name: "Afrobeats" },
-  { id: "latin", name: "Latin" },
-  { id: "country", name: "Country" },
-  { id: "reggae", name: "Reggae" },
-  { id: "indie", name: "Indie" },
-  { id: "metal", name: "Metal" },
-  { id: "spoken-word", name: "Spoken Word" },
-];
+    { href: "/", icon: MapPin, label: "Home" },
+    { href: "/tracks", icon: Music, label: "Songs" },
+    { href: "/projects", icon: Disc, label: "Projects" },
+    { href: "/videos", icon: Video, label: "Videos" },
+    { href: "/artist", icon: Users, label: "Artists" },
+    { href: "/shop", icon: ShoppingBag, label: "Shop" },
+    { href: "/live", icon: Trophy, label: "Live" },
+  ],
+  libraryLinks = [
+    { href: "/library/recent", icon: Clock, label: "Recently Played" },
+    { href: "/library/playlists", icon: Music, label: "Playlists" },
+    { href: "/library/saved", icon: Heart, label: "Saved Tracks" },
+    { href: "/library/purchased", icon: ShoppingBag, label: "Purchased" },
+    { href: "/library/settings", icon: Settings, label: "Account" },
+  ],
+  genres = [
+    { id: "hip-hop", name: "Hip-Hop" },
+    { id: "rb-soul", name: "R&B/Soul" },
+    { id: "electronic", name: "Electronic" },
+    { id: "pop", name: "Pop" },
+    { id: "rock", name: "Rock" },
+    { id: "jazz", name: "Jazz" },
+    { id: "afrobeats", name: "Afrobeats" },
+    { id: "latin", name: "Latin" },
+    { id: "country", name: "Country" },
+    { id: "reggae", name: "Reggae" },
+    { id: "indie", name: "Indie" },
+    { id: "metal", name: "Metal" },
+    { id: "spoken-word", name: "Spoken Word" },
+  ];
 
 export function ExploreSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname }),
-   isRouteActive = (href: string) =>
-    href === "/"
-      ? pathname === "/"
-      : pathname === href || pathname.startsWith(`${href}/`);
+    isRouteActive = (href: string) =>
+      href === "/"
+        ? pathname === "/"
+        : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <aside className="hidden lg:flex w-64 border-r bg-muted/10 min-h-screen flex-col gap-4 p-6 sticky top-14 lg:top-16 h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-4rem)] overflow-y-auto">
@@ -65,7 +63,7 @@ export function ExploreSidebar() {
         <nav className="space-y-1">
           {discoverLinks.map((link) => {
             const Icon = link.icon,
-             isActive = isRouteActive(link.href);
+              isActive = isRouteActive(link.href);
 
             return (
               <Link key={link.href} to={link.href}>
@@ -91,7 +89,7 @@ export function ExploreSidebar() {
         <nav className="space-y-1">
           {libraryLinks.map((link) => {
             const Icon = link.icon,
-             isActive = isRouteActive(link.href);
+              isActive = isRouteActive(link.href);
 
             return (
               <Link key={link.href} to={link.href}>

@@ -20,40 +20,38 @@ export const Route = createFileRoute("/_explore/library/saved/")({
 
 function SavedTracksPage() {
   const { data = [], isLoading } = useLibrarySavedQuery(),
-   { toast } = useToast(),
-   removeSavedTrackMutation = useRemoveSavedTrackMutation(),
-   [removingTrackId, setRemovingTrackId] = useState<string>(),
-
-   handleRemoveTrack = useCallback(
-    async (track: SavedTrack) => {
-      setRemovingTrackId(track.id);
-      try {
-        await removeSavedTrackMutation.mutateAsync(track.id);
-        toast({
-          description: `Removed "${track.title}" from your Saved Tracks.`,
-          title: "Track removed",
-        });
-      } catch {
-        toast({
-          description: "Could not remove this track. Please try again.",
-          title: "Remove failed",
-          variant: "destructive",
-        });
-      } finally {
-        setRemovingTrackId(undefined);
-      }
-    },
-    [removeSavedTrackMutation, toast]
-  ),
-
-   columns = useMemo(
-    () =>
-      createSavedTrackColumns({
-        onRemove: handleRemoveTrack,
-        removingTrackId,
-      }),
-    [handleRemoveTrack, removingTrackId]
-  );
+    { toast } = useToast(),
+    removeSavedTrackMutation = useRemoveSavedTrackMutation(),
+    [removingTrackId, setRemovingTrackId] = useState<string>(),
+    handleRemoveTrack = useCallback(
+      async (track: SavedTrack) => {
+        setRemovingTrackId(track.id);
+        try {
+          await removeSavedTrackMutation.mutateAsync(track.id);
+          toast({
+            description: `Removed "${track.title}" from your Saved Tracks.`,
+            title: "Track removed",
+          });
+        } catch {
+          toast({
+            description: "Could not remove this track. Please try again.",
+            title: "Remove failed",
+            variant: "destructive",
+          });
+        } finally {
+          setRemovingTrackId(undefined);
+        }
+      },
+      [removeSavedTrackMutation, toast]
+    ),
+    columns = useMemo(
+      () =>
+        createSavedTrackColumns({
+          onRemove: handleRemoveTrack,
+          removingTrackId,
+        }),
+      [handleRemoveTrack, removingTrackId]
+    );
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
