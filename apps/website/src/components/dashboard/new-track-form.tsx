@@ -30,7 +30,6 @@ import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
-import { VisualWaveformSlotTrimmer } from "@/components/studio/visual-waveform-slot-trimmer";
 import {
   Accordion,
   AccordionContent,
@@ -81,11 +80,9 @@ import {
 import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { authClient } from "@/lib/auth-client";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
-import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
-  useCreateOpenVerseMutation,
   useCreateTrackMutation,
   useGenresQuery,
   usePeopleSearchQuery,
@@ -95,7 +92,46 @@ import {
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@/lib/zod-resolver";
 
-const SUPPORTED_GENRES = [
+const OPTIONAL_COMPONENTS = [
+    {
+      description: "Clean vocal tracks",
+      kind: "vocal_stem",
+      label: "Lead Vocals",
+    },
+    {
+      description: "Background components",
+      kind: "adlib",
+      label: "Adlibs / FX",
+    },
+    { description: "Grouped production stems", kind: "stems", label: "Stems" },
+    {
+      description: "Alternate finished mix",
+      kind: "alternate_mix",
+      label: "Alternate Mix",
+    },
+    {
+      description: "Clean/radio version",
+      kind: "clean",
+      label: "Clean Version",
+    },
+    {
+      description: "Vocal-only export",
+      kind: "verse_vocal",
+      label: "Acapella",
+    },
+    {
+      description: "DAW session archive",
+      kind: "session_file",
+      label: "Session File",
+    },
+    { description: "MIDI performance", kind: "midi", label: "MIDI" },
+    {
+      description: "Reference or demo audio",
+      kind: "reference_audio",
+      label: "Reference Audio",
+    },
+  ] as const,
+  SUPPORTED_GENRES = [
     "Afrobeats",
     "Electronic",
     "Hip-Hop/Rap",
@@ -107,8 +143,14 @@ const SUPPORTED_GENRES = [
     "Spoken Word",
   ] as const,
   trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
-  SINGLE_PRICE_USD = 1.29,
-  exclusiveUntilForApi = (value: string | undefined, preserveEmpty = false) => {
+  SINGLE_PRICE_USD = 1.29;
+
+type OptionalComponentKind = (typeof OPTIONAL_COMPONENTS)[number]["kind"];
+
+const exclusiveUntilForApi = (
+    value: string | undefined,
+    preserveEmpty = false
+  ) => {
     if (!value) {
       return preserveEmpty ? "" : undefined;
     }
@@ -135,55 +177,35 @@ const SUPPORTED_GENRES = [
     role: creditRoleSchema,
     userId: z.string().optional(),
   }),
-  trackFormSchema = z
-    .object({
-      coverObjectKey: z.string().optional(),
-      credits: z.array(creditEntrySchema).default([]),
-      description: z.string().optional(),
-      downloadsAllowed: z.boolean().default(true),
-      downloadsRequireFirstPlay: z.boolean().default(false),
-      downloadsRequirePurchase: z.boolean().default(true),
-      exclusiveUntil: z.string().optional(),
-      genre: z.string().min(1, "Genre is required"),
-      isForSale: z.boolean().default(false),
-      isrc: z.string().optional(),
-      key: z.string().optional(),
-      listeningAccess: z
-        .enum(["public", "premium_or_purchased"])
-        .default("public"),
-      name: z.string().min(2, "Track name is required"),
-      openVerseDescription: z.string().optional(),
-      openVerseSlotEndsAt: z.string().optional(),
-      openVerseSlotStartsAt: z.string().optional(),
-      openVerseTitle: z.string().optional(),
-      releaseAt: z.string().optional(),
-      rightsAccepted: z
-        .boolean()
-        .refine(
-          (value) => value,
-          "Confirm you have the rights to upload this track"
-        ),
-      /** draft = private, open_verse = incomplete open slot, ready = live */
-      status: z.enum(["draft", "open_verse", "ready"]).default("draft"),
-      streamingAppleMusic: z.string().optional(),
-      streamingSpotify: z.string().optional(),
-      streamingYoutube: z.string().optional(),
-    })
-    .refine(
-      (data) => {
-        if (
-          data.status === "open_verse" &&
-          (!data.openVerseTitle || data.openVerseTitle.trim().length === 0)
-        ) {
-          return false;
-        }
-        return true;
-      },
-      {
-        message: "Listing title is required when status is Open Verse",
-        path: ["openVerseTitle"],
-      }
-    );
+  trackFormSchema = z.object({
+    coverObjectKey: z.string().optional(),
+    credits: z.array(creditEntrySchema).default([]),
+    description: z.string().optional(),
+    downloadsAllowed: z.boolean().default(true),
+    downloadsRequireFirstPlay: z.boolean().default(false),
+    downloadsRequirePurchase: z.boolean().default(true),
+    exclusiveUntil: z.string().optional(),
+    genre: z.string().min(1, "Genre is required"),
+    isForSale: z.boolean().default(false),
+    isrc: z.string().optional(),
+    key: z.string().optional(),
+    listeningAccess: z
+      .enum(["public", "premium_or_purchased"])
+      .default("public"),
+    name: z.string().min(2, "Track name is required"),
+    releaseAt: z.string().optional(),
+    rightsAccepted: z
+      .boolean()
+      .refine(
+        (value) => value,
+        "Confirm you have the rights to upload this track"
+      ),
+    /** draft = private, ready = live */
+    status: z.enum(["draft", "ready"]).default("draft"),
+    streamingAppleMusic: z.string().optional(),
+    streamingSpotify: z.string().optional(),
+    streamingYoutube: z.string().optional(),
+  });
 
 type TrackFormValues = z.infer<typeof trackFormSchema>;
 interface GenreOption {
@@ -214,14 +236,6 @@ const isGenreOption = (value: unknown): value is GenreOption =>
         releaseStrategy,
       };
     }
-    if (status === "open_verse") {
-      return {
-        isOpenVerse: true,
-        isPublic: true,
-        productionStatus: "demo" as const,
-        releaseStrategy,
-      };
-    }
     return {
       isOpenVerse: false,
       isPublic: false,
@@ -243,10 +257,6 @@ const isGenreOption = (value: unknown): value is GenreOption =>
     key: "",
     listeningAccess: "public",
     name: "",
-    openVerseDescription: "",
-    openVerseSlotEndsAt: "",
-    openVerseSlotStartsAt: "",
-    openVerseTitle: "",
     releaseAt: "",
     rightsAccepted: false,
     status: "draft",
@@ -329,9 +339,16 @@ export function NewTrackForm({
     [selectedMasterDurationMs, setSelectedMasterDurationMs] = useState<
       number | null
     >(null),
-    [leadVocalsFile, setLeadVocalsFile] = useState<File | null>(null),
-    [adlibsFile, setAdlibsFile] = useState<File | null>(null),
     [instrumentalFile, setInstrumentalFile] = useState<File | null>(null),
+    [enabledComponents, setEnabledComponents] = useState<
+      OptionalComponentKind[]
+    >([]),
+    [componentFiles, setComponentFiles] = useState<
+      Partial<Record<OptionalComponentKind, File>>
+    >({}),
+    [restoredComponents, setRestoredComponents] = useState<
+      Partial<Record<OptionalComponentKind, { name: string }>>
+    >({}),
     coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
     masterUploadResolverRef = useRef<
       ((preview: UploadedTrackPreview | null) => void) | null
@@ -340,7 +357,6 @@ export function NewTrackForm({
       id: string;
       title: string;
     } | null>(null),
-    createOpenVerseMutation = useCreateOpenVerseMutation(),
     createTrackMutation = useCreateTrackMutation(),
     settleTrackMutation = useSettleTrackMutation(),
     updateTrackMutation = useUpdateTrackMutation(trackId ?? ""),
@@ -394,10 +410,6 @@ export function NewTrackForm({
           ? "premium_or_purchased"
           : "public",
       name: (initialTrack.title as string) ?? "",
-      openVerseDescription: "",
-      openVerseSlotEndsAt: "",
-      openVerseSlotStartsAt: "",
-      openVerseTitle: "",
       releaseAt: (initialTrack.releaseAt as string) ?? "",
       rightsAccepted: true,
       status: isPublic ? "ready" : "draft",
@@ -421,6 +433,29 @@ export function NewTrackForm({
       coverUploadRef.current = restoredCover;
       setCoverUpload(restoredCover);
     }
+
+    const restoredAssetRows = assets.filter((asset) =>
+      OPTIONAL_COMPONENTS.some(
+        (component) => component.kind === asset.assetKind
+      )
+    );
+    setEnabledComponents(
+      restoredAssetRows.map((asset) => asset.assetKind as OptionalComponentKind)
+    );
+    setRestoredComponents(
+      Object.fromEntries(
+        restoredAssetRows.map((asset) => [
+          asset.assetKind,
+          {
+            name:
+              ((asset.metadata as Record<string, unknown> | null)
+                ?.originalFileName as string) ||
+              (asset.objectKey as string) ||
+              asset.assetKind,
+          },
+        ])
+      ) as Partial<Record<OptionalComponentKind, { name: string }>>
+    );
 
     if (initialTrack.playbackUrl) {
       setUploadedTrack({
@@ -492,9 +527,8 @@ export function NewTrackForm({
         additionalDirtyState: Boolean(
           selectedCoverFile ||
           selectedMasterFile ||
-          leadVocalsFile ||
-          adlibsFile ||
           instrumentalFile ||
+          Object.keys(componentFiles).length > 0 ||
           uploadedTrack
         ),
         defaultValues: defaultTrackFormValues,
@@ -516,9 +550,10 @@ export function NewTrackForm({
       setSelectedCoverFile(null);
       setSelectedMasterFile(null);
       setSelectedMasterDurationMs(null);
-      setLeadVocalsFile(null);
-      setAdlibsFile(null);
       setInstrumentalFile(null);
+      setEnabledComponents([]);
+      setComponentFiles({});
+      setRestoredComponents({});
       setCoverUpload(null);
       coverUploadRef.current = null;
       pendingMasterTrackRef.current = null;
@@ -765,6 +800,11 @@ export function NewTrackForm({
           masterUploadResolverRef.current = null;
         }
       },
+      route: "track-source",
+    }),
+    { upload: uploadComponents } = useUploadFiles({
+      api: TRACK_SOURCE_UPLOAD_URL,
+      credentials: "include",
       route: "track-source",
     }),
     {
@@ -1218,6 +1258,55 @@ export function NewTrackForm({
           return;
         }
 
+        const optionalFiles = [
+          instrumentalFile
+            ? { file: instrumentalFile, kind: "instrumental" as const }
+            : null,
+          ...enabledComponents.flatMap((kind) => {
+            const file = componentFiles[kind];
+            return file ? [{ file, kind }] : [];
+          }),
+        ].filter(
+          (
+            entry
+          ): entry is {
+            file: File;
+            kind: OptionalComponentKind | "instrumental";
+          } => entry !== null
+        );
+        if (optionalFiles.length > 0) {
+          setSubmitStage("uploading");
+          const componentResult = await uploadComponents(
+            optionalFiles.map((entry) => entry.file)
+          );
+          for (const uploadedComponent of componentResult.files) {
+            const component = optionalFiles.find(
+              (entry) => entry.file === uploadedComponent.raw
+            );
+            if (!component) {
+              continue;
+            }
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: component.kind,
+                  metadata: {
+                    originalFileName: uploadedComponent.raw.name,
+                    url: `${MEDIA_BASE_URL}/${uploadedComponent.objectInfo.key}`,
+                  },
+                  mimeType:
+                    uploadedComponent.raw.type || "application/octet-stream",
+                  objectKey: uploadedComponent.objectInfo.key,
+                  sizeBytes: uploadedComponent.raw.size,
+                  status: "ready",
+                  storageProvider: "r2",
+                },
+                param: { trackId: trackPreview.trackId },
+              })
+            );
+          }
+        }
+
         setSubmitStage("processing");
         setSubmitProgress(80);
         const release = mapStatusToRelease(values.status, values.releaseAt),
@@ -1246,62 +1335,6 @@ export function NewTrackForm({
           trackId: trackPreview.trackId,
         });
 
-        if (values.status === "open_verse") {
-          const startSec = Number(values.openVerseSlotStartsAt) || 30,
-            endSec = Number(values.openVerseSlotEndsAt) || 75;
-
-          if (selectedMasterFile) {
-            try {
-              const snippetFile = await sliceAudioFileToSnippet(
-                selectedMasterFile,
-                startSec,
-                endSec,
-                `open-verse-stub-${values.name.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-")}.wav`
-              );
-              const snippetUploadRes = await upload([snippetFile]);
-              const snippetUploaded = snippetUploadRes?.find(
-                (uploadItem) => uploadItem.name === snippetFile.name
-              );
-              if (snippetUploaded?.objectInfo.key) {
-                await rpcJson(
-                  await trackAssetPost({
-                    json: {
-                      assetKind:
-                        "open_verse_clip" as unknown as "alternate_mix",
-                      metadata: {
-                        durationMs: (endSec - startSec) * 1000,
-                        originalFileName: snippetFile.name,
-                        url: `${MEDIA_BASE_URL}/${snippetUploaded.objectInfo.key}`,
-                      },
-                      mimeType: "audio/wav",
-                      objectKey: snippetUploaded.objectInfo.key,
-                      status: "ready",
-                      storageProvider: "r2",
-                    },
-                    param: { trackId: trackPreview.trackId },
-                  })
-                );
-              }
-            } catch (error) {
-              posthog.captureException(error);
-            }
-          }
-
-          await createOpenVerseMutation.mutateAsync({
-            description: values.openVerseDescription?.trim() || undefined,
-            maxSubmissions: 50,
-            slotEndsAtMs: values.openVerseSlotEndsAt
-              ? Number(values.openVerseSlotEndsAt) * 1000
-              : undefined,
-            slotStartsAtMs: values.openVerseSlotStartsAt
-              ? Number(values.openVerseSlotStartsAt) * 1000
-              : undefined,
-            title:
-              values.openVerseTitle?.trim() || `Open Verse: ${values.name}`,
-            trackId: trackPreview.trackId,
-          });
-        }
-
         setSubmitStage("settled");
         setSubmitProgress(100);
         setCreatedTrackInfo({
@@ -1322,9 +1355,7 @@ export function NewTrackForm({
           description:
             values.status === "ready"
               ? `${values.name} is ready and live.`
-              : values.status === "open_verse"
-                ? `${values.name} is published to Open Verses.`
-                : `${values.name} is saved as a private draft.`,
+              : `${values.name} is saved as a private draft.`,
           title:
             values.status === "ready"
               ? "Track is live"
@@ -1337,7 +1368,7 @@ export function NewTrackForm({
         pendingMasterTrackRef.current = null;
         posthog.capture("track_upload_settled", {
           genre: values.genre,
-          isPublic: values.status === "ready" || values.status === "open_verse",
+          isPublic: values.status === "ready",
           status: values.status,
           trackId: trackPreview.trackId,
         });
@@ -1760,9 +1791,6 @@ export function NewTrackForm({
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="draft">Draft</SelectItem>
-                            <SelectItem value="open_verse">
-                              Open Verse (incomplete)
-                            </SelectItem>
                             <SelectItem value="ready">
                               Ready (go live)
                             </SelectItem>
@@ -2044,50 +2072,111 @@ export function NewTrackForm({
                 )}
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      Vocal Components
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-[10px] uppercase font-bold"
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Optional Components
+                      </Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Add only the production files this release needs.
+                      </p>
+                    </div>
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (
+                          enabledComponents.includes(
+                            value as OptionalComponentKind
+                          )
+                        ) {
+                          return;
+                        }
+                        setEnabledComponents((current) => [
+                          ...current,
+                          value as OptionalComponentKind,
+                        ]);
+                      }}
                     >
-                      <Plus className="mr-1 size-3" />
-                      Add Component
-                    </Button>
+                      <SelectTrigger className="h-8 w-[190px] text-xs">
+                        <Plus className="mr-1 size-3" />
+                        <SelectValue placeholder="Add Component" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPTIONAL_COMPONENTS.filter(
+                          (component) =>
+                            !enabledComponents.includes(component.kind)
+                        ).map((component) => (
+                          <SelectItem
+                            key={component.kind}
+                            value={component.kind}
+                          >
+                            {component.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FileUploadZone
-                      title="Lead Vocals"
-                      description="Clean vocal tracks"
-                      acceptedTypes=".wav,.mp3,.aiff"
-                      onFileUpload={(files) => setLeadVocalsFile(files[0])}
-                      onRemove={() => setLeadVocalsFile(null)}
-                      files={
-                        leadVocalsFile
-                          ? [{ name: leadVocalsFile.name, status: "Selected" }]
-                          : []
-                      }
-                      optional
-                      variant="compact"
-                    />
-                    <FileUploadZone
-                      title="Adlibs / FX"
-                      description="Background components"
-                      acceptedTypes=".wav,.mp3,.aiff"
-                      onFileUpload={(files) => setAdlibsFile(files[0])}
-                      onRemove={() => setAdlibsFile(null)}
-                      files={
-                        adlibsFile
-                          ? [{ name: adlibsFile.name, status: "Selected" }]
-                          : []
-                      }
-                      optional
-                      variant="compact"
-                    />
-                  </div>
+                  {enabledComponents.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {enabledComponents.map((kind) => {
+                        const component = OPTIONAL_COMPONENTS.find(
+                          (item) => item.kind === kind
+                        );
+                        if (!component) {
+                          return null;
+                        }
+                        const file = componentFiles[kind];
+                        const restored = restoredComponents[kind];
+                        return (
+                          <FileUploadZone
+                            acceptedTypes={
+                              kind === "session_file" || kind === "stems"
+                                ? ".zip,.rar,.tar,.wav"
+                                : ".wav,.mp3,.aiff,.flac,.m4a,.mid,.midi"
+                            }
+                            description={component.description}
+                            files={
+                              file
+                                ? [{ name: file.name, status: "Selected" }]
+                                : restored
+                                  ? [
+                                      {
+                                        name: restored.name,
+                                        status: "Uploaded",
+                                      },
+                                    ]
+                                  : []
+                            }
+                            key={kind}
+                            onFileUpload={(files) => {
+                              const nextFile = files[0];
+                              if (nextFile) {
+                                setComponentFiles((current) => ({
+                                  ...current,
+                                  [kind]: nextFile,
+                                }));
+                              }
+                            }}
+                            onRemove={() => {
+                              setEnabledComponents((current) =>
+                                current.filter((value) => value !== kind)
+                              );
+                              setComponentFiles((current) =>
+                                Object.fromEntries(
+                                  Object.entries(current).filter(
+                                    ([key]) => key !== kind
+                                  )
+                                )
+                              );
+                            }}
+                            optional
+                            title={component.label}
+                            variant="compact"
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between pt-4">
@@ -2143,8 +2232,7 @@ export function NewTrackForm({
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Change status in Track Details. Ready makes the single live
-                    for Premium streaming; draft stays private; open verse
-                    invites submissions.
+                    for Premium streaming; draft stays private.
                   </p>
                 </div>
 
@@ -2501,137 +2589,6 @@ export function NewTrackForm({
                       )}
                     />
                   </div>
-                </div>
-
-                <div className="border-t border-border/40 pt-6 mt-6 space-y-6">
-                  {form.watch("status") === "open_verse" && (
-                    <Card className="border-primary/20 bg-primary/5">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-bold">
-                          Open Verse Listing Details
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                          Configure the open slot parameters for artists
-                          submitting verses.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="openVerseTitle"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>
-                                Open Verse Listing Title{" "}
-                                <span className="text-destructive">*</span>
-                              </FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="e.g. Midnight Vibes (Open Verse Challenge)"
-                                  className="bg-background/50 h-9 text-sm"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="openVerseDescription"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Direction / Instructions</FormLabel>
-                              <FormControl>
-                                <Textarea
-                                  placeholder="e.g. Leave a 16 bar verse after the first chorus. Keep it clean!"
-                                  className="bg-background/50 min-h-[80px] resize-none text-sm"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <div className="space-y-2 pt-2">
-                          <Label className="text-xs font-semibold text-zinc-300">
-                            Visual Waveform & Open Verse Slot Trimmer
-                          </Label>
-                          <VisualWaveformSlotTrimmer
-                            audioFile={selectedMasterFile}
-                            audioUrl={
-                              uploadedTrack
-                                ? `${MEDIA_BASE_URL}/${uploadedTrack.audioObjectKey}`
-                                : undefined
-                            }
-                            durationSeconds={
-                              selectedMasterDurationMs
-                                ? Math.round(selectedMasterDurationMs / 1000)
-                                : 214
-                            }
-                            slotStartsAt={
-                              Number(form.watch("openVerseSlotStartsAt")) || 30
-                            }
-                            slotEndsAt={
-                              Number(form.watch("openVerseSlotEndsAt")) || 75
-                            }
-                            trackTitle={
-                              form.watch("name") || "Open Verse Preview"
-                            }
-                            onChangeSlot={(start, end) => {
-                              form.setValue(
-                                "openVerseSlotStartsAt",
-                                String(start)
-                              );
-                              form.setValue("openVerseSlotEndsAt", String(end));
-                            }}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="openVerseSlotStartsAt"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Slot Starts At (seconds)</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    placeholder="e.g. 30"
-                                    className="bg-background/50 h-9 text-sm font-mono"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={form.control}
-                            name="openVerseSlotEndsAt"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Slot Ends At (seconds)</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    placeholder="e.g. 75"
-                                    className="bg-background/50 h-9 text-sm font-mono"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
                 </div>
 
                 <div className="flex justify-between pt-4">

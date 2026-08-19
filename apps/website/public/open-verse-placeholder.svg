@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">SoundKit Open Verse</title>
+  <desc id="desc">A SoundKit microphone and waveform collaboration placeholder.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#171229"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" x2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#f0abfc"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" rx="48" fill="url(#bg)"/>
+  <circle cx="400" cy="350" r="205" fill="#31235b" opacity=".72"/>
+  <path d="M330 265a70 70 0 0 1 140 0v72a70 70 0 0 1-140 0z" fill="none" stroke="#f5f3ff" stroke-width="26"/>
+  <path d="M290 325v18a110 110 0 0 0 220 0v-18M400 453v77M342 530h116" fill="none" stroke="#f5f3ff" stroke-linecap="round" stroke-width="26"/>
+  <g fill="url(#wave)" opacity=".9">
+    <rect x="105" y="610" width="18" height="42" rx="9"/><rect x="145" y="590" width="18" height="82" rx="9"/><rect x="185" y="570" width="18" height="122" rx="9"/><rect x="225" y="600" width="18" height="62" rx="9"/><rect x="265" y="550" width="18" height="162" rx="9"/><rect x="305" y="580" width="18" height="102" rx="9"/><rect x="345" y="565" width="18" height="132" rx="9"/><rect x="385" y="535" width="18" height="192" rx="9"/><rect x="425" y="565" width="18" height="132" rx="9"/><rect x="465" y="580" width="18" height="102" rx="9"/><rect x="505" y="550" width="18" height="162" rx="9"/><rect x="545" y="600" width="18" height="62" rx="9"/><rect x="585" y="570" width="18" height="122" rx="9"/><rect x="625" y="590" width="18" height="82" rx="9"/><rect x="665" y="610" width="18" height="42" rx="9"/>
+  </g>
+  <text x="400" y="115" fill="#f5f3ff" font-family="Arial, sans-serif" font-size="42" font-weight="700" letter-spacing="8" text-anchor="middle">SOUNDKIT</text>
+  <text x="400" y="755" fill="#c4b5fd" font-family="Arial, sans-serif" font-size="26" font-weight="600" letter-spacing="5" text-anchor="middle">OPEN VERSE</text>
+</svg>

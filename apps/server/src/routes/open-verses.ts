@@ -1,9 +1,13 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  artistFollows,
   genres,
+  openVerseAccessRequests,
   openVerseListings,
   openVerseSubmissions,
+  projects,
+  trackAssets,
   trackCollaborators,
   tracks,
   userNotifications,
@@ -14,6 +18,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { publicAssetUrl } from "@/lib/asset-urls";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
 import {
   getDisplayNameForUser,
@@ -27,13 +32,16 @@ import {
 } from "@/lib/entitlements";
 import { sampleTracks } from "@/lib/sample-data";
 import {
+  createOpenVerseAccessRequestBodySchema,
   createOpenVerseBodySchema,
   createOpenVerseSubmissionBodySchema,
   messageResponseSchema,
+  openVerseAccessRequestSchema,
   openVerseListingSchema,
   openVersePageSchema,
   openVerseQuerySchema,
   openVerseSubmissionSchema,
+  respondOpenVerseAccessRequestBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
@@ -67,11 +75,12 @@ const app = new OpenAPIHono<AppEnv>(),
         })
         .slice(0, cursor ? 0 : limit)
         .map((track) => ({
+          accessMode: "open" as const,
           artistName: track.artistName,
           artistUsername: null,
           bpm: track.bpm ?? null,
           closesAt: null,
-          coverArtUrl: track.coverArtUrl ?? null,
+          coverArtUrl: track.coverArtUrl ?? "/open-verse-placeholder.svg",
           createdAt: track.updatedAt ?? new Date().toISOString(),
           description:
             "Open verse slot available for artists looking to collab.",
@@ -80,12 +89,13 @@ const app = new OpenAPIHono<AppEnv>(),
           id: `open_${track.id}`,
           maxSubmissions: 50,
           musicalKey: track.musicalKey ?? null,
-          playbackUrl: track.playbackUrl ?? null,
+          playbackUrl: track.playbackUrl ?? "/open-verse-placeholder.svg",
+          previewAssetId: null,
           slotEndsAtMs: null,
           slotStartsAtMs: null,
           status: "open" as const,
           submissionCount: 0,
-          title: `${track.title} - open verse`,
+          title: `${track.title} - Open Verse`,
           trackId: track.id,
           trackTitle: track.title,
         }));
@@ -95,7 +105,10 @@ const app = new OpenAPIHono<AppEnv>(),
       nextCursor: null,
     };
   },
-  listOpenVerses = async (query: z.infer<typeof openVerseQuerySchema>) => {
+  listOpenVerses = async (
+    query: z.infer<typeof openVerseQuerySchema>,
+    listingId?: string
+  ) => {
     if (!isDatabaseConfigured()) {
       return sampleOpenVersePage(query);
     }
@@ -106,6 +119,7 @@ const app = new OpenAPIHono<AppEnv>(),
       cursorDate = query.cursor ? new Date(query.cursor) : null,
       rows = await db
         .select({
+          accessMode: openVerseListings.accessMode,
           artistName: userProfiles.displayName,
           artistUsername: userProfiles.username,
           bpm: openVerseListings.bpm,
@@ -118,6 +132,7 @@ const app = new OpenAPIHono<AppEnv>(),
           maxSubmissions: openVerseListings.maxSubmissions,
           musicalKey: openVerseListings.musicalKey,
           ownerUserId: openVerseListings.ownerUserId,
+          previewAssetId: openVerseListings.previewAssetId,
           slotEndsAtMs: openVerseListings.slotEndsAtMs,
           slotStartsAtMs: openVerseListings.slotStartsAtMs,
           status: openVerseListings.status,
@@ -140,8 +155,10 @@ const app = new OpenAPIHono<AppEnv>(),
         )
         .where(
           and(
-            eq(openVerseListings.status, "open"),
-            eq(tracks.isPublic, true),
+            listingId
+              ? eq(openVerseListings.id, listingId)
+              : eq(openVerseListings.status, "open"),
+            listingId ? undefined : eq(tracks.isPublic, true),
             cursorDate
               ? lt(openVerseListings.createdAt, cursorDate)
               : undefined,
@@ -158,6 +175,8 @@ const app = new OpenAPIHono<AppEnv>(),
         )
         .groupBy(
           openVerseListings.id,
+          openVerseListings.accessMode,
+          openVerseListings.previewAssetId,
           tracks.id,
           userProfiles.displayName,
           userProfiles.username,
@@ -170,13 +189,21 @@ const app = new OpenAPIHono<AppEnv>(),
       items = [];
 
     for (const row of pageRows) {
-      const trackSummary = await buildTrackSummary(row.track);
+      const trackSummary = await buildTrackSummary(row.track),
+        [clipAsset] = row.previewAssetId
+          ? await db
+              .select()
+              .from(trackAssets)
+              .where(eq(trackAssets.id, row.previewAssetId))
+              .limit(1)
+          : [];
       items.push({
+        accessMode: row.accessMode,
         artistName: row.artistName ?? "SoundKit Artist",
         artistUsername: row.artistUsername,
         bpm: row.bpm ?? trackSummary.bpm ?? null,
         closesAt: row.closesAt?.toISOString() ?? null,
-        coverArtUrl: trackSummary.coverArtUrl ?? null,
+        coverArtUrl: trackSummary.coverArtUrl ?? "/open-verse-placeholder.svg",
         createdAt: row.createdAt.toISOString(),
         description: row.description,
         genre: row.genre ?? trackSummary.genre,
@@ -184,7 +211,11 @@ const app = new OpenAPIHono<AppEnv>(),
         id: row.id,
         maxSubmissions: row.maxSubmissions,
         musicalKey: row.musicalKey ?? trackSummary.musicalKey ?? null,
-        playbackUrl: trackSummary.playbackUrl ?? null,
+        playbackUrl:
+          publicAssetUrl(clipAsset) ??
+          trackSummary.playbackUrl ??
+          "/open-verse-placeholder.svg",
+        previewAssetId: row.previewAssetId,
         slotEndsAtMs: row.slotEndsAtMs,
         slotStartsAtMs: row.slotStartsAtMs,
         status: row.status,
@@ -280,6 +311,7 @@ app.openapi(
       [listing] = await db
         .insert(openVerseListings)
         .values({
+          accessMode: body.accessMode,
           bpm: track.bpm,
           closesAt: body.closesAt ? new Date(body.closesAt) : null,
           createdAt: now,
@@ -290,9 +322,10 @@ app.openapi(
           musicalKey: track.musicalKey,
           organizationId,
           ownerUserId: user.id,
+          previewAssetId: body.previewAssetId ?? null,
           slotEndsAtMs: body.slotEndsAtMs ?? null,
           slotStartsAtMs: body.slotStartsAtMs ?? null,
-          title: body.title,
+          title: `${track.title} - Open Verse`,
           trackId: body.trackId,
           updatedAt: now,
         })
@@ -302,7 +335,35 @@ app.openapi(
       throw new Error("Failed to create open verse listing.");
     }
 
-    const page = await listOpenVerses({ limit: 1, q: body.title }),
+    const artistFollowers = await db
+      .select({ userId: artistFollows.followerUserId })
+      .from(artistFollows)
+      .innerJoin(
+        userProfiles,
+        eq(userProfiles.userId, artistFollows.followerUserId)
+      )
+      .where(
+        and(
+          eq(artistFollows.artistUserId, user.id),
+          eq(userProfiles.accountType, "artist")
+        )
+      );
+
+    for (const follower of artistFollowers) {
+      await db
+        .insert(userNotifications)
+        .values({
+          id: `open_verse_published:${listing.id}:${follower.userId}`,
+          link: `/dashboard/open-verses/all/${listing.id}`,
+          message: `${user.name ?? "An artist"} posted a new Open Verse: ${track.title} - Open Verse`,
+          title: "New Open Verse",
+          type: "open_verse_published",
+          userId: follower.userId,
+        })
+        .onConflictDoNothing();
+    }
+
+    const page = await listOpenVerses({ limit: 50 }),
       created = page.items.find((item) => item.id === listing.id);
 
     return c.json(created ?? page.items[0], HttpStatusCodes.CREATED);
@@ -328,8 +389,8 @@ app.openapi(
   }),
   async (c) => {
     const { listingId } = c.req.valid("param"),
-      page = await listOpenVerses({ limit: 50 }),
-      listing = page.items.find((item) => item.id === listingId);
+      page = await listOpenVerses({ limit: 1 }, listingId),
+      listing = page.items[0];
 
     if (!listing) {
       return c.json(
@@ -339,6 +400,332 @@ app.openapi(
     }
 
     return c.json(listing, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{listingId}/access-requests",
+    request: {
+      body: jsonContentRequired(
+        createOpenVerseAccessRequestBodySchema,
+        "Access request"
+      ),
+      params: z.object({ listingId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid access request"
+      ),
+      [HttpStatusCodes.CREATED]: jsonContent(
+        openVerseAccessRequestSchema,
+        "Access request"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Open verse not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is required." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const { listingId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      db = createDb(),
+      [listing] = await db
+        .select({
+          accessMode: openVerseListings.accessMode,
+          ownerUserId: openVerseListings.ownerUserId,
+        })
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1);
+    if (!listing) {
+      return c.json(
+        { message: "Open verse not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    if (listing.accessMode === "open") {
+      return c.json(
+        { message: "This listing does not require access approval." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+    const [request] = await db
+      .insert(openVerseAccessRequests)
+      .values({
+        id: crypto.randomUUID(),
+        listingId,
+        message: body.message ?? null,
+        requesterUserId: user.id,
+        status: "pending",
+      })
+      .onConflictDoUpdate({
+        set: {
+          message: body.message ?? null,
+          reviewedAt: null,
+          reviewedByUserId: null,
+          status: "pending",
+          updatedAt: new Date(),
+        },
+        target: [
+          openVerseAccessRequests.listingId,
+          openVerseAccessRequests.requesterUserId,
+        ],
+      })
+      .returning();
+    if (!request) {
+      throw new Error("Failed to save access request.");
+    }
+    await db
+      .insert(userNotifications)
+      .values({
+        id: `open_verse_access_requested:${request.id}`,
+        link: `/dashboard/open-verses/all/${listingId}`,
+        message: `${user.name ?? "An artist"} requested access to your Open Verse.`,
+        title: "Open Verse access request",
+        type: "open_verse_access_requested",
+        userId: listing.ownerUserId,
+      })
+      .onConflictDoNothing();
+    return c.json(
+      {
+        ...request,
+        createdAt: request.createdAt.toISOString(),
+        reviewedAt: request.reviewedAt?.toISOString() ?? null,
+        updatedAt: request.updatedAt.toISOString(),
+      },
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{listingId}/access-requests/me",
+    request: { params: z.object({ listingId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        openVerseAccessRequestSchema.nullable(),
+        "My access request"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(null, HttpStatusCodes.OK);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(null, HttpStatusCodes.OK);
+    }
+    const [request] = await createDb()
+      .select()
+      .from(openVerseAccessRequests)
+      .where(
+        and(
+          eq(openVerseAccessRequests.listingId, c.req.valid("param").listingId),
+          eq(openVerseAccessRequests.requesterUserId, user.id)
+        )
+      )
+      .limit(1);
+    return c.json(
+      request
+        ? {
+            ...request,
+            createdAt: request.createdAt.toISOString(),
+            reviewedAt: request.reviewedAt?.toISOString() ?? null,
+            updatedAt: request.updatedAt.toISOString(),
+          }
+        : null,
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{listingId}/access-requests",
+    request: { params: z.object({ listingId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        openVerseAccessRequestSchema.array(),
+        "Access requests"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const user = c.get("user"),
+      { listingId } = c.req.valid("param");
+    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+    const db = createDb(),
+      [listing] = await db
+        .select({ ownerUserId: openVerseListings.ownerUserId })
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1);
+    if (!listing || listing.ownerUserId !== user.id) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+    const requests = await db
+      .select()
+      .from(openVerseAccessRequests)
+      .where(eq(openVerseAccessRequests.listingId, listingId))
+      .orderBy(desc(openVerseAccessRequests.createdAt));
+    return c.json(
+      requests.map((request) => ({
+        ...request,
+        createdAt: request.createdAt.toISOString(),
+        reviewedAt: request.reviewedAt?.toISOString() ?? null,
+        updatedAt: request.updatedAt.toISOString(),
+      })),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/{listingId}/access-requests/{requestId}",
+    request: {
+      body: jsonContentRequired(
+        respondOpenVerseAccessRequestBodySchema,
+        "Access request response"
+      ),
+      params: z.object({ listingId: z.string(), requestId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Access request not found"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        openVerseAccessRequestSchema,
+        "Updated access request"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user) || !isDatabaseConfigured()) {
+      return c.json(
+        { message: "Authentication is required." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const { listingId, requestId } = c.req.valid("param"),
+      body = c.req.valid("json"),
+      db = createDb(),
+      [listing] = await db
+        .select({ ownerUserId: openVerseListings.ownerUserId })
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1),
+      [request] = await db
+        .select()
+        .from(openVerseAccessRequests)
+        .where(
+          and(
+            eq(openVerseAccessRequests.id, requestId),
+            eq(openVerseAccessRequests.listingId, listingId)
+          )
+        )
+        .limit(1);
+    if (!listing || !request) {
+      return c.json(
+        { message: "Access request not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    if (
+      listing.ownerUserId !== user.id &&
+      request.requesterUserId !== user.id
+    ) {
+      return c.json(
+        { message: "You cannot change this request." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    if (body.action !== "cancel" && listing.ownerUserId !== user.id) {
+      return c.json(
+        { message: "Only the listing owner can approve requests." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+    const status =
+      body.action === "approve"
+        ? "approved"
+        : (body.action === "decline"
+          ? "declined"
+          : "canceled");
+    const [updated] = await db
+      .update(openVerseAccessRequests)
+      .set({
+        reviewedAt: body.action === "cancel" ? null : new Date(),
+        reviewedByUserId: body.action === "cancel" ? null : user.id,
+        status,
+        updatedAt: new Date(),
+      })
+      .where(eq(openVerseAccessRequests.id, requestId))
+      .returning();
+    if (!updated) {
+      return c.json(
+        { message: "Access request not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    await db
+      .insert(userNotifications)
+      .values({
+        id: `open_verse_access_${status}:${requestId}`,
+        link: `/dashboard/open-verses/all/${listingId}`,
+        message:
+          status === "approved"
+            ? "Your Open Verse access request was approved."
+            : `Your Open Verse access request was ${status}.`,
+        title: "Open Verse access updated",
+        type: `open_verse_access_${status}`,
+        userId: request.requesterUserId,
+      })
+      .onConflictDoNothing();
+    return c.json(
+      {
+        ...updated,
+        createdAt: updated.createdAt.toISOString(),
+        reviewedAt: updated.reviewedAt?.toISOString() ?? null,
+        updatedAt: updated.updatedAt.toISOString(),
+      },
+      HttpStatusCodes.OK
+    );
   }
 );
 
@@ -357,6 +744,14 @@ app.openapi(
       [HttpStatusCodes.CREATED]: jsonContent(
         openVerseSubmissionSchema,
         "Open verse submission"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Submission eligibility or approval required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Open verse not found"
       ),
       [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
         messageResponseSchema,
@@ -390,28 +785,102 @@ app.openapi(
     const { listingId } = c.req.valid("param"),
       body = c.req.valid("json"),
       db = createDb(),
-      [submission] = await db
-        .insert(openVerseSubmissions)
+      [accessListing] = await db
+        .select({
+          accessMode: openVerseListings.accessMode,
+          trackId: openVerseListings.trackId,
+        })
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1),
+      [trackCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tracks)
+        .where(eq(tracks.ownerUserId, user.id)),
+      [projectCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(eq(projects.ownerUserId, user.id));
+
+    if (!accessListing) {
+      return c.json(
+        { message: "Open verse not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if ((trackCount?.count ?? 0) + (projectCount?.count ?? 0) < 1) {
+      return c.json(
+        { message: "Upload at least one Track or Project before submitting." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    if (accessListing.accessMode === "approval_required") {
+      const [approvedRequest] = await db
+        .select({ id: openVerseAccessRequests.id })
+        .from(openVerseAccessRequests)
+        .where(
+          and(
+            eq(openVerseAccessRequests.listingId, listingId),
+            eq(openVerseAccessRequests.requesterUserId, user.id),
+            eq(openVerseAccessRequests.status, "approved")
+          )
+        )
+        .limit(1);
+      if (!approvedRequest) {
+        return c.json(
+          { message: "Creator approval is required before submitting." },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+    }
+
+    let submissionAssetId = body.assetId ?? null;
+    if (!submissionAssetId && body.assetObjectKey) {
+      const [asset] = await db
+        .insert(trackAssets)
         .values({
-          assetId: body.assetId ?? null,
+          assetKind: "verse_vocal",
           id: crypto.randomUUID(),
-          listingId,
-          message: body.message ?? null,
-          submitterUserId: user.id,
-        })
-        .onConflictDoUpdate({
-          set: {
-            assetId: body.assetId ?? null,
-            message: body.message ?? null,
-            status: "submitted",
-            updatedAt: new Date(),
+          metadata: {
+            originalFileName: body.assetOriginalFileName ?? null,
+            url: body.assetUrl ?? null,
           },
-          target: [
-            openVerseSubmissions.listingId,
-            openVerseSubmissions.submitterUserId,
-          ],
+          mimeType: body.assetMimeType ?? null,
+          objectKey: body.assetObjectKey,
+          sizeBytes: body.assetSizeBytes ?? null,
+          status: "ready",
+          storageProvider: "r2",
+          trackId: accessListing.trackId,
+          uploaderUserId: user.id,
         })
-        .returning();
+        .returning({ id: trackAssets.id });
+      submissionAssetId = asset?.id ?? null;
+    }
+
+    const [submission] = await db
+      .insert(openVerseSubmissions)
+      .values({
+        assetId: submissionAssetId,
+        id: crypto.randomUUID(),
+        listingId,
+        message: body.message ?? null,
+        submitterUserId: user.id,
+      })
+      .onConflictDoUpdate({
+        set: {
+          assetId: submissionAssetId,
+          message: body.message ?? null,
+          status: "submitted",
+          updatedAt: new Date(),
+        },
+        target: [
+          openVerseSubmissions.listingId,
+          openVerseSubmissions.submitterUserId,
+        ],
+      })
+      .returning();
 
     if (!submission) {
       throw new Error("Failed to submit open verse.");
@@ -426,7 +895,7 @@ app.openapi(
       submitterName,
     });
 
-    const [listing] = await db
+    const [listingOwner] = await db
       .select({
         ownerUserId: openVerseListings.ownerUserId,
         trackTitle: tracks.title,
@@ -436,16 +905,16 @@ app.openapi(
       .where(eq(openVerseListings.id, listingId))
       .limit(1);
 
-    if (listing) {
+    if (listingOwner) {
       await db
         .insert(userNotifications)
         .values({
           id: `open_verse_submitted:${submission.id}`,
           link: "/dashboard/open-verses",
-          message: `${submitterName} submitted a verse for ${listing.trackTitle}.`,
+          message: `${submitterName} submitted a verse for ${listingOwner.trackTitle}.`,
           title: "New Open Verse Submission",
           type: "open_verse_submitted",
-          userId: listing.ownerUserId,
+          userId: listingOwner.ownerUserId,
         })
         .onConflictDoNothing();
     }

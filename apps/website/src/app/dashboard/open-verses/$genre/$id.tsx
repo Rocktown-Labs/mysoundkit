@@ -1,178 +1,276 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useUploadFiles } from "@better-upload/client";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   CheckCircle2,
   Download,
-  FileArchive,
   FileAudio,
   LoaderCircle,
   Mic2,
-  Music2,
   PlayCircle,
-  Plus,
   Send,
   Upload,
   UserCheck,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
+import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { canonicalGenreName } from "@/lib/music-genres";
 import {
   useOpenVerseQuery,
-  useProjectsQuery,
   useSubmitOpenVerseMutation,
-  useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/open-verses/$genre/$id")({
   component: OpenVerseDetailPage,
 });
 
-const formatSeconds = (val: number) => Math.round(val / 1000),
-  formatSlot = ({
-    end,
-    start,
-  }: {
-    end: number | null;
-    start: number | null;
-  }) => {
-    if (start === null || end === null) {
-      return "Artist will confirm the slot";
-    }
+interface Submission {
+  assetId: string | null;
+  createdAt: string;
+  id: string;
+  listingId: string;
+  message: string | null;
+  status: "accepted" | "declined" | "shortlisted" | "submitted" | "withdrawn";
+  submitterAvatarUrl?: string | null;
+  submitterDisplayName?: string;
+  submitterUserId: string;
+  submitterUsername?: string;
+}
 
-    return `${formatSeconds(start)}s - ${formatSeconds(end)}s`;
-  };
+const formatSlot = (start: number | null, end: number | null) =>
+  start === null || end === null
+    ? "Artist will confirm the slot"
+    : `${Math.round(start / 1000)}s - ${Math.round(end / 1000)}s`;
 
 function OpenVerseDetailPage() {
   const { id } = Route.useParams(),
     query = useOpenVerseQuery(id),
-    tracksQuery = useTracksQuery({ limit: 5 }),
-    projectsQuery = useProjectsQuery({ limit: 5 }),
     submitMutation = useSubmitOpenVerseMutation(id),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
-    [assetId, setAssetId] = useState(""),
-    [selectedMixedFile, setSelectedMixedFile] = useState<File | null>(null),
-    [selectedVocalFile, setSelectedVocalFile] = useState<File | null>(null),
-    [selectedStemFile, setSelectedStemFile] = useState<File | null>(null),
-    [isDownloadingSnippet, setIsDownloadingSnippet] = useState(false),
+    [submissions, setSubmissions] = useState<Submission[]>([]),
+    [selectedFile, setSelectedFile] = useState<File | null>(null),
     [message, setMessage] = useState(""),
-    [acceptedSubId, setAcceptedSubId] = useState<string | null>(null),
-    mixedInputRef = useRef<HTMLInputElement | null>(null),
-    vocalInputRef = useRef<HTMLInputElement | null>(null),
-    stemInputRef = useRef<HTMLInputElement | null>(null),
-    listing = query.data,
-    totalArtistUploads =
-      (tracksQuery.data?.items?.length ?? 0) +
-      (projectsQuery.data?.items?.length ?? 0),
-    hasUploadedMusic = totalArtistUploads > 0,
-    handleAcceptSubmission = (subId: string, artistName: string) => {
-      setAcceptedSubId(subId);
-      toast({
-        description: `${artistName} has been added to official track credits & royalty splits.`,
-        title: "Contender Accepted!",
+    [isSubmitting, setIsSubmitting] = useState(false),
+    [isDownloading, setIsDownloading] = useState(false),
+    [accessRequestStatus, setAccessRequestStatus] = useState<string | null>(
+      null
+    ),
+    fileInputRef = useRef<HTMLInputElement | null>(null),
+    { upload } = useUploadFiles({
+      api: MEDIA_UPLOAD_URL,
+      credentials: "include",
+      route: "media",
+    }),
+    listing = query.data;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(
+      `${API_V1_URL}/open-verses/${encodeURIComponent(id)}/access-requests/me`,
+      { credentials: "include" }
+    )
+      .then(async (response) =>
+        response.ok
+          ? ((await response.json()) as { status?: string } | null)
+          : null
+      )
+      .then((request) => {
+        if (!cancelled) {
+          setAccessRequestStatus(request?.status ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccessRequestStatus(null);
+        }
       });
-    },
-    playListing = () => {
+    void fetch(
+      `${API_V1_URL}/open-verses/${encodeURIComponent(id)}/submissions`,
+      { credentials: "include" }
+    )
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Unable to load submissions.");
+        }
+        return (await response.json()) as Submission[];
+      })
+      .then((rows) => {
+        if (!cancelled) {
+          setSubmissions(rows);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSubmissions([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const playListing = () => {
       if (!listing?.playbackUrl) {
         return;
       }
-
       const playerTrack = {
         artist: listing.artistName,
         artistHref: listing.artistUsername
           ? `/artist/${listing.artistUsername}`
           : "/dashboard/profile",
-        cover: listing.coverArtUrl ?? "/placeholder.svg",
-        id: listing.trackId,
+        cover: listing.coverArtUrl ?? "/open-verse-placeholder.svg",
+        id: listing.id,
         src: listing.playbackUrl,
-        title: listing.trackTitle,
-        trackHref: `/tracks/${listing.trackId}`,
+        title: listing.title,
+        trackHref: `/dashboard/open-verses/${listing.genreSlug}/${listing.id}`,
       };
-
       setQueue([playerTrack]);
       setCurrentTrack(playerTrack);
     },
-    handleDownloadHookStub = async () => {
+    downloadClip = async () => {
       if (!listing?.playbackUrl) {
+        return;
+      }
+      setIsDownloading(true);
+      try {
+        const response = await fetch(listing.playbackUrl);
+        if (!response.ok) {
+          throw new Error("The persisted Open Verse clip is not available.");
+        }
+        const url = URL.createObjectURL(await response.blob()),
+          anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-")}-open-verse.wav`;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } catch (error) {
         toast({
-          description: "Audio preview not ready yet.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "The clip could not be downloaded.",
           title: "Download unavailable",
           variant: "destructive",
         });
-        return;
+      } finally {
+        setIsDownloading(false);
       }
-
+    },
+    requestAccess = async () => {
       try {
-        setIsDownloadingSnippet(true);
+        const response = await fetch(
+          `${API_V1_URL}/open-verses/${encodeURIComponent(id)}/access-requests`,
+          {
+            body: JSON.stringify({}),
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        if (!response.ok) {
+          throw new Error(
+            "You need an eligible Track or Project before requesting access."
+          );
+        }
+        const request = (await response.json()) as { status: string };
+        setAccessRequestStatus(request.status);
+        toast({
+          description: "The creator will review your request.",
+          title: "Access requested",
+        });
+      } catch (error) {
         toast({
           description:
-            "Preparing MediaBunny audio snippet (Hook & Open Slot)...",
-          title: "Extracting Audio Stub",
+            error instanceof Error
+              ? error.message
+              : "The request could not be saved.",
+          title: "Access request failed",
+          variant: "destructive",
         });
-
-        const startSec = listing.slotStartsAtMs
-            ? Math.round(listing.slotStartsAtMs / 1000)
-            : 30,
-          endSec = listing.slotEndsAtMs
-            ? Math.round(listing.slotEndsAtMs / 1000)
-            : 75,
-          snippetFile = await sliceAudioFileToSnippet(
-            listing.playbackUrl,
-            startSec,
-            endSec,
-            `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-")}-hook-slot-stub.wav`
-          ),
-          url = URL.createObjectURL(snippetFile),
-          a = document.createElement("a");
-
-        a.href = url;
-        a.download = snippetFile.name;
-        document.body.append(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-
-        toast({
-          description: `Downloaded "${snippetFile.name}". Open in your DAW to record your take!`,
-          title: "Hook Snippet Downloaded",
+      }
+    },
+    submitVerse = async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!selectedFile || !listing) {
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const uploadResult = await upload([selectedFile]),
+          uploaded = uploadResult.files[0],
+          objectKey = uploaded?.objectInfo.key;
+        if (!objectKey) {
+          throw new Error("The submission upload did not finish.");
+        }
+        const created = await submitMutation.mutateAsync({
+          assetMimeType: selectedFile.type || "audio/wav",
+          assetObjectKey: objectKey,
+          assetOriginalFileName: selectedFile.name,
+          assetSizeBytes: selectedFile.size,
+          assetUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+          message: message.trim() || undefined,
         });
-      } catch {
+        setSubmissions((current) => [
+          { ...created, submitterUserId: "me" },
+          ...current,
+        ]);
+        setSelectedFile(null);
+        setMessage("");
         toast({
-          description: "Could not slice snippet. Please try downloading again.",
-          title: "Snippet Extraction Failed",
+          description: "Your real submission media is ready for owner review.",
+          title: "Verse submitted",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "The submission could not be saved.",
+          title: "Submission failed",
           variant: "destructive",
         });
       } finally {
-        setIsDownloadingSnippet(false);
+        setIsSubmitting(false);
       }
     },
-    submitVerse = (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (!selectedMixedFile && !selectedVocalFile && !assetId.trim()) {
+    acceptSubmission = async (submission: Submission) => {
+      try {
+        const response = await fetch(
+          `${API_V1_URL}/open-verses/${encodeURIComponent(id)}/submissions/${encodeURIComponent(submission.id)}/accept`,
+          { credentials: "include", method: "POST" }
+        );
+        if (!response.ok) {
+          throw new Error("Only the listing owner can accept submissions.");
+        }
+        setSubmissions((current) =>
+          current.map((row) =>
+            row.id === submission.id ? { ...row, status: "accepted" } : row
+          )
+        );
         toast({
           description:
-            "Please attach at least your Mixed Audition Take (.wav / .mp3).",
-          title: "Audio Take Required",
+            "The accepted artist was added to the underlying Track collaborators.",
+          title: "Submission accepted",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "The submission could not be accepted.",
+          title: "Acceptance failed",
           variant: "destructive",
         });
-        return;
       }
-
-      submitMutation.mutate({
-        assetId:
-          selectedMixedFile?.name ??
-          selectedVocalFile?.name ??
-          (assetId.trim() || undefined),
-        message: message.trim() || undefined,
-      });
     };
 
   if (query.isLoading) {
@@ -180,12 +278,11 @@ function OpenVerseDetailPage() {
       <Card>
         <CardContent className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" />
-          Loading open verse...
+          Loading open verse…
         </CardContent>
       </Card>
     );
   }
-
   if (!listing) {
     return (
       <Card>
@@ -201,50 +298,43 @@ function OpenVerseDetailPage() {
       <section className="space-y-6">
         <Card className="overflow-hidden border-border/40 bg-card/50">
           <div
-            className="flex aspect-video items-center justify-center bg-muted bg-cover bg-center relative group"
+            className="relative flex aspect-video items-center justify-center bg-muted bg-cover bg-center"
             style={{
-              backgroundImage: listing.coverArtUrl
-                ? `url(${listing.coverArtUrl})`
-                : undefined,
+              backgroundImage: `url(${listing.coverArtUrl ?? "/open-verse-placeholder.svg"})`,
             }}
           >
             <Button
+              aria-label={`Play ${listing.title}`}
+              className="size-14 rounded-full shadow-2xl"
               disabled={!listing.playbackUrl}
               onClick={playListing}
               size="icon"
               type="button"
-              className="size-14 rounded-full shadow-2xl hover:scale-105 transition"
             >
               <PlayCircle className="size-8" />
             </Button>
           </div>
           <CardContent className="space-y-4 p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
                 <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
                   {listing.title}
                 </h1>
-                <p className="mt-1 text-muted-foreground text-sm">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {listing.artistName} opened a slot on {listing.trackTitle}.
                 </p>
               </div>
-
               <Button
+                className="gap-2"
+                disabled={isDownloading || !listing.playbackUrl}
+                onClick={() => void downloadClip()}
                 size="sm"
                 variant="outline"
-                className="gap-2 shrink-0 border-primary/40 text-primary hover:bg-primary/10 font-bold"
-                onClick={handleDownloadHookStub}
-                disabled={isDownloadingSnippet}
               >
-                {isDownloadingSnippet ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : (
-                  <Download className="size-4" />
-                )}
-                Download Hook & Open Slot (.WAV)
+                <Download className="size-4" />
+                {isDownloading ? "Preparing…" : "Download Open Slot (.WAV)"}
               </Button>
             </div>
-
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">
                 {canonicalGenreName(listing.genre)}
@@ -256,10 +346,12 @@ function OpenVerseDetailPage() {
                 <Badge variant="outline">{listing.musicalKey}</Badge>
               )}
               <Badge variant="outline">
-                {formatSlot({
-                  end: listing.slotEndsAtMs,
-                  start: listing.slotStartsAtMs,
-                })}
+                {formatSlot(listing.slotStartsAtMs, listing.slotEndsAtMs)}
+              </Badge>
+              <Badge variant="outline">
+                {listing.accessMode === "open"
+                  ? "Open to eligible artists"
+                  : "Approval required"}
               </Badge>
             </div>
             {listing.description && (
@@ -269,119 +361,68 @@ function OpenVerseDetailPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Creator Vocal Submissions Review Desk */}
-        <Card className="border-border/40 bg-card/50">
+        <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-lg font-bold">
-                  <Mic2 className="size-5 text-primary" />
-                  Submitted Vocal Takes & Contenders
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Listen to submitted verse recordings, select your favorite
-                  contender, and automatically add them to track credits &
-                  splits.
-                </p>
-              </div>
-              <Badge variant="secondary">2 Submissions</Badge>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <Mic2 className="size-5 text-primary" />
+              Submissions{" "}
+              <Badge variant="secondary">{submissions.length}</Badge>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[
-              {
-                artistName: "Marcus Key",
-                id: "sub_1",
-                message:
-                  "Fire 16-bar verse recorded over your hook! Vocal stems ready.",
-                status: "submitted",
-                timeAgo: "2 hours ago",
-                username: "marcuskey",
-              },
-              {
-                artistName: "Aria Vance",
-                id: "sub_2",
-                message: "Smooth R&B harmony layer + second verse vocals.",
-                status: "accepted",
-                timeAgo: "1 day ago",
-                username: "ariavance",
-              },
-            ].map((sub) => {
-              const isAccepted =
-                acceptedSubId === sub.id || sub.status === "accepted";
+            {submissions.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No submissions yet.
+              </p>
+            )}
+            {submissions.map((submission) => {
+              const accepted = submission.status === "accepted";
               return (
                 <div
-                  key={sub.id}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border transition-colors ${
-                    isAccepted
-                      ? "border-emerald-500/30 bg-emerald-500/10"
-                      : "border-border/40 bg-card/40 hover:bg-accent/40"
-                  }`}
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-border/40 p-4 sm:flex-row sm:items-center"
+                  key={submission.id}
                 >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
-                      {sub.artistName.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-sm truncate">
-                          {sub.artistName}
-                        </h4>
-                        <span className="text-xs text-muted-foreground">
-                          @{sub.username}
-                        </span>
-                        {isAccepted && (
-                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 text-[10px]">
-                            <CheckCircle2 className="size-3" />
-                            Added to Credits
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        &ldquo;{sub.message}&rdquo;
-                      </p>
-                      <span className="text-[10px] text-muted-foreground/70 mt-1 block">
-                        Submitted {sub.timeAgo}
+                  <div className="min-w-0">
+                    <p className="font-semibold">
+                      {submission.submitterDisplayName ?? "SoundKit Artist"}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        @
+                        {submission.submitterUsername ??
+                          submission.submitterUserId}
                       </span>
-                    </div>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {submission.message ?? "No message"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {new Date(submission.createdAt).toLocaleString()}
+                    </p>
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        toast({
-                          description:
-                            "Auditioning vocal stem synced to open verse slot...",
-                          title: `Playing ${sub.artistName}'s Vocal Take`,
-                        });
-                      }}
-                    >
-                      <PlayCircle className="mr-1.5 size-4 text-primary" />
-                      Play Vocal Take
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={isAccepted}
-                      variant={isAccepted ? "secondary" : "default"}
-                      onClick={() =>
-                        handleAcceptSubmission(sub.id, sub.artistName)
-                      }
-                    >
-                      {isAccepted ? (
-                        <>
-                          <UserCheck className="mr-1.5 size-4 text-emerald-400" />
-                          Accepted
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="mr-1.5 size-4" />
-                          Accept & Credit
-                        </>
-                      )}
-                    </Button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {submission.assetId && (
+                      <Button asChild size="sm" variant="outline">
+                        <a
+                          href={`${API_V1_URL}/tracks/${listing.trackId}/assets/${submission.assetId}/download`}
+                        >
+                          <FileAudio className="mr-1 size-4" />
+                          Audio
+                        </a>
+                      </Button>
+                    )}
+                    {accepted ? (
+                      <Badge className="gap-1">
+                        <UserCheck className="size-3" />
+                        Accepted
+                      </Badge>
+                    ) : (
+                      <Button
+                        onClick={() => void acceptSubmission(submission)}
+                        size="sm"
+                      >
+                        <CheckCircle2 className="mr-1 size-4" />
+                        Accept
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
@@ -389,179 +430,76 @@ function OpenVerseDetailPage() {
           </CardContent>
         </Card>
       </section>
-
-      <aside className="space-y-6">
-        <Card className="border-border/40 bg-card/50">
+      <aside>
+        <Card>
           <CardHeader>
             <CardTitle>Submit Your Verse</CardTitle>
           </CardHeader>
           <CardContent>
-            {hasUploadedMusic ? (
-              <form className="space-y-4" onSubmit={submitVerse}>
-                {/* 3-Part Take Submission Uploaders */}
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                      1. Mixed Audition (Hook + Vocal Mixdown) *
-                    </Label>
-                    <input
-                      type="file"
-                      accept="audio/*,.wav,.mp3,.m4a,.aac"
-                      ref={mixedInputRef}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setSelectedMixedFile(file);
-                          setAssetId(file.name);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-dashed h-14 flex items-center justify-center gap-2 hover:bg-accent/40 text-xs"
-                      onClick={() => mixedInputRef.current?.click()}
-                    >
-                      {selectedMixedFile ? (
-                        <span className="truncate max-w-[240px] text-primary font-bold">
-                          ✓ {selectedMixedFile.name}
-                        </span>
-                      ) : (
-                        <>
-                          <Upload className="size-4 text-muted-foreground" />
-                          <span>Attach Mixed Audition (.mp3, .wav)</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                      2. Raw Dry Vocal Take (.wav)
-                    </Label>
-                    <input
-                      type="file"
-                      accept="audio/*,.wav,.aif,.flac"
-                      ref={vocalInputRef}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setSelectedVocalFile(file);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-dashed h-14 flex items-center justify-center gap-2 hover:bg-accent/40 text-xs"
-                      onClick={() => vocalInputRef.current?.click()}
-                    >
-                      {selectedVocalFile ? (
-                        <span className="truncate max-w-[240px] text-primary font-bold">
-                          ✓ {selectedVocalFile.name}
-                        </span>
-                      ) : (
-                        <>
-                          <FileAudio className="size-4 text-muted-foreground" />
-                          <span>Attach Dry Vocal (.wav)</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                      3. Vocal Stems / DAW Project (Optional)
-                    </Label>
-                    <input
-                      type="file"
-                      accept=".zip,.rar,.tar,.wav"
-                      ref={stemInputRef}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setSelectedStemFile(file);
-                        }
-                      }}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-dashed h-14 flex items-center justify-center gap-2 hover:bg-accent/40 text-xs"
-                      onClick={() => stemInputRef.current?.click()}
-                    >
-                      {selectedStemFile ? (
-                        <span className="truncate max-w-[240px] text-primary font-bold">
-                          ✓ {selectedStemFile.name}
-                        </span>
-                      ) : (
-                        <>
-                          <FileArchive className="size-4 text-muted-foreground" />
-                          <span>Attach Stems Archive (.zip)</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 pt-2">
-                  <Label htmlFor="message" className="text-xs font-semibold">
-                    Message to Creator
-                  </Label>
-                  <Textarea
-                    id="message"
-                    onChange={(event) => setMessage(event.target.value)}
-                    placeholder="Tell the artist about your verse concept, flow, and inspiration..."
-                    value={message}
-                    rows={3}
-                    className="text-xs"
-                  />
-                </div>
-
-                <Button
-                  className="w-full font-bold"
-                  disabled={submitMutation.isPending}
-                  type="submit"
-                >
-                  {submitMutation.isPending ? (
-                    <LoaderCircle className="mr-2 size-4 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 size-4" />
-                  )}
-                  Submit 3-Part Take
-                </Button>
-                {submitMutation.isSuccess && (
-                  <p className="text-sm text-emerald-400 font-medium text-center">
-                    Vocal take submitted successfully!
-                  </p>
-                )}
-              </form>
-            ) : (
-              /* Anti-Leech Guard: Requires at least 1 track or project uploaded */
-              <div className="space-y-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
-                <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-amber-500/20 text-amber-500">
-                  <Music2 className="size-5" />
-                </div>
-                <h4 className="font-bold text-sm text-foreground">
-                  Artist Profile Required
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  To participate in Open Verses, you must have at least 1 track
-                  or project uploaded to establish your SoundKit music identity.
+            {listing.accessMode === "approval_required" ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Request access from the creator before submitting files. The
+                  creator must approve your request.
                 </p>
-                <Button asChild size="sm" className="w-full font-bold mt-2">
-                  <Link to="/dashboard/tracks/new">
-                    <Plus className="size-3.5 mr-1.5" />
-                    Upload Your First Track
-                  </Link>
+                <Button
+                  className="w-full"
+                  disabled={
+                    accessRequestStatus === "pending" ||
+                    accessRequestStatus === "approved"
+                  }
+                  onClick={() => void requestAccess()}
+                  type="button"
+                >
+                  {accessRequestStatus === "approved"
+                    ? "Access approved"
+                    : (accessRequestStatus === "pending"
+                      ? "Request pending"
+                      : "Request Access")}
                 </Button>
               </div>
+            ) : (
+              <form
+                className="space-y-4"
+                onSubmit={(event) => void submitVerse(event)}
+              >
+                <input
+                  ref={fileInputRef}
+                  accept="audio/*,.wav,.mp3,.m4a,.aac"
+                  className="sr-only"
+                  onChange={(event) =>
+                    setSelectedFile(event.target.files?.[0] ?? null)
+                  }
+                  type="file"
+                />
+                <Button
+                  className="h-16 w-full border-dashed"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                  variant="outline"
+                >
+                  <Upload className="mr-2 size-4" />
+                  {selectedFile ? selectedFile.name : "Attach Mixed Audition"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Mixed Audition is required. Dry Vocal and project archive
+                  support can be added to the same persisted submission in a
+                  later review step.
+                </p>
+                <Textarea
+                  placeholder="Add a note for the creator (optional)"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                />
+                <Button
+                  className="w-full"
+                  disabled={!selectedFile || isSubmitting}
+                  type="submit"
+                >
+                  <Send className="mr-2 size-4" />
+                  {isSubmitting ? "Uploading…" : "Submit Verse"}
+                </Button>
+              </form>
             )}
           </CardContent>
         </Card>

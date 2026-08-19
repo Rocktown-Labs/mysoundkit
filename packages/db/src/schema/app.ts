@@ -94,6 +94,7 @@ export const trackAssetKindEnum = pgEnum("track_asset_kind", [
   "session_file",
   "reference_audio",
   "variant_audio",
+  "open_verse_clip",
 ]);
 export const sellerOnboardingStatusEnum = pgEnum("seller_onboarding_status", [
   "not_started",
@@ -233,6 +234,10 @@ export const battleFormatEnum = pgEnum("battle_format", [
   "best_of_5",
   "best_of_7",
 ]);
+export const battleKitTrackRoleEnum = pgEnum("battle_kit_track_role", [
+  "main",
+  "tiebreaker",
+]);
 export const battleChallengeStatusEnum = pgEnum("battle_challenge_status", [
   "pending",
   "accepted",
@@ -277,9 +282,17 @@ export const openVerseStatusEnum = pgEnum("open_verse_status", [
   "fulfilled",
   "archived",
 ]);
+export const openVerseAccessModeEnum = pgEnum("open_verse_access_mode", [
+  "open",
+  "approval_required",
+]);
 export const openVerseSubmissionStatusEnum = pgEnum(
   "open_verse_submission_status",
   ["submitted", "shortlisted", "accepted", "declined", "withdrawn"]
+);
+export const openVerseAccessRequestStatusEnum = pgEnum(
+  "open_verse_access_request_status",
+  ["pending", "approved", "declined", "canceled"]
 );
 export const listeningPartyStatusEnum = pgEnum("listening_party_status", [
   "scheduled",
@@ -1176,6 +1189,9 @@ export const listeningParties = pgTable(
 export const openVerseListings = pgTable(
   "open_verse_listings",
   {
+    accessMode: openVerseAccessModeEnum("access_mode")
+      .default("open")
+      .notNull(),
     bpm: integer("bpm"),
     closesAt: timestamp("closes_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1192,6 +1208,9 @@ export const openVerseListings = pgTable(
     ownerUserId: text("owner_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    previewAssetId: text("preview_asset_id").references(() => trackAssets.id, {
+      onDelete: "set null",
+    }),
     slotEndsAtMs: integer("slot_ends_at_ms"),
     slotStartsAtMs: integer("slot_starts_at_ms"),
     status: openVerseStatusEnum("status").default("open").notNull(),
@@ -1211,6 +1230,39 @@ export const openVerseListings = pgTable(
       table.status,
       table.genreId,
       table.createdAt
+    ),
+  ]
+);
+
+export const openVerseAccessRequests = pgTable(
+  "open_verse_access_requests",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    listingId: text("listing_id")
+      .notNull()
+      .references(() => openVerseListings.id, { onDelete: "cascade" }),
+    message: text("message"),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedByUserId: text("reviewed_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    status: openVerseAccessRequestStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("open_verse_access_requests_listing_id_idx").on(table.listingId),
+    uniqueIndex("open_verse_access_requests_listing_requester_idx").on(
+      table.listingId,
+      table.requesterUserId
     ),
   ]
 );
@@ -1824,9 +1876,19 @@ export const battleKits = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     title: text("title").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
   },
-  (table) => [index("battle_kits_organization_id_idx").on(table.organizationId)]
+  (table) => [
+    index("battle_kits_organization_id_idx").on(table.organizationId),
+    index("battle_kits_owner_user_id_idx").on(table.ownerUserId),
+  ]
 );
 
 export const battleKitTracks = pgTable(
@@ -1837,6 +1899,8 @@ export const battleKitTracks = pgTable(
       .references(() => battleKits.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
+    mainSlot: integer("main_slot"),
+    role: battleKitTrackRoleEnum("role").default("main").notNull(),
     seedOrder: integer("seed_order").default(0).notNull(),
     trackId: text("track_id")
       .notNull()
@@ -1844,6 +1908,10 @@ export const battleKitTracks = pgTable(
   },
   (table) => [
     index("battle_kit_tracks_battle_kit_id_idx").on(table.battleKitId),
+    uniqueIndex("battle_kit_tracks_kit_track_idx").on(
+      table.battleKitId,
+      table.trackId
+    ),
   ]
 );
 
@@ -1983,7 +2051,9 @@ export const liveExperiences = pgTable(
     battleId: text("battle_id").references(() => battles.id, {
       onDelete: "set null",
     }),
-    battleKitId: text("battle_kit_id"),
+    battleKitId: text("battle_kit_id").references(() => battleKits.id, {
+      onDelete: "set null",
+    }),
     chatDownloadUrl: text("chat_download_url"),
     chatDownloadUrlExpiry: timestamp("chat_download_url_expiry"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

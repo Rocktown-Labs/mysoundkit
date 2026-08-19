@@ -32,11 +32,11 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
         artistHref: listing.artistUsername
           ? `/artist/${listing.artistUsername}`
           : "/dashboard/profile",
-        cover: listing.coverArtUrl ?? "/placeholder.svg",
-        id: listing.trackId,
+        cover: listing.coverArtUrl ?? "/open-verse-placeholder.svg",
+        id: listing.id,
         src: listing.playbackUrl,
-        title: listing.trackTitle,
-        trackHref: `/tracks/${listing.trackId}`,
+        title: listing.title,
+        trackHref: `/dashboard/open-verses/${listing.genreSlug}/${listing.id}`,
       };
 
       setQueue([playerTrack]);
@@ -47,21 +47,26 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
     <Card className="w-72 shrink-0 border-border/40 bg-card/50">
       <CardContent className="space-y-4 p-4">
         <button
-          aria-label={`Play ${listing.trackTitle}`}
+          aria-label={`Play ${listing.title}`}
           className="flex aspect-square w-full items-center justify-center rounded-md border bg-muted bg-cover bg-center"
           disabled={!listing.playbackUrl}
           onClick={playListing}
           style={{
-            backgroundImage: listing.coverArtUrl
-              ? `url(${listing.coverArtUrl})`
-              : undefined,
+            backgroundImage: `url(${listing.coverArtUrl ?? "/open-verse-placeholder.svg"})`,
           }}
           type="button"
         >
           <PlayCircle className="size-10 text-primary" />
         </button>
         <div className="space-y-1">
-          <h3 className="line-clamp-1 font-semibold">{listing.title}</h3>
+          <h3 className="line-clamp-1 font-semibold">
+            <Link
+              params={{ genre: listing.genreSlug, id: listing.id }}
+              to="/dashboard/open-verses/$genre/$id"
+            >
+              {listing.title}
+            </Link>
+          </h3>
           <p className="line-clamp-1 text-sm text-muted-foreground">
             {listing.artistName} • {listing.trackTitle}
           </p>

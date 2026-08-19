@@ -1075,6 +1075,51 @@ export const battleChallengesResponseSchema = z.object({
   outgoing: battleChallengeSummarySchema.array(),
 });
 
+export const battleKitFormatSchema = z.enum([
+  "best_of_3",
+  "best_of_5",
+  "best_of_7",
+]);
+export const battleKitTrackRoleSchema = z.enum(["main", "tiebreaker"]);
+export const battleKitTrackSchema = z.object({
+  coverArtUrl: z.string().nullable(),
+  id: z.string(),
+  mainSlot: z.number().int().positive().nullable(),
+  role: battleKitTrackRoleSchema,
+  title: z.string(),
+  trackId: z.string(),
+});
+export const battleKitSchema = z.object({
+  createdAt: z.string(),
+  format: battleKitFormatSchema,
+  id: z.string(),
+  isBattleReady: z.boolean(),
+  mainTrackCount: z.number().int().nonnegative(),
+  name: z.string(),
+  reason: z.string().nullable(),
+  requiredMainTracks: z.number().int().positive(),
+  tiebreakerCount: z.number().int().nonnegative(),
+  totalRequiredTracks: z.number().int().positive(),
+  totalUniqueTracks: z.number().int().nonnegative(),
+  tracks: battleKitTrackSchema.array(),
+  updatedAt: z.string(),
+});
+export const createBattleKitTrackSchema = z.object({
+  mainSlot: z.number().int().positive().nullable(),
+  role: battleKitTrackRoleSchema,
+  trackId: z.string().min(1),
+});
+export const createBattleKitBodySchema = z.object({
+  format: battleKitFormatSchema,
+  name: z.string().trim().min(1).max(120),
+  tracks: createBattleKitTrackSchema.array().max(8).default([]),
+});
+export const updateBattleKitBodySchema = createBattleKitBodySchema.partial();
+export const battleKitQuerySchema = z.object({
+  format: battleKitFormatSchema.optional(),
+  ready: z.coerce.boolean().optional(),
+});
+
 export const libraryOverviewSchema = z.object({
   playlistCount: z.number(),
   purchaseCount: z.number(),
@@ -1445,6 +1490,7 @@ export const createTrackAssetBodySchema = z.object({
     "session_file",
     "reference_audio",
     "variant_audio",
+    "open_verse_clip",
   ]),
   bucketName: z.string().optional(),
   durationMs: z.number().int().optional(),
@@ -1474,6 +1520,7 @@ export const openVerseQuerySchema = z.object({
 });
 
 export const openVerseListingSchema = z.object({
+  accessMode: z.enum(["open", "approval_required"]),
   artistName: z.string(),
   artistUsername: z.string().nullable(),
   bpm: z.number().int().nullable(),
@@ -1487,6 +1534,7 @@ export const openVerseListingSchema = z.object({
   maxSubmissions: z.number().int(),
   musicalKey: z.string().nullable(),
   playbackUrl: z.string().nullable(),
+  previewAssetId: z.string().nullable(),
   slotEndsAtMs: z.number().int().nullable(),
   slotStartsAtMs: z.number().int().nullable(),
   status: z.enum(["open", "closed", "fulfilled", "archived"]),
@@ -1502,17 +1550,45 @@ export const openVersePageSchema = z.object({
 });
 
 export const createOpenVerseBodySchema = z.object({
+  accessMode: z.enum(["open", "approval_required"]).default("open"),
   closesAt: z.string().datetime().optional(),
   description: z.string().max(2000).optional(),
   maxSubmissions: z.number().int().positive().max(500).default(50),
+  previewAssetId: z.string().min(1).optional(),
   slotEndsAtMs: z.number().int().nonnegative().optional(),
   slotStartsAtMs: z.number().int().nonnegative().optional(),
-  title: z.string().min(1).max(140),
+  // The server derives the listing title from the underlying Track title.
+  title: z.string().min(1).max(140).optional(),
   trackId: z.string().min(1),
+});
+
+export const createOpenVerseAccessRequestBodySchema = z.object({
+  message: z.string().max(2000).optional(),
+});
+
+export const openVerseAccessRequestSchema = z.object({
+  createdAt: z.string(),
+  id: z.string(),
+  listingId: z.string(),
+  message: z.string().nullable(),
+  requesterUserId: z.string(),
+  reviewedAt: z.string().nullable(),
+  reviewedByUserId: z.string().nullable(),
+  status: z.enum(["pending", "approved", "declined", "canceled"]),
+  updatedAt: z.string(),
+});
+
+export const respondOpenVerseAccessRequestBodySchema = z.object({
+  action: z.enum(["approve", "decline", "cancel"]),
 });
 
 export const createOpenVerseSubmissionBodySchema = z.object({
   assetId: z.string().min(1).optional(),
+  assetMimeType: z.string().max(120).optional(),
+  assetObjectKey: z.string().min(1).optional(),
+  assetOriginalFileName: z.string().max(255).optional(),
+  assetSizeBytes: z.number().int().nonnegative().optional(),
+  assetUrl: z.string().url().optional(),
   message: z.string().max(2000).optional(),
 });
 
