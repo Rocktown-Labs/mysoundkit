@@ -1291,6 +1291,9 @@ export const openVerseAccessRequests = pgTable(
 export const openVerseSubmissions = pgTable(
   "open_verse_submissions",
   {
+    adlibAssetId: text("adlib_asset_id").references(() => trackAssets.id, {
+      onDelete: "set null",
+    }),
     assetId: text("asset_id").references(() => trackAssets.id, {
       onDelete: "set null",
     }),
@@ -1306,6 +1309,10 @@ export const openVerseSubmissions = pgTable(
     submitterUserId: text("submitter_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    vocalStemAssetId: text("vocal_stem_asset_id").references(
+      () => trackAssets.id,
+      { onDelete: "set null" }
+    ),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())

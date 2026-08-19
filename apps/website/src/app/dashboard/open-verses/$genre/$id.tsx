@@ -32,6 +32,7 @@ export const Route = createFileRoute("/dashboard/open-verses/$genre/$id")({
 });
 
 interface Submission {
+  adlibAssetId: string | null;
   assetId: string | null;
   createdAt: string;
   id: string;
@@ -42,6 +43,7 @@ interface Submission {
   submitterDisplayName?: string;
   submitterUserId: string;
   submitterUsername?: string;
+  vocalStemAssetId: string | null;
 }
 
 const formatSlot = (start: number | null, end: number | null) =>
@@ -55,14 +57,22 @@ function OpenVerseDetailPage() {
     submitMutation = useSubmitOpenVerseMutation(id),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     [submissions, setSubmissions] = useState<Submission[]>([]),
-    [selectedFile, setSelectedFile] = useState<File | null>(null),
+    [selectedAdlibsFile, setSelectedAdlibsFile] = useState<File | null>(null),
+    [selectedAuditionFile, setSelectedAuditionFile] = useState<File | null>(
+      null
+    ),
+    [selectedVocalStemFile, setSelectedVocalStemFile] = useState<File | null>(
+      null
+    ),
     [message, setMessage] = useState(""),
     [isSubmitting, setIsSubmitting] = useState(false),
     [isDownloading, setIsDownloading] = useState(false),
     [accessRequestStatus, setAccessRequestStatus] = useState<string | null>(
       null
     ),
-    fileInputRef = useRef<HTMLInputElement | null>(null),
+    adlibsInputRef = useRef<HTMLInputElement | null>(null),
+    auditionInputRef = useRef<HTMLInputElement | null>(null),
+    vocalStemInputRef = useRef<HTMLInputElement | null>(null),
     { upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -200,33 +210,48 @@ function OpenVerseDetailPage() {
     },
     submitVerse = async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!selectedFile || !listing) {
+      if (!(selectedAuditionFile && selectedVocalStemFile && listing)) {
         return;
       }
       setIsSubmitting(true);
       try {
-        const uploadResult = await upload([selectedFile]),
-          uploaded = uploadResult.files[0],
-          objectKey = uploaded?.objectInfo.key;
-        if (!objectKey) {
-          throw new Error("The submission upload did not finish.");
-        }
+        const uploadAsset = async (file: File) => {
+          const uploadResult = await upload([file]),
+            uploaded = uploadResult.files[0],
+            objectKey = uploaded?.objectInfo.key;
+          if (!objectKey) {
+            throw new Error("A submission upload did not finish.");
+          }
+          return {
+            assetMimeType: file.type || "audio/wav",
+            assetObjectKey: objectKey,
+            assetOriginalFileName: file.name,
+            assetSizeBytes: file.size,
+            assetUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+          };
+        };
+        const [audition, vocalStem, adlibs] = await Promise.all([
+          uploadAsset(selectedAuditionFile),
+          uploadAsset(selectedVocalStemFile),
+          selectedAdlibsFile ? uploadAsset(selectedAdlibsFile) : null,
+        ]);
         const created = await submitMutation.mutateAsync({
-          assetMimeType: selectedFile.type || "audio/wav",
-          assetObjectKey: objectKey,
-          assetOriginalFileName: selectedFile.name,
-          assetSizeBytes: selectedFile.size,
-          assetUrl: `${MEDIA_BASE_URL}/${objectKey}`,
+          adlibs: adlibs ?? undefined,
+          audition,
           message: message.trim() || undefined,
+          vocalStem,
         });
         setSubmissions((current) => [
           { ...created, submitterUserId: "me" },
           ...current,
         ]);
-        setSelectedFile(null);
+        setSelectedAdlibsFile(null);
+        setSelectedAuditionFile(null);
+        setSelectedVocalStemFile(null);
         setMessage("");
         toast({
-          description: "Your real submission media is ready for owner review.",
+          description:
+            "Your audition, vocal stem, and optional adlibs are ready for owner review.",
           title: "Verse submitted",
         });
       } catch (error) {
@@ -405,7 +430,27 @@ function OpenVerseDetailPage() {
                           href={`${API_V1_URL}/tracks/${listing.trackId}/assets/${submission.assetId}/download`}
                         >
                           <FileAudio className="mr-1 size-4" />
-                          Audio
+                          Audition
+                        </a>
+                      </Button>
+                    )}
+                    {submission.vocalStemAssetId && (
+                      <Button asChild size="sm" variant="outline">
+                        <a
+                          href={`${API_V1_URL}/tracks/${listing.trackId}/assets/${submission.vocalStemAssetId}/download`}
+                        >
+                          <Mic2 className="mr-1 size-4" />
+                          Vocal Stem
+                        </a>
+                      </Button>
+                    )}
+                    {submission.adlibAssetId && (
+                      <Button asChild size="sm" variant="outline">
+                        <a
+                          href={`${API_V1_URL}/tracks/${listing.trackId}/assets/${submission.adlibAssetId}/download`}
+                        >
+                          <FileAudio className="mr-1 size-4" />
+                          Adlibs
                         </a>
                       </Button>
                     )}
@@ -453,9 +498,9 @@ function OpenVerseDetailPage() {
                 >
                   {accessRequestStatus === "approved"
                     ? "Access approved"
-                    : (accessRequestStatus === "pending"
+                    : accessRequestStatus === "pending"
                       ? "Request pending"
-                      : "Request Access")}
+                      : "Request Access"}
                 </Button>
               </div>
             ) : (
@@ -464,28 +509,73 @@ function OpenVerseDetailPage() {
                 onSubmit={(event) => void submitVerse(event)}
               >
                 <input
-                  ref={fileInputRef}
+                  ref={auditionInputRef}
                   accept="audio/*,.wav,.mp3,.m4a,.aac"
                   className="sr-only"
                   onChange={(event) =>
-                    setSelectedFile(event.target.files?.[0] ?? null)
+                    setSelectedAuditionFile(event.target.files?.[0] ?? null)
                   }
                   type="file"
                 />
                 <Button
                   className="h-16 w-full border-dashed"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => auditionInputRef.current?.click()}
                   type="button"
                   variant="outline"
                 >
                   <Upload className="mr-2 size-4" />
-                  {selectedFile ? selectedFile.name : "Attach Mixed Audition"}
+                  {selectedAuditionFile
+                    ? selectedAuditionFile.name
+                    : "Attach Full Audition Bounce *"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Mixed Audition is required. Dry Vocal and project archive
-                  support can be added to the same persisted submission in a
-                  later review step.
+                  Upload the full bounced take with the open-verse part recorded
+                  over the downloaded slot preview.
                 </p>
+                <input
+                  ref={vocalStemInputRef}
+                  accept="audio/*,.wav,.mp3,.m4a,.aac"
+                  className="sr-only"
+                  onChange={(event) =>
+                    setSelectedVocalStemFile(event.target.files?.[0] ?? null)
+                  }
+                  type="file"
+                />
+                <Button
+                  className="h-16 w-full border-dashed"
+                  onClick={() => vocalStemInputRef.current?.click()}
+                  type="button"
+                  variant="outline"
+                >
+                  <Mic2 className="mr-2 size-4" />
+                  {selectedVocalStemFile
+                    ? selectedVocalStemFile.name
+                    : "Attach Dry Vocal Stem *"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Include the isolated vocal so the creator can mix your take
+                  into the original session.
+                </p>
+                <input
+                  ref={adlibsInputRef}
+                  accept="audio/*,.wav,.mp3,.m4a,.aac"
+                  className="sr-only"
+                  onChange={(event) =>
+                    setSelectedAdlibsFile(event.target.files?.[0] ?? null)
+                  }
+                  type="file"
+                />
+                <Button
+                  className="h-14 w-full border-dashed"
+                  onClick={() => adlibsInputRef.current?.click()}
+                  type="button"
+                  variant="outline"
+                >
+                  <FileAudio className="mr-2 size-4" />
+                  {selectedAdlibsFile
+                    ? selectedAdlibsFile.name
+                    : "Attach Adlibs (Optional)"}
+                </Button>
                 <Textarea
                   placeholder="Add a note for the creator (optional)"
                   value={message}
@@ -493,7 +583,10 @@ function OpenVerseDetailPage() {
                 />
                 <Button
                   className="w-full"
-                  disabled={!selectedFile || isSubmitting}
+                  disabled={
+                    !(selectedAuditionFile && selectedVocalStemFile) ||
+                    isSubmitting
+                  }
                   type="submit"
                 >
                   <Send className="mr-2 size-4" />

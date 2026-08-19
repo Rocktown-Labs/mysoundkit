@@ -423,6 +423,10 @@ app.openapi(
         openVerseAccessRequestSchema,
         "Access request"
       ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Artist account required"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Open verse not found"
@@ -448,14 +452,25 @@ app.openapi(
     const { listingId } = c.req.valid("param"),
       body = c.req.valid("json"),
       db = createDb(),
-      [listing] = await db
-        .select({
-          accessMode: openVerseListings.accessMode,
-          ownerUserId: openVerseListings.ownerUserId,
-        })
-        .from(openVerseListings)
-        .where(eq(openVerseListings.id, listingId))
+      [submitterProfile] = await db
+        .select({ accountType: userProfiles.accountType })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
         .limit(1);
+    if (submitterProfile?.accountType !== "artist") {
+      return c.json(
+        { message: "Only artist accounts can participate in Open Verses." },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+    const [listing] = await db
+      .select({
+        accessMode: openVerseListings.accessMode,
+        ownerUserId: openVerseListings.ownerUserId,
+      })
+      .from(openVerseListings)
+      .where(eq(openVerseListings.id, listingId))
+      .limit(1);
     if (!listing) {
       return c.json(
         { message: "Open verse not found." },
@@ -684,9 +699,9 @@ app.openapi(
     const status =
       body.action === "approve"
         ? "approved"
-        : (body.action === "decline"
+        : body.action === "decline"
           ? "declined"
-          : "canceled");
+          : "canceled";
     const [updated] = await db
       .update(openVerseAccessRequests)
       .set({
@@ -770,6 +785,7 @@ app.openapi(
     if (!isDatabaseConfigured()) {
       return c.json(
         {
+          adlibAssetId: null,
           assetId: null,
           createdAt: new Date().toISOString(),
           id: "submission_new",
@@ -777,6 +793,7 @@ app.openapi(
           message: c.req.valid("json").message ?? null,
           status: "submitted" as const,
           submitterUserId: user.id,
+          vocalStemAssetId: null,
         },
         HttpStatusCodes.CREATED
       );
@@ -785,6 +802,11 @@ app.openapi(
     const { listingId } = c.req.valid("param"),
       body = c.req.valid("json"),
       db = createDb(),
+      [submitterProfile] = await db
+        .select({ accountType: userProfiles.accountType })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1),
       [accessListing] = await db
         .select({
           accessMode: openVerseListings.accessMode,
@@ -806,6 +828,13 @@ app.openapi(
       return c.json(
         { message: "Open verse not found." },
         HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    if (submitterProfile?.accountType !== "artist") {
+      return c.json(
+        { message: "Only artist accounts can submit Open Verse takes." },
+        HttpStatusCodes.FORBIDDEN
       );
     }
 
@@ -836,44 +865,68 @@ app.openapi(
       }
     }
 
-    let submissionAssetId = body.assetId ?? null;
-    if (!submissionAssetId && body.assetObjectKey) {
-      const [asset] = await db
-        .insert(trackAssets)
-        .values({
-          assetKind: "verse_vocal",
-          id: crypto.randomUUID(),
-          metadata: {
-            originalFileName: body.assetOriginalFileName ?? null,
-            url: body.assetUrl ?? null,
-          },
-          mimeType: body.assetMimeType ?? null,
-          objectKey: body.assetObjectKey,
-          sizeBytes: body.assetSizeBytes ?? null,
-          status: "ready",
-          storageProvider: "r2",
-          trackId: accessListing.trackId,
-          uploaderUserId: user.id,
-        })
-        .returning({ id: trackAssets.id });
-      submissionAssetId = asset?.id ?? null;
-    }
+    const createSubmissionAsset = async ({
+        asset,
+        assetKind,
+      }: {
+        asset: typeof body.audition | undefined;
+        assetKind: "adlib" | "reference_audio" | "verse_vocal";
+      }) => {
+        if (!asset) {
+          return null;
+        }
+        const [createdAsset] = await db
+          .insert(trackAssets)
+          .values({
+            assetKind,
+            id: crypto.randomUUID(),
+            metadata: {
+              originalFileName: asset.assetOriginalFileName ?? null,
+              url: asset.assetUrl ?? null,
+            },
+            mimeType: asset.assetMimeType ?? null,
+            objectKey: asset.assetObjectKey,
+            sizeBytes: asset.assetSizeBytes ?? null,
+            status: "ready",
+            storageProvider: "r2",
+            trackId: accessListing.trackId,
+            uploaderUserId: user.id,
+          })
+          .returning({ id: trackAssets.id });
+        return createdAsset?.id ?? null;
+      },
+      auditionAssetId = await createSubmissionAsset({
+        asset: body.audition,
+        assetKind: "reference_audio",
+      }),
+      vocalStemAssetId = await createSubmissionAsset({
+        asset: body.vocalStem,
+        assetKind: "verse_vocal",
+      }),
+      adlibAssetId = await createSubmissionAsset({
+        asset: body.adlibs,
+        assetKind: "adlib",
+      });
 
     const [submission] = await db
       .insert(openVerseSubmissions)
       .values({
-        assetId: submissionAssetId,
+        adlibAssetId,
+        assetId: auditionAssetId,
         id: crypto.randomUUID(),
         listingId,
         message: body.message ?? null,
         submitterUserId: user.id,
+        vocalStemAssetId,
       })
       .onConflictDoUpdate({
         set: {
-          assetId: submissionAssetId,
+          adlibAssetId,
+          assetId: auditionAssetId,
           message: body.message ?? null,
           status: "submitted",
           updatedAt: new Date(),
+          vocalStemAssetId,
         },
         target: [
           openVerseSubmissions.listingId,
@@ -957,6 +1010,7 @@ app.openapi(
       return c.json(
         [
           {
+            adlibAssetId: null,
             assetId: "asset_vocal_1",
             createdAt: new Date().toISOString(),
             id: "sub_1",
@@ -967,8 +1021,10 @@ app.openapi(
             submitterDisplayName: "Marcus Key",
             submitterUserId: "user_marcus",
             submitterUsername: "marcuskey",
+            vocalStemAssetId: "asset_vocal_1",
           },
           {
+            adlibAssetId: null,
             assetId: "asset_vocal_2",
             createdAt: new Date().toISOString(),
             id: "sub_2",
@@ -979,6 +1035,7 @@ app.openapi(
             submitterDisplayName: "Aria Vance",
             submitterUserId: "user_aria",
             submitterUsername: "ariavance",
+            vocalStemAssetId: "asset_vocal_2",
           },
         ],
         HttpStatusCodes.OK
@@ -988,6 +1045,7 @@ app.openapi(
     const db = createDb(),
       rows = await db
         .select({
+          adlibAssetId: openVerseSubmissions.adlibAssetId,
           assetId: openVerseSubmissions.assetId,
           createdAt: openVerseSubmissions.createdAt,
           id: openVerseSubmissions.id,
@@ -998,6 +1056,7 @@ app.openapi(
           submitterDisplayName: userProfiles.displayName,
           submitterUserId: openVerseSubmissions.submitterUserId,
           submitterUsername: userProfiles.username,
+          vocalStemAssetId: openVerseSubmissions.vocalStemAssetId,
         })
         .from(openVerseSubmissions)
         .leftJoin(

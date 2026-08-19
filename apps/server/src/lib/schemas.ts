@@ -1664,17 +1664,23 @@ export const respondOpenVerseAccessRequestBodySchema = z.object({
   action: z.enum(["approve", "decline", "cancel"]),
 });
 
-export const createOpenVerseSubmissionBodySchema = z.object({
-  assetId: z.string().min(1).optional(),
+const openVerseSubmissionAssetSchema = z.object({
   assetMimeType: z.string().max(120).optional(),
-  assetObjectKey: z.string().min(1).optional(),
+  assetObjectKey: z.string().min(1),
   assetOriginalFileName: z.string().max(255).optional(),
   assetSizeBytes: z.number().int().nonnegative().optional(),
   assetUrl: z.string().url().optional(),
+});
+
+export const createOpenVerseSubmissionBodySchema = z.object({
+  adlibs: openVerseSubmissionAssetSchema.optional(),
+  audition: openVerseSubmissionAssetSchema,
   message: z.string().max(2000).optional(),
+  vocalStem: openVerseSubmissionAssetSchema,
 });
 
 export const openVerseSubmissionSchema = z.object({
+  adlibAssetId: z.string().nullable(),
   assetId: z.string().nullable(),
   createdAt: z.string(),
   id: z.string(),
@@ -1688,6 +1694,7 @@ export const openVerseSubmissionSchema = z.object({
     "withdrawn",
   ]),
   submitterUserId: z.string(),
+  vocalStemAssetId: z.string().nullable(),
 });
 
 export const trackProcessingStatusSchema = z.object({
