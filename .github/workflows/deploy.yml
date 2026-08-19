@@ -46,17 +46,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check types
-        run: pnpm run check-types
-
-      - name: Check React hook imports
-        run: pnpm run check:react-hooks
-
-      - name: Run unit and Worker tests
-        run: pnpm run test
-
-      - name: Build applications
-        run: pnpm run build
+      - name: Run verification suite (types, hooks, tests, build)
+        run: pnpm run verify
 
   browser:
     name: Browser Smoke Tests

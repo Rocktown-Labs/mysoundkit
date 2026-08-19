@@ -31,6 +31,7 @@ import * as z from "zod";
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import { VisualWaveformSlotTrimmer } from "@/components/studio/visual-waveform-slot-trimmer";
+import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
 import {
   Accordion,
   AccordionContent,
@@ -1246,6 +1247,46 @@ export function NewTrackForm({
         });
 
         if (values.status === "open_verse") {
+          const startSec = Number(values.openVerseSlotStartsAt) || 30,
+            endSec = Number(values.openVerseSlotEndsAt) || 75;
+
+          if (selectedMasterFile) {
+            try {
+              const snippetFile = await sliceAudioFileToSnippet(
+                selectedMasterFile,
+                startSec,
+                endSec,
+                `open-verse-stub-${values.name.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-")}.wav`
+              );
+              const snippetUploadRes = await upload([snippetFile]);
+              const snippetUploaded = snippetUploadRes?.find(
+                (uploadItem) => uploadItem.name === snippetFile.name
+              );
+              if (snippetUploaded?.objectInfo.key) {
+                await rpcJson(
+                  await trackAssetPost({
+                    json: {
+                      assetKind:
+                        "open_verse_clip" as unknown as "alternate_mix",
+                      metadata: {
+                        durationMs: (endSec - startSec) * 1000,
+                        originalFileName: snippetFile.name,
+                        url: `${MEDIA_BASE_URL}/${snippetUploaded.objectInfo.key}`,
+                      },
+                      mimeType: "audio/wav",
+                      objectKey: snippetUploaded.objectInfo.key,
+                      status: "ready",
+                      storageProvider: "r2",
+                    },
+                    param: { trackId: trackPreview.trackId },
+                  })
+                );
+              }
+            } catch (slicingErr) {
+              posthog.captureException(slicingErr);
+            }
+          }
+
           await createOpenVerseMutation.mutateAsync({
             description: values.openVerseDescription?.trim() || undefined,
             maxSubmissions: 50,
@@ -2520,7 +2561,11 @@ export function NewTrackForm({
                           </Label>
                           <VisualWaveformSlotTrimmer
                             audioFile={selectedMasterFile}
-                            audioUrl={masterUpload?.remoteUrl}
+                            audioUrl={
+                              uploadedTrack
+                                ? `${MEDIA_BASE_URL}/${uploadedTrack.audioObjectKey}`
+                                : undefined
+                            }
                             durationSeconds={
                               masterDurationMs
                                 ? Math.round(masterDurationMs / 1000)

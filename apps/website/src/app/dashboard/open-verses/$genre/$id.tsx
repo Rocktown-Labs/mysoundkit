@@ -1,10 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CheckCircle2,
   Download,
+  FileArchive,
   FileAudio,
   LoaderCircle,
   Mic2,
+  Music2,
   PlayCircle,
   Plus,
   Send,
@@ -18,14 +20,16 @@ import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
+import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
 import { canonicalGenreName } from "@/lib/music-genres";
 import {
   useOpenVerseQuery,
+  useProjectsQuery,
   useSubmitOpenVerseMutation,
+  useTracksQuery,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/open-verses/$genre/$id")({
@@ -51,14 +55,25 @@ const formatSlot = ({
 function OpenVerseDetailPage() {
   const { id } = Route.useParams(),
     query = useOpenVerseQuery(id),
+    tracksQuery = useTracksQuery({ limit: 5 }),
+    projectsQuery = useProjectsQuery({ limit: 5 }),
     submitMutation = useSubmitOpenVerseMutation(id),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     [assetId, setAssetId] = useState(""),
-    [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null),
+    [selectedMixedFile, setSelectedMixedFile] = useState<File | null>(null),
+    [selectedVocalFile, setSelectedVocalFile] = useState<File | null>(null),
+    [selectedStemFile, setSelectedStemFile] = useState<File | null>(null),
+    [isDownloadingSnippet, setIsDownloadingSnippet] = useState(false),
     [message, setMessage] = useState(""),
     [acceptedSubId, setAcceptedSubId] = useState<string | null>(null),
-    fileInputRef = useRef<HTMLInputElement | null>(null),
+    mixedInputRef = useRef<HTMLInputElement | null>(null),
+    vocalInputRef = useRef<HTMLInputElement | null>(null),
+    stemInputRef = useRef<HTMLInputElement | null>(null),
     listing = query.data,
+    totalArtistUploads =
+      (tracksQuery.data?.items?.length ?? 0) +
+      (projectsQuery.data?.items?.length ?? 0),
+    hasUploadedMusic = totalArtistUploads > 0,
     handleAcceptSubmission = (subId: string, artistName: string) => {
       setAcceptedSubId(subId);
       toast({
@@ -86,22 +101,65 @@ function OpenVerseDetailPage() {
       setQueue([playerTrack]);
       setCurrentTrack(playerTrack);
     },
-    handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (file) {
-        setSelectedAudioFile(file);
-        setAssetId(file.name);
+    handleDownloadHookStub = async () => {
+      if (!listing?.playbackUrl) {
         toast({
-          description: `Attached "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB). Ready to submit!`,
-          title: "Vocal Take Attached",
+          description: "Audio preview not ready yet.",
+          title: "Download unavailable",
+          variant: "destructive",
         });
+        return;
+      }
+
+      try {
+        setIsDownloadingSnippet(true);
+        toast({
+          description: "Preparing MediaBunny audio snippet (Hook & Open Slot)...",
+          title: "Extracting Audio Stub",
+        });
+
+        const startSec = listing.slotStartsAtMs
+          ? Math.round(listing.slotStartsAtMs / 1000)
+          : 30;
+        const endSec = listing.slotEndsAtMs
+          ? Math.round(listing.slotEndsAtMs / 1000)
+          : 75;
+
+        const snippetFile = await sliceAudioFileToSnippet(
+          listing.playbackUrl,
+          startSec,
+          endSec,
+          `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-")}-hook-slot-stub.wav`
+        );
+
+        const url = URL.createObjectURL(snippetFile);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = snippetFile.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast({
+          description: `Downloaded "${snippetFile.name}". Open in your DAW to record your take!`,
+          title: "Hook Snippet Downloaded",
+        });
+      } catch (err) {
+        toast({
+          description: "Could not slice snippet. Please try downloading again.",
+          title: "Snippet Extraction Failed",
+          variant: "destructive",
+        });
+      } finally {
+        setIsDownloadingSnippet(false);
       }
     },
     submitVerse = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (!selectedAudioFile && !assetId.trim()) {
+      if (!selectedMixedFile && !selectedVocalFile && !assetId.trim()) {
         toast({
-          description: "Please attach your audio take file (WAV or MP3).",
+          description: "Please attach at least your Mixed Audition Take (.wav / .mp3).",
           title: "Audio Take Required",
           variant: "destructive",
         });
@@ -109,7 +167,10 @@ function OpenVerseDetailPage() {
       }
 
       submitMutation.mutate({
-        assetId: assetId.trim() || undefined,
+        assetId:
+          selectedMixedFile?.name ??
+          selectedVocalFile?.name ??
+          (assetId.trim() || undefined),
         message: message.trim() || undefined,
       });
     };
@@ -136,11 +197,11 @@ function OpenVerseDetailPage() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <section className="space-y-6">
         <Card className="overflow-hidden border-border/40 bg-card/50">
           <div
-            className="flex aspect-video items-center justify-center bg-muted bg-cover bg-center"
+            className="flex aspect-video items-center justify-center bg-muted bg-cover bg-center relative group"
             style={{
               backgroundImage: listing.coverArtUrl
                 ? `url(${listing.coverArtUrl})`
@@ -152,19 +213,38 @@ function OpenVerseDetailPage() {
               onClick={playListing}
               size="icon"
               type="button"
+              className="size-14 rounded-full shadow-2xl hover:scale-105 transition"
             >
-              <PlayCircle className="size-5" />
+              <PlayCircle className="size-8" />
             </Button>
           </div>
           <CardContent className="space-y-4 p-5">
-            <div>
-              <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
-                {listing.title}
-              </h1>
-              <p className="mt-1 text-muted-foreground">
-                {listing.artistName} opened a slot on {listing.trackTitle}.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
+                  {listing.title}
+                </h1>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  {listing.artistName} opened a slot on {listing.trackTitle}.
+                </p>
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 shrink-0 border-primary/40 text-primary hover:bg-primary/10 font-bold"
+                onClick={handleDownloadHookStub}
+                disabled={isDownloadingSnippet}
+              >
+                {isDownloadingSnippet ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <Download className="size-4" />
+                )}
+                Download Hook & Open Slot (.WAV)
+              </Button>
             </div>
+
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">
                 {canonicalGenreName(listing.genre)}
@@ -316,69 +396,173 @@ function OpenVerseDetailPage() {
             <CardTitle>Submit Your Verse</CardTitle>
           </CardHeader>
           <CardContent>
-            <form className="space-y-4" onSubmit={submitVerse}>
-              <div className="space-y-2">
-                <Label>Vocal Take Audio File (.wav, .mp3)</Label>
-                <input
-                  type="file"
-                  accept="audio/*,.wav,.mp3,.m4a,.aac"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full border-dashed h-20 flex flex-col items-center justify-center gap-1 hover:bg-accent/40"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {selectedAudioFile ? (
-                    <div className="flex items-center gap-2 text-primary font-semibold text-xs">
-                      <FileAudio className="size-5" />
-                      <span className="truncate max-w-[220px]">
-                        {selectedAudioFile.name}
-                      </span>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="size-5 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        Click to select your recorded verse take
-                      </span>
-                    </>
-                  )}
+            {!hasUploadedMusic ? (
+              /* Anti-Leech Guard: Requires at least 1 track or project uploaded */
+              <div className="space-y-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
+                <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-amber-500/20 text-amber-500">
+                  <Music2 className="size-5" />
+                </div>
+                <h4 className="font-bold text-sm text-foreground">
+                  Artist Profile Required
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  To participate in Open Verses, you must have at least 1 track
+                  or project uploaded to establish your SoundKit music identity.
+                </p>
+                <Button asChild size="sm" className="w-full font-bold mt-2">
+                  <Link to="/dashboard/tracks/new">
+                    <Plus className="size-3.5 mr-1.5" />
+                    Upload Your First Track
+                  </Link>
                 </Button>
               </div>
+            ) : (
+              <form className="space-y-4" onSubmit={submitVerse}>
+                {/* 3-Part Take Submission Uploaders */}
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      1. Mixed Audition (Hook + Vocal Mixdown) *
+                    </Label>
+                    <input
+                      type="file"
+                      accept="audio/*,.wav,.mp3,.m4a,.aac"
+                      ref={mixedInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setSelectedMixedFile(file);
+                          setAssetId(file.name);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-dashed h-14 flex items-center justify-center gap-2 hover:bg-accent/40 text-xs"
+                      onClick={() => mixedInputRef.current?.click()}
+                    >
+                      {selectedMixedFile ? (
+                        <span className="truncate max-w-[240px] text-primary font-bold">
+                          ✓ {selectedMixedFile.name}
+                        </span>
+                      ) : (
+                        <>
+                          <Upload className="size-4 text-muted-foreground" />
+                          <span>Attach Mixed Audition (.mp3, .wav)</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="message">Message to Creator</Label>
-                <Textarea
-                  id="message"
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Tell the artist about your style, verse concept, and what you brought to the track."
-                  value={message}
-                  rows={3}
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      2. Raw Dry Vocal Take (.wav)
+                    </Label>
+                    <input
+                      type="file"
+                      accept="audio/*,.wav,.aif,.flac"
+                      ref={vocalInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setSelectedVocalFile(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-dashed h-14 flex items-center justify-center gap-2 hover:bg-accent/40 text-xs"
+                      onClick={() => vocalInputRef.current?.click()}
+                    >
+                      {selectedVocalFile ? (
+                        <span className="truncate max-w-[240px] text-primary font-bold">
+                          ✓ {selectedVocalFile.name}
+                        </span>
+                      ) : (
+                        <>
+                          <FileAudio className="size-4 text-muted-foreground" />
+                          <span>Attach Dry Vocal (.wav)</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
 
-              <Button
-                className="w-full font-bold"
-                disabled={submitMutation.isPending}
-                type="submit"
-              >
-                {submitMutation.isPending ? (
-                  <LoaderCircle className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 size-4" />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">
+                      3. Vocal Stems / DAW Project (Optional)
+                    </Label>
+                    <input
+                      type="file"
+                      accept=".zip,.rar,.tar,.wav"
+                      ref={stemInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setSelectedStemFile(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-dashed h-14 flex items-center justify-center gap-2 hover:bg-accent/40 text-xs"
+                      onClick={() => stemInputRef.current?.click()}
+                    >
+                      {selectedStemFile ? (
+                        <span className="truncate max-w-[240px] text-primary font-bold">
+                          ✓ {selectedStemFile.name}
+                        </span>
+                      ) : (
+                        <>
+                          <FileArchive className="size-4 text-muted-foreground" />
+                          <span>Attach Stems Archive (.zip)</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-2">
+                  <Label htmlFor="message" className="text-xs font-semibold">
+                    Message to Creator
+                  </Label>
+                  <Textarea
+                    id="message"
+                    onChange={(event) => setMessage(event.target.value)}
+                    placeholder="Tell the artist about your verse concept, flow, and inspiration..."
+                    value={message}
+                    rows={3}
+                    className="text-xs"
+                  />
+                </div>
+
+                <Button
+                  className="w-full font-bold"
+                  disabled={submitMutation.isPending}
+                  type="submit"
+                >
+                  {submitMutation.isPending ? (
+                    <LoaderCircle className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 size-4" />
+                  )}
+                  Submit 3-Part Take
+                </Button>
+                {submitMutation.isSuccess && (
+                  <p className="text-sm text-emerald-400 font-medium text-center">
+                    Vocal take submitted successfully!
+                  </p>
                 )}
-                Submit Verse Take
-              </Button>
-              {submitMutation.isSuccess && (
-                <p className="text-sm text-emerald-400 font-medium text-center">
-                  Vocal take submitted successfully!
-                </p>
-              )}
-            </form>
+              </form>
+            )}
           </CardContent>
         </Card>
       </aside>

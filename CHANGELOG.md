@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed `masterUpload is not defined` runtime ReferenceError in `new-track-form.tsx` by correctly binding `selectedMasterFile` and uploaded track assets to `VisualWaveformSlotTrimmer`.
+- Integrated client-side MediaBunny audio slicer (`apps/website/src/lib/media-bunny-slicer.ts`) to extract lightweight Hook & Open Verse slot snippet stubs (`.wav`) directly in the browser during track creation, uploading them as `open_verse_clip` assets to R2 and protecting full unreleased master tracks from leaks.
+- Implemented Anti-Leech Guard (0-Uploads Rule) on Open Verse submissions (`/dashboard/open-verses/:genre/:id`), preventing empty accounts from submitting takes and guiding them to upload their first track or project.
+- Added 3-part structured take submission uploaders (Mixed Audition Take, Raw Dry Vocal Take, and Stems/Project Archive) and direct Hook & Open Slot snippet downloader.
+- Added canonical local and CI verification script `pnpm run verify` (`check-types`, `check:react-hooks`, unit/worker test suites, and production build) and aligned GitHub Actions CI pipeline.
+
 - Fixed Dashboard career analytics computation (`/dashboard/career/analytics`) by querying both active workspace organization ID and personal user ownership (`tracks.organizationId` OR `tracks.ownerUserId`), and wiring `useAnalyticsOverviewQuery` so real stream counts, trends, and listener loyalty never show 0.
 - Preserved exact user input casing on artist stage and display names across backend ranking endpoints and frontend leaderboard cards (e.g., "CG Stewart", "MF DOOM"), removing destructive title-case normalization.
 - Fixed Artist leaderboard ordering: "Top Artists" ranks by overall momentum and total plays + follower count, "Rising Stars" ranks by live 7-day streams, and "New Artists" orders strictly by account join date (`authUser.createdAt DESC`).
