@@ -76,7 +76,7 @@ importers:
         specifier: 'catalog:'
         version: 4.20260630.1
       '@playwright/test':
-        specifier: ^1.60.0
+        specifier: 1.61.1
         version: 1.61.1
       '@soundkit/config':
         specifier: workspace:*
