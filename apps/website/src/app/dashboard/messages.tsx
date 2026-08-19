@@ -39,7 +39,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageScroller } from "@/components/ui/message-scroller";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
@@ -593,15 +600,21 @@ function MessagesPageClient() {
               </div>
             </div>
 
-            <MessageScroller
-              className="custom-scrollbar space-y-4 p-6"
-              messageCount={(messagesQuery.data ?? []).length}
+            <MessageScrollerProvider
+              autoScroll
+              defaultScrollPosition="end"
+              scrollPreviousItemPeek={64}
             >
-              {messagesQuery.isLoading && (
-                <p className="text-sm text-muted-foreground">
-                  Loading messages...
-                </p>
-              )}
+              <MessageScroller>
+                <MessageScrollerViewport>
+                  <MessageScrollerContent className="gap-4 p-6">
+                    {messagesQuery.isLoading && (
+                      <MessageScrollerItem messageId="loading-messages">
+                        <p className="text-sm text-muted-foreground">
+                          Loading messages...
+                        </p>
+                      </MessageScrollerItem>
+                    )}
               {(messagesQuery.data ?? []).map((message) => {
                 const isMine = message.senderId === meQuery.data?.user.id;
                 const hasCollabProposal = message.attachments?.some(
@@ -616,13 +629,17 @@ function MessagesPageClient() {
                 );
 
                 return (
-                  <div
-                    className={cn(
-                      "flex",
-                      isMine ? "justify-end" : "justify-start"
-                    )}
+                  <MessageScrollerItem
                     key={message.id}
+                    messageId={message.id}
+                    scrollAnchor={isMine}
                   >
+                    <div
+                      className={cn(
+                        "flex",
+                        isMine ? "justify-end" : "justify-start"
+                      )}
+                    >
                     {hasCollabProposal && collabAtt ? (
                       <div className="w-full max-w-sm rounded-2xl border-2 border-primary/40 bg-card/95 p-4 shadow-xl space-y-3">
                         <div className="flex items-center justify-between border-b pb-2">
@@ -808,20 +825,27 @@ function MessagesPageClient() {
                         </p>
                       </div>
                     )}
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 );
               })}
               {!messagesQuery.isLoading &&
                 (messagesQuery.data ?? []).length === 0 && (
-                  <div className="py-12 text-center">
+                  <MessageScrollerItem messageId="empty-messages">
+                    <div className="py-12 text-center">
                     <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
                     <p className="font-medium">No messages yet</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Send the first message to start this chat.
                     </p>
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 )}
-            </MessageScroller>
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton />
+              </MessageScroller>
+            </MessageScrollerProvider>
 
             <form
               className="border-t border-border/20 bg-white/[0.01] p-4"

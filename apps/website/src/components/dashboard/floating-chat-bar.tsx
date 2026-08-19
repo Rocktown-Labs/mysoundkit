@@ -50,7 +50,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MessageScroller } from "@/components/ui/message-scroller";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
@@ -759,11 +766,11 @@ function FloatingChatBarClient() {
               </CardHeader>
 
               {/* Messages Feed */}
-              <MessageScroller
-                className="space-y-3 p-3"
-                messageCount={messages.length}
-              >
-                {messages.length > 0 ? (
+              <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent className="gap-3 p-3">
+                      {messages.length > 0 ? (
                   messages.map((message) => {
                     const isMine = message.senderId === meQuery.data?.user.id;
                     const hasCollabProposal = message.attachments?.some(
@@ -778,9 +785,13 @@ function FloatingChatBarClient() {
                     );
 
                     return (
-                      <div
+                      <MessageScrollerItem
                         key={message.id}
-                        className={cn(
+                        messageId={message.id}
+                        scrollAnchor={isMine}
+                      >
+                        <div
+                          className={cn(
                           "flex flex-col max-w-[88%]",
                           isMine ? "ml-auto items-end" : "mr-auto items-start"
                         )}
@@ -983,11 +994,13 @@ function FloatingChatBarClient() {
                             minute: "2-digit",
                           })}
                         </span>
-                      </div>
+                        </div>
+                      </MessageScrollerItem>
                     );
                   })
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-xs text-muted-foreground space-y-1.5 py-12">
+                  <MessageScrollerItem messageId="empty-floating-messages">
+                    <div className="h-full flex flex-col items-center justify-center text-xs text-muted-foreground space-y-1.5 py-12">
                     <MessageCircle className="size-7 text-muted-foreground/40" />
                     <p className="font-medium">No messages yet</p>
                     <p className="text-[11px]">
@@ -996,9 +1009,14 @@ function FloatingChatBarClient() {
                         /collab
                       </code>
                     </p>
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 )}
-              </MessageScroller>
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              </MessageScrollerProvider>
 
               {/* Slash Command Helper Popup */}
               {isSlashActive && matchingCommands.length > 0 && (

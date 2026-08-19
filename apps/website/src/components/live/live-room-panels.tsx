@@ -20,7 +20,14 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
-import { MessageScroller } from "../ui/message-scroller";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 import { UserProfilePreviewModal } from "./user-profile-preview-modal";
 import type { UserPreviewData } from "./user-profile-preview-modal";
 
@@ -100,17 +107,19 @@ export function LiveChatPanel({
               : "space-y-4 p-4"
           }`}
         >
-          <MessageScroller
-            className={fillHeight ? "px-4 py-3" : "h-80 pr-3"}
-            messageCount={messages.length}
-          >
-            <div className="space-y-2.5">
-              {messages.length === 0 && (
-                <div className="py-12 text-center text-xs text-muted-foreground">
-                  <MessageSquare className="mx-auto mb-2 size-6 text-muted-foreground/50" />
-                  Welcome to the stream chat! Say hello to the room.
-                </div>
-              )}
+          <div className={fillHeight ? "min-h-0 flex-1" : "h-80"}>
+            <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+              <MessageScroller>
+                <MessageScrollerViewport className="px-4 py-3">
+                  <MessageScrollerContent className="gap-2.5">
+                    {messages.length === 0 && (
+                      <MessageScrollerItem messageId="empty-live-room-chat">
+                        <div className="py-12 text-center text-xs text-muted-foreground">
+                          <MessageSquare className="mx-auto mb-2 size-6 text-muted-foreground/50" />
+                          Welcome to the stream chat! Say hello to the room.
+                        </div>
+                      </MessageScrollerItem>
+                    )}
               {messages.map((chatMessage) => {
                 const isMe =
                     chatMessage.userName.toLowerCase() === "you" ||
@@ -165,12 +174,16 @@ export function LiveChatPanel({
                   };
 
                 return (
-                  <div
-                    className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
-                      isBot ? "border-l-2 border-primary/60 bg-primary/5" : ""
-                    }`}
+                  <MessageScrollerItem
                     key={chatMessage.id}
+                    messageId={chatMessage.id}
+                    scrollAnchor={isMe}
                   >
+                    <div
+                      className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
+                        isBot ? "border-l-2 border-primary/60 bg-primary/5" : ""
+                      }`}
+                    >
                     <button
                       className="shrink-0 cursor-pointer transition-transform hover:scale-105"
                       onClick={handleOpenProfile}
@@ -215,11 +228,16 @@ export function LiveChatPanel({
                         {chatMessage.message}
                       </p>
                     </div>
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 );
               })}
-            </div>
-          </MessageScroller>
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton />
+              </MessageScroller>
+            </MessageScrollerProvider>
+          </div>
 
           {/* Bottom input bar with safe mobile padding above ExploreMobileNav */}
           <div className="border-t border-border/40 p-3 bg-background/50 max-lg:pb-24">
