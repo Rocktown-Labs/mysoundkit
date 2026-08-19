@@ -14,6 +14,7 @@ const meGet = apiClient.v1.me.index.$get,
   meNotificationSettingsPatch = apiClient.v1.me["notification-settings"].$patch,
   meEntitlementsGet = apiClient.v1.me.entitlements.$get,
   billingCheckoutPost = apiClient.v1.billing.checkout.$post,
+  billingPlansGet = apiClient.v1.billing.plans.$get,
   adminAccessGet = apiClient.v1.admin.access.$get,
   adminSettingsGet = apiClient.v1.admin.settings.$get,
   adminSettingsPatch = apiClient.v1.admin.settings.$patch,
@@ -189,6 +190,10 @@ export type BillingCheckoutResponse = InferResponseType<
   typeof billingCheckoutPost,
   200
 >;
+export type BillingPlan = InferResponseType<
+  typeof billingPlansGet,
+  200
+>[number];
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 type UpdateNotificationSettingsBody = InferRequestType<
   typeof meNotificationSettingsPatch
@@ -641,6 +646,13 @@ export const useMeEntitlementsQuery = () =>
     queryFn: async (): Promise<EntitlementSummary> =>
       rpcJson(await meEntitlementsGet()),
     queryKey: soundkitQueryKeys.meEntitlements,
+  });
+
+export const useBillingPlansQuery = () =>
+  useQuery<BillingPlan[]>({
+    queryFn: async () => rpcJson(await billingPlansGet()),
+    queryKey: soundkitQueryKeys.billingPlans,
+    staleTime: 5 * 60_000,
   });
 
 export const useBillingCheckoutMutation = () => {

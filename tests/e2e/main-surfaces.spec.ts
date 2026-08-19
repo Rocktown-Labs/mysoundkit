@@ -356,9 +356,9 @@ test.describe("signup onboarding guards", () => {
           locationQuery: "",
           primaryGenre: "",
           roles: ["musician"],
-          selectedPlanCode: "artist_premium",
+          selectedPlanCode: "soundkit_premium_artist",
           stateValue: "",
-          step: 2,
+          step: 3,
           username: "codex_resume",
         })
       );

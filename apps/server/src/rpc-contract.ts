@@ -32,6 +32,8 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   onboardingResponseSchema,
+  onboardingStateSchema,
+  updateOnboardingStateBodySchema,
   openVerseQuerySchema,
   playbackProgressBodySchema,
   artistRankingQuerySchema,
@@ -53,6 +55,7 @@ import {
 } from "./lib/schemas";
 import type {
   adminAccessSchema,
+  adminGenreSchema,
   adminPaymentsOverviewSchema,
   adminOverviewSchema,
   adminSyncStripePlansResponseSchema,
@@ -303,6 +306,14 @@ export const rpcContract = new Hono()
   .delete("/v1/me/workspace/members/:memberId", (c) =>
     c.json({} as z.infer<typeof workspaceDetailSchema>)
   )
+  .get("/v1/onboarding/state", (c) =>
+    c.json(null as z.infer<typeof onboardingStateSchema> | null)
+  )
+  .post(
+    "/v1/onboarding/state",
+    jsonValidator(updateOnboardingStateBodySchema),
+    (c) => c.json({} as z.infer<typeof onboardingStateSchema>)
+  )
   .get(
     "/v1/onboarding/username-availability",
     validator("query", (value) => usernameAvailabilityQuerySchema.parse(value)),
@@ -317,6 +328,7 @@ export const rpcContract = new Hono()
     c.json({} as z.infer<typeof onboardingResponseSchema>, 201)
   )
   .get("/v1/billing/plans", (c) => c.json([] as z.infer<typeof planSchema>[]))
+  .get("/v1/admin/genres", (c) => c.json([] as z.infer<typeof adminGenreSchema>[]))
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
   )

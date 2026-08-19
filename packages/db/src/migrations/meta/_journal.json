@@ -232,6 +232,13 @@
       "when": 1787122930055,
       "tag": "0032_open_verse_submission_assets",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787123930055,
+      "tag": "0033_auth_onboarding_progress",
+      "breakpoints": true
     }
   ]
 }

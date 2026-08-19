@@ -23,6 +23,10 @@ export const presenceStatusEnum = pgEnum("presence_status", [
   "offline",
 ]);
 export const artistRoleEnum = pgEnum("artist_role", ["musician", "producer"]);
+export const creatorEligibilityEnum = pgEnum("creator_eligibility", [
+  "independent",
+  "major_label_affiliated",
+]);
 export const workspaceTypeEnum = pgEnum("workspace_type", [
   "artist_team",
   "fan_family",
@@ -587,6 +591,52 @@ export const userProfiles = pgTable(
     username: text("username").notNull(),
   },
   (table) => [uniqueIndex("user_profiles_username_idx").on(table.username)]
+);
+
+export const onboardingProgress = pgTable(
+  "onboarding_progress",
+  {
+    completedAt: timestamp("completed_at"),
+    creatorEligibility: creatorEligibilityEnum("creator_eligibility"),
+    creatorEligibilityDeclaredAt: timestamp("creator_eligibility_declared_at"),
+    creatorEligibilityLockedAt: timestamp("creator_eligibility_locked_at"),
+    currentStep: integer("current_step").default(1).notNull(),
+    exitedAt: timestamp("exited_at"),
+    intendedAccountType: accountTypeEnum("intended_account_type").notNull(),
+    lastActivityAt: timestamp("last_activity_at").defaultNow().notNull(),
+    marketingOptIn: boolean("marketing_opt_in").default(false).notNull(),
+    marketingOptInAt: timestamp("marketing_opt_in_at"),
+    marketingOptInSource: text("marketing_opt_in_source"),
+    marketingOptInVersion: text("marketing_opt_in_version"),
+    rightsAttestationVersion: text("rights_attestation_version"),
+    rightsAttestedAt: timestamp("rights_attested_at"),
+    selectedPlanCode: text("selected_plan_code"),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("onboarding_progress_last_activity_idx").on(table.lastActivityAt),
+  ]
+);
+
+export const onboardingEmailReminders = pgTable(
+  "onboarding_email_reminders",
+  {
+    id: text("id").primaryKey(),
+    reminderType: text("reminder_type").notNull(),
+    sentAt: timestamp("sent_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("onboarding_email_reminders_user_type_idx").on(
+      table.userId,
+      table.reminderType
+    ),
+  ]
 );
 
 export const userPresence = pgTable(
@@ -1309,14 +1359,14 @@ export const openVerseSubmissions = pgTable(
     submitterUserId: text("submitter_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    vocalStemAssetId: text("vocal_stem_asset_id").references(
-      () => trackAssets.id,
-      { onDelete: "set null" }
-    ),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
+    vocalStemAssetId: text("vocal_stem_asset_id").references(
+      () => trackAssets.id,
+      { onDelete: "set null" }
+    ),
   },
   (table) => [
     index("open_verse_submissions_listing_id_idx").on(table.listingId),

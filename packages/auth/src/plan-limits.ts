@@ -1,4 +1,4 @@
-export const PREMIUM_INCLUDED_SEATS = 3;
+export const PREMIUM_INCLUDED_SEATS = 5;
 export const LEGACY_TEAM_PLAN_SEATS = 5;
 
 export const PREMIUM_PLAN_CODES = new Set([

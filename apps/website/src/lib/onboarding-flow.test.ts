@@ -99,11 +99,15 @@ describe("signup onboarding flow", () => {
       locationQuery: "Little Rock, AR",
       primaryGenre: "Hip-Hop",
       roles: ["musician", "producer"],
-      selectedPlanCode: "artist_pro",
+      selectedPlanCode: "soundkit_premium_artist",
       stateValue: "AR",
       step: 3,
       username: "cam",
     });
+  });
+
+  it("ignores malformed artist onboarding drafts", () => {
+    expect(parseArtistOnboardingDraft("not-json")).toBeNull();
   });
 
   it("sanitizes partial artist onboarding drafts", () => {

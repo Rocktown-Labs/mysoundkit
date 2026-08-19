@@ -4,6 +4,61 @@ import { planCatalog } from "@soundkit/db/schema/plans";
 import { eq } from "drizzle-orm";
 
 import { CONFIGURED_PAID_PLAN_CODES, FREE_PLAN_CODES } from "@/lib/plan-codes";
+
+const FALLBACK_PLANS = [
+  {
+    annualPriceCents: 0,
+    audience: "artist" as const,
+    code: "artist_free",
+    entitlements: {},
+    isActive: true,
+    maxSeats: 1,
+    monthlyPriceCents: 0,
+    name: "SoundKit Free Artist",
+    stripeAnnualPriceId: null,
+    stripeMonthlyPriceId: null,
+  },
+  {
+    annualPriceCents: 22_899,
+    audience: "artist" as const,
+    code: "soundkit_premium_artist",
+    entitlements: { canCreateLiveBattles: true, canHostLiveStreams: true },
+    isActive: true,
+    maxSeats: 5,
+    monthlyPriceCents: 2299,
+    name: "SoundKit Premium Artist",
+    stripeAnnualPriceId: null,
+    stripeMonthlyPriceId: null,
+  },
+  {
+    annualPriceCents: 0,
+    audience: "fan" as const,
+    code: "fan_free",
+    entitlements: {},
+    isActive: true,
+    maxSeats: 1,
+    monthlyPriceCents: 0,
+    name: "SoundKit Free Fan",
+    stripeAnnualPriceId: null,
+    stripeMonthlyPriceId: null,
+  },
+  {
+    annualPriceCents: 22_899,
+    audience: "fan" as const,
+    code: "soundkit_premium_fan",
+    entitlements: {
+      accessExclusiveLiveBattles: true,
+      listeningPartiesUnlimited: true,
+      voteInBattleRounds: true,
+    },
+    isActive: true,
+    maxSeats: 5,
+    monthlyPriceCents: 2299,
+    name: "SoundKit Premium Fan",
+    stripeAnnualPriceId: null,
+    stripeMonthlyPriceId: null,
+  },
+] as const;
 import { billableSeatsForCheckout } from "@/lib/plan-seats";
 
 export const isFreePlan = (planCode: string) => FREE_PLAN_CODES.has(planCode);
@@ -107,10 +162,19 @@ export const getPlanRows = async () => {
     rows = await db.select().from(planCatalog);
 
   if (rows.length === 0) {
-    return [];
+    return [...FALLBACK_PLANS];
   }
 
-  return rows;
+  const allowedRows = rows.filter(
+      (plan) =>
+        FREE_PLAN_CODES.has(plan.code) ||
+        CONFIGURED_PAID_PLAN_CODES.has(plan.code)
+    ),
+    rowsByCode = new Map(allowedRows.map((plan) => [plan.code, plan]));
+
+  return FALLBACK_PLANS.map(
+    (fallback) => rowsByCode.get(fallback.code) ?? fallback
+  );
 };
 
 export const getPlanByCode = async (code: string) => {

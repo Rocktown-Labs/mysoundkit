@@ -17,6 +17,7 @@ import {
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
+import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
@@ -31,6 +32,7 @@ import {
 } from "@/middleware/structured-logging";
 import adminRoutes from "@/routes/admin";
 import adminFinanceRoutes from "@/routes/admin-finance";
+import authRoutes from "@/routes/auth";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
@@ -186,6 +188,7 @@ app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
 app
   .route("/v1/me", meRoutes)
+  .route("/v1/auth", authRoutes)
   .route("/v1/onboarding", onboardingRoutes)
   .route("/v1/discover", discoverRoutes)
   .route("/v1/artists", artistsRoutes)
@@ -246,6 +249,7 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         publishDueLiveRecordings(),
+        sendDueOnboardingReminders(),
         retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
         publishDueTrackReleases({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,

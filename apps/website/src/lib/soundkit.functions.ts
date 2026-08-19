@@ -19,9 +19,14 @@ const currentCookie = () => getRequestHeader("cookie") ?? null,
   rpcTypeClient = createSoundKitServerClient(null),
   meGet = rpcTypeClient.v1.me.index.$get,
   tracksGet = rpcTypeClient.v1.tracks.index.$get,
-  trackGet = rpcTypeClient.v1.tracks[":trackId"].$get;
+  trackGet = rpcTypeClient.v1.tracks[":trackId"].$get,
+  onboardingStateGet = rpcTypeClient.v1.onboarding.state.$get;
 
 type MeResponse = InferResponseType<typeof meGet, 200>;
+type OnboardingStateResponse = InferResponseType<
+  typeof onboardingStateGet,
+  200
+>;
 const accountTypeSchema = z.enum(["artist", "fan"]);
 export type DashboardTrackSummary = InferResponseType<
   typeof tracksGet,
@@ -29,7 +34,7 @@ export type DashboardTrackSummary = InferResponseType<
 >[number];
 type TrackDetail = InferResponseType<typeof trackGet, 200>;
 type SerializableTrackDetail = Omit<TrackDetail, "assets"> & {
-  assets: Array<Omit<TrackDetail["assets"][number], "metadata">>;
+  assets: Omit<TrackDetail["assets"][number], "metadata">[];
 };
 
 export const getMe = createServerFn({ method: "GET" }).handler(async () => {
@@ -93,6 +98,22 @@ export const requireSignupOnboardingUser = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     try {
       const me = await getMe();
+      let onboardingState: OnboardingStateResponse = null;
+      try {
+        onboardingState = await soundkitServerJson<OnboardingStateResponse>(
+          await currentClient().v1.onboarding.state.$get()
+        );
+      } catch {
+        // Older preview API mocks may not expose progress yet. The onboarding
+        // submission endpoint remains the authoritative security boundary.
+      }
+
+      if (
+        data.accountType === "artist" &&
+        onboardingState?.creatorEligibility === "major_label_affiliated"
+      ) {
+        throw redirect({ to: "/signup/fan/onboarding" });
+      }
 
       if (me.user.onboardingCompletedAt) {
         throw redirect({
@@ -126,9 +147,9 @@ export const getDashboardTracks = createServerFn({ method: "GET" }).handler(
 export const getTrackDetail = createServerFn({ method: "GET" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const client = currentClient();
+    const client = currentClient(),
 
-    const track = await soundkitServerJson<TrackDetail>(
+     track = await soundkitServerJson<TrackDetail>(
       await client.v1.tracks[":trackId"].$get({
         param: { trackId: data.id },
       })

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { PremiumWorkspaceInviteCard } from "@/components/billing/premium-workspace-invite-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +147,7 @@ function CareerPaymentsPage() {
 
   return (
     <div className="space-y-8">
+      <PremiumWorkspaceInviteCard accountType="artist" />
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -342,11 +344,11 @@ function CareerPaymentsPage() {
                       <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
                         {cat.category === "creator_rewards" ? (
                           <Crown className="size-4 text-amber-400" />
-                        ) : cat.category === "music_sales" ? (
+                        ) : (cat.category === "music_sales" ? (
                           <Music className="size-4 text-primary" />
                         ) : (
                           <CircleDollarSign className="size-4 text-emerald-400" />
-                        )}
+                        ))}
                       </div>
                       <div>
                         <div className="font-bold text-xs text-foreground">
@@ -355,9 +357,9 @@ function CareerPaymentsPage() {
                         <div className="text-[10px] text-muted-foreground">
                           {cat.category === "creator_rewards"
                             ? "User-centric pool allocation"
-                            : cat.category === "music_sales"
+                            : (cat.category === "music_sales"
                               ? "WAV/MP3 track purchases"
-                              : "Direct fan support"}
+                              : "Direct fan support")}
                         </div>
                       </div>
                     </div>

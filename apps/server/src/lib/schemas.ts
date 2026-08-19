@@ -235,6 +235,7 @@ export const adminPaymentsOverviewSchema = z.object({
 
 export const adminSyncStripePlansBodySchema = z.object({
   planCodes: z.string().array().optional(),
+  syncWebhooks: z.boolean().optional(),
 });
 
 export const adminSyncStripePlansResponseSchema = z.object({
@@ -246,6 +247,16 @@ export const adminSyncStripePlansResponseSchema = z.object({
       monthlyPriceId: z.string().nullable(),
       productId: z.string().nullable(),
       status: z.enum(["created", "matched", "skipped"]),
+    })
+    .array(),
+  webhookEndpoints: z
+    .object({
+      connect: z.boolean(),
+      id: z.string().nullable(),
+      secret: z.string().nullable(),
+      secretConfigured: z.boolean(),
+      status: z.enum(["created", "enabled", "missing", "skipped"]),
+      url: z.string().url(),
     })
     .array(),
 });
@@ -1421,23 +1432,72 @@ export const commentSchema = z.object({
   username: z.string(),
 });
 
+export const onboardingStateSchema = z.object({
+  completedAt: z.string().nullable(),
+  creatorEligibility: z
+    .enum(["independent", "major_label_affiliated"])
+    .nullable(),
+  creatorEligibilityLocked: z.boolean(),
+  currentStep: z.number().int().min(1).max(8),
+  exitedAt: z.string().nullable(),
+  intendedAccountType: z.enum(["artist", "fan"]),
+  lastActivityAt: z.string(),
+  marketingOptIn: z.boolean(),
+  rightsAttested: z.boolean(),
+  selectedPlanCode: z.string().nullable(),
+  startedAt: z.string(),
+  userId: z.string(),
+});
+
+export const updateOnboardingStateBodySchema = z.object({
+  creatorEligibility: z
+    .enum(["independent", "major_label_affiliated"])
+    .optional(),
+  currentStep: z.number().int().min(1).max(8).optional(),
+  intendedAccountType: z.enum(["artist", "fan"]).optional(),
+  marketingOptIn: z.boolean().optional(),
+  marketingOptInSource: z.string().max(80).optional(),
+  marketingOptInVersion: z.string().max(40).optional(),
+  selectedPlanCode: z.string().optional(),
+});
+
+export const creatorEligibilityBodySchema = z.object({
+  eligibility: z.enum(["independent", "major_label_affiliated"]),
+});
+
+export const adminGenreSchema = z.object({
+  description: z.string().nullable(),
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  totalCount: z.number().int().nonnegative(),
+  trackCount: z.number().int().nonnegative(),
+  videoCount: z.number().int().nonnegative(),
+});
+
+export const createGenreBodySchema = z.object({
+  description: z.string().trim().max(500).optional(),
+  name: z.string().trim().min(1).max(80),
+});
+
 export const onboardingArtistBodySchema = z
   .object({
     appleMusicUrl: z.string().optional(),
     avatarObjectKey: z.string().min(1).optional(),
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
+    creatorEligibility: z
+      .enum(["independent", "major_label_affiliated"])
+      .optional(),
     instagramHandle: z.string().optional(),
     mediaLayout: z.enum(["cards", "list"]).default("cards"),
     primaryGenre: z.string().min(1),
     proAffiliation: z.string().default("None"),
     proMemberId: z.string().optional(),
+    rightsAttestationVersion: z.string().max(40).optional(),
+    rightsAttested: z.boolean().default(false),
     roles: artistRoleSchema.array().min(1).default(["musician"]),
-    selectedPlanCode: z.enum([
-      "artist_free",
-      "soundkit_premium_artist",
-      "artist_team",
-    ]),
+    selectedPlanCode: z.enum(["artist_free", "soundkit_premium_artist"]),
     songwriterLegalName: z.string().optional(),
     spotifyUrl: z.string().optional(),
     state: z.string().min(1),
@@ -1468,7 +1528,7 @@ export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
   mediaLayout: z.enum(["cards", "list"]).default("cards"),
-  selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan", "fan_family"]),
+  selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan"]),
   state: z.string().min(1),
   username: usernameSchema,
 });
