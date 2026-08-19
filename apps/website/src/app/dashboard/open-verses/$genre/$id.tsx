@@ -37,20 +37,19 @@ export const Route = createFileRoute("/dashboard/open-verses/$genre/$id")({
 });
 
 const formatSeconds = (val: number) => Math.round(val / 1000),
+  formatSlot = ({
+    end,
+    start,
+  }: {
+    end: number | null;
+    start: number | null;
+  }) => {
+    if (start === null || end === null) {
+      return "Artist will confirm the slot";
+    }
 
- formatSlot = ({
-  end,
-  start,
-}: {
-  end: number | null;
-  start: number | null;
-}) => {
-  if (start === null || end === null) {
-    return "Artist will confirm the slot";
-  }
-
-  return `${formatSeconds(start)}s - ${formatSeconds(end)}s`;
-};
+    return `${formatSeconds(start)}s - ${formatSeconds(end)}s`;
+  };
 
 function OpenVerseDetailPage() {
   const { id } = Route.useParams(),

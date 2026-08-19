@@ -15,9 +15,9 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
     totalSize = headerSize + dataSize,
     arrayBuffer = new ArrayBuffer(totalSize),
     view = new DataView(arrayBuffer),
-    channelData: Float32Array[] = [];
+    channelData: Float32Array[] = [],
 
-  const writeString = (offset: number, str: string) => {
+   writeString = (offset: number, str: string) => {
     for (let i = 0; i < str.length; i += 1) {
       view.setUint8(offset + i, str.codePointAt(i) ?? 0);
     }

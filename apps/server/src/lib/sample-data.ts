@@ -733,8 +733,10 @@ export const sampleLibraryOverview = {
 };
 
 export const sampleAnalyticsOverview = {
-  totalDownloads: 3421,
-  totalFollowers: 1234,
-  totalPlays: 12_543,
-  totalRevenue: 2847.32,
+  estimatedEarningsCents: 0,
+  premiumSupporters: 0,
+  totalFollowers: 0,
+  totalPlays: 0,
+  totalQualifiedStreams: 0,
+  uniqueListeners: 0,
 };

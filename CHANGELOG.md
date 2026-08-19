@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
-
+- Overhauled Artist Analytics (`/dashboard/career/analytics`) and Creator Payments (`/dashboard/career/payments`) to use 100% real, database-persisted telemetry and the existing Creator Rewards monetization architecture:
+  - Retired all synthetic/manufactured analytics calculations (removed fake 72% qualified plays, fake 48h release curves, fake retention %, fake geographic distributions, fake loyalty segments, fake download multipliers, and arbitrary revenue per stream).
+  - Implemented 30-Second Verified Play Rule (sessions with ≥ 30s playback, or ≥ 95% completion for tracks shorter than 30s) distinct from stricter Qualified Stream monetization events.
+  - Built Listening Over Time real timeseries endpoints with metric toggle (Plays, Qualified Streams, Unique Listeners) across 7D, 28D, 90D, and 12M ranges with zero-filled inactive dates.
+  - Added Track Performance table with per-track Plays, Qualified Streams, Unique Listeners, Qualification Rate, Avg Listen %, Completion Rate, and Estimated Rewards.
+  - Added Audience & Loyalty analytics (New vs Returning Listeners, Returning Listener Rate, Catalog Depth, and Premium Supporters count).
+  - Added Discovery Sources distribution across real playback source types and Live Impact analytics for Battles and Listening Parties.
+  - Implemented privacy-safe Audience Geography (`MIN_LOCATION_LISTENERS = 3`) that buckets cohorts with < 3 listeners into "Other" and displays "Not enough location data yet" when total audience is insufficient.
+  - Transformed Artist Payments page into a SoundKit Creator Earnings dashboard with real month-to-date estimated earnings, 30-day settlement reserve tracking, $25 minimum payout progress bar, monthly statements history, and embedded Stripe Connect payout rail.
 - Fixed `masterUpload is not defined` runtime ReferenceError in `new-track-form.tsx` by correctly binding `selectedMasterFile` and uploaded track assets to `VisualWaveformSlotTrimmer`.
 - Integrated client-side MediaBunny audio slicer (`apps/website/src/lib/media-bunny-slicer.ts`) to extract lightweight Hook & Open Verse slot snippet stubs (`.wav`) directly in the browser during track creation, uploading them as `open_verse_clip` assets to R2 and protecting full unreleased master tracks from leaks.
 - Implemented Anti-Leech Guard (0-Uploads Rule) on Open Verse submissions (`/dashboard/open-verses/:genre/:id`), preventing empty accounts from submitting takes and guiding them to upload their first track or project.

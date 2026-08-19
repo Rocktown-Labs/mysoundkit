@@ -78,6 +78,7 @@ bun run verify
 ```
 
 > **Canonical Verification Pipeline:**
+>
 > - `bun run verify`: Executes `check-types`, `check:react-hooks`, unit/worker tests, and the full production build with static CI config (`SOUNDKIT_CI_STATIC_CONFIG=true`).
 > - `bun run verify:pr`: Runs the full verification pipeline plus Playwright E2E browser tests.
 

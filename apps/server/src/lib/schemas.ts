@@ -1151,10 +1151,128 @@ export const purchasedCatalogDetailSchema = z.object({
 });
 
 export const analyticsOverviewSchema = z.object({
-  totalDownloads: z.number(),
-  totalFollowers: z.number(),
-  totalPlays: z.number(),
-  totalRevenue: z.number(),
+  estimatedEarningsCents: z.number().int(),
+  premiumSupporters: z.number().int(),
+  totalFollowers: z.number().int(),
+  totalPlays: z.number().int(),
+  totalQualifiedStreams: z.number().int(),
+  uniqueListeners: z.number().int(),
+});
+
+export const analyticsTimeseriesQuerySchema = z.object({
+  metric: z
+    .enum(["plays", "qualified_streams", "unique_listeners"])
+    .default("plays"),
+  range: z.enum(["7d", "28d", "90d", "12m"]).default("7d"),
+});
+
+export const analyticsTimeseriesPointSchema = z.object({
+  date: z.string(),
+  label: z.string(),
+  value: z.number().int(),
+});
+
+export const analyticsTimeseriesSchema = z.object({
+  metric: z.string(),
+  points: analyticsTimeseriesPointSchema.array(),
+  range: z.string(),
+  total: z.number().int(),
+});
+
+export const analyticsTrackItemSchema = z.object({
+  averageListenPercent: z.number(),
+  completionRate: z.number(),
+  coverArtUrl: z.string().nullable(),
+  durationSeconds: z.number().int().nullable(),
+  estimatedEarningsCents: z.number().int(),
+  genre: z.string(),
+  plays: z.number().int(),
+  qualificationRate: z.number(),
+  qualifiedStreams: z.number().int(),
+  title: z.string(),
+  trackId: z.string(),
+  uniqueListeners: z.number().int(),
+});
+
+export const analyticsTracksResponseSchema = z.object({
+  tracks: analyticsTrackItemSchema.array(),
+});
+
+export const analyticsAudienceSchema = z.object({
+  catalogDepth: z.number(),
+  listenersWithMultiTrackPlays: z.number().int(),
+  newListeners: z.number().int(),
+  premiumSupporters: z.number().int(),
+  returningListenerRate: z.number(),
+  returningListeners: z.number().int(),
+  totalUniqueListeners: z.number().int(),
+});
+
+export const analyticsSourceCategorySchema = z.object({
+  count: z.number().int(),
+  label: z.string(),
+  percentage: z.number(),
+  sourceType: z.string(),
+});
+
+export const analyticsSourcesSchema = z.object({
+  sources: analyticsSourceCategorySchema.array(),
+  total: z.number().int(),
+});
+
+export const analyticsLocationItemSchema = z.object({
+  city: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  hasEnoughData: z.boolean(),
+  listeners: z.number().int(),
+  percentage: z.number(),
+  regionCode: z.string().nullable(),
+});
+
+export const analyticsLocationsSchema = z.object({
+  hasEnoughData: z.boolean(),
+  locations: analyticsLocationItemSchema.array(),
+  totalListeners: z.number().int(),
+});
+
+export const analyticsLiveImpactSchema = z.object({
+  battlesParticipated: z.number().int(),
+  hasLiveActivity: z.boolean(),
+  listenersReached: z.number().int(),
+  listeningPartiesHosted: z.number().int(),
+  liveQualifiedStreams: z.number().int(),
+  liveStreamsHosted: z.number().int(),
+  tracksPlayedInLive: z.number().int(),
+});
+
+export const artistEarningsCategorySchema = z.object({
+  amountCents: z.number().int(),
+  category: z.string(),
+  label: z.string(),
+});
+
+export const artistMonthlyStatementSchema = z.object({
+  creatorRewardsCents: z.number().int(),
+  monthLabel: z.string(),
+  musicSalesCents: z.number().int(),
+  periodEndsAt: z.string(),
+  periodStartsAt: z.string(),
+  plays: z.number().int(),
+  qualifiedStreams: z.number().int(),
+  tipsCents: z.number().int(),
+  totalEarningsCents: z.number().int(),
+});
+
+export const artistEarningsOverviewSchema = z.object({
+  availableBalanceCents: z.number().int(),
+  categories: artistEarningsCategorySchema.array(),
+  estimatedThisMonthCents: z.number().int(),
+  nextEstimatedPayoutDate: z.string(),
+  paidLifetimeCents: z.number().int(),
+  payoutMinimumCents: z.number().int(),
+  payoutProgressPercent: z.number(),
+  pendingReserveCents: z.number().int(),
+  statements: artistMonthlyStatementSchema.array(),
 });
 
 export const usernameAvailabilityQuerySchema = z.object({

@@ -67,10 +67,10 @@ export function VisualWaveformSlotTrimmer({
       const amplitudes: number[] = [];
       for (let i = 0; i < 72; i++) {
         const wave1 = Math.sin((i / 72) * Math.PI * 6),
-         wave2 = Math.cos((i / 72) * Math.PI * 12) * 0.4,
-         wave3 = Math.sin((i / 72) * Math.PI * 2) * 0.3,
-         noise = Math.sin(i * 19.3) * 0.15,
-         raw = 0.25 + Math.abs(wave1 + wave2 + wave3 + noise) * 0.7;
+          wave2 = Math.cos((i / 72) * Math.PI * 12) * 0.4,
+          wave3 = Math.sin((i / 72) * Math.PI * 2) * 0.3,
+          noise = Math.sin(i * 19.3) * 0.15,
+          raw = 0.25 + Math.abs(wave1 + wave2 + wave3 + noise) * 0.7;
         amplitudes.push(Math.max(0.12, Math.min(0.95, raw)));
       }
       return amplitudes;
@@ -101,11 +101,13 @@ export function VisualWaveformSlotTrimmer({
       }
     },
     handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!draggingHandle || !containerRef.current) {return;}
+      if (!draggingHandle || !containerRef.current) {
+        return;
+      }
       const rect = containerRef.current.getBoundingClientRect(),
-       clickX = e.clientX - rect.left,
-       ratio = Math.max(0, Math.min(1, clickX / rect.width)),
-       targetSec = Math.round(ratio * effectiveDuration);
+        clickX = e.clientX - rect.left,
+        ratio = Math.max(0, Math.min(1, clickX / rect.width)),
+        targetSec = Math.round(ratio * effectiveDuration);
 
       if (draggingHandle === "start") {
         const newStart = Math.max(0, Math.min(targetSec, endSec - 3));
@@ -123,14 +125,20 @@ export function VisualWaveformSlotTrimmer({
       setDraggingHandle(null);
     },
     resolvedAudioSrc = useMemo(() => {
-      if (audioFile) {return URL.createObjectURL(audioFile);}
-      if (audioUrl) {return audioUrl;}
+      if (audioFile) {
+        return URL.createObjectURL(audioFile);
+      }
+      if (audioUrl) {
+        return audioUrl;
+      }
       return;
     }, [audioFile, audioUrl]);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) {return;}
+    if (!audio) {
+      return;
+    }
     const updateTime = () => {
       setCurrentTime(audio.currentTime);
       if (audio.currentTime >= endSec) {
@@ -186,11 +194,13 @@ export function VisualWaveformSlotTrimmer({
         ref={containerRef}
         className="relative my-2 h-28 w-full cursor-crosshair rounded-xl bg-zinc-900/60 p-2 overflow-hidden border border-zinc-800/80"
         onPointerDown={(e) => {
-          if (!containerRef.current) {return;}
+          if (!containerRef.current) {
+            return;
+          }
           const rect = containerRef.current.getBoundingClientRect(),
-           clickX = e.clientX - rect.left,
-           ratio = Math.max(0, Math.min(1, clickX / rect.width)),
-           clickedSec = Math.round(ratio * effectiveDuration);
+            clickX = e.clientX - rect.left,
+            ratio = Math.max(0, Math.min(1, clickX / rect.width)),
+            clickedSec = Math.round(ratio * effectiveDuration);
           setCurrentTime(clickedSec);
           if (audioRef.current) {
             audioRef.current.currentTime = clickedSec;
@@ -210,8 +220,8 @@ export function VisualWaveformSlotTrimmer({
         <div className="flex size-full items-center justify-between gap-[2px]">
           {bars.map((heightFactor, idx) => {
             const barPercent = (idx / bars.length) * 100,
-             isInSelection =
-              barPercent >= startPercent && barPercent <= endPercent;
+              isInSelection =
+                barPercent >= startPercent && barPercent <= endPercent;
             return (
               <div
                 key={idx}

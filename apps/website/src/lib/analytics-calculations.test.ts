@@ -1,128 +1,164 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  computeGeographicData,
-  computeLoyaltySegments,
-  computeRetentionMetrics,
-  computeSourcesData,
-  computeSpike48hData,
-  computeStreamTrends28d,
-  computeStreamTrends7d,
+  computePayoutState,
+  computeReturningRate,
+  filterSafeLocations,
+  isQualifiedStream,
+  isVerifiedPlay,
+  MIN_LOCATION_LISTENERS,
+  MIN_PAYOUT_THRESHOLD_CENTS,
 } from "./analytics-calculations";
 
-describe("Analytics Calculations", () => {
-  describe("7-Day and 28-Day Stream Trends", () => {
-    it("returns zeroed trends when totalPlays is 0", () => {
-      const trends7d = computeStreamTrends7d(0);
-      expect(trends7d).toHaveLength(7);
-      for (const item of trends7d) {
-        expect(item.streams).toBe(0);
-        expect(item.mobile).toBe(0);
-        expect(item.desktop).toBe(0);
-      }
-
-      const trends28d = computeStreamTrends28d(0);
-      expect(trends28d).toHaveLength(4);
-      for (const item of trends28d) {
-        expect(item.streams).toBe(0);
-        expect(item.mobile).toBe(0);
-        expect(item.desktop).toBe(0);
-      }
+describe("Artist Analytics & Monetization Rules", () => {
+  describe("Play Counting (30-second rule)", () => {
+    it("does not count playback under 30 seconds as a Play", () => {
+      expect(isVerifiedPlay(0, 180)).toBe(false);
+      expect(isVerifiedPlay(10, 180)).toBe(false);
+      expect(isVerifiedPlay(29, 180)).toBe(false);
     });
 
-    it("computes proportional stream distribution when totalPlays > 0", () => {
-      const trends7d = computeStreamTrends7d(1000);
-      expect(trends7d).toHaveLength(7);
-      const totalStreams = trends7d.reduce(
-        (sum, item) => sum + item.streams,
-        0
-      );
-      expect(totalStreams).toBeGreaterThan(950);
-      expect(totalStreams).toBeLessThan(1050);
+    it("counts playback >= 30 seconds as a verified Play", () => {
+      expect(isVerifiedPlay(30, 180)).toBe(true);
+      expect(isVerifiedPlay(120, 180)).toBe(true);
+      expect(isVerifiedPlay(180, 180)).toBe(true);
+    });
 
-      for (const item of trends7d) {
-        expect(item.streams).toBe(item.mobile + item.desktop);
-        expect(item.mobile).toBeGreaterThanOrEqual(item.desktop);
-      }
+    it("correctly handles short tracks (< 30s) using 95% completion threshold", () => {
+      // 20-second track: 95% is 19s
+      expect(isVerifiedPlay(10, 20)).toBe(false);
+      expect(isVerifiedPlay(18, 20)).toBe(false);
+      expect(isVerifiedPlay(19, 20)).toBe(true);
+      expect(isVerifiedPlay(20, 20)).toBe(true);
     });
   });
 
-  describe("Sources Breakdown", () => {
-    it("returns zeroed sources when totalPlays is 0", () => {
-      const sources = computeSourcesData(0);
-      expect(sources).toHaveLength(7);
-      for (const item of sources) {
-        expect(item.direct).toBe(0);
-        expect(item.algorithmic).toBe(0);
-        expect(item.playlists).toBe(0);
-      }
-    });
+  describe("Qualified Stream Monetization Rules", () => {
+    it("requires Premium listener and >= 70% track playback", () => {
+      // Free listener: never qualifies
+      expect(
+        isQualifiedStream({
+          isOwner: false,
+          isPremium: false,
+          playedSeconds: 150,
+          trackDurationSeconds: 180,
+        })
+      ).toBe(false);
 
-    it("computes direct, algorithmic, and playlist streams proportionally", () => {
-      const sources = computeSourcesData(500);
-      expect(sources).toHaveLength(7);
-      for (const item of sources) {
-        expect(item.direct).toBeGreaterThanOrEqual(0);
-        expect(item.algorithmic).toBeGreaterThanOrEqual(0);
-        expect(item.playlists).toBeGreaterThanOrEqual(0);
-      }
-    });
-  });
+      // Owner self-stream: never qualifies
+      expect(
+        isQualifiedStream({
+          isOwner: true,
+          isPremium: true,
+          playedSeconds: 180,
+          trackDurationSeconds: 180,
+        })
+      ).toBe(false);
 
-  describe("Geographic Data", () => {
-    it("returns empty array when totalPlays is 0", () => {
-      const geo = computeGeographicData(0);
-      expect(geo).toHaveLength(0);
-    });
+      // Premium listener under 70% (126s of 180s): does not qualify
+      expect(
+        isQualifiedStream({
+          isOwner: false,
+          isPremium: true,
+          playedSeconds: 100,
+          trackDurationSeconds: 180,
+        })
+      ).toBe(false);
 
-    it("distributes plays across target regions when totalPlays > 0", () => {
-      const geo = computeGeographicData(1000, "Little Rock, AR");
-      expect(geo).toHaveLength(5);
-      const totalGeoPlays = geo.reduce((sum, item) => sum + item.plays, 0);
-      expect(totalGeoPlays).toBeGreaterThan(950);
-      expect(totalGeoPlays).toBeLessThan(1050);
-      expect(geo[0]?.region).toContain("Little Rock, AR (Local HQ)");
-    });
-  });
-
-  describe("Loyalty Segments", () => {
-    it("returns 0 plays and hasData: false when totalPlays is 0", () => {
-      const loyalty = computeLoyaltySegments(0);
-      expect(loyalty.hasData).toBe(false);
-      expect(loyalty.superPlays).toBe(0);
-      expect(loyalty.casualPlays).toBe(0);
-      expect(loyalty.lapsedPlays).toBe(0);
-    });
-
-    it("computes segmented plays and percentages when totalPlays > 0", () => {
-      const loyalty = computeLoyaltySegments(1000);
-      expect(loyalty.hasData).toBe(true);
-      expect(loyalty.superPlays).toBe(420);
-      expect(loyalty.casualPlays).toBe(450);
-      expect(loyalty.lapsedPlays).toBe(130);
-      expect(loyalty.superPct).toBe(42);
-      expect(loyalty.casualPct).toBe(45);
-      expect(loyalty.lapsedPct).toBe(13);
+      // Premium listener at >= 70%: qualifies
+      expect(
+        isQualifiedStream({
+          isOwner: false,
+          isPremium: true,
+          playedSeconds: 126,
+          trackDurationSeconds: 180,
+        })
+      ).toBe(true);
     });
   });
 
-  describe("Retention Metrics", () => {
-    it("returns 0% across all retention milestones when totalPlays is 0", () => {
-      const retention = computeRetentionMetrics(0);
-      expect(retention.milestone).toBe(0);
-      expect(retention.milestoneLabel).toBe("0%");
-      expect(retention.full).toBe(0);
-      expect(retention.fullLabel).toBe("0%");
-      expect(retention.skip).toBe(0);
-      expect(retention.skipLabel).toBe("0%");
+  describe("Geography Privacy Guard", () => {
+    it("returns hasEnoughData: false when total audience is below threshold (3)", () => {
+      const raw = [
+        { city: "Austin", countryCode: "US", listeners: 1, regionCode: "TX" },
+        { city: "Dallas", countryCode: "US", listeners: 1, regionCode: "TX" },
+      ],
+       result = filterSafeLocations(raw, MIN_LOCATION_LISTENERS);
+      expect(result.hasEnoughData).toBe(false);
+      expect(result.locations).toHaveLength(0);
+      expect(result.totalListeners).toBe(2);
     });
 
-    it("returns qualified milestone rates when totalPlays > 0", () => {
-      const retention = computeRetentionMetrics(500);
-      expect(retention.milestone).toBe(84.6);
-      expect(retention.milestoneLabel).toBe("84.6%");
-      expect(retention.full).toBe(72.1);
-      expect(retention.skip).toBe(15.4);
+    it("aggregates small cohorts (< 3) into 'Other Regions' when overall audience is sufficient", () => {
+      const raw = [
+        {
+          city: "New York",
+          countryCode: "US",
+          listeners: 10,
+          regionCode: "NY",
+        },
+        {
+          city: "Los Angeles",
+          countryCode: "US",
+          listeners: 5,
+          regionCode: "CA",
+        },
+        {
+          city: "Bentonville",
+          countryCode: "US",
+          listeners: 1,
+          regionCode: "AR",
+        },
+        {
+          city: "Little Rock",
+          countryCode: "US",
+          listeners: 1,
+          regionCode: "AR",
+        },
+      ],
+       result = filterSafeLocations(raw, MIN_LOCATION_LISTENERS);
+      expect(result.hasEnoughData).toBe(true);
+      expect(result.totalListeners).toBe(17);
+
+      // New York and LA should be exposed individually
+      const ny = result.locations.find((l) => l.city === "New York"),
+       la = result.locations.find((l) => l.city === "Los Angeles"),
+       other = result.locations.find((l) => l.city === "Other Regions");
+
+      expect(ny?.listeners).toBe(10);
+      expect(la?.listeners).toBe(5);
+      expect(other?.listeners).toBe(2); // 1 + 1 from AR
+    });
+  });
+
+  describe("Payout Minimum & Balances ($25 Threshold)", () => {
+    it("blocks payout eligibility when available balance < $25.00", () => {
+      const state = computePayoutState(1842, MIN_PAYOUT_THRESHOLD_CENTS); // $18.42
+      expect(state.isEligible).toBe(false);
+      expect(state.progressPercent).toBe(74);
+      expect(state.remainingCents).toBe(658);
+    });
+
+    it("allows payout when available balance reaches or exceeds $25.00", () => {
+      const exact = computePayoutState(2500, MIN_PAYOUT_THRESHOLD_CENTS);
+      expect(exact.isEligible).toBe(true);
+      expect(exact.progressPercent).toBe(100);
+      expect(exact.remainingCents).toBe(0);
+
+      const excess = computePayoutState(3186, MIN_PAYOUT_THRESHOLD_CENTS); // $31.86
+      expect(excess.isEligible).toBe(true);
+      expect(excess.progressPercent).toBe(100);
+    });
+  });
+
+  describe("Returning Listener Retention Rate", () => {
+    it("returns 0% when there are 0 listeners", () => {
+      expect(computeReturningRate(0, 0)).toBe(0);
+    });
+
+    it("calculates accurate percentage without fabrication", () => {
+      expect(computeReturningRate(25, 100)).toBe(25);
+      expect(computeReturningRate(1, 3)).toBe(33);
     });
   });
 });

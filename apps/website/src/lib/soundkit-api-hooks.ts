@@ -1499,11 +1499,210 @@ export type AnalyticsOverview = InferResponseType<
   200
 >;
 
+export interface AnalyticsTimeseriesPoint {
+  date: string;
+  label: string;
+  value: number;
+}
+
+export interface AnalyticsTimeseries {
+  metric: string;
+  points: AnalyticsTimeseriesPoint[];
+  range: string;
+  total: number;
+}
+
+export interface AnalyticsTrackItem {
+  averageListenPercent: number;
+  completionRate: number;
+  coverArtUrl: string | null;
+  durationSeconds: number | null;
+  estimatedEarningsCents: number;
+  genre: string;
+  plays: number;
+  qualificationRate: number;
+  qualifiedStreams: number;
+  title: string;
+  trackId: string;
+  uniqueListeners: number;
+}
+
+export interface AnalyticsAudience {
+  catalogDepth: number;
+  listenersWithMultiTrackPlays: number;
+  newListeners: number;
+  premiumSupporters: number;
+  returningListenerRate: number;
+  returningListeners: number;
+  totalUniqueListeners: number;
+}
+
+export interface AnalyticsSourceCategory {
+  count: number;
+  label: string;
+  percentage: number;
+  sourceType: string;
+}
+
+export interface AnalyticsSources {
+  sources: AnalyticsSourceCategory[];
+  total: number;
+}
+
+export interface AnalyticsLocationItem {
+  city: string | null;
+  countryCode: string | null;
+  hasEnoughData: boolean;
+  listeners: number;
+  percentage: number;
+  regionCode: string | null;
+}
+
+export interface AnalyticsLocations {
+  hasEnoughData: boolean;
+  locations: AnalyticsLocationItem[];
+  totalListeners: number;
+}
+
+export interface AnalyticsLiveImpact {
+  battlesParticipated: number;
+  hasLiveActivity: boolean;
+  listenersReached: number;
+  listeningPartiesHosted: number;
+  liveQualifiedStreams: number;
+  liveStreamsHosted: number;
+  tracksPlayedInLive: number;
+}
+
+export interface ArtistEarningsOverview {
+  availableBalanceCents: number;
+  categories: { amountCents: number; category: string; label: string }[];
+  estimatedThisMonthCents: number;
+  nextEstimatedPayoutDate: string;
+  paidLifetimeCents: number;
+  payoutMinimumCents: number;
+  payoutProgressPercent: number;
+  pendingReserveCents: number;
+  statements: {
+    creatorRewardsCents: number;
+    monthLabel: string;
+    musicSalesCents: number;
+    periodEndsAt: string;
+    periodStartsAt: string;
+    plays: number;
+    qualifiedStreams: number;
+    tipsCents: number;
+    totalEarningsCents: number;
+  }[];
+}
+
 export const useAnalyticsOverviewQuery = () =>
   useQuery({
     queryFn: async (): Promise<AnalyticsOverview> =>
       rpcJson(await analyticsOverviewGet()),
     queryKey: soundkitQueryKeys.analyticsOverview,
+  });
+
+export const useAnalyticsTimeseriesQuery = (
+  metric: "plays" | "qualified_streams" | "unique_listeners",
+  range: "7d" | "28d" | "90d" | "12m"
+) =>
+  useQuery({
+    queryFn: async (): Promise<AnalyticsTimeseries> => {
+      const response = await fetch(
+        `${API_V1_URL}/analytics/timeseries?metric=${metric}&range=${range}`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        throw new Error("Unable to load timeseries data.");
+      }
+      return (await response.json()) as AnalyticsTimeseries;
+    },
+    queryKey: ["analytics", "timeseries", metric, range],
+  });
+
+export const useAnalyticsTracksQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<{ tracks: AnalyticsTrackItem[] }> => {
+      const response = await fetch(`${API_V1_URL}/analytics/tracks`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load track performance data.");
+      }
+      return (await response.json()) as { tracks: AnalyticsTrackItem[] };
+    },
+    queryKey: ["analytics", "tracks"],
+  });
+
+export const useAnalyticsAudienceQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<AnalyticsAudience> => {
+      const response = await fetch(`${API_V1_URL}/analytics/audience`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load audience data.");
+      }
+      return (await response.json()) as AnalyticsAudience;
+    },
+    queryKey: ["analytics", "audience"],
+  });
+
+export const useAnalyticsSourcesQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<AnalyticsSources> => {
+      const response = await fetch(`${API_V1_URL}/analytics/sources`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load sources data.");
+      }
+      return (await response.json()) as AnalyticsSources;
+    },
+    queryKey: ["analytics", "sources"],
+  });
+
+export const useAnalyticsLocationsQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<AnalyticsLocations> => {
+      const response = await fetch(`${API_V1_URL}/analytics/locations`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load location data.");
+      }
+      return (await response.json()) as AnalyticsLocations;
+    },
+    queryKey: ["analytics", "locations"],
+  });
+
+export const useAnalyticsLiveImpactQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<AnalyticsLiveImpact> => {
+      const response = await fetch(`${API_V1_URL}/analytics/live-impact`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load live impact data.");
+      }
+      return (await response.json()) as AnalyticsLiveImpact;
+    },
+    queryKey: ["analytics", "live-impact"],
+  });
+
+export const useArtistEarningsQuery = () =>
+  useQuery({
+    queryFn: async (): Promise<ArtistEarningsOverview> => {
+      const response = await fetch(`${API_V1_URL}/analytics/earnings`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to load artist earnings.");
+      }
+      return (await response.json()) as ArtistEarningsOverview;
+    },
+    queryKey: ["analytics", "earnings"],
   });
 
 const defaultOpenVerseQuery: OpenVerseQuery = { limit: "10" };
