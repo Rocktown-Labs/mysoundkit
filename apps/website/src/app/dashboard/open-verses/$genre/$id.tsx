@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
 import { canonicalGenreName } from "@/lib/music-genres";
 import {
   useOpenVerseQuery,
@@ -154,10 +155,19 @@ function OpenVerseDetailPage() {
         if (!response.ok) {
           throw new Error("The persisted Open Verse clip is not available.");
         }
-        const url = URL.createObjectURL(await response.blob()),
+        const sourceBlob = await response.blob(),
+          downloadBlob = listing.previewAssetId
+            ? sourceBlob
+            : await sliceAudioFileToSnippet(
+                sourceBlob,
+                (listing.slotStartsAtMs ?? 0) / 1000,
+                (listing.slotEndsAtMs ?? 30_000) / 1000,
+                `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-")}-open-verse-slot.wav`
+              ),
+          url = URL.createObjectURL(downloadBlob),
           anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-")}-open-verse.wav`;
+        anchor.download = `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-")}-open-verse-slot.wav`;
         document.body.append(anchor);
         anchor.click();
         anchor.remove();
@@ -384,6 +394,16 @@ function OpenVerseDetailPage() {
                 {listing.description}
               </p>
             )}
+            {!listing.previewAssetId &&
+              listing.slotStartsAtMs !== null &&
+              listing.slotEndsAtMs !== null && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+                  This Open Verse was created before slot previews were stored
+                  separately. Download Open Slot will generate the marked{" "}
+                  {formatSlot(listing.slotStartsAtMs, listing.slotEndsAtMs)}{" "}
+                  from the original track for you.
+                </div>
+              )}
           </CardContent>
         </Card>
         <Card>
