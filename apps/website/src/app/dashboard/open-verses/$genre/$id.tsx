@@ -13,7 +13,7 @@ import {
   Upload,
   UserCheck,
 } from "lucide-react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { FormEvent } from "react";
 import { useRef, useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -36,7 +36,9 @@ export const Route = createFileRoute("/dashboard/open-verses/$genre/$id")({
   component: OpenVerseDetailPage,
 });
 
-const formatSlot = ({
+const formatSeconds = (val: number) => Math.round(val / 1000),
+
+ formatSlot = ({
   end,
   start,
 }: {
@@ -47,9 +49,7 @@ const formatSlot = ({
     return "Artist will confirm the slot";
   }
 
-  const seconds = (value: number) => Math.round(value / 1000);
-
-  return `${seconds(start)}s - ${seconds(end)}s`;
+  return `${formatSeconds(start)}s - ${formatSeconds(end)}s`;
 };
 
 function OpenVerseDetailPage() {
@@ -114,38 +114,38 @@ function OpenVerseDetailPage() {
       try {
         setIsDownloadingSnippet(true);
         toast({
-          description: "Preparing MediaBunny audio snippet (Hook & Open Slot)...",
+          description:
+            "Preparing MediaBunny audio snippet (Hook & Open Slot)...",
           title: "Extracting Audio Stub",
         });
 
         const startSec = listing.slotStartsAtMs
-          ? Math.round(listing.slotStartsAtMs / 1000)
-          : 30;
-        const endSec = listing.slotEndsAtMs
-          ? Math.round(listing.slotEndsAtMs / 1000)
-          : 75;
+            ? Math.round(listing.slotStartsAtMs / 1000)
+            : 30,
+          endSec = listing.slotEndsAtMs
+            ? Math.round(listing.slotEndsAtMs / 1000)
+            : 75,
+          snippetFile = await sliceAudioFileToSnippet(
+            listing.playbackUrl,
+            startSec,
+            endSec,
+            `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-")}-hook-slot-stub.wav`
+          ),
+          url = URL.createObjectURL(snippetFile),
+          a = document.createElement("a");
 
-        const snippetFile = await sliceAudioFileToSnippet(
-          listing.playbackUrl,
-          startSec,
-          endSec,
-          `${listing.trackTitle.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-")}-hook-slot-stub.wav`
-        );
-
-        const url = URL.createObjectURL(snippetFile);
-        const a = document.createElement("a");
         a.href = url;
         a.download = snippetFile.name;
-        document.body.appendChild(a);
+        document.body.append(a);
         a.click();
-        document.body.removeChild(a);
+        a.remove();
         URL.revokeObjectURL(url);
 
         toast({
           description: `Downloaded "${snippetFile.name}". Open in your DAW to record your take!`,
           title: "Hook Snippet Downloaded",
         });
-      } catch (err) {
+      } catch {
         toast({
           description: "Could not slice snippet. Please try downloading again.",
           title: "Snippet Extraction Failed",
@@ -159,7 +159,8 @@ function OpenVerseDetailPage() {
       event.preventDefault();
       if (!selectedMixedFile && !selectedVocalFile && !assetId.trim()) {
         toast({
-          description: "Please attach at least your Mixed Audition Take (.wav / .mp3).",
+          description:
+            "Please attach at least your Mixed Audition Take (.wav / .mp3).",
           title: "Audio Take Required",
           variant: "destructive",
         });
@@ -339,7 +340,7 @@ function OpenVerseDetailPage() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                        "{sub.message}"
+                        &ldquo;{sub.message}&rdquo;
                       </p>
                       <span className="text-[10px] text-muted-foreground/70 mt-1 block">
                         Submitted {sub.timeAgo}
@@ -396,27 +397,7 @@ function OpenVerseDetailPage() {
             <CardTitle>Submit Your Verse</CardTitle>
           </CardHeader>
           <CardContent>
-            {!hasUploadedMusic ? (
-              /* Anti-Leech Guard: Requires at least 1 track or project uploaded */
-              <div className="space-y-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
-                <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-amber-500/20 text-amber-500">
-                  <Music2 className="size-5" />
-                </div>
-                <h4 className="font-bold text-sm text-foreground">
-                  Artist Profile Required
-                </h4>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  To participate in Open Verses, you must have at least 1 track
-                  or project uploaded to establish your SoundKit music identity.
-                </p>
-                <Button asChild size="sm" className="w-full font-bold mt-2">
-                  <Link to="/dashboard/tracks/new">
-                    <Plus className="size-3.5 mr-1.5" />
-                    Upload Your First Track
-                  </Link>
-                </Button>
-              </div>
-            ) : (
+            {hasUploadedMusic ? (
               <form className="space-y-4" onSubmit={submitVerse}>
                 {/* 3-Part Take Submission Uploaders */}
                 <div className="space-y-3">
@@ -562,6 +543,26 @@ function OpenVerseDetailPage() {
                   </p>
                 )}
               </form>
+            ) : (
+              /* Anti-Leech Guard: Requires at least 1 track or project uploaded */
+              <div className="space-y-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
+                <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-amber-500/20 text-amber-500">
+                  <Music2 className="size-5" />
+                </div>
+                <h4 className="font-bold text-sm text-foreground">
+                  Artist Profile Required
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  To participate in Open Verses, you must have at least 1 track
+                  or project uploaded to establish your SoundKit music identity.
+                </p>
+                <Button asChild size="sm" className="w-full font-bold mt-2">
+                  <Link to="/dashboard/tracks/new">
+                    <Plus className="size-3.5 mr-1.5" />
+                    Upload Your First Track
+                  </Link>
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -5,9 +5,7 @@
  */
 
 function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
-  const numChannels = buffer.numberOfChannels,
-    sampleRate = buffer.sampleRate,
-    format = 1, // PCM
+  const { numberOfChannels: numChannels, sampleRate } = buffer,
     bitDepth = 16,
     bytesPerSample = bitDepth / 8,
     blockAlign = numChannels * bytesPerSample,
@@ -16,11 +14,12 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
     headerSize = 44,
     totalSize = headerSize + dataSize,
     arrayBuffer = new ArrayBuffer(totalSize),
-    view = new DataView(arrayBuffer);
+    view = new DataView(arrayBuffer),
+    channelData: Float32Array[] = [];
 
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i += 1) {
+      view.setUint8(offset + i, str.codePointAt(i) ?? 0);
     }
   };
 
@@ -31,11 +30,12 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
 
   // "fmt " sub-chunk
   writeString(12, "fmt ");
-  view.setUint32(16, 16, true); // SubChunk1Size (16 for PCM)
-  view.setUint16(20, format, true); // AudioFormat
+  view.setUint32(16, 16, true);
+  // PCM format
+  view.setUint16(20, 1, true);
   view.setUint16(22, numChannels, true);
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true); // ByteRate
+  view.setUint32(28, sampleRate * blockAlign, true);
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, bitDepth, true);
 
@@ -44,16 +44,15 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
   view.setUint32(40, dataSize, true);
 
   // Interleave and write 16-bit PCM samples
-  const channelData: Float32Array[] = [];
-  for (let c = 0; c < numChannels; c++) {
+  for (let c = 0; c < numChannels; c += 1) {
     channelData.push(buffer.getChannelData(c));
   }
 
   let offset = 44;
-  for (let i = 0; i < numSamples; i++) {
-    for (let c = 0; c < numChannels; c++) {
-      const sample = Math.max(-1, Math.min(1, channelData[c][i]));
-      const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  for (let i = 0; i < numSamples; i += 1) {
+    for (let c = 0; c < numChannels; c += 1) {
+      const sample = Math.max(-1, Math.min(1, channelData[c]?.[i] ?? 0)),
+        intSample = sample < 0 ? sample * 0x80_00 : sample * 0x7F_FF;
       view.setInt16(offset, intSample, true);
       offset += 2;
     }
@@ -80,39 +79,48 @@ export async function sliceAudioFileToSnippet(
     arrayBuffer = await source.arrayBuffer();
   }
 
-  const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-  
+  const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext,
+    audioCtx = new AudioContextClass();
+
   try {
-    const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    const sampleRate = decodedBuffer.sampleRate;
-    const numChannels = decodedBuffer.numberOfChannels;
+    const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer),
+      { numberOfChannels: numChannels, sampleRate } = decodedBuffer,
+      safeStartSec = Math.max(
+        0,
+        Math.min(startSec, decodedBuffer.duration - 1)
+      ),
+      safeEndSec = Math.max(
+        safeStartSec + 1,
+        Math.min(endSec, decodedBuffer.duration)
+      ),
+      startSample = Math.floor(safeStartSec * sampleRate),
+      endSample = Math.floor(safeEndSec * sampleRate),
+      snippetLength = endSample - startSample,
+      snippetBuffer = audioCtx.createBuffer(
+        numChannels,
+        snippetLength,
+        sampleRate
+      ),
+      // Subtle 50ms micro-fade in/out to avoid harsh digital clicks at slice boundaries
+      fadeSamples = Math.min(
+        Math.floor(sampleRate * 0.05),
+        Math.floor(snippetLength / 4)
+      );
 
-    const safeStartSec = Math.max(0, Math.min(startSec, decodedBuffer.duration - 1));
-    const safeEndSec = Math.max(safeStartSec + 1, Math.min(endSec, decodedBuffer.duration));
-    
-    const startSample = Math.floor(safeStartSec * sampleRate);
-    const endSample = Math.floor(safeEndSec * sampleRate);
-    const snippetLength = endSample - startSample;
+    for (let c = 0; c < numChannels; c += 1) {
+      const snippetChannel = snippetBuffer.getChannelData(c),
+        sourceChannel = decodedBuffer.getChannelData(c);
 
-    const snippetBuffer = audioCtx.createBuffer(numChannels, snippetLength, sampleRate);
+      for (let i = 0; i < snippetLength; i += 1) {
+        let sample = sourceChannel[startSample + i] ?? 0;
 
-    // Apply a subtle 50ms micro-fade in/out to avoid harsh digital clicks at the slice boundaries
-    const fadeSamples = Math.min(Math.floor(sampleRate * 0.05), Math.floor(snippetLength / 4));
-
-    for (let c = 0; c < numChannels; c++) {
-      const sourceChannel = decodedBuffer.getChannelData(c);
-      const snippetChannel = snippetBuffer.getChannelData(c);
-
-      for (let i = 0; i < snippetLength; i++) {
-        let sample = sourceChannel[startSample + i];
-
-        // Fade in
         if (i < fadeSamples) {
-          sample *= (i / fadeSamples);
-        }
-        // Fade out
-        else if (i > snippetLength - fadeSamples) {
-          sample *= ((snippetLength - i) / fadeSamples);
+          sample *= i / fadeSamples;
+        } else if (i > snippetLength - fadeSamples) {
+          sample *= (snippetLength - i) / fadeSamples;
         }
 
         snippetChannel[i] = sample;
@@ -122,6 +130,10 @@ export async function sliceAudioFileToSnippet(
     const wavArrayBuffer = audioBufferToWav(snippetBuffer);
     return new File([wavArrayBuffer], outputFileName, { type: "audio/wav" });
   } finally {
-    audioCtx.close().catch(() => {});
+    try {
+      await audioCtx.close();
+    } catch {
+      // AudioContext close ignored
+    }
   }
 }

@@ -31,7 +31,6 @@ import * as z from "zod";
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import { VisualWaveformSlotTrimmer } from "@/components/studio/visual-waveform-slot-trimmer";
-import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
 import {
   Accordion,
   AccordionContent,
@@ -82,6 +81,7 @@ import {
 import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { authClient } from "@/lib/auth-client";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
+import { sliceAudioFileToSnippet } from "@/lib/media-bunny-slicer";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
   soundkitQueryKeys,
@@ -1282,8 +1282,8 @@ export function NewTrackForm({
                   })
                 );
               }
-            } catch (slicingErr) {
-              posthog.captureException(slicingErr);
+            } catch (error) {
+              posthog.captureException(error);
             }
           }
 
@@ -2567,8 +2567,8 @@ export function NewTrackForm({
                                 : undefined
                             }
                             durationSeconds={
-                              masterDurationMs
-                                ? Math.round(masterDurationMs / 1000)
+                              selectedMasterDurationMs
+                                ? Math.round(selectedMasterDurationMs / 1000)
                                 : 214
                             }
                             slotStartsAt={
