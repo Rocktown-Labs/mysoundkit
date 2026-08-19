@@ -218,6 +218,13 @@
       "when": 1787001100000,
       "tag": "0030_persistent_battle_kits",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787121930055,
+      "tag": "0031_gifted_ben_urich",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,5 @@
+import type { LiveRoomDurableObject } from "@/durable-objects/live-room";
+import type { PresenceDurableObject } from "@/durable-objects/presence";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 
@@ -23,8 +25,9 @@ export interface AppVariables {
 
 export interface AppEnv {
   Bindings: {
-    LIVE_ROOMS?: DurableObjectNamespace;
-    PRESENCE?: DurableObjectNamespace;
+    DO_METRICS?: AnalyticsEngineDataset;
+    LIVE_ROOMS?: DurableObjectNamespace<LiveRoomDurableObject>;
+    PRESENCE?: DurableObjectNamespace<PresenceDurableObject>;
     MEDIA_BUCKET?: R2Bucket;
     RECORDINGS_ACCESS_KEY_ID?: string;
     RECORDINGS_BUCKET?: R2Bucket;

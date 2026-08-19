@@ -2,6 +2,7 @@ import alchemy from "alchemy";
 import {
   AccountId,
   AccountApiToken,
+  AnalyticsEngineDataset,
   DurableObjectNamespace,
   Hyperdrive,
   Queue,
@@ -182,6 +183,9 @@ const SITE_HOST = isProduction
     className: "PresenceDurableObject",
     sqlite: true,
   }),
+  doMetrics = AnalyticsEngineDataset("do-metrics", {
+    dataset: resourceName("soundkit_do_metrics"),
+  }),
   trackDurationBackfillDeadLetterQueue = await Queue(
     "track-duration-backfill-dlq",
     {
@@ -281,6 +285,7 @@ export const server = await Worker("server", {
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
+    DO_METRICS: doMetrics,
     EMAIL_DELIVERY_QUEUE: emailDeliveryQueue,
     GOOGLE_EMBEDDING_MODEL: requiredEnv("GOOGLE_EMBEDDING_MODEL"),
     GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
@@ -380,6 +385,21 @@ export const server = await Worker("server", {
     },
   ],
   name: resourceName("soundkit-server"),
+  observability: {
+    enabled: true,
+    headSamplingRate: 1,
+    logs: {
+      enabled: true,
+      headSamplingRate: 1,
+      invocationLogs: true,
+      persist: true,
+    },
+    traces: {
+      enabled: true,
+      headSamplingRate: 1,
+      persist: true,
+    },
+  },
   placement: {
     region: "aws:us-east-1",
   },

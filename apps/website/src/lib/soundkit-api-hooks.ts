@@ -743,6 +743,8 @@ export const useConversationsQuery = (enabled = true) =>
     enabled,
     queryFn: async () => rpcJson(await conversationsGet()),
     queryKey: soundkitQueryKeys.conversations,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 
 export const useConversationMessagesQuery = (conversationId: string) =>
@@ -751,6 +753,8 @@ export const useConversationMessagesQuery = (conversationId: string) =>
     queryFn: async () =>
       rpcJson(await conversationMessagesGet({ param: { conversationId } })),
     queryKey: soundkitQueryKeys.conversationMessages(conversationId),
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
   });
 
 export const useCreateConversationMutation = () => {

@@ -86,7 +86,7 @@ const getLyricClass = (lineId: string, text: string) => {
 
 function ListeningPartyDetailPage() {
   const { id } = Route.useParams(),
-    { chat, query } = useLiveRoom(id),
+    { chat, chatMessages, query } = useLiveRoom(id),
     meQuery = useMeQuery(),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFullscreen, setIsFullscreen] = useState(false),
@@ -232,7 +232,7 @@ function ListeningPartyDetailPage() {
       <LiveChatPanel
         disabled={chat.isPending}
         fillHeight
-        messages={room.chat}
+        messages={chatMessages}
         onCollapse={() => setIsChatOpen(false)}
         onSend={(message) => chat.mutate({ message, userName: "You" })}
         title="Party Chat"

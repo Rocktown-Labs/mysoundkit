@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, unicorn/no-useless-undefined, unicorn/require-post-message-target-origin, require-unicode-regexp, unicorn/prefer-add-event-listener */
 import {
   createContext,
   useCallback,
@@ -12,6 +13,12 @@ import type { ReactNode } from "react";
 import { API_V1_URL } from "./api";
 import { useMeQuery } from "./soundkit-api-hooks";
 
+const ACTIVE_PRESENCE_INTERVAL_MS = 60_000,
+  LEASE_DURATION_MS = 25_000,
+  LEASE_RENEWAL_INTERVAL_MS = 10_000,
+  PRESENCE_CHANNEL_NAME = "soundkit-presence",
+  PRESENCE_LEASE_KEY = "soundkit-presence-leader";
+
 interface UserPresenceInfo {
   isOnline: boolean;
   lastSeen: number;
@@ -23,14 +30,30 @@ interface PresenceContextValue {
   isUserOnline: (userId?: string | null) => boolean;
   onlineCount: number;
   onlineUserIds: string[];
+  registerPresenceUsers: (userIds: string[]) => () => void;
 }
 
-const PresenceContext = createContext<PresenceContextValue>({
-  getUserPresence: () => undefined,
-  isUserOnline: () => false,
-  onlineCount: 0,
-  onlineUserIds: [],
-});
+interface PresenceBroadcast {
+  type: "presence";
+  users: Record<string, UserPresenceInfo>;
+}
+
+const noopCleanup = (): undefined => undefined,
+  PresenceContext = createContext<PresenceContextValue>({
+    getUserPresence: () => undefined,
+    isUserOnline: () => false,
+    onlineCount: 0,
+    onlineUserIds: [],
+    registerPresenceUsers: () => noopCleanup,
+  }),
+  isVisible = () =>
+    typeof document === "undefined" || document.visibilityState === "visible",
+  tabId = () => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `tab-${Date.now()}-${performance.now()}`;
+  };
 
 export function PresenceProvider({ children }: { children: ReactNode }) {
   const meQuery = useMeQuery(),
@@ -38,143 +61,298 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
     [onlineUsers, setOnlineUsers] = useState<Record<string, UserPresenceInfo>>(
       {}
     ),
+    [watchedUserIds, setWatchedUserIds] = useState<string[]>([]),
+    watchedCountsRef = useRef(new Map<string, number>()),
+    watchedUserIdsRef = useRef<string[]>([]),
     socketRef = useRef<WebSocket | null>(null),
+    leaderRef = useRef(false),
+    reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null),
     heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null),
-    // Poll HTTP presence fallback
-    fetchHttpPresence = useCallback(async () => {
-      try {
-        const res = await fetch(`${API_V1_URL}/presence`, {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = (await res.json()) as {
-            onlineUserIds?: string[];
-            users?: Record<string, { lastSeen: number; status: string }>;
-          };
-          if (data.users) {
-            const mapped: Record<string, UserPresenceInfo> = {};
-            for (const [id, u] of Object.entries(data.users)) {
-              mapped[id] = {
-                isOnline: true,
-                lastSeen: u.lastSeen,
-                status: u.status,
-              };
-            }
-            setOnlineUsers(mapped);
+    leaseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null),
+    reconnectAttemptRef = useRef(0),
+    tabIdRef = useRef<string>(tabId());
+
+  watchedUserIdsRef.current = watchedUserIds;
+
+  const applyPresence = useCallback(
+      (users: Record<string, UserPresenceInfo>) => {
+        setOnlineUsers((current) => ({ ...current, ...users }));
+      },
+      []
+    ),
+    registerPresenceUsers = useCallback((ids: string[]) => {
+      const normalizedIds = [...new Set(ids.filter(Boolean))];
+      for (const id of normalizedIds) {
+        watchedCountsRef.current.set(
+          id,
+          (watchedCountsRef.current.get(id) ?? 0) + 1
+        );
+      }
+      setWatchedUserIds([...watchedCountsRef.current.keys()]);
+
+      return () => {
+        for (const id of normalizedIds) {
+          const nextCount = (watchedCountsRef.current.get(id) ?? 1) - 1;
+          if (nextCount > 0) {
+            watchedCountsRef.current.set(id, nextCount);
+          } else {
+            watchedCountsRef.current.delete(id);
           }
         }
-      } catch {
-        // Ignore network errors on presence polling
-      }
+        setWatchedUserIds([...watchedCountsRef.current.keys()]);
+      };
     }, []),
-    // Send HTTP heartbeat fallback
-    sendHeartbeat = useCallback(async () => {
-      if (!userId) {
+    fetchTargetedPresence = useCallback(async () => {
+      const ids = watchedUserIdsRef.current;
+      if (ids.length === 0) {
         return;
       }
+
+      try {
+        const response = await fetch(`${API_V1_URL}/presence/query`, {
+          body: JSON.stringify({ userIds: ids.slice(0, 100) }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as {
+          users?: Record<string, UserPresenceInfo>;
+        };
+        if (data.users) {
+          applyPresence(data.users);
+        }
+      } catch {
+        // Presence reads are advisory; the next visible poll will retry.
+      }
+    }, [applyPresence]),
+    sendHeartbeat = useCallback(async (status: "away" | "online") => {
       try {
         await fetch(`${API_V1_URL}/presence/heartbeat`, {
-          body: JSON.stringify({ status: "online", userId }),
+          body: JSON.stringify({ status }),
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           method: "POST",
         });
       } catch {
-        // Ignore heartbeat failure
+        // The WebSocket reconnect loop handles recovery when available.
       }
-    }, [userId]);
+    }, []);
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || typeof window === "undefined") {
       setOnlineUsers({});
       return;
     }
 
-    // Always send initial heartbeat and fetch current presence
-    sendHeartbeat();
-    fetchHttpPresence();
-
-    // WebSocket connection for real-time live presence
-    let isMounted = true;
-    const wsUrl = `${API_V1_URL.replace(/^http/i, "ws")}/presence/ws?userId=${encodeURIComponent(userId)}`;
-
-    try {
-      const ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
-
-      ws.onmessage = (event) => {
-        if (!isMounted) {
-          return;
-        }
+    const leaseKey = `${PRESENCE_LEASE_KEY}:${userId}`,
+      channel =
+        typeof BroadcastChannel === "undefined"
+          ? null
+          : new BroadcastChannel(`${PRESENCE_CHANNEL_NAME}:${userId}`),
+      releaseLease = () => {
         try {
-          const data = JSON.parse(event.data) as {
-            onlineUserIds?: string[];
-            type?: string;
-            users?: Record<string, { lastSeen: number; status: string }>;
-          };
-          if (data.type === "presence" && data.users) {
-            const mapped: Record<string, UserPresenceInfo> = {};
-            for (const [id, u] of Object.entries(data.users)) {
-              mapped[id] = {
-                isOnline: true,
-                lastSeen: u.lastSeen,
-                status: u.status,
-              };
-            }
-            setOnlineUsers(mapped);
+          const lease = JSON.parse(
+            window.localStorage.getItem(leaseKey) ?? "null"
+          ) as { tabId?: string } | null;
+          if (lease?.tabId === tabIdRef.current) {
+            window.localStorage.removeItem(leaseKey);
           }
         } catch {
-          // Ignore json parse error
+          // Storage can be unavailable in privacy-restricted browsers.
+        }
+        leaderRef.current = false;
+      },
+      broadcast = (users: Record<string, UserPresenceInfo>) => {
+        const message: PresenceBroadcast = { type: "presence", users };
+        channel?.postMessage(message);
+      },
+      claimLease = () => {
+        try {
+          const current = JSON.parse(
+            window.localStorage.getItem(leaseKey) ?? "null"
+          ) as { expiresAt?: number; tabId?: string } | null;
+          if (
+            current?.tabId &&
+            current.tabId !== tabIdRef.current &&
+            (current.expiresAt ?? 0) > Date.now()
+          ) {
+            leaderRef.current = false;
+            return false;
+          }
+          window.localStorage.setItem(
+            leaseKey,
+            JSON.stringify({
+              expiresAt: Date.now() + LEASE_DURATION_MS,
+              tabId: tabIdRef.current,
+            })
+          );
+          leaderRef.current = true;
+          channel?.postMessage({ type: "leader" });
+          return true;
+        } catch {
+          // If storage is blocked, this tab remains the best-effort leader.
+          leaderRef.current = true;
+          return true;
+        }
+      },
+      closeSocket = () => {
+        if (socketRef.current) {
+          socketRef.current.close();
+          socketRef.current = null;
+        }
+      },
+      connectSocket = () => {
+        if (
+          !leaderRef.current ||
+          !isVisible() ||
+          socketRef.current ||
+          reconnectTimerRef.current
+        ) {
+          return;
+        }
+
+        const url = new URL(
+          `${API_V1_URL.replace(/^http/i, "ws")}/presence/ws`
+        );
+        url.searchParams.set("tabId", tabIdRef.current);
+
+        try {
+          const socket = new WebSocket(url);
+          socketRef.current = socket;
+          socket.onopen = () => {
+            reconnectAttemptRef.current = 0;
+            socket.send(
+              JSON.stringify({ status: "online", type: "heartbeat" })
+            );
+            void fetchTargetedPresence();
+          };
+          socket.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data) as UserPresenceInfo & {
+                type?: string;
+                userId?: string;
+              };
+              if (data.type === "presence" && data.userId) {
+                const users = { [data.userId]: data };
+                applyPresence(users);
+                broadcast(users);
+              }
+            } catch {
+              // Ignore malformed advisory presence events.
+            }
+          };
+          socket.onerror = () => {
+            socket.close();
+          };
+          socket.onclose = () => {
+            socketRef.current = null;
+            if (!leaderRef.current || !isVisible()) {
+              return;
+            }
+            const delay = Math.min(
+              30_000,
+              1000 * 2 ** reconnectAttemptRef.current
+            );
+            reconnectAttemptRef.current += 1;
+            reconnectTimerRef.current = setTimeout(() => {
+              reconnectTimerRef.current = null;
+              connectSocket();
+            }, delay);
+          };
+        } catch {
+          socketRef.current = null;
+        }
+      },
+      handleVisibility = () => {
+        if (!isVisible()) {
+          if (leaderRef.current) {
+            void sendHeartbeat("away");
+          }
+          closeSocket();
+          releaseLease();
+          return;
+        }
+
+        if (claimLease()) {
+          void sendHeartbeat("online");
+          connectSocket();
+          void fetchTargetedPresence();
+        }
+      },
+      onChannelMessage = (event: MessageEvent<PresenceBroadcast>) => {
+        if (event.data?.type === "presence" && event.data.users) {
+          applyPresence(event.data.users);
         }
       };
 
-      ws.onerror = () => {
-        // Fall back to HTTP polling
-      };
-
-      ws.onclose = () => {
-        socketRef.current = null;
-      };
-    } catch {
-      // Fall back to polling
+    channel?.addEventListener("message", onChannelMessage);
+    claimLease();
+    if (leaderRef.current) {
+      void sendHeartbeat("online");
+      connectSocket();
+      void fetchTargetedPresence();
     }
 
-    // Periodic heartbeat every 25 seconds
     heartbeatIntervalRef.current = setInterval(() => {
-      if (
-        socketRef.current &&
-        socketRef.current.readyState === WebSocket.OPEN
-      ) {
+      if (!leaderRef.current || !isVisible()) {
+        return;
+      }
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
         socketRef.current.send(JSON.stringify({ type: "heartbeat" }));
       } else {
-        sendHeartbeat();
-        fetchHttpPresence();
+        void sendHeartbeat("online");
+        void fetchTargetedPresence();
+        connectSocket();
       }
-    }, 25_000);
+    }, ACTIVE_PRESENCE_INTERVAL_MS);
+    leaseIntervalRef.current = setInterval(() => {
+      if (isVisible() && claimLease()) {
+        connectSocket();
+      }
+    }, LEASE_RENEWAL_INTERVAL_MS);
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pagehide", releaseLease);
+    window.addEventListener("pageshow", handleVisibility);
 
     return () => {
-      isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pagehide", releaseLease);
+      window.removeEventListener("pageshow", handleVisibility);
+      channel?.removeEventListener("message", onChannelMessage);
+      channel?.close();
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
+      if (leaseIntervalRef.current) {
+        clearInterval(leaseIntervalRef.current);
       }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+      closeSocket();
+      releaseLease();
     };
-  }, [userId, sendHeartbeat, fetchHttpPresence]);
+  }, [applyPresence, fetchTargetedPresence, sendHeartbeat, userId]);
+
+  useEffect(() => {
+    if (userId && leaderRef.current && isVisible()) {
+      void fetchTargetedPresence();
+    }
+  }, [fetchTargetedPresence, userId, watchedUserIds]);
 
   const isUserOnline = useCallback(
       (targetUserId?: string | null) => {
         if (!targetUserId) {
           return false;
         }
-        // The current logged-in user is always online
         if (userId && targetUserId === userId) {
           return true;
         }
-        const user = onlineUsers[targetUserId];
-        return Boolean(user && user.isOnline);
+        return Boolean(onlineUsers[targetUserId]?.isOnline);
       },
       [onlineUsers, userId]
     ),
@@ -190,15 +368,22 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
       },
       [onlineUsers, userId]
     ),
-    onlineUserIds = useMemo(() => Object.keys(onlineUsers), [onlineUsers]),
+    onlineUserIds = useMemo(
+      () =>
+        Object.entries(onlineUsers)
+          .filter(([, presence]) => presence.isOnline)
+          .map(([id]) => id),
+      [onlineUsers]
+    ),
     value = useMemo(
       () => ({
         getUserPresence,
         isUserOnline,
         onlineCount: onlineUserIds.length,
         onlineUserIds,
+        registerPresenceUsers,
       }),
-      [getUserPresence, isUserOnline, onlineUserIds]
+      [getUserPresence, isUserOnline, onlineUserIds, registerPresenceUsers]
     );
 
   return (

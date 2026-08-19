@@ -5,7 +5,7 @@
   "compatibility_date": "2026-04-12",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
-    "enabled": false,
+    "enabled": true,
     "head_sampling_rate": 1,
     "logs": {
       "enabled": true,
@@ -19,6 +19,30 @@
       "persist": true,
     },
   },
+  "analytics_engine_datasets": [
+    {
+      "binding": "DO_METRICS",
+      "dataset": "soundkit_do_metrics",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LIVE_ROOMS",
+        "class_name": "LiveRoomDurableObject",
+      },
+      {
+        "name": "PRESENCE",
+        "class_name": "PresenceDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "new_sqlite_classes": ["LiveRoomDurableObject", "PresenceDurableObject"],
+      "tag": "v1",
+    },
+  ],
   "workflows": [
     {
       "name": "soundkit-track-processing",

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_explore/live/streams/$id")({
 
 function StreamDetailPage() {
   const { id } = Route.useParams(),
-    { chat, query } = useLiveRoom(id),
+    { chat, chatMessages, query } = useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFullscreen, setIsFullscreen] = useState(false),
     videoContainerRef = useRef<HTMLDivElement | null>(null),
@@ -138,7 +138,7 @@ function StreamDetailPage() {
       <LiveChatPanel
         disabled={chat.isPending}
         fillHeight
-        messages={room.chat}
+        messages={chatMessages}
         onCollapse={() => setIsChatOpen(false)}
         onSend={(message) => chat.mutate({ message, userName: "You" })}
         title="Stream Chat"

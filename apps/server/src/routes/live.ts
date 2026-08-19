@@ -742,7 +742,10 @@ const badRequest = (message: string) => ({
     return result;
   },
   durableRequest = (
-    c: { env: AppEnv["Bindings"] },
+    c: {
+      env: AppEnv["Bindings"];
+      get?: (key: "user") => AuthenticatedUser | null;
+    },
     roomId: string,
     path: string,
     init?: RequestInit
@@ -753,8 +756,14 @@ const badRequest = (message: string) => ({
 
     const id = c.env.LIVE_ROOMS.idFromName(roomId),
       stub = c.env.LIVE_ROOMS.get(id),
-      headers = new Headers(init?.headers);
+      headers = new Headers(init?.headers),
+      user = c.get?.("user");
     headers.set("x-soundkit-live-room-id", roomId);
+    headers.set("x-soundkit-live-user-id", user?.id ?? "anonymous");
+    headers.set(
+      "x-soundkit-live-display-name",
+      user?.name?.trim() || "Listener"
+    );
 
     return stub.fetch(`https://live-room.soundkit.internal${path}`, {
       ...init,
@@ -1325,7 +1334,10 @@ const badRequest = (message: string) => ({
     room,
     roomId,
   }: {
-    c: { env: AppEnv["Bindings"] };
+    c: {
+      env: AppEnv["Bindings"];
+      get?: (key: "user") => AuthenticatedUser | null;
+    };
     room: LiveRoomState;
     roomId: string;
   }) =>

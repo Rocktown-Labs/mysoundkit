@@ -11,6 +11,7 @@ import { MusicPlayer } from "@/components/explore/music-player";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { MessagingDbProvider } from "@/lib/message-db";
 import { PresenceProvider } from "@/lib/presence-context";
 
 const AppDevtools = import.meta.env.DEV
@@ -30,7 +31,8 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
+      <MessagingDbProvider queryClient={queryClient}>
+        <ThemeProvider
         attribute="class"
         defaultTheme="dark"
         enableColorScheme={false}
@@ -51,7 +53,8 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
             <AppDevtools />
           </Suspense>
         ) : null}
-      </ThemeProvider>
+        </ThemeProvider>
+      </MessagingDbProvider>
     </QueryClientProvider>
   );
 }

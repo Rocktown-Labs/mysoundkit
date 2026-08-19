@@ -143,7 +143,7 @@ function StageCard({
 function BattlePage() {
   const { id } = Route.useParams(),
     router = useRouter(),
-    { chat, query, vote } = useLiveRoom(id),
+    { chat, chatMessages, query, vote } = useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFullscreen, setIsFullscreen] = useState(false),
     [isFollowingBattle, setIsFollowingBattle] = useState(false),
@@ -278,7 +278,7 @@ function BattlePage() {
           </Badge>
         }
         fillHeight
-        messages={room.chat}
+        messages={chatMessages}
         onCollapse={() => setIsChatOpen(false)}
         onSend={(message) => chat.mutate({ message, userName: "You" })}
         title="Arena Chat"

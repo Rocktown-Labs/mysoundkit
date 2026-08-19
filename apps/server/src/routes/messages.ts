@@ -1572,7 +1572,7 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const messageId = crypto.randomUUID(),
+    const messageId = body.clientMessageId ?? crypto.randomUUID(),
       now = new Date(),
       [message] = await db
         .insert(messages)

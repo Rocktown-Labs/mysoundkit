@@ -32,7 +32,7 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -50,15 +50,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MessageScroller } from "@/components/ui/message-scroller";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
+import {
+  useCreateMessageCollectionMutation,
+  useMessagingMessages,
+} from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
-  useConversationMessagesQuery,
   useConversationsQuery,
-  useCreateMessageMutation,
   useFriendsQuery,
   useLibrarySavedQuery,
   useMeQuery,
@@ -153,7 +156,7 @@ export function FloatingChatBar() {
     uploadedTracksQuery = useTracksQuery(),
     savedTracksQuery = useLibrarySavedQuery(),
     startConversation = useStartConversationMutation(),
-    { isUserOnline } = usePresence(),
+    { isUserOnline, registerPresenceUsers } = usePresence(),
     conversations = useMemo(
       () =>
         Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
@@ -168,12 +171,14 @@ export function FloatingChatBar() {
       conversations[0] ??
       null,
     conversationId = activeConversation?.id ?? "",
-    messagesQuery = useConversationMessagesQuery(conversationId),
-    createMessage = useCreateMessageMutation(conversationId),
+    messagesQuery = useMessagingMessages(conversationId),
+    createMessage = useCreateMessageCollectionMutation(
+      conversationId,
+      meQuery.data?.user.id
+    ),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
-      route: "media",
       onUploadComplete: ({ files }) => {
         setAttachments((current) => [
           ...current,
@@ -186,6 +191,7 @@ export function FloatingChatBar() {
           })),
         ]);
       },
+      route: "media",
     }),
     messages = messagesQuery.data ?? [],
     totalUnread = conversations.reduce(
@@ -266,6 +272,17 @@ export function FloatingChatBar() {
         }
       );
     };
+
+  useEffect(
+    () =>
+      registerPresenceUsers([
+        ...friends.map((friend) => friend.id),
+        ...conversations.flatMap((conversation) =>
+          conversation.participantId ? [conversation.participantId] : []
+        ),
+      ]),
+    [conversations, friends, registerPresenceUsers]
+  );
 
   if (
     !isArtist ||
@@ -732,7 +749,10 @@ export function FloatingChatBar() {
               </CardHeader>
 
               {/* Messages Feed */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 relative">
+              <MessageScroller
+                className="space-y-3 p-3"
+                messageCount={messages.length}
+              >
                 {messages.length > 0 ? (
                   messages.map((message) => {
                     const isMine = message.senderId === meQuery.data?.user.id;
@@ -968,7 +988,7 @@ export function FloatingChatBar() {
                     </p>
                   </div>
                 )}
-              </div>
+              </MessageScroller>
 
               {/* Slash Command Helper Popup */}
               {isSlashActive && matchingCommands.length > 0 && (

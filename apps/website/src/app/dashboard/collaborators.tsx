@@ -11,7 +11,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +94,7 @@ function PersonCard({
   direction?: "follower" | "following";
   person: NetworkPerson;
 }) {
-  const { isUserOnline } = usePresence(),
+  const { isUserOnline, registerPresenceUsers } = usePresence(),
    friendRequestMutation = useCreateFriendRequestMutation(),
    unfollowMutation = useUnfollowArtistMutation(person.username ?? ""),
    isArtist = person.accountType === "artist",
@@ -117,6 +117,11 @@ function PersonCard({
       });
     }
   };
+  useEffect(
+    () => registerPresenceUsers([person.id]),
+    [person.id, registerPresenceUsers]
+  );
+
   return (
     <Card className="border-border/40 bg-card/40">
       <CardContent className="space-y-4 p-4">

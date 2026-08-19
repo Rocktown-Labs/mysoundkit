@@ -1,21 +1,27 @@
+/* eslint-disable one-var, sort-vars, complexity, require-await, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import { userPresence } from "@soundkit/db/schema/app";
+import { and, count, gte, inArray, ne } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { isAuthenticatedUser } from "@/lib/entitlements";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>(),
+const ACTIVE_THRESHOLD_MS = 90_000,
+  MAX_QUERY_IDS = 100,
+  app = new OpenAPIHono<AppEnv>(),
   inMemoryPresence = new Map<string, { lastSeen: number; status: string }>(),
   presenceUserSchema = z.object({
     isOnline: z.boolean(),
     lastSeen: z.number(),
     status: z.string(),
   }),
-  presenceResponseSchema = z.object({
-    onlineUserIds: z.string().array(),
-    users: z.record(z.string(), presenceUserSchema),
-  });
+  statusSchema = z.enum(["online", "away", "offline"]),
+  unauthorizedResponse = z.object({ message: z.string() }),
+  presenceSummarySchema = z.object({ onlineCount: z.number() });
 
 app.openapi(
   createRoute({
@@ -23,63 +29,53 @@ app.openapi(
     path: "/",
     responses: {
       [HttpStatusCodes.OK]: jsonContent(
-        presenceResponseSchema,
-        "List of currently active online users"
+        presenceSummarySchema,
+        "Count of currently active users"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        unauthorizedResponse,
+        "Authentication required"
       ),
     },
     tags: ["Presence"],
   }),
   async (c) => {
-    if (c.env?.PRESENCE) {
-      const id = c.env?.PRESENCE.idFromName("global"),
-        stub = c.env?.PRESENCE.get(id),
-        response = await stub.fetch(new Request("https://internal/presence")),
-        data = (await response.json()) as {
-          users: Record<string, { lastSeen: number; status: string }>;
-        },
-        users: Record<
-          string,
-          { isOnline: boolean; lastSeen: number; status: string }
-        > = {};
-      for (const [uid, u] of Object.entries(data.users ?? {})) {
-        users[uid] = {
-          isOnline: true,
-          lastSeen: u.lastSeen,
-          status: u.status,
-        };
-      }
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
       return c.json(
-        {
-          onlineUserIds: Object.keys(users),
-          users,
-        },
+        { message: "Authentication required." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    if (isDatabaseConfigured()) {
+      const [result] = await createDb()
+        .select({ onlineCount: count() })
+        .from(userPresence)
+        .where(
+          and(
+            gte(
+              userPresence.lastSeen,
+              new Date(Date.now() - ACTIVE_THRESHOLD_MS)
+            ),
+            ne(userPresence.status, "offline")
+          )
+        );
+
+      return c.json(
+        { onlineCount: Number(result?.onlineCount ?? 0) },
         HttpStatusCodes.OK
       );
     }
 
-    // In-memory fallback
     const now = Date.now(),
-      users: Record<
-        string,
-        { isOnline: boolean; lastSeen: number; status: string }
-      > = {};
-    for (const [id, user] of inMemoryPresence) {
-      if (now - user.lastSeen < 60_000 && user.status !== "offline") {
-        users[id] = {
-          isOnline: true,
-          lastSeen: user.lastSeen,
-          status: user.status,
-        };
-      }
-    }
+      onlineCount = [...inMemoryPresence.values()].filter(
+        (presence) =>
+          presence.status !== "offline" &&
+          now - presence.lastSeen < ACTIVE_THRESHOLD_MS
+      ).length;
 
-    return c.json(
-      {
-        onlineUserIds: Object.keys(users),
-        users,
-      },
-      HttpStatusCodes.OK
-    );
+    return c.json({ onlineCount }, HttpStatusCodes.OK);
   }
 );
 
@@ -90,7 +86,7 @@ app.openapi(
     request: {
       body: jsonContentRequired(
         z.object({
-          userIds: z.string().array(),
+          userIds: z.string().min(1).array().max(MAX_QUERY_IDS),
         }),
         "User IDs to query"
       ),
@@ -102,46 +98,70 @@ app.openapi(
         }),
         "Presence map for requested user IDs"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        unauthorizedResponse,
+        "Authentication required"
+      ),
     },
     tags: ["Presence"],
   }),
   async (c) => {
-    const { userIds } = c.req.valid("json");
-
-    if (c.env?.PRESENCE) {
-      const id = c.env?.PRESENCE.idFromName("global"),
-        stub = c.env?.PRESENCE.get(id),
-        response = await stub.fetch(
-          new Request("https://internal/query", {
-            body: JSON.stringify({ userIds }),
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          })
-        ),
-        data = (await response.json()) as {
-          users: Record<
-            string,
-            { isOnline: boolean; lastSeen: number; status: string }
-          >;
-        };
-      return c.json({ users: data.users ?? {} }, HttpStatusCodes.OK);
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(
+        { message: "Authentication required." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
     }
 
-    // In-memory fallback
-    const now = Date.now(),
+    const { userIds } = c.req.valid("json"),
+      requestedIds = [...new Set(userIds)],
+      now = Date.now(),
       users: Record<
         string,
         { isOnline: boolean; lastSeen: number; status: string }
       > = {};
-    for (const id of userIds) {
-      const user = inMemoryPresence.get(id),
+
+    if (isDatabaseConfigured() && requestedIds.length > 0) {
+      const rows = await createDb()
+          .select({
+            lastSeen: userPresence.lastSeen,
+            status: userPresence.status,
+            userId: userPresence.userId,
+          })
+          .from(userPresence)
+          .where(inArray(userPresence.userId, requestedIds)),
+        rowsByUserId = new Map(rows.map((row) => [row.userId, row]));
+
+      for (const id of requestedIds) {
+        const row = rowsByUserId.get(id),
+          lastSeen = row?.lastSeen?.getTime() ?? 0,
+          isOnline = Boolean(
+            row &&
+            row.status !== "offline" &&
+            now - lastSeen < ACTIVE_THRESHOLD_MS
+          );
+        users[id] = {
+          isOnline,
+          lastSeen,
+          status: isOnline ? (row?.status ?? "online") : "offline",
+        };
+      }
+
+      return c.json({ users }, HttpStatusCodes.OK);
+    }
+
+    for (const id of requestedIds) {
+      const presence = inMemoryPresence.get(id),
         isOnline = Boolean(
-          user && now - user.lastSeen < 60_000 && user.status !== "offline"
+          presence &&
+          presence.status !== "offline" &&
+          now - presence.lastSeen < ACTIVE_THRESHOLD_MS
         );
       users[id] = {
         isOnline,
-        lastSeen: user?.lastSeen ?? 0,
-        status: isOnline ? (user?.status ?? "online") : "offline",
+        lastSeen: presence?.lastSeen ?? 0,
+        status: isOnline ? (presence?.status ?? "online") : "offline",
       };
     }
 
@@ -155,10 +175,7 @@ app.openapi(
     path: "/heartbeat",
     request: {
       body: jsonContentRequired(
-        z.object({
-          status: z.enum(["online", "away", "offline", "typing"]).optional(),
-          userId: z.string().min(1),
-        }),
+        z.object({ status: statusSchema.optional() }),
         "Heartbeat payload"
       ),
     },
@@ -167,49 +184,60 @@ app.openapi(
         z.object({ success: z.boolean() }),
         "Heartbeat acknowledgment"
       ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        unauthorizedResponse,
+        "Authentication required"
+      ),
     },
     tags: ["Presence"],
   }),
   async (c) => {
-    const { status, userId } = c.req.valid("json");
-
-    if (c.env?.PRESENCE) {
-      const id = c.env?.PRESENCE.idFromName("global"),
-        stub = c.env?.PRESENCE.get(id);
-      await stub.fetch(
-        new Request("https://internal/heartbeat", {
-          body: JSON.stringify({ status, userId }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        })
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(
+        { message: "Authentication required." },
+        HttpStatusCodes.UNAUTHORIZED
       );
-      return c.json({ success: true }, HttpStatusCodes.OK);
     }
 
-    inMemoryPresence.set(userId, {
-      lastSeen: Date.now(),
-      status: status || "online",
-    });
+    const { status = "online" } = c.req.valid("json");
+    if (c.env.PRESENCE) {
+      const stub = c.env.PRESENCE.getByName(user.id);
+      await stub.heartbeat(user.id, status);
+    } else {
+      inMemoryPresence.set(user.id, {
+        lastSeen: Date.now(),
+        status,
+      });
+    }
 
     return c.json({ success: true }, HttpStatusCodes.OK);
   }
 );
 
-// WebSocket upgrade route handler
 app.get("/ws", async (c) => {
-  const userId = c.req.query("userId");
-  if (!userId) {
-    return c.text("Missing userId query parameter", 400);
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.text("Authentication required", HttpStatusCodes.UNAUTHORIZED);
   }
 
-  if (c.env?.PRESENCE) {
-    const id = c.env?.PRESENCE.idFromName("global"),
-      stub = c.env?.PRESENCE.get(id);
-    return stub.fetch(c.req.raw);
+  if (c.env.PRESENCE) {
+    const tabId = c.req.query("tabId"),
+      headers = new Headers(c.req.raw.headers);
+    headers.set("x-soundkit-user-id", user.id);
+    if (tabId) {
+      headers.set("x-soundkit-tab-id", tabId);
+    }
+
+    return c.env.PRESENCE.getByName(user.id).fetch(
+      new Request(c.req.raw.url, {
+        headers,
+        method: "GET",
+      })
+    );
   }
 
-  // If running in local dev without DO, update in-memory presence and return standard response
-  inMemoryPresence.set(userId, {
+  inMemoryPresence.set(user.id, {
     lastSeen: Date.now(),
     status: "online",
   });

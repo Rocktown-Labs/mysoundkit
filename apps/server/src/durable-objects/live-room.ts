@@ -1,17 +1,17 @@
+/* eslint-disable one-var, sort-vars, typescript/explicit-member-accessibility, require-await, prefer-destructuring, class-methods-use-this */
 import { DurableObject } from "cloudflare:workers";
 
 import type { LiveRoomChatMessage, LiveRoomState } from "@/lib/live-room-data";
 import { createSampleLiveRoom } from "@/lib/live-room-data";
+import { recordRealtimeMetric } from "@/lib/realtime-metrics";
 
 interface LiveRoomVoteBody {
   artistId?: string;
   roundId?: string;
-  voterId?: string;
 }
 
 interface LiveRoomChatBody {
   message?: string;
-  userName?: string;
 }
 
 interface LiveRoomSocketMessage {
@@ -19,7 +19,26 @@ interface LiveRoomSocketMessage {
   type?: "chat" | "vote";
 }
 
-const MAX_CHAT_MESSAGES = 80,
+interface LiveRoomIdentity {
+  displayName: string;
+  userId: string;
+}
+
+interface LiveRoomSocketAttachment extends LiveRoomIdentity {
+  connectedAt: number;
+}
+
+export interface LiveRoomChatResult {
+  message: LiveRoomChatMessage | null;
+  rateLimited?: boolean;
+  room: LiveRoomState;
+}
+
+const CHAT_RATE_LIMIT = 5,
+  CHAT_RATE_WINDOW_MS = 5000,
+  CHAT_STORAGE_KEY = "live-room-chat",
+  MAX_CHAT_MESSAGES = 80,
+  MAX_CHAT_MESSAGE_LENGTH = 500,
   STATE_STORAGE_KEY = "live-room-state",
   voteVotersKey = (roundId: string) => `vote-voters:${roundId}`,
   jsonResponse = (body: unknown, status = 200) =>
@@ -33,7 +52,18 @@ const MAX_CHAT_MESSAGES = 80,
 export class LiveRoomDurableObject extends DurableObject {
   private roomState: LiveRoomState | null = null;
   private requestedRoomId: string | null = null;
-  private userLastMessageTimes = new Map<string, number[]>();
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.blockConcurrencyWhile(async () => {
+      this.ctx.storage.sql.exec(`
+        CREATE TABLE IF NOT EXISTS live_room_chat_rate_limits (
+          user_id TEXT PRIMARY KEY,
+          timestamps TEXT NOT NULL
+        )
+      `);
+    });
+  }
 
   async fetch(request: Request): Promise<Response> {
     this.requestedRoomId = request.headers.get("x-soundkit-live-room-id");
@@ -70,18 +100,19 @@ export class LiveRoomDurableObject extends DurableObject {
         return jsonResponse(body, 201);
       }
 
-      return jsonResponse(storedState);
+      return jsonResponse(await this.getState());
     }
 
+    const identity = this.identityFromRequest(request);
     if (request.method === "POST" && url.pathname === "/chat") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody,
-        room = await this.addChatMessage(body);
-      return jsonResponse(room, 201);
+        result = await this.addChatMessage(body, identity);
+      return jsonResponse(result, result.rateLimited ? 429 : 201);
     }
 
     if (request.method === "POST" && url.pathname === "/vote") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomVoteBody,
-        result = await this.recordVote(body);
+        result = await this.recordVote(body, identity);
 
       return jsonResponse(result.body, result.status);
     }
@@ -89,28 +120,56 @@ export class LiveRoomDurableObject extends DurableObject {
     return notFoundResponse();
   }
 
-  async webSocketMessage(_socket: WebSocket, message: ArrayBuffer | string) {
+  async webSocketMessage(socket: WebSocket, message: ArrayBuffer | string) {
     if (typeof message !== "string") {
       return;
     }
 
-    const parsed = JSON.parse(message) as LiveRoomSocketMessage;
-
-    if (parsed.type === "chat") {
-      await this.addChatMessage(parsed.payload as LiveRoomChatBody);
+    const attachment =
+      socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
+    if (!attachment) {
       return;
     }
 
-    if (parsed.type === "vote") {
-      await this.recordVote(parsed.payload as LiveRoomVoteBody);
+    try {
+      const parsed = JSON.parse(message) as LiveRoomSocketMessage;
+
+      if (parsed.type === "chat") {
+        await this.addChatMessage(
+          (parsed.payload ?? {}) as LiveRoomChatBody,
+          attachment
+        );
+        return;
+      }
+
+      if (parsed.type === "vote") {
+        await this.recordVote(
+          (parsed.payload ?? {}) as LiveRoomVoteBody,
+          attachment
+        );
+      }
+    } catch (error) {
+      console.warn("Live room WebSocket message rejected", {
+        error: error instanceof Error ? error.message : String(error),
+        roomId: this.requestedRoomId,
+      });
     }
   }
 
-  async webSocketClose() {
+  async webSocketClose(socket: WebSocket) {
+    const attachment =
+      socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
+    if (attachment) {
+      recordRealtimeMetric({
+        dataset: this.env.DO_METRICS,
+        event: "live_room_ws_close",
+        indexes: [attachment.userId],
+      });
+    }
     await this.broadcastPresence();
   }
 
-  private async getState() {
+  private async getState(): Promise<LiveRoomState> {
     if (this.roomState) {
       return this.roomState;
     }
@@ -119,8 +178,16 @@ export class LiveRoomDurableObject extends DurableObject {
       await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY);
 
     if (storedState) {
-      this.roomState = storedState;
-      return storedState;
+      const storedChat =
+        await this.ctx.storage.get<LiveRoomChatMessage[]>(CHAT_STORAGE_KEY);
+      this.roomState = {
+        ...storedState,
+        chat: (storedChat ?? storedState.chat ?? []).slice(-MAX_CHAT_MESSAGES),
+      };
+      if (!storedChat && storedState.chat.length > 0) {
+        await this.ctx.storage.put(CHAT_STORAGE_KEY, this.roomState.chat);
+      }
+      return this.roomState;
     }
 
     const room = createSampleLiveRoom(
@@ -133,48 +200,67 @@ export class LiveRoomDurableObject extends DurableObject {
 
   private async persist(room: LiveRoomState) {
     this.roomState = room;
-    await this.ctx.storage.put(STATE_STORAGE_KEY, room);
+    await Promise.all([
+      this.ctx.storage.put(STATE_STORAGE_KEY, { ...room, chat: [] }),
+      this.ctx.storage.put(
+        CHAT_STORAGE_KEY,
+        room.chat.slice(-MAX_CHAT_MESSAGES)
+      ),
+    ]);
   }
 
-  private async addChatMessage(body: LiveRoomChatBody) {
+  private async persistChat(chat: LiveRoomChatMessage[]) {
+    await this.ctx.storage.put(
+      CHAT_STORAGE_KEY,
+      chat.slice(-MAX_CHAT_MESSAGES)
+    );
+  }
+
+  private async addChatMessage(
+    body: LiveRoomChatBody,
+    identity: LiveRoomIdentity
+  ): Promise<LiveRoomChatResult> {
     const room = await this.getState(),
-      message = body.message?.trim();
+      message = body.message?.trim().slice(0, MAX_CHAT_MESSAGE_LENGTH);
 
     if (!message) {
-      return room;
+      return { message: null, room };
     }
 
-    const userName = body.userName?.trim() || "Listener",
-      now = Date.now(),
-      timestamps = (this.userLastMessageTimes.get(userName) ?? []).filter(
-        (t) => now - t < 5000
-      );
-
-    if (timestamps.length >= 5) {
-      // Rate limited: max 5 messages per 5 seconds per user
-      return room;
+    if (!this.consumeChatRate(identity.userId)) {
+      recordRealtimeMetric({
+        dataset: this.env.DO_METRICS,
+        event: "live_room_rate_limited",
+        indexes: [identity.userId],
+      });
+      return { message: null, rateLimited: true, room };
     }
-
-    timestamps.push(now);
-    this.userLastMessageTimes.set(userName, timestamps);
 
     const chatMessage: LiveRoomChatMessage = {
         id: crypto.randomUUID(),
         message,
         sentAt: new Date().toISOString(),
-        userName,
+        userName: identity.displayName,
       },
+      nextChat = [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
       nextRoom = {
         ...room,
-        chat: [...room.chat, chatMessage].slice(-MAX_CHAT_MESSAGES),
+        chat: nextChat,
       };
 
-    await this.persist(nextRoom);
-    this.broadcast({ room: nextRoom, type: "state" });
-    return nextRoom;
+    this.roomState = nextRoom;
+    await this.persistChat(nextChat);
+    this.broadcast({ message: chatMessage, type: "chat" });
+    recordRealtimeMetric({
+      dataset: this.env.DO_METRICS,
+      doubles: [this.ctx.getWebSockets().length],
+      event: "live_room_chat",
+      indexes: [identity.userId],
+    });
+    return { message: chatMessage, room: nextRoom };
   }
 
-  private async recordVote(body: LiveRoomVoteBody) {
+  private async recordVote(body: LiveRoomVoteBody, identity: LiveRoomIdentity) {
     const room = await this.getState();
 
     if (room.kind !== "battle" || !room.battle) {
@@ -205,24 +291,18 @@ export class LiveRoomDurableObject extends DurableObject {
       return { body: { message: "Artist not found." }, status: 404 };
     }
 
-    if (!body.voterId) {
-      return {
-        body: { message: "A voter is required to record a vote." },
-        status: 400,
-      };
-    }
-
     const votersKey = voteVotersKey(round.id),
-      voters = await this.ctx.storage.get<string[]>(votersKey);
+      voters = await this.ctx.storage.get<string[]>(votersKey),
+      voterId = identity.userId;
 
-    if (voters?.includes(body.voterId)) {
+    if (voters?.includes(voterId)) {
       return {
         body: { message: "This participant has already voted this round." },
         status: 409,
       };
     }
 
-    await this.ctx.storage.put(votersKey, [...(voters ?? []), body.voterId]);
+    await this.ctx.storage.put(votersKey, [...(voters ?? []), voterId]);
 
     const nextRounds = room.battle.rounds.map((entry) => {
         if (entry.id !== round.id) {
@@ -254,14 +334,28 @@ export class LiveRoomDurableObject extends DurableObject {
   }
 
   private handleWebSocket(request: Request) {
-    if (request.headers.get("upgrade") !== "websocket") {
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return jsonResponse({ message: "Expected WebSocket upgrade." }, 426);
     }
 
     const pair = new WebSocketPair(),
-      [client, server] = Object.values(pair) as [WebSocket, WebSocket];
-    server.serializeAttachment({ connectedAt: Date.now() });
-    this.ctx.acceptWebSocket(server);
+      [client, server] = Object.values(pair) as [WebSocket, WebSocket],
+      identity = this.identityFromRequest(request),
+      attachment: LiveRoomSocketAttachment = {
+        ...identity,
+        connectedAt: Date.now(),
+      };
+
+    server.serializeAttachment(attachment);
+    this.ctx.acceptWebSocket(server, [
+      `room:${this.requestedRoomId ?? this.ctx.id.toString()}`,
+      `user:${identity.userId}`,
+    ]);
+    recordRealtimeMetric({
+      dataset: this.env.DO_METRICS,
+      event: "live_room_ws_connect",
+      indexes: [identity.userId],
+    });
     void this.sendInitialState(server);
 
     return new Response(null, {
@@ -286,15 +380,69 @@ export class LiveRoomDurableObject extends DurableObject {
   }
 
   private broadcast(payload: unknown) {
-    const message = JSON.stringify(payload);
+    const message = JSON.stringify(payload),
+      sockets = this.ctx.getWebSockets();
+    recordRealtimeMetric({
+      dataset: this.env.DO_METRICS,
+      doubles: [sockets.length],
+      event: "live_room_broadcast_fanout",
+      indexes: [this.requestedRoomId ?? this.ctx.id.toString()],
+    });
 
-    for (const socket of this.ctx.getWebSockets()) {
+    for (const socket of sockets) {
       try {
         socket.send(message);
-      } catch {
+      } catch (error) {
+        console.warn("Live room broadcast failed", {
+          error: error instanceof Error ? error.message : String(error),
+          roomId: this.requestedRoomId,
+        });
         socket.close(1011, "Unable to deliver room update.");
       }
     }
+  }
+
+  private consumeChatRate(userId: string) {
+    const row = this.ctx.storage.sql
+      .exec<{ timestamps: string }>(
+        "SELECT timestamps FROM live_room_chat_rate_limits WHERE user_id = ?",
+        userId
+      )
+      .toArray()[0];
+    let timestamps: number[] = [];
+
+    try {
+      timestamps = row ? (JSON.parse(row.timestamps) as number[]) : [];
+    } catch {
+      timestamps = [];
+    }
+
+    const now = Date.now(),
+      recentTimestamps = timestamps.filter(
+        (timestamp) => now - timestamp < CHAT_RATE_WINDOW_MS
+      );
+
+    if (recentTimestamps.length >= CHAT_RATE_LIMIT) {
+      return false;
+    }
+
+    recentTimestamps.push(now);
+    this.ctx.storage.sql.exec(
+      `INSERT INTO live_room_chat_rate_limits (user_id, timestamps)
+       VALUES (?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET timestamps = excluded.timestamps`,
+      userId,
+      JSON.stringify(recentTimestamps)
+    );
+    return true;
+  }
+
+  private identityFromRequest(request: Request): LiveRoomIdentity {
+    return {
+      displayName:
+        request.headers.get("x-soundkit-live-display-name") ?? "Listener",
+      userId: request.headers.get("x-soundkit-live-user-id") ?? "anonymous",
+    };
   }
 }
 

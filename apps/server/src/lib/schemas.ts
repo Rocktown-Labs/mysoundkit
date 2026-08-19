@@ -2005,6 +2005,7 @@ export const createMessageBodySchema = z
       .max(8)
       .default([]),
     body: z.string().default(""),
+    clientMessageId: z.string().trim().min(1).max(120).optional(),
   })
   .refine((message) => message.body.trim() || message.attachments.length > 0, {
     message: "Add a message or attachment.",

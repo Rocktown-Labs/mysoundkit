@@ -1,5 +1,7 @@
 # Changelog
 
+- Hardened realtime architecture with authenticated per-user presence Durable Objects, targeted presence reads, coalesced presence persistence, durable live-room chat rate limits, delta WebSocket chat events, Cloudflare observability metrics, and reactive message scrolling/TanStack DB collections.
+
 - Reframed Friends & Collaborators as Network with distinct friends, followers, following, and requests views; separated fan and artist follower classification from music collaborators and workspace membership; replaced simulated workspace members, seat counts, and invites with persisted organization data and active-workspace authorization.
 
 - Overhauled Artist Analytics (`/dashboard/career/analytics`) and Creator Payments (`/dashboard/career/payments`) to use 100% real, database-persisted telemetry and the existing Creator Rewards monetization architecture:

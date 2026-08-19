@@ -39,14 +39,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MessageScroller } from "@/components/ui/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import {
+  useCreateMessageCollectionMutation,
+  useMessagingConversations,
+  useMessagingMessages,
+} from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
-  useConversationMessagesQuery,
-  useConversationsQuery,
-  useCreateMessageMutation,
   useFriendsQuery,
   useLibrarySavedQuery,
   useMeQuery,
@@ -109,9 +112,9 @@ const initials = (value: string) =>
 
 function MessagesPage() {
   const searchParams = Route.useSearch(),
-    { isUserOnline } = usePresence(),
+    { isUserOnline, registerPresenceUsers } = usePresence(),
     meQuery = useMeQuery(),
-    conversationsQuery = useConversationsQuery(),
+    conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
     uploadedTracksQuery = useTracksQuery(),
     savedTracksQuery = useLibrarySavedQuery(),
@@ -176,6 +179,17 @@ function MessagesPage() {
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
     [targetFriendId, setTargetFriendId] = useState<string | undefined>();
 
+  useEffect(
+    () =>
+      registerPresenceUsers([
+        ...messageableFriends.map((friend) => friend.id),
+        ...conversations.flatMap((conversation) =>
+          conversation.participantId ? [conversation.participantId] : []
+        ),
+      ]),
+    [conversations, messageableFriends, registerPresenceUsers]
+  );
+
   // Handle URL search params (friendId or conversationId)
   useEffect(() => {
     if (searchParams.conversationId) {
@@ -220,8 +234,11 @@ function MessagesPage() {
   const selectedConversation = conversations.find(
       (conversation) => conversation.id === selectedId
     ),
-    messagesQuery = useConversationMessagesQuery(selectedId),
-    sendMessage = useCreateMessageMutation(selectedId),
+    messagesQuery = useMessagingMessages(selectedId),
+    sendMessage = useCreateMessageCollectionMutation(
+      selectedId,
+      meQuery.data?.user.id
+    ),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -566,7 +583,10 @@ function MessagesPage() {
               </div>
             </div>
 
-            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
+            <MessageScroller
+              className="custom-scrollbar space-y-4 p-6"
+              messageCount={(messagesQuery.data ?? []).length}
+            >
               {messagesQuery.isLoading && (
                 <p className="text-sm text-muted-foreground">
                   Loading messages...
@@ -791,7 +811,7 @@ function MessagesPage() {
                     </p>
                   </div>
                 )}
-            </div>
+            </MessageScroller>
 
             <form
               className="border-t border-border/20 bg-white/[0.01] p-4"

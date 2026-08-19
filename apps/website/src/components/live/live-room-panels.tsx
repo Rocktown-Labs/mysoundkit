@@ -9,7 +9,7 @@ import {
   Shield,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import type { LiveRoomState, LiveRoomTrack } from "@/lib/live-room";
 import { useMeQuery } from "@/lib/soundkit-api-hooks";
@@ -20,7 +20,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
-import { ScrollArea } from "../ui/scroll-area";
+import { MessageScroller } from "../ui/message-scroller";
 import { UserProfilePreviewModal } from "./user-profile-preview-modal";
 import type { UserPreviewData } from "./user-profile-preview-modal";
 
@@ -50,7 +50,6 @@ export function LiveChatPanel({
     meQuery = useMeQuery(),
     meUser = meQuery.data?.user,
     meProfile = meUser,
-    scrollBottomRef = useRef<HTMLDivElement | null>(null),
     send = () => {
       const trimmedMessage = message.trim();
       if (!trimmedMessage) {
@@ -60,10 +59,6 @@ export function LiveChatPanel({
       onSend(trimmedMessage);
       setMessage("");
     };
-
-  useEffect(() => {
-    scrollBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
 
   return (
     <>
@@ -105,7 +100,10 @@ export function LiveChatPanel({
               : "space-y-4 p-4"
           }`}
         >
-          <ScrollArea className={fillHeight ? "flex-1 px-4 py-3" : "h-80 pr-3"}>
+          <MessageScroller
+            className={fillHeight ? "px-4 py-3" : "h-80 pr-3"}
+            messageCount={messages.length}
+          >
             <div className="space-y-2.5">
               {messages.length === 0 && (
                 <div className="py-12 text-center text-xs text-muted-foreground">
@@ -220,9 +218,8 @@ export function LiveChatPanel({
                   </div>
                 );
               })}
-              <div ref={scrollBottomRef} />
             </div>
-          </ScrollArea>
+          </MessageScroller>
 
           {/* Bottom input bar with safe mobile padding above ExploreMobileNav */}
           <div className="border-t border-border/40 p-3 bg-background/50 max-lg:pb-24">

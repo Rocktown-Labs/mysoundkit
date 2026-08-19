@@ -17,6 +17,11 @@ import { organization, subscription, user } from "./auth";
 import { transactions } from "./payments";
 
 export const accountTypeEnum = pgEnum("account_type", ["artist", "fan"]);
+export const presenceStatusEnum = pgEnum("presence_status", [
+  "online",
+  "away",
+  "offline",
+]);
 export const artistRoleEnum = pgEnum("artist_role", ["musician", "producer"]);
 export const workspaceTypeEnum = pgEnum("workspace_type", [
   "artist_team",
@@ -582,6 +587,22 @@ export const userProfiles = pgTable(
     username: text("username").notNull(),
   },
   (table) => [uniqueIndex("user_profiles_username_idx").on(table.username)]
+);
+
+export const userPresence = pgTable(
+  "user_presence",
+  {
+    lastSeen: timestamp("last_seen").notNull(),
+    status: presenceStatusEnum("status").notNull().default("offline"),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("user_presence_last_seen_idx").on(table.lastSeen)]
 );
 
 export const artistProfiles = pgTable(
