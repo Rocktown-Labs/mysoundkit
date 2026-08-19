@@ -384,7 +384,7 @@ jobs:
           PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
 
       - name: Run preview browser smoke tests
-        run: pnpm run test:e2e
+        run: pnpm run test:e2e -- tests/e2e/preview-smoke.spec.ts
         env:
           PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
           PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
