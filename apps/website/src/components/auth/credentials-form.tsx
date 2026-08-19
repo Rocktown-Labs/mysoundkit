@@ -5,6 +5,10 @@ import { useState } from "react";
 
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { PasswordField } from "@/components/auth/password-field";
+import {
+  isTurnstileConfigured,
+  TurnstileWidget,
+} from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -41,6 +45,8 @@ export function CredentialsForm({
     [marketingOptIn, setMarketingOptIn] = useState(false),
     [errorMessage, setErrorMessage] = useState<string | null>(null),
     [isSubmitting, setIsSubmitting] = useState(false),
+    [turnstileResetKey, setTurnstileResetKey] = useState(0),
+    [turnstileToken, setTurnstileToken] = useState(""),
     siteOrigin = typeof window === "undefined" ? "" : window.location.origin,
     callbackURL = accountType
       ? `${siteOrigin}/signup/${accountType}/onboarding?intent=${accountType}`
@@ -67,6 +73,10 @@ export function CredentialsForm({
       event.preventDefault();
       setErrorMessage(null);
 
+      if (isTurnstileConfigured && !turnstileToken) {
+        setErrorMessage("Complete the security check before continuing.");
+        return;
+      }
       if (isSignup && password.length < 8) {
         setErrorMessage("Use at least 8 characters for your password.");
         return;
@@ -85,15 +95,25 @@ export function CredentialsForm({
         }
       );
       try {
-        const result = isSignup
-          ? await authClient.signUp.email({
-              email,
-              name: accountType === "artist" ? "Artist" : "Fan",
-              password,
-            })
-          : await authClient.signIn.email({ email, password });
+        const fetchOptions = turnstileToken
+            ? {
+                headers: { "X-Turnstile-Token": turnstileToken },
+              }
+            : undefined,
+          result = isSignup
+            ? await authClient.signUp.email(
+                {
+                  email,
+                  name: accountType === "artist" ? "Artist" : "Fan",
+                  password,
+                },
+                fetchOptions
+              )
+            : await authClient.signIn.email({ email, password }, fetchOptions);
 
         if (result.error) {
+          setTurnstileToken("");
+          setTurnstileResetKey((current) => current + 1);
           setErrorMessage(
             result.error.message ??
               (isSignup
@@ -122,6 +142,8 @@ export function CredentialsForm({
         posthog.capture("user_signed_in", { method: "email" });
         await router.navigate({ to: redirect });
       } catch (error) {
+        setTurnstileToken("");
+        setTurnstileResetKey((current) => current + 1);
         posthog.captureException(error);
         setErrorMessage("Unable to reach SoundKit. Please try again.");
       } finally {
@@ -148,6 +170,11 @@ export function CredentialsForm({
           <span>or use email</span>
           <Separator className="flex-1" />
         </div>
+        <TurnstileWidget
+          action={isSignup ? "signup" : "login"}
+          onTokenChange={setTurnstileToken}
+          resetKey={turnstileResetKey}
+        />
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor={`${mode}-email`}>Email</Label>

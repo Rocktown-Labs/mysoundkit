@@ -17,10 +17,10 @@ import {
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
-import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
+import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
@@ -32,10 +32,10 @@ import {
 } from "@/middleware/structured-logging";
 import adminRoutes from "@/routes/admin";
 import adminFinanceRoutes from "@/routes/admin-finance";
-import authRoutes from "@/routes/auth";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
+import authRoutes from "@/routes/auth";
 import battlesRoutes from "@/routes/battles";
 import billingRoutes from "@/routes/billing";
 import cartRoutes from "@/routes/cart";
@@ -122,7 +122,7 @@ app.use(structuredLoggingMiddleware);
 app.use(
   "/*",
   cors({
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Turnstile-Token"],
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
     origin: (origin) =>

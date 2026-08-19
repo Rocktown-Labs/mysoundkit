@@ -42,6 +42,8 @@ export interface AppEnv {
     EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage>;
     TRACK_DURATION_BACKFILL_QUEUE?: Queue<DurationBackfillQueueMessage>;
     REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;
+    TURNSTILE_HOSTNAMES?: string;
+    TURNSTILE_SECRET?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
   };
   Variables: AppVariables;

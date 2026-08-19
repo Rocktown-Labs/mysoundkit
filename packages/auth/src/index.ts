@@ -7,11 +7,13 @@ import * as schema from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { admin, organization } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { Stripe } from "stripe";
 
 import { createStripePlans } from "./plans";
+import { verifyTurnstileRequest } from "./turnstile";
 
 const getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
@@ -449,6 +451,37 @@ export const createAuth = () => {
           name: user.name,
           url,
         }),
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        const actionByPath: Record<string, string> = {
+            "/request-password-reset": "forgot_password",
+            "/sign-in/email": "login",
+            "/sign-up/email": "signup",
+          },
+          action = actionByPath[ctx.path];
+        if (!action) {
+          return;
+        }
+
+        if (!ctx.request) {
+          throw APIError.from("FORBIDDEN", {
+            code: "TURNSTILE_FAILED",
+            message: "Security verification failed. Please try again.",
+          });
+        }
+
+        const valid = await verifyTurnstileRequest({
+          action,
+          request: ctx.request,
+        });
+        if (!valid) {
+          throw APIError.from("FORBIDDEN", {
+            code: "TURNSTILE_FAILED",
+            message: "Security verification failed. Please try again.",
+          });
+        }
+      }),
     },
     plugins: [
       admin({

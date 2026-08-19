@@ -3,6 +3,10 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { AuthShell } from "@/components/auth/auth-shell";
+import {
+  isTurnstileConfigured,
+  TurnstileWidget,
+} from "@/components/auth/turnstile-widget";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,25 +28,45 @@ function ForgotPasswordPage() {
     [message, setMessage] = useState<string | null>(null),
     [error, setError] = useState<string | null>(null),
     [isSubmitting, setIsSubmitting] = useState(false),
+    [turnstileResetKey, setTurnstileResetKey] = useState(0),
+    [turnstileToken, setTurnstileToken] = useState(""),
     handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setMessage(null);
       setError(null);
+      if (isTurnstileConfigured && !turnstileToken) {
+        setError("Complete the security check before continuing.");
+        return;
+      }
       setIsSubmitting(true);
 
       try {
-        const result = await authClient.requestPasswordReset({
-          email,
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
+        const fetchOptions = turnstileToken
+            ? {
+                headers: { "X-Turnstile-Token": turnstileToken },
+              }
+            : undefined,
+          result = await authClient.requestPasswordReset(
+            {
+              email,
+              redirectTo: `${window.location.origin}/reset-password`,
+            },
+            fetchOptions
+          );
         if (result.error) {
+          setTurnstileToken("");
+          setTurnstileResetKey((current) => current + 1);
           setError(result.error.message ?? "We could not send that email.");
           return;
         }
+        setTurnstileToken("");
+        setTurnstileResetKey((current) => current + 1);
         setMessage(
           "If an account uses that email, we sent a password reset link. Check your inbox and spam folder."
         );
       } catch {
+        setTurnstileToken("");
+        setTurnstileResetKey((current) => current + 1);
         setError("We could not send that email. Please try again.");
       } finally {
         setIsSubmitting(false);
@@ -64,6 +88,11 @@ function ForgotPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <TurnstileWidget
+            action="forgot_password"
+            onTokenChange={setTurnstileToken}
+            resetKey={turnstileResetKey}
+          />
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="forgot-email">Email</Label>

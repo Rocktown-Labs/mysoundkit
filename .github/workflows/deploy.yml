@@ -194,6 +194,9 @@ jobs:
           VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          TURNSTILE_HOSTNAMES: ${{ vars.TURNSTILE_HOSTNAMES }}
+          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
 
   preview:
     name: Deploy Preview
