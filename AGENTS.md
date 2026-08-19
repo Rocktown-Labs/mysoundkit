@@ -71,13 +71,15 @@ If the default branch is `main` in a future repo, use `main` in place of `master
 
 ### Step C: Quality Gates & PR Rules
 
-Before opening a Pull Request, verify code cleanliness with the package manager and scripts this repo actually defines. This repo currently uses Bun:
+Before opening a Pull Request or shipping code, run the canonical verification suite matching CI:
 
 ```bash
-bun run check
-bun run check-types
-bun run test
+bun run verify
 ```
+
+> **Canonical Verification Pipeline:**
+> - `bun run verify`: Executes `check-types`, `check:react-hooks`, unit/worker tests, and the full production build with static CI config (`SOUNDKIT_CI_STATIC_CONFIG=true`).
+> - `bun run verify:pr`: Runs the full verification pipeline plus Playwright E2E browser tests.
 
 If linter issues are found in files touched by the change, run:
 
