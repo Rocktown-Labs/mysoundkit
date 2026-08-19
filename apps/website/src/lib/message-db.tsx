@@ -98,6 +98,7 @@ const makeConversationCollection = (queryClient: QueryClient) =>
   makeMessageCollection = (queryClient: QueryClient, conversationId: string) =>
     createCollection(
       queryCollectionOptions<MessageSummary>({
+        enabled: Boolean(conversationId),
         getKey: (message) => message.id,
         id: `soundkit-messages-${conversationId}`,
         onInsert: async ({ transaction, collection }) => {
@@ -126,8 +127,17 @@ const makeConversationCollection = (queryClient: QueryClient) =>
         },
         queryClient,
         queryFn: async () =>
-          rpcJson(await conversationMessagesGet({ param: { conversationId } })),
-        queryKey: ["messages", "conversations", conversationId, "messages"],
+          conversationId
+            ? rpcJson(
+                await conversationMessagesGet({ param: { conversationId } })
+              )
+            : [],
+        queryKey: [
+          "messages",
+          "conversations",
+          conversationId || "empty",
+          "messages",
+        ],
         refetchOnWindowFocus: false,
         staleTime: 30_000,
       })
@@ -141,7 +151,7 @@ type LiveRoomChatCollection = ReturnType<typeof makeLiveRoomChatCollection>;
 interface MessagingCollections {
   conversations: ConversationCollection;
   getLiveRoomChat: (roomId: string) => LiveRoomChatCollection;
-  getMessages: (conversationId: string) => MessageCollection | null;
+  getMessages: (conversationId: string) => MessageCollection;
 }
 
 interface MessagingDbContextValue extends MessagingCollections {
@@ -163,17 +173,14 @@ const MessagingDbContext = createContext<MessagingDbContextValue | null>(null),
         return collection;
       },
       getMessages = (conversationId: string) => {
-        if (!conversationId) {
-          return null;
-        }
-
-        const existing = messageCollections.get(conversationId);
+        const collectionKey = conversationId || "empty",
+          existing = messageCollections.get(collectionKey);
         if (existing) {
           return existing;
         }
 
         const collection = makeMessageCollection(queryClient, conversationId);
-        messageCollections.set(conversationId, collection);
+        messageCollections.set(collectionKey, collection);
         return collection;
       };
 
@@ -231,12 +238,10 @@ export const useMessagingMessages = (conversationId: string) => {
       () => getMessages(conversationId),
       [conversationId, getMessages]
     ),
-    result = useLiveQuery(collection as never),
+    result = useLiveQuery(collection),
     data = result.data as unknown as MessageSummary[],
     refetch = useCallback(async () => {
-      if (collection) {
-        await collection.utils.refetch();
-      }
+      await collection.utils.refetch();
     }, [collection]);
   return { ...result, data, refetch };
 };
@@ -256,7 +261,7 @@ export const useCreateMessageCollectionMutation = (
         input: CreateMessageCollectionInput,
         options?: MessageCollectionMutationOptions
       ) => {
-        if (!collection || !senderId) {
+        if (!conversationId || !senderId) {
           return;
         }
 
@@ -294,7 +299,7 @@ export const useCreateMessageCollectionMutation = (
           options?.onError?.(error);
         }
       },
-      [collection, senderId]
+      [conversationId, collection, senderId]
     );
 
   return { isPending, mutate };
