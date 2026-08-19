@@ -463,6 +463,23 @@ app.openapi(
         HttpStatusCodes.FORBIDDEN
       );
     }
+    const [trackCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tracks)
+        .where(eq(tracks.ownerUserId, user.id)),
+      [projectCount] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(eq(projects.ownerUserId, user.id));
+    if ((trackCount?.count ?? 0) + (projectCount?.count ?? 0) < 1) {
+      return c.json(
+        {
+          message:
+            "Upload at least one Track or Project before requesting access.",
+        },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
     const [listing] = await db
       .select({
         accessMode: openVerseListings.accessMode,
