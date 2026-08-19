@@ -7,6 +7,7 @@ import {
   ChevronRight,
   FileAudio,
   ImageIcon,
+  Info,
   LoaderCircle,
   Plus,
   ShieldCheck,
@@ -17,15 +18,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import { VisualWaveformSlotTrimmer } from "@/components/studio/visual-waveform-slot-trimmer";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +55,7 @@ import {
   usePeopleSearchQuery,
   useSettleTrackMutation,
 } from "@/lib/soundkit-api-hooks";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/open-verses/new")({
   component: NewOpenVersePage,
@@ -62,11 +63,37 @@ export const Route = createFileRoute("/dashboard/open-verses/new")({
 
 const PLACEHOLDER_ART = "/open-verse-placeholder.svg",
   steps = [
-    { id: "details", label: "Details", number: "1" },
-    { id: "audio", label: "Audio & Open Slot", number: "2" },
-    { id: "permissions", label: "Permissions", number: "3" },
-    { id: "publish", label: "Contributors & Publish", number: "4" },
-  ] as const;
+    {
+      description: "Song metadata, genre, artwork, and creative direction",
+      id: "details",
+      label: "Details",
+      number: "1",
+    },
+    {
+      description: "Upload the working mix and define the collaborator slot",
+      id: "audio",
+      label: "Audio & Open Slot",
+      number: "2",
+    },
+    {
+      description: "Choose who can request access and submit a take",
+      id: "permissions",
+      label: "Permissions",
+      number: "3",
+    },
+    {
+      description: "Review contributors, rights, and publish the listing",
+      id: "publish",
+      label: "Contributors & Publish",
+      number: "4",
+    },
+  ] as const,
+  stepIcons = {
+    audio: FileAudio,
+    details: Info,
+    permissions: ShieldCheck,
+    publish: Users,
+  } as const;
 type StepId = (typeof steps)[number]["id"];
 
 interface Credit {
@@ -77,6 +104,45 @@ interface Credit {
 
 const formatFileSize = (size: number) =>
   `${(size / (1024 * 1024)).toFixed(1)} MB`;
+
+type StepConfig = (typeof steps)[number];
+
+function OpenVerseStepHeader({
+  active,
+  completed,
+  step,
+}: {
+  active: boolean;
+  completed: boolean;
+  step: StepConfig;
+}) {
+  const StepIcon = stepIcons[step.id];
+
+  return (
+    <div className="flex items-center gap-4 text-left">
+      <div
+        className={cn(
+          "flex size-10 items-center justify-center rounded-xl border transition-colors",
+          active
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border/40 bg-muted text-muted-foreground"
+        )}
+      >
+        {completed ? (
+          <Check className="size-5" />
+        ) : (
+          <StepIcon className="size-5" />
+        )}
+      </div>
+      <div>
+        <h3 className="text-lg font-bold">{step.label}</h3>
+        <p className="text-xs font-normal text-muted-foreground">
+          {step.description}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function NewOpenVersePage() {
   const router = useRouter(),
@@ -389,53 +455,59 @@ function NewOpenVersePage() {
 
   useEffect(
     () => () => {
-      if (clipUrl) {URL.revokeObjectURL(clipUrl);}
+      if (clipUrl) {
+        URL.revokeObjectURL(clipUrl);
+      }
     },
     [clipUrl]
   );
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
+    <div className="mx-auto max-w-4xl space-y-8 pb-20">
+      <div className="flex items-center justify-between">
+        <Button
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => router.history.back()}
+          variant="ghost"
+        >
+          <ChevronLeft className="mr-2 size-4" />
+          Back to Open Verses
+        </Button>
+        <Badge
+          className="border-primary/20 bg-primary/5 text-primary"
+          variant="outline"
+        >
+          Open Verse Workflow
+        </Badge>
+      </div>
+      <div className="space-y-2 text-center">
+        <h1 className="font-[family-name:var(--font-playfair)] text-4xl font-bold tracking-tight">
           Create an Open Verse
         </h1>
-        <p className="mt-1 text-muted-foreground">
-          Set up a collaborative song opportunity without creating a Track
-          first.
+        <p className="mx-auto max-w-lg text-muted-foreground">
+          Upload an incomplete track, define the exact collaborator slot, and
+          invite eligible artists to submit their take.
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-4">
-        {steps.map((step) => (
-          <button
-            key={step.id}
-            className={`rounded-lg border p-3 text-left transition ${activeStep === step.id ? "border-primary bg-primary/10" : "border-border/40 bg-card/40"}`}
-            onClick={() => setActiveStep(step.id)}
-            type="button"
-          >
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs">
-                {completedSteps.has(step.id) ? (
-                  <Check className="size-3" />
-                ) : (
-                  step.number
-                )}
-              </span>
-              {step.label}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {activeStep === "details" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Details</CardTitle>
-            <CardDescription>
-              Describe the song so the right artist knows what to bring.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
+      <Accordion
+        className="space-y-4"
+        collapsible
+        onValueChange={(value) => setActiveStep(value as StepId)}
+        type="single"
+        value={activeStep}
+      >
+        <AccordionItem
+          className="overflow-hidden rounded-2xl border border-border/40 bg-card/40 px-6 py-2 backdrop-blur-md"
+          value="details"
+        >
+          <AccordionTrigger className="py-4 hover:no-underline">
+            <OpenVerseStepHeader
+              active={activeStep === "details"}
+              completed={completedSteps.has("details")}
+              step={steps[0]}
+            />
+          </AccordionTrigger>
+          <AccordionContent className="space-y-6 pb-6 pt-2">
             <div className="space-y-2">
               <Label htmlFor="song-title">Song Title *</Label>
               <Input
@@ -528,20 +600,20 @@ function NewOpenVersePage() {
                 Next: Audio & Open Slot <ChevronRight className="ml-2 size-4" />
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeStep === "audio" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Audio & Open Slot</CardTitle>
-            <CardDescription>
-              Upload one working mix, then choose the exact section contributors
-              will receive.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem
+          className="overflow-hidden rounded-2xl border border-border/40 bg-card/40 px-6 py-2 backdrop-blur-md"
+          value="audio"
+        >
+          <AccordionTrigger className="py-4 hover:no-underline">
+            <OpenVerseStepHeader
+              active={activeStep === "audio"}
+              completed={completedSteps.has("audio")}
+              step={steps[1]}
+            />
+          </AccordionTrigger>
+          <AccordionContent className="space-y-8 pb-6 pt-2">
             <FileUploadZone
               acceptedTypes=".wav,.mp3,.aiff,.flac,.m4a"
               description="WAV preferred. This is the only audio asset required to start."
@@ -621,20 +693,20 @@ function NewOpenVersePage() {
                 Next: Permissions <ChevronRight className="ml-2 size-4" />
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeStep === "permissions" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Permissions</CardTitle>
-            <CardDescription>
-              Choose how eligible artists can participate. This policy is stored
-              with the listing.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem
+          className="overflow-hidden rounded-2xl border border-border/40 bg-card/40 px-6 py-2 backdrop-blur-md"
+          value="permissions"
+        >
+          <AccordionTrigger className="py-4 hover:no-underline">
+            <OpenVerseStepHeader
+              active={activeStep === "permissions"}
+              completed={completedSteps.has("permissions")}
+              step={steps[2]}
+            />
+          </AccordionTrigger>
+          <AccordionContent className="space-y-6 pb-6 pt-2">
             <button
               className={`w-full rounded-xl border p-4 text-left ${accessMode === "open" ? "border-primary bg-primary/10" : "border-border/40"}`}
               onClick={() => setAccessMode("open")}
@@ -679,20 +751,20 @@ function NewOpenVersePage() {
                 Next: Contributors <ChevronRight className="ml-2 size-4" />
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeStep === "publish" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Contributors & Publish</CardTitle>
-            <CardDescription>
-              Confirm existing contributors, rights, and the final listing
-              summary.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+          </AccordionContent>
+        </AccordionItem>
+        <AccordionItem
+          className="overflow-hidden rounded-2xl border border-border/40 bg-card/40 px-6 py-2 backdrop-blur-md"
+          value="publish"
+        >
+          <AccordionTrigger className="py-4 hover:no-underline">
+            <OpenVerseStepHeader
+              active={activeStep === "publish"}
+              completed={completedSteps.has("publish")}
+              step={steps[3]}
+            />
+          </AccordionTrigger>
+          <AccordionContent className="space-y-6 pb-6 pt-2">
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Users className="size-4 text-primary" />
@@ -852,9 +924,9 @@ function NewOpenVersePage() {
                 )}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {!artwork && (
         <p className="text-center text-xs text-muted-foreground">
