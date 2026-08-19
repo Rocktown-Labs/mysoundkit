@@ -140,7 +140,7 @@ function AnalyticsPage() {
               {(overview?.totalQualifiedStreams ?? 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
-              <span>Funded Premium (70%+ listened)</span>
+              <span>Premium listens meeting reward qualification rules</span>
             </p>
           </CardContent>
         </Card>
@@ -526,7 +526,7 @@ function AnalyticsPage() {
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">
-                  Premium Supporters:
+                  Funded Supporters:
                 </span>
                 <span className="font-semibold text-amber-400">
                   {audience?.premiumSupporters ?? 0} funded members

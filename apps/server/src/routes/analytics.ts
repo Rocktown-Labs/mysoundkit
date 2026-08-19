@@ -1,13 +1,16 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  accountingPeriods,
   artistFollows,
+  creatorEarnings,
+  creatorStatements,
   genres,
   orderItems,
   orders,
   playbackSessions,
   qualifiedStreams,
-  rewardUnits,
+  subscriptionRewardAllocations,
   trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
@@ -16,10 +19,13 @@ import {
   and,
   count,
   countDistinct,
+  desc,
   eq,
+  gt,
   gte,
   inArray,
   isNotNull,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -45,10 +51,40 @@ import {
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
 
-const app = new OpenAPIHono<AppEnv>(),
+const app = new OpenAPIHono<AppEnv>();
 
-// Helper to get artist track IDs and workspace context
- getArtistTrackIds = async ({
+const resolveMediaBaseUrl = () => {
+  const envObj = (typeof process !== "undefined" && process.env) || {};
+  const baseUrl = (
+    envObj.MEDIA_PUBLIC_URL ||
+    envObj.VITE_MEDIA_URL ||
+    "https://media.mysoundkit.com"
+  ).replace(/\/+$/u, "");
+  return baseUrl;
+};
+
+/**
+ * Reusable SQL predicate for verified 30-second Plays.
+ * Rules:
+ * - Play counts after >= 30 seconds of meaningful playback.
+ * - Short track (< 30s) fallback: counts after >= 95% completion.
+ */
+const playConditionSql = sql`(
+  ${playbackSessions.playedSeconds} >= 30
+  OR (
+    EXISTS (
+      SELECT 1 FROM ${trackAssets}
+      WHERE ${trackAssets.trackId} = ${playbackSessions.trackId}
+        AND ${trackAssets.assetKind} IN ('master', 'untagged_wav', 'tagged_mp3')
+        AND ${trackAssets.durationMs} IS NOT NULL
+        AND ${trackAssets.durationMs} > 0
+        AND ${trackAssets.durationMs} < 30000
+        AND ${playbackSessions.playedSeconds} >= round((${trackAssets.durationMs} / 1000.0) * 0.95)
+    )
+  )
+)`;
+
+const getArtistTrackIds = async ({
   db,
   organizationId,
   userId,
@@ -59,23 +95,13 @@ const app = new OpenAPIHono<AppEnv>(),
 }) => {
   const userTracks = await db
     .select({
-      durationSeconds: sql<
-        number | null
-      >`round(${trackAssets.durationMs} / 1000.0)::int`,
       genre: genres.name,
       id: tracks.id,
-      objectKey: trackAssets.objectKey,
+      ownerUserId: tracks.ownerUserId,
       title: tracks.title,
     })
     .from(tracks)
     .leftJoin(genres, eq(tracks.genreId, genres.id))
-    .leftJoin(
-      trackAssets,
-      and(
-        eq(trackAssets.trackId, tracks.id),
-        inArray(trackAssets.assetKind, ["master", "untagged_wav", "tagged_mp3"])
-      )
-    )
     .where(
       organizationId
         ? or(
@@ -89,9 +115,9 @@ const app = new OpenAPIHono<AppEnv>(),
     trackIds: userTracks.map((t) => t.id),
     tracks: userTracks,
   };
-},
+};
 
- getRangeStartDate = (range: "7d" | "28d" | "90d" | "12m", now: Date) => {
+const getRangeStartDate = (range: "7d" | "28d" | "90d" | "12m", now: Date) => {
   const start = new Date(now);
   if (range === "7d") {
     start.setUTCDate(start.getUTCDate() - 7);
@@ -140,7 +166,7 @@ app.openapi(
       return c.json(sampleAnalyticsOverview, HttpStatusCodes.OK);
     }
 
-    // 1. Plays: sessions with >= 30s of played duration
+    // 1. Verified Plays (30-second rule with short-track fallback)
     const [playsResult] = await db
       .select({
         plays: count(),
@@ -150,71 +176,115 @@ app.openapi(
       .where(
         and(
           inArray(playbackSessions.trackId, trackIds),
-          gte(playbackSessions.playedSeconds, 30)
+          playConditionSql
         )
-      ),
+      );
 
-    // 2. Qualified Streams: authoritative qualifiedStreams table
-     [qualifiedResult] = await db
+    // 2. Qualified Streams (Strictly status = 'qualified' and riskStatus = 'clear')
+    const [qualifiedResult] = await db
       .select({
-        premiumSupporters: countDistinct(qualifiedStreams.userId),
         totalQualified: count(),
       })
       .from(qualifiedStreams)
-      .where(inArray(qualifiedStreams.trackId, trackIds)),
-
-    // 3. Followers
-     [followerResult] = await db
-      .select({ count: count() })
-      .from(artistFollows)
-      .where(eq(artistFollows.artistUserId, user.id)),
-
-    // 4. Estimated Earnings: Month-to-date reward units + music orders + tips
-     [rewardUnitsResult] = await db
-      .select({ count: count() })
-      .from(rewardUnits)
       .where(
         and(
-          inArray(rewardUnits.trackId, trackIds),
-          eq(rewardUnits.status, "pending")
+          inArray(qualifiedStreams.trackId, trackIds),
+          eq(qualifiedStreams.status, "qualified"),
+          eq(qualifiedStreams.riskStatus, "clear")
         )
-      ),
+      );
 
-     [ordersResult] = await db
+    // 3. Followers
+    const [followerResult] = await db
+      .select({ count: count() })
+      .from(artistFollows)
+      .where(eq(artistFollows.artistUserId, user.id));
+
+    // 4. Funded Supporters (Distinct funded Premium subscribers who contributed to Creator Rewards)
+    const [fundedSupportersResult] = await db
       .select({
-        totalCents: sql<number>`coalesce(sum(${orders.totalCents}), 0)::int`,
+        count: countDistinct(subscriptionRewardAllocations.userId),
+      })
+      .from(subscriptionRewardAllocations)
+      .innerJoin(
+        qualifiedStreams,
+        and(
+          eq(qualifiedStreams.userId, subscriptionRewardAllocations.userId),
+          inArray(qualifiedStreams.trackId, trackIds),
+          eq(qualifiedStreams.status, "qualified"),
+          eq(qualifiedStreams.riskStatus, "clear")
+        )
+      )
+      .where(
+        and(
+          gt(subscriptionRewardAllocations.creatorAllocationCents, 0),
+          inArray(subscriptionRewardAllocations.allocationStatus, [
+            "allocated",
+            "funded",
+          ])
+        )
+      );
+
+    // 5. Estimated Month-to-Date Earnings (Real creatorEarnings + net direct sales + tips)
+    const now = new Date(),
+      monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+    const [rewardEarningsResult] = await db
+      .select({
+        totalCents: sql<number>`coalesce(sum(${creatorEarnings.grossAmountCents}), 0)::int`,
+      })
+      .from(creatorEarnings)
+      .where(
+        and(
+          eq(creatorEarnings.artistUserId, user.id),
+          inArray(creatorEarnings.earningType, [
+            "premium_stream_reward",
+            "ad_supported_reward",
+            "live_reward",
+            "battle_bonus",
+          ]),
+          eq(creatorEarnings.status, "estimated"),
+          gte(creatorEarnings.createdAt, monthStart)
+        )
+      );
+
+    const [ordersResult] = await db
+      .select({
+        totalCents: sql<number>`coalesce(sum(round(${orderItems.priceSnapshot} * 100)), 0)::int`,
       })
       .from(orders)
       .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
       .where(
-        and(inArray(orderItems.trackId, trackIds), eq(orders.status, "paid"))
-      ),
+        and(
+          inArray(orderItems.trackId, trackIds),
+          eq(orders.status, "paid"),
+          gte(orders.createdAt, monthStart)
+        )
+      );
 
-     [tipsResult] = await db
+    const [tipsResult] = await db
       .select({
-        totalCents: sql<number>`coalesce(sum(${tips.amountCents}), 0)::int`,
+        totalCents: sql<number>`coalesce(sum(${transactions.artistAmountCents}), 0)::int`,
       })
       .from(tips)
       .innerJoin(transactions, eq(tips.transactionId, transactions.id))
       .where(
         and(
           eq(tips.artistUserId, user.id),
-          eq(transactions.status, "succeeded")
+          eq(transactions.status, "succeeded"),
+          gte(tips.createdAt, monthStart)
         )
-      ),
+      );
 
-     estimatedRewardCents = Math.round(
-      Number(rewardUnitsResult?.count ?? 0) * 1.5
-    ),
-     estimatedEarningsCents =
-      estimatedRewardCents +
+    const estimatedEarningsCents =
+      Number(rewardEarningsResult?.totalCents ?? 0) +
       Number(ordersResult?.totalCents ?? 0) +
       Number(tipsResult?.totalCents ?? 0);
 
     return c.json(
       {
         estimatedEarningsCents,
-        premiumSupporters: Number(qualifiedResult?.premiumSupporters ?? 0),
+        premiumSupporters: Number(fundedSupportersResult?.count ?? 0),
         totalFollowers: Number(followerResult?.count ?? 0),
         totalPlays: Number(playsResult?.plays ?? 0),
         totalQualifiedStreams: Number(qualifiedResult?.totalQualified ?? 0),
@@ -240,8 +310,8 @@ app.openapi(
     tags: ["Analytics"],
   }),
   async (c) => {
-    const user = c.get("user"),
-     { metric, range } = c.req.valid("query");
+    const user = c.get("user");
+    const { metric, range } = c.req.valid("query");
 
     if (!isDatabaseConfigured() || !isAuthenticatedUser(user)) {
       return c.json(
@@ -281,18 +351,17 @@ app.openapi(
       );
     }
 
-    // Build timeline buckets with zero-filled dates
-    const dateMap = new Map<string, number>(),
-     isYear = range === "12m";
+    const dateMap = new Map<string, number>();
+    const isYear = range === "12m";
 
     if (isYear) {
       for (let i = 11; i >= 0; i -= 1) {
-        const d = new Date(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
-         key = d.toISOString().slice(0, 7); // YYYY-MM
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+        const key = d.toISOString().slice(0, 7); // YYYY-MM
         dateMap.set(key, 0);
       }
     } else {
-      const numDays = range === "7d" ? 7 : (range === "28d" ? 28 : 90);
+      const numDays = range === "7d" ? 7 : range === "28d" ? 28 : 90;
       for (let i = numDays - 1; i >= 0; i -= 1) {
         const d = new Date(now);
         d.setUTCDate(d.getUTCDate() - i);
@@ -313,6 +382,8 @@ app.openapi(
         .where(
           and(
             inArray(qualifiedStreams.trackId, trackIds),
+            eq(qualifiedStreams.status, "qualified"),
+            eq(qualifiedStreams.riskStatus, "clear"),
             gte(qualifiedStreams.qualifiedAt, startDate)
           )
         )
@@ -336,7 +407,7 @@ app.openapi(
           and(
             inArray(playbackSessions.trackId, trackIds),
             gte(playbackSessions.startedAt, startDate),
-            gte(playbackSessions.playedSeconds, 30)
+            playConditionSql
           )
         )
         .groupBy(sql`1`);
@@ -347,7 +418,7 @@ app.openapi(
         }
       }
     } else {
-      // Metric: "plays" (>= 30s playback)
+      // Metric: "plays" (>= 30s verified plays)
       const rows = await db
         .select({
           count: count(),
@@ -360,7 +431,7 @@ app.openapi(
           and(
             inArray(playbackSessions.trackId, trackIds),
             gte(playbackSessions.startedAt, startDate),
-            gte(playbackSessions.playedSeconds, 30)
+            playConditionSql
           )
         )
         .groupBy(sql`1`);
@@ -373,16 +444,16 @@ app.openapi(
     }
 
     let total = 0;
-    const points = [...dateMap.entries()].map(([date, val]) => {
+    const points = Array.from(dateMap.entries()).map(([date, val]) => {
       total += val;
       let label = date;
       if (isYear) {
-        const [y, m] = date.split("-"),
-         monthDate = new Date(Number(y), Number(m) - 1, 1);
+        const [y, m] = date.split("-");
+        const monthDate = new Date(Date.UTC(Number(y), Number(m) - 1, 1));
         label = monthDate.toLocaleDateString("en-US", { month: "short" });
       } else {
-        const [y, m, d] = date.split("-"),
-         dayDate = new Date(Number(y), Number(m) - 1, Number(d));
+        const [y, m, d] = date.split("-");
+        const dayDate = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
         label = dayDate.toLocaleDateString("en-US", {
           day: "numeric",
           month: "short",
@@ -424,7 +495,8 @@ app.openapi(
         db,
         organizationId,
         userId: user.id,
-      });
+      }),
+      mediaBaseUrl = resolveMediaBaseUrl();
 
     if (userTrackList.length === 0) {
       return c.json({ tracks: [] }, HttpStatusCodes.OK);
@@ -432,10 +504,44 @@ app.openapi(
 
     const trackPerformanceList = await Promise.all(
       userTrackList.map(async (t) => {
-        // 1. Plays & Listeners
+        // 1. Master Audio & Cover Assets (Single lateral lookups - NO DUPLICATE ROWS)
+        const [masterAsset] = await db
+          .select({ durationMs: trackAssets.durationMs })
+          .from(trackAssets)
+          .where(
+            and(
+              eq(trackAssets.trackId, t.id),
+              inArray(trackAssets.assetKind, [
+                "master",
+                "untagged_wav",
+                "tagged_mp3",
+              ])
+            )
+          )
+          .orderBy(desc(trackAssets.createdAt))
+          .limit(1);
+
+        const [coverAsset] = await db
+          .select({ objectKey: trackAssets.objectKey })
+          .from(trackAssets)
+          .where(
+            and(
+              eq(trackAssets.trackId, t.id),
+              inArray(trackAssets.assetKind, ["cover_art", "artwork"])
+            )
+          )
+          .orderBy(desc(trackAssets.createdAt))
+          .limit(1);
+
+        const durationSeconds = masterAsset?.durationMs
+          ? Math.round(masterAsset.durationMs / 1000)
+          : 180;
+
+        // 2. Plays & Listeners
         const [sessionStats] = await db
           .select({
-            completedSessions: sql<number>`count(case when ${playbackSessions.playedSeconds} >= coalesce(${t.durationSeconds}, 180) * 0.95 then 1 end)::int`,
+            completedSessions: sql<number>`count(case when ${playbackSessions.playedSeconds} >= ${durationSeconds} * 0.95 then 1 end)::int`,
+            eligiblePremiumSessions: sql<number>`count(case when (${playbackSessions.premiumAtStart} = true OR (${playbackSessions.entitlementSnapshot}->>'isPremium')::boolean = true) AND ${playbackSessions.userId} != ${t.ownerUserId} AND ${playbackSessions.riskStatus} = 'clear' then 1 end)::int`,
             plays: count(),
             totalPlayedSeconds: sql<number>`coalesce(sum(${playbackSessions.playedSeconds}), 0)::int`,
             uniqueListeners: countDistinct(playbackSessions.userId),
@@ -444,31 +550,48 @@ app.openapi(
           .where(
             and(
               eq(playbackSessions.trackId, t.id),
-              gte(playbackSessions.playedSeconds, 30)
+              playConditionSql
             )
-          ),
+          );
 
-        // 2. Qualified Streams
-         [qualStats] = await db
+        // 3. Qualified Streams
+        const [qualStats] = await db
           .select({ count: count() })
           .from(qualifiedStreams)
-          .where(eq(qualifiedStreams.trackId, t.id)),
+          .where(
+            and(
+              eq(qualifiedStreams.trackId, t.id),
+              eq(qualifiedStreams.status, "qualified"),
+              eq(qualifiedStreams.riskStatus, "clear")
+            )
+          );
 
-        // 3. Reward Units
-         [rewardStats] = await db
-          .select({ count: count() })
-          .from(rewardUnits)
-          .where(eq(rewardUnits.trackId, t.id)),
+        // 4. Real Creator Earnings for this track
+        const [earningsStats] = await db
+          .select({
+            totalCents: sql<number>`coalesce(sum(${creatorEarnings.grossAmountCents}), 0)::int`,
+          })
+          .from(creatorEarnings)
+          .where(
+            and(
+              eq(creatorEarnings.trackId, t.id),
+              eq(creatorEarnings.artistUserId, user.id)
+            )
+          );
 
-         playsCount = Number(sessionStats?.plays ?? 0),
+        const playsCount = Number(sessionStats?.plays ?? 0),
           qualCount = Number(qualStats?.count ?? 0),
-          trackDuration = t.durationSeconds ?? 180,
+          eligiblePremiumSessions = Number(
+            sessionStats?.eligiblePremiumSessions ?? 0
+          ),
           totalPlayed = Number(sessionStats?.totalPlayedSeconds ?? 0),
           avgPercent =
-            playsCount > 0 && trackDuration > 0
+            playsCount > 0 && durationSeconds > 0
               ? Math.min(
                   100,
-                  Math.round((totalPlayed / (playsCount * trackDuration)) * 100)
+                  Math.round(
+                    (totalPlayed / (playsCount * durationSeconds)) * 100
+                  )
                 )
               : 0,
           compRate =
@@ -476,25 +599,32 @@ app.openapi(
               ? Math.min(
                   100,
                   Math.round(
-                    (Number(sessionStats?.completedSessions ?? 0) /
-                      playsCount) *
+                    (Number(sessionStats?.completedSessions ?? 0) / playsCount) *
                       100
                   )
                 )
               : 0,
+          // Qualification Rate: Denominator is strictly eligible Premium listening sessions
           qualRate =
-            playsCount > 0
-              ? Math.min(100, Math.round((qualCount / playsCount) * 100))
+            eligiblePremiumSessions > 0
+              ? Math.min(
+                  100,
+                  Math.round((qualCount / eligiblePremiumSessions) * 100)
+                )
               : 0,
-          estimatedEarningsCents = Math.round(
-            Number(rewardStats?.count ?? 0) * 1.5
-          );
+          estimatedEarningsCents = Number(earningsStats?.totalCents ?? 0);
+
+        const coverArtUrl = coverAsset?.objectKey
+          ? `${mediaBaseUrl}/${coverAsset.objectKey}`
+          : null;
 
         return {
           averageListenPercent: avgPercent,
           completionRate: compRate,
-          coverArtUrl: t.objectKey ?? null,
-          durationSeconds: t.durationSeconds ?? null,
+          coverArtUrl,
+          durationSeconds: masterAsset?.durationMs
+            ? Math.round(masterAsset.durationMs / 1000)
+            : null,
           estimatedEarningsCents,
           genre: t.genre ?? "Hip-Hop/Rap",
           plays: playsCount,
@@ -568,26 +698,10 @@ app.openapi(
       );
     }
 
-    const [totalListenerResult] = await db
+    // Measure temporal return behavior: distinct calendar days per listener
+    const listenerDayRows = await db
       .select({
-        count: countDistinct(playbackSessions.userId),
-      })
-      .from(playbackSessions)
-      .where(
-        and(
-          inArray(playbackSessions.trackId, trackIds),
-          gte(playbackSessions.playedSeconds, 30)
-        )
-      ),
-
-     [premiumResult] = await db
-      .select({ count: countDistinct(qualifiedStreams.userId) })
-      .from(qualifiedStreams)
-      .where(inArray(qualifiedStreams.trackId, trackIds)),
-
-    // Measure multi-track listeners
-     listenerTrackCounts = await db
-      .select({
+        distinctDays: sql<number>`count(distinct to_char(${playbackSessions.startedAt}, 'YYYY-MM-DD'))::int`,
         distinctTracks: countDistinct(playbackSessions.trackId),
         userId: playbackSessions.userId,
       })
@@ -596,36 +710,67 @@ app.openapi(
         and(
           inArray(playbackSessions.trackId, trackIds),
           isNotNull(playbackSessions.userId),
-          gte(playbackSessions.playedSeconds, 30)
+          playConditionSql
         )
       )
-      .groupBy(playbackSessions.userId),
+      .groupBy(playbackSessions.userId);
 
-     totalListeners = Number(totalListenerResult?.count ?? 0),
-     multiTrackListeners = listenerTrackCounts.filter(
+    const totalListeners = listenerDayRows.length;
+    // A listener is "Returning" ONLY if they listened on more than 1 distinct calendar day
+    const returningListeners = listenerDayRows.filter(
+      (l) => Number(l.distinctDays) > 1
+    ).length;
+    const newListeners = Math.max(0, totalListeners - returningListeners);
+
+    const multiTrackListeners = listenerDayRows.filter(
       (l) => Number(l.distinctTracks) >= 2
-    ).length,
+    ).length;
 
-     totalTracksPlayed = listenerTrackCounts.reduce(
+    const totalTracksPlayed = listenerDayRows.reduce(
       (acc, l) => acc + Number(l.distinctTracks),
       0
-    ),
-     catalogDepth =
-      listenerTrackCounts.length > 0
-        ? Math.round((totalTracksPlayed / listenerTrackCounts.length) * 10) / 10
+    );
+    const catalogDepth =
+      totalListeners > 0
+        ? Math.round((totalTracksPlayed / totalListeners) * 10) / 10
         : 0;
+
+    // Funded Supporters: funded subscription allocation > 0 contributing to this artist
+    const [fundedSupportersResult] = await db
+      .select({
+        count: countDistinct(subscriptionRewardAllocations.userId),
+      })
+      .from(subscriptionRewardAllocations)
+      .innerJoin(
+        qualifiedStreams,
+        and(
+          eq(qualifiedStreams.userId, subscriptionRewardAllocations.userId),
+          inArray(qualifiedStreams.trackId, trackIds),
+          eq(qualifiedStreams.status, "qualified"),
+          eq(qualifiedStreams.riskStatus, "clear")
+        )
+      )
+      .where(
+        and(
+          gt(subscriptionRewardAllocations.creatorAllocationCents, 0),
+          inArray(subscriptionRewardAllocations.allocationStatus, [
+            "allocated",
+            "funded",
+          ])
+        )
+      );
 
     return c.json(
       {
         catalogDepth,
         listenersWithMultiTrackPlays: multiTrackListeners,
-        newListeners: Math.max(0, totalListeners - multiTrackListeners),
-        premiumSupporters: Number(premiumResult?.count ?? 0),
+        newListeners,
+        premiumSupporters: Number(fundedSupportersResult?.count ?? 0),
         returningListenerRate:
           totalListeners > 0
-            ? Math.round((multiTrackListeners / totalListeners) * 100)
+            ? Math.round((returningListeners / totalListeners) * 100)
             : 0,
-        returningListeners: multiTrackListeners,
+        returningListeners,
         totalUniqueListeners: totalListeners,
       },
       HttpStatusCodes.OK
@@ -677,14 +822,14 @@ app.openapi(
       .where(
         and(
           inArray(playbackSessions.trackId, trackIds),
-          gte(playbackSessions.playedSeconds, 30)
+          playConditionSql
         )
       )
-      .groupBy(playbackSessions.sourceType),
+      .groupBy(playbackSessions.sourceType);
 
-     total = rows.reduce((acc, r) => acc + Number(r.count), 0),
+    const total = rows.reduce((acc, r) => acc + Number(r.count), 0);
 
-     sourceLabels: Record<string, string> = {
+    const sourceLabels: Record<string, string> = {
       album: "Albums & EPs",
       artist_profile: "Artist Profile",
       battle: "Live Music Battles",
@@ -703,11 +848,11 @@ app.openapi(
       share: "Shared Link",
       state_discovery: "State & Regional Discovery",
       vod: "Video On Demand & Live Streams",
-    },
+    };
 
-     sources = rows.map((r) => {
-      const cnt = Number(r.count),
-       st = r.sourceType ?? "other";
+    const sources = rows.map((r) => {
+      const cnt = Number(r.count);
+      const st = r.sourceType ?? "other";
       return {
         count: cnt,
         label: sourceLabels[st] ?? "Other Discovery",
@@ -772,21 +917,18 @@ app.openapi(
       .where(
         and(
           inArray(playbackSessions.trackId, trackIds),
-          gte(playbackSessions.playedSeconds, 30),
-          isNotNull(playbackSessions.countryCode)
+          isNotNull(playbackSessions.countryCode),
+          playConditionSql
         )
       )
       .groupBy(
         playbackSessions.countryCode,
         playbackSessions.regionCode,
         playbackSessions.city
-      ),
+      );
 
-     MIN_LOCATION_LISTENERS = 3,
-     totalListeners = rows.reduce(
-      (acc, r) => acc + Number(r.listeners),
-      0
-    );
+    const MIN_LOCATION_LISTENERS = 3;
+    const totalListeners = rows.reduce((acc, r) => acc + Number(r.listeners), 0);
 
     if (totalListeners < MIN_LOCATION_LISTENERS) {
       return c.json(
@@ -916,11 +1058,12 @@ app.openapi(
             "listening_party",
             "battle",
             "vod",
-          ])
+          ]),
+          playConditionSql
         )
-      ),
+      );
 
-     [liveQualResult] = await db
+    const [liveQualResult] = await db
       .select({ count: count() })
       .from(qualifiedStreams)
       .where(
@@ -930,15 +1073,15 @@ app.openapi(
             "listening_party",
             "battle",
             "vod",
-          ])
+          ]),
+          eq(qualifiedStreams.status, "qualified"),
+          eq(qualifiedStreams.riskStatus, "clear")
         )
-      ),
+      );
 
-     listenersReached = Number(liveSessionResult?.listenersReached ?? 0),
-     tracksPlayedInLive = Number(
-      liveSessionResult?.tracksPlayedInLive ?? 0
-    ),
-     liveQualifiedStreams = Number(liveQualResult?.count ?? 0);
+    const listenersReached = Number(liveSessionResult?.listenersReached ?? 0);
+    const tracksPlayedInLive = Number(liveSessionResult?.tracksPlayedInLive ?? 0);
+    const liveQualifiedStreams = Number(liveQualResult?.count ?? 0);
 
     return c.json(
       {
@@ -975,16 +1118,8 @@ app.openapi(
         {
           availableBalanceCents: 0,
           categories: [
-            {
-              amountCents: 0,
-              category: "creator_rewards",
-              label: "Creator Rewards Pool",
-            },
-            {
-              amountCents: 0,
-              category: "music_sales",
-              label: "Direct Music Sales",
-            },
+            { amountCents: 0, category: "creator_rewards", label: "Creator Rewards Pool" },
+            { amountCents: 0, category: "music_sales", label: "Direct Music Sales" },
             { amountCents: 0, category: "tips", label: "Fan Tips" },
           ],
           estimatedThisMonthCents: 0,
@@ -1010,79 +1145,92 @@ app.openapi(
         organizationId,
         userId: user.id,
       }),
+      now = new Date(),
+      monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
-    // 1. Month-to-date estimated rewards
-     [monthRewardResult] = await db
-      .select({ count: count() })
-      .from(rewardUnits)
-      .where(
-        and(
-          inArray(
-            rewardUnits.trackId,
-            trackIds.length > 0 ? trackIds : ["_none"]
-          ),
-          eq(rewardUnits.status, "pending")
-        )
-      ),
-
-     [monthOrdersResult] = await db
+    // 1. Real creator earnings breakdown by status
+    const earningStatusRows = await db
       .select({
-        totalCents: sql<number>`coalesce(sum(${orders.totalCents}), 0)::int`,
+        earningType: creatorEarnings.earningType,
+        grossCents: sql<number>`coalesce(sum(${creatorEarnings.grossAmountCents}), 0)::int`,
+        heldCents: sql<number>`coalesce(sum(${creatorEarnings.heldAmountCents}), 0)::int`,
+        payableCents: sql<number>`coalesce(sum(${creatorEarnings.payableAmountCents}), 0)::int`,
+        status: creatorEarnings.status,
+      })
+      .from(creatorEarnings)
+      .where(eq(creatorEarnings.artistUserId, user.id))
+      .groupBy(creatorEarnings.status, creatorEarnings.earningType);
+
+    // 2. Real Direct Music Sales and Tips in the current accounting period
+    const [monthOrdersResult] = await db
+      .select({
+        totalCents: sql<number>`coalesce(sum(round(${orderItems.priceSnapshot} * 100)), 0)::int`,
       })
       .from(orders)
       .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
       .where(
         and(
-          inArray(
-            orderItems.trackId,
-            trackIds.length > 0 ? trackIds : ["_none"]
-          ),
-          eq(orders.status, "paid")
+          inArray(orderItems.trackId, trackIds.length > 0 ? trackIds : ["_none"]),
+          eq(orders.status, "paid"),
+          gte(orders.createdAt, monthStart)
         )
-      ),
+      );
 
-     [monthTipsResult] = await db
+    const [monthTipsResult] = await db
       .select({
-        totalCents: sql<number>`coalesce(sum(${tips.amountCents}), 0)::int`,
+        totalCents: sql<number>`coalesce(sum(${transactions.artistAmountCents}), 0)::int`,
       })
       .from(tips)
       .innerJoin(transactions, eq(tips.transactionId, transactions.id))
       .where(
         and(
           eq(tips.artistUserId, user.id),
-          eq(transactions.status, "succeeded")
+          eq(transactions.status, "succeeded"),
+          gte(tips.createdAt, monthStart)
         )
-      ),
+      );
 
-     creatorRewardsCents = Math.round(
-      Number(monthRewardResult?.count ?? 0) * 1.5
-    ),
-     musicSalesCents = Number(monthOrdersResult?.totalCents ?? 0),
-     tipsCents = Number(monthTipsResult?.totalCents ?? 0),
-     estimatedThisMonthCents =
-      creatorRewardsCents + musicSalesCents + tipsCents,
+    const musicSalesCents = Number(monthOrdersResult?.totalCents ?? 0);
+    const tipsCents = Number(monthTipsResult?.totalCents ?? 0);
 
-    // Available & Reserve Balances
-     availableBalanceCents = 0, // Cleared from 30-day reserve
-     pendingReserveCents = estimatedThisMonthCents, // Current 30-day window
-     payoutMinimumCents = 2500, // $25.00
-     payoutProgressPercent = Math.min(
+    // Creator rewards estimated in open period
+    const estimatedRewardsCents = earningStatusRows
+      .filter((r) => r.status === "estimated")
+      .reduce((sum, r) => sum + Number(r.grossCents), 0);
+
+    const estimatedThisMonthCents =
+      estimatedRewardsCents + musicSalesCents + tipsCents;
+
+    // Pending / Reserve balance (Held inside 30-day reserve window)
+    const pendingReserveCents = earningStatusRows
+      .filter((r) => r.status === "held" || r.status === "finalized")
+      .reduce((sum, r) => sum + Number(r.heldCents || r.grossCents), 0);
+
+    // Available / Payable balance (Cleared from reserve, eligible for payout)
+    const availableBalanceCents = earningStatusRows
+      .filter((r) => r.status === "payable")
+      .reduce((sum, r) => sum + Number(r.payableCents || r.grossCents), 0);
+
+    // Paid lifetime balance
+    const paidLifetimeCents = earningStatusRows
+      .filter((r) => r.status === "paid")
+      .reduce((sum, r) => sum + Number(r.grossCents), 0);
+
+    const payoutMinimumCents = 2500; // $25.00
+    const payoutProgressPercent = Math.min(
       100,
       Math.round((availableBalanceCents / payoutMinimumCents) * 100)
-    ),
+    );
 
-     now = new Date(),
-     nextMonth = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
-    ),
-     nextPayoutDate = new Intl.DateTimeFormat("en-US", {
+    const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const nextPayoutDate = new Intl.DateTimeFormat("en-US", {
       day: "numeric",
       month: "long",
-    }).format(nextMonth),
+    }).format(nextMonth);
 
-     categories = [
+    const categories = [
       {
-        amountCents: creatorRewardsCents,
+        amountCents: estimatedRewardsCents,
         category: "creator_rewards",
         label: "Creator Rewards Pool",
       },
@@ -1096,52 +1244,80 @@ app.openapi(
         category: "tips",
         label: "Fan Tips",
       },
-    ],
+    ];
 
-    // Current month statement
-     currentMonthLabel = new Intl.DateTimeFormat("en-US", {
-      month: "long",
-      year: "numeric",
-    }).format(now),
-
-     [playsResult] = await db
-      .select({ count: count() })
-      .from(playbackSessions)
+    // 3. Finalized Statements from creatorStatements and accountingPeriods
+    const statementRows = await db
+      .select({
+        grossAmountCents: creatorStatements.grossAmountCents,
+        heldAmountCents: creatorStatements.heldAmountCents,
+        paidAmountCents: creatorStatements.paidAmountCents,
+        payableAmountCents: creatorStatements.payableAmountCents,
+        periodEndsAt: accountingPeriods.endsAt,
+        periodStartsAt: accountingPeriods.startsAt,
+        statementId: creatorStatements.id,
+        status: creatorStatements.status,
+      })
+      .from(creatorStatements)
+      .leftJoin(
+        accountingPeriods,
+        eq(creatorStatements.accountingPeriodId, accountingPeriods.id)
+      )
       .where(
         and(
-          inArray(
-            playbackSessions.trackId,
-            trackIds.length > 0 ? trackIds : ["_none"]
-          ),
-          gte(playbackSessions.playedSeconds, 30)
+          eq(creatorStatements.artistUserId, user.id),
+          ne(creatorStatements.status, "draft")
         )
-      ),
+      )
+      .orderBy(desc(creatorStatements.createdAt));
 
-     [qualResult] = await db
-      .select({ count: count() })
-      .from(qualifiedStreams)
-      .where(
-        inArray(
-          qualifiedStreams.trackId,
-          trackIds.length > 0 ? trackIds : ["_none"]
-        )
-      ),
+    const statements = await Promise.all(
+      statementRows.map(async (st) => {
+        const pStarts = st.periodStartsAt ? new Date(st.periodStartsAt) : monthStart;
+        const pEnds = st.periodEndsAt ? new Date(st.periodEndsAt) : nextMonth;
+        const monthLabel = new Intl.DateTimeFormat("en-US", {
+          month: "long",
+          year: "numeric",
+        }).format(pStarts);
 
-     statements = [
-      {
-        creatorRewardsCents,
-        monthLabel: currentMonthLabel,
-        musicSalesCents,
-        periodEndsAt: nextMonth.toISOString(),
-        periodStartsAt: new Date(
-          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-        ).toISOString(),
-        plays: Number(playsResult?.count ?? 0),
-        qualifiedStreams: Number(qualResult?.count ?? 0),
-        tipsCents,
-        totalEarningsCents: estimatedThisMonthCents,
-      },
-    ];
+        const [pPlays] = await db
+          .select({ count: count() })
+          .from(playbackSessions)
+          .where(
+            and(
+              inArray(playbackSessions.trackId, trackIds.length > 0 ? trackIds : ["_none"]),
+              gte(playbackSessions.startedAt, pStarts),
+              sql`${playbackSessions.startedAt} < ${pEnds}`,
+              playConditionSql
+            )
+          );
+
+        const [pQual] = await db
+          .select({ count: count() })
+          .from(qualifiedStreams)
+          .where(
+            and(
+              inArray(qualifiedStreams.trackId, trackIds.length > 0 ? trackIds : ["_none"]),
+              eq(qualifiedStreams.status, "qualified"),
+              eq(qualifiedStreams.riskStatus, "clear"),
+              gte(qualifiedStreams.qualifiedAt, pStarts),
+              sql`${qualifiedStreams.qualifiedAt} < ${pEnds}`
+            )
+          );
+
+        return {
+          creatorRewardsCents: Number(st.grossAmountCents ?? 0),
+          monthLabel,
+          musicSalesCents: 0,
+          periodEndsAt: pEnds.toISOString(),
+          periodStartsAt: pStarts.toISOString(),
+          plays: Number(pPlays?.count ?? 0),
+          qualifiedStreams: Number(pQual?.count ?? 0),
+          tipsCents: 0,
+          totalEarningsCents: Number(st.payableAmountCents ?? st.grossAmountCents ?? 0),
+        };
+      })
+    );
 
     return c.json(
       {
@@ -1149,7 +1325,7 @@ app.openapi(
         categories,
         estimatedThisMonthCents,
         nextEstimatedPayoutDate: nextPayoutDate,
-        paidLifetimeCents: 0,
+        paidLifetimeCents,
         payoutMinimumCents,
         payoutProgressPercent,
         pendingReserveCents,
