@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { usePostHog } from "@posthog/react";
+import { useEffect, useRef, useState } from "react";
 
 import { PremiumWorkspaceInviteCard } from "@/components/billing/premium-workspace-invite-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -19,11 +20,22 @@ export function PremiumActivationCard({
 }: {
   accountType: "artist" | "fan";
 }) {
-  const entitlements = useMeEntitlementsQuery(),
+  const posthog = usePostHog(),
+    entitlements = useMeEntitlementsQuery(),
     { refetch } = entitlements,
     [attempt, setAttempt] = useState(0),
     isPremium = entitlements.data?.isPremium === true,
-    isSettled = isPremium || attempt >= MAX_ACTIVATION_ATTEMPTS;
+    isSettled = isPremium || attempt >= MAX_ACTIVATION_ATTEMPTS,
+    completionCaptured = useRef(false);
+
+  useEffect(() => {
+    if (isPremium && !completionCaptured.current) {
+      completionCaptured.current = true;
+      posthog.capture("premium_checkout_completed", {
+        account_type: accountType,
+      });
+    }
+  }, [accountType, isPremium, posthog]);
 
   useEffect(() => {
     if (isSettled) {
