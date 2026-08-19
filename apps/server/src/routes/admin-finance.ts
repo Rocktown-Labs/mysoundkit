@@ -877,9 +877,9 @@ app.get("/payments/coupons", async (c) => {
       {
         coupons: [],
         message: "Unable to load Stripe coupons.",
-        stripeConfigured: true,
+        stripeConfigured: false,
       },
-      HttpStatusCodes.SERVICE_UNAVAILABLE
+      HttpStatusCodes.OK
     );
   }
 
