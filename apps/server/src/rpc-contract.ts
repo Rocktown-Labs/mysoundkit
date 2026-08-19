@@ -11,6 +11,7 @@ import type {
   platformSettingsSchema,
   artistSummarySchema,
   battleChallengesResponseSchema,
+  battleKitSchema,
   battleSummarySchema,
   conversationSummarySchema,
   directVideoUploadResponseSchema,
@@ -82,6 +83,9 @@ import {
   peopleSearchQuerySchema,
   publicSearchQuerySchema,
   reviewLyricsRevisionBodySchema,
+  battleKitQuerySchema,
+  createBattleKitBodySchema,
+  updateBattleKitBodySchema,
   settleTrackBodySchema,
   updatePlatformSettingsBodySchema,
   updateBattleChallengeBodySchema,
@@ -417,6 +421,27 @@ export const rpcContract = new Hono()
   )
   .get("/v1/battles/challenges", (c) =>
     c.json({} as z.infer<typeof battleChallengesResponseSchema>)
+  )
+  .get(
+    "/v1/battles/kits",
+    validator("query", (value) => battleKitQuerySchema.parse(value)),
+    (c) => c.json([] as z.infer<typeof battleKitSchema>[])
+  )
+  .get("/v1/battles/kits/:kitId", (c) =>
+    c.json({} as z.infer<typeof battleKitSchema>)
+  )
+  .post(
+    "/v1/battles/kits",
+    jsonValidator(createBattleKitBodySchema),
+    (c) => c.json({} as z.infer<typeof battleKitSchema>, 201)
+  )
+  .patch(
+    "/v1/battles/kits/:kitId",
+    jsonValidator(updateBattleKitBodySchema),
+    (c) => c.json({} as z.infer<typeof battleKitSchema>)
+  )
+  .delete("/v1/battles/kits/:kitId", (c) =>
+    c.json({ message: "" })
   )
   .get("/v1/library/overview", (c) =>
     c.json({} as z.infer<typeof libraryOverviewSchema>)

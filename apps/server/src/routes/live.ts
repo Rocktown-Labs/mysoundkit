@@ -1,5 +1,7 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  battleKitTracks,
+  battleKits,
   battleRounds,
   battles,
   listeningParties,
@@ -9,11 +11,12 @@ import {
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, asc, desc, eq, gte, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
 
+import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -64,6 +67,7 @@ import {
   liveSessionLockCheckBodySchema,
 } from "@/lib/schemas";
 import type { AppEnv, AuthenticatedUser } from "@/lib/types";
+import { resolveActiveOrganizationId } from "@/lib/workspace";
 
 const app = new Hono<AppEnv>(),
   databaseUnavailableMessage = {
@@ -1362,6 +1366,73 @@ app.post("/experiences", async (c) => {
       ),
       HttpStatusCodes.FORBIDDEN
     );
+  }
+
+  if (body.battleKitId) {
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        databaseUnavailableMessage,
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [kit] = await db
+        .select()
+        .from(battleKits)
+        .where(
+          and(
+            eq(battleKits.id, body.battleKitId),
+            organizationId
+              ? or(
+                  eq(battleKits.ownerUserId, user.id),
+                  and(
+                    isNull(battleKits.ownerUserId),
+                    eq(battleKits.organizationId, organizationId)
+                  )
+                )
+              : eq(battleKits.ownerUserId, user.id)
+          )
+        )
+        .limit(1);
+
+    if (!kit) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const kitTracks = await db
+        .select({
+          mainSlot: battleKitTracks.mainSlot,
+          role: battleKitTracks.role,
+          trackId: battleKitTracks.trackId,
+        })
+        .from(battleKitTracks)
+        .where(eq(battleKitTracks.battleKitId, kit.id)),
+      readiness = evaluateBattleKitReadiness({
+        format: kit.format,
+        tracks: kitTracks,
+      });
+    if (!readiness.isBattleReady) {
+      return c.json(
+        { message: readiness.reason ?? "Battle Kit is not battle ready." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    if (body.format && body.format !== kit.format) {
+      return c.json(
+        { message: "Battle Kit format does not match the live battle format." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
   }
 
   const streamInput = await createRequiredStreamInput({
