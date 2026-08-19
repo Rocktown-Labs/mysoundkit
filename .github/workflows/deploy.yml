@@ -51,7 +51,7 @@ jobs:
 
   browser:
     name: Browser Smoke Tests
-    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     env:
       SOUNDKIT_CI_STATIC_CONFIG: "true"
@@ -183,12 +183,14 @@ jobs:
     name: Deploy Preview
     needs:
       - verify
-      - browser
     if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     environment: preview
     permissions:
       contents: read
+    outputs:
+      web_url: ${{ steps.urls.outputs.web_url }}
+      api_url: ${{ steps.urls.outputs.api_url }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -277,10 +279,88 @@ jobs:
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
 
       - name: Record preview URLs
+        id: urls
         run: |
+          WEB_URL="https://web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
+          API_URL="https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
+          echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
+          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "### SoundKit preview" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Web: https://web-pr-${{ github.event.pull_request.number }}.mysoundkit.com" >> "$GITHUB_STEP_SUMMARY"
-          echo "- API: https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Web: $WEB_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: $API_URL" >> "$GITHUB_STEP_SUMMARY"
+
+  preview-browser:
+    name: Preview Browser Smoke Tests
+    needs:
+      - preview
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Wait for preview deployment readiness
+        run: |
+          echo "Waiting for preview web and API endpoints to be ready..."
+          WEB_READY=false
+          API_READY=false
+          MAX_ATTEMPTS=30
+          SLEEP_SECONDS=5
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            if [ "$API_READY" = false ]; then
+              if curl -sf --max-time 5 "${PLAYWRIGHT_API_URL}/health" > /dev/null; then
+                echo "API is ready ($PLAYWRIGHT_API_URL/health)"
+                API_READY=true
+              fi
+            fi
+
+            if [ "$WEB_READY" = false ]; then
+              if curl -sf --max-time 5 "${PLAYWRIGHT_BASE_URL}" > /dev/null; then
+                echo "Web is ready ($PLAYWRIGHT_BASE_URL)"
+                WEB_READY=true
+              fi
+            fi
+
+            if [ "$API_READY" = true ] && [ "$WEB_READY" = true ]; then
+              echo "Preview deployment is ready!"
+              exit 0
+            fi
+
+            echo "Attempt $i/$MAX_ATTEMPTS: Waiting for endpoints (API: $API_READY, Web: $WEB_READY)..."
+            sleep $SLEEP_SECONDS
+          done
+
+          echo "Timed out waiting for preview deployment to become ready."
+          exit 1
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
+          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
+
+      - name: Run preview browser smoke tests
+        run: pnpm run test:e2e
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
+          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
+          SOUNDKIT_E2E_WEB_URL: ${{ needs.preview.outputs.web_url }}
+          SOUNDKIT_E2E_API_URL: ${{ needs.preview.outputs.api_url }}
 
   cleanup:
     name: Destroy Preview
