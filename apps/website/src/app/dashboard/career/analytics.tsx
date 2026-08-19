@@ -29,6 +29,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -267,7 +268,11 @@ function AnalyticsPage() {
         </CardHeader>
         <CardContent>
           <div className="h-[280px] w-full pt-4">
-            {timeseries && timeseries.points.length > 0 ? (
+            {timeseriesQuery.isError ? (
+              <div className="flex h-full items-center justify-center text-xs text-destructive">
+                Unable to load listening analytics. Please try again.
+              </div>
+            ) : timeseries && timeseries.points.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={timeseries.points}
@@ -309,7 +314,9 @@ function AnalyticsPage() {
                   />
                   <Tooltip
                     content={({ active, payload }) => {
-                      if (!active || !payload?.length) {return null;}
+                      if (!active || !payload?.length) {
+                        return null;
+                      }
                       const data = payload[0]?.payload as {
                         date: string;
                         label: string;
@@ -322,9 +329,9 @@ function AnalyticsPage() {
                             {data.value.toLocaleString()}{" "}
                             {timeseriesMetric === "qualified_streams"
                               ? "Qualified Streams"
-                              : (timeseriesMetric === "unique_listeners"
+                              : timeseriesMetric === "unique_listeners"
                                 ? "Unique Listeners"
-                                : "Plays")}
+                                : "Plays"}
                           </div>
                         </div>
                       );
@@ -368,7 +375,11 @@ function AnalyticsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {tracks.length === 0 ? (
+          {tracksQuery.isError ? (
+            <div className="py-12 text-center text-xs text-destructive">
+              Unable to load track analytics. Please try again.
+            </div>
+          ) : tracks.length === 0 ? (
             <div className="py-12 text-center text-xs text-muted-foreground">
               No tracks uploaded yet.{" "}
               <Link
@@ -415,9 +426,12 @@ function AnalyticsPage() {
                         <div className="flex items-center gap-2.5 min-w-[200px]">
                           <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                             {t.coverArtUrl ? (
-                              <img
+                              <AppImage
                                 src={t.coverArtUrl}
                                 alt={t.title}
+                                layout="constrained"
+                                width={32}
+                                height={32}
                                 className="size-full object-cover"
                               />
                             ) : (

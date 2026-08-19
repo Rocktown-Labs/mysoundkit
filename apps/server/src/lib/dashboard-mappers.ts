@@ -14,72 +14,19 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
+import {
+  formatDuration,
+  objectUrlFromMetadata,
+  publicAssetUrl,
+  publicProjectAssetUrl,
+} from "@/lib/asset-urls";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
 
-const formatDuration = (durationMs: number | null | undefined) => {
-    if (!durationMs) {
-      return "0:00";
-    }
-
-    const totalSeconds = Math.round(durationMs / 1000),
-      minutes = Math.floor(totalSeconds / 60),
-      seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  },
-  objectUrlFromMetadata = (metadata: unknown) => {
-    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-      return null;
-    }
-
-    const { url } = metadata as { url?: unknown };
-    return typeof url === "string" ? url : null;
-  },
-  publicAssetUrl = (
-    asset: InferSelectModel<typeof trackAssets> | undefined
-  ) => {
-    if (!asset) {
-      return null;
-    }
-
-    const metadataUrl = objectUrlFromMetadata(asset.metadata);
-
-    if (metadataUrl) {
-      return metadataUrl;
-    }
-
-    const baseUrl = (
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .MEDIA_PUBLIC_URL ??
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .VITE_MEDIA_URL ??
-      ""
-    ).replace(/\/+$/u, "");
-
-    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-  },
-  publicProjectAssetUrl = (
-    asset: InferSelectModel<typeof projectAssets> | undefined
-  ) => {
-    if (!asset) {
-      return null;
-    }
-
-    const baseUrl = (
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .MEDIA_PUBLIC_URL ??
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .VITE_MEDIA_URL ??
-      ""
-    ).replace(/\/+$/u, "");
-
-    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-  },
-  mapAssetForDashboard = (
+const mapAssetForDashboard = (
     asset:
       | InferSelectModel<typeof trackAssets>
       | InferSelectModel<typeof projectAssets>
