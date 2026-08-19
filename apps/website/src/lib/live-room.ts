@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { API_BASE_URL, API_V1_URL } from "./api";
-import { useLiveRoomChat } from "./message-db";
 
 export type LiveRoomKind = "battle" | "party" | "stream";
 
@@ -130,8 +129,7 @@ interface LiveRoomChatResult {
 }
 
 export const useLiveRoom = (roomId: string) => {
-  const liveChat = useLiveRoomChat(roomId),
-    queryClient = useQueryClient(),
+  const queryClient = useQueryClient(),
     query = useQuery({
       enabled: Boolean(roomId),
       queryFn: () => fetchLiveRoom(roomId),
@@ -155,10 +153,8 @@ export const useLiveRoom = (roomId: string) => {
       };
 
       if (payload.type === "state" && payload.room) {
-        liveChat.collection.utils.writeUpsert(payload.room.chat);
         queryClient.setQueryData(liveRoomKey(roomId), payload.room);
       } else if (payload.type === "chat" && payload.message) {
-        liveChat.collection.utils.writeUpsert(payload.message);
         queryClient.setQueryData<LiveRoomState | undefined>(
           liveRoomKey(roomId),
           (room) =>
@@ -168,14 +164,13 @@ export const useLiveRoom = (roomId: string) => {
     });
 
     return () => socket.close();
-  }, [liveChat.collection, queryClient, roomId]);
+  }, [queryClient, roomId]);
 
   const chatMutation = useMutation({
       mutationFn: (body: { message: string; userName?: string }) =>
         postLiveRoom(roomId, "chat", body),
       onSuccess: (result) => {
         if ("message" in result && result.message) {
-          liveChat.collection.utils.writeUpsert(result.message);
           queryClient.setQueryData<LiveRoomState | undefined>(
             liveRoomKey(roomId),
             (room) =>
@@ -203,8 +198,7 @@ export const useLiveRoom = (roomId: string) => {
 
   return {
     chat: chatMutation,
-    chatMessages:
-      liveChat.data.length > 0 ? liveChat.data : (query.data?.chat ?? []),
+    chatMessages: query.data?.chat ?? [],
     query,
     vote: voteMutation,
   };

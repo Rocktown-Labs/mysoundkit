@@ -114,6 +114,16 @@ interface ChatAttachment {
 }
 
 export function FloatingChatBar() {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  return isHydrated ? <FloatingChatBarClient /> : null;
+}
+
+function FloatingChatBarClient() {
   const [view, setView] = useState<"list" | "chat">("list"),
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
     [searchQuery, setSearchQuery] = useState(""),

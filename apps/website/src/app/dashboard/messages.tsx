@@ -111,6 +111,16 @@ const initials = (value: string) =>
   ];
 
 function MessagesPage() {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  return isHydrated ? <MessagesPageClient /> : null;
+}
+
+function MessagesPageClient() {
   const searchParams = Route.useSearch(),
     { isUserOnline, registerPresenceUsers } = usePresence(),
     meQuery = useMeQuery(),
