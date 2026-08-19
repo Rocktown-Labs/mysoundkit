@@ -288,12 +288,12 @@ function AnalyticsPage() {
                     >
                       <stop
                         offset="5%"
-                        stopColor="hsl(var(--primary))"
+                        stopColor="var(--chart-1)"
                         stopOpacity={0.4}
                       />
                       <stop
                         offset="95%"
-                        stopColor="hsl(var(--primary))"
+                        stopColor="var(--chart-1)"
                         stopOpacity={0}
                       />
                     </linearGradient>
@@ -340,7 +340,7 @@ function AnalyticsPage() {
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="hsl(var(--primary))"
+                    stroke="var(--chart-1)"
                     strokeWidth={2}
                     fillOpacity={1}
                     fill="url(#chartGradient)"
