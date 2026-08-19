@@ -271,6 +271,7 @@ function VideoCommentForm({
       <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
         <Link
           className="font-semibold text-primary hover:underline"
+          search={{ redirect: "/dashboard" }}
           to="/login"
         >
           Sign in

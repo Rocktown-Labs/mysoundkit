@@ -250,7 +250,17 @@ function BattlePage() {
                 published yet.
               </p>
               <Button asChild variant="outline">
-                <Link to="/live/battles">Back to Battles</Link>
+                <Link
+                  search={{
+                    genre: undefined,
+                    region: undefined,
+                    regionType: "north-america",
+                    sort: undefined,
+                  }}
+                  to="/live/battles"
+                >
+                  Back to Battles
+                </Link>
               </Button>
             </CardContent>
           </Card>

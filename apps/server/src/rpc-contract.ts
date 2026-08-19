@@ -2,10 +2,17 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { z } from "zod";
 
+import {
+  createFriendRequestBodySchema,
+  playlistSchema,
+  respondFriendRequestBodySchema,
+} from "./lib/schemas";
 import type {
   adminAccessSchema,
   adminPaymentsOverviewSchema,
   adminOverviewSchema,
+  adminSyncStripePlansResponseSchema,
+  analyticsOverviewSchema,
   backfillTrackDurationsResponseSchema,
   trackDurationBackfillStatusSchema,
   platformSettingsSchema,
@@ -17,6 +24,7 @@ import type {
   directVideoUploadResponseSchema,
   discoverHomeResponseSchema,
   entitlementSummarySchema,
+  friendRequestSummarySchema,
   friendSummarySchema,
   peopleSearchResultSchema,
   libraryOverviewSchema,
@@ -33,11 +41,11 @@ import type {
   openVerseSubmissionSchema,
   playbackProgressResponseSchema,
   playbackSessionResponseSchema,
-  playlistSchema,
   planSchema,
   projectDashboardDetailSchema,
   publicSearchResultSchema,
   projectSummarySchema,
+  purchasedCatalogDetailSchema,
   purchasedCatalogItemSchema,
   sellerOnboardingResponseSchema,
   sellerStatusSchema,
@@ -48,6 +56,7 @@ import type {
   videoCommentSchema,
   videoSummarySchema,
   messageResponseSchema,
+  workspaceSummarySchema,
 } from "./lib/schemas";
 import {
   adminImportStripePlanBodySchema,
@@ -108,6 +117,22 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     checkoutUrl: true,
     requiresCheckout: true,
     setupRequired: true,
+  }),
+  playlistDetailSchema = z.object({
+    playlist: playlistSchema,
+    tracks: z.array(
+      z.object({
+        artist: z.string(),
+        artistSlug: z.string(),
+        cover: z.string(),
+        duration: z.string(),
+        genre: z.string().nullable(),
+        id: z.string(),
+        regionSlug: z.string().nullable(),
+        slug: z.string().nullable(),
+        title: z.string(),
+      })
+    ),
   }),
   cloudflareStreamBodySchema = z.object({
     title: z.string().optional(),
@@ -236,7 +261,7 @@ export const rpcContract = new Hono()
   .post(
     "/v1/admin/finance/payments/sync-plans",
     jsonValidator(adminSyncStripePlansBodySchema),
-    (c) => c.json({ message: "", results: [] })
+    (c) => c.json({} as z.infer<typeof adminSyncStripePlansResponseSchema>)
   )
   .post(
     "/v1/admin/finance/payments/import-plan",
@@ -257,6 +282,11 @@ export const rpcContract = new Hono()
   )
   .get("/v1/me/entitlements", (c) =>
     c.json({} as z.infer<typeof entitlementSummarySchema>)
+  )
+  .patch(
+    "/v1/me/workspace",
+    jsonValidator(z.object({ name: z.string() })),
+    (c) => c.json({} as z.infer<typeof workspaceSummarySchema>)
   )
   .get(
     "/v1/onboarding/username-availability",
@@ -308,6 +338,19 @@ export const rpcContract = new Hono()
     "/v1/messages/conversations/:conversationId/messages",
     jsonValidator(createMessageBodySchema),
     (c) => c.json({} as z.infer<typeof messageSchema>, 201)
+  )
+  .get("/v1/messages/friend-requests", (c) =>
+    c.json([] as z.infer<typeof friendRequestSummarySchema>[])
+  )
+  .post(
+    "/v1/messages/friend-requests",
+    jsonValidator(createFriendRequestBodySchema),
+    (c) => c.json({} as z.infer<typeof friendRequestSummarySchema>, 201)
+  )
+  .patch(
+    "/v1/messages/friend-requests/:requestId",
+    jsonValidator(respondFriendRequestBodySchema),
+    (c) => c.json({} as z.infer<typeof friendRequestSummarySchema>)
   )
   .get(
     "/v1/search",
@@ -391,8 +434,18 @@ export const rpcContract = new Hono()
   .get("/v1/projects/", (c) =>
     c.json([] as z.infer<typeof projectSummarySchema>[])
   )
-  .get("/v1/projects/public", (c) =>
-    c.json([] as z.infer<typeof projectSummarySchema>[])
+  .get(
+    "/v1/projects/public",
+    validator("query", (value) =>
+      publicExploreQuerySchema
+        .extend({
+          q: z.string().trim().max(120).optional(),
+          type: z.enum(["album", "ep", "mixtape", "single"]).optional(),
+        })
+        .partial()
+        .parse(value)
+    ),
+    (c) => c.json([] as z.infer<typeof projectSummarySchema>[])
   )
   .get("/v1/projects/public/:projectId", (c) =>
     c.json({} as z.infer<typeof projectDashboardDetailSchema>)
@@ -430,19 +483,15 @@ export const rpcContract = new Hono()
   .get("/v1/battles/kits/:kitId", (c) =>
     c.json({} as z.infer<typeof battleKitSchema>)
   )
-  .post(
-    "/v1/battles/kits",
-    jsonValidator(createBattleKitBodySchema),
-    (c) => c.json({} as z.infer<typeof battleKitSchema>, 201)
+  .post("/v1/battles/kits", jsonValidator(createBattleKitBodySchema), (c) =>
+    c.json({} as z.infer<typeof battleKitSchema>, 201)
   )
   .patch(
     "/v1/battles/kits/:kitId",
     jsonValidator(updateBattleKitBodySchema),
     (c) => c.json({} as z.infer<typeof battleKitSchema>)
   )
-  .delete("/v1/battles/kits/:kitId", (c) =>
-    c.json({ message: "" })
-  )
+  .delete("/v1/battles/kits/:kitId", (c) => c.json({ message: "" }))
   .get("/v1/library/overview", (c) =>
     c.json({} as z.infer<typeof libraryOverviewSchema>)
   )
@@ -457,6 +506,38 @@ export const rpcContract = new Hono()
   )
   .get("/v1/library/saved", (c) =>
     c.json([] as z.infer<typeof librarySavedTrackSchema>[])
+  )
+  .post("/v1/library/saved/:trackId", (c) =>
+    c.json({ saved: true, trackId: "" })
+  )
+  .delete("/v1/library/saved/:trackId", (c) =>
+    c.json({ saved: false, trackId: "" })
+  )
+  .get("/v1/library/purchases/:purchaseId", (c) =>
+    c.json({} as z.infer<typeof purchasedCatalogDetailSchema>)
+  )
+  .post(
+    "/v1/library/playlists",
+    jsonValidator(
+      z.object({
+        description: z.string().optional(),
+        isPublic: z.boolean().optional(),
+        title: z.string().min(1),
+      })
+    ),
+    (c) => c.json({} as z.infer<typeof playlistSchema>, 201)
+  )
+  .get("/v1/library/playlists/:id", (c) =>
+    c.json({} as z.infer<typeof playlistDetailSchema>)
+  )
+  .delete("/v1/library/playlists/:id", (c) => c.json({ deleted: true }))
+  .post(
+    "/v1/library/playlists/:id/tracks",
+    jsonValidator(z.object({ trackId: z.string() })),
+    (c) => c.json({ added: true })
+  )
+  .delete("/v1/library/playlists/:id/tracks/:trackId", (c) =>
+    c.json({ removed: true })
   )
   .get("/v1/library/watched", (c) =>
     c.json([] as z.infer<typeof libraryWatchedItemSchema>[])
@@ -658,6 +739,9 @@ export const rpcContract = new Hono()
   )
   .get("/v1/seller/status", (c) =>
     c.json({} as z.infer<typeof sellerStatusSchema>)
+  )
+  .get("/v1/analytics/overview", (c) =>
+    c.json({} as z.infer<typeof analyticsOverviewSchema>)
   )
   .post(
     "/v1/seller/account-link",

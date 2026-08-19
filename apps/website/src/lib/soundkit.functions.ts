@@ -28,6 +28,9 @@ export type DashboardTrackSummary = InferResponseType<
   200
 >[number];
 type TrackDetail = InferResponseType<typeof trackGet, 200>;
+type SerializableTrackDetail = Omit<TrackDetail, "assets"> & {
+  assets: Array<Omit<TrackDetail["assets"][number], "metadata">>;
+};
 
 export const getMe = createServerFn({ method: "GET" }).handler(async () => {
   const client = currentClient();
@@ -51,7 +54,10 @@ export const requireDashboardUser = createServerFn({ method: "GET" }).handler(
       return me;
     } catch (error) {
       if (error instanceof SoundKitServerError && error.status === 401) {
-        throw redirect({ to: "/login" });
+        throw redirect({
+          search: { redirect: "/dashboard" },
+          to: "/login",
+        });
       }
 
       throw error;
@@ -112,7 +118,7 @@ export const getDashboardTracks = createServerFn({ method: "GET" }).handler(
     const client = currentClient();
 
     return soundkitServerJson<DashboardTrackSummary[]>(
-      await client.v1.tracks.index.$get()
+      await client.v1.tracks.index.$get({ query: {} })
     );
   }
 );
@@ -122,11 +128,16 @@ export const getTrackDetail = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const client = currentClient();
 
-    return soundkitServerJson<TrackDetail>(
+    const track = await soundkitServerJson<TrackDetail>(
       await client.v1.tracks[":trackId"].$get({
         param: { trackId: data.id },
       })
     );
+
+    return {
+      ...track,
+      assets: track.assets.map(({ metadata: _metadata, ...asset }) => asset),
+    } satisfies SerializableTrackDetail;
   });
 
 export const getPlayerTracks = createServerFn({ method: "GET" }).handler(() =>

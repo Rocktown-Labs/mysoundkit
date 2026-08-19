@@ -26,7 +26,7 @@ interface PresenceContextValue {
 }
 
 const PresenceContext = createContext<PresenceContextValue>({
-  getUserPresence: () => {},
+  getUserPresence: () => undefined,
   isUserOnline: () => false,
   onlineCount: 0,
   onlineUserIds: [],

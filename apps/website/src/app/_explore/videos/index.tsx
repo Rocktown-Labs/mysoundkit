@@ -111,7 +111,7 @@ function VideosPage() {
     allVideos = infiniteData?.pages.flat() ?? [],
     { data: sectionVideos = [], isLoading: isLoadingSection } = useVideosQuery({
       genre,
-      limit: "48",
+      limit: 48,
       region,
       regionType,
       scope: "public",
@@ -258,7 +258,7 @@ function VideoGenreRail({
 }) {
   const { data: videos = [], isLoading } = useVideosQuery({
     genre: genre.value,
-    limit: "12",
+    limit: 12,
     region,
     regionType,
     scope: "public",

@@ -54,7 +54,7 @@ const meGet = apiClient.v1.me.index.$get,
   listeningPartyPost = apiClient.v1["listening-parties"].index.$post,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   battlesGet = apiClient.v1.battles.index.$get,
-  battleChallengesGet = apiClient.v1.battles.challenges.index.$get,
+  battleChallengesGet = apiClient.v1.battles.challenges.$get,
   battleKitsGet = apiClient.v1.battles.kits.$get,
   battleKitGet = apiClient.v1.battles.kits[":kitId"].$get,
   battleKitsPost = apiClient.v1.battles.kits.$post,
@@ -119,9 +119,7 @@ const meGet = apiClient.v1.me.index.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
     apiClient.v1.battles["track-history"][":trackId"].$get,
-  analyticsOverviewGet = apiClient.v1.analytics.overview.$get,
-  sellerCatalogStripePricingPut =
-    apiClient.v1.seller.catalog["stripe-pricing"].$put;
+  analyticsOverviewGet = apiClient.v1.analytics.overview.$get;
 
 type ArtistOnboardingBody = InferRequestType<
   typeof artistOnboardingPost
@@ -194,7 +192,9 @@ export type BattleChallengesResponse = InferResponseType<
 >;
 export type BattleKit = InferResponseType<typeof battleKitsGet, 200>[number];
 type BattleKitQuery = InferRequestType<typeof battleKitsGet>["query"];
-export type BattleKitTrackInput = InferRequestType<typeof battleKitsPost>["json"]["tracks"][number];
+export type BattleKitTrackInput = InferRequestType<
+  typeof battleKitsPost
+>["json"]["tracks"][number];
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
 export type LibraryPlaylist = InferResponseType<
   typeof libraryPlaylistsGet,
@@ -827,7 +827,7 @@ export const useArtistsInfiniteQuery = (query: ArtistRankingQuery = {}) => {
         await artistsGet({
           query: {
             ...query,
-            page: String(pageParam),
+            page: pageParam,
           },
         })
       ),
@@ -910,7 +910,7 @@ export const useTracksInfiniteQuery = (query: PublicExploreQuery = {}) => {
         await tracksGet({
           query: {
             ...query,
-            page: String(pageParam),
+            page: pageParam,
           },
         })
       ),
@@ -1221,7 +1221,9 @@ export const useCreateBattleKitMutation = () => {
     mutationFn: async (body: InferRequestType<typeof battleKitsPost>["json"]) =>
       rpcJson(await battleKitsPost({ json: body })),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battleKits });
+      void queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleKits,
+      });
     },
   });
 };
@@ -1235,7 +1237,9 @@ export const useUpdateBattleKitMutation = () => {
     }: InferRequestType<typeof battleKitPatch>["json"] & { kitId: string }) =>
       rpcJson(await battleKitPatch({ json: body, param: { kitId } })),
     onSuccess: (kit) => {
-      void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battleKits });
+      void queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleKits,
+      });
       void queryClient.setQueryData(soundkitQueryKeys.battleKit(kit.id), kit);
     },
   });
@@ -1247,7 +1251,9 @@ export const useDeleteBattleKitMutation = () => {
     mutationFn: async (kitId: string) =>
       rpcJson(await battleKitDelete({ param: { kitId } })),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.battleKits });
+      void queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.battleKits,
+      });
     },
   });
 };
@@ -1850,7 +1856,7 @@ export const useVideosInfiniteQuery = (query: PublicExploreQuery = {}) => {
         await videosGet({
           query: {
             ...query,
-            page: String(pageParam),
+            page: pageParam,
           },
         })
       ),

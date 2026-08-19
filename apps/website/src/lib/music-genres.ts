@@ -14,6 +14,8 @@ export const musicGenres = [
   { label: "Metal", value: "metal" },
 ] as const;
 
+export type MusicGenre = (typeof musicGenres)[number];
+
 export const allGenreOptions = [
   { label: "All Genres", value: "all" },
   ...musicGenres,

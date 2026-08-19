@@ -173,6 +173,7 @@ export function FloatingChatBar() {
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
+      route: "media",
       onUploadComplete: ({ files }) => {
         setAttachments((current) => [
           ...current,
@@ -734,9 +735,7 @@ export function FloatingChatBar() {
               <div className="flex-1 overflow-y-auto p-3 space-y-3 relative">
                 {messages.length > 0 ? (
                   messages.map((message) => {
-                    const isMine =
-                      ((message as Record<string, unknown>).senderId ??
-                        message.senderUserId) === meQuery.data?.user.id;
+                    const isMine = message.senderId === meQuery.data?.user.id;
                     const hasCollabProposal = message.attachments?.some(
                       (att) =>
                         att.mimeType === "soundkit/collaboration-proposal" ||
@@ -1212,8 +1211,12 @@ export function FloatingChatBar() {
                                 displayName: track.title,
                                 sourceTrackId: track.id,
                                 url:
-                                  track.playbackUrl ||
-                                  track.downloadUrl ||
+                                  ("playbackUrl" in track
+                                    ? track.playbackUrl
+                                    : undefined) ||
+                                  ("downloadUrl" in track
+                                    ? track.downloadUrl
+                                    : undefined) ||
                                   `/tracks/${track.id}`,
                               },
                             ]);

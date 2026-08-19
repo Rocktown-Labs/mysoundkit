@@ -35,7 +35,10 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { useLiveRoom } from "@/lib/live-room";
-import { useToggleSaveTrackMutation } from "@/lib/soundkit-api-hooks";
+import {
+  useMeQuery,
+  useToggleSaveTrackMutation,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
@@ -84,6 +87,7 @@ const getLyricClass = (lineId: string, text: string) => {
 function ListeningPartyDetailPage() {
   const { id } = Route.useParams(),
     { chat, query } = useLiveRoom(id),
+    meQuery = useMeQuery(),
     [isChatOpen, setIsChatOpen] = useState(true),
     [isFullscreen, setIsFullscreen] = useState(false),
     [isPlaying, setIsPlaying] = useState(true),
@@ -99,6 +103,19 @@ function ListeningPartyDetailPage() {
       room?.tracklist.find(
         (track) => track.id === (activeTrackId ?? room.currentTrackId)
       ) ?? room?.tracklist[0],
+    currentTrackIndex = room
+      ? Math.max(
+          0,
+          room.tracklist.findIndex((track) => track.id === currentTrack?.id)
+        )
+      : 0,
+    isHost = Boolean(
+      room &&
+      meQuery.data?.user &&
+      [meQuery.data.user.displayName, meQuery.data.user.username].includes(
+        room.hostName
+      )
+    ),
     isCurrentLiked = currentTrack ? likedTrackIds.has(currentTrack.id) : false,
     handleToggleLike = (trackId: string, trackTitle: string) => {
       setLikedTrackIds((prev) => {
@@ -384,7 +401,7 @@ function ListeningPartyDetailPage() {
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* Host Action: Replay Track / Fan Action: Save Track (+) */}
-                    {room.isHost ? (
+                    {isHost ? (
                       <Button
                         className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
                         onClick={() => handleReplayTrack()}
@@ -459,7 +476,7 @@ function ListeningPartyDetailPage() {
                     <div
                       className="h-full bg-primary rounded-full transition-all duration-500"
                       style={{
-                        width: `${Math.min(100, Math.max(15, (room.currentTrackIndex + 1) * 20))}%`,
+                        width: `${Math.min(100, Math.max(15, (currentTrackIndex + 1) * 20))}%`,
                       }}
                     />
                   </div>
@@ -495,8 +512,7 @@ function ListeningPartyDetailPage() {
                     </TabsTrigger>
                   </TabsList>
                   <span className="text-[10px] text-white/50">
-                    Track {room.currentTrackIndex + 1} of{" "}
-                    {room.tracklist.length}
+                    Track {currentTrackIndex + 1} of {room.tracklist.length}
                   </span>
                 </div>
 
@@ -597,7 +613,7 @@ function ListeningPartyDetailPage() {
                           </Button>
 
                           {/* Host Action: Replay / Cue Track for Party */}
-                          {room.isHost && (
+                          {isHost && (
                             <Button
                               className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
                               onClick={() => {

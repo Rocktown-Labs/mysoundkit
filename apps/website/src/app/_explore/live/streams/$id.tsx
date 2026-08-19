@@ -164,11 +164,7 @@ function StreamDetailPage() {
               alt={room.title}
               className="size-full object-cover opacity-80"
               height={720}
-              src={
-                experience?.coverImageUrl ??
-                currentTrack?.coverArtUrl ??
-                "/soundkit-default-banner.svg"
-              }
+              src={currentTrack?.coverArtUrl ?? "/soundkit-default-banner.svg"}
               width={1280}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />

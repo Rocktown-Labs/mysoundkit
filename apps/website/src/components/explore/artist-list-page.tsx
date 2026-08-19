@@ -42,7 +42,7 @@ export function ArtistListPage({
       useArtistsInfiniteQuery({
         category,
         genre,
-        limit: String(pageSize),
+        limit: pageSize,
         region,
         regionType,
         sort,

@@ -49,7 +49,7 @@ export function UserProfilePreviewModal({
   const [isFollowing, setIsFollowing] = useState(false);
   const meQuery = useMeQuery();
   const meUser = meQuery.data?.user;
-  const meProfile = meQuery.data?.profile;
+  const meProfile = meUser;
 
   const isCurrentUser = Boolean(
     user &&
@@ -71,18 +71,15 @@ export function UserProfilePreviewModal({
   }
 
   const displayName = isCurrentUser
-    ? (artistData?.name ?? meProfile?.displayName ?? meUser?.name ?? "You")
+    ? (artistData?.name ?? meProfile?.displayName ?? "You")
     : (artistData?.name ?? user.displayName);
   const username = isCurrentUser
-    ? (artistData?.username ??
-      meProfile?.username ??
-      meUser?.email?.split("@")[0] ??
-      "you")
+    ? (artistData?.username ?? meProfile?.username ?? meUser?.username ?? "you")
     : (artistData?.username ?? user.username);
   const avatarUrl = isCurrentUser
     ? (artistData?.avatarUrl ??
       meProfile?.avatarUrl ??
-      meUser?.image ??
+      meUser?.avatarUrl ??
       "/diverse-user-avatars.png")
     : (artistData?.avatarUrl ?? user.avatarUrl ?? "/diverse-user-avatars.png");
   const bio = isCurrentUser

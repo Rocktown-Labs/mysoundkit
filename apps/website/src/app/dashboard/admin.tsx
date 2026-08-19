@@ -301,6 +301,7 @@ function AdsPanel() {
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
+      route: "media",
       onUploadComplete: ({ files }) => {
         const uploadedFile = files[0];
         if (uploadedFile) {

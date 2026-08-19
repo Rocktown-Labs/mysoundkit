@@ -49,7 +49,7 @@ export function LiveChatPanel({
     [previewUser, setPreviewUser] = useState<UserPreviewData | null>(null),
     meQuery = useMeQuery(),
     meUser = meQuery.data?.user,
-    meProfile = meQuery.data?.profile,
+    meProfile = meUser,
     scrollBottomRef = useRef<HTMLDivElement | null>(null),
     send = () => {
       const trimmedMessage = message.trim();
@@ -116,7 +116,7 @@ export function LiveChatPanel({
               {messages.map((chatMessage) => {
                 const isMe =
                     chatMessage.userName.toLowerCase() === "you" ||
-                    chatMessage.userName === meUser?.name ||
+                    chatMessage.userName === meUser?.displayName ||
                     chatMessage.userName === meProfile?.displayName,
                   isBot =
                     chatMessage.userName.toLowerCase().includes("bot") ||
@@ -126,7 +126,7 @@ export function LiveChatPanel({
                     chatMessage.userName.toLowerCase().includes("artist"),
                   userAvatar = isMe
                     ? (meProfile?.avatarUrl ??
-                      meUser?.image ??
+                      meUser?.avatarUrl ??
                       "/diverse-user-avatars.png")
                     : "/diverse-user-avatars.png",
                   handleOpenProfile = () => {
@@ -134,11 +134,11 @@ export function LiveChatPanel({
                       setPreviewUser({
                         avatarUrl:
                           meProfile?.avatarUrl ??
-                          meUser.image ??
+                          meUser.avatarUrl ??
                           "/diverse-user-avatars.png",
                         bio: meProfile?.bio ?? "SoundKit artist & creator.",
                         displayName:
-                          meProfile?.displayName ?? meUser.name ?? "You",
+                          meProfile?.displayName ?? meUser.displayName ?? "You",
                         followersCount: 1450,
                         genre: "SoundKit Artist",
                         id: meUser.id,
@@ -147,9 +147,7 @@ export function LiveChatPanel({
                             ? "Platform Admin"
                             : "SoundKit Artist",
                         username:
-                          meProfile?.username ??
-                          meUser.email?.split("@")[0] ??
-                          "you",
+                          meProfile?.username ?? meUser.username ?? "you",
                         verified: true,
                       });
                     } else {

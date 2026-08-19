@@ -80,7 +80,7 @@ interface Device {
 }
 
 interface SinkAudioElement extends HTMLAudioElement {
-  setSinkId?: (sinkId: string) => Promise<void>;
+  setSinkId: (sinkId: string) => Promise<void>;
 }
 
 interface PlaybackTelemetrySession {
@@ -1797,9 +1797,9 @@ export function MusicPlayer() {
                       <p>
                         {repeatMode === "one"
                           ? "Repeat: One"
-                          : (repeatMode === "all"
+                          : repeatMode === "all"
                             ? "Repeat: All"
-                            : "Repeat: Off")}
+                            : "Repeat: Off"}
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -1890,7 +1890,9 @@ export function MusicPlayer() {
                 <Link to="/signup">Sign Up Free</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="w-full">
-                <Link to="/login">Log In to Existing Account</Link>
+                <Link search={{ redirect: "/dashboard" }} to="/login">
+                  Log In to Existing Account
+                </Link>
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">

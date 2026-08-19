@@ -104,7 +104,7 @@ function CareerPaymentsPage() {
             method: "POST",
           });
           if (!response.ok) {
-            return;
+            throw new Error("Unable to initialize Stripe Connect.");
           }
           const body = (await response.json()) as { clientSecret: string };
           return body.clientSecret;
@@ -342,11 +342,11 @@ function CareerPaymentsPage() {
                       <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
                         {cat.category === "creator_rewards" ? (
                           <Crown className="size-4 text-amber-400" />
-                        ) : (cat.category === "music_sales" ? (
+                        ) : cat.category === "music_sales" ? (
                           <Music className="size-4 text-primary" />
                         ) : (
                           <CircleDollarSign className="size-4 text-emerald-400" />
-                        ))}
+                        )}
                       </div>
                       <div>
                         <div className="font-bold text-xs text-foreground">
@@ -355,9 +355,9 @@ function CareerPaymentsPage() {
                         <div className="text-[10px] text-muted-foreground">
                           {cat.category === "creator_rewards"
                             ? "User-centric pool allocation"
-                            : (cat.category === "music_sales"
+                            : cat.category === "music_sales"
                               ? "WAV/MP3 track purchases"
-                              : "Direct fan support")}
+                              : "Direct fan support"}
                         </div>
                       </div>
                     </div>
@@ -447,7 +447,7 @@ function CareerPaymentsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {(earnings?.statements && earnings.statements.length > 0) ? (
+              {earnings?.statements && earnings.statements.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>

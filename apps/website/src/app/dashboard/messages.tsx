@@ -225,6 +225,7 @@ function MessagesPage() {
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
+      route: "media",
       onUploadComplete: ({ files }) => {
         setAttachments((current) => [
           ...current,
@@ -1030,8 +1031,12 @@ function MessagesPage() {
                                 displayName: track.title,
                                 sourceTrackId: track.id,
                                 url:
-                                  track.playbackUrl ||
-                                  track.downloadUrl ||
+                                  ("playbackUrl" in track
+                                    ? track.playbackUrl
+                                    : undefined) ||
+                                  ("downloadUrl" in track
+                                    ? track.downloadUrl
+                                    : undefined) ||
                                   `/tracks/${track.id}`,
                               },
                             ]);
@@ -1351,8 +1356,7 @@ function ShareMediaDialog({
                       onClick={() => {
                         onAttach({
                           id: t.id,
-                          streamUrl:
-                            t.playbackUrl || t.downloadUrl || `/tracks/${t.id}`,
+                          streamUrl: `/tracks/${t.id}`,
                           title: t.title,
                         });
                         onOpenChange(false);
@@ -1395,8 +1399,7 @@ function ShareMediaDialog({
                       onClick={() => {
                         onAttach({
                           id: t.id,
-                          streamUrl:
-                            t.playbackUrl || t.downloadUrl || `/tracks/${t.id}`,
+                          streamUrl: `/tracks/${t.id}`,
                           title: t.title,
                         });
                         onOpenChange(false);
@@ -1518,7 +1521,7 @@ function NewChatDialog({
               id: person.userId,
               lastInteractionAt: null,
               name: person.displayName,
-              relationship: "user" as const,
+              relationship: "friend" as const,
               role: person.stageName ? "Artist" : "User",
               username: person.username,
             });
@@ -1566,7 +1569,9 @@ function NewChatDialog({
               ? selectedFriends.map((friend) => friend.name).join(", ")
               : undefined,
           },
-          message: message.trim() ? { body: message.trim() } : undefined,
+          message: message.trim()
+            ? { attachments: [], body: message.trim() }
+            : undefined,
         },
         {
           onSuccess: (res) => {

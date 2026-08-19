@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useLibraryOverviewQuery } from "@/lib/soundkit-api-hooks";
+import type { LibraryOverview } from "@/lib/soundkit-api-hooks";
 
 const libraryCategories = [
   {
@@ -68,7 +69,10 @@ const libraryCategories = [
     icon: Settings,
     title: "Account",
   },
-];
+] as const satisfies ReadonlyArray<{
+  countKey: keyof LibraryOverview | null;
+  [key: string]: unknown;
+}>;
 
 export const Route = createFileRoute("/_explore/library/")({
   component: LibraryPage,

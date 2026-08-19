@@ -67,7 +67,7 @@ function TeamPage() {
     // Team Plan Seats state (5 total seats per subscription plan)
     [teamMembers, setTeamMembers] = useState<PlanMember[]>([
       {
-        email: user?.email ?? "owner@mysoundkit.com",
+        email: "owner@mysoundkit.com",
         id: "member-owner",
         name: user?.displayName ?? "Workspace Owner",
         role: "Owner / Primary Account",

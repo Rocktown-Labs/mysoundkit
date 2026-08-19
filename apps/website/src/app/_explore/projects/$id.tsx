@@ -12,7 +12,7 @@ import type { ProjectSeoData } from "@/lib/seo-data";
 export const Route = createFileRoute("/_explore/projects/$id")({
   component: ProjectDetailLayout,
   head: ({ loaderData, params }) => {
-    const project = loaderData as ProjectSeoData | null,
+    const project = loaderData as unknown as ProjectSeoData | null,
       titleText = project?.title ?? "Project",
       artistName = project?.artistName ?? "SoundKit artist",
       title = `Play ${titleText} by ${artistName} on SoundKit`,

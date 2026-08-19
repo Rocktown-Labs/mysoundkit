@@ -9,6 +9,7 @@ import { TrackCard } from "@/components/explore/track-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { absoluteSiteUrl, createShareMeta, seoDescription } from "@/lib/seo";
 import { loadPublicArtistSeo } from "@/lib/seo-data";
+import type { ArtistSeoData } from "@/lib/seo-data";
 import {
   useArtistQuery,
   useMeQuery,
@@ -26,7 +27,7 @@ const isArtistProfileTab = (value: unknown): value is ArtistProfileTab =>
 export const Route = createFileRoute("/_explore/artist/$username")({
   component: ArtistProfilePage,
   head: ({ loaderData, params }) => {
-    const artist = loaderData,
+    const artist = loaderData as unknown as ArtistSeoData | null,
       artistName = artist?.name ?? `@${params.username}`,
       canonicalPath = `/artist/${artist?.username ?? params.username}`,
       title = `Check out ${artistName} on SoundKit`,

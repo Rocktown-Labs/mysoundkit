@@ -221,6 +221,7 @@ function FanCredentialsPage() {
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link
+              search={{ redirect: "/dashboard" }}
               to="/login"
               className="text-primary hover:text-primary/80 font-medium"
             >
