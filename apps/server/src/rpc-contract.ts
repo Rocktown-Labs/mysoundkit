@@ -4,61 +4,9 @@ import { z } from "zod";
 
 import {
   createFriendRequestBodySchema,
+  createWorkspaceInvitationBodySchema,
   playlistSchema,
   respondFriendRequestBodySchema,
-} from "./lib/schemas";
-import type {
-  adminAccessSchema,
-  adminPaymentsOverviewSchema,
-  adminOverviewSchema,
-  adminSyncStripePlansResponseSchema,
-  analyticsOverviewSchema,
-  backfillTrackDurationsResponseSchema,
-  trackDurationBackfillStatusSchema,
-  platformSettingsSchema,
-  artistSummarySchema,
-  battleChallengesResponseSchema,
-  battleKitSchema,
-  battleSummarySchema,
-  conversationSummarySchema,
-  directVideoUploadResponseSchema,
-  discoverHomeResponseSchema,
-  entitlementSummarySchema,
-  friendRequestSummarySchema,
-  friendSummarySchema,
-  peopleSearchResultSchema,
-  libraryOverviewSchema,
-  libraryRecentTrackSchema,
-  librarySavedTrackSchema,
-  libraryWatchedItemSchema,
-  listeningPartySummarySchema,
-  lyricsRevisionSchema,
-  meResponseSchema,
-  messageSchema,
-  notificationSettingsSchema,
-  openVerseListingSchema,
-  openVersePageSchema,
-  openVerseSubmissionSchema,
-  playbackProgressResponseSchema,
-  playbackSessionResponseSchema,
-  planSchema,
-  projectDashboardDetailSchema,
-  publicSearchResultSchema,
-  projectSummarySchema,
-  purchasedCatalogDetailSchema,
-  purchasedCatalogItemSchema,
-  sellerOnboardingResponseSchema,
-  sellerStatusSchema,
-  trackDashboardDetailSchema,
-  trackProcessingStatusSchema,
-  trackSummarySchema,
-  usernameAvailabilityResponseSchema,
-  videoCommentSchema,
-  videoSummarySchema,
-  messageResponseSchema,
-  workspaceSummarySchema,
-} from "./lib/schemas";
-import {
   adminImportStripePlanBodySchema,
   adminSyncStripePlansBodySchema,
   backfillTrackDurationsBodySchema,
@@ -101,7 +49,60 @@ import {
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
-  usernameAvailabilityQuerySchema,
+  usernameAvailabilityQuerySchema
+} from "./lib/schemas";
+import type {
+  adminAccessSchema,
+  adminPaymentsOverviewSchema,
+  adminOverviewSchema,
+  adminSyncStripePlansResponseSchema,
+  analyticsOverviewSchema,
+  backfillTrackDurationsResponseSchema,
+  trackDurationBackfillStatusSchema,
+  platformSettingsSchema,
+  artistSummarySchema,
+  battleChallengesResponseSchema,
+  battleKitSchema,
+  battleSummarySchema,
+  conversationSummarySchema,
+  directVideoUploadResponseSchema,
+  discoverHomeResponseSchema,
+  entitlementSummarySchema,
+  friendRequestSummarySchema,
+  friendSummarySchema,
+  networkResponseSchema,
+  peopleSearchResultSchema,
+  libraryOverviewSchema,
+  libraryRecentTrackSchema,
+  librarySavedTrackSchema,
+  libraryWatchedItemSchema,
+  listeningPartySummarySchema,
+  lyricsRevisionSchema,
+  meResponseSchema,
+  messageSchema,
+  notificationSettingsSchema,
+  openVerseListingSchema,
+  openVersePageSchema,
+  openVerseSubmissionSchema,
+  playbackProgressResponseSchema,
+  playbackSessionResponseSchema,
+  planSchema,
+  projectDashboardDetailSchema,
+  publicSearchResultSchema,
+  projectSummarySchema,
+  purchasedCatalogDetailSchema,
+  purchasedCatalogItemSchema,
+  sellerOnboardingResponseSchema,
+  sellerStatusSchema,
+  trackDashboardDetailSchema,
+  trackProcessingStatusSchema,
+  trackSummarySchema,
+  usernameAvailabilityResponseSchema,
+  videoCommentSchema,
+  videoSummarySchema,
+  messageResponseSchema,
+  workspaceDetailSchema,
+  workspaceSummarySchema,
 } from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
@@ -287,6 +288,20 @@ export const rpcContract = new Hono()
     "/v1/me/workspace",
     jsonValidator(z.object({ name: z.string() })),
     (c) => c.json({} as z.infer<typeof workspaceSummarySchema>)
+  )
+  .get("/v1/me/workspace", (c) =>
+    c.json({} as z.infer<typeof workspaceDetailSchema>)
+  )
+  .post(
+    "/v1/me/workspace/invitations",
+    jsonValidator(createWorkspaceInvitationBodySchema),
+    (c) => c.json({} as z.infer<typeof workspaceDetailSchema>, 201)
+  )
+  .delete("/v1/me/workspace/invitations/:invitationId", (c) =>
+    c.json({} as z.infer<typeof workspaceDetailSchema>)
+  )
+  .delete("/v1/me/workspace/members/:memberId", (c) =>
+    c.json({} as z.infer<typeof workspaceDetailSchema>)
   )
   .get(
     "/v1/onboarding/username-availability",
@@ -703,6 +718,9 @@ export const rpcContract = new Hono()
   .get("/v1/open-verses/:listingId", (c) =>
     c.json({} as z.infer<typeof openVerseListingSchema>)
   )
+  .get("/v1/network/", (c) =>
+    c.json({} as z.infer<typeof networkResponseSchema>)
+  )
   .post(
     "/v1/open-verses/:listingId/submissions",
     jsonValidator(createOpenVerseSubmissionBodySchema),
@@ -749,6 +767,12 @@ export const rpcContract = new Hono()
     (c) => c.json({} as z.infer<typeof sellerOnboardingResponseSchema>)
   )
   .post("/v1/social/artists/:username/follow", (c) =>
+    c.json({} as z.infer<typeof followResponseSchema>)
+  )
+  .delete("/v1/social/artists/:username/follow", (c) =>
+    c.json({} as z.infer<typeof followResponseSchema>)
+  )
+  .delete("/v1/social/profiles/:username/follow", (c) =>
     c.json({} as z.infer<typeof followResponseSchema>)
   );
 

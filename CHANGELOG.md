@@ -1,5 +1,7 @@
 # Changelog
 
+- Reframed Friends & Collaborators as Network with distinct friends, followers, following, and requests views; separated fan and artist follower classification from music collaborators and workspace membership; replaced simulated workspace members, seat counts, and invites with persisted organization data and active-workspace authorization.
+
 - Overhauled Artist Analytics (`/dashboard/career/analytics`) and Creator Payments (`/dashboard/career/payments`) to use 100% real, database-persisted telemetry and the existing Creator Rewards monetization architecture:
   - Retired all synthetic/manufactured analytics calculations (removed fake 72% qualified plays, fake 48h release curves, fake retention %, fake geographic distributions, fake loyalty segments, fake download multipliers, and arbitrary revenue per stream).
   - Implemented 30-Second Verified Play Rule (sessions with ≥ 30s playback, or ≥ 95% completion for tracks shorter than 30s) distinct from stricter Qualified Stream monetization events.

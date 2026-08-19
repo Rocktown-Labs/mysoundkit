@@ -709,6 +709,7 @@ app.openapi(
       ] = await Promise.all([
         db
           .select({
+            accountType: userProfiles.accountType,
             avatarUrl: userProfiles.avatarUrl,
             displayName: userProfiles.displayName,
             email: authUser.email,
@@ -718,11 +719,12 @@ app.openapi(
           })
           .from(artistFollows)
           .innerJoin(authUser, eq(authUser.id, artistFollows.artistUserId))
-          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .innerJoin(userProfiles, eq(userProfiles.userId, authUser.id))
           .where(eq(artistFollows.followerUserId, user.id))
           .limit(100),
         db
           .select({
+            accountType: userProfiles.accountType,
             avatarUrl: userProfiles.avatarUrl,
             displayName: userProfiles.displayName,
             email: authUser.email,
@@ -732,14 +734,8 @@ app.openapi(
           })
           .from(artistFollows)
           .innerJoin(authUser, eq(authUser.id, artistFollows.followerUserId))
-          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-          .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
-          .where(
-            and(
-              eq(artistFollows.artistUserId, user.id),
-              sql`${artistProfiles.userId} is null`
-            )
-          )
+          .innerJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .where(eq(artistFollows.artistUserId, user.id))
           .limit(100),
         db
           .select({
@@ -822,7 +818,7 @@ app.openapi(
         lastInteractionAt: null,
         name: row.displayName ?? row.name ?? row.username ?? "SoundKit Artist",
         relationship: "following",
-        role: "Artist",
+        role: row.accountType === "fan" ? "Fan" : "Artist",
         username: row.username,
       });
     }
@@ -834,8 +830,8 @@ app.openapi(
         id: row.id,
         lastInteractionAt: null,
         name: row.displayName ?? row.name ?? row.username ?? "SoundKit Fan",
-        relationship: "fan",
-        role: "Fan",
+        relationship: row.accountType === "fan" ? "fan" : "artist_follower",
+        role: row.accountType === "fan" ? "Fan" : "Artist",
         username: row.username,
       });
     }

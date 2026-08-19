@@ -982,9 +982,91 @@ export const friendSummarySchema = z.object({
   id: z.string(),
   lastInteractionAt: z.string().nullable(),
   name: z.string(),
-  relationship: z.enum(["friend", "collaborator", "fan", "following"]),
+  relationship: z.enum([
+    "friend",
+    "collaborator",
+    "fan",
+    "artist_follower",
+    "following",
+  ]),
   role: z.string().nullable(),
   username: z.string().nullable(),
+});
+
+export const networkPersonSchema = z.object({
+  accountType: z.enum(["artist", "fan"]),
+  avatarUrl: z.string().nullable(),
+  canMessage: z.boolean(),
+  email: z.string().nullable(),
+  followsYou: z.boolean(),
+  id: z.string(),
+  isFollowing: z.boolean(),
+  isFriend: z.boolean(),
+  name: z.string(),
+  username: z.string().nullable(),
+});
+
+export const networkResponseSchema = z.object({
+  counts: z.object({
+    artistFollowers: z.number().int().nonnegative(),
+    fanFollowers: z.number().int().nonnegative(),
+    followers: z.number().int().nonnegative(),
+    following: z.number().int().nonnegative(),
+    friends: z.number().int().nonnegative(),
+    pendingRequests: z.number().int().nonnegative(),
+  }),
+  followers: networkPersonSchema.array(),
+  following: networkPersonSchema.array(),
+  friends: networkPersonSchema.array(),
+  requests: z
+    .object({
+      avatarUrl: z.string().nullable(),
+      createdAt: z.string(),
+      direction: z.enum(["incoming", "outgoing"]),
+      displayName: z.string(),
+      id: z.string(),
+      message: z.string().nullable(),
+      status: z.enum(["accepted", "canceled", "declined", "pending"]),
+      userId: z.string(),
+      username: z.string().nullable(),
+    })
+    .array(),
+});
+
+export const workspaceMemberSchema = z.object({
+  avatarUrl: z.string().nullable(),
+  createdAt: z.string(),
+  email: z.string(),
+  id: z.string(),
+  isOwner: z.boolean(),
+  name: z.string(),
+  role: z.string(),
+  userId: z.string(),
+  username: z.string().nullable(),
+});
+
+export const workspaceInvitationSchema = z.object({
+  createdAt: z.string(),
+  email: z.string(),
+  expiresAt: z.string(),
+  id: z.string(),
+  role: z.string().nullable(),
+  status: z.string(),
+});
+
+export const workspaceDetailSchema = z.object({
+  activeWorkspace: workspaceSummarySchema.nullable(),
+  invitations: workspaceInvitationSchema.array(),
+  members: workspaceMemberSchema.array(),
+  seats: z.object({
+    total: z.number().int().positive(),
+    used: z.number().int().nonnegative(),
+  }),
+});
+
+export const createWorkspaceInvitationBodySchema = z.object({
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]).default("member"),
 });
 export const friendRequestStatusSchema = z.enum([
   "pending",

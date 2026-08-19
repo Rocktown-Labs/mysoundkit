@@ -225,7 +225,6 @@ function MessagesPage() {
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
-      route: "media",
       onUploadComplete: ({ files }) => {
         setAttachments((current) => [
           ...current,
@@ -238,6 +237,7 @@ function MessagesPage() {
           })),
         ]);
       },
+      route: "media",
     }),
     filteredConversations = conversations.filter((conversation) =>
       conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1699,7 +1699,9 @@ function NewChatDialog({
 
           <div className="flex items-center justify-between gap-3">
             <Button asChild={true} type="button" variant="outline" size="sm">
-              <Link to="/dashboard/collaborators">Manage Friends</Link>
+              <Link search={{ tab: "friends" }} to="/dashboard/collaborators">
+                Open Network
+              </Link>
             </Button>
             <Button
               disabled={

@@ -77,9 +77,9 @@ const sectionRoutes: Record<
           to: "/dashboard/career/calendar",
         },
         {
-          description: "Team members and workspace access",
+          description: "Members, roles, and workspace access",
           icon: Users,
-          name: "Team",
+          name: "Workspace",
           to: "/dashboard/team",
         },
         {
@@ -203,9 +203,9 @@ const sectionRoutes: Record<
           to: "/dashboard/messages",
         },
         {
-          description: "Friends and collaboration requests",
+          description: "Followers, friends, and artist relationships",
           icon: UserRoundPlus,
-          name: "Friends",
+          name: "Network",
           to: "/dashboard/collaborators",
         },
       ],

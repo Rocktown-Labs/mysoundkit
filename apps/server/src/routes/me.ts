@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { createAuth } from "@soundkit/auth";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
@@ -7,8 +8,14 @@ import {
   userProfiles,
   workspaceProfiles,
 } from "@soundkit/db/schema/app";
-import { member, organization } from "@soundkit/db/schema/auth";
-import { eq } from "drizzle-orm";
+import {
+  invitation,
+  member,
+  organization,
+  subscription,
+  user as authUser,
+} from "@soundkit/db/schema/auth";
+import { and, desc, eq, or } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -21,15 +28,26 @@ import {
 } from "@/lib/entitlements";
 import { normalizeProfileLinks } from "@/lib/profile-links";
 import {
+  createWorkspaceInvitationBodySchema,
   entitlementSummarySchema,
   meResponseSchema,
   messageResponseSchema,
   notificationSettingsSchema,
   profileUpdateBodySchema,
   updateNotificationSettingsBodySchema,
+  workspaceDetailSchema,
   workspaceSummarySchema,
 } from "@/lib/schemas";
-import type { AppEnv, AuthenticatedUser } from "@/lib/types";
+import type {
+  AppEnv,
+  AuthenticatedSession,
+  AuthenticatedUser,
+} from "@/lib/types";
+import { resolveActiveOrganizationId } from "@/lib/workspace";
+import {
+  canManageWorkspace,
+  hasWorkspaceCapacity,
+} from "@/lib/workspace-domain";
 
 const app = new OpenAPIHono<AppEnv>(),
   getDefaultUserSummary = (user: AuthenticatedUser) => ({
@@ -198,7 +216,130 @@ const app = new OpenAPIHono<AppEnv>(),
         .limit(1);
 
     return settings ?? defaultNotificationSettings;
+  },
+
+ loadWorkspaceDetail = async ({
+  session,
+  user,
+}: {
+  session: AuthenticatedSession | null;
+  user: AuthenticatedUser;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return {
+      activeWorkspace: null,
+      invitations: [],
+      members: [],
+      seats: { total: 1, used: 0 },
+    };
+  }
+
+  const organizationId = await resolveActiveOrganizationId({ session, user });
+  if (!organizationId) {
+    return {
+      activeWorkspace: null,
+      invitations: [],
+      members: [],
+      seats: { total: 1, used: 0 },
+    };
+  }
+
+  const db = createDb(),
+   [workspace, members, invitations, plan] = await Promise.all([
+    db
+      .select({
+        id: organization.id,
+        name: organization.name,
+        role: member.role,
+        slug: organization.slug,
+        workspaceType: workspaceProfiles.workspaceType,
+      })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .innerJoin(
+        workspaceProfiles,
+        eq(workspaceProfiles.organizationId, organization.id)
+      )
+      .where(
+        and(
+          eq(member.organizationId, organizationId),
+          eq(member.userId, user.id)
+        )
+      )
+      .limit(1),
+    db
+      .select({
+        avatarUrl: userProfiles.avatarUrl,
+        createdAt: member.createdAt,
+        email: authUser.email,
+        id: member.id,
+        image: authUser.image,
+        name: authUser.name,
+        role: member.role,
+        userId: member.userId,
+        username: userProfiles.username,
+      })
+      .from(member)
+      .innerJoin(authUser, eq(authUser.id, member.userId))
+      .leftJoin(userProfiles, eq(userProfiles.userId, member.userId))
+      .where(eq(member.organizationId, organizationId))
+      .orderBy(desc(member.createdAt)),
+    db
+      .select({
+        createdAt: invitation.createdAt,
+        email: invitation.email,
+        expiresAt: invitation.expiresAt,
+        id: invitation.id,
+        role: invitation.role,
+        status: invitation.status,
+      })
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.status, "pending")
+        )
+      )
+      .orderBy(desc(invitation.createdAt)),
+    db
+      .select({ seats: subscription.seats })
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          or(
+            eq(subscription.status, "active"),
+            eq(subscription.status, "trialing")
+          )
+        )
+      )
+      .orderBy(desc(subscription.updatedAt))
+      .limit(1),
+  ]),
+
+   activeWorkspace = workspace[0] ?? null,
+   totalSeats = Math.max(1, plan[0]?.seats ?? 1);
+  return {
+    activeWorkspace,
+    invitations: invitations.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      expiresAt: item.expiresAt.toISOString(),
+    })),
+    members: members.map((item) => ({
+      avatarUrl: item.avatarUrl ?? item.image ?? null,
+      createdAt: item.createdAt.toISOString(),
+      email: item.email,
+      id: item.id,
+      isOwner: item.role === "owner",
+      name: item.name,
+      role: item.role,
+      userId: item.userId,
+      username: item.username,
+    })),
+    seats: { total: totalSeats, used: members.length },
   };
+};
 
 app.openapi(
   createRoute({
@@ -293,6 +434,265 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "get",
+    path: "/workspace",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        workspaceDetailSchema,
+        "Workspace details"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user))
+      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
+    const session = c.get("session");
+    return c.json(
+      await loadWorkspaceDetail({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/workspace/invitations",
+    request: {
+      body: jsonContentRequired(
+        createWorkspaceInvitationBodySchema,
+        "Workspace invitation"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        workspaceDetailSchema,
+        "Workspace invitation created"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Workspace invitation rejected"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user))
+      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
+    if (!isDatabaseConfigured())
+      {return c.json(
+        { message: "Workspace invitations require a configured database." },
+        HttpStatusCodes.BAD_REQUEST
+      );}
+    const body = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+    if (!organizationId)
+      {return c.json(
+        { message: "An active workspace is required." },
+        HttpStatusCodes.BAD_REQUEST
+      );}
+    const db = createDb(),
+     [membership] = await db
+      .select({ role: member.role })
+      .from(member)
+      .where(
+        and(
+          eq(member.organizationId, organizationId),
+          eq(member.userId, user.id)
+        )
+      )
+      .limit(1);
+    if (!membership || !canManageWorkspace(membership.role))
+      {return c.json(
+        { message: "Only workspace managers can invite members." },
+        HttpStatusCodes.UNAUTHORIZED
+      );}
+    const detail = await loadWorkspaceDetail({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    if (
+      !hasWorkspaceCapacity({
+        memberCount: detail.seats.used,
+        pendingInvitationCount: detail.invitations.length,
+        totalSeats: detail.seats.total,
+      })
+    )
+      {return c.json(
+        { message: "There are no workspace seats available." },
+        HttpStatusCodes.BAD_REQUEST
+      );}
+    try {
+      await createAuth().api.createInvitation({
+        body: { email: body.email, organizationId, role: body.role },
+        headers: c.req.raw.headers,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to create workspace invitation.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+    return c.json(
+      await loadWorkspaceDetail({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      HttpStatusCodes.CREATED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/workspace/invitations/{invitationId}",
+    request: { params: z.object({ invitationId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        workspaceDetailSchema,
+        "Invitation revoked"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Invitation not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user))
+      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
+    const session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+    if (!organizationId)
+      {return c.json(
+        { message: "An active workspace is required." },
+        HttpStatusCodes.NOT_FOUND
+      );}
+    try {
+      await createAuth().api.cancelInvitation({
+        body: { invitationId: c.req.valid("param").invitationId },
+        headers: c.req.raw.headers,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to revoke invitation.",
+        },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    return c.json(
+      await loadWorkspaceDetail({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/workspace/members/{memberId}",
+    request: { params: z.object({ memberId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        workspaceDetailSchema,
+        "Member removed"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Member not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Me"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user))
+      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
+    const session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+    if (!organizationId)
+      {return c.json(
+        { message: "An active workspace is required." },
+        HttpStatusCodes.NOT_FOUND
+      );}
+    try {
+      await createAuth().api.removeMember({
+        body: {
+          memberIdOrEmail: c.req.valid("param").memberId,
+          organizationId,
+        },
+        headers: c.req.raw.headers,
+      });
+    } catch (error) {
+      return c.json(
+        {
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unable to remove workspace member.",
+        },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    return c.json(
+      await loadWorkspaceDetail({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "patch",
     path: "/workspace",
     request: {
@@ -334,24 +734,70 @@ app.openapi(
       );
     }
 
+    const session = c.get("session"),
+      activeOrgId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+
+    if (!activeOrgId) {
+      return c.json(
+        { message: "An active workspace is required." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
     const db = createDb(),
-      activeOrgId = user.id;
+      [membership] = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(
+          and(
+            eq(member.organizationId, activeOrgId),
+            eq(member.userId, user.id)
+          )
+        )
+        .limit(1);
+
+    if (!membership || !canManageWorkspace(membership.role)) {
+      return c.json(
+        { message: "You do not have permission to rename this workspace." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
 
     await db
       .update(organization)
       .set({ name })
       .where(eq(organization.id, activeOrgId));
 
-    return c.json(
-      {
-        id: activeOrgId,
-        name,
-        role: "owner",
-        slug: "my-workspace",
-        workspaceType: "artist_team" as const,
-      },
-      HttpStatusCodes.OK
-    );
+    const [updatedWorkspace] = await db
+      .select({
+        id: organization.id,
+        name: organization.name,
+        role: member.role,
+        slug: organization.slug,
+        workspaceType: workspaceProfiles.workspaceType,
+      })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .innerJoin(
+        workspaceProfiles,
+        eq(workspaceProfiles.organizationId, organization.id)
+      )
+      .where(
+        and(eq(member.organizationId, activeOrgId), eq(member.userId, user.id))
+      )
+      .limit(1);
+
+    if (!updatedWorkspace) {
+      return c.json(
+        { message: "Workspace not found." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    return c.json(updatedWorkspace, HttpStatusCodes.OK);
   }
 );
 

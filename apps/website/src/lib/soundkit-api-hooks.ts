@@ -90,6 +90,13 @@ const meGet = apiClient.v1.me.index.$get,
   libraryWatchedGet = apiClient.v1.library.watched.$get,
   friendsGet = apiClient.v1.messages.friends.$get,
   friendRequestsGet = apiClient.v1.messages["friend-requests"].$get,
+  networkGet = apiClient.v1.network.index.$get,
+  workspaceGet = apiClient.v1.me.workspace.$get,
+  workspaceInvitePost = apiClient.v1.me.workspace.invitations.$post,
+  workspaceInvitationDelete =
+    apiClient.v1.me.workspace.invitations[":invitationId"].$delete,
+  workspaceMemberDelete =
+    apiClient.v1.me.workspace.members[":memberId"].$delete,
   friendRequestsPost = apiClient.v1.messages["friend-requests"].$post,
   friendRequestPatch =
     apiClient.v1.messages["friend-requests"][":requestId"].$patch,
@@ -115,6 +122,7 @@ const meGet = apiClient.v1.me.index.$get,
   notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
+  artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
   sellerStatusGet = apiClient.v1.seller.status.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
@@ -251,6 +259,8 @@ export type ListeningPartySummary = InferResponseType<
   200
 >[number];
 export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
+export type NetworkResponse = InferResponseType<typeof networkGet, 200>;
+export type WorkspaceDetail = InferResponseType<typeof workspaceGet, 200>;
 export type FriendRequestSummary = InferResponseType<
   typeof friendRequestsGet,
   200
@@ -349,8 +359,8 @@ export const soundkitQueryKeys = {
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battleChallenges: ["battles", "challenges"] as const,
-  battleKits: ["battles", "kits"] as const,
   battleKit: (id: string) => ["battles", "kits", id] as const,
+  battleKits: ["battles", "kits"] as const,
   battles: ["battles"] as const,
   battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
@@ -375,6 +385,7 @@ export const soundkitQueryKeys = {
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
   meNotificationSettings: ["me", "notification-settings"] as const,
+  network: ["network"] as const,
   notifications: ["notifications"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
@@ -395,6 +406,7 @@ export const soundkitQueryKeys = {
   videos: (query?: PublicExploreQuery) =>
     [...soundkitQueryKeys.videosPrefix, query ?? {}] as const,
   videosPrefix: ["videos"] as const,
+  workspace: ["me", "workspace"] as const,
 };
 
 const fetchApiJson = async <T>(
@@ -646,6 +658,18 @@ export const useFriendsQuery = () =>
     queryKey: soundkitQueryKeys.friends,
   });
 
+export const useNetworkQuery = () =>
+  useQuery<NetworkResponse>({
+    queryFn: async () => rpcJson(await networkGet()),
+    queryKey: soundkitQueryKeys.network,
+  });
+
+export const useWorkspaceQuery = () =>
+  useQuery<WorkspaceDetail>({
+    queryFn: async () => rpcJson(await workspaceGet()),
+    queryKey: soundkitQueryKeys.workspace,
+  });
+
 export const useFriendRequestsQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await friendRequestsGet()),
@@ -849,6 +873,22 @@ export const useFollowArtistMutation = (username: string) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.notifications,
       });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
+    },
+  });
+};
+
+export const useUnfollowArtistMutation = (username: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<ArtistFollowResponse> =>
+      rpcJson(await artistFollowDelete({ param: { username } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.artist(username),
+      });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
     },
   });
 };
@@ -1463,7 +1503,38 @@ export const useUpdateWorkspaceMutation = () => {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace });
     },
+  });
+};
+
+export const useCreateWorkspaceInvitationMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { email: string; role: "admin" | "member" }) =>
+      rpcJson(await workspaceInvitePost({ json: body })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
+  });
+};
+
+export const useRevokeWorkspaceInvitationMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (invitationId: string) =>
+      rpcJson(await workspaceInvitationDelete({ param: { invitationId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
+  });
+};
+
+export const useRemoveWorkspaceMemberMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (memberId: string) =>
+      rpcJson(await workspaceMemberDelete({ param: { memberId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
   });
 };
 
