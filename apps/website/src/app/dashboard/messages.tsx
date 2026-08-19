@@ -817,7 +817,14 @@ function MessagesPageClient() {
                           );
                         })}
 
-                        <p className="mt-2 text-[10px] text-muted-foreground font-mono">
+                        <p
+                          className={cn(
+                            "mt-2 font-mono text-[10px]",
+                            isMine
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground"
+                          )}
+                        >
                           {new Date(message.createdAt).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",

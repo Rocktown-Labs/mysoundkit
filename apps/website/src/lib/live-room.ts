@@ -70,6 +70,16 @@ export interface LiveRoomState {
 }
 
 const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
+  sortChatMessages = (messages: LiveRoomChatMessage[]) =>
+    [...messages].sort((left, right) => {
+      const leftTime = Date.parse(left.sentAt),
+        rightTime = Date.parse(right.sentAt);
+      return (
+        (Number.isNaN(leftTime) ? 0 : leftTime) -
+          (Number.isNaN(rightTime) ? 0 : rightTime) ||
+        left.id.localeCompare(right.id)
+      );
+    }),
   appendChatMessage = (
     room: LiveRoomState | undefined,
     message: LiveRoomChatMessage
@@ -79,7 +89,7 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
           ...room,
           chat: room.chat.some((entry) => entry.id === message.id)
             ? room.chat
-            : [...room.chat, message].slice(-80),
+            : sortChatMessages([...room.chat, message]).slice(-80),
         }
       : room,
   fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
@@ -198,7 +208,7 @@ export const useLiveRoom = (roomId: string) => {
 
   return {
     chat: chatMutation,
-    chatMessages: query.data?.chat ?? [],
+    chatMessages: sortChatMessages(query.data?.chat ?? []),
     query,
     vote: voteMutation,
   };

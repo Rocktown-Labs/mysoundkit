@@ -42,6 +42,22 @@ export interface MessageCollectionMutationOptions {
   onSuccess?: (message: MessageSummary) => void;
 }
 
+const compareMessageChronology = <
+  T extends { createdAt?: string; id: string; sentAt?: string },
+>(
+  left: T,
+  right: T
+) => {
+  const leftTime = Date.parse(left.createdAt ?? left.sentAt ?? ""),
+    rightTime = Date.parse(right.createdAt ?? right.sentAt ?? ""),
+    normalizedLeftTime = Number.isNaN(leftTime) ? 0 : leftTime,
+    normalizedRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
+
+  return (
+    normalizedLeftTime - normalizedRightTime || left.id.localeCompare(right.id)
+  );
+};
+
 const makeConversationCollection = (queryClient: QueryClient) =>
     createCollection(
       queryCollectionOptions<ConversationSummary>({
@@ -227,7 +243,13 @@ export const useLiveRoomChat = (roomId: string) => {
       [getLiveRoomChat, roomId]
     ),
     result = useLiveQuery(collection),
-    data = result.data as unknown as LiveRoomChatMessage[];
+    data = useMemo(
+      () =>
+        [...(result.data as unknown as LiveRoomChatMessage[])].sort(
+          compareMessageChronology
+        ),
+      [result.data]
+    );
 
   return { ...result, collection, data };
 };
@@ -239,7 +261,13 @@ export const useMessagingMessages = (conversationId: string) => {
       [conversationId, getMessages]
     ),
     result = useLiveQuery(collection),
-    data = result.data as unknown as MessageSummary[],
+    data = useMemo(
+      () =>
+        [...(result.data as unknown as MessageSummary[])].sort(
+          compareMessageChronology
+        ),
+      [result.data]
+    ),
     refetch = useCallback(async () => {
       await collection.utils.refetch();
     }, [collection]);

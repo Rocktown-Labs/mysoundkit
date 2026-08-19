@@ -239,8 +239,11 @@ app.get("/ws", async (c) => {
       headers.set("x-soundkit-tab-id", tabId);
     }
 
+    const durableObjectUrl = new URL(c.req.raw.url);
+    durableObjectUrl.pathname = "/ws";
+
     return c.env.PRESENCE.getByName(user.id).fetch(
-      new Request(c.req.raw.url, {
+      new Request(durableObjectUrl, {
         headers,
         method: "GET",
       })

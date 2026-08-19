@@ -988,7 +988,14 @@ function FloatingChatBarClient() {
                               )}
                           </div>
                         )}
-                        <span className="text-[9px] text-muted-foreground px-1 mt-0.5">
+                        <span
+                          className={cn(
+                            "mt-0.5 px-1 text-[9px]",
+                            isMine
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground"
+                          )}
+                        >
                           {new Date(message.createdAt).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
