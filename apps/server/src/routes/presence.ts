@@ -7,6 +7,7 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import { isAuthenticatedUser } from "@/lib/entitlements";
 import type { AppEnv } from "@/lib/types";
 
@@ -201,9 +202,11 @@ app.openapi(
     }
 
     const { status = "online" } = c.req.valid("json");
-    if (c.env.PRESENCE) {
-      const stub = c.env.PRESENCE.getByName(user.id);
-      await stub.heartbeat(user.id, status);
+    const presence = c.env.PRESENCE;
+    if (presence) {
+      await retryDurableObjectCall(() =>
+        presence.getByName(user.id).heartbeat(user.id, status)
+      );
     } else {
       inMemoryPresence.set(user.id, {
         lastSeen: Date.now(),
@@ -216,6 +219,13 @@ app.openapi(
 );
 
 app.get("/ws", async (c) => {
+  if (
+    c.req.method !== "GET" ||
+    c.req.header("upgrade")?.toLowerCase() !== "websocket"
+  ) {
+    return c.text("Expected WebSocket upgrade", 426);
+  }
+
   const user = c.get("user");
   if (!isAuthenticatedUser(user)) {
     return c.text("Authentication required", HttpStatusCodes.UNAUTHORIZED);

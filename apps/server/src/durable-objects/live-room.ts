@@ -5,7 +5,7 @@ import type { LiveRoomChatMessage, LiveRoomState } from "@/lib/live-room-data";
 import { createSampleLiveRoom } from "@/lib/live-room-data";
 import { recordRealtimeMetric } from "@/lib/realtime-metrics";
 
-interface LiveRoomVoteBody {
+export interface LiveRoomVoteBody {
   artistId?: string;
   roundId?: string;
 }
@@ -19,7 +19,7 @@ interface LiveRoomSocketMessage {
   type?: "chat" | "vote";
 }
 
-interface LiveRoomIdentity {
+export interface LiveRoomIdentity {
   displayName: string;
   userId: string;
 }
@@ -55,14 +55,32 @@ export class LiveRoomDurableObject extends DurableObject {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    ctx.blockConcurrencyWhile(async () => {
+    ctx.blockConcurrencyWhile(async () => this.migrateSchema());
+  }
+
+  private migrateSchema() {
+    this.ctx.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS _sql_schema_migrations (
+        id INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    const version = this.ctx.storage.sql
+      .exec<{ version: number }>(
+        "SELECT COALESCE(MAX(id), 0) AS version FROM _sql_schema_migrations"
+      )
+      .one().version;
+
+    if (version < 1) {
       this.ctx.storage.sql.exec(`
         CREATE TABLE IF NOT EXISTS live_room_chat_rate_limits (
           user_id TEXT PRIMARY KEY,
           timestamps TEXT NOT NULL
-        )
+        );
+        INSERT INTO _sql_schema_migrations (id) VALUES (1);
       `);
-    });
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -74,7 +92,7 @@ export class LiveRoomDurableObject extends DurableObject {
     }
 
     if (request.method === "GET" && url.pathname === "/state") {
-      return jsonResponse(await this.getState());
+      return jsonResponse(await this.loadState());
     }
 
     if (request.method === "POST" && url.pathname === "/seed") {
@@ -100,19 +118,19 @@ export class LiveRoomDurableObject extends DurableObject {
         return jsonResponse(body, 201);
       }
 
-      return jsonResponse(await this.getState());
+      return jsonResponse(await this.loadState());
     }
 
     const identity = this.identityFromRequest(request);
     if (request.method === "POST" && url.pathname === "/chat") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomChatBody,
-        result = await this.addChatMessage(body, identity);
+        result = await this.appendChatMessage(body, identity);
       return jsonResponse(result, result.rateLimited ? 429 : 201);
     }
 
     if (request.method === "POST" && url.pathname === "/vote") {
       const body = (await request.json().catch(() => ({}))) as LiveRoomVoteBody,
-        result = await this.recordVote(body, identity);
+        result = await this.applyVote(body, identity);
 
       return jsonResponse(result.body, result.status);
     }
@@ -135,7 +153,7 @@ export class LiveRoomDurableObject extends DurableObject {
       const parsed = JSON.parse(message) as LiveRoomSocketMessage;
 
       if (parsed.type === "chat") {
-        await this.addChatMessage(
+        await this.appendChatMessage(
           (parsed.payload ?? {}) as LiveRoomChatBody,
           attachment
         );
@@ -143,7 +161,7 @@ export class LiveRoomDurableObject extends DurableObject {
       }
 
       if (parsed.type === "vote") {
-        await this.recordVote(
+        await this.applyVote(
           (parsed.payload ?? {}) as LiveRoomVoteBody,
           attachment
         );
@@ -169,7 +187,52 @@ export class LiveRoomDurableObject extends DurableObject {
     await this.broadcastPresence();
   }
 
-  private async getState(): Promise<LiveRoomState> {
+  async getState(roomId: string): Promise<LiveRoomState> {
+    this.requestedRoomId = roomId;
+    return this.loadState();
+  }
+
+  async seed(
+    roomId: string,
+    body: LiveRoomState
+  ): Promise<{ replaced: boolean; room: LiveRoomState }> {
+    this.requestedRoomId = roomId;
+    const storedState =
+        await this.ctx.storage.get<LiveRoomState>(STATE_STORAGE_KEY),
+      shouldReplaceStoredState =
+        !storedState ||
+        storedState.id !== body.id ||
+        storedState.kind !== body.kind ||
+        storedState.title !== body.title;
+
+    if (!shouldReplaceStoredState) {
+      return { replaced: false, room: await this.loadState() };
+    }
+
+    await this.persist(body);
+    this.broadcast({ room: body, type: "state" });
+    return { replaced: true, room: body };
+  }
+
+  async chat(
+    roomId: string,
+    body: LiveRoomChatBody,
+    identity: LiveRoomIdentity
+  ): Promise<LiveRoomChatResult> {
+    this.requestedRoomId = roomId;
+    return this.appendChatMessage(body, identity);
+  }
+
+  async vote(
+    roomId: string,
+    body: LiveRoomVoteBody,
+    identity: LiveRoomIdentity
+  ) {
+    this.requestedRoomId = roomId;
+    return this.applyVote(body, identity);
+  }
+
+  private async loadState(): Promise<LiveRoomState> {
     if (this.roomState) {
       return this.roomState;
     }
@@ -180,26 +243,25 @@ export class LiveRoomDurableObject extends DurableObject {
     if (storedState) {
       const storedChat =
         await this.ctx.storage.get<LiveRoomChatMessage[]>(CHAT_STORAGE_KEY);
-      this.roomState = {
+      const room = {
         ...storedState,
         chat: (storedChat ?? storedState.chat ?? []).slice(-MAX_CHAT_MESSAGES),
       };
       if (!storedChat && storedState.chat.length > 0) {
-        await this.ctx.storage.put(CHAT_STORAGE_KEY, this.roomState.chat);
+        await this.ctx.storage.put(CHAT_STORAGE_KEY, room.chat);
       }
-      return this.roomState;
+      this.roomState = room;
+      return room;
     }
 
     const room = createSampleLiveRoom(
       this.requestedRoomId ?? this.ctx.id.toString()
     );
-    this.roomState = room;
     await this.persist(room);
     return room;
   }
 
   private async persist(room: LiveRoomState) {
-    this.roomState = room;
     await Promise.all([
       this.ctx.storage.put(STATE_STORAGE_KEY, { ...room, chat: [] }),
       this.ctx.storage.put(
@@ -207,6 +269,7 @@ export class LiveRoomDurableObject extends DurableObject {
         room.chat.slice(-MAX_CHAT_MESSAGES)
       ),
     ]);
+    this.roomState = room;
   }
 
   private async persistChat(chat: LiveRoomChatMessage[]) {
@@ -216,11 +279,11 @@ export class LiveRoomDurableObject extends DurableObject {
     );
   }
 
-  private async addChatMessage(
+  private async appendChatMessage(
     body: LiveRoomChatBody,
     identity: LiveRoomIdentity
   ): Promise<LiveRoomChatResult> {
-    const room = await this.getState(),
+    const room = await this.loadState(),
       message = body.message?.trim().slice(0, MAX_CHAT_MESSAGE_LENGTH);
 
     if (!message) {
@@ -248,8 +311,8 @@ export class LiveRoomDurableObject extends DurableObject {
         chat: nextChat,
       };
 
-    this.roomState = nextRoom;
     await this.persistChat(nextChat);
+    this.roomState = nextRoom;
     this.broadcast({ message: chatMessage, type: "chat" });
     recordRealtimeMetric({
       dataset: this.env.DO_METRICS,
@@ -260,8 +323,8 @@ export class LiveRoomDurableObject extends DurableObject {
     return { message: chatMessage, room: nextRoom };
   }
 
-  private async recordVote(body: LiveRoomVoteBody, identity: LiveRoomIdentity) {
-    const room = await this.getState();
+  private async applyVote(body: LiveRoomVoteBody, identity: LiveRoomIdentity) {
+    const room = await this.loadState();
 
     if (room.kind !== "battle" || !room.battle) {
       return {
@@ -356,7 +419,19 @@ export class LiveRoomDurableObject extends DurableObject {
       event: "live_room_ws_connect",
       indexes: [identity.userId],
     });
-    void this.sendInitialState(server);
+    this.ctx.waitUntil(
+      (async () => {
+        try {
+          await this.sendInitialState(server);
+        } catch (error) {
+          console.error("Live room initial state delivery failed", {
+            error: error instanceof Error ? error.message : String(error),
+            roomId: this.requestedRoomId,
+          });
+          server.close(1011, "Unable to initialize live room.");
+        }
+      })()
+    );
 
     return new Response(null, {
       status: 101,
@@ -365,13 +440,13 @@ export class LiveRoomDurableObject extends DurableObject {
   }
 
   private async sendInitialState(socket: WebSocket) {
-    const room = await this.getState();
+    const room = await this.loadState();
     socket.send(JSON.stringify({ room, type: "state" }));
     await this.broadcastPresence();
   }
 
   private async broadcastPresence() {
-    const room = await this.getState();
+    const room = await this.loadState();
     this.broadcast({
       count: this.ctx.getWebSockets().length,
       roomId: room.id,

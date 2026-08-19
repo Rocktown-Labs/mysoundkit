@@ -16,7 +16,12 @@ import { Hono } from "hono";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import type { z } from "zod";
 
+import type {
+  LiveRoomIdentity,
+  LiveRoomVoteBody,
+} from "@/durable-objects/live-room";
 import { evaluateBattleKitReadiness } from "@/lib/battle-kits";
+import { retryDurableObjectCall } from "@/lib/durable-object-retry";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -741,34 +746,38 @@ const badRequest = (message: string) => ({
 
     return result;
   },
-  durableRequest = (
+  liveRoomIdentity = (c: {
+    get?: (key: "user") => AuthenticatedUser | null;
+  }): LiveRoomIdentity => {
+    const user = c.get?.("user");
+    return {
+      displayName: user?.name?.trim() || "Listener",
+      userId: user?.id ?? "anonymous",
+    };
+  },
+  durableWebSocketRequest = (
     c: {
       env: AppEnv["Bindings"];
       get?: (key: "user") => AuthenticatedUser | null;
     },
     roomId: string,
-    path: string,
-    init?: RequestInit
+    request: Request
   ) => {
     if (!c.env.LIVE_ROOMS) {
       return null;
     }
 
-    const id = c.env.LIVE_ROOMS.idFromName(roomId),
-      stub = c.env.LIVE_ROOMS.get(id),
-      headers = new Headers(init?.headers),
-      user = c.get?.("user");
+    const headers = new Headers(request.headers),
+      identity = liveRoomIdentity(c);
     headers.set("x-soundkit-live-room-id", roomId);
-    headers.set("x-soundkit-live-user-id", user?.id ?? "anonymous");
-    headers.set(
-      "x-soundkit-live-display-name",
-      user?.name?.trim() || "Listener"
+    headers.set("x-soundkit-live-user-id", identity.userId);
+    headers.set("x-soundkit-live-display-name", identity.displayName);
+    return c.env.LIVE_ROOMS.getByName(roomId).fetch(
+      new Request(`https://live-room.soundkit.internal/ws`, {
+        headers,
+        method: "GET",
+      })
     );
-
-    return stub.fetch(`https://live-room.soundkit.internal${path}`, {
-      ...init,
-      headers,
-    });
   },
   objectUrlFromMetadata = (metadata: unknown) => {
     if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
@@ -1336,16 +1345,34 @@ const badRequest = (message: string) => ({
   }: {
     c: {
       env: AppEnv["Bindings"];
-      get?: (key: "user") => AuthenticatedUser | null;
     };
     room: LiveRoomState;
     roomId: string;
-  }) =>
-    durableRequest(c, roomId, "/seed", {
-      body: JSON.stringify(room),
-      headers: { "content-type": "application/json" },
-      method: "POST",
+  }) => {
+    if (!c.env.LIVE_ROOMS) {
+      return null;
+    }
+
+    const liveRooms = c.env.LIVE_ROOMS,
+      result = await retryDurableObjectCall(() =>
+        liveRooms.getByName(roomId).seed(roomId, room)
+      );
+    return Response.json(result.room, {
+      status: result.replaced ? HttpStatusCodes.CREATED : HttpStatusCodes.OK,
     });
+  },
+  getDurableRoomState = async (
+    c: { env: AppEnv["Bindings"] },
+    roomId: string
+  ) => {
+    if (!c.env.LIVE_ROOMS) {
+      return null;
+    }
+    const liveRooms = c.env.LIVE_ROOMS;
+    return retryDurableObjectCall(() =>
+      liveRooms.getByName(roomId).getState(roomId)
+    );
+  };
 
 app.post("/experiences", async (c) => {
   const user = c.get("user");
@@ -1800,25 +1827,28 @@ app.get("/rooms/:roomId", async (c) => {
     }
   }
 
-  const response = await durableRequest(c, roomId, "/state");
+  const room = await getDurableRoomState(c, roomId);
 
-  if (!response) {
+  if (!room) {
     return c.json(
       { message: "Live room Durable Object binding is not configured." },
       HttpStatusCodes.SERVICE_UNAVAILABLE
     );
   }
 
-  const room = await response.json();
   return c.json(room, HttpStatusCodes.OK);
 });
 
 app.get("/rooms/:roomId/ws", async (c) => {
+  if (c.req.header("upgrade")?.toLowerCase() !== "websocket") {
+    return c.json(
+      { message: "Expected WebSocket upgrade." },
+      HttpStatusCodes.UPGRADE_REQUIRED
+    );
+  }
+
   const roomId = c.req.param("roomId"),
-    response = await durableRequest(c, roomId, "/ws", {
-      headers: c.req.raw.headers,
-      method: "GET",
-    });
+    response = durableWebSocketRequest(c, roomId, c.req.raw);
 
   if (!response) {
     return c.json(
@@ -1831,47 +1861,46 @@ app.get("/rooms/:roomId/ws", async (c) => {
 });
 
 app.post("/rooms/:roomId/chat", async (c) => {
-  const roomId = c.req.param("roomId"),
-    body = (await c.req.json().catch(() => ({}))) as {
-      message?: string;
-      userName?: string;
-    },
-    response = await durableRequest(c, roomId, "/chat", {
-      body: JSON.stringify(body),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-
-  if (!response) {
+  if (!c.env.LIVE_ROOMS) {
     return c.json(
       { message: "Live room chat is not configured." },
       HttpStatusCodes.SERVICE_UNAVAILABLE
     );
   }
 
-  const room = await response.json();
-  return c.json(room, HttpStatusCodes.CREATED);
+  const roomId = c.req.param("roomId"),
+    body = (await c.req.json().catch(() => ({}))) as { message?: string },
+    result = await c.env.LIVE_ROOMS.getByName(roomId).chat(
+      roomId,
+      body,
+      liveRoomIdentity(c)
+    );
+
+  return c.json(
+    result,
+    result.rateLimited
+      ? HttpStatusCodes.TOO_MANY_REQUESTS
+      : HttpStatusCodes.CREATED
+  );
 });
 
 app.post("/rooms/:roomId/vote", async (c) => {
-  const roomId = c.req.param("roomId"),
-    response = await durableRequest(c, roomId, "/vote", {
-      body: JSON.stringify(await c.req.json().catch(() => ({}))),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-
-  if (!response) {
+  if (!c.env.LIVE_ROOMS) {
     return c.json(
       { message: "Live room voting is not configured." },
       HttpStatusCodes.SERVICE_UNAVAILABLE
     );
   }
 
-  const voteBody = await response.json();
-  return Response.json(voteBody, {
-    status: response.status,
-  });
+  const roomId = c.req.param("roomId"),
+    body = (await c.req.json().catch(() => ({}))) as LiveRoomVoteBody,
+    result = await c.env.LIVE_ROOMS.getByName(roomId).vote(
+      roomId,
+      body,
+      liveRoomIdentity(c)
+    );
+
+  return Response.json(result.body, { status: result.status });
 });
 
 app.post("/cloudflare-stream", async (c) => {

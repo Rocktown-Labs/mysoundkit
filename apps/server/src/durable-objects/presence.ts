@@ -48,6 +48,7 @@ export class PresenceDurableObject extends DurableObject {
   };
   private userId: string | null = null;
   private dirty = false;
+  private stateVersion = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -76,6 +77,7 @@ export class PresenceDurableObject extends DurableObject {
       lastSeen: Date.now(),
       status,
     };
+    this.stateVersion += 1;
     this.dirty = true;
 
     if (changed) {
@@ -136,6 +138,7 @@ export class PresenceDurableObject extends DurableObject {
         lastSeen: Date.now(),
         status: "online",
       };
+      this.stateVersion += 1;
       this.dirty = true;
       if (changed) {
         this.broadcastPresence();
@@ -223,6 +226,7 @@ export class PresenceDurableObject extends DurableObject {
         status: "offline",
       };
       this.offlineGraceUntil = null;
+      this.stateVersion += 1;
       this.dirty = true;
       this.broadcastPresence();
     }
@@ -276,12 +280,18 @@ export class PresenceDurableObject extends DurableObject {
       return;
     }
 
+    const flushVersion = this.stateVersion,
+      snapshot = { ...this.presence },
+      updatedAt = new Date();
+
     // Persist locally before attempting external I/O so hibernation/crashes do
-    // not lose the latest state.
-    await this.ctx.storage.put(PRESENCE_STATE_KEY, this.presence);
+    // not lose the snapshot being flushed.
+    await this.ctx.storage.put(PRESENCE_STATE_KEY, snapshot);
 
     if (!isDatabaseConfigured()) {
-      this.dirty = false;
+      if (this.stateVersion === flushVersion) {
+        this.dirty = false;
+      }
       return;
     }
 
@@ -289,20 +299,25 @@ export class PresenceDurableObject extends DurableObject {
       await createDb()
         .insert(userPresence)
         .values({
-          lastSeen: new Date(this.presence.lastSeen),
-          status: this.presence.status,
-          updatedAt: new Date(),
+          lastSeen: new Date(snapshot.lastSeen),
+          status: snapshot.status,
+          updatedAt,
           userId,
         })
         .onConflictDoUpdate({
           set: {
-            lastSeen: new Date(this.presence.lastSeen),
-            status: this.presence.status,
-            updatedAt: new Date(),
+            lastSeen: new Date(snapshot.lastSeen),
+            status: snapshot.status,
+            updatedAt,
           },
           target: userPresence.userId,
         });
-      this.dirty = false;
+      if (this.stateVersion === flushVersion) {
+        this.dirty = false;
+      } else {
+        this.dirty = true;
+        await this.scheduleFlush();
+      }
       recordRealtimeMetric({
         dataset: this.env.DO_METRICS,
         event: "presence_db_flush",
