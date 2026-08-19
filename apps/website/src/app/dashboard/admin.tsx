@@ -605,6 +605,23 @@ function OverviewPanel() {
     backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
 
   useEffect(() => {
+    const status = backfillStatus.data;
+    if (!status) {
+      return;
+    }
+
+    if (status.runId && status.runId !== backfillRunId) {
+      setBackfillRunId(status.runId);
+    }
+
+    const inFlight = status.processing + status.queued;
+    if (inFlight > 0 && !backfillActive) {
+      completionHandledRef.current = false;
+      setBackfillActive(true);
+    }
+  }, [backfillActive, backfillRunId, backfillStatus.data]);
+
+  useEffect(() => {
     if (
       !backfillActive ||
       completionHandledRef.current ||
@@ -815,7 +832,10 @@ function OverviewPanel() {
             <Button
               disabled={
                 backfillDurations.isPending ||
-                (backfillActive && (backfillStatus.data?.queued ?? 0) > 0)
+                (backfillActive &&
+                  (backfillStatus.data?.queued ?? 0) +
+                    (backfillStatus.data?.processing ?? 0) >
+                    0)
               }
               onClick={handleBackfillDurations}
               size="sm"

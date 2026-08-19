@@ -573,14 +573,20 @@ export const useTrackDurationBackfillStatusQuery = (
   enabled = true
 ) =>
   useQuery({
-    enabled: enabled && Boolean(runId),
+    enabled,
     queryFn: async () =>
       rpcJson(
         await adminBackfillTrackDurationsStatusGet({
-          query: { runId: runId ?? "" },
+          query: runId ? { runId } : {},
         })
       ),
-    queryKey: ["admin", "tracks", "backfill-durations", "status", runId],
+    queryKey: [
+      "admin",
+      "tracks",
+      "backfill-durations",
+      "status",
+      runId ?? "latest",
+    ],
     refetchInterval: (query) => {
       const status = query.state.data;
 

@@ -60,7 +60,7 @@ export const backfillTrackDurationsResponseSchema = z.object({
 });
 
 export const trackDurationBackfillStatusQuerySchema = z.object({
-  runId: z.string().min(1),
+  runId: z.string().min(1).optional(),
 });
 
 export const trackDurationBackfillStatusSchema = z.object({
@@ -77,7 +77,7 @@ export const trackDurationBackfillStatusSchema = z.object({
     .array(),
   processing: z.number().int().nonnegative(),
   queued: z.number().int().nonnegative(),
-  runId: z.string(),
+  runId: z.string().nullable(),
 });
 
 export const adminFinanceSummarySchema = z.object({

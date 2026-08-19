@@ -530,14 +530,24 @@ export const handleTrackDurationBackfillQueue = async (
   }
 };
 
-export const loadTrackDurationBackfillStatus = async (runId: string) => {
+export const loadTrackDurationBackfillStatus = async (
+  requestedRunId?: string
+) => {
   if (!isDatabaseConfigured()) {
-    return { done: 0, failed: 0, items: [], processing: 0, queued: 0, runId };
+    return {
+      done: 0,
+      failed: 0,
+      items: [],
+      processing: 0,
+      queued: 0,
+      runId: requestedRunId ?? null,
+    };
   }
 
   const db = createDb(),
     rows = await db
       .select({
+        createdAt: workflowJobs.createdAt,
         durationMs: trackAssets.durationMs,
         error: workflowJobs.error,
         input: workflowJobs.input,
@@ -549,15 +559,46 @@ export const loadTrackDurationBackfillStatus = async (runId: string) => {
       .innerJoin(trackAssets, eq(trackAssets.id, workflowJobs.targetId))
       .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
       .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)),
-    runRows = rows.filter((row) => {
-      const { input } = row;
-      return (
-        input !== null &&
-        typeof input === "object" &&
-        "runId" in input &&
-        input.runId === runId
-      );
-    }),
+    latestRunId = requestedRunId
+      ? requestedRunId
+      : rows.reduce<string | null>((latest, row) => {
+          const input = row.input;
+          if (
+            !(
+              input !== null &&
+              typeof input === "object" &&
+              "runId" in input &&
+              typeof input.runId === "string"
+            )
+          ) {
+            return latest;
+          }
+          const latestRow = latest
+            ? rows.find((candidate) => {
+                const candidateInput = candidate.input;
+                return (
+                  candidateInput !== null &&
+                  typeof candidateInput === "object" &&
+                  "runId" in candidateInput &&
+                  candidateInput.runId === latest
+                );
+              })
+            : null;
+          return !latestRow || row.createdAt > latestRow.createdAt
+            ? input.runId
+            : latest;
+        }, null),
+    runRows = latestRunId
+      ? rows.filter((row) => {
+          const { input } = row;
+          return (
+            input !== null &&
+            typeof input === "object" &&
+            "runId" in input &&
+            input.runId === latestRunId
+          );
+        })
+      : [],
     summary = { done: 0, failed: 0, processing: 0, queued: 0 };
 
   for (const row of runRows) {
@@ -584,6 +625,6 @@ export const loadTrackDurationBackfillStatus = async (runId: string) => {
       title: row.title,
       trackId: row.trackId,
     })),
-    runId,
+    runId: latestRunId,
   };
 };
