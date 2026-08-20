@@ -190,7 +190,7 @@ A static documentation engine built with Astro 6 and Starlight, offering Pagefin
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/cgRGM/mysoundkit.git
+   git clone https://github.com/Rocktown-Labs/mysoundkit.git
    cd mysoundkit
    ```
 
