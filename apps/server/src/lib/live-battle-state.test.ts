@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BATTLE_ADMISSION_BATCH_SIZE,
   createBattleCoordination,
   transitionBattle,
 } from "@/lib/live-battle-state";
@@ -56,9 +55,11 @@ const artists: [LiveRoomArtist, LiveRoomArtist] = [
 }),
 
  host = (
-  format: "best_of_3" | "best_of_5" | "best_of_7" = "best_of_3"
+  format: "best_of_3" | "best_of_5" | "best_of_7" = "best_of_3",
+  admissionBatchSize = 50
 ) => {
   const coordination = createBattleCoordination({
+    admissionBatchSize,
     battleId: "battle-1",
     durations: {
       betweenRoundsMs: 10,
@@ -185,9 +186,7 @@ describe("live battle state machine", () => {
 
     state = transitionBattle({ battle: state.battle, coordination }, 10);
     expect(state.coordination.phase).toBe("waiting_room");
-    expect(state.coordination.admittedUserIds).toHaveLength(
-      BATTLE_ADMISSION_BATCH_SIZE
-    );
+    expect(state.coordination.admittedUserIds).toHaveLength(50);
     expect(state.coordination.queuedUserIds).toEqual([]);
     expect(state.coordination.waitingUserIds).toHaveLength(70);
   });
@@ -234,5 +233,26 @@ describe("live battle state machine", () => {
     expect(state.coordination.phase).toBe("round_intro");
     expect(state.coordination.admittedUserIds).toHaveLength(75);
     expect(state.coordination.waitingUserIds).toHaveLength(20);
+  });
+
+  it("admits thousands of queued users when the batch size is raised via coordination", () => {
+    let state = host("best_of_3", 1000),
+      coordination = {
+        ...state.coordination,
+        phase: "scheduled" as const,
+        phaseEndsAt: 10,
+        phaseStartedAt: 0,
+        queuedUserIds: Array.from(
+          { length: 2500 },
+          (_, index) => `fan-${index + 1}`
+        ),
+        waitingUserIds: [],
+      };
+
+    state = transitionBattle({ battle: state.battle, coordination }, 10);
+    expect(state.coordination.phase).toBe("waiting_room");
+    expect(state.coordination.admittedUserIds).toHaveLength(1000);
+    expect(state.coordination.queuedUserIds).toEqual([]);
+    expect(state.coordination.waitingUserIds).toHaveLength(1500);
   });
 });

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added go-live CTA for queued battle viewers: queued users now receive an in-app notification and global toast when their battle opens, with a chooser dialog that navigates straight into the arena (auto-transition is used when watching a single queued battle from its own page).
+- Raised battle admission capacity so thousands of fans can queue per live activity: the admission batch size is now configurable via the `BATTLE_ADMISSION_BATCH_SIZE` env var (default 1000) instead of a hardcoded 50.
 - Added battle queue experience with persistent Postgres queue interest (`battleQueueEntries`), scheduled-phase waiting room, audio-visual battle stage countdown, batch admission between rounds, per-user queue/admission status in live room state, and Join Queue / Leave actions with navigation guard on the real battle route.
 - Fixed non-voter removal boot so required-voter eligibility survives past voting close and batch admission does not run mid-round.
 - Hardened Live around per-room Durable Object state, alarm-driven battle phases, authenticated role-scoped controls, synchronized party playback, Stream ingest lifecycle states, async live notification fanout, durable replay workflow scheduling, real-route premium enforcement, and shared preview/fullscreen UI contracts.

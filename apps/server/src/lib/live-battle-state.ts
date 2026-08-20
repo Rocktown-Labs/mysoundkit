@@ -32,7 +32,7 @@ export interface BattleDurations {
   waitingRoomMs: number;
 }
 
-export const BATTLE_ADMISSION_BATCH_SIZE = 50;
+export const BATTLE_ADMISSION_BATCH_SIZE = 1000;
 
 export const PRODUCTION_BATTLE_DURATIONS: BattleDurations = {
   betweenRoundsMs: 15_000,
@@ -46,6 +46,7 @@ export const PRODUCTION_BATTLE_DURATIONS: BattleDurations = {
 
 export interface BattleCoordination {
   activeArtistUserId: string | null;
+  admissionBatchSize?: number;
   admittedUserIds?: string[];
   battleId: string;
   durations: BattleDurations;
@@ -168,14 +169,17 @@ export const createBattleCoordination = ({
   now = Date.now(),
   scheduledStartAt,
   durations = PRODUCTION_BATTLE_DURATIONS,
+  admissionBatchSize,
 }: {
   battleId: string;
   format: BattleCoordination["format"];
   now?: number;
   scheduledStartAt?: number | null;
   durations?: BattleDurations;
+  admissionBatchSize?: number;
 }): BattleCoordination => ({
   activeArtistUserId: null,
+  admissionBatchSize,
   admittedUserIds: [],
   battleId,
   durations,
@@ -325,13 +329,15 @@ export const transitionBattle = (
     shouldAdmitBatch =
       nextPhase === "waiting_room" ||
       (nextPhase === "round_intro" && phase === "between_rounds"),
+    admissionBatchSize =
+      coordination.admissionBatchSize ?? BATTLE_ADMISSION_BATCH_SIZE,
     admittedBatch = shouldAdmitBatch
-      ? admissionCandidates.slice(0, BATTLE_ADMISSION_BATCH_SIZE)
+      ? admissionCandidates.slice(0, admissionBatchSize)
       : [],
     requiredVoters = coordination.requiredVoterUserIds ?? [],
     votedUsers = coordination.votedUserIds ?? [],
     waitingUsers = shouldAdmitBatch
-      ? admissionCandidates.slice(BATTLE_ADMISSION_BATCH_SIZE)
+      ? admissionCandidates.slice(admissionBatchSize)
       : (coordination.waitingUserIds ?? []),
     removedUserIds =
       nextPhase === "between_rounds"

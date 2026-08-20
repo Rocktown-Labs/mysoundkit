@@ -2324,6 +2324,52 @@ app.post("/rooms/:roomId/party/playback", async (c) => {
   }
 });
 
+app.get("/rooms/queue", async (c) => {
+  const user = c.get("user");
+  if (!isAuthenticatedUser(user)) {
+    return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+  }
+  if (!isDatabaseConfigured()) {
+    return c.json(
+      databaseUnavailableMessage,
+      HttpStatusCodes.SERVICE_UNAVAILABLE
+    );
+  }
+
+  const db = createDb(),
+    rows = await db
+      .select({
+        battleId: battleQueueEntries.battleId,
+        startsAt: battles.startsAt,
+        status: battles.status,
+        title: battles.title,
+      })
+      .from(battleQueueEntries)
+      .innerJoin(battles, eq(battles.id, battleQueueEntries.battleId))
+      .where(
+        and(
+          eq(battleQueueEntries.userId, user.id),
+          or(
+            eq(battleQueueEntries.status, "queued"),
+            eq(battleQueueEntries.status, "conflict")
+          )
+        )
+      )
+      .orderBy(asc(battles.startsAt));
+
+  return c.json(
+    {
+      battles: rows.map((row) => ({
+        battleId: row.battleId,
+        startsAt: row.startsAt ? row.startsAt.toISOString() : null,
+        status: row.status,
+        title: row.title,
+      })),
+    },
+    HttpStatusCodes.OK
+  );
+});
+
 app.get("/rooms/:roomId", async (c) => {
   const roomId = c.req.param("roomId"),
     battleRoom = await buildBattleRoomSnapshot(roomId),

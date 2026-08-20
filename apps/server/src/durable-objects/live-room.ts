@@ -93,6 +93,19 @@ export class LiveRoomDurableObject extends DurableObject {
     }
   }
 
+  private battleAdmissionBatchSize(): number | undefined {
+    const raw = (this.env as { BATTLE_ADMISSION_BATCH_SIZE?: string })
+      .BATTLE_ADMISSION_BATCH_SIZE;
+
+    if (!raw) {
+      return undefined;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
   async fetch(request: Request): Promise<Response> {
     this.requestedRoomId = request.headers.get("x-soundkit-live-room-id");
     const url = new URL(request.url);
@@ -544,6 +557,7 @@ export class LiveRoomDurableObject extends DurableObject {
       coordination = {
         ...(room.battle.coordination ??
           createBattleCoordination({
+            admissionBatchSize: this.battleAdmissionBatchSize(),
             battleId: room.id,
             durations: PRODUCTION_BATTLE_DURATIONS,
             format,
@@ -557,6 +571,9 @@ export class LiveRoomDurableObject extends DurableObject {
             }
           : {}),
         admittedUserIds: room.battle.coordination?.admittedUserIds ?? [],
+        admissionBatchSize:
+          room.battle.coordination?.admissionBatchSize ??
+          this.battleAdmissionBatchSize(),
         removedUserIds: room.battle.coordination?.removedUserIds ?? [],
         requiredVoterUserIds:
           room.battle.coordination?.requiredVoterUserIds ?? [],

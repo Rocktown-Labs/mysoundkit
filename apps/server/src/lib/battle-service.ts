@@ -1,6 +1,7 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   battles,
+  battleQueueEntries,
   userNotifications,
   webhookEvents,
 } from "@soundkit/db/schema/app";
@@ -96,6 +97,23 @@ const reminderEventTypes = new Set([
 
     return rows.length;
   },
+  getQueuedBattleRecipientUserIds = async (battleId: string) => {
+    const rows = await createDb()
+      .select({ userId: battleQueueEntries.userId })
+      .from(battleQueueEntries)
+      .where(
+        and(
+          eq(battleQueueEntries.battleId, battleId),
+          or(
+            eq(battleQueueEntries.status, "queued"),
+            eq(battleQueueEntries.status, "conflict")
+          )
+        )
+      )
+      .limit(1000);
+
+    return rows.map(({ userId }) => userId);
+  },
   getResultsSummary = (payload: Record<string, unknown>) => {
     const direct =
       typeof payload.resultsSummary === "string"
@@ -172,6 +190,18 @@ const reminderEventTypes = new Set([
         title: "Battle Is Live",
         type: "battle_live",
       });
+      const queuedUserIds = await getQueuedBattleRecipientUserIds(battle.id);
+      if (queuedUserIds.length > 0) {
+        await insertBattleNotifications({
+          battleId: battle.id,
+          eventId: `${eventId}:queued`,
+          link: `/live/battles/${battle.id}`,
+          message: `${battle.title} opened. Tap to join the battle now.`,
+          recipientUserIds: queuedUserIds,
+          title: "Your Battle Is Live",
+          type: "battle_queued_live",
+        });
+      }
 
       return "processed";
     }
