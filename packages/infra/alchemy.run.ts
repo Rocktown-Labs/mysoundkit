@@ -156,6 +156,10 @@ const SITE_HOST = isProduction
       },
     ],
   }),
+  liveRecordingWorkflow = Workflow("live-recording", {
+    className: "LiveRecordingWorkflow",
+    workflowName: resourceName("soundkit-live-recording"),
+  }),
   trackProcessingWorkflow = Workflow("track-processing", {
     className: "TrackProcessingWorkflow",
     workflowName: resourceName("soundkit-track-processing"),
@@ -171,6 +175,21 @@ const SITE_HOST = isProduction
     adopt: shouldAdoptRemoteResources,
     dlq: emailDeliveryDeadLetterQueue,
     name: resourceName("soundkit-email-delivery"),
+    settings: {
+      messageRetentionPeriod: 1_209_600,
+    },
+  }),
+  liveNotificationDeadLetterQueue = await Queue("live-notifications-dlq", {
+    adopt: shouldAdoptRemoteResources,
+    name: resourceName("soundkit-live-notifications-dlq"),
+    settings: {
+      messageRetentionPeriod: 1_209_600,
+    },
+  }),
+  liveNotificationQueue = await Queue("live-notifications", {
+    adopt: shouldAdoptRemoteResources,
+    dlq: liveNotificationDeadLetterQueue,
+    name: resourceName("soundkit-live-notifications"),
     settings: {
       messageRetentionPeriod: 1_209_600,
     },
@@ -281,6 +300,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_API_TOKEN"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
+    ...optionalEnvBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
     SOUNDKIT_ALLOW_MOCK_REALTIME: isPullRequestPreview ? "true" : "false",
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,
@@ -294,6 +314,8 @@ export const server = await Worker("server", {
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
     HYPERDRIVE: hyperdrive,
+    LIVE_NOTIFICATION_QUEUE: liveNotificationQueue,
+    LIVE_RECORDING_WORKFLOW: liveRecordingWorkflow,
     LIVE_ROOMS: liveRooms,
     PRESENCE: presence,
     MEDIA_BUCKET: media,
@@ -378,6 +400,17 @@ export const server = await Worker("server", {
         maxRetries: 6,
         maxWaitTimeMs: 2500,
         retryDelay: 60,
+      },
+    },
+    {
+      queue: liveNotificationQueue,
+      settings: {
+        batchSize: 50,
+        deadLetterQueue: liveNotificationDeadLetterQueue,
+        maxConcurrency: 10,
+        maxRetries: 6,
+        maxWaitTimeMs: 5000,
+        retryDelay: 30,
       },
     },
     {

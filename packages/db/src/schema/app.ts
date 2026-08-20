@@ -269,6 +269,14 @@ export const battleRoundStatusEnum = pgEnum("battle_round_status", [
   "active",
   "completed",
 ]);
+export const battleQueueEntryStatusEnum = pgEnum("battle_queue_entry_status", [
+  "queued",
+  "admitted",
+  "left",
+  "removed",
+  "completed",
+  "conflict",
+]);
 export const analyticsScopeTypeEnum = pgEnum("analytics_scope_type", [
   "user",
   "artist",
@@ -320,6 +328,7 @@ export const webhookProviderEnum = pgEnum("webhook_provider", [
   "battle_service",
   "resend",
   "realtimekit",
+  "cloudflare_stream",
 ]);
 
 export const liveExperienceStatusEnum = pgEnum("live_experience_status", [
@@ -2100,6 +2109,72 @@ export const battleRounds = pgTable(
   (table) => [index("battle_rounds_battle_id_idx").on(table.battleId)]
 );
 
+export const battleLineupSnapshots = pgTable(
+  "battle_lineup_snapshots",
+  {
+    artistUserId: text("artist_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    battleId: text("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    format: battleFormatEnum("format").notNull(),
+    id: text("id").primaryKey(),
+    kitId: text("kit_id")
+      .notNull()
+      .references(() => battleKits.id, { onDelete: "restrict" }),
+    tracks: jsonb("tracks").notNull(),
+  },
+  (table) => [
+    uniqueIndex("battle_lineup_snapshots_battle_artist_idx").on(
+      table.battleId,
+      table.artistUserId
+    ),
+  ]
+);
+
+export const battleQueueEntries = pgTable(
+  "battle_queue_entries",
+  {
+    admittedAt: timestamp("admitted_at"),
+    battleId: text("battle_id")
+      .notNull()
+      .references(() => battles.id, { onDelete: "cascade" }),
+    completedAt: timestamp("completed_at"),
+    conflictBattleId: text("conflict_battle_id").references(() => battles.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    id: text("id").primaryKey(),
+    leftAt: timestamp("left_at"),
+    position: integer("position").default(0).notNull(),
+    status: battleQueueEntryStatusEnum("status").default("queued").notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("battle_queue_entries_battle_user_idx").on(
+      table.battleId,
+      table.userId
+    ),
+    index("battle_queue_entries_battle_status_idx").on(
+      table.battleId,
+      table.status,
+      table.position
+    ),
+    index("battle_queue_entries_user_status_idx").on(
+      table.userId,
+      table.status
+    ),
+  ]
+);
+
 export const battleStats = pgTable(
   "battle_stats",
   {
@@ -2141,6 +2216,9 @@ export const liveExperiences = pgTable(
     endsAt: timestamp("ends_at"),
     genre: text("genre"),
     id: text("id").primaryKey(),
+    ingestErrorCode: text("ingest_error_code"),
+    ingestErrorMessage: text("ingest_error_message"),
+    ingestStatus: text("ingest_status").default("idle").notNull(),
     kind: liveExperienceKindEnum("kind").notNull(),
     meetingId: text("meeting_id").notNull(),
     peakViewerCount: integer("peak_viewer_count").default(0).notNull(),
@@ -2155,7 +2233,10 @@ export const liveExperiences = pgTable(
     recordingId: text("recording_id"),
     recordingStatus: text("recording_status"),
     recordingUrl: text("recording_url"),
+    reconnectUntil: timestamp("reconnect_until"),
+    replayPublishedAt: timestamp("replay_published_at"),
     source: text("source").default("browser").notNull(),
+    startedAt: timestamp("started_at"),
     startsAt: timestamp("starts_at").notNull(),
     status: liveExperienceStatusEnum("status").default("scheduled").notNull(),
     streamInputId: text("stream_input_id"),

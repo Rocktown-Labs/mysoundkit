@@ -31,4 +31,15 @@ test("deployed preview serves healthy API and public browser routes", async ({
       page.getByRole("heading", { name: route.heading }).first()
     ).toBeVisible();
   }
+
+  await page.goto("/live/preview", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText("Live Experience Preview")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Artist A View" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Artist B View" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Fan View" })).toBeVisible();
+  await page.getByRole("button", { name: "Voting Active" }).click();
+  await expect(page.getByText(/Battle Simulation Controls/i)).toBeVisible();
+  await page.getByRole("button", { name: "Creator Stream" }).click();
+  await page.getByRole("button", { name: "Reconnecting" }).click();
+  await expect(page.getByText("RECONNECTING")).toBeVisible();
 });

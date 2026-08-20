@@ -4,7 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { CalendarClock, Maximize, Minimize, Play, Radio } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
@@ -13,6 +13,7 @@ import {
   LiveLyricsPanel,
 } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
+import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,11 @@ function StreamDetailPage() {
   const { id } = Route.useParams(),
     { chat, chatMessages, query } = useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
-    [isFullscreen, setIsFullscreen] = useState(false),
-    videoContainerRef = useRef<HTMLDivElement | null>(null),
+    {
+      containerRef: videoContainerRef,
+      isFullscreen,
+      toggleFullscreen,
+    } = useBrowserFullscreen(),
     room = query.data,
     experienceQuery = useQuery({
       queryFn: async () => {
@@ -56,13 +60,23 @@ function StreamDetailPage() {
           title: string;
           viewerCount: number;
           visibility: string;
+          ingestErrorCode?: string | null;
+          ingestErrorMessage?: string | null;
+          ingestStatus?: string;
+          reconnectUntil?: string | null;
+          replayPublishedAt?: string | null;
+          recordingStatus?: string | null;
         };
       },
       queryKey: ["live-experience", id],
       refetchInterval: 5000,
     }),
     experience = experienceQuery.data,
-    isLive = experience?.status === "live",
+    isLive =
+      experience?.status === "live" &&
+      (experience.ingestStatus === undefined ||
+        experience.ingestStatus === "connected"),
+    isReconnecting = experience?.ingestStatus === "reconnecting",
     currentTrack = room?.tracklist.find(
       (track) => track.id === room.currentTrackId
     ),
@@ -73,30 +87,6 @@ function StreamDetailPage() {
         .replaceAll(/\s+/g, ""),
     artistQuery = useArtistQuery(rawCreatorUsername),
     artistData = artistQuery.data;
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (videoContainerRef.current?.requestFullscreen) {
-          await videoContainerRef.current.requestFullscreen();
-        }
-      } else if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      setIsFullscreen((prev) => !prev);
-    }
-  };
 
   if (query.isLoading) {
     return (
@@ -170,7 +160,19 @@ function StreamDetailPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="rounded-xl border border-white/10 bg-black/75 px-8 py-6 text-center text-white backdrop-blur-md">
-                {experience?.status === "scheduled" ? (
+                {isReconnecting ? (
+                  <>
+                    <Radio className="mx-auto mb-3 size-10 animate-pulse text-amber-400" />
+                    <p className="font-bold text-lg">
+                      Temporarily Reconnecting
+                    </p>
+                    <p className="mt-1 text-sm text-white/70">
+                      The broadcaster lost connection. We are holding the room
+                      open.
+                    </p>
+                  </>
+                ) : (experience?.ingestStatus === "waiting_for_ingest" ||
+                  experience?.status === "scheduled" ? (
                   <>
                     <CalendarClock className="mx-auto mb-3 size-10 text-primary" />
                     <p className="font-bold text-lg">Broadcast Scheduled</p>
@@ -186,10 +188,14 @@ function StreamDetailPage() {
                     <Play className="mx-auto mb-3 size-10 fill-white text-white" />
                     <p className="font-bold text-lg">{room.title}</p>
                     <p className="mt-1 text-sm text-white/70">
-                      Stream Offline • Returning soon
+                      {experience?.replayPublishedAt
+                        ? "Replay Available"
+                        : experience?.recordingStatus
+                          ? "Replay Processing"
+                          : "Waiting for Broadcaster"}
                     </p>
                   </>
-                )}
+                ))}
               </div>
             </div>
           </>
@@ -198,9 +204,17 @@ function StreamDetailPage() {
         <div className="absolute left-4 top-4 flex flex-wrap items-center gap-2">
           <Badge
             className="font-bold tracking-wider"
-            variant={isLive ? "destructive" : "secondary"}
+            variant={
+              isLive ? "destructive" : (isReconnecting ? "outline" : "secondary")
+            }
           >
-            {isLive ? "LIVE" : "OFFLINE"}
+            {isLive
+              ? "LIVE"
+              : isReconnecting
+                ? "RECONNECTING"
+                : experience?.ingestStatus === "waiting_for_ingest"
+                  ? "WAITING FOR OBS"
+                  : "OFFLINE"}
           </Badge>
           {experience?.genre ? (
             <Badge className="bg-black/60 backdrop-blur-md" variant="outline">
@@ -229,7 +243,7 @@ function StreamDetailPage() {
     );
 
   return (
-    <LiveRoomAccessGuard allowPublic={true} roomTitle={room.title}>
+    <LiveRoomAccessGuard roomTitle={room.title}>
       <LiveTwitchShell
         chatPanel={chatPanel}
         defaultChatOpen={true}

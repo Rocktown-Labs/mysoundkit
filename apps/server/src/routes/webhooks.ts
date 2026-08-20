@@ -4,6 +4,7 @@ import { Mux } from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   emailDeliveries,
+  liveExperiences,
   muxAssets,
   muxUploads,
   trackStemJobs,
@@ -123,6 +124,64 @@ const app = new OpenAPIHono<AppEnv>(),
         : null;
 
     return nestedEmail ? getStringValue(nestedEmail.id) : null;
+  },
+  verifyCloudflareStreamSignature = async ({
+    body,
+    header,
+    secret,
+  }: {
+    body: string;
+    header: string;
+    secret: string;
+  }) => {
+    const values = new Map(
+        header.split(",").flatMap((part) => {
+          const [key, value] = part.split("=", 2);
+          return key && value ? [[key, value] as const] : [];
+        })
+      ),
+      timestamp = values.get("time"),
+      signature = values.get("sig1");
+
+    if (!(timestamp && signature)) {
+      return false;
+    }
+
+    const timestampMs = Number(timestamp) * 1000;
+    if (
+      !Number.isFinite(timestampMs) ||
+      Math.abs(Date.now() - timestampMs) > 5 * 60_000
+    ) {
+      return false;
+    }
+
+    const key = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(secret),
+        { hash: "SHA-256", name: "HMAC" },
+        false,
+        ["sign"]
+      ),
+      expected = new Uint8Array(
+        await crypto.subtle.sign(
+          "HMAC",
+          key,
+          new TextEncoder().encode(`${timestamp}.${body}`)
+        )
+      ),
+      actual = signature
+        .match(/.{2}/gu)
+        ?.map((part) => Number.parseInt(part, 16));
+
+    if (!actual || actual.length !== expected.length) {
+      return false;
+    }
+
+    let difference = 0;
+    for (let index = 0; index < expected.length; index += 1) {
+      difference |= (expected[index] ?? 0) ^ (actual[index] ?? 0);
+    }
+    return difference === 0;
   },
   getNestedStringValue = (payload: Record<string, unknown>, keys: string[]) => {
     for (const key of keys) {
@@ -943,6 +1002,139 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/cloudflare-stream",
+    responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid Cloudflare Stream webhook"
+      ),
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Cloudflare Stream webhook accepted"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Cloudflare Stream webhook verification is not configured"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Invalid Cloudflare Stream webhook signature"
+      ),
+    },
+    tags: ["Webhooks"],
+  }),
+  async (c) => {
+    const rawBody = await c.req.raw.text(),
+      signature = c.req.header("Webhook-Signature"),
+      secret = c.env.CLOUDFLARE_STREAM_WEBHOOK_SECRET;
+
+    if (!signature) {
+      return c.json(
+        { message: "Missing Cloudflare Stream webhook signature." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+    if (!secret) {
+      return c.json(
+        {
+          message: "Cloudflare Stream webhook verification is not configured.",
+        },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+    if (
+      !(await verifyCloudflareStreamSignature({
+        body: rawBody,
+        header: signature,
+        secret,
+      }))
+    ) {
+      return c.json(
+        { message: "Invalid Cloudflare Stream webhook signature." },
+        HttpStatusCodes.UNAUTHORIZED
+      );
+    }
+
+    const payload = JSON.parse(rawBody || "{}") as Record<string, unknown>,
+      uid = getStringValue(payload.uid),
+      modified = getStringValue(payload.modified),
+      statusPayload =
+        typeof payload.status === "object" && payload.status !== null
+          ? (payload.status as Record<string, unknown>)
+          : {},
+      status = getStringValue(statusPayload.state) ?? "unknown",
+      externalEventId = uid ? `stream:${uid}:${modified ?? status}` : null;
+
+    if (!(uid && isDatabaseConfigured())) {
+      return c.json(
+        { message: "Cloudflare Stream webhook accepted." },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb();
+    if (externalEventId) {
+      const [existingEvent] = await db
+        .select({ id: webhookEvents.id })
+        .from(webhookEvents)
+        .where(
+          and(
+            eq(webhookEvents.provider, "cloudflare_stream"),
+            eq(webhookEvents.externalEventId, externalEventId)
+          )
+        )
+        .limit(1);
+      if (existingEvent) {
+        return c.json(
+          { message: "Cloudflare Stream webhook already processed." },
+          HttpStatusCodes.OK
+        );
+      }
+    }
+
+    await db.insert(webhookEvents).values({
+      eventType: status,
+      externalEventId,
+      id: crypto.randomUUID(),
+      payload,
+      provider: "cloudflare_stream",
+      status: "received",
+    });
+
+    const [experience] = await db
+      .select({ id: liveExperiences.id })
+      .from(liveExperiences)
+      .where(eq(liveExperiences.streamInputId, uid))
+      .limit(1);
+
+    if (experience) {
+      await db
+        .update(liveExperiences)
+        .set({
+          ingestErrorCode:
+            status === "error"
+              ? getStringValue(statusPayload.errReasonCode)
+              : null,
+          ingestErrorMessage:
+            status === "error"
+              ? getStringValue(statusPayload.errReasonText)
+              : null,
+          recordingStatus: status === "ready" ? "UPLOADED" : undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(liveExperiences.id, experience.id));
+    }
+
+    return c.json(
+      { message: "Cloudflare Stream webhook accepted." },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/realtimekit",
     responses: {
       [HttpStatusCodes.BAD_REQUEST]: jsonContent(
@@ -1049,7 +1241,10 @@ app.openapi(
 
     try {
       if (isRealtimeKitWebhookEvent(payload)) {
-        status = await processRealtimeKitWebhookEnvelope(payload);
+        status = await processRealtimeKitWebhookEnvelope(payload, {
+          liveNotificationQueue: c.env.LIVE_NOTIFICATION_QUEUE,
+          liveRecordingWorkflow: c.env.LIVE_RECORDING_WORKFLOW,
+        });
       }
     } catch (error) {
       await db

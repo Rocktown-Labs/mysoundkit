@@ -17,6 +17,11 @@ import {
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
+import {
+  handleLiveNotificationQueue,
+  LIVE_NOTIFICATION_QUEUE_NAME,
+} from "@/lib/live-notifications";
+import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
@@ -64,6 +69,7 @@ import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
 import stripeWebhookRoutes from "@/routes/webhooks-stripe";
 
+export { LiveRecordingWorkflow } from "@/workflows/live-recording";
 export { TrackProcessingWorkflow } from "@/workflows/track-processing";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 export { PresenceDurableObject } from "@/durable-objects/presence";
@@ -169,6 +175,7 @@ app.get("/health", async (c) =>
       databaseUrl: hasEnvValue("DATABASE_URL"),
       emailDeliveryQueue: hasEnvValue("EMAIL_DELIVERY_QUEUE"),
       hyperdrive: hasEnvValue("HYPERDRIVE"),
+      liveNotificationQueue: hasEnvValue("LIVE_NOTIFICATION_QUEUE"),
       liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
       trackDurationBackfillQueue: hasEnvValue("TRACK_DURATION_BACKFILL_QUEUE"),
@@ -232,6 +239,12 @@ export default {
   fetch: (request, workerEnv, executionContext) =>
     app.fetch(request, workerEnv, executionContext),
   queue: (batch) => {
+    if (batch.queue.includes(LIVE_NOTIFICATION_QUEUE_NAME)) {
+      return handleLiveNotificationQueue(
+        batch as unknown as MessageBatch<LiveNotificationQueueMessage>
+      );
+    }
+
     if (isTrackDurationBackfillQueueName(batch.queue)) {
       return handleTrackDurationBackfillQueue(
         batch as unknown as MessageBatch<DurationBackfillQueueMessage>

@@ -15,6 +15,7 @@ import { env } from "@soundkit/env/server";
 import { and, asc, eq, inArray, lte, or } from "drizzle-orm";
 
 import type { LiveExperienceKind } from "@/lib/live-experience";
+import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import { logWarn } from "@/middleware/structured-logging";
 
 export const BATTLE_RECORD_THRESHOLD_VIEWERS = 10;
@@ -132,7 +133,12 @@ export const markExperienceLive = async (experienceId: string) => {
 
   const [updated] = await createDb()
     .update(liveExperiences)
-    .set({ status: "live", updatedAt: new Date() })
+    .set({
+      ingestStatus: "connected",
+      startedAt: new Date(),
+      status: "live",
+      updatedAt: new Date(),
+    })
     .where(eq(liveExperiences.id, experienceId))
     .returning();
 
@@ -146,7 +152,12 @@ export const markExperienceEnded = async (experienceId: string) => {
 
   const [updated] = await createDb()
     .update(liveExperiences)
-    .set({ endsAt: new Date(), status: "ended", updatedAt: new Date() })
+    .set({
+      endsAt: new Date(),
+      ingestStatus: "disconnected",
+      status: "ended",
+      updatedAt: new Date(),
+    })
     .where(eq(liveExperiences.id, experienceId))
     .returning();
 
@@ -363,7 +374,8 @@ interface RecordingStatusPayload {
 }
 
 export const applyRecordingStatusUpdate = async (
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  liveRecordingWorkflow?: Workflow
 ) => {
   const meetingId = getMeetingId(payload);
 
@@ -413,10 +425,27 @@ export const applyRecordingStatusUpdate = async (
       .returning();
 
   if (updated && downloadUrl) {
-    await scheduleLiveRecordingPublish({
-      experience: updated,
-      recordingUrl: downloadUrl,
-    });
+    if (liveRecordingWorkflow) {
+      try {
+        await liveRecordingWorkflow.create({
+          id: `live-recording-${updated.id}`,
+          params: {
+            experienceId: updated.id,
+            recordingUrl: downloadUrl,
+          },
+        });
+      } catch (error) {
+        console.warn("Unable to create live recording workflow", {
+          error: error instanceof Error ? error.message : String(error),
+          experienceId: updated.id,
+        });
+      }
+    } else {
+      await scheduleLiveRecordingPublish({
+        experience: updated,
+        recordingUrl: downloadUrl,
+      });
+    }
   }
 
   return "processed" as const;
@@ -508,7 +537,8 @@ export const applyChatSyncedEvent = async (
 };
 
 export const applyMeetingStartedEvent = async (
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  liveNotificationQueue?: Queue<LiveNotificationQueueMessage>
 ) => {
   const meetingId = getMeetingId(payload);
 
@@ -529,12 +559,18 @@ export const applyMeetingStartedEvent = async (
     .returning();
 
   if (updated) {
-    await fanoutGoLiveNotifications({
+    const notification = {
       creatorUserId: experience.createdByUserId,
+      eventType: "live_started" as const,
       experienceId: experience.id,
       kind: experience.kind,
       title: experience.title,
-    });
+    };
+    if (liveNotificationQueue) {
+      await liveNotificationQueue.send(notification);
+    } else {
+      await fanoutGoLiveNotifications(notification);
+    }
   }
 
   return "processed" as const;
@@ -958,13 +994,20 @@ export const isRealtimeKitWebhookEvent = (
   typeof value === "object" && value !== null && "event" in value;
 
 export const processRealtimeKitWebhookEnvelope = async (
-  envelope: RealtimeKitWebhookEnvelope
+  envelope: RealtimeKitWebhookEnvelope,
+  options: {
+    liveNotificationQueue?: Queue<LiveNotificationQueueMessage>;
+    liveRecordingWorkflow?: Workflow;
+  } = {}
 ): Promise<"ignored" | "processed"> => {
   const payload = envelope as unknown as Record<string, unknown>;
 
   switch (envelope.event) {
     case "meeting.started": {
-      return await applyMeetingStartedEvent(payload);
+      return await applyMeetingStartedEvent(
+        payload,
+        options.liveNotificationQueue
+      );
     }
     case "meeting.ended": {
       return await applyMeetingEndedEvent(payload);
@@ -976,7 +1019,10 @@ export const processRealtimeKitWebhookEnvelope = async (
       return await applyParticipantLeftEvent(payload);
     }
     case "recording.statusUpdate": {
-      return await applyRecordingStatusUpdate(payload);
+      return await applyRecordingStatusUpdate(
+        payload,
+        options.liveRecordingWorkflow
+      );
     }
     case "meeting.chatSynced": {
       return await applyChatSyncedEvent(payload);
@@ -1228,6 +1274,8 @@ export const buildLiveExperienceInsert = ({
   createdByUserId,
   genre: genre ?? null,
   id,
+  ingestStatus:
+    kind === "stream" && source === "obs" ? "waiting_for_ingest" : "idle",
   kind,
   meetingId,
   playlistId: playlistId ?? null,

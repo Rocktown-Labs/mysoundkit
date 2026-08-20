@@ -49,7 +49,28 @@
       "binding": "TRACK_PROCESSING_WORKFLOW",
       "class_name": "TrackProcessingWorkflow",
     },
+    {
+      "name": "soundkit-live-recording",
+      "binding": "LIVE_RECORDING_WORKFLOW",
+      "class_name": "LiveRecordingWorkflow",
+    },
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "LIVE_NOTIFICATION_QUEUE",
+        "queue": "soundkit-live-notifications",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "soundkit-live-notifications",
+        "max_batch_size": 50,
+        "max_batch_timeout": 5,
+        "max_retries": 6,
+      },
+    ],
+  },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",

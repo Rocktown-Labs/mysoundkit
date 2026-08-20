@@ -23,12 +23,13 @@ import {
   Sparkles,
   Volume2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
+import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -86,22 +87,33 @@ const getLyricClass = (lineId: string, text: string) => {
 
 function ListeningPartyDetailPage() {
   const { id } = Route.useParams(),
-    { chat, chatMessages, query } = useLiveRoom(id),
+    { chat, chatMessages, partyPlayback, query } = useLiveRoom(id),
     meQuery = useMeQuery(),
     [isChatOpen, setIsChatOpen] = useState(true),
-    [isFullscreen, setIsFullscreen] = useState(false),
-    [isPlaying, setIsPlaying] = useState(true),
+    {
+      containerRef: videoContainerRef,
+      isFullscreen,
+      toggleFullscreen,
+    } = useBrowserFullscreen(),
+    [localIsPlaying] = useState(true),
     [activeTrackId, setActiveTrackId] = useState<string | null>(null),
     [activeTab, setActiveTab] = useState<"tracklist" | "lyrics">("tracklist"),
     [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set()),
     [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
     [isAlbumSaved, setIsAlbumSaved] = useState(false),
     saveTrackMutation = useToggleSaveTrackMutation(),
-    videoContainerRef = useRef<HTMLDivElement | null>(null),
     room = query.data,
+    authoritativePlayback = room?.party?.playback,
+    isPlaying = authoritativePlayback
+      ? authoritativePlayback.playbackState === "playing"
+      : localIsPlaying,
     currentTrack =
       room?.tracklist.find(
-        (track) => track.id === (activeTrackId ?? room.currentTrackId)
+        (track) =>
+          track.id ===
+          (activeTrackId ??
+            authoritativePlayback?.trackId ??
+            room.currentTrackId)
       ) ?? room?.tracklist[0],
     currentTrackIndex = room
       ? Math.max(
@@ -110,10 +122,13 @@ function ListeningPartyDetailPage() {
         )
       : 0,
     isHost = Boolean(
-      room &&
-      meQuery.data?.user &&
-      [meQuery.data.user.displayName, meQuery.data.user.username].includes(
-        room.hostName
+      room?.role === "host" ||
+      Boolean(
+        room &&
+        meQuery.data?.user &&
+        [meQuery.data.user.displayName, meQuery.data.user.username].includes(
+          room.hostName
+        )
       )
     ),
     isCurrentLiked = currentTrack ? likedTrackIds.has(currentTrack.id) : false,
@@ -172,35 +187,20 @@ function ListeningPartyDetailPage() {
       });
     },
     handleReplayTrack = (trackTitle?: string) => {
+      const track =
+        room?.tracklist.find((entry) => entry.title === trackTitle) ??
+        currentTrack;
+      if (track) {
+        partyPlayback.mutate({ trackId: track.id, type: "replay" });
+      }
       toast({
         description: `Restarted "${trackTitle ?? currentTrack?.title ?? "current track"}" for the live room.`,
         title: "Synced Playback",
       });
+    },
+    handleTogglePlayback = () => {
+      partyPlayback.mutate({ type: isPlaying ? "pause" : "resume" });
     };
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (videoContainerRef.current?.requestFullscreen) {
-          await videoContainerRef.current.requestFullscreen();
-        }
-      } else if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      setIsFullscreen((prev) => !prev);
-    }
-  };
 
   if (query.isLoading) {
     return (
@@ -379,7 +379,7 @@ function ListeningPartyDetailPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <Button
                       className="size-9 rounded-full bg-primary text-primary-foreground hover:scale-105 transition shrink-0 shadow-md"
-                      onClick={() => setIsPlaying((p) => !p)}
+                      onClick={handleTogglePlayback}
                       size="icon"
                       variant="default"
                     >
@@ -618,7 +618,14 @@ function ListeningPartyDetailPage() {
                               className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
                               onClick={() => {
                                 setActiveTrackId(track.id);
-                                handleReplayTrack(track.title);
+                                partyPlayback.mutate({
+                                  trackId: track.id,
+                                  type: "track_changed",
+                                });
+                                toast({
+                                  description: `Changed the room to "${track.title}" for everyone.`,
+                                  title: "Track Changed",
+                                });
                               }}
                               size="icon"
                               title="Play this track for the party"
@@ -660,7 +667,7 @@ function ListeningPartyDetailPage() {
     );
 
   return (
-    <LiveRoomAccessGuard allowPublic={true} roomTitle={room.title}>
+    <LiveRoomAccessGuard roomTitle={room.title}>
       <LiveTwitchShell
         chatPanel={chatPanel}
         defaultChatOpen={true}

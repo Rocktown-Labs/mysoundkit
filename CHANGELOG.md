@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added battle queue experience with persistent Postgres queue interest (`battleQueueEntries`), scheduled-phase waiting room, audio-visual battle stage countdown, batch admission between rounds, per-user queue/admission status in live room state, and Join Queue / Leave actions with navigation guard on the real battle route.
+- Fixed non-voter removal boot so required-voter eligibility survives past voting close and batch admission does not run mid-round.
+- Hardened Live around per-room Durable Object state, alarm-driven battle phases, authenticated role-scoped controls, synchronized party playback, Stream ingest lifecycle states, async live notification fanout, durable replay workflow scheduling, real-route premium enforcement, and shared preview/fullscreen UI contracts.
+- Added battle lineup snapshot persistence, live experience lifecycle fields, compressed battle state-machine tests, and gated real live-route browser smoke coverage.
+
 - Hardened realtime architecture with authenticated per-user presence Durable Objects, targeted presence reads, coalesced presence persistence, durable live-room chat rate limits, delta WebSocket chat events, Cloudflare observability metrics, and reactive message scrolling/TanStack DB collections.
 
 - Reframed Friends & Collaborators as Network with distinct friends, followers, following, and requests views; separated fan and artist follower classification from music collaborators and workspace membership; replaced simulated workspace members, seat counts, and invites with persisted organization data and active-workspace authorization.
