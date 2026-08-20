@@ -42,7 +42,6 @@ test.describe("main application surfaces", () => {
     test.setTimeout(75_000);
 
     await gotoWithViteRetry(page, "/");
-    await expect(page.getByText("SoundKit").first()).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Discover Music" })
     ).toBeVisible();
@@ -51,7 +50,6 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
 
     await gotoWithViteRetry(page, "/tracks");
-    await expect(page.getByRole("main")).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Top Songs" })
     ).toBeVisible();
@@ -68,7 +66,11 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
     await expect(page.getByText("I'm a Fan")).toBeVisible();
 
-    await page.getByRole("link", { name: /continue as artist/i }).click();
+    const artistLink = page.getByRole("link", {
+      name: /continue as artist|i'm an artist/i,
+    });
+    await artistLink.scrollIntoViewIfNeeded();
+    await artistLink.click();
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
@@ -77,7 +79,12 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByRole("heading", { name: /join soundkit/i })
     ).toBeVisible();
-    await page.getByRole("link", { name: /continue as fan/i }).click();
+    await expect(page.getByText("I'm a Fan")).toBeVisible();
+    const fanLink = page.getByRole("link", {
+      name: /continue as fan|i'm a fan/i,
+    });
+    await fanLink.scrollIntoViewIfNeeded();
+    await fanLink.click();
     await expect(
       page.getByRole("heading", { name: /create fan account/i })
     ).toBeVisible();

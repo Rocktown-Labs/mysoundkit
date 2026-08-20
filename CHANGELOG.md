@@ -18,6 +18,7 @@
   - Gracefully skipped preview smoke tests when remote API URL (`PLAYWRIGHT_API_URL` / `SOUNDKIT_E2E_API_URL`) is not configured.
   - Aligned live stream detail route assertions with the `LiveRoomAccessGuard` ("SoundKit Premium Required") overlay for unauthenticated visitors, while testing chat collapse/expand on public video detail routes (`/videos/video-1`).
   - Increased browser test timeouts to prevent parallel Vite compilation timeouts on discovery and live surfaces.
+  - Stabilized Playwright `mobile-chrome` smoke tests on main application and signup surfaces by using responsive-safe locators and ensuring signup cards are scrolled into view before interaction.
   - Eliminated SSR React hydration mismatches in `TracksPage` by replacing direct render-time `localStorage` lookups with deterministic defaults.
   - Fixed TanStack Query undefined data warnings in `BattleQueueCta` by safely falling back to an empty array.
 
