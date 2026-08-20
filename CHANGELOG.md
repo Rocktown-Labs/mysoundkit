@@ -4,6 +4,7 @@
 
 ### Added
 
+- Comprehensively updated repository `README.md` with full technical architecture diagram, deep-dive breakdowns of all applications (`apps/server`, `apps/website`, `apps/native`, `apps/docs`) and shared packages (`@soundkit/*`), client-side MediaBunny audio engine details, Durable Object / Workflow background workers, local development guide, database operations, and quality verification gates.
 - Added go-live CTA for queued battle viewers: queued users now receive an in-app notification and global toast when their battle opens, with a chooser dialog that navigates straight into the arena (auto-transition is used when watching a single queued battle from its own page).
 - Raised battle admission capacity so thousands of fans can queue per live activity: the admission batch size is now configurable via the `BATTLE_ADMISSION_BATCH_SIZE` env var (default 1000) instead of a hardcoded 50.
 - Added battle queue experience with persistent Postgres queue interest (`battleQueueEntries`), scheduled-phase waiting room, audio-visual battle stage countdown, batch admission between rounds, per-user queue/admission status in live room state, and Join Queue / Leave actions with navigation guard on the real battle route.
