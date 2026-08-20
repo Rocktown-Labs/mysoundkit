@@ -562,7 +562,7 @@ export const loadTrackDurationBackfillStatus = async (
     latestRunId = requestedRunId
       ? requestedRunId
       : rows.reduce<string | null>((latest, row) => {
-          const input = row.input;
+          const {input} = row;
           if (
             !(
               input !== null &&

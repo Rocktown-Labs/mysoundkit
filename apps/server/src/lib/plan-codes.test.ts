@@ -6,10 +6,7 @@ import { samplePlans } from "./sample-data";
 describe("billing plan codes", () => {
   it("accepts only the new paid plan codes", () => {
     expect([...CONFIGURED_PAID_PLAN_CODES].toSorted()).toEqual(
-      [
-        "soundkit_premium_artist",
-        "soundkit_premium_fan",
-      ].toSorted()
+      ["soundkit_premium_artist", "soundkit_premium_fan"].toSorted()
     );
     expect(CONFIGURED_PAID_PLAN_CODES.has("artist_lite_ads")).toBe(false);
     expect(CONFIGURED_PAID_PLAN_CODES.has("fan_lite_ads")).toBe(false);

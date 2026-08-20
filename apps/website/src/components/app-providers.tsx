@@ -34,27 +34,27 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
     <QueryClientProvider client={queryClient}>
       <MessagingDbProvider queryClient={queryClient}>
         <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        enableColorScheme={false}
-        enableSystem={false}
-      >
-        <KeyboardShortcutsProvider>
-          <PresenceProvider>
-            <AudioPlayerProvider>
-              <CartProvider>{children}</CartProvider>
-              <MusicPlayer />
-              <FloatingChatBar />
-              <BattleQueueCta />
-            </AudioPlayerProvider>
-          </PresenceProvider>
-        </KeyboardShortcutsProvider>
-        <Toaster />
-        {AppDevtools ? (
-          <Suspense fallback={null}>
-            <AppDevtools />
-          </Suspense>
-        ) : null}
+          attribute="class"
+          defaultTheme="dark"
+          enableColorScheme={false}
+          enableSystem={false}
+        >
+          <KeyboardShortcutsProvider>
+            <PresenceProvider>
+              <AudioPlayerProvider>
+                <CartProvider>{children}</CartProvider>
+                <MusicPlayer />
+                <FloatingChatBar />
+                <BattleQueueCta />
+              </AudioPlayerProvider>
+            </PresenceProvider>
+          </KeyboardShortcutsProvider>
+          <Toaster />
+          {AppDevtools ? (
+            <Suspense fallback={null}>
+              <AppDevtools />
+            </Suspense>
+          ) : null}
         </ThemeProvider>
       </MessagingDbProvider>
     </QueryClientProvider>

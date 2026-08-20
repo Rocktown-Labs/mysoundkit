@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { verifyStripeSignatureWithSecrets } from "./stripe";
 
-const signatureFor = async (payload: string, secret: string, timestamp: number) => {
+const signatureFor = async (
+  payload: string,
+  secret: string,
+  timestamp: number
+) => {
   const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode(secret),

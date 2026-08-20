@@ -43,14 +43,14 @@ export function UsernameField({
       async (username: string, requestId: number) => {
         try {
           const response = await fetch(
-            `${API_V1_URL}/onboarding/username-availability?username=${encodeURIComponent(username)}`,
-            { credentials: "include" }
-          ),
-           payload = (await response.json().catch(() => null)) as {
-            available?: boolean;
-            message?: string;
-            reason?: "available" | "reserved" | "taken";
-          } | null;
+              `${API_V1_URL}/onboarding/username-availability?username=${encodeURIComponent(username)}`,
+              { credentials: "include" }
+            ),
+            payload = (await response.json().catch(() => null)) as {
+              available?: boolean;
+              message?: string;
+              reason?: "available" | "reserved" | "taken";
+            } | null;
           if (requestId !== requestIdRef.current) {
             return;
           }

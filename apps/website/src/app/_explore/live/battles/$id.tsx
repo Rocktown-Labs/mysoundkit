@@ -167,7 +167,10 @@ function BattleStageVisual({
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30" />
       <div className="relative z-10 flex flex-col items-center gap-4 p-4 text-center">
-        <Badge className="gap-1.5 bg-black/60 text-white backdrop-blur-md" variant="outline">
+        <Badge
+          className="gap-1.5 bg-black/60 text-white backdrop-blur-md"
+          variant="outline"
+        >
           <CalendarClock className="size-3.5" />
           {phaseLabel}
         </Badge>
@@ -240,7 +243,7 @@ function BattlePage() {
     { dialog: battleLeaveDialog } = useBattleLeaveGuard({
       isLeaving: leave.isPending,
       onLeave: () => {
-        leave.mutate(undefined);
+        leave.mutate();
       },
       shouldBlock: isAdmitted && Boolean(currentRound),
     });
@@ -263,7 +266,7 @@ function BattlePage() {
     if (!queue.mutate) {
       return;
     }
-    queue.mutate(undefined);
+    queue.mutate();
   };
 
   const handleShareBattle = () => {
@@ -328,7 +331,12 @@ function BattlePage() {
             }
             isChatOpen={isChatOpen}
             onChatOpenChange={setIsChatOpen}
-            videoNode={<BattleStageVisual artists={battle.artists} phaseLabel={phase === "scheduled" ? "Scheduled" : "Open"} />}
+            videoNode={
+              <BattleStageVisual
+                artists={battle.artists}
+                phaseLabel={phase === "scheduled" ? "Scheduled" : "Open"}
+              />
+            }
           >
             <div className="space-y-4 pt-4">
               <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
@@ -337,9 +345,7 @@ function BattlePage() {
                     <div className="flex items-center gap-2">
                       <CalendarClock className="size-4.5 text-primary" />
                       <div>
-                        <CardTitle className="text-sm">
-                          {room.title}
-                        </CardTitle>
+                        <CardTitle className="text-sm">{room.title}</CardTitle>
                         <p className="mt-0.5 text-[11px] text-muted-foreground">
                           {artistA.name} vs {artistB.name}
                         </p>
@@ -369,14 +375,17 @@ function BattlePage() {
                     <div className="flex items-center gap-2">
                       {isQueued ? (
                         <>
-                          <Badge variant="secondary" className="gap-1.5 text-xs">
+                          <Badge
+                            variant="secondary"
+                            className="gap-1.5 text-xs"
+                          >
                             <ListPlus className="size-3.5" />
                             You are in the queue
                           </Badge>
                           <Button
                             className="gap-1.5 text-xs"
                             disabled={leave.isPending}
-                            onClick={() => leave.mutate(undefined)}
+                            onClick={() => leave.mutate()}
                             size="sm"
                             variant="outline"
                           >
@@ -400,8 +409,8 @@ function BattlePage() {
                   <p className="text-xs text-muted-foreground">
                     You will be admitted automatically, in batches, when the
                     battle opens and between rounds. Chat is open while you
-                    wait, and your place in the queue is saved even if you
-                    close SoundKit.
+                    wait, and your place in the queue is saved even if you close
+                    SoundKit.
                   </p>
                   <Button
                     className="px-0"
@@ -704,7 +713,7 @@ function BattlePage() {
                 <Button
                   className="gap-1.5 text-xs"
                   disabled={leave.isPending}
-                  onClick={() => leave.mutate(undefined)}
+                  onClick={() => leave.mutate()}
                   size="sm"
                   variant="outline"
                 >

@@ -7,82 +7,80 @@ import {
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room-data";
 
 const artists: [LiveRoomArtist, LiveRoomArtist] = [
-  {
-    avatarUrl: "",
-    id: "artist-a",
-    isMuted: false,
-    name: "Artist A",
-    roundsWon: 0,
-    stagePosition: "left" as const,
-    verified: false,
-  },
-  {
-    avatarUrl: "",
-    id: "artist-b",
-    isMuted: true,
-    name: "Artist B",
-    roundsWon: 0,
-    stagePosition: "right" as const,
-    verified: false,
-  },
-],
-
- makeRound = (number: number, isTiebreaker = false): LiveBattleRound => ({
-  artistATrack: {
-    artistName: "Artist A",
-    coverArtUrl: "",
-    durationMs: 180_000,
-    id: `a-${number}`,
-    lyrics: [],
-    status: "queued",
-    title: `A ${number}`,
-  },
-  artistBTrack: {
-    artistName: "Artist B",
-    coverArtUrl: "",
-    durationMs: 180_000,
-    id: `b-${number}`,
-    lyrics: [],
-    status: "queued",
-    title: `B ${number}`,
-  },
-  id: `round-${number}`,
-  isTiebreaker,
-  number,
-  status: "queued",
-  voteTotals: { "artist-a": 0, "artist-b": 0 },
-  winnerArtistId: null,
-}),
-
- host = (
-  format: "best_of_3" | "best_of_5" | "best_of_7" = "best_of_3",
-  admissionBatchSize = 50
-) => {
-  const coordination = createBattleCoordination({
-    admissionBatchSize,
-    battleId: "battle-1",
-    durations: {
-      betweenRoundsMs: 10,
-      roundIntroMs: 10,
-      roundResultMs: 10,
-      transitionMs: 10,
-      turnMs: 10,
-      voteMs: 10,
-      waitingRoomMs: 10,
+    {
+      avatarUrl: "",
+      id: "artist-a",
+      isMuted: false,
+      name: "Artist A",
+      roundsWon: 0,
+      stagePosition: "left" as const,
+      verified: false,
     },
-    format,
-    now: 0,
-  });
-  return {
-    battle: {
-      artists,
-      currentRoundId: "round-1",
-      rounds: [makeRound(1), makeRound(2), makeRound(3), makeRound(4, true)],
-      tiePolicy: "tiebreaker",
+    {
+      avatarUrl: "",
+      id: "artist-b",
+      isMuted: true,
+      name: "Artist B",
+      roundsWon: 0,
+      stagePosition: "right" as const,
+      verified: false,
     },
-    coordination,
+  ],
+  makeRound = (number: number, isTiebreaker = false): LiveBattleRound => ({
+    artistATrack: {
+      artistName: "Artist A",
+      coverArtUrl: "",
+      durationMs: 180_000,
+      id: `a-${number}`,
+      lyrics: [],
+      status: "queued",
+      title: `A ${number}`,
+    },
+    artistBTrack: {
+      artistName: "Artist B",
+      coverArtUrl: "",
+      durationMs: 180_000,
+      id: `b-${number}`,
+      lyrics: [],
+      status: "queued",
+      title: `B ${number}`,
+    },
+    id: `round-${number}`,
+    isTiebreaker,
+    number,
+    status: "queued",
+    voteTotals: { "artist-a": 0, "artist-b": 0 },
+    winnerArtistId: null,
+  }),
+  host = (
+    format: "best_of_3" | "best_of_5" | "best_of_7" = "best_of_3",
+    admissionBatchSize = 50
+  ) => {
+    const coordination = createBattleCoordination({
+      admissionBatchSize,
+      battleId: "battle-1",
+      durations: {
+        betweenRoundsMs: 10,
+        roundIntroMs: 10,
+        roundResultMs: 10,
+        transitionMs: 10,
+        turnMs: 10,
+        voteMs: 10,
+        waitingRoomMs: 10,
+      },
+      format,
+      now: 0,
+    });
+    return {
+      battle: {
+        artists,
+        currentRoundId: "round-1",
+        rounds: [makeRound(1), makeRound(2), makeRound(3), makeRound(4, true)],
+        tiePolicy: "tiebreaker",
+      },
+      coordination,
+    };
   };
-};
 
 describe("live battle state machine", () => {
   it("uses persisted phase timestamps and transitions without timer ticks", () => {
@@ -150,11 +148,11 @@ describe("live battle state machine", () => {
       },
       format: "best_of_3",
       now: 0,
-      scheduledStartAt: 7200_000,
+      scheduledStartAt: 7_200_000,
     });
 
     expect(coordination.phase).toBe("scheduled");
-    expect(coordination.phaseEndsAt).toBe(7200_000);
+    expect(coordination.phaseEndsAt).toBe(7_200_000);
 
     const early = transitionBattle(
       { battle: host().battle, coordination },
@@ -164,25 +162,25 @@ describe("live battle state machine", () => {
 
     const opened = transitionBattle(
       { battle: host().battle, coordination },
-      7200_000
+      7_200_000
     );
     expect(opened.coordination.phase).toBe("waiting_room");
-    expect(opened.coordination.phaseEndsAt).toBe(7200_000 + 10);
+    expect(opened.coordination.phaseEndsAt).toBe(7_200_000 + 10);
   });
 
   it("admits the first batch of queued users when the battle opens and keeps the rest waiting", () => {
-    let state = host(),
-      coordination = {
-        ...state.coordination,
-        phase: "scheduled" as const,
-        phaseEndsAt: 10,
-        phaseStartedAt: 0,
-        queuedUserIds: Array.from(
-          { length: 120 },
-          (_, index) => `fan-${index + 1}`
-        ),
-        waitingUserIds: [],
-      };
+    let state = host();
+    const coordination = {
+      ...state.coordination,
+      phase: "scheduled" as const,
+      phaseEndsAt: 10,
+      phaseStartedAt: 0,
+      queuedUserIds: Array.from(
+        { length: 120 },
+        (_, index) => `fan-${index + 1}`
+      ),
+      waitingUserIds: [],
+    };
 
     state = transitionBattle({ battle: state.battle, coordination }, 10);
     expect(state.coordination.phase).toBe("waiting_room");
@@ -192,18 +190,18 @@ describe("live battle state machine", () => {
   });
 
   it("admits the next batch only during the between-rounds window", () => {
-    let state = host(),
-      coordination = {
-        ...state.coordination,
-        phase: "scheduled" as const,
-        phaseEndsAt: 10,
-        phaseStartedAt: 0,
-        queuedUserIds: Array.from(
-          { length: 120 },
-          (_, index) => `fan-${index + 1}`
-        ),
-        waitingUserIds: [],
-      };
+    let state = host();
+    const coordination = {
+      ...state.coordination,
+      phase: "scheduled" as const,
+      phaseEndsAt: 10,
+      phaseStartedAt: 0,
+      queuedUserIds: Array.from(
+        { length: 120 },
+        (_, index) => `fan-${index + 1}`
+      ),
+      waitingUserIds: [],
+    };
 
     state = transitionBattle({ battle: state.battle, coordination }, 10);
     expect(state.coordination.admittedUserIds).toHaveLength(50);
@@ -236,18 +234,18 @@ describe("live battle state machine", () => {
   });
 
   it("admits thousands of queued users when the batch size is raised via coordination", () => {
-    let state = host("best_of_3", 1000),
-      coordination = {
-        ...state.coordination,
-        phase: "scheduled" as const,
-        phaseEndsAt: 10,
-        phaseStartedAt: 0,
-        queuedUserIds: Array.from(
-          { length: 2500 },
-          (_, index) => `fan-${index + 1}`
-        ),
-        waitingUserIds: [],
-      };
+    let state = host("best_of_3", 1000);
+    const coordination = {
+      ...state.coordination,
+      phase: "scheduled" as const,
+      phaseEndsAt: 10,
+      phaseStartedAt: 0,
+      queuedUserIds: Array.from(
+        { length: 2500 },
+        (_, index) => `fan-${index + 1}`
+      ),
+      waitingUserIds: [],
+    };
 
     state = transitionBattle({ battle: state.battle, coordination }, 10);
     expect(state.coordination.phase).toBe("waiting_room");

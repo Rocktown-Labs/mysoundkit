@@ -11,16 +11,13 @@ export const extractAmplitudeBuckets = (
   bucketCount = 160
 ): AudioWaveformData => {
   const safeBucketCount = Math.max(1, Math.floor(bucketCount)),
-   amplitudes = Array.from({ length: safeBucketCount }, () => 0),
-   channelCount = Math.max(1, buffer.numberOfChannels),
-   samplesPerBucket = Math.max(
-    1,
-    Math.ceil(buffer.length / safeBucketCount)
-  );
+    amplitudes = Array.from({ length: safeBucketCount }, () => 0),
+    channelCount = Math.max(1, buffer.numberOfChannels),
+    samplesPerBucket = Math.max(1, Math.ceil(buffer.length / safeBucketCount));
 
   for (let bucket = 0; bucket < safeBucketCount; bucket += 1) {
     const start = bucket * samplesPerBucket,
-     end = Math.min(buffer.length, start + samplesPerBucket);
+      end = Math.min(buffer.length, start + samplesPerBucket);
     let peak = 0;
 
     for (let channel = 0; channel < channelCount; channel += 1) {

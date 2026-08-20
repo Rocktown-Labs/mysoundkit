@@ -299,11 +299,11 @@ function ArtistOnboardingPage() {
       }
       setIsDraftRestored(true);
       const hasLocalDraft = Boolean(
-        window.localStorage.getItem(ARTIST_ONBOARDING_DRAFT_KEY)
-      ),
-       response = await fetch(`${API_V1_URL}/onboarding/state`, {
-        credentials: "include",
-      });
+          window.localStorage.getItem(ARTIST_ONBOARDING_DRAFT_KEY)
+        ),
+        response = await fetch(`${API_V1_URL}/onboarding/state`, {
+          credentials: "include",
+        });
       if (!response.ok) {
         posthog.capture("onboarding_started", { account_type: "artist" });
         return;

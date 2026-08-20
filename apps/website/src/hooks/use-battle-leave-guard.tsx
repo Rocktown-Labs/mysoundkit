@@ -35,17 +35,17 @@ export function useBattleLeaveGuard({
     enableBeforeUnload: () => shouldBlockRef.current && !isLeaving,
     shouldBlockFn: () => shouldBlockRef.current && !isLeaving,
     withResolver: true,
-  });
+  }),
 
-  const leaveAndProceed = async () => {
+   leaveAndProceed = async () => {
     try {
       await onLeave();
     } finally {
       proceed?.();
     }
-  };
+  },
 
-  const dialog = (
+   dialog = (
     <AlertDialog
       onOpenChange={(open) => {
         if (!open) {

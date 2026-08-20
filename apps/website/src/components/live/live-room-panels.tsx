@@ -1,3 +1,11 @@
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 /* eslint-disable complexity, no-unused-vars, sort-vars, one-var, require-unicode-regexp, prefer-named-capture-group, no-nested-ternary, unicorn/no-nested-ternary */
 import {
   ChevronRight,
@@ -20,14 +28,6 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Input } from "../ui/input";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@soundkit/ui/components/message-scroller";
 import { UserProfilePreviewModal } from "./user-profile-preview-modal";
 import type { UserPreviewData } from "./user-profile-preview-modal";
 
@@ -120,118 +120,127 @@ export function LiveChatPanel({
                         </div>
                       </MessageScrollerItem>
                     )}
-              {messages.map((chatMessage) => {
-                const isMe =
-                    chatMessage.userName.toLowerCase() === "you" ||
-                    chatMessage.userName === meUser?.displayName ||
-                    chatMessage.userName === meProfile?.displayName,
-                  isBot =
-                    chatMessage.userName.toLowerCase().includes("bot") ||
-                    chatMessage.userName.toLowerCase().includes("system"),
-                  isHost =
-                    chatMessage.userName.toLowerCase().includes("host") ||
-                    chatMessage.userName.toLowerCase().includes("artist"),
-                  userAvatar = isMe
-                    ? (meProfile?.avatarUrl ??
-                      meUser?.avatarUrl ??
-                      "/diverse-user-avatars.png")
-                    : "/diverse-user-avatars.png",
-                  handleOpenProfile = () => {
-                    if (isMe && meUser) {
-                      setPreviewUser({
-                        avatarUrl:
-                          meProfile?.avatarUrl ??
-                          meUser.avatarUrl ??
-                          "/diverse-user-avatars.png",
-                        bio: meProfile?.bio ?? "SoundKit artist & creator.",
-                        displayName:
-                          meProfile?.displayName ?? meUser.displayName ?? "You",
-                        followersCount: 1450,
-                        genre: "SoundKit Artist",
-                        id: meUser.id,
-                        role:
-                          meUser.role === "admin"
-                            ? "Platform Admin"
-                            : "SoundKit Artist",
-                        username:
-                          meProfile?.username ?? meUser.username ?? "you",
-                        verified: true,
-                      });
-                    } else {
-                      setPreviewUser({
-                        avatarUrl: "/diverse-user-avatars.png",
-                        displayName: chatMessage.userName,
-                        role: isHost
-                          ? "Host & Creator"
-                          : isBot
-                            ? "Chat Bot"
-                            : "Community Member",
-                        username: chatMessage.userName
-                          .toLowerCase()
-                          .replaceAll(/\s+/g, ""),
-                      });
-                    }
-                  };
+                    {messages.map((chatMessage) => {
+                      const isMe =
+                          chatMessage.userName.toLowerCase() === "you" ||
+                          chatMessage.userName === meUser?.displayName ||
+                          chatMessage.userName === meProfile?.displayName,
+                        isBot =
+                          chatMessage.userName.toLowerCase().includes("bot") ||
+                          chatMessage.userName.toLowerCase().includes("system"),
+                        isHost =
+                          chatMessage.userName.toLowerCase().includes("host") ||
+                          chatMessage.userName.toLowerCase().includes("artist"),
+                        userAvatar = isMe
+                          ? (meProfile?.avatarUrl ??
+                            meUser?.avatarUrl ??
+                            "/diverse-user-avatars.png")
+                          : "/diverse-user-avatars.png",
+                        handleOpenProfile = () => {
+                          if (isMe && meUser) {
+                            setPreviewUser({
+                              avatarUrl:
+                                meProfile?.avatarUrl ??
+                                meUser.avatarUrl ??
+                                "/diverse-user-avatars.png",
+                              bio:
+                                meProfile?.bio ?? "SoundKit artist & creator.",
+                              displayName:
+                                meProfile?.displayName ??
+                                meUser.displayName ??
+                                "You",
+                              followersCount: 1450,
+                              genre: "SoundKit Artist",
+                              id: meUser.id,
+                              role:
+                                meUser.role === "admin"
+                                  ? "Platform Admin"
+                                  : "SoundKit Artist",
+                              username:
+                                meProfile?.username ?? meUser.username ?? "you",
+                              verified: true,
+                            });
+                          } else {
+                            setPreviewUser({
+                              avatarUrl: "/diverse-user-avatars.png",
+                              displayName: chatMessage.userName,
+                              role: isHost
+                                ? "Host & Creator"
+                                : isBot
+                                  ? "Chat Bot"
+                                  : "Community Member",
+                              username: chatMessage.userName
+                                .toLowerCase()
+                                .replaceAll(/\s+/g, ""),
+                            });
+                          }
+                        };
 
-                return (
-                  <MessageScrollerItem
-                    key={chatMessage.id}
-                    messageId={chatMessage.id}
-                    scrollAnchor={isMe}
-                  >
-                    <div
-                      className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
-                        isBot ? "border-l-2 border-primary/60 bg-primary/5" : ""
-                      }`}
-                    >
-                    <button
-                      className="shrink-0 cursor-pointer transition-transform hover:scale-105"
-                      onClick={handleOpenProfile}
-                      type="button"
-                    >
-                      <Avatar className="size-6 border border-border/30">
-                        <AvatarImage src={userAvatar} />
-                        <AvatarFallback className="text-[10px]">
-                          {chatMessage.userName.slice(0, 1).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                    </button>
-                    <div className="min-w-0 flex-1 text-xs">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {isHost && (
-                          <span className="flex items-center gap-0.5 rounded bg-primary/20 px-1 py-0.2 font-bold text-[9px] text-primary">
-                            <Crown className="size-2.5" />
-                            HOST
-                          </span>
-                        )}
-                        {isBot && (
-                          <span className="flex items-center gap-0.5 rounded bg-secondary px-1 py-0.2 font-bold text-[9px]">
-                            <Sparkles className="size-2.5 text-primary" />
-                            BOT
-                          </span>
-                        )}
-                        <button
-                          className="font-semibold text-foreground hover:text-primary transition-colors text-left truncate cursor-pointer"
-                          onClick={handleOpenProfile}
-                          type="button"
+                      return (
+                        <MessageScrollerItem
+                          key={chatMessage.id}
+                          messageId={chatMessage.id}
+                          scrollAnchor={isMe}
                         >
-                          {chatMessage.userName}
-                        </button>
-                        <span className="text-[10px] text-muted-foreground">
-                          {new Date(chatMessage.sentAt).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 break-words text-muted-foreground/90 leading-relaxed">
-                        {chatMessage.message}
-                      </p>
-                    </div>
-                    </div>
-                  </MessageScrollerItem>
-                );
-              })}
+                          <div
+                            className={`group flex items-start gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted/40 ${
+                              isBot
+                                ? "border-l-2 border-primary/60 bg-primary/5"
+                                : ""
+                            }`}
+                          >
+                            <button
+                              className="shrink-0 cursor-pointer transition-transform hover:scale-105"
+                              onClick={handleOpenProfile}
+                              type="button"
+                            >
+                              <Avatar className="size-6 border border-border/30">
+                                <AvatarImage src={userAvatar} />
+                                <AvatarFallback className="text-[10px]">
+                                  {chatMessage.userName
+                                    .slice(0, 1)
+                                    .toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                            </button>
+                            <div className="min-w-0 flex-1 text-xs">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {isHost && (
+                                  <span className="flex items-center gap-0.5 rounded bg-primary/20 px-1 py-0.2 font-bold text-[9px] text-primary">
+                                    <Crown className="size-2.5" />
+                                    HOST
+                                  </span>
+                                )}
+                                {isBot && (
+                                  <span className="flex items-center gap-0.5 rounded bg-secondary px-1 py-0.2 font-bold text-[9px]">
+                                    <Sparkles className="size-2.5 text-primary" />
+                                    BOT
+                                  </span>
+                                )}
+                                <button
+                                  className="font-semibold text-foreground hover:text-primary transition-colors text-left truncate cursor-pointer"
+                                  onClick={handleOpenProfile}
+                                  type="button"
+                                >
+                                  {chatMessage.userName}
+                                </button>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(
+                                    chatMessage.sentAt
+                                  ).toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 break-words text-muted-foreground/90 leading-relaxed">
+                                {chatMessage.message}
+                              </p>
+                            </div>
+                          </div>
+                        </MessageScrollerItem>
+                      );
+                    })}
                   </MessageScrollerContent>
                 </MessageScrollerViewport>
                 <MessageScrollerButton />

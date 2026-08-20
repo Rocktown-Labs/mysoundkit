@@ -716,9 +716,9 @@ app.openapi(
     const status =
       body.action === "approve"
         ? "approved"
-        : body.action === "decline"
+        : (body.action === "decline"
           ? "declined"
-          : "canceled";
+          : "canceled");
     const [updated] = await db
       .update(openVerseAccessRequests)
       .set({
@@ -923,9 +923,9 @@ app.openapi(
       adlibAssetId = await createSubmissionAsset({
         asset: body.adlibs,
         assetKind: "adlib",
-      });
+      }),
 
-    const [submission] = await db
+     [submission] = await db
       .insert(openVerseSubmissions)
       .values({
         adlibAssetId,

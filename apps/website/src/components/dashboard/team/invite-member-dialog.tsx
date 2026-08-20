@@ -1,9 +1,4 @@
-import {
-  UserPlus,
-  LoaderCircle,
-  Check,
-  ShieldAlert,
-} from "lucide-react";
+import { UserPlus, LoaderCircle, Check, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";

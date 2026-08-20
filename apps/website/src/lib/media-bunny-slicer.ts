@@ -16,12 +16,11 @@ function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
     arrayBuffer = new ArrayBuffer(totalSize),
     view = new DataView(arrayBuffer),
     channelData: Float32Array[] = [],
-
-   writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i += 1) {
-      view.setUint8(offset + i, str.codePointAt(i) ?? 0);
-    }
-  };
+    writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i += 1) {
+        view.setUint8(offset + i, str.codePointAt(i) ?? 0);
+      }
+    };
 
   // RIFF chunk descriptor
   writeString(0, "RIFF");

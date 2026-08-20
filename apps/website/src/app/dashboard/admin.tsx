@@ -1365,7 +1365,9 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 function PaymentsPanel() {
   const paymentsQuery = useAdminPaymentsQuery(),
     syncMutation = useSyncStripePlansMutation(),
-    [webhookSetup, setWebhookSetup] = useState<StripeWebhookSetupResult[] | null>(null);
+    [webhookSetup, setWebhookSetup] = useState<
+      StripeWebhookSetupResult[] | null
+    >(null);
 
   if (paymentsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading payments...</p>;
@@ -1528,12 +1530,16 @@ function PaymentsPanel() {
             {missingCheckoutEnv.length} Plan Lacks a Checkout Price
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Run Sync Stripe Catalog &amp; Webhooks to auto-create Stripe products, prices, and webhook endpoints and wire them into checkout, or enter matching price IDs below.
+            Run Sync Stripe Catalog &amp; Webhooks to auto-create Stripe
+            products, prices, and webhook endpoints and wire them into checkout,
+            or enter matching price IDs below.
           </AlertDescription>
         </Alert>
       )}
 
-      {webhookSetup ? <StripeWebhookSetupCard endpoints={webhookSetup} /> : null}
+      {webhookSetup ? (
+        <StripeWebhookSetupCard endpoints={webhookSetup} />
+      ) : null}
 
       <PaymentPlanCatalog plans={data.plans} stripePrices={data.stripePrices} />
 
@@ -1562,28 +1568,51 @@ function StripeWebhookSetupCard({
       <CardHeader>
         <CardTitle className="text-base">Stripe webhook setup</CardTitle>
         <CardDescription>
-          Sync creates or reuses the platform subscription, platform commerce, and Connect event endpoints. New signing secrets are shown only in this response.
+          Sync creates or reuses the platform subscription, platform commerce,
+          and Connect event endpoints. New signing secrets are shown only in
+          this response.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {endpoints.map((endpoint) => (
-          <div className="rounded-lg border bg-background/70 p-3" key={`${endpoint.url}:${endpoint.connect}`}>
+          <div
+            className="rounded-lg border bg-background/70 p-3"
+            key={`${endpoint.url}:${endpoint.connect}`}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-medium">
-                  {endpoint.connect ? "Connect events" : endpoint.url.includes("/auth/") ? "Better Auth subscriptions" : "Platform commerce"}
+                  {endpoint.connect
+                    ? "Connect events"
+                    : endpoint.url.includes("/auth/")
+                      ? "Better Auth subscriptions"
+                      : "Platform commerce"}
                 </p>
-                <p className="break-all font-mono text-xs text-muted-foreground">{endpoint.url}</p>
+                <p className="break-all font-mono text-xs text-muted-foreground">
+                  {endpoint.url}
+                </p>
               </div>
-              <Badge variant={endpoint.status === "missing" ? "destructive" : "secondary"}>{endpoint.status}</Badge>
+              <Badge
+                variant={
+                  endpoint.status === "missing" ? "destructive" : "secondary"
+                }
+              >
+                {endpoint.status}
+              </Badge>
             </div>
             {endpoint.secret ? (
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <code className="min-w-0 flex-1 break-all rounded bg-muted px-2 py-1 text-xs">{endpoint.secret}</code>
+                <code className="min-w-0 flex-1 break-all rounded bg-muted px-2 py-1 text-xs">
+                  {endpoint.secret}
+                </code>
                 <Button
                   onClick={() => {
                     void navigator.clipboard.writeText(endpoint.secret ?? "");
-                    toast({ description: "Webhook secret copied. Save it in the matching GitHub environment secret.", title: "Secret copied" });
+                    toast({
+                      description:
+                        "Webhook secret copied. Save it in the matching GitHub environment secret.",
+                      title: "Secret copied",
+                    });
                   }}
                   size="sm"
                   type="button"
@@ -1593,9 +1622,14 @@ function StripeWebhookSetupCard({
                 </Button>
               </div>
             ) : endpoint.secretConfigured ? (
-              <p className="mt-2 text-xs text-emerald-400">Signing secret is configured for this endpoint.</p>
+              <p className="mt-2 text-xs text-emerald-400">
+                Signing secret is configured for this endpoint.
+              </p>
             ) : (
-              <p className="mt-2 text-xs text-amber-400">Endpoint exists, but its signing secret is not configured in the matching environment secret.</p>
+              <p className="mt-2 text-xs text-amber-400">
+                Endpoint exists, but its signing secret is not configured in the
+                matching environment secret.
+              </p>
             )}
           </div>
         ))}

@@ -443,9 +443,9 @@ function DashboardAdsPage() {
                             variant={
                               c.status === "active"
                                 ? "default"
-                                : c.status === "exhausted_for_today"
+                                : (c.status === "exhausted_for_today"
                                   ? "secondary"
-                                  : "outline"
+                                  : "outline")
                             }
                           >
                             {c.status}
@@ -531,7 +531,7 @@ function DashboardAdsPage() {
                         controls
                         src={campaign.creativeUrl}
                       />
-                    ) : campaign.creativeFormat === "video" ? (
+                    ) : (campaign.creativeFormat === "video" ? (
                       <video
                         className="aspect-video w-full rounded object-cover"
                         controls
@@ -545,7 +545,7 @@ function DashboardAdsPage() {
                         src={campaign.creativeImageUrl ?? campaign.creativeUrl}
                         width={320}
                       />
-                    )}
+                    ))}
                   </div>
                 ))}
                 {campaigns.length === 0 ? (
@@ -718,7 +718,6 @@ function AccordionBuilderForm({
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
-      route: "media",
       onError: () => {
         setCreativeUrl("");
       },
@@ -728,6 +727,7 @@ function AccordionBuilderForm({
           setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
         }
       },
+      route: "media",
     }),
     handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -744,16 +744,16 @@ function AccordionBuilderForm({
       setMediaPreviewUrl(URL.createObjectURL(file));
       const nextFormat = file.type.startsWith("video/")
         ? "video"
-        : file.type.startsWith("image/")
+        : (file.type.startsWith("image/")
           ? "image"
-          : "audio";
+          : "audio");
       setFormat(nextFormat);
       setPlacement(
         nextFormat === "audio"
           ? "audio_preroll"
-          : nextFormat === "video"
+          : (nextFormat === "video"
             ? "video_preroll"
-            : "video_overlay"
+            : "video_overlay")
       );
       void upload([file]);
     },
@@ -916,7 +916,7 @@ function AccordionBuilderForm({
                         controls
                         src={mediaPreviewUrl}
                       />
-                    ) : format === "video" ? (
+                    ) : (format === "video" ? (
                       <video
                         className="aspect-video w-full rounded object-cover"
                         controls
@@ -928,7 +928,7 @@ function AccordionBuilderForm({
                         className="max-h-64 w-full rounded object-contain"
                         src={mediaPreviewUrl}
                       />
-                    )}
+                    ))}
                   </div>
                 ) : null}
                 {attachedFile && (
@@ -1105,9 +1105,9 @@ function AccordionBuilderForm({
               >
                 {isUploading
                   ? "Uploading Creative..."
-                  : isPending
+                  : (isPending
                     ? "Launching Campaign..."
-                    : "Launch Ad Campaign"}
+                    : "Launch Ad Campaign")}
               </Button>
             </AccordionContent>
           </AccordionItem>

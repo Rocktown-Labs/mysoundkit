@@ -396,30 +396,29 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
       productId,
     };
   },
-  ensureStripeWebhookEndpoints = async ({ hasStripe }: { hasStripe: boolean }) => {
+  ensureStripeWebhookEndpoints = async ({
+    hasStripe,
+  }: {
+    hasStripe: boolean;
+  }) => {
     const apiUrl = getEnvValue("BETTER_AUTH_URL").replace(/\/$/u, ""),
       desired = [
         {
           connect: false,
-          key: "better_auth",
-          secretConfigured: Boolean(
-            getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET")
-          ),
-          url: `${apiUrl}/auth/stripe/webhook`,
           enabledEvents: [
             "checkout.session.completed",
             "customer.subscription.created",
             "customer.subscription.updated",
             "customer.subscription.deleted",
           ],
+          key: "better_auth",
+          secretConfigured: Boolean(
+            getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET")
+          ),
+          url: `${apiUrl}/auth/stripe/webhook`,
         },
         {
           connect: false,
-          key: "commerce",
-          secretConfigured: Boolean(
-            getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET")
-          ),
-          url: `${apiUrl}/v1/webhooks/stripe-commerce`,
           enabledEvents: [
             "checkout.session.completed",
             "checkout.session.async_payment_succeeded",
@@ -431,20 +430,25 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
             "charge.dispute.created",
             "charge.refunded",
           ],
+          key: "commerce",
+          secretConfigured: Boolean(
+            getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET")
+          ),
+          url: `${apiUrl}/v1/webhooks/stripe-commerce`,
         },
         {
           connect: true,
-          key: "connect",
-          secretConfigured: Boolean(
-            getEnvValue("STRIPE_CONNECT_WEBHOOK_SECRET")
-          ),
-          url: `${apiUrl}/v1/webhooks/stripe-commerce`,
           enabledEvents: [
             "account.updated",
             "account.application.authorized",
             "account.application.deauthorized",
             "capability.updated",
           ],
+          key: "connect",
+          secretConfigured: Boolean(
+            getEnvValue("STRIPE_CONNECT_WEBHOOK_SECRET")
+          ),
+          url: `${apiUrl}/v1/webhooks/stripe-commerce`,
         },
       ] as const;
 
@@ -478,7 +482,10 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
           id: match.id,
           secret: null,
           secretConfigured: endpoint.secretConfigured,
-          status: match.status === "enabled" ? ("enabled" as const) : ("missing" as const),
+          status:
+            match.status === "enabled"
+              ? ("enabled" as const)
+              : ("missing" as const),
           url: endpoint.url,
         });
         continue;
@@ -495,7 +502,10 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
           id: created?.id ?? null,
           secret: created?.secret ?? null,
           secretConfigured: endpoint.secretConfigured,
-          status: created?.status === "enabled" ? ("created" as const) : ("missing" as const),
+          status:
+            created?.status === "enabled"
+              ? ("created" as const)
+              : ("missing" as const),
           url: endpoint.url,
         });
       } catch (error) {
@@ -628,9 +638,9 @@ app.get("/payments/users", async (c) => {
         users: [
           {
             accountType: "artist",
-            creatorEligibility: null,
             banned: false,
             createdAt,
+            creatorEligibility: null,
             email: "cg@rocktownlabs.com",
             id: "test-admin-user",
             name: "SoundKit Admin",
@@ -641,9 +651,9 @@ app.get("/payments/users", async (c) => {
           },
           {
             accountType: "artist",
-            creatorEligibility: null,
             banned: false,
             createdAt,
+            creatorEligibility: null,
             email: "artist@example.com",
             id: "test-artist-user",
             name: "Demo Artist",
@@ -664,9 +674,9 @@ app.get("/payments/users", async (c) => {
     users = await db
       .select({
         accountType: userProfiles.accountType,
-        creatorEligibility: onboardingProgress.creatorEligibility,
         banned: user.banned,
         createdAt: user.createdAt,
+        creatorEligibility: onboardingProgress.creatorEligibility,
         email: user.email,
         id: user.id,
         name: user.name,

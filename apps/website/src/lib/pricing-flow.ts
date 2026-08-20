@@ -52,5 +52,4 @@ export const accountHomePathForAccount = (
 
 export const premiumSuccessPathForAccount = (
   accountType: SignupAccountType | null | undefined
-): "/" | "/dashboard" =>
-  accountType === "artist" ? "/dashboard" : "/";
+): "/" | "/dashboard" => (accountType === "artist" ? "/dashboard" : "/");

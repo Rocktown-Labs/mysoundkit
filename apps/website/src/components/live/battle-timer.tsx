@@ -21,13 +21,13 @@ export function BattleTimer({
   }, []);
 
   const remainingMs = useMemo(() => {
-    if (!phaseEndsAt) {
-      return 0;
-    }
-    const clockOffset = serverNow ? serverNow - now : 0;
-    return Math.max(0, phaseEndsAt - (now + clockOffset));
-  }, [now, phaseEndsAt, serverNow]),
-   totalSeconds = Math.ceil(remainingMs / 1000),
+      if (!phaseEndsAt) {
+        return 0;
+      }
+      const clockOffset = serverNow ? serverNow - now : 0;
+      return Math.max(0, phaseEndsAt - (now + clockOffset));
+    }, [now, phaseEndsAt, serverNow]),
+    totalSeconds = Math.ceil(remainingMs / 1000),
     minutes = Math.floor(totalSeconds / 60),
     seconds = totalSeconds % 60;
 

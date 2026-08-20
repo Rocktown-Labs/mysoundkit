@@ -47,9 +47,9 @@ const parseIssues = (
           ? existingMessages.filter(
               (message): message is string => typeof message === "string"
             )
-          : typeof existingMessages === "string"
+          : (typeof existingMessages === "string"
             ? [existingMessages]
-            : [],
+            : []),
         message =
           previousMessages.length > 0
             ? [...previousMessages, issue.message]

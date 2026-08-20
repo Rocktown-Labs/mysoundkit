@@ -13,8 +13,8 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
-import { mergeNetworkPerson, sortNetworkPeople } from '@/lib/network-domain';
-import type { NetworkPersonState } from '@/lib/network-domain';
+import { mergeNetworkPerson, sortNetworkPeople } from "@/lib/network-domain";
+import type { NetworkPersonState } from "@/lib/network-domain";
 import { messageResponseSchema, networkResponseSchema } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 
@@ -172,20 +172,25 @@ app.openapi(
     ]);
 
     const people = new Map<string, NetworkPersonState>();
-    for (const row of followingUserRows)
-      {mergeNetworkPerson(people, toPerson(row), { isFollowing: true });}
-    for (const row of followingArtistRows)
-      {mergeNetworkPerson(people, toPerson(row), { isFollowing: true });}
-    for (const row of followerUserRows)
-      {mergeNetworkPerson(people, toPerson(row), { followsYou: true });}
-    for (const row of followerArtistRows)
-      {mergeNetworkPerson(people, toPerson(row), { followsYou: true });}
-    for (const row of friendRows)
-      {mergeNetworkPerson(
+    for (const row of followingUserRows) {
+      mergeNetworkPerson(people, toPerson(row), { isFollowing: true });
+    }
+    for (const row of followingArtistRows) {
+      mergeNetworkPerson(people, toPerson(row), { isFollowing: true });
+    }
+    for (const row of followerUserRows) {
+      mergeNetworkPerson(people, toPerson(row), { followsYou: true });
+    }
+    for (const row of followerArtistRows) {
+      mergeNetworkPerson(people, toPerson(row), { followsYou: true });
+    }
+    for (const row of friendRows) {
+      mergeNetworkPerson(
         people,
         { ...toPerson(row), canMessage: true },
         { isFriend: true }
-      );}
+      );
+    }
 
     const requestItems = requestRows.map((row) => ({
       avatarUrl: row.avatarUrl,

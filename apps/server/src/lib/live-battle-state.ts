@@ -134,34 +134,32 @@ export const phaseDuration = (
 };
 
 const winnerForRound = (round: LiveBattleRound) => {
-  const artistIds = Object.keys(round.voteTotals);
-  if (artistIds.length < 2) {
-    return null;
-  }
+    const artistIds = Object.keys(round.voteTotals);
+    if (artistIds.length < 2) {
+      return null;
+    }
 
-  const artistA = artistIds[0],
-    artistB = artistIds[1];
-  if (!(artistA && artistB)) {
-    return null;
-  }
+    const artistA = artistIds[0],
+      artistB = artistIds[1];
+    if (!(artistA && artistB)) {
+      return null;
+    }
 
-  const votesA = round.voteTotals[artistA] ?? 0,
-    votesB = round.voteTotals[artistB] ?? 0;
+    const votesA = round.voteTotals[artistA] ?? 0,
+      votesB = round.voteTotals[artistB] ?? 0;
 
-  if (votesA === votesB) {
-    return null;
-  }
+    if (votesA === votesB) {
+      return null;
+    }
 
-  return votesA > votesB ? artistA : artistB;
-},
-
- roundsWon = (rounds: LiveBattleRound[], artistId: string) =>
-  rounds.filter((round) => round.winnerArtistId === artistId).length,
-
- nextRegularRound = (rounds: LiveBattleRound[], roundNumber: number) =>
-  rounds.find(
-    (round) => !round.isTiebreaker && round.number === roundNumber + 1
-  );
+    return votesA > votesB ? artistA : artistB;
+  },
+  roundsWon = (rounds: LiveBattleRound[], artistId: string) =>
+    rounds.filter((round) => round.winnerArtistId === artistId).length,
+  nextRegularRound = (rounds: LiveBattleRound[], roundNumber: number) =>
+    rounds.find(
+      (round) => !round.isTiebreaker && round.number === roundNumber + 1
+    );
 
 export const createBattleCoordination = ({
   battleId,
@@ -244,11 +242,11 @@ export const transitionBattle = (
     currentRound = battle.rounds.find(
       (round) => round.number === coordination.roundNumber
     ),
-    {phase} = coordination;
+    { phase } = coordination;
   let nextPhase: BattlePhase = phase,
     nextRoundNumber = coordination.roundNumber,
     activeArtistUserId: string | null = null,
-    {winnerUserId} = coordination,
+    { winnerUserId } = coordination,
     nextRounds = battle.rounds;
 
   if (phase === "scheduled") {
@@ -346,9 +344,9 @@ export const transitionBattle = (
     admittedUserIds =
       nextPhase === "between_rounds"
         ? admittedUsers.filter((userId) => !removedUserIds.includes(userId))
-        : shouldAdmitBatch
+        : (shouldAdmitBatch
           ? [...admittedUsers, ...admittedBatch]
-          : admittedUsers,
+          : admittedUsers),
     nextDuration = phaseDuration(nextPhase, coordination.durations),
     nextStartedAt = coordination.phaseEndsAt,
     nextCoordination: BattleCoordination = {
@@ -366,14 +364,12 @@ export const transitionBattle = (
           ? admittedUserIds.filter(
               (userId) => ![artistA.id, artistB.id].includes(userId)
             )
-          : isVotingPhase(phase) || phase === "round_result"
+          : (isVotingPhase(phase) || phase === "round_result"
             ? requiredVoters
-            : [],
+            : []),
       roundNumber: nextRoundNumber,
       votedUserIds:
-        isVotingPhase(phase) || phase === "round_result"
-          ? votedUsers
-          : [],
+        isVotingPhase(phase) || phase === "round_result" ? votedUsers : [],
       waitingUserIds: waitingUsers,
       winnerUserId,
     };

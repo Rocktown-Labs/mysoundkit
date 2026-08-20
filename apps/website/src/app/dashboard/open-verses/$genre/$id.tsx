@@ -239,13 +239,13 @@ function OpenVerseDetailPage() {
             assetSizeBytes: file.size,
             assetUrl: `${MEDIA_BASE_URL}/${objectKey}`,
           };
-        };
-        const [audition, vocalStem, adlibs] = await Promise.all([
+        },
+         [audition, vocalStem, adlibs] = await Promise.all([
           uploadAsset(selectedAuditionFile),
           uploadAsset(selectedVocalStemFile),
           selectedAdlibsFile ? uploadAsset(selectedAdlibsFile) : null,
-        ]);
-        const created = await submitMutation.mutateAsync({
+        ]),
+         created = await submitMutation.mutateAsync({
           adlibs: adlibs ?? undefined,
           audition,
           message: message.trim() || undefined,
@@ -518,9 +518,9 @@ function OpenVerseDetailPage() {
                 >
                   {accessRequestStatus === "approved"
                     ? "Access approved"
-                    : accessRequestStatus === "pending"
+                    : (accessRequestStatus === "pending"
                       ? "Request pending"
-                      : "Request Access"}
+                      : "Request Access")}
                 </Button>
               </div>
             ) : (

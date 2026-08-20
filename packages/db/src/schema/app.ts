@@ -2228,12 +2228,12 @@ export const liveExperiences = pgTable(
     projectId: text("project_id").references(() => projects.id, {
       onDelete: "set null",
     }),
+    reconnectUntil: timestamp("reconnect_until"),
     recordingAudioUrl: text("recording_audio_url"),
     recordingExpiresAt: timestamp("recording_expires_at"),
     recordingId: text("recording_id"),
     recordingStatus: text("recording_status"),
     recordingUrl: text("recording_url"),
-    reconnectUntil: timestamp("reconnect_until"),
     replayPublishedAt: timestamp("replay_published_at"),
     source: text("source").default("browser").notNull(),
     startedAt: timestamp("started_at"),

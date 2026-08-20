@@ -46,79 +46,82 @@ export const Route = createFileRoute("/dashboard/team")({
 
 function WorkspacePage() {
   const { toast } = useToast(),
-   workspaceQuery = useWorkspaceQuery(),
-   updateMutation = useUpdateWorkspaceMutation(),
-   removeMemberMutation = useRemoveWorkspaceMemberMutation(),
-   revokeInvitationMutation = useRevokeWorkspaceInvitationMutation(),
-   [isInviteOpen, setIsInviteOpen] = useState(false),
-   [isRenameOpen, setIsRenameOpen] = useState(false),
-   [newName, setNewName] = useState(""),
-   workspace = workspaceQuery.data,
-   activeWorkspace = workspace?.activeWorkspace,
-   canManage =
-    activeWorkspace?.role === "owner" || activeWorkspace?.role === "admin",
-   rename = async () => {
-    if (!newName.trim()) {return;}
-    try {
-      await updateMutation.mutateAsync({ name: newName.trim() });
-      setIsRenameOpen(false);
-      toast({
-        description: "Workspace name updated.",
-        title: "Workspace updated",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Unable to rename workspace.",
-        title: "Rename failed",
-        variant: "destructive",
-      });
-    }
-  },
-   removeMember = async (memberId: string) => {
-    try {
-      await removeMemberMutation.mutateAsync(memberId);
-      toast({
-        description: "The member was removed from the workspace.",
-        title: "Member removed",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Unable to remove member.",
-        title: "Removal failed",
-        variant: "destructive",
-      });
-    }
-  },
-   revokeInvitation = async (invitationId: string) => {
-    try {
-      await revokeInvitationMutation.mutateAsync(invitationId);
-      toast({
-        description: "The invitation was revoked.",
-        title: "Invitation revoked",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Unable to revoke invitation.",
-        title: "Revoke failed",
-        variant: "destructive",
-      });
-    }
-  };
-  if (workspaceQuery.isLoading)
-    {return (
+    workspaceQuery = useWorkspaceQuery(),
+    updateMutation = useUpdateWorkspaceMutation(),
+    removeMemberMutation = useRemoveWorkspaceMemberMutation(),
+    revokeInvitationMutation = useRevokeWorkspaceInvitationMutation(),
+    [isInviteOpen, setIsInviteOpen] = useState(false),
+    [isRenameOpen, setIsRenameOpen] = useState(false),
+    [newName, setNewName] = useState(""),
+    workspace = workspaceQuery.data,
+    activeWorkspace = workspace?.activeWorkspace,
+    canManage =
+      activeWorkspace?.role === "owner" || activeWorkspace?.role === "admin",
+    rename = async () => {
+      if (!newName.trim()) {
+        return;
+      }
+      try {
+        await updateMutation.mutateAsync({ name: newName.trim() });
+        setIsRenameOpen(false);
+        toast({
+          description: "Workspace name updated.",
+          title: "Workspace updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to rename workspace.",
+          title: "Rename failed",
+          variant: "destructive",
+        });
+      }
+    },
+    removeMember = async (memberId: string) => {
+      try {
+        await removeMemberMutation.mutateAsync(memberId);
+        toast({
+          description: "The member was removed from the workspace.",
+          title: "Member removed",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Unable to remove member.",
+          title: "Removal failed",
+          variant: "destructive",
+        });
+      }
+    },
+    revokeInvitation = async (invitationId: string) => {
+      try {
+        await revokeInvitationMutation.mutateAsync(invitationId);
+        toast({
+          description: "The invitation was revoked.",
+          title: "Invitation revoked",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to revoke invitation.",
+          title: "Revoke failed",
+          variant: "destructive",
+        });
+      }
+    };
+  if (workspaceQuery.isLoading) {
+    return (
       <Card>
         <CardContent className="p-6 text-sm text-muted-foreground">
           Loading workspace…
         </CardContent>
       </Card>
-    );}
+    );
+  }
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">

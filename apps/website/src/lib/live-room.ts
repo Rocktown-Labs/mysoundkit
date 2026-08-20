@@ -157,7 +157,13 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
   },
   postLiveRoom = async (
     roomId: string,
-    path: "chat" | "vote" | "battle/track" | "party/playback" | "queue" | "leave",
+    path:
+      | "chat"
+      | "vote"
+      | "battle/track"
+      | "party/playback"
+      | "queue"
+      | "leave",
     body: unknown
   ): Promise<LiveRoomChatResult | LiveRoomState> => {
     const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}/${path}`, {

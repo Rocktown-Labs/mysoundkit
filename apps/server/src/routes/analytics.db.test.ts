@@ -9,18 +9,12 @@ import {
   tracks,
 } from "@soundkit/db/schema/app";
 import { user } from "@soundkit/db/schema/auth";
-import { Hono } from "hono";
 import { sql } from "drizzle-orm";
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { Hono } from "hono";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import analyticsRoutes from "@/routes/analytics";
 import type { AppEnv } from "@/lib/types";
+import analyticsRoutes from "@/routes/analytics";
 
 const DATABASE_URL =
   process.env.SOUNDKIT_TEST_DATABASE_URL ??
@@ -57,18 +51,18 @@ const probeDatabase = async (url: string) => {
   } catch {
     return false;
   }
-};
+},
 
-const dbConnected = await probeDatabase(DATABASE_URL);
+ dbConnected = await probeDatabase(DATABASE_URL),
 
-const ARTIST_ID = "db-test-artist",
+ ARTIST_ID = "db-test-artist",
   LISTENER_A = "db-test-listener-a",
   LISTENER_B = "db-test-listener-b",
-  TRACK_LONG = "db-test-track-long",
-  TRACK_SHORT = "db-test-track-short",
-  TRACK_NO_ASSETS = "db-test-track-no-assets",
   PERIOD_CURRENT = "db-test-period-current",
-  PERIOD_PREV = "db-test-period-prev";
+  PERIOD_PREV = "db-test-period-prev",
+  TRACK_LONG = "db-test-track-long",
+  TRACK_NO_ASSETS = "db-test-track-no-assets",
+  TRACK_SHORT = "db-test-track-short";
 
 let db: ReturnType<typeof createDb>;
 
@@ -92,18 +86,33 @@ const makeApp = (userId: string, sessionId = "db-test-session") => {
   });
   app.route("/v1/analytics", analyticsRoutes);
   return app;
-};
+},
 
-const seedBaseline = async () => {
+ seedBaseline = async () => {
   const now = new Date(),
     monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
-    prevStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)),
+    prevStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)
+    ),
     seedUserId = "db-test-seed-user";
 
   await db.insert(user).values([
-    { email: "db-test-artist@test.dev", id: ARTIST_ID, name: "Test Artist", role: "artist" },
-    { email: "db-test-listener-a@test.dev", id: LISTENER_A, name: "Listener A" },
-    { email: "db-test-listener-b@test.dev", id: LISTENER_B, name: "Listener B" },
+    {
+      email: "db-test-artist@test.dev",
+      id: ARTIST_ID,
+      name: "Test Artist",
+      role: "artist",
+    },
+    {
+      email: "db-test-listener-a@test.dev",
+      id: LISTENER_A,
+      name: "Listener A",
+    },
+    {
+      email: "db-test-listener-b@test.dev",
+      id: LISTENER_B,
+      name: "Listener B",
+    },
     { email: "db-test-seed-user@test.dev", id: seedUserId, name: "Seed User" },
   ]);
 
@@ -180,20 +189,59 @@ const seedBaseline = async () => {
   });
 
   await db.insert(playbackSessions).values([
-    sessionValues("db-test-sess-long-a29", TRACK_LONG, LISTENER_A, 29, monthStart),
-    sessionValues("db-test-sess-long-a30", TRACK_LONG, LISTENER_A, 30, monthStart),
-    sessionValues("db-test-sess-long-b30", TRACK_LONG, LISTENER_B, 30, monthStart),
-    sessionValues("db-test-sess-long-rejected", TRACK_LONG, LISTENER_B, 40, monthStart, {
-      riskStatus: "rejected",
-    }),
-    sessionValues("db-test-sess-short-a18", TRACK_SHORT, LISTENER_A, 18, monthStart),
-    sessionValues("db-test-sess-short-a19", TRACK_SHORT, LISTENER_A, 19, monthStart),
+    sessionValues(
+      "db-test-sess-long-a29",
+      TRACK_LONG,
+      LISTENER_A,
+      29,
+      monthStart
+    ),
+    sessionValues(
+      "db-test-sess-long-a30",
+      TRACK_LONG,
+      LISTENER_A,
+      30,
+      monthStart
+    ),
+    sessionValues(
+      "db-test-sess-long-b30",
+      TRACK_LONG,
+      LISTENER_B,
+      30,
+      monthStart
+    ),
+    sessionValues(
+      "db-test-sess-long-rejected",
+      TRACK_LONG,
+      LISTENER_B,
+      40,
+      monthStart,
+      {
+        riskStatus: "rejected",
+      }
+    ),
+    sessionValues(
+      "db-test-sess-short-a18",
+      TRACK_SHORT,
+      LISTENER_A,
+      18,
+      monthStart
+    ),
+    sessionValues(
+      "db-test-sess-short-a19",
+      TRACK_SHORT,
+      LISTENER_A,
+      19,
+      monthStart
+    ),
   ]);
 
   await db.insert(accountingPeriods).values([
     {
       currency: "USD",
-      endsAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+      endsAt: new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
+      ),
       id: PERIOD_CURRENT,
       periodType: "monthly",
       startsAt: monthStart,
@@ -320,9 +368,9 @@ const seedBaseline = async () => {
       trackId: TRACK_LONG,
     },
   ]);
-};
+},
 
-const cleanupBaseline = async () => {
+ cleanupBaseline = async () => {
   const testIds = sql`id like 'db-test-%'`;
   for (const table of [
     creatorEarnings,
@@ -355,9 +403,9 @@ afterAll(async () => {
 
 describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
   it("timeseries responds 200 without GROUP BY 1 regression across ranges and metrics", async () => {
-    const app = makeApp(ARTIST_ID);
-    const ranges = ["7d", "28d", "90d", "12m"] as const;
-    const metrics = ["plays", "qualified_streams", "unique_listeners"] as const;
+    const app = makeApp(ARTIST_ID),
+     ranges = ["7d", "28d", "90d", "12m"] as const,
+     metrics = ["plays", "qualified_streams", "unique_listeners"] as const;
 
     for (const range of ranges) {
       for (const metric of metrics) {
@@ -380,11 +428,14 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
   });
 
   it("timeseries plays metric applies the 30s rule with short-track 95% fallback", async () => {
-    const app = makeApp(ARTIST_ID);
-    const response = await app.request(
+    const app = makeApp(ARTIST_ID),
+     response = await app.request(
       "/v1/analytics/timeseries?metric=plays&range=90d"
-    );
-    const body = (await response.json()) as { total: number; points: { value: number }[] };
+    ),
+     body = (await response.json()) as {
+      total: number;
+      points: { value: number }[];
+    };
 
     // Long track: 29s is excluded, two 30s+ plays count (risk-rejected 40s
     // still satisfies the 30s Play rule). Short track: 18s (<95%) excluded,
@@ -394,11 +445,11 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
   });
 
   it("timeseries qualified_streams counts only accepted streams", async () => {
-    const app = makeApp(ARTIST_ID);
-    const response = await app.request(
+    const app = makeApp(ARTIST_ID),
+     response = await app.request(
       "/v1/analytics/timeseries?metric=qualified_streams&range=90d"
-    );
-    const body = (await response.json()) as { total: number };
+    ),
+     body = (await response.json()) as { total: number };
 
     // Two qualified + one held excluded; the prior-period qualified stream
     // for LISTENER_A is outside the 90d window only if before it - it's
@@ -407,19 +458,19 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
   });
 
   it("timeseries unique_listeners counts distinct users", async () => {
-    const app = makeApp(ARTIST_ID);
-    const response = await app.request(
+    const app = makeApp(ARTIST_ID),
+     response = await app.request(
       "/v1/analytics/timeseries?metric=unique_listeners&range=90d"
-    );
-    const body = (await response.json()) as { total: number };
+    ),
+     body = (await response.json()) as { total: number };
 
     // LISTENER_A and LISTENER_B on the long track, LISTENER_A on short track.
     expect(body.total).toBe(2);
   });
 
   it("overview reports plays, qualified streams, and MTD earnings scoped to the open period", async () => {
-    const app = makeApp(ARTIST_ID);
-    const response = await app.request("/v1/analytics/overview");
+    const app = makeApp(ARTIST_ID),
+     response = await app.request("/v1/analytics/overview");
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as {
@@ -444,8 +495,8 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
   });
 
   it("track performance returns shared artwork resolver URLs and null fallback", async () => {
-    const app = makeApp(ARTIST_ID);
-    const response = await app.request("/v1/analytics/tracks");
+    const app = makeApp(ARTIST_ID),
+     response = await app.request("/v1/analytics/tracks");
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as {
@@ -456,9 +507,9 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
         title: string;
         trackId: string;
       }[];
-    };
+    },
 
-    const byId = new Map(body.tracks.map((t) => [t.trackId, t]));
+     byId = new Map(body.tracks.map((t) => [t.trackId, t]));
 
     // cover_art preferred over artwork; metadata.url honored.
     expect(byId.get(TRACK_LONG)?.coverArtUrl).toBe(
@@ -470,8 +521,8 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
   });
 
   it("earnings scopes estimated rewards to the open period and uses payable for progress", async () => {
-    const app = makeApp(ARTIST_ID);
-    const response = await app.request("/v1/analytics/earnings");
+    const app = makeApp(ARTIST_ID),
+     response = await app.request("/v1/analytics/earnings");
     expect(response.status).toBe(200);
 
     const body = (await response.json()) as {

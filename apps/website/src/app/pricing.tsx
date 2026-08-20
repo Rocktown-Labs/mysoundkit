@@ -59,7 +59,7 @@ function PricingPage() {
         return;
       }
       try {
-        const {origin} = window.location,
+        const { origin } = window.location,
           result = await checkout.mutateAsync({
             cancelUrl: `${origin}/pricing`,
             planCode: code,

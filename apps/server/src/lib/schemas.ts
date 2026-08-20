@@ -9,6 +9,7 @@ export const healthResponseSchema = z.object({
 });
 
 export const messageResponseSchema = z.object({
+  code: z.string().optional(),
   message: z.string(),
 });
 

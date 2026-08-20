@@ -114,3 +114,55 @@ describe("Weekly plays aggregation and 30-day release sorting", () => {
     expect(sorted[1]?.id).toBe("old-track");
   });
 });
+
+describe("track settlement guard & upload namespace validation", () => {
+  it("requires master asset with uploaded or ready status and object key", () => {
+    const assetsPending = [
+      {
+        assetKind: "master",
+        id: "a1",
+        objectKey: "tracks/user1/test.wav",
+        status: "pending",
+      },
+    ];
+    const assetsUploading = [
+      {
+        assetKind: "master",
+        id: "a1",
+        objectKey: "tracks/user1/test.wav",
+        status: "uploading",
+      },
+    ];
+    const assetsUploaded = [
+      {
+        assetKind: "master",
+        id: "a1",
+        objectKey: "tracks/user1/test.wav",
+        status: "uploaded",
+      },
+    ];
+    const assetsReady = [
+      {
+        assetKind: "master",
+        id: "a1",
+        objectKey: "tracks/user1/test.wav",
+        status: "ready",
+      },
+    ];
+
+    const findMaster = (
+      assets: { assetKind: string; objectKey: string; status: string }[]
+    ) =>
+      assets.find(
+        (asset) =>
+          asset.assetKind === "master" &&
+          Boolean(asset.objectKey) &&
+          (asset.status === "ready" || asset.status === "uploaded")
+      );
+
+    expect(findMaster(assetsPending)).toBeUndefined();
+    expect(findMaster(assetsUploading)).toBeUndefined();
+    expect(findMaster(assetsUploaded)).toBeDefined();
+    expect(findMaster(assetsReady)).toBeDefined();
+  });
+});

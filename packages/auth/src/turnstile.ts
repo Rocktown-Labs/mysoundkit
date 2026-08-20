@@ -1,9 +1,9 @@
 import { env } from "@soundkit/env/server";
 
 const getEnvValue = (key: string) =>
-  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+  (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
 
-const getExpectedHostnames = () =>
+ getExpectedHostnames = () =>
   new Set(
     getEnvValue("TURNSTILE_HOSTNAMES")
       .split(",")
@@ -55,8 +55,8 @@ export const verifyTurnstileRequest = async ({
   const form = new URLSearchParams({
     response: token,
     secret,
-  });
-  const clientIp = request.headers.get("CF-Connecting-IP");
+  }),
+   clientIp = request.headers.get("CF-Connecting-IP");
   if (clientIp) {
     form.set("remoteip", clientIp);
   }

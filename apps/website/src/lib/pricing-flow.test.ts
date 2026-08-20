@@ -24,9 +24,7 @@ describe("pricing flow", () => {
   it("routes artists to the dashboard and fans to Explore after checkout", () => {
     expect(accountHomePathForAccount("artist")).toBe("/dashboard");
     expect(accountHomePathForAccount("fan")).toBe("/");
-    expect(premiumSuccessPathForAccount("artist")).toBe(
-      "/dashboard"
-    );
+    expect(premiumSuccessPathForAccount("artist")).toBe("/dashboard");
     expect(premiumSuccessPathForAccount("fan")).toBe("/");
   });
 });

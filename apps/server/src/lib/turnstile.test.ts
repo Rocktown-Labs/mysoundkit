@@ -1,6 +1,5 @@
-import { describe, expect, it } from "vitest";
-
 import { isTurnstileResponseValid } from "@soundkit/auth/turnstile";
+import { describe, expect, it } from "vitest";
 
 describe("Turnstile response validation", () => {
   const expectedHostnames = new Set(["mysoundkit.com", "www.mysoundkit.com"]);
