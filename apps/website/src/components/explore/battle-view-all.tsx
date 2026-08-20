@@ -1,12 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import {
-  ChevronLeft,
-  Eye,
-  Music2,
-  Swords,
-  TrendingUp,
-  Trophy,
-} from "lucide-react";
+import { ChevronLeft, Eye, Swords, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -177,9 +170,7 @@ const sortOptionsMap = {
       grouped.set(groupKey, group);
     }
 
-    const knownGenreValues = new Set<string>(
-        musicGenres.map((genre) => genre.value)
-      ),
+    const knownGenreValues = new Set(musicGenres.map((genre) => genre.value)),
       orderedGenres = musicGenres.map((genre) => ({
         battles: grouped.get(genre.value) ?? [],
         genre: genre.label,

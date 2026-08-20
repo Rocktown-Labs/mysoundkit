@@ -1,7 +1,7 @@
 "use client";
 
 import { useUploadFiles } from "@better-upload/client";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Check,
   CircleDollarSign,
@@ -257,7 +257,7 @@ const targetOptions: readonly TargetOption[] = [
 ];
 
 function DashboardAdsPage() {
-  const navigate = Route.useNavigate(),
+  const navigate = useNavigate(),
     search = Route.useSearch(),
     activeTab = search.tab ?? "campaigns",
     { toast } = useToast(),
@@ -441,11 +441,11 @@ function DashboardAdsPage() {
                         <TableCell>
                           <Badge
                             variant={
-                              c.status === "active"
+                              c.status === "running"
                                 ? "default"
-                                : c.status === "exhausted_for_today"
+                                : (c.status === "completed"
                                   ? "secondary"
-                                  : "outline"
+                                  : "outline")
                             }
                           >
                             {c.status}
@@ -531,7 +531,7 @@ function DashboardAdsPage() {
                         controls
                         src={campaign.creativeUrl}
                       />
-                    ) : campaign.creativeFormat === "video" ? (
+                    ) : (campaign.creativeFormat === "video" ? (
                       <video
                         className="aspect-video w-full rounded object-cover"
                         controls
@@ -545,7 +545,7 @@ function DashboardAdsPage() {
                         src={campaign.creativeImageUrl ?? campaign.creativeUrl}
                         width={320}
                       />
-                    )}
+                    ))}
                   </div>
                 ))}
                 {campaigns.length === 0 ? (
@@ -718,7 +718,6 @@ function AccordionBuilderForm({
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
-      route: "media",
       onError: () => {
         setCreativeUrl("");
       },
@@ -744,16 +743,16 @@ function AccordionBuilderForm({
       setMediaPreviewUrl(URL.createObjectURL(file));
       const nextFormat = file.type.startsWith("video/")
         ? "video"
-        : file.type.startsWith("image/")
+        : (file.type.startsWith("image/")
           ? "image"
-          : "audio";
+          : "audio");
       setFormat(nextFormat);
       setPlacement(
         nextFormat === "audio"
           ? "audio_preroll"
-          : nextFormat === "video"
+          : (nextFormat === "video"
             ? "video_preroll"
-            : "video_overlay"
+            : "video_overlay")
       );
       void upload([file]);
     },
@@ -916,7 +915,7 @@ function AccordionBuilderForm({
                         controls
                         src={mediaPreviewUrl}
                       />
-                    ) : format === "video" ? (
+                    ) : (format === "video" ? (
                       <video
                         className="aspect-video w-full rounded object-cover"
                         controls
@@ -928,7 +927,7 @@ function AccordionBuilderForm({
                         className="max-h-64 w-full rounded object-contain"
                         src={mediaPreviewUrl}
                       />
-                    )}
+                    ))}
                   </div>
                 ) : null}
                 {attachedFile && (
@@ -1027,24 +1026,7 @@ function AccordionBuilderForm({
 
               {/* Interactive Map */}
               <div className="rounded-lg border overflow-hidden p-2 bg-background">
-                <WorldAndUSAMap
-                  mapScope={mapScope}
-                  onRegionSelect={(regionName) => {
-                    const target = targetOptions.find(
-                      (option) =>
-                        option.code === regionName ||
-                        option.label === regionName
-                    );
-                    if (target) {
-                      setSelectedCodes([target.code]);
-                    }
-                  }}
-                  onScopeChange={setMapScope}
-                  selectedRegion={
-                    selectedCodes.length === 1 ? selectedCodes[0] : null
-                  }
-                  selectedRegions={selectedCodes}
-                />
+                <WorldAndUSAMap scope={mapScope} onScopeChange={setMapScope} />
               </div>
 
               <Button
@@ -1105,9 +1087,9 @@ function AccordionBuilderForm({
               >
                 {isUploading
                   ? "Uploading Creative..."
-                  : isPending
+                  : (isPending
                     ? "Launching Campaign..."
-                    : "Launch Ad Campaign"}
+                    : "Launch Ad Campaign")}
               </Button>
             </AccordionContent>
           </AccordionItem>

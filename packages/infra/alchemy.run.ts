@@ -2,7 +2,6 @@ import alchemy from "alchemy";
 import {
   AccountId,
   AccountApiToken,
-  AnalyticsEngineDataset,
   DurableObjectNamespace,
   Hyperdrive,
   Queue,
@@ -156,10 +155,6 @@ const SITE_HOST = isProduction
       },
     ],
   }),
-  liveRecordingWorkflow = Workflow("live-recording", {
-    className: "LiveRecordingWorkflow",
-    workflowName: resourceName("soundkit-live-recording"),
-  }),
   trackProcessingWorkflow = Workflow("track-processing", {
     className: "TrackProcessingWorkflow",
     workflowName: resourceName("soundkit-track-processing"),
@@ -179,21 +174,6 @@ const SITE_HOST = isProduction
       messageRetentionPeriod: 1_209_600,
     },
   }),
-  liveNotificationDeadLetterQueue = await Queue("live-notifications-dlq", {
-    adopt: shouldAdoptRemoteResources,
-    name: resourceName("soundkit-live-notifications-dlq"),
-    settings: {
-      messageRetentionPeriod: 1_209_600,
-    },
-  }),
-  liveNotificationQueue = await Queue("live-notifications", {
-    adopt: shouldAdoptRemoteResources,
-    dlq: liveNotificationDeadLetterQueue,
-    name: resourceName("soundkit-live-notifications"),
-    settings: {
-      messageRetentionPeriod: 1_209_600,
-    },
-  }),
   liveRooms = DurableObjectNamespace("live-rooms", {
     className: "LiveRoomDurableObject",
     sqlite: true,
@@ -201,9 +181,6 @@ const SITE_HOST = isProduction
   presence = DurableObjectNamespace("presence", {
     className: "PresenceDurableObject",
     sqlite: true,
-  }),
-  doMetrics = AnalyticsEngineDataset("do-metrics", {
-    dataset: resourceName("soundkit_do_metrics"),
   }),
   trackDurationBackfillDeadLetterQueue = await Queue(
     "track-duration-backfill-dlq",
@@ -253,7 +230,6 @@ export const web = await TanStackStart("web", {
     VITE_MEDIA_URL: MEDIA_URL,
     ...optionalEnvBinding("VITE_RADAR_PUBLISHABLE_KEY"),
     ...optionalEnvBinding("VITE_STRIPE_PUBLISHABLE_KEY"),
-    ...optionalEnvBinding("VITE_TURNSTILE_SITE_KEY"),
     VITE_SENTRY_DSN: SENTRY_WEB_DSN,
     VITE_SERVER_URL: API_URL,
   },
@@ -300,13 +276,11 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("CLOUDFLARE_REALTIMEKIT_APP_ID"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_API_TOKEN"),
     ...optionalEnvBinding("CLOUDFLARE_STREAM_CUSTOMER_CODE"),
-    ...optionalEnvBinding("CLOUDFLARE_STREAM_WEBHOOK_SECRET"),
     SOUNDKIT_ALLOW_MOCK_REALTIME: isPullRequestPreview ? "true" : "false",
     DATABASE_URL: requiredSecret(
       alchemy.secret.env.DATABASE_URL,
       "DATABASE_URL"
     ),
-    DO_METRICS: doMetrics,
     EMAIL_DELIVERY_QUEUE: emailDeliveryQueue,
     GOOGLE_EMBEDDING_MODEL: requiredEnv("GOOGLE_EMBEDDING_MODEL"),
     GOOGLE_GENERATIVE_AI_API_KEY: requiredSecret(
@@ -314,8 +288,6 @@ export const server = await Worker("server", {
       "GOOGLE_GENERATIVE_AI_API_KEY"
     ),
     HYPERDRIVE: hyperdrive,
-    LIVE_NOTIFICATION_QUEUE: liveNotificationQueue,
-    LIVE_RECORDING_WORKFLOW: liveRecordingWorkflow,
     LIVE_ROOMS: liveRooms,
     PRESENCE: presence,
     MEDIA_BUCKET: media,
@@ -344,8 +316,6 @@ export const server = await Worker("server", {
     SOUNDKIT_PUBLIC_URL: SITE_URL,
     ...optionalEnvBinding("RESEND_API_KEY"),
     ...optionalEnvBinding("RESEND_WEBHOOK_SECRET"),
-    ...optionalEnvBinding("TURNSTILE_HOSTNAMES"),
-    ...optionalEnvBinding("TURNSTILE_SECRET"),
     ...optionalEnvBinding("SOUNDKIT_EMAIL_FROM"),
     ...optionalEnvBinding("SOUNDKIT_EMAIL_REPLY_TO"),
     SENTRY_DSN: SENTRY_SERVER_DSN,
@@ -365,16 +335,10 @@ export const server = await Worker("server", {
       alchemy.secret.env.STRIPE_WEBHOOK_SECRET,
       "STRIPE_WEBHOOK_SECRET"
     ),
-    ...optionalEnvBinding("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
-    ...optionalEnvBinding("STRIPE_COMMERCE_WEBHOOK_SECRET"),
-    ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
     TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
     TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
     UPLOAD_BUCKET_NAME: media.name,
     ...optionalEnvBinding("ADMIN_EMAILS"),
-    ...optionalEnvBinding("BATTLE_ADMISSION_BATCH_SIZE"),
-    ...optionalEnvBinding("GOOGLE_CLIENT_ID"),
-    ...optionalEnvBinding("GOOGLE_CLIENT_SECRET"),
     ...(r2Jurisdiction ? { CLOUDFLARE_R2_JURISDICTION: r2Jurisdiction } : {}),
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"),
     ...optionalEnvBinding("STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID"),
@@ -404,17 +368,6 @@ export const server = await Worker("server", {
       },
     },
     {
-      queue: liveNotificationQueue,
-      settings: {
-        batchSize: 50,
-        deadLetterQueue: liveNotificationDeadLetterQueue,
-        maxConcurrency: 10,
-        maxRetries: 6,
-        maxWaitTimeMs: 5000,
-        retryDelay: 30,
-      },
-    },
-    {
       queue: trackDurationBackfillQueue,
       settings: {
         batchSize: 10,
@@ -427,21 +380,6 @@ export const server = await Worker("server", {
     },
   ],
   name: resourceName("soundkit-server"),
-  observability: {
-    enabled: true,
-    headSamplingRate: 1,
-    logs: {
-      enabled: true,
-      headSamplingRate: 1,
-      invocationLogs: true,
-      persist: true,
-    },
-    traces: {
-      enabled: true,
-      headSamplingRate: 1,
-      persist: true,
-    },
-  },
   placement: {
     region: "aws:us-east-1",
   },

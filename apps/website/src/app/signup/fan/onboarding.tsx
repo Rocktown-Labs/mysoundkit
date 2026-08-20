@@ -1,21 +1,24 @@
 import { usePostHog } from "@posthog/react";
+/* eslint-disable no-use-before-define, react-perf/jsx-no-new-function-as-prop, react/no-unescaped-entities */
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { Check, MapPin, Music2, User } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { User, MapPin, Music2, Check } from "lucide-react";
+import { useState } from "react";
 
-import { PlanSelectionCard } from "@/components/billing/plan-selection-card";
-import { LocationField } from "@/components/onboarding/location-field";
-import { MediaLayoutSelector } from "@/components/onboarding/media-layout-selector";
-import { UsernameField } from "@/components/onboarding/username-field";
 import { SoundKitBrand } from "@/components/soundkit-brand";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { API_V1_URL } from "@/lib/api";
-import { FAN_ONBOARDING_DRAFT_KEY } from "@/lib/onboarding-flow";
-import { fallbackBillingPlans } from "@/lib/pricing-flow";
-import { useBillingPlansQuery, useGenresQuery } from "@/lib/soundkit-api-hooks";
 import { requireSignupOnboardingUser } from "@/lib/soundkit.functions";
 
 export const Route = createFileRoute("/signup/fan/onboarding")({
@@ -25,455 +28,424 @@ export const Route = createFileRoute("/signup/fan/onboarding")({
 });
 
 function FanOnboardingPage() {
-  const router = useRouter(),
-    posthog = usePostHog(),
-    genresQuery = useGenresQuery(),
-    plansQuery = useBillingPlansQuery(),
-    [step, setStep] = useState(1),
-    [username, setUsername] = useState(""),
-    [usernameAvailable, setUsernameAvailable] = useState(false),
-    [selectedGenres, setSelectedGenres] = useState<string[]>([]),
+  const posthog = usePostHog(),
+    router = useRouter(),
     [city, setCity] = useState(""),
-    [stateValue, setStateValue] = useState(""),
+    [errorMessage, setErrorMessage] = useState<string | null>(null),
+    [isSubmitting, setIsSubmitting] = useState(false),
     [mediaLayout, setMediaLayout] = useState<"cards" | "list">("cards"),
     [selectedPlanCode, setSelectedPlanCode] = useState("soundkit_premium_fan"),
-    [errorMessage, setErrorMessage] = useState<string | null>(null),
-    [finalizationStatus, setFinalizationStatus] = useState<
-      "idle" | "saving" | "checkout"
-    >("idle"),
-    [isSubmitting, setIsSubmitting] = useState(false),
-    [isDraftRestored, setIsDraftRestored] = useState(false),
+    [stateValue, setStateValue] = useState(""),
+    [step, setStep] = useState(1),
+    [selectedGenres, setSelectedGenres] = useState<string[]>([]),
+    [username, setUsername] = useState(""),
     totalSteps = 4,
-    plans = useMemo(() => {
-      const available =
-        plansQuery.data?.filter((plan) =>
-          ["fan_free", "soundkit_premium_fan"].includes(plan.code)
-        ) ?? [];
-      return available.length > 0
-        ? available
-        : fallbackBillingPlans.filter((plan) => plan.audience === "fan");
-    }, [plansQuery.data]),
-    persistProgress = async (nextStep: number) => {
-      await fetch(`${API_V1_URL}/onboarding/state`, {
-        body: JSON.stringify({
-          currentStep: nextStep,
-          intendedAccountType: "fan",
-          selectedPlanCode,
-        }),
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-    },
-    goToStep = (nextStep: number) => {
-      posthog.capture("onboarding_step_completed", {
-        account_type: "fan",
-        step,
-      });
-      setStep(nextStep);
-      void persistProgress(nextStep);
-    },
-    toggleGenre = (slug: string) => {
-      setSelectedGenres((current) =>
-        current.includes(slug)
-          ? current.filter((item) => item !== slug)
-          : [...current, slug]
+    progress = (step / totalSteps) * 100,
+    genres = [
+      "Hip-Hop",
+      "R&B/Soul",
+      "Pop",
+      "Electronic",
+      "Spoken Word",
+      "Rock",
+      "Jazz",
+      "Afrobeats",
+      "Latin",
+      "Country",
+      "Reggae",
+      "Indie",
+      "Metal",
+      "Spoken Word",
+    ],
+    toggleGenre = (genre: string) => {
+      setSelectedGenres((prev) =>
+        prev.includes(genre)
+          ? prev.filter((g) => g !== genre)
+          : [...prev, genre]
       );
     },
-    exitSetup = async () => {
-      if (
-        !window.confirm(
-          "Exit setup? Your account and progress will stay saved. You can return and finish setup later."
-        )
-      ) {
-        return;
-      }
-      await fetch(`${API_V1_URL}/onboarding/exit`, {
-        credentials: "include",
-        method: "POST",
-      });
-      posthog.capture("onboarding_exited", { account_type: "fan", step });
-      await router.navigate({ to: "/" });
-    },
-    completeOnboarding = async () => {
-      if (
-        !(usernameAvailable && selectedGenres.length >= 3 && city && stateValue)
-      ) {
-        setErrorMessage(
-          "Choose an available username, at least three genres, and your location before completing setup."
-        );
-        return;
-      }
-      setIsSubmitting(true);
-      setFinalizationStatus("saving");
+    completeOnboarding = async (planCode = selectedPlanCode) => {
       setErrorMessage(null);
+      setIsSubmitting(true);
+
       try {
         const response = await fetch(`${API_V1_URL}/onboarding/fan`, {
             body: JSON.stringify({
-              city,
+              city: city || "Los Angeles",
               genrePreferences: selectedGenres,
               mediaLayout,
-              selectedPlanCode,
-              state: stateValue,
-              username,
+              selectedPlanCode: planCode,
+              state: stateValue || "ca",
+              username: username || "soundkit-fan",
             }),
             credentials: "include",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+            },
             method: "POST",
           }),
           payload = (await response.json().catch(() => null)) as {
             checkoutUrl?: string | null;
             message?: string;
           } | null;
+
         if (!response.ok) {
           setErrorMessage(
             payload?.message ?? "Unable to complete onboarding right now."
           );
           return;
         }
-        window.localStorage.removeItem(FAN_ONBOARDING_DRAFT_KEY);
-        posthog.capture("onboarding_completed", {
-          account_type: "fan",
+
+        posthog.capture("fan_onboarding_completed", {
           genre_count: selectedGenres.length,
-          selected_plan: selectedPlanCode,
+          has_checkout: Boolean(payload?.checkoutUrl),
+          plan_code: planCode,
+          selected_genres: selectedGenres,
         });
+
         if (payload?.checkoutUrl) {
-          setFinalizationStatus("checkout");
-          posthog.capture("premium_checkout_started", {
-            account_type: "fan",
-            selected_plan: selectedPlanCode,
-          });
           window.location.assign(payload.checkoutUrl);
           return;
         }
+
         await router.navigate({ to: "/" });
-      } catch {
-        setErrorMessage("Unable to reach SoundKit. Please try again.");
+      } catch (error) {
+        posthog.captureException(error);
+        setErrorMessage(
+          "Unable to reach SoundKit. Check your API credentials."
+        );
       } finally {
         setIsSubmitting(false);
-        setFinalizationStatus("idle");
       }
     };
-
-  useEffect(() => {
-    posthog.capture("onboarding_step_viewed", { account_type: "fan", step });
-  }, [posthog, step]);
-
-  useEffect(() => {
-    const rawDraft = window.localStorage.getItem(FAN_ONBOARDING_DRAFT_KEY);
-    if (rawDraft) {
-      try {
-        const draft = JSON.parse(rawDraft) as Record<string, unknown>;
-        if (typeof draft.step === "number") {
-          setStep(Math.min(Math.max(Math.trunc(draft.step), 1), totalSteps));
-        }
-        if (typeof draft.username === "string") {
-          setUsername(draft.username);
-        }
-        if (Array.isArray(draft.selectedGenres)) {
-          setSelectedGenres(
-            draft.selectedGenres.filter(
-              (genre): genre is string => typeof genre === "string"
-            )
-          );
-        }
-        if (typeof draft.city === "string") {
-          setCity(draft.city);
-        }
-        if (typeof draft.stateValue === "string") {
-          setStateValue(draft.stateValue);
-        }
-        if (draft.mediaLayout === "cards" || draft.mediaLayout === "list") {
-          setMediaLayout(draft.mediaLayout);
-        }
-        if (
-          draft.selectedPlanCode === "fan_free" ||
-          draft.selectedPlanCode === "soundkit_premium_fan"
-        ) {
-          setSelectedPlanCode(draft.selectedPlanCode);
-        }
-      } catch {
-        window.localStorage.removeItem(FAN_ONBOARDING_DRAFT_KEY);
-      }
-    }
-    setIsDraftRestored(true);
-
-    const restoreProgress = async () => {
-      const response = await fetch(`${API_V1_URL}/onboarding/state`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        posthog.capture("onboarding_started", { account_type: "fan" });
-        return;
-      }
-      const state = (await response.json().catch(() => null)) as {
-        currentStep?: number;
-        selectedPlanCode?: string | null;
-      } | null;
-      if (state?.currentStep && state.currentStep > 1) {
-        setStep(Math.min(state.currentStep, totalSteps));
-        posthog.capture("onboarding_resumed", {
-          account_type: "fan",
-          step: state.currentStep,
-        });
-      } else {
-        posthog.capture("onboarding_started", { account_type: "fan" });
-      }
-      if (state?.selectedPlanCode) {
-        setSelectedPlanCode(state.selectedPlanCode);
-      }
-    };
-    void restoreProgress();
-  }, [posthog]);
-
-  useEffect(() => {
-    if (!isDraftRestored) {
-      return;
-    }
-    window.localStorage.setItem(
-      FAN_ONBOARDING_DRAFT_KEY,
-      JSON.stringify({
-        city,
-        mediaLayout,
-        selectedGenres,
-        selectedPlanCode,
-        stateValue,
-        step,
-        username,
-      })
-    );
-  }, [
-    city,
-    isDraftRestored,
-    mediaLayout,
-    selectedGenres,
-    selectedPlanCode,
-    stateValue,
-    step,
-    username,
-  ]);
-
-  const goBack = () => setStep((current) => Math.max(1, current - 1)),
-    submitLabel =
-      finalizationStatus === "checkout"
-        ? "Starting Premium checkout…"
-        : "Preparing your SoundKit home…";
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:py-12">
-      <div className="mx-auto w-full max-w-3xl">
-        <div className="mb-8 text-center">
-          <SoundKitBrand variant="wordmark" wordmarkClassName="h-11" />
-          <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
-            <span>Personalize your SoundKit</span>
-            <button
-              className="text-primary hover:underline"
-              onClick={() => void exitSetup()}
-              type="button"
-            >
-              Exit setup
-            </button>
-          </div>
-          <p className="mt-3 text-muted-foreground">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <SoundKitBrand
+            className="mb-4"
+            variant="wordmark"
+            wordmarkClassName="h-12"
+          />
+          <h1 className="text-2xl font-bold mb-2">
+            Personalize Your Experience
+          </h1>
+          <p className="text-muted-foreground">
             Step {step} of {totalSteps}
           </p>
-          <Progress className="mt-4 h-2" value={(step / totalSteps) * 100} />
+          <Progress value={progress} className="mt-4 h-2" />
         </div>
-        <Card className="border-border/60 bg-card/80 shadow-xl shadow-black/10">
-          <CardContent className="p-6 md:p-10">
-            {step === 1 ? (
-              <StepFrame
-                icon={<User />}
-                title="Choose Your Username"
-                subtitle="This is how you will appear to other people."
-              >
-                <UsernameField
-                  onChange={setUsername}
-                  onStatusChange={(status) =>
-                    setUsernameAvailable(status === "available")
-                  }
-                  value={username}
-                />
-                <div className="mt-6">
-                  <Button
-                    className="h-12 w-full"
-                    disabled={!usernameAvailable}
-                    onClick={() => goToStep(2)}
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
+
+        <Card className="bg-card/50 backdrop-blur-sm border-border/40">
+          <CardContent className="p-6 md:p-8">
+            {/* Step 1: Username */}
+            {step === 1 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="size-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold">Choose Your Username</h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    How you'll appear to others
+                  </p>
                 </div>
-              </StepFrame>
-            ) : null}
-            {step === 2 ? (
-              <StepFrame
-                icon={<Music2 />}
-                title="What Do You Like to Listen To?"
-                subtitle="Choose at least three genres to personalize discovery."
-              >
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {genresQuery.data?.map((genre) => (
-                    <button
-                      aria-checked={selectedGenres.includes(genre.slug)}
-                      className={`min-h-16 rounded-lg border-2 p-4 text-left transition ${selectedGenres.includes(genre.slug) ? "border-primary bg-primary/10" : "border-border bg-background/50 hover:border-primary/60"}`}
-                      key={genre.slug}
-                      onClick={() => toggleGenre(genre.slug)}
-                      role="checkbox"
-                      type="button"
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    placeholder="@musicfan"
+                    className="text-lg"
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Can only contain letters, numbers, and underscores
+                  </p>
+                </div>
+                <Button onClick={() => setStep(2)} className="w-full" size="lg">
+                  Continue
+                </Button>
+              </div>
+            )}
+
+            {/* Step 2: Genre Preferences */}
+            {step === 2 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Music2 className="size-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold">
+                    What Do You Like to Listen To?
+                  </h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Select at least 3 genres
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {genres.map((genre) => (
+                    <Badge
+                      key={genre}
+                      variant={
+                        selectedGenres.includes(genre) ? "default" : "outline"
+                      }
+                      className="cursor-pointer text-sm py-2 px-4"
+                      onClick={() => toggleGenre(genre)}
                     >
-                      <span className="font-medium">{genre.name}</span>
-                    </button>
+                      {genre}
+                    </Badge>
                   ))}
                 </div>
-                {genresQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">
-                    Loading genres…
-                  </p>
-                ) : null}
-                {genresQuery.error ? (
-                  <p className="text-sm text-destructive">
-                    Genres are unavailable right now. Try again.
-                  </p>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  {selectedGenres.length} selected · minimum 3
-                </p>
-                <div className="mt-6 flex gap-3">
+                <div className="flex gap-3">
                   <Button
-                    className="h-12 flex-1"
-                    onClick={goBack}
-                    size="lg"
+                    onClick={() => setStep(1)}
                     variant="outline"
+                    className="flex-1"
+                    size="lg"
                   >
                     Back
                   </Button>
                   <Button
-                    className="h-12 flex-1"
+                    onClick={() => setStep(3)}
+                    className="flex-1"
+                    size="lg"
                     disabled={selectedGenres.length < 3}
-                    onClick={() => goToStep(3)}
-                    size="lg"
                   >
                     Continue
                   </Button>
                 </div>
-              </StepFrame>
-            ) : null}
-            {step === 3 ? (
-              <StepFrame
-                icon={<MapPin />}
-                title="Where Are You Located?"
-                subtitle="Discover local artists and events with a full city and state location."
-              >
-                <LocationField
-                  city={city}
-                  onChange={({ city: nextCity, state: nextState }) => {
-                    setCity(nextCity);
-                    setStateValue(nextState);
-                  }}
-                  state={stateValue}
-                />
-                <div className="mt-6 flex gap-3">
-                  <Button
-                    className="h-12 flex-1"
-                    onClick={goBack}
-                    size="lg"
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="h-12 flex-1"
-                    disabled={!(city && stateValue)}
-                    onClick={() => goToStep(4)}
-                    size="lg"
-                  >
-                    Continue
-                  </Button>
+              </div>
+            )}
+
+            {/* Step 3: Location */}
+            {step === 3 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <div className="mx-auto mb-4 size-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <MapPin className="size-8 text-primary" />
+                  </div>
+                  <h2 className="text-xl font-bold">Where Are You Located?</h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    Discover local artists and events
+                  </p>
                 </div>
-              </StepFrame>
-            ) : null}
-            {step === 4 ? (
-              <StepFrame
-                icon={<Check />}
-                title="Choose Your Experience"
-                subtitle="Pick a library layout and choose Free or Premium. You can upgrade later."
-              >
-                <div className="space-y-5">
-                  <MediaLayoutSelector
-                    onChange={setMediaLayout}
-                    value={mediaLayout}
-                  />
-                  <div className="space-y-3">
-                    <h3 className="font-semibold">Choose your plan</h3>
-                    {plans.map((plan) => (
-                      <PlanSelectionCard
-                        description={
-                          plan.code === "fan_free"
-                            ? "Discover public releases with one account."
-                            : "Premium listening, live access, and up to five total accounts/seats."
-                        }
-                        key={plan.code}
-                        onSelect={() => setSelectedPlanCode(plan.code)}
-                        plan={{ ...plan, maxSeats: plan.maxSeats ?? 1 }}
-                        selected={selectedPlanCode === plan.code}
-                      />
-                    ))}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      placeholder="Los Angeles"
+                      value={city}
+                      onChange={(event) => setCity(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State</Label>
+                    <Select value={stateValue} onValueChange={setStateValue}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ca">California</SelectItem>
+                        <SelectItem value="ny">New York</SelectItem>
+                        <SelectItem value="tx">Texas</SelectItem>
+                        <SelectItem value="ga">Georgia</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                {errorMessage ? (
-                  <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {errorMessage}
-                  </p>
-                ) : null}
-                <div className="mt-6 flex gap-3">
+                <div className="flex gap-3">
                   <Button
-                    className="h-12 flex-1"
-                    onClick={goBack}
-                    size="lg"
+                    onClick={() => setStep(2)}
                     variant="outline"
+                    className="flex-1"
+                    size="lg"
                   >
                     Back
                   </Button>
                   <Button
-                    className="h-12 flex-1"
-                    disabled={isSubmitting}
-                    onClick={() => void completeOnboarding()}
+                    onClick={() => setStep(4)}
+                    className="flex-1"
                     size="lg"
                   >
-                    {isSubmitting ? submitLabel : "Complete setup"}
+                    Continue
                   </Button>
                 </div>
-              </StepFrame>
-            ) : null}
+              </div>
+            )}
+
+            {/* Step 4: Subscription */}
+            {step === 4 && (
+              <div className="space-y-6">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold">Choose Your Plan</h2>
+                  <p className="text-muted-foreground text-sm mt-2">
+                    You can always upgrade later
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="onboarding-media-layout">Media layout</Label>
+                  <Select
+                    onValueChange={(value) =>
+                      setMediaLayout(value === "list" ? "list" : "cards")
+                    }
+                    value={mediaLayout}
+                  >
+                    <SelectTrigger id="onboarding-media-layout">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cards">Visual cards</SelectItem>
+                      <SelectItem value="list">Compact list</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-4">
+                  <Card
+                    className={`border-2 cursor-pointer hover:border-primary transition-colors ${
+                      selectedPlanCode === "fan_free" ? "border-primary" : ""
+                    }`}
+                    onClick={() => setSelectedPlanCode("fan_free")}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h4 className="font-bold text-lg">Free</h4>
+                          <p className="text-3xl font-bold mt-2">
+                            $0
+                            <span className="text-sm font-normal text-muted-foreground">
+                              /month
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <ul className="space-y-2 text-sm">
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Stream unlimited music
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Vote in battles
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Create playlists
+                        </li>
+                      </ul>
+                      <Button
+                        variant="outline"
+                        className="w-full mt-6 bg-transparent"
+                        size="lg"
+                        onClick={() => void completeOnboarding("fan_free")}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting && selectedPlanCode === "fan_free"
+                          ? "Completing..."
+                          : "Start Free"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className={`border-2 cursor-pointer relative overflow-hidden ${
+                      selectedPlanCode === "soundkit_premium_fan"
+                        ? "border-primary"
+                        : ""
+                    }`}
+                    onClick={() => setSelectedPlanCode("soundkit_premium_fan")}
+                  >
+                    <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-semibold">
+                      RECOMMENDED
+                    </div>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h4 className="font-bold text-lg">Premium</h4>
+                          <p className="text-3xl font-bold mt-2">
+                            $22.99
+                            <span className="text-sm font-normal text-muted-foreground">
+                              /month
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <ul className="space-y-2 text-sm">
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Everything in Free
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Live battles and voting
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          VODs, live rooms, and premium chat
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Supports Creator Rewards from your listening
+                        </li>
+                        <li className="flex items-center">
+                          <Check className="mr-2 size-4 text-primary" />
+                          Carries over if you convert to an artist account
+                        </li>
+                      </ul>
+                      <Button
+                        className="w-full mt-6"
+                        size="lg"
+                        onClick={() =>
+                          void completeOnboarding("soundkit_premium_fan")
+                        }
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting &&
+                        selectedPlanCode === "soundkit_premium_fan"
+                          ? "Completing..."
+                          : "Start Premium"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className={`cursor-pointer border-2 ${
+                      selectedPlanCode === "fan_family" ? "border-primary" : ""
+                    }`}
+                    onClick={() => setSelectedPlanCode("fan_family")}
+                  >
+                    <CardContent className="p-6">
+                      <h4 className="font-bold text-lg">Fan Family</h4>
+                      <p className="mt-2 text-3xl font-bold">
+                        $24.99
+                        <span className="text-sm font-normal text-muted-foreground">
+                          /month
+                        </span>
+                      </p>
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        Listener Premium for up to 5 accounts.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+                {errorMessage && (
+                  <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {errorMessage}
+                  </p>
+                )}
+                <Button
+                  onClick={() => setStep(3)}
+                  variant="ghost"
+                  className="w-full"
+                >
+                  Back
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
-    </main>
-  );
-}
-
-function StepFrame({
-  children,
-  icon,
-  subtitle,
-  title,
-}: {
-  children: ReactNode;
-  icon: ReactNode;
-  subtitle: string;
-  title: string;
-}) {
-  return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <div className="mx-auto mb-4 grid size-16 place-items-center rounded-full bg-primary/10 text-primary">
-          {icon}
-        </div>
-        <h2 className="text-2xl font-bold">{title}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
-      </div>
-      {children}
     </div>
   );
 }

@@ -3,8 +3,8 @@ import { useState } from "react";
 
 import { ArtistCard } from "@/components/explore/artist-card";
 import { BattleFilters } from "@/components/explore/battle-filters";
-import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
-import { useArtistsInfiniteQuery } from "@/lib/soundkit-api-hooks";
+import { Button } from "@/components/ui/button";
+import { useArtistsQuery } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
     { label: "Rank (High to Low)", value: "rank-asc" },
@@ -38,16 +38,16 @@ export function ArtistListPage({
     [region, setRegion] = useState("us-arkansas"),
     [genre, setGenre] = useState("all"),
     [sort, setSort] = useState("rank-asc"),
-    { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-      useArtistsInfiniteQuery({
-        category,
-        genre,
-        limit: pageSize,
-        region,
-        regionType,
-        sort,
-      }),
-    artists = data?.pages.flat() ?? [];
+    [page, setPage] = useState(1),
+    { data: artists = [], isLoading } = useArtistsQuery({
+      category,
+      genre,
+      limit: String(pageSize),
+      page: String(page),
+      region,
+      regionType,
+      sort,
+    });
 
   return (
     <div className="px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">
@@ -75,7 +75,7 @@ export function ArtistListPage({
 
       {isLoading || artists.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {artists.map((artist) => (
               <ArtistCard
                 key={artist.username}
@@ -88,11 +88,22 @@ export function ArtistListPage({
               />
             ))}
           </div>
-          <InfiniteScrollSentinel
-            fetchNextPage={fetchNextPage}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-          />
+          <div className="mt-8 flex justify-center gap-3">
+            <Button
+              variant="outline"
+              disabled={page === 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={artists.length < pageSize}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </>
       ) : (
         <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">

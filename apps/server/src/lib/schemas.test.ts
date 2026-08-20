@@ -90,7 +90,7 @@ describe("profile link normalization", () => {
 });
 
 describe("onboarding plan codes", () => {
-  it.each(["artist_free", "soundkit_premium_artist"])(
+  it.each(["artist_free", "soundkit_premium_artist", "artist_team"])(
     "accepts artist plan %s",
     (selectedPlanCode) => {
       expect(
@@ -121,7 +121,7 @@ describe("onboarding plan codes", () => {
     username: "soundkit_fan",
   };
 
-  it.each(["fan_free", "soundkit_premium_fan"])(
+  it.each(["fan_free", "soundkit_premium_fan", "fan_family"])(
     "accepts fan plan %s",
     (selectedPlanCode) => {
       expect(

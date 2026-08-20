@@ -14,7 +14,6 @@ const meGet = apiClient.v1.me.index.$get,
   meNotificationSettingsPatch = apiClient.v1.me["notification-settings"].$patch,
   meEntitlementsGet = apiClient.v1.me.entitlements.$get,
   billingCheckoutPost = apiClient.v1.billing.checkout.$post,
-  billingPlansGet = apiClient.v1.billing.plans.$get,
   adminAccessGet = apiClient.v1.admin.access.$get,
   adminSettingsGet = apiClient.v1.admin.settings.$get,
   adminSettingsPatch = apiClient.v1.admin.settings.$patch,
@@ -55,12 +54,7 @@ const meGet = apiClient.v1.me.index.$get,
   listeningPartyPost = apiClient.v1["listening-parties"].index.$post,
   listeningPartiesGet = apiClient.v1["listening-parties"].index.$get,
   battlesGet = apiClient.v1.battles.index.$get,
-  battleChallengesGet = apiClient.v1.battles.challenges.$get,
-  battleKitsGet = apiClient.v1.battles.kits.$get,
-  battleKitGet = apiClient.v1.battles.kits[":kitId"].$get,
-  battleKitsPost = apiClient.v1.battles.kits.$post,
-  battleKitPatch = apiClient.v1.battles.kits[":kitId"].$patch,
-  battleKitDelete = apiClient.v1.battles.kits[":kitId"].$delete,
+  battleChallengesGet = apiClient.v1.battles.challenges.index.$get,
   battleChallengePost = apiClient.v1.battles.challenge.$post,
   battleChallengePatch = apiClient.v1.battles.challenges[":challengeId"].$patch,
   liveExperiencesGet = apiClient.v1.live.experiences.public.$get,
@@ -91,13 +85,6 @@ const meGet = apiClient.v1.me.index.$get,
   libraryWatchedGet = apiClient.v1.library.watched.$get,
   friendsGet = apiClient.v1.messages.friends.$get,
   friendRequestsGet = apiClient.v1.messages["friend-requests"].$get,
-  networkGet = apiClient.v1.network.index.$get,
-  workspaceGet = apiClient.v1.me.workspace.$get,
-  workspaceInvitePost = apiClient.v1.me.workspace.invitations.$post,
-  workspaceInvitationDelete =
-    apiClient.v1.me.workspace.invitations[":invitationId"].$delete,
-  workspaceMemberDelete =
-    apiClient.v1.me.workspace.members[":memberId"].$delete,
   friendRequestsPost = apiClient.v1.messages["friend-requests"].$post,
   friendRequestPatch =
     apiClient.v1.messages["friend-requests"][":requestId"].$patch,
@@ -123,12 +110,10 @@ const meGet = apiClient.v1.me.index.$get,
   notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
-  artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
   sellerStatusGet = apiClient.v1.seller.status.$get,
   battleStatsGet = apiClient.v1.battles.stats.$get,
   trackBattleHistoryGet =
-    apiClient.v1.battles["track-history"][":trackId"].$get,
-  analyticsOverviewGet = apiClient.v1.analytics.overview.$get;
+    apiClient.v1.battles["track-history"][":trackId"].$get;
 
 type ArtistOnboardingBody = InferRequestType<
   typeof artistOnboardingPost
@@ -190,10 +175,6 @@ export type BillingCheckoutResponse = InferResponseType<
   typeof billingCheckoutPost,
   200
 >;
-export type BillingPlan = InferResponseType<
-  typeof billingPlansGet,
-  200
->[number];
 type UpdateMeProfileBody = InferRequestType<typeof meProfilePatch>["json"];
 type UpdateNotificationSettingsBody = InferRequestType<
   typeof meNotificationSettingsPatch
@@ -203,11 +184,6 @@ export type BattleChallengesResponse = InferResponseType<
   typeof battleChallengesGet,
   200
 >;
-export type BattleKit = InferResponseType<typeof battleKitsGet, 200>[number];
-type BattleKitQuery = InferRequestType<typeof battleKitsGet>["query"];
-export type BattleKitTrackInput = InferRequestType<
-  typeof battleKitsPost
->["json"]["tracks"][number];
 export type LibraryOverview = InferResponseType<typeof libraryOverviewGet, 200>;
 export type LibraryPlaylist = InferResponseType<
   typeof libraryPlaylistsGet,
@@ -264,8 +240,6 @@ export type ListeningPartySummary = InferResponseType<
   200
 >[number];
 export type FriendSummary = InferResponseType<typeof friendsGet, 200>[number];
-export type NetworkResponse = InferResponseType<typeof networkGet, 200>;
-export type WorkspaceDetail = InferResponseType<typeof workspaceGet, 200>;
 export type FriendRequestSummary = InferResponseType<
   typeof friendRequestsGet,
   200
@@ -360,12 +334,9 @@ export const soundkitQueryKeys = {
   adminOverview: ["admin", "overview"] as const,
   adminPayments: ["admin", "payments"] as const,
   adminSettings: ["admin", "settings"] as const,
-  analyticsOverview: ["analytics", "overview"] as const,
   artist: (username: string) => ["artists", username] as const,
   artists: (query?: ArtistRankingQuery) => ["artists", query ?? {}] as const,
   battleChallenges: ["battles", "challenges"] as const,
-  battleKit: (id: string) => ["battles", "kits", id] as const,
-  battleKits: ["battles", "kits"] as const,
   battles: ["battles"] as const,
   battlesStats: ["battles", "stats"] as const,
   billingPlans: ["billing", "plans"] as const,
@@ -390,7 +361,6 @@ export const soundkitQueryKeys = {
   me: ["me"] as const,
   meEntitlements: ["me", "entitlements"] as const,
   meNotificationSettings: ["me", "notification-settings"] as const,
-  network: ["network"] as const,
   notifications: ["notifications"] as const,
   openVerse: (id: string) => ["open-verses", id] as const,
   openVerses: (query?: OpenVerseQuery) => ["open-verses", query ?? {}] as const,
@@ -411,7 +381,6 @@ export const soundkitQueryKeys = {
   videos: (query?: PublicExploreQuery) =>
     [...soundkitQueryKeys.videosPrefix, query ?? {}] as const,
   videosPrefix: ["videos"] as const,
-  workspace: ["me", "workspace"] as const,
 };
 
 const fetchApiJson = async <T>(
@@ -578,20 +547,14 @@ export const useTrackDurationBackfillStatusQuery = (
   enabled = true
 ) =>
   useQuery({
-    enabled,
+    enabled: enabled && Boolean(runId),
     queryFn: async () =>
       rpcJson(
         await adminBackfillTrackDurationsStatusGet({
-          query: runId ? { runId } : {},
+          query: { runId: runId ?? "" },
         })
       ),
-    queryKey: [
-      "admin",
-      "tracks",
-      "backfill-durations",
-      "status",
-      runId ?? "latest",
-    ],
+    queryKey: ["admin", "tracks", "backfill-durations", "status", runId],
     refetchInterval: (query) => {
       const status = query.state.data;
 
@@ -648,13 +611,6 @@ export const useMeEntitlementsQuery = () =>
     queryKey: soundkitQueryKeys.meEntitlements,
   });
 
-export const useBillingPlansQuery = () =>
-  useQuery<BillingPlan[]>({
-    queryFn: async () => rpcJson(await billingPlansGet()),
-    queryKey: soundkitQueryKeys.billingPlans,
-    staleTime: 5 * 60_000,
-  });
-
 export const useBillingCheckoutMutation = () => {
   const queryClient = useQueryClient();
 
@@ -674,18 +630,6 @@ export const useFriendsQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await friendsGet()),
     queryKey: soundkitQueryKeys.friends,
-  });
-
-export const useNetworkQuery = () =>
-  useQuery<NetworkResponse>({
-    queryFn: async () => rpcJson(await networkGet()),
-    queryKey: soundkitQueryKeys.network,
-  });
-
-export const useWorkspaceQuery = () =>
-  useQuery<WorkspaceDetail>({
-    queryFn: async () => rpcJson(await workspaceGet()),
-    queryKey: soundkitQueryKeys.workspace,
   });
 
 export const useFriendRequestsQuery = () =>
@@ -761,8 +705,6 @@ export const useConversationsQuery = (enabled = true) =>
     enabled,
     queryFn: async () => rpcJson(await conversationsGet()),
     queryKey: soundkitQueryKeys.conversations,
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
   });
 
 export const useConversationMessagesQuery = (conversationId: string) =>
@@ -771,8 +713,6 @@ export const useConversationMessagesQuery = (conversationId: string) =>
     queryFn: async () =>
       rpcJson(await conversationMessagesGet({ param: { conversationId } })),
     queryKey: soundkitQueryKeys.conversationMessages(conversationId),
-    refetchOnWindowFocus: false,
-    staleTime: 30_000,
   });
 
 export const useCreateConversationMutation = () => {
@@ -854,33 +794,6 @@ export const useArtistsQuery = (query: ArtistRankingQuery = {}) =>
     queryKey: soundkitQueryKeys.artists(query),
   });
 
-export const useArtistsInfiniteQuery = (query: ArtistRankingQuery = {}) => {
-  const pageSize = Number(query.limit ?? 24);
-
-  return useInfiniteQuery({
-    getNextPageParam: (
-      lastPage: ArtistSummary[],
-      allPages: ArtistSummary[][]
-    ) => {
-      if (lastPage.length < pageSize) {
-        return;
-      }
-      return allPages.length + 1;
-    },
-    initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(
-        await artistsGet({
-          query: {
-            ...query,
-            page: pageParam,
-          },
-        })
-      ),
-    queryKey: [...soundkitQueryKeys.artists(query), "infinite"],
-  });
-};
-
 export const useFollowArtistMutation = (username: string) => {
   const queryClient = useQueryClient();
 
@@ -895,22 +808,6 @@ export const useFollowArtistMutation = (username: string) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.notifications,
       });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
-    },
-  });
-};
-
-export const useUnfollowArtistMutation = (username: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (): Promise<ArtistFollowResponse> =>
-      rpcJson(await artistFollowDelete({ param: { username } })),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.artist(username),
-      });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.artists() });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.network });
     },
   });
 };
@@ -952,33 +849,6 @@ export const useTracksQuery = (
     queryFn: async () => rpcJson(await tracksGet({ query })),
     queryKey: soundkitQueryKeys.tracks(query),
   });
-
-export const useTracksInfiniteQuery = (query: PublicExploreQuery = {}) => {
-  const pageSize = Number(query.limit ?? 24);
-
-  return useInfiniteQuery({
-    getNextPageParam: (
-      lastPage: TrackSummary[],
-      allPages: TrackSummary[][]
-    ) => {
-      if (lastPage.length < pageSize) {
-        return;
-      }
-      return allPages.length + 1;
-    },
-    initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(
-        await tracksGet({
-          query: {
-            ...query,
-            page: pageParam,
-          },
-        })
-      ),
-    queryKey: [...soundkitQueryKeys.tracks(query), "infinite"],
-  });
-};
 
 export const useTrackQuery = (trackId: string) =>
   useQuery({
@@ -1264,62 +1134,6 @@ export const useBattleChallengesQuery = () =>
     queryKey: soundkitQueryKeys.battleChallenges,
   });
 
-export const useBattleKitsQuery = (query: BattleKitQuery = {}) =>
-  useQuery<BattleKit[]>({
-    queryFn: async () => rpcJson(await battleKitsGet({ query })),
-    queryKey: [...soundkitQueryKeys.battleKits, query],
-  });
-
-export const useBattleKitQuery = (kitId: string) =>
-  useQuery<BattleKit>({
-    enabled: Boolean(kitId),
-    queryFn: async () => rpcJson(await battleKitGet({ param: { kitId } })),
-    queryKey: soundkitQueryKeys.battleKit(kitId),
-  });
-
-export const useCreateBattleKitMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: InferRequestType<typeof battleKitsPost>["json"]) =>
-      rpcJson(await battleKitsPost({ json: body })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.battleKits,
-      });
-    },
-  });
-};
-
-export const useUpdateBattleKitMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      kitId,
-      ...body
-    }: InferRequestType<typeof battleKitPatch>["json"] & { kitId: string }) =>
-      rpcJson(await battleKitPatch({ json: body, param: { kitId } })),
-    onSuccess: (kit) => {
-      void queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.battleKits,
-      });
-      void queryClient.setQueryData(soundkitQueryKeys.battleKit(kit.id), kit);
-    },
-  });
-};
-
-export const useDeleteBattleKitMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (kitId: string) =>
-      rpcJson(await battleKitDelete({ param: { kitId } })),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.battleKits,
-      });
-    },
-  });
-};
-
 export const useLibraryOverviewQuery = () =>
   useQuery({
     queryFn: async () => rpcJson(await libraryOverviewGet()),
@@ -1525,38 +1339,7 @@ export const useUpdateWorkspaceMutation = () => {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.me });
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace });
     },
-  });
-};
-
-export const useCreateWorkspaceInvitationMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (body: { email: string; role: "admin" | "member" }) =>
-      rpcJson(await workspaceInvitePost({ json: body })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
-  });
-};
-
-export const useRevokeWorkspaceInvitationMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (invitationId: string) =>
-      rpcJson(await workspaceInvitationDelete({ param: { invitationId } })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
-  });
-};
-
-export const useRemoveWorkspaceMemberMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (memberId: string) =>
-      rpcJson(await workspaceMemberDelete({ param: { memberId } })),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: soundkitQueryKeys.workspace }),
   });
 };
 
@@ -1653,217 +1436,6 @@ export const useLiveSessionLockCheckMutation = (experienceId: string) =>
       ),
   });
 
-export type AnalyticsOverview = InferResponseType<
-  typeof analyticsOverviewGet,
-  200
->;
-
-export interface AnalyticsTimeseriesPoint {
-  date: string;
-  label: string;
-  value: number;
-}
-
-export interface AnalyticsTimeseries {
-  metric: string;
-  points: AnalyticsTimeseriesPoint[];
-  range: string;
-  total: number;
-}
-
-export interface AnalyticsTrackItem {
-  averageListenPercent: number;
-  completionRate: number;
-  coverArtUrl: string | null;
-  durationSeconds: number | null;
-  estimatedEarningsCents: number;
-  genre: string;
-  plays: number;
-  qualificationRate: number;
-  qualifiedStreams: number;
-  title: string;
-  trackId: string;
-  uniqueListeners: number;
-}
-
-export interface AnalyticsAudience {
-  catalogDepth: number;
-  listenersWithMultiTrackPlays: number;
-  newListeners: number;
-  premiumSupporters: number;
-  returningListenerRate: number;
-  returningListeners: number;
-  totalUniqueListeners: number;
-}
-
-export interface AnalyticsSourceCategory {
-  count: number;
-  label: string;
-  percentage: number;
-  sourceType: string;
-}
-
-export interface AnalyticsSources {
-  sources: AnalyticsSourceCategory[];
-  total: number;
-}
-
-export interface AnalyticsLocationItem {
-  city: string | null;
-  countryCode: string | null;
-  hasEnoughData: boolean;
-  listeners: number;
-  percentage: number;
-  regionCode: string | null;
-}
-
-export interface AnalyticsLocations {
-  hasEnoughData: boolean;
-  locations: AnalyticsLocationItem[];
-  totalListeners: number;
-}
-
-export interface AnalyticsLiveImpact {
-  battlesParticipated: number;
-  hasLiveActivity: boolean;
-  listenersReached: number;
-  listeningPartiesHosted: number;
-  liveQualifiedStreams: number;
-  liveStreamsHosted: number;
-  tracksPlayedInLive: number;
-}
-
-export interface ArtistEarningsOverview {
-  availableBalanceCents: number;
-  categories: { amountCents: number; category: string; label: string }[];
-  estimatedThisMonthCents: number;
-  nextEstimatedPayoutDate: string;
-  paidLifetimeCents: number;
-  payoutMinimumCents: number;
-  payoutProgressPercent: number;
-  pendingReserveCents: number;
-  statements: {
-    creatorRewardsCents: number;
-    monthLabel: string;
-    musicSalesCents: number;
-    periodEndsAt: string;
-    periodStartsAt: string;
-    plays: number;
-    qualifiedStreams: number;
-    tipsCents: number;
-    totalEarningsCents: number;
-  }[];
-}
-
-export const useAnalyticsOverviewQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<AnalyticsOverview> =>
-      rpcJson(await analyticsOverviewGet()),
-    queryKey: soundkitQueryKeys.analyticsOverview,
-  });
-
-export const useAnalyticsTimeseriesQuery = (
-  metric: "plays" | "qualified_streams" | "unique_listeners",
-  range: "7d" | "28d" | "90d" | "12m"
-) =>
-  useQuery({
-    queryFn: async (): Promise<AnalyticsTimeseries> => {
-      const response = await fetch(
-        `${API_V1_URL}/analytics/timeseries?metric=${metric}&range=${range}`,
-        { credentials: "include" }
-      );
-      if (!response.ok) {
-        throw new Error("Unable to load timeseries data.");
-      }
-      return (await response.json()) as AnalyticsTimeseries;
-    },
-    queryKey: ["analytics", "timeseries", metric, range],
-  });
-
-export const useAnalyticsTracksQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<{ tracks: AnalyticsTrackItem[] }> => {
-      const response = await fetch(`${API_V1_URL}/analytics/tracks`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load track performance data.");
-      }
-      return (await response.json()) as { tracks: AnalyticsTrackItem[] };
-    },
-    queryKey: ["analytics", "tracks"],
-  });
-
-export const useAnalyticsAudienceQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<AnalyticsAudience> => {
-      const response = await fetch(`${API_V1_URL}/analytics/audience`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load audience data.");
-      }
-      return (await response.json()) as AnalyticsAudience;
-    },
-    queryKey: ["analytics", "audience"],
-  });
-
-export const useAnalyticsSourcesQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<AnalyticsSources> => {
-      const response = await fetch(`${API_V1_URL}/analytics/sources`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load sources data.");
-      }
-      return (await response.json()) as AnalyticsSources;
-    },
-    queryKey: ["analytics", "sources"],
-  });
-
-export const useAnalyticsLocationsQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<AnalyticsLocations> => {
-      const response = await fetch(`${API_V1_URL}/analytics/locations`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load location data.");
-      }
-      return (await response.json()) as AnalyticsLocations;
-    },
-    queryKey: ["analytics", "locations"],
-  });
-
-export const useAnalyticsLiveImpactQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<AnalyticsLiveImpact> => {
-      const response = await fetch(`${API_V1_URL}/analytics/live-impact`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load live impact data.");
-      }
-      return (await response.json()) as AnalyticsLiveImpact;
-    },
-    queryKey: ["analytics", "live-impact"],
-  });
-
-export const useArtistEarningsQuery = () =>
-  useQuery({
-    queryFn: async (): Promise<ArtistEarningsOverview> => {
-      const response = await fetch(`${API_V1_URL}/analytics/earnings`, {
-        credentials: "include",
-      });
-      if (!response.ok) {
-        throw new Error("Unable to load artist earnings.");
-      }
-      return (await response.json()) as ArtistEarningsOverview;
-    },
-    queryKey: ["analytics", "earnings"],
-  });
-
 const defaultOpenVerseQuery: OpenVerseQuery = { limit: "10" };
 
 export const useOpenVersesInfiniteQuery = (
@@ -1929,33 +1501,6 @@ export const useVideosQuery = (query: PublicExploreQuery = {}) =>
     queryFn: async () => rpcJson(await videosGet({ query })),
     queryKey: soundkitQueryKeys.videos(query),
   });
-
-export const useVideosInfiniteQuery = (query: PublicExploreQuery = {}) => {
-  const pageSize = Number(query.limit ?? 24);
-
-  return useInfiniteQuery({
-    getNextPageParam: (
-      lastPage: VideoSummary[],
-      allPages: VideoSummary[][]
-    ) => {
-      if (lastPage.length < pageSize) {
-        return;
-      }
-      return allPages.length + 1;
-    },
-    initialPageParam: 1,
-    queryFn: async ({ pageParam = 1 }) =>
-      rpcJson(
-        await videosGet({
-          query: {
-            ...query,
-            page: pageParam,
-          },
-        })
-      ),
-    queryKey: [...soundkitQueryKeys.videos(query), "infinite"],
-  });
-};
 
 export const useCreateVideoMutation = () => {
   const queryClient = useQueryClient();

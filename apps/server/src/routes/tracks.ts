@@ -285,12 +285,11 @@ const app = new OpenAPIHono<AppEnv>(),
     untagged_wav: "Untagged WAV",
   } as const,
   catalogAssetKinds = new Set(Object.keys(assetKindLabels)),
-  trackPlayCount = sql<number>`coalesce((
+  trackPlayCount = sql<number>`(
   select count(*)::int
   from ${playbackSessions}
   where ${playbackSessions.trackId} = ${tracks.id}
-), 0)`,
-  trackEffectiveDate = sql`coalesce(${tracks.publishedAt}, ${tracks.createdAt}, ${tracks.updatedAt})`,
+)`,
   publicTrackOrderBy = (sort?: string) => {
     if (sort === "title-asc") {
       return asc(tracks.title);
@@ -301,11 +300,11 @@ const app = new OpenAPIHono<AppEnv>(),
     }
 
     if (sort === "date-asc") {
-      return asc(trackEffectiveDate);
+      return asc(tracks.updatedAt);
     }
 
     if (sort === "date-desc") {
-      return desc(trackEffectiveDate);
+      return desc(tracks.updatedAt);
     }
 
     if (sort === "plays-asc") {
@@ -471,10 +470,7 @@ app.openapi(
         );
       }
 
-      const limit = query.limit ?? 24,
-        page = query.page ?? 1,
-        offset = (page - 1) * limit,
-        order = publicTrackOrderBy(query.sort),
+      const order = publicTrackOrderBy(query.sort),
         rows = await withRetry("list public tracks", () =>
           db
             .select({
@@ -487,8 +483,7 @@ app.openapi(
             .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
             .where(and(...publicTrackConditions))
             .orderBy(order)
-            .limit(limit)
-            .offset(offset)
+            .limit(query.limit ?? 24)
         ),
         summaries = [];
 
@@ -511,17 +506,11 @@ app.openapi(
       db = createDb(),
       rows = await withRetry("list dashboard tracks", () =>
         db
-          .select({
-            playCount: trackPlayCount,
-            track: tracks,
-          })
+          .select()
           .from(tracks)
           .where(
             organizationId
-              ? or(
-                  eq(tracks.organizationId, organizationId),
-                  eq(tracks.ownerUserId, user.id)
-                )
+              ? eq(tracks.organizationId, organizationId)
               : eq(tracks.ownerUserId, user.id)
           )
           .orderBy(desc(tracks.updatedAt))
@@ -530,9 +519,7 @@ app.openapi(
       summaries = [];
 
     for (const row of rows) {
-      summaries.push(
-        await buildTrackSummary(row.track, row.playCount ?? undefined)
-      );
+      summaries.push(await buildTrackSummary(row));
     }
 
     return c.json(summaries, HttpStatusCodes.OK);

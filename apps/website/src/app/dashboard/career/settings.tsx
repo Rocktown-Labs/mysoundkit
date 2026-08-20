@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Save } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -135,7 +135,7 @@ const emailNotificationItems: {
 // Existing settings sections are intentionally consolidated into one screen.
 // eslint-disable-next-line complexity
 function SettingsPage() {
-  const navigate = Route.useNavigate(),
+  const navigate = useNavigate(),
     search = Route.useSearch(),
     activeTab = search.tab ?? "profile",
     meQuery = useMeQuery(),
@@ -522,7 +522,7 @@ function SettingsPage() {
                 <Input
                   id="account-email"
                   type="email"
-                  value=""
+                  value={user?.email ?? ""}
                   readOnly
                   autoComplete="off"
                   className="bg-muted cursor-not-allowed"

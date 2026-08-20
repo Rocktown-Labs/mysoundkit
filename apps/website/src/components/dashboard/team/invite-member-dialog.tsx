@@ -2,6 +2,7 @@ import {
   UserPlus,
   LoaderCircle,
   Check,
+  Users,
   ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
@@ -35,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { useCreateWorkspaceInvitationMutation } from "@/lib/soundkit-api-hooks";
 import { zodResolver } from "@/lib/zod-resolver";
 
 const inviteFormSchema = z.object({
@@ -61,7 +61,6 @@ export function InviteMemberDialog({
 }: InviteMemberDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false),
     isAtLimit = seatsUsed >= totalSeats,
-    createInvitationMutation = useCreateWorkspaceInvitationMutation(),
     form = useForm<InviteFormValues>({
       defaultValues: {
         email: "",
@@ -73,10 +72,8 @@ export function InviteMemberDialog({
     onSubmit = async (values: InviteFormValues) => {
       setIsSubmitting(true);
       try {
-        await createInvitationMutation.mutateAsync({
-          email: values.email,
-          role: values.role === "admin" ? "admin" : "member",
-        });
+        // Simulate API call to @apps/server
+        await new Promise((resolve) => setTimeout(resolve, 1500));
 
         toast({
           description: `We've sent an invite to ${values.email}.`,
@@ -85,12 +82,9 @@ export function InviteMemberDialog({
 
         onOpenChange(false);
         form.reset();
-      } catch (error) {
+      } catch {
         toast({
-          description:
-            error instanceof Error
-              ? error.message
-              : "Failed to send invitation. Please try again.",
+          description: "Failed to send invitation. Please try again.",
           title: "Error",
           variant: "destructive",
         });

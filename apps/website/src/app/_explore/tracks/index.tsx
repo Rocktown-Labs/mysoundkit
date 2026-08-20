@@ -7,12 +7,8 @@ import { BattleFilters } from "@/components/explore/battle-filters";
 import { ExploreCollectionGrid } from "@/components/explore/explore-collection";
 import { TrackCard } from "@/components/explore/track-card";
 import { Button } from "@/components/ui/button";
-import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
 import { musicGenres } from "@/lib/music-genres";
-import {
-  useTracksInfiniteQuery,
-  useTracksQuery,
-} from "@/lib/soundkit-api-hooks";
+import { useTracksQuery } from "@/lib/soundkit-api-hooks";
 
 const sortOptions = [
   { label: "Most Played", value: "plays-desc" },
@@ -93,34 +89,15 @@ function TracksPage() {
         }),
       });
     },
-    {
-      data: infiniteData,
-      fetchNextPage,
-      hasNextPage,
-      isFetchingNextPage,
-      isLoading: isLoadingInfinite,
-    } = useTracksInfiniteQuery({
+    { data: tracks = [], isLoading } = useTracksQuery(undefined, {
       genre,
-      limit: 24,
+      limit: 48,
       q: q || undefined,
       region,
       regionType,
       scope: "public",
       sort,
-    }),
-    allTracks = infiniteData?.pages.flat() ?? [],
-    { data: sectionTracks = [], isLoading: isLoadingSection } = useTracksQuery(
-      undefined,
-      {
-        genre,
-        limit: 48,
-        q: q || undefined,
-        region,
-        regionType,
-        scope: "public",
-        sort,
-      }
-    );
+    });
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -148,15 +125,8 @@ function TracksPage() {
       {view === "all" || genre !== "all" ? (
         <ExploreCollectionGrid
           empty="No songs found for the selected filters."
-          footer={
-            <InfiniteScrollSentinel
-              fetchNextPage={fetchNextPage}
-              hasNextPage={hasNextPage}
-              isFetchingNextPage={isFetchingNextPage}
-            />
-          }
-          isLoading={isLoadingInfinite}
-          items={allTracks}
+          isLoading={isLoading}
+          items={tracks}
           title={genre === "all" ? "All Songs" : "Matching Songs"}
         >
           {(track) => (
@@ -198,9 +168,9 @@ function TracksPage() {
                 View All
               </Button>
             </div>
-            {isLoadingSection || sectionTracks.length > 0 ? (
+            {isLoading || tracks.length > 0 ? (
               <div className="flex gap-4 overflow-x-auto pb-2">
-                {sectionTracks.slice(0, 12).map((track) => (
+                {tracks.slice(0, 12).map((track) => (
                   <TrackCard
                     key={track.id}
                     id={track.id}

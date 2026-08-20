@@ -1,19 +1,20 @@
-/* eslint-disable complexity, no-negated-condition, no-nested-ternary, one-var, sort-vars, unicorn/no-negated-condition, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  CalendarDays,
-  Check,
-  Clock3,
-  Film,
-  ListVideo,
-  Music2,
-  PartyPopper,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  FolderOpen,
+  Kanban,
+  ListTodo,
+  Music,
+  Plus,
   Radio,
   Sparkles,
   Swords,
+  Trash2,
 } from "lucide-react";
-import { useMemo } from "react";
-import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,652 +25,481 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { isReleasedTrack } from "@/lib/release-momentum";
-import type {
-  BattleKit,
-  BattleSummary,
-  ListeningPartySummary,
-  ProjectSummary,
-  TrackSummary,
-  VideoSummary,
-} from "@/lib/soundkit-api-hooks";
 import {
-  useBattleKitsQuery,
-  useBattlesQuery,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import {
   useListeningPartiesQuery,
-  useMyLiveExperiencesQuery,
   useProjectsQuery,
   useTracksQuery,
-  useVideosQuery,
 } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/calendar")({
-  component: ReleaseMomentumPage,
+  component: CareerCalendarPage,
 });
 
-const formatDate = (value: string | null | undefined) =>
-    value
-      ? new Date(value).toLocaleDateString(undefined, {
-          day: "numeric",
-          month: "short",
-        })
-      : null,
-  formatDateTime = (value: string | null | undefined) =>
-    value
-      ? new Date(value).toLocaleString(undefined, {
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-          month: "short",
-        })
-      : "Date to be announced";
+interface KanbanTask {
+  category: "track" | "project" | "promo" | "battle";
+  column: "todo" | "in_progress" | "scheduled" | "released";
+  date?: string;
+  id: string;
+  title: string;
+}
 
-function ReleaseMomentumPage() {
-  const tracksQuery = useTracksQuery(),
+function CareerCalendarPage() {
+  const { toast } = useToast(),
     projectsQuery = useProjectsQuery(),
+    tracksQuery = useTracksQuery(),
     partiesQuery = useListeningPartiesQuery(),
-    battlesQuery = useBattlesQuery(),
-    experiencesQuery = useMyLiveExperiencesQuery(),
-    videosQuery = useVideosQuery(),
-    kitsQuery = useBattleKitsQuery(),
-    tracks = useMemo(
-      () => (tracksQuery.data ?? []).filter(isReleasedTrack),
-      [tracksQuery.data]
-    ),
-    projects = useMemo(
-      () =>
-        (projectsQuery.data ?? []).filter(
-          (project) => project.status === "released"
-        ),
-      [projectsQuery.data]
-    ),
-    upcoming = useMemo(
-      () =>
-        buildUpcomingEvents({
-          battles: battlesQuery.data ?? [],
-          experiences: experiencesQuery.data ?? [],
-          parties: partiesQuery.data ?? [],
-          projects: projectsQuery.data ?? [],
-          tracks: tracksQuery.data ?? [],
-          videos: videosQuery.data ?? [],
-        }),
-      [
-        battlesQuery.data,
-        experiencesQuery.data,
-        partiesQuery.data,
-        projectsQuery.data,
-        tracksQuery.data,
-        videosQuery.data,
-      ]
-    ),
-    isLoading =
-      tracksQuery.isLoading || projectsQuery.isLoading || kitsQuery.isLoading,
-    hasError = tracksQuery.error || projectsQuery.error || kitsQuery.error;
+    [activeTab, setActiveTab] = useState<"calendar" | "kanban">("calendar"),
+    [selectedMonth, setSelectedMonth] = useState(new Date()),
+    [newTaskTitle, setNewTaskTitle] = useState(""),
+    [newTaskCol, setNewTaskCol] = useState<
+      "todo" | "in_progress" | "scheduled" | "released"
+    >("todo"),
+    [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false),
+    projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]),
+    tracks = useMemo(() => tracksQuery.data ?? [], [tracksQuery.data]),
+    parties = useMemo(() => partiesQuery.data ?? [], [partiesQuery.data]),
+    // Initial Kanban State derived from Projects + Tracks + Custom tasks
+    [customTasks, setCustomTasks] = useState<KanbanTask[]>([
+      {
+        category: "promo",
+        column: "in_progress",
+        date: "2026-07-28",
+        id: "k-1",
+        title: "Record TikTok & Reels Cover Teaser",
+      },
+      {
+        category: "battle",
+        column: "todo",
+        date: "2026-07-30",
+        id: "k-2",
+        title: "Battle 3 Top Artists in Rap Arena",
+      },
+      {
+        category: "promo",
+        column: "scheduled",
+        date: "2026-08-02",
+        id: "k-3",
+        title: "Send Post-Battle Summary Email to Fans",
+      },
+    ]),
+    allKanbanTasks: KanbanTask[] = useMemo(() => {
+      const projectTasks: KanbanTask[] = projects.map((p) => ({
+          category: "project",
+          column: p.releaseDate ? "scheduled" : "in_progress",
+          date: p.releaseDate,
+          id: `proj-${p.id}`,
+          title: `Project Release: ${p.title}`,
+        })),
+        trackTasks: KanbanTask[] = tracks.map((t) => ({
+          category: "track",
+          column: t.isPurchasable ? "released" : "in_progress",
+          id: `track-${t.id}`,
+          title: `Single Track Promo: ${t.title}`,
+        }));
+
+      return [...projectTasks, ...trackTasks, ...customTasks];
+    }, [projects, tracks, customTasks]),
+    moveTask = (
+      taskId: string,
+      newCol: "todo" | "in_progress" | "scheduled" | "released"
+    ) => {
+      setCustomTasks((current) =>
+        current.map((task) =>
+          task.id === taskId ? { ...task, column: newCol } : task
+        )
+      );
+      toast({
+        description: `Task updated to ${newCol.replace("_", " ").toUpperCase()}`,
+        title: "Kanban Updated",
+      });
+    },
+    handleCreateTask = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newTaskTitle.trim()) {
+        return;
+      }
+
+      setCustomTasks((current) => [
+        ...current,
+        {
+          category: "promo",
+          column: newTaskCol,
+          id: `custom-${Date.now()}`,
+          title: newTaskTitle.trim(),
+        },
+      ]);
+
+      setNewTaskTitle("");
+      setIsTaskDialogOpen(false);
+      toast({
+        description:
+          "Added promotional milestone to your release Kanban board.",
+        title: "Task Created 🎯",
+      });
+    },
+    // Calendar Math
+    year = selectedMonth.getFullYear(),
+    month = selectedMonth.getMonth(),
+    daysInMonth = new Date(year, month + 1, 0).getDate(),
+    firstDayOfWeek = new Date(year, month, 1).getDay(),
+    calendarDays = useMemo(() => {
+      const days: {
+        dateStr: string;
+        dayNum: number;
+        isCurrentMonth: boolean;
+      }[] = [];
+      for (let i = 0; i < firstDayOfWeek; i++) {
+        days.push({ dateStr: "", dayNum: 0, isCurrentMonth: false });
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const pad = (num: number) => String(num).padStart(2, "0"),
+          dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
+        days.push({ dateStr, dayNum: d, isCurrentMonth: true });
+      }
+      return days;
+    }, [year, month, daysInMonth, firstDayOfWeek]);
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold tracking-tight">
-            Release Momentum
+            Release & Promo Hub
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Keep your releases moving across SoundKit.
+            Schedule releases, manage promotional campaigns, and track artist
+            milestones.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link to="/dashboard/live/streams">
-              <Radio data-icon="inline-start" />
-              Schedule Stream
-            </Link>
-          </Button>
-          <Button asChild>
+        <div className="flex items-center gap-2">
+          <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Plus className="size-4" /> Add Promo Milestone
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Release Promotion Task</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateTask} className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Task / Goal Title</Label>
+                  <Input
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="e.g. Host Open Verse Challenge on TikTok"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Initial Kanban Column</Label>
+                  <Select
+                    value={newTaskCol}
+                    onValueChange={(val: any) => setNewTaskCol(val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todo">To Do (Backlog)</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="scheduled">Scheduled</SelectItem>
+                      <SelectItem value="released">Released</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" className="w-full">
+                  Create Task
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Button asChild className="gap-2">
             <Link to="/dashboard/projects/new">
-              <Sparkles data-icon="inline-start" />
-              Plan a Release
+              <Sparkles className="size-4" /> Schedule Project
             </Link>
           </Button>
         </div>
-      </header>
+      </div>
 
-      <UpcomingSection events={upcoming} />
+      {/* Tabs View Selector */}
+      <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)}>
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="calendar" className="gap-2 font-bold">
+            <CalendarIcon className="size-4" /> Interactive Calendar
+          </TabsTrigger>
+          <TabsTrigger value="kanban" className="gap-2 font-bold">
+            <Kanban className="size-4" /> Release Kanban Board
+          </TabsTrigger>
+        </TabsList>
 
-      {isLoading && (
-        <Card>
-          <CardContent className="p-8 text-center text-sm text-muted-foreground">
-            Loading your release momentum...
-          </CardContent>
-        </Card>
-      )}
+        {/* CALENDAR VIEW */}
+        <TabsContent value="calendar" className="mt-6 space-y-6">
+          <Card className="border-border/40 bg-card/40">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold font-[family-name:var(--font-playfair)]">
+                  {selectedMonth.toLocaleDateString(undefined, {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </CardTitle>
+                <CardDescription>
+                  Click dates or tasks to jump directly to live rooms and
+                  project setup.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSelectedMonth(new Date(year, month - 1, 1))}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedMonth(new Date())}
+                >
+                  Today
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSelectedMonth(new Date(year, month + 1, 1))}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-muted-foreground uppercase mb-2">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                  (day) => (
+                    <div key={day} className="py-2">
+                      {day}
+                    </div>
+                  )
+                )}
+              </div>
 
-      {hasError && (
-        <Card className="border-destructive/40">
-          <CardContent className="p-8 text-center text-sm text-destructive">
-            We could not load your release activity. Refresh and try again.
-          </CardContent>
-        </Card>
-      )}
+              {/* Grid Days */}
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((cd, index) => {
+                  if (!cd.isCurrentMonth) {
+                    return (
+                      <div
+                        key={`empty-${index}`}
+                        className="h-28 rounded-xl bg-muted/10 border border-transparent"
+                      />
+                    );
+                  }
 
-      {!isLoading &&
-        !hasError &&
-        tracks.length === 0 &&
-        projects.length === 0 && (
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-              <Music2 className="size-10 text-primary" />
-              <h2 className="text-xl font-semibold">
-                Release some music to start building momentum.
-              </h2>
-              <p className="max-w-lg text-sm text-muted-foreground">
-                Once a track or project is live on SoundKit, it will appear here
-                automatically with the next useful action.
-              </p>
-              <Button asChild>
-                <Link to="/dashboard/tracks/new">Upload Music</Link>
-              </Button>
+                  const matchedProjects = projects.filter(
+                      (p) => p.releaseDate === cd.dateStr
+                    ),
+                    matchedParties = parties.filter((p) =>
+                      p.scheduledStartAt.startsWith(cd.dateStr)
+                    ),
+                    isToday =
+                      cd.dateStr === new Date().toISOString().slice(0, 10);
+
+                  return (
+                    <div
+                      key={cd.dateStr}
+                      className={`h-28 p-2 rounded-xl border flex flex-col justify-between transition-colors ${
+                        isToday
+                          ? "border-emerald-500 bg-emerald-500/5 shadow-sm"
+                          : "border-border/40 bg-background/40 hover:border-border/80"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-xs font-bold ${isToday ? "text-emerald-500" : "text-muted-foreground"}`}
+                        >
+                          {cd.dayNum}
+                        </span>
+                        {isToday && (
+                          <Badge className="bg-emerald-500 text-[8px] h-4 px-1">
+                            Today
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="space-y-1 overflow-y-auto">
+                        {matchedProjects.map((p) => (
+                          <Link
+                            key={p.id}
+                            to="/dashboard/projects/$id"
+                            params={{ id: p.id }}
+                            className="block truncate rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-medium px-1.5 py-0.5 hover:underline"
+                          >
+                            💿 {p.title}
+                          </Link>
+                        ))}
+                        {matchedParties.map((party) => (
+                          <Link
+                            key={party.id}
+                            to="/live/parties/$id"
+                            params={{ id: party.liveRoomId ?? party.id }}
+                            className="block truncate rounded bg-primary/20 text-primary text-[10px] font-medium px-1.5 py-0.5 hover:underline"
+                          >
+                            🎙️ {party.title}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
-        )}
+        </TabsContent>
 
-      {!isLoading &&
-        !hasError &&
-        (tracks.length > 0 || projects.length > 0) && (
-          <section
-            className="flex flex-col gap-4"
-            aria-labelledby="momentum-heading"
-          >
-            <div>
-              <h2 className="text-2xl font-semibold" id="momentum-heading">
-                Your Momentum
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Real releases, real product actions — no promo tasks to
-                maintain.
-              </p>
-            </div>
-            <div className="grid gap-4 xl:grid-cols-2">
-              {tracks.map((track) => (
-                <TrackMomentumCard
-                  key={track.id}
-                  kits={kitsQuery.data ?? []}
-                  releasedTrackCount={tracks.length}
-                  track={track}
-                  videos={videosQuery.data ?? []}
-                  experiences={experiencesQuery.data ?? []}
-                />
-              ))}
-              {projects.map((project) => (
-                <ProjectMomentumCard
-                  key={project.id}
-                  parties={partiesQuery.data ?? []}
-                  project={project}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+        {/* KANBAN BOARD VIEW */}
+        <TabsContent value="kanban" className="mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              {
+                col: "todo",
+                color: "border-amber-500/40 bg-amber-500/5 text-amber-400",
+                title: "1. To Do (Backlog)",
+              },
+              {
+                col: "in_progress",
+                color: "border-blue-500/40 bg-blue-500/5 text-blue-400",
+                title: "2. In Progress (Promo)",
+              },
+              {
+                col: "scheduled",
+                color: "border-purple-500/40 bg-purple-500/5 text-purple-400",
+                title: "3. Scheduled (Queued)",
+              },
+              {
+                col: "released",
+                color:
+                  "border-emerald-500/40 bg-emerald-500/5 text-emerald-400",
+                title: "4. Released & Live",
+              },
+            ].map((column) => {
+              const columnTasks = allKanbanTasks.filter(
+                (t) => t.column === column.col
+              );
+
+              return (
+                <div key={column.col} className="space-y-3">
+                  <div
+                    className={`p-3 rounded-xl border font-bold text-xs uppercase tracking-wider flex items-center justify-between ${column.color}`}
+                  >
+                    <span>{column.title}</span>
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] font-mono"
+                    >
+                      {columnTasks.length}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-3 min-h-[350px] p-2 rounded-2xl border border-border/30 bg-muted/10">
+                    {columnTasks.map((task) => (
+                      <Card
+                        key={task.id}
+                        className="border-border/40 bg-card/60 shadow-sm hover:border-primary/40 transition-colors"
+                      >
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-semibold text-sm leading-snug">
+                              {task.title}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] uppercase font-bold shrink-0"
+                            >
+                              {task.category}
+                            </Badge>
+                          </div>
+
+                          {task.date && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="size-3 text-emerald-400" />{" "}
+                              {task.date}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between pt-2 border-t border-border/20 text-xs gap-2">
+                            <Select
+                              value={task.column}
+                              onValueChange={(val: any) =>
+                                moveTask(task.id, val)
+                              }
+                            >
+                              <SelectTrigger className="h-7 text-[10px] bg-background/50 flex-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="todo">To Do</SelectItem>
+                                <SelectItem value="in_progress">
+                                  In Progress
+                                </SelectItem>
+                                <SelectItem value="scheduled">
+                                  Scheduled
+                                </SelectItem>
+                                <SelectItem value="released">
+                                  Released
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              className="h-7 text-[10px] gap-1 px-2 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                              asChild
+                            >
+                              <Link to="/live">
+                                <Swords className="size-3" /> Battle
+                              </Link>
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    {columnTasks.length === 0 && (
+                      <div className="h-24 border border-dashed border-border/40 rounded-xl flex items-center justify-center text-xs text-muted-foreground">
+                        No tasks in this column
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
-
-function UpcomingSection({ events }: { events: UpcomingEvent[] }) {
-  return (
-    <Card className="border-border/60 bg-card/60">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="size-5 text-primary" /> Upcoming
-          </CardTitle>
-          <CardDescription>
-            Scheduled SoundKit activity, gathered automatically.
-          </CardDescription>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link to="/dashboard/live">
-              <Swords data-icon="inline-start" /> Find Battle
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link to="/dashboard/live/parties">
-              <PartyPopper data-icon="inline-start" /> Listening Party
-            </Link>
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {events.length === 0 ? (
-          <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Nothing scheduled yet.
-          </p>
-        ) : (
-          <div className="flex flex-col divide-y divide-border/60">
-            {events.map((event) => (
-              <div
-                className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-                key={event.id}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    {event.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{event.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {event.type}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground sm:shrink-0">
-                  <Clock3 className="size-4" />
-                  {formatDateTime(event.startsAt)}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TrackMomentumCard({
-  experiences,
-  kits,
-  releasedTrackCount,
-  track,
-  videos,
-}: {
-  experiences: LiveExperienceSummary[];
-  kits: BattleKit[];
-  releasedTrackCount: number;
-  track: TrackSummary;
-  videos: VideoSummary[];
-}) {
-  const containingKits = kits.filter((kit) =>
-      kit.tracks.some((entry) => entry.trackId === track.id)
-    ),
-    readyKit = containingKits.find((kit) => kit.isBattleReady),
-    incompleteKit = containingKits.find((kit) => !kit.isBattleReady),
-    video = videos.find((entry) => entry.sourceTrackId === track.id),
-    scheduledStream = experiences.find(
-      (experience) =>
-        experience.kind === "stream" && experience.status === "scheduled"
-    ),
-    lyricsState = lyricsStateForTrack(track),
-    recommendation =
-      track.lyricsStatus !== "approved"
-        ? {
-            href: "/dashboard/tracks/$id" as const,
-            label: lyricsState.label,
-            text: "Complete the lyrics workspace for this release.",
-          }
-        : readyKit
-          ? {
-              href: "/dashboard/live" as const,
-              label: "Find a Battle",
-              text: `${readyKit.name} is battle ready.`,
-            }
-          : incompleteKit
-            ? {
-                href: "/dashboard/live/my-kit" as const,
-                label: "Finish Battle Kit",
-                text: `${incompleteKit.name} — ${incompleteKit.totalUniqueTracks}/${incompleteKit.totalRequiredTracks} ready.`,
-              }
-            : releasedTrackCount < 4
-              ? {
-                  href: "/dashboard/live/my-kit" as const,
-                  label: "Build Battle Kit",
-                  text: `You need ${4 - releasedTrackCount} more released track${4 - releasedTrackCount === 1 ? "" : "s"} for a BO3 kit.`,
-                }
-              : {
-                  href: "/dashboard/live/streams" as const,
-                  label: "Schedule Stream",
-                  text: "Feature this release in a live stream.",
-                };
-
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="size-16 shrink-0 overflow-hidden rounded-lg border bg-muted">
-            {track.coverArtUrl ? (
-              <img
-                alt={`${track.title} cover`}
-                className="size-full object-cover"
-                src={track.coverArtUrl}
-              />
-            ) : (
-              <Music2 className="m-5 size-6 text-muted-foreground" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <CardTitle className="truncate">{track.title}</CardTitle>
-            <CardDescription>
-              {track.genre} · {track.duration}
-            </CardDescription>
-          </div>
-        </div>
-        <Badge variant="default">
-          <Check data-icon="inline-start" /> Released
-        </Badge>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <MomentumMilestone
-            icon={<ListVideo />}
-            label="Lyrics"
-            value={lyricsState.label}
-            href="/dashboard/tracks/$id"
-            trackId={track.id}
-          />
-          <MomentumMilestone
-            icon={<Swords />}
-            label="Battle"
-            value={
-              readyKit
-                ? `${readyKit.name} · Battle Ready`
-                : incompleteKit
-                  ? `${incompleteKit.name} · ${incompleteKit.totalUniqueTracks}/${incompleteKit.totalRequiredTracks}`
-                  : "Not in a kit yet"
-            }
-            href={readyKit ? "/dashboard/live" : "/dashboard/live/my-kit"}
-          />
-          <MomentumMilestone
-            icon={<Radio />}
-            label="Live Stream"
-            value={
-              scheduledStream
-                ? `Stream scheduled ${formatDate(scheduledStream.startsAt)}`
-                : "No stream scheduled"
-            }
-            href="/dashboard/live/streams"
-          />
-          <MomentumMilestone
-            icon={<Film />}
-            label="Music Video"
-            value={video ? "Music video ready" : "Add music video"}
-            href={video ? "/dashboard/videos" : "/dashboard/videos/new"}
-          />
-        </div>
-        <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-              Recommended next action
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {recommendation.text}
-            </p>
-          </div>
-          <Button asChild size="sm">
-            {recommendation.href === "/dashboard/tracks/$id" ? (
-              <Link params={{ id: track.id }} to={recommendation.href}>
-                {recommendation.label}
-              </Link>
-            ) : (
-              <Link to={recommendation.href}>{recommendation.label}</Link>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProjectMomentumCard({
-  parties,
-  project,
-}: {
-  parties: ListeningPartySummary[];
-  project: ProjectSummary;
-}) {
-  const party = parties.find((entry) => entry.projectId === project.id);
-  return (
-    <Card>
-      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-            {project.coverArtUrl ? (
-              <img
-                alt={`${project.title} cover`}
-                className="size-full object-cover"
-                src={project.coverArtUrl}
-              />
-            ) : (
-              <Music2 className="size-6 text-muted-foreground" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <CardTitle className="truncate">{project.title}</CardTitle>
-            <CardDescription>
-              {project.projectType.toUpperCase()} · {project.trackCount} tracks
-            </CardDescription>
-          </div>
-        </div>
-        <Badge>
-          <Check data-icon="inline-start" /> Released
-        </Badge>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <MomentumMilestone
-          icon={<PartyPopper />}
-          label="Listening Party"
-          value={
-            party
-              ? `Listening Party · ${formatDate(party.scheduledStartAt)}`
-              : "Host Listening Party"
-          }
-          href="/dashboard/live/parties"
-        />
-        <MomentumMilestone
-          icon={<Film />}
-          label="Music Video"
-          value="Add a project video"
-          href="/dashboard/videos/new"
-        />
-        <Button asChild className="w-full" variant="outline">
-          <Link params={{ id: project.id }} to="/dashboard/projects/$id">
-            Open project
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function MomentumMilestone({
-  icon,
-  label,
-  value,
-  href,
-  trackId,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  href:
-    | "/dashboard/live"
-    | "/dashboard/live/my-kit"
-    | "/dashboard/live/parties"
-    | "/dashboard/live/streams"
-    | "/dashboard/tracks/$id"
-    | "/dashboard/videos"
-    | "/dashboard/videos/new";
-  trackId?: string;
-}) {
-  const content = (
-    <>
-      <span className="text-primary">{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <span className="block truncate text-sm font-medium">{value}</span>
-      </span>
-    </>
-  );
-
-  if (trackId) {
-    return (
-      <Link
-        className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-muted/30"
-        params={{ id: trackId }}
-        to="/dashboard/tracks/$id"
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <Link
-      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-muted/30"
-      to={href}
-    >
-      {content}
-    </Link>
-  );
-}
-
-function lyricsStateForTrack(track: TrackSummary) {
-  if (track.lyricsStatus === "approved") {
-    return { label: "Lyrics ready" };
-  }
-  if (track.lyricsStatus === "generating") {
-    return { label: "Lyrics processing" };
-  }
-  if (
-    track.lyricsStatus === "pending_review" ||
-    track.lyricsStatus === "failed"
-  ) {
-    return { label: "Review lyrics" };
-  }
-  return { label: "Add lyrics" };
-}
-
-interface LiveExperienceSummary {
-  id: string;
-  kind: "battle" | "party" | "stream";
-  startsAt: string;
-  status: "scheduled" | "live" | "ended";
-  title: string;
-}
-
-interface UpcomingEvent {
-  icon: string;
-  id: string;
-  startsAt: string;
-  title: string;
-  type: string;
-}
-
-function buildUpcomingEvents({
-  battles,
-  experiences,
-  parties,
-  projects,
-  tracks,
-  videos,
-}: {
-  battles: BattleSummary[];
-  experiences: LiveExperienceSummary[];
-  parties: ListeningPartySummary[];
-  projects: ProjectSummary[];
-  tracks: TrackSummary[];
-  videos: VideoSummary[];
-}) {
-  const now = Date.now(),
-    events: UpcomingEvent[] = [];
-  for (const track of tracks) {
-    if (
-      track.releaseStrategy === "scheduled" &&
-      track.releaseAt &&
-      new Date(track.releaseAt).getTime() > now
-    ) {
-      events.push({
-        icon: "♪",
-        id: `track-${track.id}`,
-        startsAt: track.releaseAt,
-        title: track.title,
-        type: "Scheduled release",
-      });
-    }
-  }
-  for (const project of projects) {
-    if (
-      project.status === "scheduled" &&
-      project.releaseDate &&
-      new Date(project.releaseDate).getTime() > now
-    ) {
-      events.push({
-        icon: "◈",
-        id: `project-${project.id}`,
-        startsAt: project.releaseDate,
-        title: project.title,
-        type: "Scheduled project release",
-      });
-    }
-  }
-  for (const party of parties) {
-    if (
-      party.status === "scheduled" &&
-      new Date(party.scheduledStartAt).getTime() > now
-    ) {
-      events.push({
-        icon: "◉",
-        id: `party-${party.id}`,
-        startsAt: party.scheduledStartAt,
-        title: party.title,
-        type: "Listening Party",
-      });
-    }
-  }
-  for (const battle of battles) {
-    if (
-      battle.status === "scheduled" &&
-      battle.startsAt &&
-      new Date(battle.startsAt).getTime() > now
-    ) {
-      events.push({
-        icon: "⚔",
-        id: `battle-${battle.id}`,
-        startsAt: battle.startsAt,
-        title: battle.title,
-        type: "Battle",
-      });
-    }
-  }
-  for (const experience of experiences) {
-    if (
-      experience.status === "scheduled" &&
-      new Date(experience.startsAt).getTime() > now &&
-      experience.kind === "stream"
-    ) {
-      events.push({
-        icon: "●",
-        id: `experience-${experience.id}`,
-        startsAt: experience.startsAt,
-        title: experience.title,
-        type: "Live Stream",
-      });
-    }
-  }
-  for (const video of videos) {
-    if (video.releaseAt && new Date(video.releaseAt).getTime() > now) {
-      events.push({
-        icon: "▶",
-        id: `video-${video.id}`,
-        startsAt: video.releaseAt,
-        title: video.title,
-        type: "Music Video Premiere",
-      });
-    }
-  }
-  return events
-    .toSorted(
-      (first, second) =>
-        new Date(first.startsAt).getTime() - new Date(second.startsAt).getTime()
-    )
-    .slice(0, 8);
 }

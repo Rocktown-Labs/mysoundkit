@@ -5,7 +5,6 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
   fanProfiles,
-  genres,
   listeningParties,
   openVerseListings,
   platformSettings,
@@ -27,7 +26,6 @@ import {
   backfillSearchEmbeddings,
   loadEmbeddingStatus,
 } from "@/lib/audio-processing";
-import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import {
   enqueueTrackDurationBackfills,
   loadTrackDurationBackfillStatus,
@@ -38,10 +36,8 @@ import {
 } from "@/lib/platform-settings";
 import {
   adminAccessSchema,
-  adminGenreSchema,
   adminOverviewSchema,
   backfillTrackDurationsBodySchema,
-  createGenreBodySchema,
   backfillTrackDurationsResponseSchema,
   messageResponseSchema,
   platformSettingsSchema,
@@ -52,134 +48,6 @@ import {
 import type { AppEnv } from "@/lib/types";
 
 const app = new OpenAPIHono<AppEnv>();
-
-app.openapi(
-  createRoute({
-    method: "get",
-    path: "/genres",
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        adminGenreSchema.array(),
-        "Genre catalog"
-      ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Admin required"
-      ),
-    },
-    tags: ["Admin"],
-  }),
-  async (c) => {
-    if (!isAdminUser(c.get("user"))) {
-      return c.json(
-        { message: "Admin access is required." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-    if (!isDatabaseConfigured()) {
-      return c.json([], HttpStatusCodes.OK);
-    }
-    const db = createDb(),
-      [genreRows, trackRows, videoRows] = await Promise.all([
-        db.select().from(genres).orderBy(genres.name),
-        db
-          .select({ count: count(), genreId: tracks.genreId })
-          .from(tracks)
-          .groupBy(tracks.genreId),
-        db
-          .select({ count: count(), genreId: videos.genreId })
-          .from(videos)
-          .groupBy(videos.genreId),
-      ]),
-      trackCounts = new Map(
-        trackRows.map((row) => [row.genreId, Number(row.count)])
-      ),
-      videoCounts = new Map(
-        videoRows.map((row) => [row.genreId, Number(row.count)])
-      );
-    return c.json(
-      genreRows.map((genre) => {
-        const trackCount = trackCounts.get(genre.id) ?? 0,
-          videoCount = videoCounts.get(genre.id) ?? 0;
-        return {
-          description: genre.description,
-          id: genre.id,
-          name: genre.name,
-          slug: genre.slug,
-          totalCount: trackCount + videoCount,
-          trackCount,
-          videoCount,
-        };
-      }),
-      HttpStatusCodes.OK
-    );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "post",
-    path: "/genres",
-    request: { body: jsonContentRequired(createGenreBodySchema, "New genre") },
-    responses: {
-      [HttpStatusCodes.CREATED]: jsonContent(adminGenreSchema, "Genre created"),
-      [HttpStatusCodes.CONFLICT]: jsonContent(
-        messageResponseSchema,
-        "Genre already exists"
-      ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Admin required"
-      ),
-    },
-    tags: ["Admin"],
-  }),
-  async (c) => {
-    if (!isAdminUser(c.get("user"))) {
-      return c.json(
-        { message: "Admin access is required." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-    if (!isDatabaseConfigured()) {
-      return c.json(
-        { message: "Genre management requires a configured database." },
-        HttpStatusCodes.CONFLICT
-      );
-    }
-    const body = c.req.valid("json"),
-      name = canonicalGenreName(body.name),
-      slug = canonicalGenreSlug(body.name),
-      db = createDb(),
-      [existing] = await db
-        .select({ id: genres.id })
-        .from(genres)
-        .where(eq(genres.slug, slug))
-        .limit(1);
-    if (existing) {
-      return c.json(
-        { message: "That genre slug already exists." },
-        HttpStatusCodes.CONFLICT
-      );
-    }
-    const id = crypto.randomUUID();
-    await db
-      .insert(genres)
-      .values({ description: body.description ?? null, id, name, slug });
-    return c.json(
-      {
-        description: body.description ?? null,
-        id,
-        name,
-        slug,
-        totalCount: 0,
-        trackCount: 0,
-        videoCount: 0,
-      },
-      HttpStatusCodes.CREATED
-    );
-  }
-);
 
 app.post("/embeddings/backfill", async (c) => {
   if (!isAdminUser(c.get("user"))) {

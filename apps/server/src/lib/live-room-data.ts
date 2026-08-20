@@ -1,12 +1,4 @@
-import type { BattleCoordination, BattlePhase } from "@/lib/live-battle-state";
-
 export type LiveRoomKind = "battle" | "party" | "stream";
-export type LiveRoomViewerRole =
-  | "admin"
-  | "artist_a"
-  | "artist_b"
-  | "fan"
-  | "host";
 
 export interface LiveRoomChatMessage {
   id: string;
@@ -52,64 +44,19 @@ export interface LiveBattleRound {
   winnerArtistId: null | string;
 }
 
-export interface LiveBattleArtistControls {
-  availableTrackIds: string[];
-  currentTrackId: string | null;
-  selectedNextTrackId: string | null;
-  usedTrackIds: string[];
-}
-
-export interface LivePartyPlayback {
-  hostMode: "off_camera" | "on_camera";
-  hostUserId: string;
-  playbackState: "paused" | "playing";
-  positionMs: number;
-  stateChangedAt: number;
-  trackId: string | null;
-  trackIndex: number;
-}
-
-export interface LiveStreamLifecycle {
-  errorCode?: string | null;
-  errorMessage?: string | null;
-  ingestStatus:
-    | "connected"
-    | "disconnected"
-    | "error"
-    | "idle"
-    | "reconnecting";
-  reconnectUntil?: number | null;
-  replayStatus: "available" | "none" | "processing";
-}
-
 export interface LiveRoomState {
   battle?: {
-    artistControls?: LiveBattleArtistControls;
-    artistControlsByUserId?: Record<string, LiveBattleArtistControls>;
     artists: [LiveRoomArtist, LiveRoomArtist];
-    queueSize?: number;
-    queueUserIds?: string[];
-    viewerQueueStatus?: "admitted" | "queued" | "waiting" | null;
-    waitingRoomCount?: number;
-    coordination?: BattleCoordination;
     currentRoundId: string;
-    phase?: BattlePhase;
     rounds: LiveBattleRound[];
     tiePolicy: string;
   };
-  party?: {
-    playback: LivePartyPlayback;
-  };
-  role?: LiveRoomViewerRole;
-  serverNow?: number;
-  stream?: LiveStreamLifecycle;
   chat: LiveRoomChatMessage[];
   createdAt: string;
   currentTrackId: string;
   hostName: string;
   id: string;
   kind: LiveRoomKind;
-  startsAt?: string | null;
   status: "ended" | "live" | "upcoming";
   summary: string;
   title: string;

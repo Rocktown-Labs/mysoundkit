@@ -345,9 +345,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : req.status === "declined"
+                                    : (req.status === "declined"
                                       ? "destructive"
-                                      : "outline"
+                                      : "outline")
                                 }
                               >
                                 {req.status}
@@ -387,17 +387,7 @@ function BattleHubPage() {
                             </div>
                           ) : (
                             <Button asChild size="sm" variant="outline">
-                              <Link
-                                search={{
-                                  genre: undefined,
-                                  region: undefined,
-                                  regionType: "north-america",
-                                  sort: undefined,
-                                }}
-                                to="/live/battles"
-                              >
-                                View Details
-                              </Link>
+                              <Link to="/live/battles">View Details</Link>
                             </Button>
                           )}
                         </div>
@@ -580,9 +570,9 @@ function BattleHubPage() {
                   >
                     {deleteExperience.isPending
                       ? "Processing..."
-                      : targetBattle?.status === "live"
+                      : (targetBattle?.status === "live"
                         ? "Confirm Forfeit"
-                        : "Confirm Cancellation"}
+                        : "Confirm Cancellation")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

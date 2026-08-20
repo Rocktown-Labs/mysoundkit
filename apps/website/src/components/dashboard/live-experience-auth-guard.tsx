@@ -126,9 +126,7 @@ export function LiveExperienceAuthGuard({
             Already have an account with SoundKit Premium?
           </p>
           <Button asChild variant="outline">
-            <Link search={{ redirect: "/dashboard" }} to="/login">
-              Sign In
-            </Link>
+            <Link to="/login">Sign In</Link>
           </Button>
         </div>
       )}

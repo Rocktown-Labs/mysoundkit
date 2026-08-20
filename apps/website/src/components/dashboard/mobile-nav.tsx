@@ -77,9 +77,9 @@ const sectionRoutes: Record<
           to: "/dashboard/career/calendar",
         },
         {
-          description: "Members, roles, and workspace access",
+          description: "Team members and workspace access",
           icon: Users,
-          name: "Workspace",
+          name: "Team",
           to: "/dashboard/team",
         },
         {
@@ -203,9 +203,9 @@ const sectionRoutes: Record<
           to: "/dashboard/messages",
         },
         {
-          description: "Followers, friends, and artist relationships",
+          description: "Friends and collaboration requests",
           icon: UserRoundPlus,
-          name: "Network",
+          name: "Friends",
           to: "/dashboard/collaborators",
         },
       ],
@@ -310,10 +310,7 @@ function RouteList({
 }
 
 export function MobileNav() {
-  const CareerIcon = sectionRoutes["career"].icon,
-    LiveIcon = sectionRoutes["live"].icon,
-    MusicIcon = sectionRoutes["music"].icon,
-    pathname = useRouterState({ select: (s) => s.location.pathname }),
+  const pathname = useRouterState({ select: (s) => s.location.pathname }),
     [createOpen, setCreateOpen] = useState(false),
     [sectionOpen, setSectionOpen] = useState<DashboardMobileSection | null>(
       null
@@ -336,19 +333,26 @@ export function MobileNav() {
           <span>Home</span>
         </Link>
 
-        <button
-          className={cn(
-            "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
-            isSectionActive(pathname, "music")
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          onClick={() => setSectionOpen("music")}
-          type="button"
-        >
-          <MusicIcon className="size-5" />
-          <span>{sectionRoutes["music"].name}</span>
-        </button>
+        {(["music", "career"] as const).map((section) => {
+          const Icon = sectionRoutes[section].icon,
+            active = isSectionActive(pathname, section);
+          return (
+            <button
+              key={section}
+              className={cn(
+                "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
+                active
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              onClick={() => setSectionOpen(section)}
+              type="button"
+            >
+              <Icon className="size-5" />
+              <span>{sectionRoutes[section].name}</span>
+            </button>
+          );
+        })}
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild={true}>
@@ -379,20 +383,6 @@ export function MobileNav() {
         <button
           className={cn(
             "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
-            isSectionActive(pathname, "career")
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          onClick={() => setSectionOpen("career")}
-          type="button"
-        >
-          <CareerIcon className="size-5" />
-          <span>{sectionRoutes["career"].name}</span>
-        </button>
-
-        <button
-          className={cn(
-            "flex h-full flex-col items-center justify-center gap-1 text-xs transition-colors",
             isSectionActive(pathname, "live")
               ? "text-primary"
               : "text-muted-foreground hover:text-foreground"
@@ -400,7 +390,7 @@ export function MobileNav() {
           onClick={() => setSectionOpen("live")}
           type="button"
         >
-          <LiveIcon className="size-5" />
+          <Trophy className="size-5" />
           <span>Live</span>
         </button>
       </div>

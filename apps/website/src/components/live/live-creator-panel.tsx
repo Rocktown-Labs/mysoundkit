@@ -102,7 +102,7 @@ export function LiveCreatorPanel({
   const [isFollowing, setIsFollowing] = useState(false),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     artistQuery = useArtistQuery(creator.username),
-    tracksQuery = useTracksQuery(undefined, {
+    tracksQuery = useTracksQuery({
       q: creator.username || creator.displayName,
     }),
     videosQuery = useVideosQuery({
@@ -121,7 +121,7 @@ export function LiveCreatorPanel({
         artistData?.links?.instagram || creator.socials?.instagram || undefined,
       personalSite:
         artistData?.links?.personalSite ||
-        artistData?.links?.personalSite ||
+        artistData?.links?.website ||
         creator.socials?.website ||
         undefined,
       spotify:
@@ -137,13 +137,13 @@ export function LiveCreatorPanel({
       }
       if (tracksQuery.data && tracksQuery.data.length > 0) {
         return tracksQuery.data.slice(0, 6).map((t) => ({
-          artistName: t.artistName || creator.displayName,
+          artistName: t.artist?.name ?? creator.displayName,
           coverArtUrl: t.coverArtUrl,
-          duration: undefined,
+          duration: t.durationSeconds,
           genre: t.genre,
           id: t.id,
-          priceCents: t.priceCents ?? undefined,
-          streamUrl: t.playbackUrl,
+          priceCents: t.priceCents,
+          streamUrl: t.streamUrl,
           title: t.title,
         }));
       }
@@ -155,12 +155,12 @@ export function LiveCreatorPanel({
       }
       if (videosQuery.data && videosQuery.data.length > 0) {
         return videosQuery.data.slice(0, 6).map((v) => ({
-          duration: v.duration,
+          duration: v.durationLabel,
           id: v.id,
-          publishedAt: v.releaseAt ?? undefined,
+          publishedAt: v.publishedLabel,
           thumbnailUrl: v.thumbnailUrl,
           title: v.title,
-          views: v.viewCount ? Number(v.viewCount) : undefined,
+          views: v.viewsCount,
         }));
       }
       return [];
@@ -201,11 +201,11 @@ export function LiveCreatorPanel({
         return;
       }
       const playerTrack = {
-        artist: track.artistName,
-        cover: track.coverArtUrl ?? "/default-track-artwork.png",
+        artist: { name: track.artistName },
+        coverArtUrl: track.coverArtUrl ?? "/default-track-artwork.png",
         duration: track.duration ?? 180,
         id: track.id,
-        src: track.streamUrl ?? "",
+        streamUrl: track.streamUrl ?? "",
         title: track.title,
       };
       setQueue([playerTrack]);

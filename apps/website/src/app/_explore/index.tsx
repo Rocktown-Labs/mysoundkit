@@ -19,7 +19,6 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { PremiumActivationCard } from "@/components/billing/premium-activation-card";
 import { ArtistLeaderboardCard } from "@/components/explore/artist-leaderboard-card";
 import type { LeaderboardArtist } from "@/components/explore/artist-leaderboard-card";
 import { SectionHeader } from "@/components/explore/section-header";
@@ -53,7 +52,6 @@ import type {
 
 interface ExploreSearch {
   mapScope?: MapScope;
-  upgraded?: boolean;
   region?: string;
   regionType?: "global" | "north-america";
 }
@@ -70,21 +68,16 @@ export const Route = createFileRoute("/_explore/")({
       search.regionType === "global" || search.regionType === "north-america"
         ? search.regionType
         : undefined,
-    upgraded: search.upgraded === "1" || search.upgraded === true,
   }),
 });
 
 function ExplorePage() {
-  const { data: home } = useDiscoverHomeQuery(),
-    { upgraded } = Route.useSearch();
+  const { data: home } = useDiscoverHomeQuery();
 
   return (
-    <>
-      {upgraded ? <PremiumActivationCard accountType="fan" /> : null}
-      <LocalExplorePage
-        startsWithAppWideTotals={home?.settings.useGlobalExploreHome ?? true}
-      />
-    </>
+    <LocalExplorePage
+      startsWithAppWideTotals={home?.settings.useGlobalExploreHome ?? true}
+    />
   );
 }
 

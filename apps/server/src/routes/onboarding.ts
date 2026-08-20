@@ -5,7 +5,6 @@ import {
   artistProfiles,
   fanProfiles,
   genres,
-  onboardingProgress,
   profileLinks,
   userProfiles,
   userGenrePreferences,
@@ -18,20 +17,15 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { indexSearchEntity } from "@/lib/audio-processing";
 import { createPlanCheckout, isFreePlan } from "@/lib/billing";
-import { getPublicSiteUrl, sendTransactionalEmail } from "@/lib/email";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
-import { canCompleteArtistOnboarding } from "@/lib/onboarding-domain";
 import { assertPlanSeatCount, maxIncludedSeatsForPlan } from "@/lib/plan-seats";
 import { normalizeProfileLinks } from "@/lib/profile-links";
 import {
-  creatorEligibilityBodySchema,
   messageResponseSchema,
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   onboardingResponseSchema,
-  onboardingStateSchema,
-  updateOnboardingStateBodySchema,
   usernameAvailabilityQuerySchema,
   usernameAvailabilityResponseSchema,
 } from "@/lib/schemas";
@@ -39,34 +33,6 @@ import type { AppEnv } from "@/lib/types";
 import { ensureWorkspaceForUser } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>(),
-  loadOnboardingState = async (userId: string) => {
-    if (!isDatabaseConfigured()) {
-      return null;
-    }
-    const db = createDb(),
-      [state] = await db
-        .select()
-        .from(onboardingProgress)
-        .where(eq(onboardingProgress.userId, userId))
-        .limit(1);
-    return state ?? null;
-  },
-  serializeOnboardingState = (
-    state: typeof onboardingProgress.$inferSelect
-  ) => ({
-    completedAt: state.completedAt?.toISOString() ?? null,
-    creatorEligibility: state.creatorEligibility,
-    creatorEligibilityLocked: Boolean(state.creatorEligibilityLockedAt),
-    currentStep: state.currentStep,
-    exitedAt: state.exitedAt?.toISOString() ?? null,
-    intendedAccountType: state.intendedAccountType,
-    lastActivityAt: state.lastActivityAt.toISOString(),
-    marketingOptIn: state.marketingOptIn,
-    rightsAttested: Boolean(state.rightsAttestedAt),
-    selectedPlanCode: state.selectedPlanCode,
-    startedAt: state.startedAt.toISOString(),
-    userId: state.userId,
-  }),
   RESERVED_USERNAMES = new Set(["soundkit"]);
 
 type UsernameAvailability =
@@ -186,273 +152,15 @@ const checkUsernameAvailability = async (
       status: "active",
     });
   },
-  onboardingUrls = (request: Request, accountType: "artist" | "fan") => {
-    const fallbackOrigin = new URL(request.url).origin,
-      siteOrigin = getPublicSiteUrl().replace(/\/$/u, "") || fallbackOrigin;
+  onboardingUrls = (request: Request) => {
+    const url = new URL(request.url),
+      { origin } = url;
 
     return {
-      cancelUrl: `${siteOrigin}/signup`,
-      successUrl: `${siteOrigin}${accountType === "artist" ? "/dashboard" : "/"}`,
+      cancelUrl: `${origin}/signup`,
+      successUrl: `${origin}/dashboard`,
     };
   };
-
-app.openapi(
-  createRoute({
-    method: "get",
-    path: "/state",
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        onboardingStateSchema.nullable(),
-        "Current onboarding progress"
-      ),
-      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-        messageResponseSchema,
-        "Authentication required"
-      ),
-    },
-    tags: ["Onboarding"],
-  }),
-  async (c) => {
-    const user = c.get("user");
-    if (!isAuthenticatedUser(user)) {
-      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
-    }
-    const state = await loadOnboardingState(user.id);
-    return c.json(
-      state ? serializeOnboardingState(state) : null,
-      HttpStatusCodes.OK
-    );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "post",
-    path: "/state",
-    request: {
-      body: jsonContentRequired(
-        updateOnboardingStateBodySchema,
-        "Onboarding progress"
-      ),
-    },
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        onboardingStateSchema,
-        "Onboarding progress saved"
-      ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Onboarding intent is locked"
-      ),
-      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-        messageResponseSchema,
-        "Authentication required"
-      ),
-    },
-    tags: ["Onboarding"],
-  }),
-  async (c) => {
-    const user = c.get("user");
-    if (!isAuthenticatedUser(user)) {
-      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
-    }
-    if (!isDatabaseConfigured()) {
-      return c.json(
-        { message: "Onboarding persistence requires a configured database." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-    const body = c.req.valid("json"),
-      db = createDb(),
-      current = await loadOnboardingState(user.id);
-    if (
-      current?.creatorEligibility === "major_label_affiliated" &&
-      body.intendedAccountType === "artist"
-    ) {
-      return c.json(
-        { message: "This account is locked to Fan onboarding." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-    const now = new Date(),
-      intendedAccountType =
-        body.intendedAccountType ?? current?.intendedAccountType ?? "fan",
-      creatorEligibility =
-        body.creatorEligibility ?? current?.creatorEligibility ?? null,
-      marketingOptIn = body.marketingOptIn ?? current?.marketingOptIn ?? false;
-    await db
-      .insert(onboardingProgress)
-      .values({
-        creatorEligibility,
-        currentStep: body.currentStep ?? current?.currentStep ?? 1,
-        intendedAccountType,
-        lastActivityAt: now,
-        marketingOptIn,
-        marketingOptInAt: marketingOptIn
-          ? (current?.marketingOptInAt ?? now)
-          : null,
-        marketingOptInSource:
-          body.marketingOptInSource ?? current?.marketingOptInSource ?? null,
-        marketingOptInVersion:
-          body.marketingOptInVersion ?? current?.marketingOptInVersion ?? null,
-        selectedPlanCode:
-          body.selectedPlanCode ?? current?.selectedPlanCode ?? null,
-        startedAt: current?.startedAt ?? now,
-        userId: user.id,
-      })
-      .onConflictDoUpdate({
-        set: {
-          creatorEligibility,
-          currentStep: body.currentStep ?? current?.currentStep ?? 1,
-          intendedAccountType,
-          lastActivityAt: now,
-          marketingOptIn,
-          marketingOptInAt: marketingOptIn
-            ? (current?.marketingOptInAt ?? now)
-            : null,
-          marketingOptInSource:
-            body.marketingOptInSource ?? current?.marketingOptInSource ?? null,
-          marketingOptInVersion:
-            body.marketingOptInVersion ??
-            current?.marketingOptInVersion ??
-            null,
-          selectedPlanCode:
-            body.selectedPlanCode ?? current?.selectedPlanCode ?? null,
-        },
-        target: onboardingProgress.userId,
-      });
-    const saved = await loadOnboardingState(user.id);
-    return c.json(
-      serializeOnboardingState(saved as typeof onboardingProgress.$inferSelect),
-      HttpStatusCodes.OK
-    );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "post",
-    path: "/eligibility",
-    request: {
-      body: jsonContentRequired(
-        creatorEligibilityBodySchema,
-        "Creator eligibility declaration"
-      ),
-    },
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        onboardingStateSchema,
-        "Eligibility saved"
-      ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Eligibility locked"
-      ),
-      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-        messageResponseSchema,
-        "Authentication required"
-      ),
-    },
-    tags: ["Onboarding"],
-  }),
-  async (c) => {
-    const user = c.get("user");
-    if (!isAuthenticatedUser(user)) {
-      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
-    }
-    if (!isDatabaseConfigured()) {
-      return c.json(
-        { message: "Eligibility persistence requires a configured database." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-    const { eligibility } = c.req.valid("json"),
-      current = await loadOnboardingState(user.id);
-    if (
-      current?.creatorEligibilityLockedAt &&
-      current.creatorEligibility !== eligibility
-    ) {
-      return c.json(
-        { message: "Creator eligibility is already locked for this account." },
-        HttpStatusCodes.FORBIDDEN
-      );
-    }
-    const now = new Date(),
-      intendedAccountType =
-        eligibility === "major_label_affiliated" ? "fan" : "artist";
-    await createDb()
-      .insert(onboardingProgress)
-      .values({
-        creatorEligibility: eligibility,
-        creatorEligibilityDeclaredAt: now,
-        creatorEligibilityLockedAt:
-          eligibility === "major_label_affiliated" ? now : null,
-        intendedAccountType,
-        lastActivityAt: now,
-        startedAt: current?.startedAt ?? now,
-        userId: user.id,
-      })
-      .onConflictDoUpdate({
-        set: {
-          creatorEligibility: eligibility,
-          creatorEligibilityDeclaredAt:
-            current?.creatorEligibilityDeclaredAt ?? now,
-          creatorEligibilityLockedAt:
-            eligibility === "major_label_affiliated"
-              ? (current?.creatorEligibilityLockedAt ?? now)
-              : current?.creatorEligibilityLockedAt,
-          intendedAccountType,
-          lastActivityAt: now,
-        },
-        target: onboardingProgress.userId,
-      });
-    const saved = await loadOnboardingState(user.id);
-    return c.json(
-      serializeOnboardingState(saved as typeof onboardingProgress.$inferSelect),
-      HttpStatusCodes.OK
-    );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "post",
-    path: "/exit",
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        onboardingStateSchema,
-        "Onboarding exited"
-      ),
-      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
-        messageResponseSchema,
-        "Authentication required"
-      ),
-    },
-    tags: ["Onboarding"],
-  }),
-  async (c) => {
-    const user = c.get("user");
-    if (!isAuthenticatedUser(user)) {
-      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
-    }
-    if (!isDatabaseConfigured()) {
-      return c.json(
-        { message: "Onboarding persistence requires a configured database." },
-        HttpStatusCodes.UNAUTHORIZED
-      );
-    }
-    const now = new Date();
-    await createDb()
-      .update(onboardingProgress)
-      .set({ exitedAt: now, lastActivityAt: now })
-      .where(eq(onboardingProgress.userId, user.id));
-    const saved = await loadOnboardingState(user.id);
-    return c.json(
-      serializeOnboardingState(saved as typeof onboardingProgress.$inferSelect),
-      HttpStatusCodes.OK
-    );
-  }
-);
 
 app.openapi(
   createRoute({
@@ -508,10 +216,6 @@ app.openapi(
         messageResponseSchema,
         "Plan seat limit exceeded"
       ),
-      [HttpStatusCodes.FORBIDDEN]: jsonContent(
-        messageResponseSchema,
-        "Artist eligibility is locked"
-      ),
     },
     tags: ["Onboarding"],
   }),
@@ -521,45 +225,6 @@ app.openapi(
 
     if (!(isAuthenticatedUser(user) || !isDatabaseConfigured())) {
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
-    }
-
-    if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
-      const progress = await loadOnboardingState(user.id);
-      if (progress?.creatorEligibility === "major_label_affiliated") {
-        return c.json(
-          { message: "This account is locked to Fan onboarding." },
-          HttpStatusCodes.FORBIDDEN
-        );
-      }
-      if (body.creatorEligibility === "major_label_affiliated") {
-        return c.json(
-          { message: "Major-label-controlled catalogs must continue as Fan." },
-          HttpStatusCodes.FORBIDDEN
-        );
-      }
-      if (
-        !canCompleteArtistOnboarding({
-          savedEligibility: progress?.creatorEligibility,
-          submittedEligibility: body.creatorEligibility,
-        })
-      ) {
-        return c.json(
-          {
-            message:
-              "Declare independent creator eligibility before completing Artist onboarding.",
-          },
-          HttpStatusCodes.FORBIDDEN
-        );
-      }
-      if (!body.rightsAttested) {
-        return c.json(
-          {
-            message:
-              "Confirm your upload and monetization rights before finishing.",
-          },
-          HttpStatusCodes.BAD_REQUEST
-        );
-      }
     }
 
     const usernameAvailability = await checkUsernameAvailability(
@@ -575,7 +240,7 @@ app.openapi(
     }
 
     if (isAuthenticatedUser(user) && isDatabaseConfigured()) {
-      const requestedSeats = 1;
+      const requestedSeats = Math.max(1, body.teamInviteEmails.length + 1);
 
       try {
         assertPlanSeatCount({
@@ -605,7 +270,7 @@ app.openapi(
             : {},
         workspaceId = await ensureWorkspaceForUser({
           accountType: "artist",
-          displayName: body.songwriterLegalName?.trim() || body.username,
+          displayName: user.name ?? body.username,
           user,
         });
 
@@ -615,7 +280,7 @@ app.openapi(
           accountType: "artist",
           ...avatar,
           city: body.city,
-          displayName: body.songwriterLegalName?.trim() || body.username,
+          displayName: user.name ?? body.username,
           mediaLayout: body.mediaLayout,
           onboardingCompletedAt: now,
           state: body.state,
@@ -644,8 +309,8 @@ app.openapi(
           primaryOrganizationId: workspaceId,
           proAffiliation: body.proAffiliation,
           proMemberId: body.proMemberId ?? null,
-          songwriterLegalName: body.songwriterLegalName ?? null,
-          stageName: body.songwriterLegalName?.trim() || body.username,
+          songwriterLegalName: body.songwriterLegalName ?? user.name ?? null,
+          stageName: user.name ?? body.username,
           updatedAt: now,
           userId: user.id,
         })
@@ -655,8 +320,8 @@ app.openapi(
             primaryOrganizationId: workspaceId,
             proAffiliation: body.proAffiliation,
             proMemberId: body.proMemberId ?? null,
-            songwriterLegalName: body.songwriterLegalName ?? null,
-            stageName: body.songwriterLegalName?.trim() || body.username,
+            songwriterLegalName: body.songwriterLegalName ?? user.name ?? null,
+            stageName: user.name ?? body.username,
             updatedAt: now,
           },
           target: artistProfiles.userId,
@@ -712,59 +377,13 @@ app.openapi(
         await db.insert(profileLinks).values(links);
       }
 
-      await db
-        .insert(onboardingProgress)
-        .values({
-          completedAt: now,
-          creatorEligibility: "independent",
-          creatorEligibilityDeclaredAt: now,
-          currentStep: 8,
-          intendedAccountType: "artist",
-          lastActivityAt: now,
-          rightsAttestationVersion: body.rightsAttestationVersion ?? "2026-01",
-          rightsAttestedAt: now,
-          selectedPlanCode: body.selectedPlanCode,
-          startedAt: now,
-          userId: user.id,
-        })
-        .onConflictDoUpdate({
-          set: {
-            completedAt: now,
-            currentStep: 8,
-            intendedAccountType: "artist",
-            lastActivityAt: now,
-            rightsAttestationVersion:
-              body.rightsAttestationVersion ?? "2026-01",
-            rightsAttestedAt: now,
-            selectedPlanCode: body.selectedPlanCode,
-          },
-          target: onboardingProgress.userId,
-        });
-
-      await sendTransactionalEmail({
-        idempotencyKey: `welcome/onboarding/${user.id}`,
-        payload: {
-          actionUrl: `${getPublicSiteUrl()}/dashboard/tracks/new`,
-          body: "Your artist profile is ready. Upload your first track, share your profile, and start building your direct fan community.",
-          ctaLabel: "Upload your first track",
-          eyebrow: "Artist welcome",
-          heading: "Welcome to SoundKit, artist",
-          previewText:
-            "Your artist profile is ready. Start with your first track.",
-          recipientName: body.songwriterLegalName ?? body.username,
-          subject: "Your SoundKit artist profile is ready",
-        },
-        recipientEmail: user.email ?? "",
-        template: "welcome",
-      });
-
       await ensureFreeSubscription({
         planCode: body.selectedPlanCode,
         referenceId: workspaceId,
       });
 
       const checkout = await createPlanCheckout({
-        ...onboardingUrls(c.req.raw, "artist"),
+        ...onboardingUrls(c.req.raw),
         planCode: body.selectedPlanCode,
         referenceId: workspaceId,
         request: c.req.raw,
@@ -847,7 +466,7 @@ app.openapi(
         now = new Date(),
         workspaceId = await ensureWorkspaceForUser({
           accountType: "fan",
-          displayName: body.username,
+          displayName: user.name ?? body.username,
           user,
         });
 
@@ -856,7 +475,7 @@ app.openapi(
         .values({
           accountType: "fan",
           city: body.city,
-          displayName: body.username,
+          displayName: user.name ?? body.username,
           mediaLayout: body.mediaLayout,
           onboardingCompletedAt: now,
           state: body.state,
@@ -900,50 +519,11 @@ app.openapi(
       }
 
       await db.insert(userGenrePreferences).values(
-        [...new Set(genreIds)].map((genreId) => ({
+        genreIds.map((genreId) => ({
           genreId,
           userId: user.id,
         }))
       );
-
-      await db
-        .insert(onboardingProgress)
-        .values({
-          completedAt: now,
-          currentStep: 4,
-          intendedAccountType: "fan",
-          lastActivityAt: now,
-          selectedPlanCode: body.selectedPlanCode,
-          startedAt: now,
-          userId: user.id,
-        })
-        .onConflictDoUpdate({
-          set: {
-            completedAt: now,
-            currentStep: 4,
-            intendedAccountType: "fan",
-            lastActivityAt: now,
-            selectedPlanCode: body.selectedPlanCode,
-          },
-          target: onboardingProgress.userId,
-        });
-
-      await sendTransactionalEmail({
-        idempotencyKey: `welcome/onboarding/${user.id}`,
-        payload: {
-          actionUrl: `${getPublicSiteUrl()}/`,
-          body: "Your SoundKit listener profile is ready. Discover music, follow artists, and build your library.",
-          ctaLabel: "Explore SoundKit",
-          eyebrow: "Fan welcome",
-          heading: "Welcome to SoundKit",
-          previewText:
-            "Your listener profile is ready. Discover something new.",
-          recipientName: body.username,
-          subject: "Your SoundKit listener profile is ready",
-        },
-        recipientEmail: user.email ?? "",
-        template: "welcome",
-      });
 
       await ensureFreeSubscription({
         planCode: body.selectedPlanCode,
@@ -951,7 +531,7 @@ app.openapi(
       });
 
       const checkout = await createPlanCheckout({
-        ...onboardingUrls(c.req.raw, "fan"),
+        ...onboardingUrls(c.req.raw),
         planCode: body.selectedPlanCode,
         referenceId: workspaceId,
         request: c.req.raw,

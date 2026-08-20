@@ -21,7 +21,6 @@ import {
   Music2,
   Pause,
   Play,
-  Plus,
   Radio,
   RotateCcw,
   ShoppingBag,
@@ -34,11 +33,9 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 
-import { BattleTimer } from "@/components/live/battle-timer";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
-import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -60,26 +57,9 @@ export const Route = createFileRoute("/_explore/live/preview")({
 });
 
 type PreviewMode = "battle" | "challenge" | "party" | "stream" | "video";
-type Perspective = "artist_a" | "artist_b" | "fan";
-type BattleState =
-  | "between_rounds"
-  | "booted"
-  | "ended"
-  | "live_round"
-  | "lobby"
-  | "recording_processing"
-  | "replay_available"
-  | "tiebreaker"
-  | "transition"
-  | "voting";
-type StreamState =
-  | "ended"
-  | "live"
-  | "reconnecting"
-  | "recording_processing"
-  | "replay_available"
-  | "scheduled"
-  | "waiting";
+type Perspective = "artist" | "fan";
+type BattleState = "ended" | "live_round" | "lobby" | "tiebreaker" | "voting";
+type StreamState = "live" | "scheduled";
 
 interface ChatItem {
   id: string;
@@ -116,7 +96,7 @@ function LiveInteractivePreviewHub() {
     [hasVoted, setHasVoted] = useState(false),
     [isPartyPlaying, setIsPartyPlaying] = useState(true),
     [mode, setMode] = useState<PreviewMode>("battle"),
-    [perspective, setPerspective] = useState<Perspective>("artist_a"),
+    [perspective, setPerspective] = useState<Perspective>("artist"),
     [streamState, setStreamState] = useState<StreamState>("live"),
     [votes, setVotes] = useState({ artistA: 142, artistB: 189 }),
     handleSendChatMessage = (text: string) => {
@@ -124,7 +104,7 @@ function LiveInteractivePreviewHub() {
         id: `user-${Date.now()}`,
         message: text,
         sentAt: new Date().toISOString(),
-        userName: perspective === "fan" ? "Fan (You)" : "Artist (You)",
+        userName: perspective === "artist" ? "Host (You)" : "Fan (You)",
       };
       setChatMessages((prev) => [...prev, newMsg]);
     },
@@ -210,21 +190,12 @@ function LiveInteractivePreviewHub() {
             <div className="flex items-center rounded-lg border bg-muted/40 p-1">
               <Button
                 className="h-7 text-xs"
-                onClick={() => setPerspective("artist_a")}
+                onClick={() => setPerspective("artist")}
                 size="sm"
-                variant={perspective === "artist_a" ? "secondary" : "ghost"}
+                variant={perspective === "artist" ? "secondary" : "ghost"}
               >
                 <Crown className="mr-1 size-3 text-amber-400" />
-                Artist A View
-              </Button>
-              <Button
-                className="h-7 text-xs"
-                onClick={() => setPerspective("artist_b")}
-                size="sm"
-                variant={perspective === "artist_b" ? "secondary" : "ghost"}
-              >
-                <Crown className="mr-1 size-3 text-amber-400" />
-                Artist B View
+                Artist View
               </Button>
               <Button
                 className="h-7 text-xs"
@@ -245,16 +216,11 @@ function LiveInteractivePreviewHub() {
             <div className="flex flex-wrap gap-1.5">
               {(
                 [
-                  ["lobby", "Waiting Room"],
-                  ["live_round", "Artist A Turn"],
-                  ["transition", "Turn Transition"],
+                  ["lobby", "Pre-Match Lobby"],
+                  ["live_round", "Round 1 (Live)"],
                   ["voting", "Voting Active"],
-                  ["booted", "Non-Voter Booted"],
-                  ["between_rounds", "Between Rounds"],
                   ["tiebreaker", "Tiebreaker Round"],
                   ["ended", "Match Winner"],
-                  ["recording_processing", "Recording Processing"],
-                  ["replay_available", "Replay Available"],
                 ] as const
               ).map(([state, label]) => (
                 <button
@@ -275,29 +241,28 @@ function LiveInteractivePreviewHub() {
 
           {mode === "stream" && (
             <div className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  ["waiting", "Waiting for OBS"],
-                  ["live", "OBS Connected / Live"],
-                  ["reconnecting", "Reconnecting"],
-                  ["ended", "Ended"],
-                  ["recording_processing", "Replay Processing"],
-                  ["replay_available", "Replay Available"],
-                ] as const
-              ).map(([state, label]) => (
-                <button
-                  className={`rounded-full px-2.5 py-0.5 font-medium ${
-                    streamState === state
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                  key={state}
-                  onClick={() => setStreamState(state)}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
+              <button
+                className={`rounded-full px-2.5 py-0.5 font-medium ${
+                  streamState === "live"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                }`}
+                onClick={() => setStreamState("live")}
+                type="button"
+              >
+                OBS 1080p Live Stream
+              </button>
+              <button
+                className={`rounded-full px-2.5 py-0.5 font-medium ${
+                  streamState === "scheduled"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                }`}
+                onClick={() => setStreamState("scheduled")}
+                type="button"
+              >
+                Scheduled Waiting Screen
+              </button>
             </div>
           )}
 
@@ -403,12 +368,7 @@ function BattlePreviewSection({
   votes: { artistA: number; artistB: number };
 }) {
   const [isChatOpen, setIsChatOpen] = useState(true),
-    {
-      containerRef: battleVideoRef,
-      isFullscreen,
-      toggleFullscreen,
-    } = useBrowserFullscreen(),
-    [previewPhaseEndsAt] = useState(() => Date.now() + 180_000),
+    [isFullscreen, setIsFullscreen] = useState(false),
     [currentTurn, setCurrentTurn] = useState<"artistA" | "artistB">("artistA"),
     [roundNumber, setRoundNumber] = useState(1),
     [scores, setScores] = useState({ artistA: 1, artistB: 1 }),
@@ -488,21 +448,6 @@ function BattlePreviewSection({
       }
       if (battleState === "tiebreaker") {
         return "TIEBREAKER ROUND";
-      }
-      if (battleState === "transition") {
-        return "SHORT TRANSITION";
-      }
-      if (battleState === "between_rounds") {
-        return "BETWEEN ROUNDS — WAITING ROOM ADMISSION";
-      }
-      if (battleState === "booted") {
-        return "VOTING CLOSED — NON-VOTER REMOVED";
-      }
-      if (battleState === "recording_processing") {
-        return "RECORDING PROCESSING";
-      }
-      if (battleState === "replay_available") {
-        return "REPLAY AVAILABLE";
       }
       if (battleState === "voting") {
         return `ROUND ${roundNumber} VOTING (2:00)`;
@@ -589,10 +534,7 @@ function BattlePreviewSection({
       />
     ),
     videoNode = (
-      <div
-        className="group relative aspect-video w-full overflow-hidden bg-black"
-        ref={battleVideoRef}
-      >
+      <div className="group relative aspect-video w-full overflow-hidden bg-black">
         <AppImage
           alt="Battle Stage"
           className="size-full object-cover opacity-75"
@@ -614,7 +556,7 @@ function BattlePreviewSection({
             >
               Format: 2x 3min Turns + 2min Vote
             </Badge>
-            {perspective !== "fan" && (
+            {perspective === "artist" && (
               <Badge className="bg-primary/80 font-semibold text-primary-foreground">
                 PERFORMER CONTROLS ON
               </Badge>
@@ -626,10 +568,9 @@ function BattlePreviewSection({
               <Radio className="size-3 text-destructive animate-pulse" />
               <span>1,842 Viewers</span>
             </div>
-            <BattleTimer phaseEndsAt={previewPhaseEndsAt} label={roundLabel} />
             <Button
               className="size-8 bg-black/60 text-white hover:bg-black/80 backdrop-blur-md"
-              onClick={toggleFullscreen}
+              onClick={() => setIsFullscreen((prev) => !prev)}
               size="icon"
               type="button"
               variant="ghost"
@@ -1210,11 +1151,7 @@ function StreamPreviewSection({
   streamState: StreamState;
 }) {
   const [isChatOpen, setIsChatOpen] = useState(true),
-    {
-      containerRef: streamVideoRef,
-      isFullscreen,
-      toggleFullscreen,
-    } = useBrowserFullscreen(),
+    [isFullscreen, setIsFullscreen] = useState(false),
     chatPanel = (
       <LiveChatPanel
         disabled={false}
@@ -1226,10 +1163,7 @@ function StreamPreviewSection({
       />
     ),
     videoNode = (
-      <div
-        className="group relative aspect-video w-full bg-black"
-        ref={streamVideoRef}
-      >
+      <div className="group relative aspect-video w-full bg-black">
         {streamState === "live" ? (
           <>
             <AppImage
@@ -1275,7 +1209,7 @@ function StreamPreviewSection({
         <div className="absolute right-4 bottom-4">
           <Button
             className="size-8 bg-black/60 text-white hover:bg-black/80 backdrop-blur-md"
-            onClick={toggleFullscreen}
+            onClick={() => setIsFullscreen((prev) => !prev)}
             size="icon"
             type="button"
             variant="ghost"
@@ -1361,35 +1295,11 @@ function PartyPreviewSection({
   perspective: Perspective;
 }) {
   const [isChatOpen, setIsChatOpen] = useState(true),
-    {
-      containerRef: partyVideoRef,
-      isFullscreen,
-      toggleFullscreen,
-    } = useBrowserFullscreen(),
+    [isFullscreen, setIsFullscreen] = useState(false),
     [isLiked, setIsLiked] = useState(false),
     [isSaved, setIsSaved] = useState(false),
-    [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
     [currentTrackIndex, setCurrentTrackIndex] = useState(2),
     activeTrack = partyAlbumTracks[currentTrackIndex],
-    handleToggleSaveTrack = (trackId: string, trackTitle: string) => {
-      setSavedTrackIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(trackId)) {
-          next.delete(trackId);
-          toast({
-            description: `"${trackTitle}" removed from your saved tracks.`,
-            title: "Removed from Library",
-          });
-        } else {
-          next.add(trackId);
-          toast({
-            description: `"${trackTitle}" saved to your music library!`,
-            title: "Track Saved",
-          });
-        }
-        return next;
-      });
-    },
     handleReplaySong = (index = currentTrackIndex) => {
       setCurrentTrackIndex(index);
       toast({
@@ -1408,10 +1318,7 @@ function PartyPreviewSection({
       />
     ),
     videoNode = (
-      <div
-        className="group relative min-h-[560px] md:min-h-[600px] w-full overflow-hidden bg-zinc-950 select-none rounded-2xl border border-white/10 shadow-2xl flex flex-col justify-between"
-        ref={partyVideoRef}
-      >
+      <div className="group relative min-h-[560px] md:min-h-[600px] w-full overflow-hidden bg-zinc-950 select-none rounded-2xl border border-white/10 shadow-2xl flex flex-col justify-between">
         {/* Ambient Blur Background */}
         <AppImage
           alt="Album Background"
@@ -1435,11 +1342,7 @@ function PartyPreviewSection({
             >
               Synced Audio Stream
             </Badge>
-            {perspective === "fan" ? (
-              <Badge className="bg-white/10 font-semibold text-white border-white/20">
-                FAN MODE: LIVE LISTENER
-              </Badge>
-            ) : (
+            {perspective === "artist" && (
               <Badge className="bg-primary/80 font-semibold text-primary-foreground">
                 HOST MODE: FULL CONTROL
               </Badge>
@@ -1453,7 +1356,7 @@ function PartyPreviewSection({
             </div>
             <Button
               className="size-8 bg-black/60 text-white hover:bg-black/80 backdrop-blur-md"
-              onClick={toggleFullscreen}
+              onClick={() => setIsFullscreen((prev) => !prev)}
               size="icon"
               type="button"
               variant="ghost"
@@ -1590,43 +1493,15 @@ function PartyPreviewSection({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {perspective === "fan" ? (
-                      <Button
-                        className={cn(
-                          "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
-                          savedTrackIds.has(activeTrack.id) && "text-primary"
-                        )}
-                        onClick={() =>
-                          handleToggleSaveTrack(
-                            activeTrack.id,
-                            activeTrack.title
-                          )
-                        }
-                        size="icon"
-                        title={
-                          savedTrackIds.has(activeTrack.id)
-                            ? "Saved to Library"
-                            : "Save Track to Library"
-                        }
-                        variant="ghost"
-                      >
-                        {savedTrackIds.has(activeTrack.id) ? (
-                          <BookmarkCheck className="size-3.5 text-primary" />
-                        ) : (
-                          <Plus className="size-3.5" />
-                        )}
-                      </Button>
-                    ) : (
-                      <Button
-                        className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                        onClick={() => handleReplaySong(currentTrackIndex)}
-                        size="icon"
-                        title="Replay Current Track (Host Control)"
-                        variant="ghost"
-                      >
-                        <RotateCcw className="size-3.5" />
-                      </Button>
-                    )}
+                    <Button
+                      className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                      onClick={() => handleReplaySong(currentTrackIndex)}
+                      size="icon"
+                      title="Replay Current Track"
+                      variant="ghost"
+                    >
+                      <RotateCcw className="size-3.5" />
+                    </Button>
                     <Button
                       className={cn(
                         "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
@@ -1719,40 +1594,15 @@ function PartyPreviewSection({
                             </Badge>
                           )}
 
-                          {perspective === "fan" ? (
-                            <Button
-                              className={cn(
-                                "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
-                                savedTrackIds.has(track.id) && "text-primary"
-                              )}
-                              onClick={() =>
-                                handleToggleSaveTrack(track.id, track.title)
-                              }
-                              size="icon"
-                              title={
-                                savedTrackIds.has(track.id)
-                                  ? "Saved to Library"
-                                  : "Save Track to Library"
-                              }
-                              variant="ghost"
-                            >
-                              {savedTrackIds.has(track.id) ? (
-                                <BookmarkCheck className="size-3.5 text-primary" />
-                              ) : (
-                                <Plus className="size-3.5" />
-                              )}
-                            </Button>
-                          ) : (
-                            <Button
-                              className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                              onClick={() => handleReplaySong(idx)}
-                              size="icon"
-                              title="Play or Replay this track for the party (Host)"
-                              variant="ghost"
-                            >
-                              <RotateCcw className="size-3" />
-                            </Button>
-                          )}
+                          <Button
+                            className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                            onClick={() => handleReplaySong(idx)}
+                            size="icon"
+                            title="Play or Replay this track for the party"
+                            variant="ghost"
+                          >
+                            <RotateCcw className="size-3" />
+                          </Button>
 
                           <span className="font-mono text-[11px] text-white/50 w-10 text-right">
                             {track.duration}
@@ -1801,11 +1651,6 @@ function VideoPreviewSection({
   onSendMessage: (msg: string) => void;
 }) {
   const [isChatOpen, setIsChatOpen] = useState(true),
-    {
-      containerRef: videoRef,
-      isFullscreen,
-      toggleFullscreen,
-    } = useBrowserFullscreen(),
     chatPanel = (
       <LiveChatPanel
         disabled={false}
@@ -1817,7 +1662,7 @@ function VideoPreviewSection({
       />
     ),
     videoNode = (
-      <div className="relative aspect-video w-full bg-black" ref={videoRef}>
+      <div className="relative aspect-video w-full bg-black">
         <AppImage
           alt="Music Video"
           className="size-full object-cover"
@@ -1830,19 +1675,6 @@ function VideoPreviewSection({
             <Play className="size-8 fill-current translate-x-0.5" />
           </Button>
         </div>
-        <Button
-          className="absolute right-4 bottom-4 size-8 bg-black/60 text-white hover:bg-black/80"
-          onClick={toggleFullscreen}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          {isFullscreen ? (
-            <Minimize className="size-4" />
-          ) : (
-            <Maximize className="size-4" />
-          )}
-        </Button>
       </div>
     );
 

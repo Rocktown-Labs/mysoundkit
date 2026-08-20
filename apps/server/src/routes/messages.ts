@@ -709,7 +709,6 @@ app.openapi(
       ] = await Promise.all([
         db
           .select({
-            accountType: userProfiles.accountType,
             avatarUrl: userProfiles.avatarUrl,
             displayName: userProfiles.displayName,
             email: authUser.email,
@@ -719,12 +718,11 @@ app.openapi(
           })
           .from(artistFollows)
           .innerJoin(authUser, eq(authUser.id, artistFollows.artistUserId))
-          .innerJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
           .where(eq(artistFollows.followerUserId, user.id))
           .limit(100),
         db
           .select({
-            accountType: userProfiles.accountType,
             avatarUrl: userProfiles.avatarUrl,
             displayName: userProfiles.displayName,
             email: authUser.email,
@@ -734,8 +732,14 @@ app.openapi(
           })
           .from(artistFollows)
           .innerJoin(authUser, eq(authUser.id, artistFollows.followerUserId))
-          .innerJoin(userProfiles, eq(userProfiles.userId, authUser.id))
-          .where(eq(artistFollows.artistUserId, user.id))
+          .leftJoin(userProfiles, eq(userProfiles.userId, authUser.id))
+          .leftJoin(artistProfiles, eq(artistProfiles.userId, authUser.id))
+          .where(
+            and(
+              eq(artistFollows.artistUserId, user.id),
+              sql`${artistProfiles.userId} is null`
+            )
+          )
           .limit(100),
         db
           .select({
@@ -818,7 +822,7 @@ app.openapi(
         lastInteractionAt: null,
         name: row.displayName ?? row.name ?? row.username ?? "SoundKit Artist",
         relationship: "following",
-        role: row.accountType === "fan" ? "Fan" : "Artist",
+        role: "Artist",
         username: row.username,
       });
     }
@@ -830,8 +834,8 @@ app.openapi(
         id: row.id,
         lastInteractionAt: null,
         name: row.displayName ?? row.name ?? row.username ?? "SoundKit Fan",
-        relationship: row.accountType === "fan" ? "fan" : "artist_follower",
-        role: row.accountType === "fan" ? "Fan" : "Artist",
+        relationship: "fan",
+        role: "Fan",
         username: row.username,
       });
     }
@@ -1572,7 +1576,7 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
-    const messageId = body.clientMessageId ?? crypto.randomUUID(),
+    const messageId = crypto.randomUUID(),
       now = new Date(),
       [message] = await db
         .insert(messages)

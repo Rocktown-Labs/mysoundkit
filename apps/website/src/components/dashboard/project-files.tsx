@@ -62,7 +62,6 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
     } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
-      route: "media",
       onError: (uploadError) => {
         toast({
           description: uploadError.message || "Failed to upload file.",

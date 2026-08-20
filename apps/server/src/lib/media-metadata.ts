@@ -270,16 +270,11 @@ const findUnbackfilledMasterRows = ({
   trackIds?: string[];
 }) => {
   const whereClauses: SQL[] = [
-    inArray(trackAssets.assetKind, [
-      "master",
-      "untagged_wav",
-      "tagged_mp3",
-      "alternate_mix",
-      "instrumental",
-    ]),
+    eq(trackAssets.assetKind, "master"),
     eq(trackAssets.storageProvider, "r2"),
     isNotNull(trackAssets.objectKey),
     isNull(trackAssets.durationMs),
+    isNull(workflowJobs.id),
     trackIds && trackIds.length > 0
       ? inArray(trackAssets.trackId, trackIds)
       : undefined,
@@ -292,6 +287,13 @@ const findUnbackfilledMasterRows = ({
       trackId: trackAssets.trackId,
     })
     .from(trackAssets)
+    .leftJoin(
+      workflowJobs,
+      and(
+        eq(workflowJobs.targetId, trackAssets.id),
+        eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)
+      )
+    )
     .where(and(...whereClauses))
     .limit(Math.max(1, Math.min(limit, 500)));
 };
@@ -341,15 +343,7 @@ export const enqueueTrackDurationBackfills = async ({
 
     const jobId = existingJob?.id ?? crypto.randomUUID();
 
-    if (existingJob) {
-      await db
-        .update(workflowJobs)
-        .set({
-          input: { ...row, runId },
-          status: "queued",
-        })
-        .where(eq(workflowJobs.id, jobId));
-    } else {
+    if (!existingJob) {
       await db.insert(workflowJobs).values({
         id: jobId,
         input: { ...row, runId },
@@ -530,24 +524,14 @@ export const handleTrackDurationBackfillQueue = async (
   }
 };
 
-export const loadTrackDurationBackfillStatus = async (
-  requestedRunId?: string
-) => {
+export const loadTrackDurationBackfillStatus = async (runId: string) => {
   if (!isDatabaseConfigured()) {
-    return {
-      done: 0,
-      failed: 0,
-      items: [],
-      processing: 0,
-      queued: 0,
-      runId: requestedRunId ?? null,
-    };
+    return { done: 0, failed: 0, items: [], processing: 0, queued: 0, runId };
   }
 
   const db = createDb(),
     rows = await db
       .select({
-        createdAt: workflowJobs.createdAt,
         durationMs: trackAssets.durationMs,
         error: workflowJobs.error,
         input: workflowJobs.input,
@@ -559,46 +543,15 @@ export const loadTrackDurationBackfillStatus = async (
       .innerJoin(trackAssets, eq(trackAssets.id, workflowJobs.targetId))
       .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
       .where(eq(workflowJobs.jobType, DURATION_BACKFILL_JOB_TYPE)),
-    latestRunId = requestedRunId
-      ? requestedRunId
-      : rows.reduce<string | null>((latest, row) => {
-          const input = row.input;
-          if (
-            !(
-              input !== null &&
-              typeof input === "object" &&
-              "runId" in input &&
-              typeof input.runId === "string"
-            )
-          ) {
-            return latest;
-          }
-          const latestRow = latest
-            ? rows.find((candidate) => {
-                const candidateInput = candidate.input;
-                return (
-                  candidateInput !== null &&
-                  typeof candidateInput === "object" &&
-                  "runId" in candidateInput &&
-                  candidateInput.runId === latest
-                );
-              })
-            : null;
-          return !latestRow || row.createdAt > latestRow.createdAt
-            ? input.runId
-            : latest;
-        }, null),
-    runRows = latestRunId
-      ? rows.filter((row) => {
-          const { input } = row;
-          return (
-            input !== null &&
-            typeof input === "object" &&
-            "runId" in input &&
-            input.runId === latestRunId
-          );
-        })
-      : [],
+    runRows = rows.filter((row) => {
+      const { input } = row;
+      return (
+        input !== null &&
+        typeof input === "object" &&
+        "runId" in input &&
+        input.runId === runId
+      );
+    }),
     summary = { done: 0, failed: 0, processing: 0, queued: 0 };
 
   for (const row of runRows) {
@@ -625,6 +578,6 @@ export const loadTrackDurationBackfillStatus = async (
       title: row.title,
       trackId: row.trackId,
     })),
-    runId: latestRunId,
+    runId,
   };
 };

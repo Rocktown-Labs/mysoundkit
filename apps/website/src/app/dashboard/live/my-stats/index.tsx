@@ -38,6 +38,7 @@ function MyStatsPage() {
       totalBattles > 0 ? Math.round((totalWins / totalBattles) * 100) : 0,
     totalSaves = stats.reduce((sum, item) => sum + item.saves, 0),
     totalPurchases = stats.reduce((sum, item) => sum + item.purchases, 0),
+    totalRevenue = totalPurchases * 29.99,
     tableData = stats.map((item) => ({
       ...item,
       winRate: Math.round((item.wins / (item.wins + item.losses || 1)) * 100),
@@ -90,14 +91,18 @@ function MyStatsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Battle Purchases</CardDescription>
+            <CardDescription>Estimated Revenue</CardDescription>
             <CardTitle className="text-3xl font-[family-name:var(--font-outfit)]">
-              {totalPurchases}
+              $
+              {totalRevenue.toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+                minimumFractionDigits: 2,
+              })}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              Direct music purchases from battle viewers
+              From {totalPurchases} battle sales
             </p>
           </CardContent>
         </Card>

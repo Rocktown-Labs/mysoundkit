@@ -46,7 +46,7 @@ export function ExploreCollectionSection<T>({
         ) : null}
       </div>
       {isLoading || items.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           {items.slice(0, 6).map((item, index) => (
             <div className="min-w-0" key={getItemKey(item, index)}>
               {children(item)}
@@ -63,7 +63,6 @@ export function ExploreCollectionSection<T>({
 interface ExploreCollectionGridProps<T> {
   children: (item: T) => ReactNode;
   empty: ReactNode;
-  footer?: ReactNode;
   isLoading?: boolean;
   items: T[];
   title: string;
@@ -72,7 +71,6 @@ interface ExploreCollectionGridProps<T> {
 export function ExploreCollectionGrid<T>({
   children,
   empty,
-  footer,
   isLoading = false,
   items,
   title,
@@ -81,16 +79,13 @@ export function ExploreCollectionGrid<T>({
     <section className="mb-10">
       <h2 className="mb-3 font-semibold text-xl">{title}</h2>
       {isLoading || items.length > 0 ? (
-        <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {items.map((item, index) => (
-              <div className="min-w-0" key={getItemKey(item, index)}>
-                {children(item)}
-              </div>
-            ))}
-          </div>
-          {footer}
-        </>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          {items.map((item, index) => (
+            <div className="min-w-0" key={getItemKey(item, index)}>
+              {children(item)}
+            </div>
+          ))}
+        </div>
       ) : (
         <ExploreCollectionEmpty>{empty}</ExploreCollectionEmpty>
       )}

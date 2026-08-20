@@ -14,11 +14,9 @@ on:
       - closed
   workflow_dispatch:
 
-# Active PR runs are latest-commit-wins per PR. Closed PR cleanup uses a separate
-# group so it can start without waiting behind an active browser smoke run.
 concurrency:
-  group: deploy-${{ github.event_name == 'pull_request' && github.event.action == 'closed' && format('pr-close-{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'prod' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+  group: deploy-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'prod' }}
+  cancel-in-progress: false
 
 env:
   NODE_OPTIONS: --max-old-space-size=4096
@@ -48,16 +46,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run verification suite (types, hooks, tests, build)
-        run: pnpm run verify
+      - name: Check types
+        run: pnpm run check-types
+
+      - name: Check React hook imports
+        run: pnpm run check:react-hooks
+
+      - name: Run unit and Worker tests
+        run: pnpm run test
+
+      - name: Build applications
+        run: pnpm run build
 
   browser:
     name: Browser Smoke Tests
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'closed' }}
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.1-noble
-    timeout-minutes: 15
     env:
       SOUNDKIT_CI_STATIC_CONFIG: "true"
     permissions:
@@ -78,19 +82,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
       - name: Run browser smoke tests
         run: pnpm run test:e2e
-
-      - name: Upload Playwright failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-browser-artifacts-${{ github.run_id }}
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
 
   deploy:
     name: Deploy Production
@@ -182,34 +178,26 @@ jobs:
           SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
           STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STRIPE_BETTER_AUTH_WEBHOOK_SECRET: ${{ secrets.STRIPE_BETTER_AUTH_WEBHOOK_SECRET }}
-          STRIPE_COMMERCE_WEBHOOK_SECRET: ${{ secrets.STRIPE_COMMERCE_WEBHOOK_SECRET }}
-          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STRIPE_CONNECT_WEBHOOK_SECRET }}
           VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
-          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
-          TURNSTILE_HOSTNAMES: ${{ vars.TURNSTILE_HOSTNAMES }}
-          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
 
   preview:
     name: Deploy Preview
     needs:
       - verify
+      - browser
     if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
     runs-on: ubuntu-latest
     environment: preview
     permissions:
       contents: read
-    outputs:
-      web_url: ${{ steps.urls.outputs.web_url }}
-      api_url: ${{ steps.urls.outputs.api_url }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -287,129 +275,21 @@ jobs:
           SENTRY_DSN: ${{ vars.SENTRY_SERVER_DSN }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
           STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STRIPE_BETTER_AUTH_WEBHOOK_SECRET: ${{ secrets.STRIPE_BETTER_AUTH_WEBHOOK_SECRET }}
-          STRIPE_COMMERCE_WEBHOOK_SECRET: ${{ secrets.STRIPE_COMMERCE_WEBHOOK_SECRET }}
-          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STRIPE_CONNECT_WEBHOOK_SECRET }}
           VITE_RADAR_PUBLISHABLE_KEY: ${{ vars.VITE_RADAR_PUBLISHABLE_KEY }}
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
 
       - name: Record preview URLs
-        id: urls
         run: |
-          WEB_URL="https://web-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
-          API_URL="https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com"
-          echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
-          echo "api_url=$API_URL" >> "$GITHUB_OUTPUT"
           echo "### SoundKit preview" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Web: $WEB_URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "- API: $API_URL" >> "$GITHUB_STEP_SUMMARY"
-
-  preview-browser:
-    name: Preview Browser Smoke Tests
-    needs:
-      - preview
-    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository && vars.ENABLE_PREVIEW_DEPLOYS == 'true' }}
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.61.1-noble
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Wait for preview deployment readiness
-        run: |
-          echo "Waiting for preview web and API endpoints to be ready..."
-          WEB_READY=false
-          API_READY=false
-          MAX_ATTEMPTS=20
-          SLEEP_SECONDS=4
-          CONNECT_TIMEOUT_SECONDS=1
-          REQUEST_TIMEOUT_SECONDS=2
-
-          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            if [ "$API_READY" = false ]; then
-              if curl --fail --silent --show-error \
-                --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
-                --max-time "$REQUEST_TIMEOUT_SECONDS" \
-                "${PLAYWRIGHT_API_URL}/health" > /dev/null; then
-                echo "API is ready ($PLAYWRIGHT_API_URL/health)"
-                API_READY=true
-              fi
-            fi
-
-            if [ "$WEB_READY" = false ]; then
-              if curl --fail --silent --show-error \
-                --connect-timeout "$CONNECT_TIMEOUT_SECONDS" \
-                --max-time "$REQUEST_TIMEOUT_SECONDS" \
-                "$PLAYWRIGHT_BASE_URL" > /dev/null; then
-                echo "Web is ready ($PLAYWRIGHT_BASE_URL)"
-                WEB_READY=true
-              fi
-            fi
-
-            if [ "$API_READY" = true ] && [ "$WEB_READY" = true ]; then
-              echo "Preview deployment is ready!"
-              exit 0
-            fi
-
-            echo "Attempt $attempt/$MAX_ATTEMPTS: Waiting for endpoints (API: $API_READY, Web: $WEB_READY)..."
-            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
-              sleep "$SLEEP_SECONDS"
-            fi
-          done
-
-          echo "Timed out waiting for preview deployment after $MAX_ATTEMPTS attempts."
-          if [ "$API_READY" = false ]; then
-            echo "API endpoint failed readiness: ${PLAYWRIGHT_API_URL}/health"
-          fi
-          if [ "$WEB_READY" = false ]; then
-            echo "Web endpoint failed readiness: ${PLAYWRIGHT_BASE_URL}"
-          fi
-          exit 1
-        env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
-          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
-
-      - name: Run preview browser smoke tests
-        run: pnpm exec playwright test tests/e2e/preview-smoke.spec.ts
-        env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.web_url }}
-          PLAYWRIGHT_API_URL: ${{ needs.preview.outputs.api_url }}
-          SOUNDKIT_E2E_WEB_URL: ${{ needs.preview.outputs.web_url }}
-          SOUNDKIT_E2E_API_URL: ${{ needs.preview.outputs.api_url }}
-
-      - name: Upload Playwright failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-preview-artifacts-${{ github.run_id }}
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 7
+          echo "- Web: https://web-pr-${{ github.event.pull_request.number }}.mysoundkit.com" >> "$GITHUB_STEP_SUMMARY"
+          echo "- API: https://api-pr-${{ github.event.pull_request.number }}.mysoundkit.com" >> "$GITHUB_STEP_SUMMARY"
 
   cleanup:
     name: Destroy Preview
@@ -461,12 +341,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           STEMSPLIT_API_KEY: ${{ secrets.STEMSPLIT_API_KEY }}
           STEMSPLIT_WEBHOOK_SECRET: ${{ secrets.STEMSPLIT_WEBHOOK_SECRET }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID }}
-          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID: ${{ vars.STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID: ${{ vars.STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID }}
+          STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID: ${{ vars.STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          STRIPE_BETTER_AUTH_WEBHOOK_SECRET: ${{ secrets.STRIPE_BETTER_AUTH_WEBHOOK_SECRET }}
-          STRIPE_COMMERCE_WEBHOOK_SECRET: ${{ secrets.STRIPE_COMMERCE_WEBHOOK_SECRET }}
-          STRIPE_CONNECT_WEBHOOK_SECRET: ${{ secrets.STRIPE_CONNECT_WEBHOOK_SECRET }}

@@ -11,11 +11,9 @@
 import { Route as rootRouteImport } from './app/__root'
 import { Route as SitemapDotxmlRouteImport } from './app/sitemap[.]xml'
 import { Route as SignupRouteImport } from './app/signup'
-import { Route as ResetPasswordRouteImport } from './app/reset-password'
 import { Route as PricingRouteImport } from './app/pricing'
 import { Route as LoginRouteImport } from './app/login'
 import { Route as LlmsDottxtRouteImport } from './app/llms[.]txt'
-import { Route as ForgotPasswordRouteImport } from './app/forgot-password'
 import { Route as DashboardRouteImport } from './app/dashboard'
 import { Route as ExploreRouteImport } from './app/_explore'
 import { Route as DashboardIndexRouteImport } from './app/dashboard/index'
@@ -116,11 +114,6 @@ const SignupRoute = SignupRouteImport.update({
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
@@ -134,11 +127,6 @@ const LoginRoute = LoginRouteImport.update({
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   id: '/llms.txt',
   path: '/llms.txt',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -608,11 +596,9 @@ const ExploreLibraryPlaylistsIdIndexRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ExploreIndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/forgot-password': typeof ForgotPasswordRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
-  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/live': typeof ExploreLiveRouteWithChildren
@@ -703,11 +689,9 @@ export interface FileRoutesByFullPath {
   '/library/playlists/$id/': typeof ExploreLibraryPlaylistsIdIndexRoute
 }
 export interface FileRoutesByTo {
-  '/forgot-password': typeof ForgotPasswordRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
-  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/new-releases': typeof ExploreNewReleasesRoute
@@ -800,11 +784,9 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_explore': typeof ExploreRouteWithChildren
   '/dashboard': typeof DashboardRouteWithChildren
-  '/forgot-password': typeof ForgotPasswordRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
-  '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_explore/live': typeof ExploreLiveRouteWithChildren
@@ -900,11 +882,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
-    | '/forgot-password'
     | '/llms.txt'
     | '/login'
     | '/pricing'
-    | '/reset-password'
     | '/signup'
     | '/sitemap.xml'
     | '/live'
@@ -995,11 +975,9 @@ export interface FileRouteTypes {
     | '/library/playlists/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/forgot-password'
     | '/llms.txt'
     | '/login'
     | '/pricing'
-    | '/reset-password'
     | '/signup'
     | '/sitemap.xml'
     | '/new-releases'
@@ -1091,11 +1069,9 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_explore'
     | '/dashboard'
-    | '/forgot-password'
     | '/llms.txt'
     | '/login'
     | '/pricing'
-    | '/reset-password'
     | '/signup'
     | '/sitemap.xml'
     | '/_explore/live'
@@ -1190,11 +1166,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ExploreRoute: typeof ExploreRouteWithChildren
   DashboardRoute: typeof DashboardRouteWithChildren
-  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   LoginRoute: typeof LoginRoute
   PricingRoute: typeof PricingRoute
-  ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
@@ -1213,13 +1187,6 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -1241,13 +1208,6 @@ declare module '@tanstack/react-router' {
       path: '/llms.txt'
       fullPath: '/llms.txt'
       preLoaderRoute: typeof LlmsDottxtRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -2122,11 +2082,9 @@ const SignupRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   ExploreRoute: ExploreRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
-  ForgotPasswordRoute: ForgotPasswordRoute,
   LlmsDottxtRoute: LlmsDottxtRoute,
   LoginRoute: LoginRoute,
   PricingRoute: PricingRoute,
-  ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }

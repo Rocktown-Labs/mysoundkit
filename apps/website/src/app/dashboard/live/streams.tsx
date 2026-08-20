@@ -75,11 +75,9 @@ type StreamSource = "browser" | "obs";
 
 interface ActiveStream {
   description: string;
-  errorMessage?: string | null;
   experienceId: string;
   genre: string;
   id: string;
-  ingestStatus?: string;
   playbackUrl: string;
   realtimeMeetingId: string;
   roomHref: string;
@@ -250,13 +248,8 @@ function DashboardLiveStreamsPage() {
           nextStream: ActiveStream = {
             ...stream,
             description,
-            errorMessage: null,
             experienceId: created.experience.id,
             genre,
-            ingestStatus:
-              typeof created.experience.ingestStatus === "string"
-                ? created.experience.ingestStatus
-                : undefined,
             realtimeMeetingId: created.realtime.id,
             roomHref: created.experience.roomHref,
             scheduleMode,
@@ -298,14 +291,7 @@ function DashboardLiveStreamsPage() {
         });
         if (res.ok) {
           const stream = await res.json(),
-            updated = {
-              ...activeStream,
-              ingestStatus:
-                stream.status === "connected" || stream.status === "reconnected"
-                  ? "connected"
-                  : "reconnecting",
-              status: stream.status,
-            };
+            updated = { ...activeStream, status: stream.status };
           setActiveStream(updated);
           localStorage.setItem(
             "soundkit_active_creator_stream",
@@ -345,14 +331,7 @@ function DashboardLiveStreamsPage() {
           if (!current) {
             return current;
           }
-          const updated = {
-            ...current,
-            ingestStatus:
-              stream.status === "connected" || stream.status === "reconnected"
-                ? "connected"
-                : "reconnecting",
-            status: stream.status,
-          };
+          const updated = { ...current, status: stream.status };
           localStorage.setItem(
             "soundkit_active_creator_stream",
             JSON.stringify(updated)
@@ -840,17 +819,7 @@ function ControlRoom({
   showStreamKey: boolean;
   toggleShowStreamKey: () => void;
 }) {
-  const visibleKey = showStreamKey ? activeStream.rtmpsKey : "••••••••••••",
-    statusLabel =
-      activeStream.ingestStatus === "connected" ||
-      activeStream.status === "connected" ||
-      activeStream.status === "reconnected"
-        ? "Live"
-        : activeStream.ingestStatus === "reconnecting"
-          ? "Reconnecting"
-          : activeStream.ingestStatus === "error"
-            ? "Error"
-            : "Waiting for OBS";
+  const visibleKey = showStreamKey ? activeStream.rtmpsKey : "••••••••••••";
 
   return (
     <Card>
@@ -866,14 +835,13 @@ function ControlRoom({
           </div>
           <Badge
             variant={
-              statusLabel === "Live"
+              activeStream.status === "connected" ||
+              activeStream.status === "reconnected"
                 ? "destructive"
-                : (statusLabel === "Error"
-                  ? "destructive"
-                  : "outline")
+                : "outline"
             }
           >
-            {statusLabel}
+            {activeStream.status}
           </Badge>
         </div>
       </CardHeader>
@@ -896,12 +864,8 @@ function ControlRoom({
                   Control Room Online
                 </h2>
                 <p className="mt-2 max-w-md px-6 text-sm text-white/70">
-                  {statusLabel === "Error"
-                    ? activeStream.errorMessage ||
-                      "Cloudflare rejected the ingest. Check your encoder settings and try again."
-                    : (statusLabel === "Reconnecting"
-                      ? "OBS disconnected briefly. The room is holding your broadcast open while you reconnect."
-                      : "Connect OBS to begin the broadcast. You will not appear as live until Cloudflare confirms the input is connected.")}
+                  Connect OBS to begin the broadcast. Stream playback will
+                  appear here when Cloudflare provides a playback URL.
                 </p>
               </>
             )}

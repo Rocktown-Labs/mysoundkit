@@ -8,7 +8,7 @@ import {
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
@@ -147,10 +147,7 @@ app.openapi(
     const { username } = c.req.valid("param"),
       db = createDb(),
       [target] = await db
-        .select({
-          accountType: userProfiles.accountType,
-          userId: userProfiles.userId,
-        })
+        .select({ userId: userProfiles.userId })
         .from(userProfiles)
         .where(eq(userProfiles.username, username))
         .limit(1);
@@ -165,12 +162,6 @@ app.openapi(
       .insert(userFollows)
       .values({ followerUserId: user.id, targetUserId: target.userId })
       .onConflictDoNothing();
-    const [followerProfile] = await db
-      .select({ accountType: userProfiles.accountType })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, user.id))
-      .limit(1);
-    const followerType = followerProfile?.accountType ?? "artist";
     const [summary] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(userFollows)
@@ -181,8 +172,8 @@ app.openapi(
         id: `user_follow:${user.id}:${target.userId}`,
         link: `/people/${username}`,
         message: `${user.name ?? "Someone"} followed your SoundKit profile.`,
-        title: followerType === "fan" ? "New Fan" : "New Artist Follower",
-        type: followerType === "fan" ? "fan_follower" : "artist_follower",
+        title: "New follower",
+        type: "user_follower",
         userId: target.userId,
       })
       .onConflictDoNothing();
@@ -270,15 +261,18 @@ app.openapi(
 
       const [followerArtistProfile] = await db
           .select({
-            accountType: userProfiles.accountType,
             displayName: userProfiles.displayName,
-            userId: userProfiles.userId,
+            userId: artistProfiles.userId,
             username: userProfiles.username,
           })
           .from(userProfiles)
+          .leftJoin(
+            artistProfiles,
+            eq(artistProfiles.userId, userProfiles.userId)
+          )
           .where(eq(userProfiles.userId, user.id))
           .limit(1),
-        isFan = followerArtistProfile?.accountType === "fan",
+        isFan = !followerArtistProfile?.userId,
         title = isFan ? "New Fan" : "New Artist Follower",
         message = isFan
           ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
@@ -317,127 +311,6 @@ app.openapi(
         followed: true,
         followerCount: updated?.followerCount ?? artist.followerCount,
       },
-      HttpStatusCodes.OK
-    );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "delete",
-    path: "/artists/{username}/follow",
-    request: { params: usernameParamSchema },
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        followResponseSchema,
-        "Artist unfollowed"
-      ),
-      [HttpStatusCodes.UNAUTHORIZED]: unauthorizedResponse,
-      [HttpStatusCodes.NOT_FOUND]: notFoundResponse,
-    },
-    tags: ["Social"],
-  }),
-  async (c) => {
-    const user = c.get("user");
-    if (!isAuthenticatedUser(user))
-      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
-    if (!isDatabaseConfigured())
-      {return c.json({ followed: false, followerCount: 0 }, HttpStatusCodes.OK);}
-    const db = createDb(),
-      [artist] = await db
-        .select({
-          followerCount: artistProfiles.followerCount,
-          userId: artistProfiles.userId,
-        })
-        .from(userProfiles)
-        .innerJoin(
-          artistProfiles,
-          eq(artistProfiles.userId, userProfiles.userId)
-        )
-        .where(eq(userProfiles.username, c.req.valid("param").username))
-        .limit(1);
-    if (!artist)
-      {return c.json(
-        { message: "Artist not found." },
-        HttpStatusCodes.NOT_FOUND
-      );}
-    const [deleted] = await db
-      .delete(artistFollows)
-      .where(
-        and(
-          eq(artistFollows.artistUserId, artist.userId),
-          eq(artistFollows.followerUserId, user.id)
-        )
-      )
-      .returning({ followerUserId: artistFollows.followerUserId });
-    if (deleted)
-      {await db
-        .update(artistProfiles)
-        .set({
-          followerCount: sql`greatest(${artistProfiles.followerCount} - 1, 0)`,
-        })
-        .where(eq(artistProfiles.userId, artist.userId));}
-    const [updated] = await db
-      .select({ followerCount: artistProfiles.followerCount })
-      .from(artistProfiles)
-      .where(eq(artistProfiles.userId, artist.userId))
-      .limit(1);
-    return c.json(
-      {
-        followed: false,
-        followerCount: updated?.followerCount ?? artist.followerCount,
-      },
-      HttpStatusCodes.OK
-    );
-  }
-);
-
-app.openapi(
-  createRoute({
-    method: "delete",
-    path: "/profiles/{username}/follow",
-    request: { params: usernameParamSchema },
-    responses: {
-      [HttpStatusCodes.OK]: jsonContent(
-        followResponseSchema,
-        "Profile unfollowed"
-      ),
-      [HttpStatusCodes.UNAUTHORIZED]: unauthorizedResponse,
-      [HttpStatusCodes.NOT_FOUND]: notFoundResponse,
-    },
-    tags: ["Social"],
-  }),
-  async (c) => {
-    const user = c.get("user");
-    if (!isAuthenticatedUser(user))
-      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
-    if (!isDatabaseConfigured())
-      {return c.json({ followed: false, followerCount: 0 }, HttpStatusCodes.OK);}
-    const db = createDb(),
-      [target] = await db
-        .select({ userId: userProfiles.userId })
-        .from(userProfiles)
-        .where(eq(userProfiles.username, c.req.valid("param").username))
-        .limit(1);
-    if (!target || target.userId === user.id)
-      {return c.json(
-        { message: "Profile not found." },
-        HttpStatusCodes.NOT_FOUND
-      );}
-    await db
-      .delete(userFollows)
-      .where(
-        and(
-          eq(userFollows.followerUserId, user.id),
-          eq(userFollows.targetUserId, target.userId)
-        )
-      );
-    const [summary] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(userFollows)
-      .where(eq(userFollows.targetUserId, target.userId));
-    return c.json(
-      { followed: false, followerCount: summary?.count ?? 0 },
       HttpStatusCodes.OK
     );
   }

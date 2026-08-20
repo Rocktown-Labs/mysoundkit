@@ -37,7 +37,7 @@ export function DashboardHeader() {
 
   const notificationsQuery = useNotificationsQuery(),
     markReadMutation = useMarkNotificationsReadMutation(),
-    notifications = notificationsQuery.data?.notifications ?? [],
+    notifications = notificationsQuery.data?.items ?? [],
     unreadCount = notificationsQuery.data?.unreadCount ?? 0,
     searchQuery = useSearchQuery({
       limit: "8",
@@ -195,7 +195,7 @@ export function DashboardHeader() {
                 {unreadCount > 0 ? (
                   <button
                     type="button"
-                    onClick={() => markReadMutation.mutate()}
+                    onClick={() => markReadMutation.mutate({ all: true })}
                     className="text-[10px] text-primary hover:underline font-medium"
                   >
                     Mark all read
@@ -210,48 +210,39 @@ export function DashboardHeader() {
               </div>
             ) : (
               <div className="max-h-64 overflow-y-auto space-y-1">
-                {notifications.map((item) => {
-                  const link =
-                    typeof item.link === "string" ? item.link : undefined;
-
-                  return (
-                    <DropdownMenuItem
-                      key={item.id}
-                      className="flex flex-col items-start gap-1 p-2 focus:bg-accent rounded-lg cursor-pointer"
-                      asChild={Boolean(link)}
-                    >
-                      {link ? (
-                        <Link to={link}>
-                          <div className="flex items-center justify-between w-full">
-                            <p className="text-xs font-semibold">
-                              {item.title}
-                            </p>
-                            {!item.readAt && (
-                              <span className="size-1.5 rounded-full bg-primary" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-tight">
-                            {item.body}
-                          </p>
-                        </Link>
-                      ) : (
-                        <div className="w-full">
-                          <div className="flex items-center justify-between w-full">
-                            <p className="text-xs font-semibold">
-                              {item.title}
-                            </p>
-                            {!item.readAt && (
-                              <span className="size-1.5 rounded-full bg-primary" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-tight">
-                            {item.body}
-                          </p>
+                {notifications.map((item) => (
+                  <DropdownMenuItem
+                    key={item.id}
+                    className="flex flex-col items-start gap-1 p-2 focus:bg-accent rounded-lg cursor-pointer"
+                    asChild={Boolean(item.link)}
+                  >
+                    {item.link ? (
+                      <Link to={item.link}>
+                        <div className="flex items-center justify-between w-full">
+                          <p className="text-xs font-semibold">{item.title}</p>
+                          {!item.read && (
+                            <span className="size-1.5 rounded-full bg-primary" />
+                          )}
                         </div>
-                      )}
-                    </DropdownMenuItem>
-                  );
-                })}
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {item.message}
+                        </p>
+                      </Link>
+                    ) : (
+                      <div className="w-full">
+                        <div className="flex items-center justify-between w-full">
+                          <p className="text-xs font-semibold">{item.title}</p>
+                          {!item.read && (
+                            <span className="size-1.5 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {item.message}
+                        </p>
+                      </div>
+                    )}
+                  </DropdownMenuItem>
+                ))}
               </div>
             )}
           </DropdownMenuContent>

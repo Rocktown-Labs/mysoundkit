@@ -44,11 +44,6 @@ export const Route = createFileRoute("/_explore/shop")({
 
 const PAGE_SIZE = 20;
 
-const formatTrackPrice = (track: TrackSummary) =>
-  typeof track.priceCents === "number"
-    ? `$${(track.priceCents / 100).toFixed(2)}`
-    : "$1.99";
-
 function ShopPage() {
   const search = Route.useSearch(),
     activeGenre = search.genre ?? "all",
@@ -64,7 +59,9 @@ function ShopPage() {
       sort: "plays-desc",
     }),
     // Ensure we filter for purchasability if backend flags it
-    shopTracks = rawTracks.filter((t) => t.isForSale),
+    shopTracks = rawTracks.filter(
+      (t) => t.isPurchasable ?? t.isForSale ?? true
+    ),
     totalPages = Math.ceil(shopTracks.length / PAGE_SIZE) || 1,
     paginatedTracks = shopTracks.slice(
       (currentPage - 1) * PAGE_SIZE,
@@ -246,7 +243,7 @@ function ShopPage() {
                       </TableCell>
                       <TableCell>{track.plays.toLocaleString()}</TableCell>
                       <TableCell className="font-semibold text-primary">
-                        {formatTrackPrice(track)}
+                        {track.priceLabel ?? "$1.99"}
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
@@ -367,11 +364,11 @@ function ShopTrackCard({ track }: { track: TrackSummary }) {
       />
       <div className="flex items-center justify-between px-1">
         <span className="text-xs font-semibold text-primary">
-          {formatTrackPrice(track)}
+          {track.priceLabel ?? "$1.99"}
         </span>
         <Button
           asChild
-          size="sm"
+          size="xs"
           variant="secondary"
           className="h-6 text-[10px] px-2"
         >
@@ -411,7 +408,7 @@ function GenreShopRail({
       scope: "public",
       sort: "plays-desc",
     }),
-    shopTracks = tracks.filter((t) => t.isForSale);
+    shopTracks = tracks.filter((t) => t.isPurchasable ?? t.isForSale ?? true);
 
   return (
     <section>

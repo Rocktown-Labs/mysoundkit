@@ -98,7 +98,7 @@ const buildPartyTitle = ({
 
 function DashboardLivePartiesPage() {
   const creationType: PartyCreationType = "release_auto",
-    [scheduleMode, setScheduleMode] = useState<LiveScheduleMode>("scheduled"),
+    scheduleMode: LiveScheduleMode = "scheduled",
     [cancellingId, setCancellingId] = useState<string | null>(null),
     [confirmText, setConfirmText] = useState(""),
     [hostPresence, setHostPresence] = useState<"video" | "chat">("chat"),

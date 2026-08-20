@@ -9,10 +9,8 @@ import { CartProvider } from "@/components/cart-provider";
 import { FloatingChatBar } from "@/components/dashboard/floating-chat-bar";
 import { MusicPlayer } from "@/components/explore/music-player";
 import { KeyboardShortcutsProvider } from "@/components/keyboard-shortcuts-provider";
-import { BattleQueueCta } from "@/components/live/battle-queue-cta";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { MessagingDbProvider } from "@/lib/message-db";
 import { PresenceProvider } from "@/lib/presence-context";
 
 const AppDevtools = import.meta.env.DEV
@@ -32,8 +30,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MessagingDbProvider queryClient={queryClient}>
-        <ThemeProvider
+      <ThemeProvider
         attribute="class"
         defaultTheme="dark"
         enableColorScheme={false}
@@ -45,7 +42,6 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
               <CartProvider>{children}</CartProvider>
               <MusicPlayer />
               <FloatingChatBar />
-              <BattleQueueCta />
             </AudioPlayerProvider>
           </PresenceProvider>
         </KeyboardShortcutsProvider>
@@ -55,8 +51,7 @@ export function AppProviders({ children }: Readonly<{ children: ReactNode }>) {
             <AppDevtools />
           </Suspense>
         ) : null}
-        </ThemeProvider>
-      </MessagingDbProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -7,13 +7,11 @@ import * as schema from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
 import { admin, organization } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import { Stripe } from "stripe";
 
 import { createStripePlans } from "./plans";
-import { verifyTurnstileRequest } from "./turnstile";
 
 const getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
@@ -160,6 +158,57 @@ const sendAuthNotificationEmail = async ({
       recipientName: "there",
       subject: `Invite to ${organizationName ?? "SoundKit"}`,
       tag: "org_invite",
+    }),
+  sendWelcomeEmail = ({
+    email,
+    name,
+    userId,
+  }: {
+    email: string;
+    name?: string | null;
+    userId: string;
+  }) =>
+    sendAuthNotificationEmail({
+      actionUrl: absoluteSiteUrl("/dashboard/tracks/new"),
+      body: "Your SoundKit account is ready. Start by adding the music, videos, and collaboration opportunities you want people to hear, watch, or join.",
+      ctaLabel: "Upload your first track",
+      email,
+      eyebrow: "Welcome",
+      footerNote:
+        "You are receiving this because you created a SoundKit account.",
+      heading: "Welcome to SoundKit",
+      idempotencyKey: `welcome/${userId}`,
+      links: [
+        {
+          description:
+            "Add audio, cover art, credits, and release details in one place.",
+          href: absoluteSiteUrl("/dashboard/tracks/new"),
+          label: "Upload your first track",
+        },
+        {
+          description:
+            "Group multiple songs, assets, and notes into a release workspace.",
+          href: absoluteSiteUrl("/dashboard/projects/new"),
+          label: "Create a project",
+        },
+        {
+          description:
+            "Share visuals, performances, or music videos with your audience.",
+          href: absoluteSiteUrl("/dashboard/videos/new"),
+          label: "Upload a video",
+        },
+        {
+          description:
+            "Find hooks, verses, and collaboration openings from other artists.",
+          href: absoluteSiteUrl("/dashboard/open-verses"),
+          label: "Browse open verses",
+        },
+      ],
+      previewText:
+        "Your SoundKit account is ready. Start with your first track.",
+      recipientName: name ?? "there",
+      subject: "Welcome to SoundKit",
+      tag: "welcome",
     }),
   sendPremiumWelcomeEmail = ({
     email,
@@ -371,9 +420,7 @@ export const createAuth = () => {
     isDevelopment =
       globalThis.process?.env.NODE_ENV === "development" || isLocalAuthUrl,
     stripeClient = createStripeClient(),
-    stripeWebhookSecret =
-      getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET") ||
-      getEnvValue("STRIPE_WEBHOOK_SECRET"),
+    stripeWebhookSecret = getEnvValue("STRIPE_WEBHOOK_SECRET"),
     allowedAuthHosts = uniqueValues([
       authHost,
       siteHost,
@@ -423,6 +470,12 @@ export const createAuth = () => {
       },
       user: {
         create: {
+          after: (user) =>
+            sendWelcomeEmail({
+              email: user.email,
+              name: user.name,
+              userId: user.id,
+            }),
           before: (user) =>
             Promise.resolve({
               data: {
@@ -451,37 +504,6 @@ export const createAuth = () => {
           name: user.name,
           url,
         }),
-    },
-    hooks: {
-      before: createAuthMiddleware(async (ctx) => {
-        const actionByPath: Record<string, string> = {
-            "/request-password-reset": "forgot_password",
-            "/sign-in/email": "login",
-            "/sign-up/email": "signup",
-          },
-          action = actionByPath[ctx.path];
-        if (!action) {
-          return;
-        }
-
-        if (!ctx.request) {
-          throw APIError.from("FORBIDDEN", {
-            code: "TURNSTILE_FAILED",
-            message: "Security verification failed. Please try again.",
-          });
-        }
-
-        const valid = await verifyTurnstileRequest({
-          action,
-          request: ctx.request,
-        });
-        if (!valid) {
-          throw APIError.from("FORBIDDEN", {
-            code: "TURNSTILE_FAILED",
-            message: "Security verification failed. Please try again.",
-          });
-        }
-      }),
     },
     plugins: [
       admin({
@@ -590,15 +612,6 @@ export const createAuth = () => {
       window: 60,
     },
     secret: env.BETTER_AUTH_SECRET,
-    socialProviders:
-      getEnvValue("GOOGLE_CLIENT_ID") && getEnvValue("GOOGLE_CLIENT_SECRET")
-        ? {
-            google: {
-              clientId: getEnvValue("GOOGLE_CLIENT_ID"),
-              clientSecret: getEnvValue("GOOGLE_CLIENT_SECRET"),
-            },
-          }
-        : undefined,
     trustedOrigins: [
       env.CORS_ORIGIN,
       env.BETTER_AUTH_URL,

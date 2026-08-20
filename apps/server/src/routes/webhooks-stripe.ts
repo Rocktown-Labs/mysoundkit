@@ -17,7 +17,6 @@ import {
   stripeWebhookEvents,
   transactions,
 } from "@soundkit/db/schema/payments";
-import { env } from "@soundkit/env/server";
 import { and, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
@@ -32,13 +31,11 @@ import {
 import {
   retrieveStripeCharge,
   reverseStripeTransfer,
-  verifyStripeSignatureWithSecrets,
+  verifyStripeSignature,
 } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
-const app = new OpenAPIHono<AppEnv>(),
-  getEnvValue = (key: string) =>
-    (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "";
+const app = new OpenAPIHono<AppEnv>();
 
 interface StripeObject {
   account?: string;
@@ -464,17 +461,7 @@ app.openapi(
     const payload = await c.req.raw.text(),
       signature = c.req.raw.headers.get("stripe-signature");
 
-    if (
-      !(await verifyStripeSignatureWithSecrets({
-        payload,
-        secrets: [
-          getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET"),
-          getEnvValue("STRIPE_CONNECT_WEBHOOK_SECRET"),
-          getEnvValue("STRIPE_WEBHOOK_SECRET"),
-        ],
-        signature,
-      }))
-    ) {
+    if (!(await verifyStripeSignature({ payload, signature }))) {
       return c.json(
         { message: "Invalid Stripe webhook signature." },
         HttpStatusCodes.BAD_REQUEST

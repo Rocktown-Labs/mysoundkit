@@ -8,8 +8,8 @@ import {
 } from "./pricing-flow";
 
 describe("pricing flow", () => {
-  it("keeps Premium as a five-seat included plan", () => {
-    expect(PREMIUM_INCLUDED_SEATS).toBe(5);
+  it("keeps Premium as a three-seat included plan", () => {
+    expect(PREMIUM_INCLUDED_SEATS).toBe(3);
   });
 
   it("uses the artist premium plan for artist accounts", () => {
@@ -21,11 +21,11 @@ describe("pricing flow", () => {
     expect(premiumPlanCodeForAccount(null)).toBe("soundkit_premium_fan");
   });
 
-  it("routes artists to the dashboard and fans to Explore after checkout", () => {
+  it("routes artists to payments setup and fans to Explore after checkout", () => {
     expect(accountHomePathForAccount("artist")).toBe("/dashboard");
     expect(accountHomePathForAccount("fan")).toBe("/");
     expect(premiumSuccessPathForAccount("artist")).toBe(
-      "/dashboard"
+      "/dashboard/career/payments"
     );
     expect(premiumSuccessPathForAccount("fan")).toBe("/");
   });

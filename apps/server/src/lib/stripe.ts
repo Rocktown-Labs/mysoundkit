@@ -82,16 +82,6 @@ export interface StripeProductSummary {
   name: string;
 }
 
-export interface StripeWebhookEndpointSummary {
-  api_version?: string | null;
-  connect?: boolean;
-  enabled_events?: string[];
-  id: string;
-  secret?: string | null;
-  status: "disabled" | "enabled";
-  url: string;
-}
-
 export interface StripePriceSummary {
   active: boolean;
   currency: string;
@@ -128,39 +118,6 @@ export const listStripePrices = () => {
     method: "GET",
     params,
     path: "/prices",
-  });
-};
-
-export const listStripeWebhookEndpoints = () => {
-  const params = new URLSearchParams();
-  appendValue(params, "limit", 100);
-
-  return stripeRequest<StripeListResponse<StripeWebhookEndpointSummary>>({
-    method: "GET",
-    params,
-    path: "/webhook_endpoints",
-  });
-};
-
-export const createStripeWebhookEndpoint = ({
-  connect = false,
-  enabledEvents,
-  url,
-}: {
-  connect?: boolean;
-  enabledEvents: string[];
-  url: string;
-}) => {
-  const params = new URLSearchParams();
-  appendValue(params, "connect", connect);
-  appendValue(params, "url", url);
-  for (const event of enabledEvents) {
-    appendValue(params, "enabled_events[]", event);
-  }
-
-  return stripeRequest<StripeWebhookEndpointSummary>({
-    params,
-    path: "/webhook_endpoints",
   });
 };
 
@@ -532,38 +489,16 @@ const hexToBytes = (value: string) => {
   );
 };
 
-export const verifyStripeSignatureWithSecrets = async ({
-  payload,
-  secrets,
-  signature,
-}: {
-  payload: string;
-  secrets: string[];
-  signature: string | null;
-}) => {
-  for (const secret of secrets.filter(Boolean)) {
-    if (await verifyStripeSignature({ payload, secret, signature })) {
-      return true;
-    }
-  }
-  return false;
-};
-
 export const verifyStripeSignature = async ({
   payload,
-  secret,
   signature,
 }: {
   payload: string;
-  secret?: string;
   signature: string | null;
 }) => {
-  const webhookSecret =
-    secret ||
-    getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET") ||
-    getEnvValue("STRIPE_WEBHOOK_SECRET");
+  const secret = getEnvValue("STRIPE_WEBHOOK_SECRET");
 
-  if (!(webhookSecret && signature)) {
+  if (!(secret && signature)) {
     return false;
   }
 
@@ -589,7 +524,7 @@ export const verifyStripeSignature = async ({
 
   const key = await crypto.subtle.importKey(
       "raw",
-      new TextEncoder().encode(webhookSecret),
+      new TextEncoder().encode(secret),
       { hash: "SHA-256", name: "HMAC" },
       false,
       ["verify"]

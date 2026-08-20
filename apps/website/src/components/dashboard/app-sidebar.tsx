@@ -50,7 +50,7 @@ const myMusicNavigation: SidebarNavItem[] = [
     { href: "/dashboard/videos", icon: Film, name: "Videos" },
     { href: "/dashboard/open-verses", icon: Mic2, name: "Open Verses" },
     { href: "/dashboard/messages", icon: MessageSquare, name: "Messages" },
-    { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Network" },
+    { href: "/dashboard/collaborators", icon: UserRoundPlus, name: "Friends" },
   ].map(({ href, icon, name }) => ({ icon, title: name, url: href })),
   careerNavigation: SidebarNavItem[] = [
     { href: "/dashboard/career/profile", icon: User, name: "Profile" },
@@ -60,7 +60,7 @@ const myMusicNavigation: SidebarNavItem[] = [
       icon: CalendarDays,
       name: "Calendar",
     },
-    { href: "/dashboard/team", icon: Users, name: "Workspace" },
+    { href: "/dashboard/team", icon: Users, name: "Team" },
     { href: "/dashboard/ads", icon: Megaphone, name: "Ads" },
     { href: "/dashboard/career/settings", icon: Settings, name: "Settings" },
     {

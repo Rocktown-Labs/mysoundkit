@@ -7,9 +7,9 @@ import {
 } from "./plan-seats";
 
 describe("plan seat limits", () => {
-  it("treats Premium as a five-seat included plan", () => {
-    expect(maxIncludedSeatsForPlan("soundkit_premium_artist")).toBe(5);
-    expect(maxIncludedSeatsForPlan("soundkit_premium_fan")).toBe(5);
+  it("treats Premium as a three-seat included plan", () => {
+    expect(maxIncludedSeatsForPlan("soundkit_premium_artist")).toBe(3);
+    expect(maxIncludedSeatsForPlan("soundkit_premium_fan")).toBe(3);
   });
 
   it("keeps included Premium seats out of Stripe checkout quantity", () => {
@@ -37,8 +37,8 @@ describe("plan seat limits", () => {
     expect(() =>
       assertPlanSeatCount({
         planCode: "soundkit_premium_artist",
-        seats: 6,
+        seats: 4,
       })
-    ).toThrow("soundkit_premium_artist allows up to 5 seats.");
+    ).toThrow("soundkit_premium_artist allows up to 3 seats.");
   });
 });

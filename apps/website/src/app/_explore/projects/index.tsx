@@ -367,7 +367,7 @@ function ProjectGridSection({
     <section className="mb-10">
       <h2 className="mb-3 font-semibold text-xl">{title}</h2>
       {isLoading || projects.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {projects.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
@@ -381,7 +381,7 @@ function ProjectGridSection({
 
 function ProjectCard({ project }: { project: PublicProjectSummary }) {
   return (
-    <Card className="group w-full overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
+    <Card className="group w-[220px] shrink-0 overflow-hidden border-border/40 bg-card/60 transition-colors hover:border-primary/50">
       <div className="relative aspect-square w-full overflow-hidden bg-muted">
         {project.coverArtUrl ? (
           <AppImage

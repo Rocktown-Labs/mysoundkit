@@ -18,7 +18,6 @@ export interface SignupRedirectUser {
 }
 
 export const ARTIST_ONBOARDING_DRAFT_KEY = "soundkit.artistOnboardingDraft.v1";
-export const FAN_ONBOARDING_DRAFT_KEY = "soundkit.fanOnboardingDraft.v1";
 
 export const onboardingRouteForAccount = (accountType: SignupAccountType) =>
   accountType === "artist"
@@ -65,16 +64,10 @@ export const parseArtistOnboardingDraft = (
     return null;
   }
 
-  let parsed: Partial<ArtistOnboardingDraft>;
-  try {
-    parsed = JSON.parse(value) as Partial<ArtistOnboardingDraft>;
-  } catch {
-    return null;
-  }
-
-  const roles = Array.isArray(parsed.roles)
-    ? parsed.roles.filter(isArtistRole)
-    : [];
+  const parsed = JSON.parse(value) as Partial<ArtistOnboardingDraft>,
+    roles = Array.isArray(parsed.roles)
+      ? parsed.roles.filter(isArtistRole)
+      : [];
 
   return {
     avatarObjectKey:
@@ -87,8 +80,7 @@ export const parseArtistOnboardingDraft = (
       typeof parsed.primaryGenre === "string" ? parsed.primaryGenre : "",
     roles: roles.length > 0 ? roles : ["musician"],
     selectedPlanCode:
-      parsed.selectedPlanCode === "artist_free" ||
-      parsed.selectedPlanCode === "soundkit_premium_artist"
+      typeof parsed.selectedPlanCode === "string"
         ? parsed.selectedPlanCode
         : "soundkit_premium_artist",
     stateValue: typeof parsed.stateValue === "string" ? parsed.stateValue : "",

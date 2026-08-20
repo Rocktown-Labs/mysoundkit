@@ -49,7 +49,6 @@ lerna-debug.log*
 
 # local db
 *.db*
-!src/routes/analytics.db.test.ts
 
 # typescript
 *.tsbuildinfo

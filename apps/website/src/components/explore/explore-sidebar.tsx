@@ -124,16 +124,7 @@ export function ExploreSidebar() {
             const isActive = pathname === `/genres/${genre.id}`;
 
             return (
-              <Link
-                key={genre.id}
-                params={{ id: genre.id }}
-                search={{
-                  region: undefined,
-                  regionType: "north-america",
-                  sort: undefined,
-                }}
-                to="/genres/$id"
-              >
+              <Link key={genre.id} to="/genres/$id" params={{ id: genre.id }}>
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   size="sm"

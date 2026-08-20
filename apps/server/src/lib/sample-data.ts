@@ -1,4 +1,7 @@
-import { PREMIUM_INCLUDED_SEATS } from "@soundkit/auth/plan-limits";
+import {
+  LEGACY_TEAM_PLAN_SEATS,
+  PREMIUM_INCLUDED_SEATS,
+} from "@soundkit/auth/plan-limits";
 
 export const sampleUser = {
   accountType: "artist" as const,
@@ -28,7 +31,7 @@ export const samplePlans = [
     name: "Artist Free",
   },
   {
-    annualPriceCents: 22_899,
+    annualPriceCents: 18_000,
     audience: "artist" as const,
     code: "soundkit_premium_artist",
     entitlements: {
@@ -45,6 +48,20 @@ export const samplePlans = [
   },
   {
     annualPriceCents: null,
+    audience: "artist" as const,
+    code: "artist_team",
+    entitlements: {
+      can_create_live_battles: true,
+      can_operate_paid_community: true,
+      can_receive_payouts: true,
+      can_sell_products: true,
+    },
+    maxSeats: LEGACY_TEAM_PLAN_SEATS,
+    monthlyPriceCents: 2499,
+    name: "Artist Team",
+  },
+  {
+    annualPriceCents: null,
     audience: "fan" as const,
     code: "fan_free",
     entitlements: { can_stream_public_content: true },
@@ -53,7 +70,7 @@ export const samplePlans = [
     name: "Fan Free",
   },
   {
-    annualPriceCents: 22_899,
+    annualPriceCents: 18_000,
     audience: "fan" as const,
     code: "soundkit_premium_fan",
     entitlements: {
@@ -66,6 +83,19 @@ export const samplePlans = [
     maxSeats: PREMIUM_INCLUDED_SEATS,
     monthlyPriceCents: 2299,
     name: "SoundKit Premium Fan",
+  },
+  {
+    annualPriceCents: null,
+    audience: "fan" as const,
+    code: "fan_family",
+    entitlements: {
+      can_view_live_battles: true,
+      can_vote_live_battles: true,
+      can_watch_vod: true,
+    },
+    maxSeats: LEGACY_TEAM_PLAN_SEATS,
+    monthlyPriceCents: 2499,
+    name: "Fan Family",
   },
 ];
 
@@ -703,10 +733,8 @@ export const sampleLibraryOverview = {
 };
 
 export const sampleAnalyticsOverview = {
-  estimatedEarningsCents: 0,
-  premiumSupporters: 0,
-  totalFollowers: 0,
-  totalPlays: 0,
-  totalQualifiedStreams: 0,
-  uniqueListeners: 0,
+  totalDownloads: 3421,
+  totalFollowers: 1234,
+  totalPlays: 12_543,
+  totalRevenue: 2847.32,
 };

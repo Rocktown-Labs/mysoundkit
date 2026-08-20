@@ -5,7 +5,6 @@ import { useAudioPlayer } from "@/components/audio-player-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { canonicalGenreName } from "@/lib/music-genres";
 import { useOpenVersesInfiniteQuery } from "@/lib/soundkit-api-hooks";
 import type { OpenVerseListing } from "@/lib/soundkit-api-hooks";
 
@@ -32,11 +31,11 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
         artistHref: listing.artistUsername
           ? `/artist/${listing.artistUsername}`
           : "/dashboard/profile",
-        cover: listing.coverArtUrl ?? "/open-verse-placeholder.svg",
-        id: listing.id,
+        cover: listing.coverArtUrl ?? "/placeholder.svg",
+        id: listing.trackId,
         src: listing.playbackUrl,
-        title: listing.title,
-        trackHref: `/dashboard/open-verses/${listing.genreSlug}/${listing.id}`,
+        title: listing.trackTitle,
+        trackHref: `/tracks/${listing.trackId}`,
       };
 
       setQueue([playerTrack]);
@@ -47,32 +46,27 @@ function OpenVerseCard({ listing }: { listing: OpenVerseListing }) {
     <Card className="w-72 shrink-0 border-border/40 bg-card/50">
       <CardContent className="space-y-4 p-4">
         <button
-          aria-label={`Play ${listing.title}`}
+          aria-label={`Play ${listing.trackTitle}`}
           className="flex aspect-square w-full items-center justify-center rounded-md border bg-muted bg-cover bg-center"
           disabled={!listing.playbackUrl}
           onClick={playListing}
           style={{
-            backgroundImage: `url(${listing.coverArtUrl ?? "/open-verse-placeholder.svg"})`,
+            backgroundImage: listing.coverArtUrl
+              ? `url(${listing.coverArtUrl})`
+              : undefined,
           }}
           type="button"
         >
           <PlayCircle className="size-10 text-primary" />
         </button>
         <div className="space-y-1">
-          <h3 className="line-clamp-1 font-semibold">
-            <Link
-              params={{ genre: listing.genreSlug, id: listing.id }}
-              to="/dashboard/open-verses/$genre/$id"
-            >
-              {listing.title}
-            </Link>
-          </h3>
+          <h3 className="line-clamp-1 font-semibold">{listing.title}</h3>
           <p className="line-clamp-1 text-sm text-muted-foreground">
             {listing.artistName} • {listing.trackTitle}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{canonicalGenreName(listing.genre)}</Badge>
+          <Badge variant="secondary">{listing.genre}</Badge>
           <Badge variant="outline">{listing.submissionCount} submitted</Badge>
         </div>
         <Button asChild={true} className="w-full" size="sm" variant="outline">

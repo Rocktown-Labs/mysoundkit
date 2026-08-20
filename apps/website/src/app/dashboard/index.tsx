@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BadgeCheck, FolderOpen, Music, Sparkles, Users } from "lucide-react";
 
-import { PremiumActivationCard } from "@/components/billing/premium-activation-card";
 import { ProjectsOverview } from "@/components/dashboard/projects-overview";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
@@ -21,17 +20,10 @@ import {
 
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardPage,
-  validateSearch: (
-    search: Record<string, unknown>
-  ): { upgraded?: boolean } => ({
-    upgraded:
-      search.upgraded === "1" || search.upgraded === true ? true : undefined,
-  }),
 });
 
 function DashboardPage() {
-  const { upgraded } = Route.useSearch(),
-    meQuery = useMeQuery(),
+  const meQuery = useMeQuery(),
     entitlementsQuery = useMeEntitlementsQuery(),
     tracksQuery = useTracksQuery(),
     projectsQuery = useProjectsQuery(),
@@ -110,7 +102,6 @@ function DashboardPage() {
 
   return (
     <div className="space-y-8 pb-8">
-      {upgraded ? <PremiumActivationCard accountType="artist" /> : null}
       {needsPaymentsSetup ? (
         <Alert className="border-primary/30 bg-primary/5">
           <BadgeCheck className="size-4" />

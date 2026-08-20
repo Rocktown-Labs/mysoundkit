@@ -7,6 +7,17 @@ import { LEGACY_TEAM_PLAN_SEATS, PREMIUM_INCLUDED_SEATS } from "./plan-limits";
 
 const getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
+  getFirstEnvValue = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = getEnvValue(key);
+
+      if (value) {
+        return value;
+      }
+    }
+
+    return "";
+  },
   // Sandbox IDs written by a dev-mode catalog sync are never valid checkout
   // prices, so they never satisfy the plan filter below.
   usablePriceId = (priceId: string | null | undefined) =>
@@ -44,12 +55,24 @@ const getEnvValue = (key: string) =>
 export const createStripePlans = async () => {
   const envPriceIds = {
       soundkit_premium_artist: {
-        annual: getEnvValue("STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID"),
-        monthly: getEnvValue("STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID"),
+        annual: getFirstEnvValue(
+          "STRIPE_SOUNDKIT_PREMIUM_ARTIST_ANNUAL_PRICE_ID",
+          "STRIPE_ARTIST_PREMIUM_ANNUAL_PRICE_ID"
+        ),
+        monthly: getFirstEnvValue(
+          "STRIPE_SOUNDKIT_PREMIUM_ARTIST_MONTHLY_PRICE_ID",
+          "STRIPE_ARTIST_PREMIUM_MONTHLY_PRICE_ID"
+        ),
       },
       soundkit_premium_fan: {
-        annual: getEnvValue("STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID"),
-        monthly: getEnvValue("STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID"),
+        annual: getFirstEnvValue(
+          "STRIPE_SOUNDKIT_PREMIUM_FAN_ANNUAL_PRICE_ID",
+          "STRIPE_LISTENER_PREMIUM_ANNUAL_PRICE_ID"
+        ),
+        monthly: getFirstEnvValue(
+          "STRIPE_SOUNDKIT_PREMIUM_FAN_MONTHLY_PRICE_ID",
+          "STRIPE_LISTENER_PREMIUM_MONTHLY_PRICE_ID"
+        ),
       },
     },
     envComplete = PREMIUM_PLAN_CODES.every(
@@ -70,10 +93,7 @@ export const createStripePlans = async () => {
         group: isArtist ? "artist" : "fan",
         limits: isArtist
           ? { communities: 1, members: PREMIUM_INCLUDED_SEATS }
-          : {
-              familyMembers: PREMIUM_INCLUDED_SEATS,
-              members: PREMIUM_INCLUDED_SEATS,
-            },
+          : { familyMembers: PREMIUM_INCLUDED_SEATS },
         name: code,
         priceId: (envPriceIds[code].monthly || catalog?.monthly) ?? "",
       };
