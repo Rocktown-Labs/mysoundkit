@@ -25,22 +25,21 @@ export interface QueuedBattleNotice {
 }
 
 const offerKeyForBattle = (battle: QueuedBattleNotice) =>
-  `${battle.battleId}:${battle.status}`;
+    `${battle.battleId}:${battle.status}`,
+  fetchQueuedBattles = async (): Promise<QueuedBattleNotice[]> => {
+    const response = await fetch(`${API_V1_URL}/live/rooms/queue`, {
+      credentials: "include",
+    });
 
-const fetchQueuedBattles = async (): Promise<QueuedBattleNotice[]> => {
-  const response = await fetch(`${API_V1_URL}/live/rooms/queue`, {
-    credentials: "include",
-  });
+    if (!response.ok) {
+      throw new Error(`Unable to load queued battles: ${response.status}`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Unable to load queued battles: ${response.status}`);
-  }
-
-  const payload = (await response.json()) as {
-    battles: QueuedBattleNotice[];
+    const payload = (await response.json()) as {
+      battles?: QueuedBattleNotice[];
+    };
+    return payload?.battles ?? [];
   };
-  return payload.battles;
-};
 
 export const isBattlePagePath = (pathname: string, battleId: string) =>
   pathname === `/live/battles/${battleId}`;
@@ -73,7 +72,9 @@ export function BattleQueueCta() {
       return;
     }
 
-    const remainingIds = new Set(liveQueuedBattles.map(({ battleId }) => battleId)),
+    const remainingIds = new Set(
+        liveQueuedBattles.map(({ battleId }) => battleId)
+      ),
       staleOffers = [...offeredOffers.current].filter((key) => {
         const [battleId] = key.split(":");
         return !remainingIds.has(battleId ?? "");

@@ -12,6 +12,15 @@
 - Hardened Live around per-room Durable Object state, alarm-driven battle phases, authenticated role-scoped controls, synchronized party playback, Stream ingest lifecycle states, async live notification fanout, durable replay workflow scheduling, real-route premium enforcement, and shared preview/fullscreen UI contracts.
 - Added battle lineup snapshot persistence, live experience lifecycle fields, compressed battle state-machine tests, and gated real live-route browser smoke coverage.
 
+### Fixed
+
+- Stabilized Playwright E2E browser test suite (`pnpm run test:e2e`) across Chromium and Mobile Chrome runners:
+  - Gracefully skipped preview smoke tests when remote API URL (`PLAYWRIGHT_API_URL` / `SOUNDKIT_E2E_API_URL`) is not configured.
+  - Aligned live stream detail route assertions with the `LiveRoomAccessGuard` ("SoundKit Premium Required") overlay for unauthenticated visitors, while testing chat collapse/expand on public video detail routes (`/videos/video-1`).
+  - Increased browser test timeouts to prevent parallel Vite compilation timeouts on discovery and live surfaces.
+  - Eliminated SSR React hydration mismatches in `TracksPage` by replacing direct render-time `localStorage` lookups with deterministic defaults.
+  - Fixed TanStack Query undefined data warnings in `BattleQueueCta` by safely falling back to an empty array.
+
 ### Changed
 
 - Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.

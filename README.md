@@ -12,6 +12,7 @@
 **SoundKit** is a full-stack, edge-native audio platform and digital marketplace designed from the ground up to empower musicians, beatmakers, producers, vocalists, and fans.
 
 Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an integrated ecosystem featuring:
+
 - **Direct Creator Monetization & Royalties:** 30-Second Verified Play telemetry, qualified monetization curves, transparent settlement reserves, and embedded Stripe Connect payouts.
 - **Interactive Live Arenas:** Cloudflare Durable Object-backed live rooms for real-time producer beat battles with spectator queues, fan voting, and synchronized listening parties.
 - **Open Verse & Collaboration Hub:** In-browser audio slicing with MediaBunny, 3-part stem/take submissions, and anti-leech upload validation.
@@ -59,19 +60,19 @@ Unlike legacy streaming silos and fragmented beat stores, SoundKit provides an i
 
 ### Core Technologies
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Monorepo Engine** | [Turborepo](https://turbo.build/), [pnpm](https://pnpm.io/) (v11 Catalog Mode), [Bun](https://bun.sh/) (Runtime & Test Runner) |
-| **Web Frontend** | [React 19](https://react.dev/), [Vite](https://vitejs.dev/), [TanStack Router](https://tanstack.com/router), [TanStack Query v5](https://tanstack.com/query), [Tailwind CSS v4](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/) |
-| **Audio Processing** | [MediaBunny](https://github.com/mediabunny) (Client-Side WASM/WebCodecs Audio Slicer & Waveform Generator), HTML5 Web Audio API |
-| **Mobile App** | [Expo SDK 52](https://expo.dev/), [React Native 0.83](https://reactnative.dev/), [Expo Router v4](https://docs.expo.dev/router/introduction/), React Native Reanimated v4 |
-| **API Backend** | [Cloudflare Workers](https://workers.cloudflare.com/) (`nodejs_compat`), [Hono OpenAPI](https://hono.dev/), [Stoker](https://github.com/), [Sentry Observability](https://sentry.io/) |
-| **Stateful Edge** | Cloudflare [Durable Objects](https://developers.cloudflare.com/durable-objects/) (Live Room state machines & Presence tracking), [Workflows](https://developers.cloudflare.com/workflows/), [Queues](https://developers.cloudflare.com/queues/) |
-| **Database & ORM** | [PostgreSQL](https://www.postgresql.org/) with `pgvector`, [Drizzle ORM](https://orm.drizzle.team/), [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/) connection pooling |
-| **Auth & Security** | [Better Auth](https://www.better-auth.com/), [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) CAPTCHA, Type-safe Session Middleware |
-| **Payments & Billing** | [Stripe Connect](https://stripe.com/connect) (Express Onboarding, Direct & Destination Charges), Stripe Billing & Invoicing |
-| **Media & Delivery** | [Cloudflare R2](https://developers.cloudflare.com/r2/) Object Storage, [Mux Video](https://mux.com/), [Resend](https://resend.com/) + [React Email](https://react.email/) |
-| **Code Standards** | [Ultracite](https://github.com/) (Zero-config Oxlint + Oxfmt linter/formatter preset) |
+| Layer                  | Technologies                                                                                                                                                                                                                                     |
+| :--------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Monorepo Engine**    | [Turborepo](https://turbo.build/), [pnpm](https://pnpm.io/) (v11 Catalog Mode), [Bun](https://bun.sh/) (Runtime & Test Runner)                                                                                                                   |
+| **Web Frontend**       | [React 19](https://react.dev/), [Vite](https://vitejs.dev/), [TanStack Router](https://tanstack.com/router), [TanStack Query v5](https://tanstack.com/query), [Tailwind CSS v4](https://tailwindcss.com/), [Radix UI](https://www.radix-ui.com/) |
+| **Audio Processing**   | [MediaBunny](https://github.com/mediabunny) (Client-Side WASM/WebCodecs Audio Slicer & Waveform Generator), HTML5 Web Audio API                                                                                                                  |
+| **Mobile App**         | [Expo SDK 52](https://expo.dev/), [React Native 0.83](https://reactnative.dev/), [Expo Router v4](https://docs.expo.dev/router/introduction/), React Native Reanimated v4                                                                        |
+| **API Backend**        | [Cloudflare Workers](https://workers.cloudflare.com/) (`nodejs_compat`), [Hono OpenAPI](https://hono.dev/), [Stoker](https://github.com/), [Sentry Observability](https://sentry.io/)                                                            |
+| **Stateful Edge**      | Cloudflare [Durable Objects](https://developers.cloudflare.com/durable-objects/) (Live Room state machines & Presence tracking), [Workflows](https://developers.cloudflare.com/workflows/), [Queues](https://developers.cloudflare.com/queues/)  |
+| **Database & ORM**     | [PostgreSQL](https://www.postgresql.org/) with `pgvector`, [Drizzle ORM](https://orm.drizzle.team/), [Cloudflare Hyperdrive](https://developers.cloudflare.com/hyperdrive/) connection pooling                                                   |
+| **Auth & Security**    | [Better Auth](https://www.better-auth.com/), [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) CAPTCHA, Type-safe Session Middleware                                                                                        |
+| **Payments & Billing** | [Stripe Connect](https://stripe.com/connect) (Express Onboarding, Direct & Destination Charges), Stripe Billing & Invoicing                                                                                                                      |
+| **Media & Delivery**   | [Cloudflare R2](https://developers.cloudflare.com/r2/) Object Storage, [Mux Video](https://mux.com/), [Resend](https://resend.com/) + [React Email](https://react.email/)                                                                        |
+| **Code Standards**     | [Ultracite](https://github.com/) (Zero-config Oxlint + Oxfmt linter/formatter preset)                                                                                                                                                            |
 
 ---
 
@@ -187,24 +188,27 @@ A static documentation engine built with Astro 6 and Starlight, offering Pagefin
 ### Installation & Setup
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/cgRGM/mysoundkit.git
    cd mysoundkit
    ```
 
 2. **Install monorepo dependencies:**
+
    ```bash
    pnpm install
    ```
 
 3. **Configure Environment Variables:**
    Copy the example environment files and provide your secrets:
+
    ```bash
    cp apps/server/.env.example apps/server/.env
    cp apps/website/.env.example apps/website/.env
    ```
 
-   *Key environment variables required:*
+   _Key environment variables required:_
    - `DATABASE_URL`: PostgreSQL connection string (direct or pooled)
    - `BETTER_AUTH_SECRET`: Secret key for Better Auth session signing
    - `BETTER_AUTH_URL`: Base URL for Better Auth (e.g. `http://localhost:3000`)
@@ -215,6 +219,7 @@ A static documentation engine built with Astro 6 and Starlight, offering Pagefin
    - `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile secret key
 
 4. **Initialize the Database:**
+
    ```bash
    # Push schema directly to the database
    pnpm db:push
@@ -230,7 +235,7 @@ A static documentation engine built with Astro 6 and Starlight, offering Pagefin
    ```bash
    bun run dev
    ```
-   *This starts the services concurrently:*
+   _This starts the services concurrently:_
    - **Website:** `http://localhost:3001`
    - **API Server:** `http://localhost:3000`
    - **Swagger Docs:** `http://localhost:3000/api/docs`
@@ -239,21 +244,21 @@ A static documentation engine built with Astro 6 and Starlight, offering Pagefin
 
 ## 7. Useful Monorepo Commands
 
-| Command | Description |
-| :--- | :--- |
-| `bun run dev` | Starts website and API server in development mode |
-| `bun run build` | Builds all packages and applications for production |
-| `bun run verify` | **Canonical Quality Gate**: Runs type checks, React hook validations, unit tests, worker tests, and production build |
-| `bun run verify:pr` | Runs full verification pipeline plus Playwright E2E browser tests |
-| `bun run test:unit` | Executes all Vitest unit tests |
-| `bun run test:worker` | Executes Cloudflare Worker and Durable Object integration tests with Miniflare/workerd |
-| `bun run check-types` | Runs TypeScript compiler checks across all workspaces |
-| `bun run check:react-hooks` | Validates React hook dependency and import rules |
-| `bun run fix` | Automatically formats and fixes linter issues via Ultracite (Oxlint/Oxfmt) |
-| `pnpm db:generate` | Generates new Drizzle SQL migration files from schema |
-| `pnpm db:push` | Pushes Drizzle schema definitions directly to PostgreSQL |
-| `pnpm db:studio` | Launches Drizzle Studio GUI for visual database management |
-| `pnpm db:seed` | Seeds database with demo artists, tracks, open verses, and battles |
+| Command                     | Description                                                                                                          |
+| :-------------------------- | :------------------------------------------------------------------------------------------------------------------- |
+| `bun run dev`               | Starts website and API server in development mode                                                                    |
+| `bun run build`             | Builds all packages and applications for production                                                                  |
+| `bun run verify`            | **Canonical Quality Gate**: Runs type checks, React hook validations, unit tests, worker tests, and production build |
+| `bun run verify:pr`         | Runs full verification pipeline plus Playwright E2E browser tests                                                    |
+| `bun run test:unit`         | Executes all Vitest unit tests                                                                                       |
+| `bun run test:worker`       | Executes Cloudflare Worker and Durable Object integration tests with Miniflare/workerd                               |
+| `bun run check-types`       | Runs TypeScript compiler checks across all workspaces                                                                |
+| `bun run check:react-hooks` | Validates React hook dependency and import rules                                                                     |
+| `bun run fix`               | Automatically formats and fixes linter issues via Ultracite (Oxlint/Oxfmt)                                           |
+| `pnpm db:generate`          | Generates new Drizzle SQL migration files from schema                                                                |
+| `pnpm db:push`              | Pushes Drizzle schema definitions directly to PostgreSQL                                                             |
+| `pnpm db:studio`            | Launches Drizzle Studio GUI for visual database management                                                           |
+| `pnpm db:seed`              | Seeds database with demo artists, tracks, open verses, and battles                                                   |
 
 ---
 
@@ -268,6 +273,7 @@ bun run verify
 ```
 
 To auto-format and fix linting issues according to **Ultracite** standards:
+
 ```bash
 bun run fix
 ```
@@ -275,6 +281,7 @@ bun run fix
 ### GitHub-Driven Plan-to-Ship Lifecycle
 
 All contributors and autonomous agents must follow the plan-to-ship protocol defined in [`AGENTS.md`](file:///home/ubuntu/work/projects/mysoundkit/AGENTS.md):
+
 1. **GitHub Issue:** Changes must trace back to a GitHub Issue.
 2. **Branch Naming:** Create a feature/chore/fix branch from latest `master` (`<type>/<slug>-<issueNumber>`).
 3. **Verify:** Run `bun run verify` and ensure all tests, type checks, and builds succeed.

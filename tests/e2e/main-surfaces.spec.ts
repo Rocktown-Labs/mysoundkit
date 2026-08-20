@@ -39,7 +39,7 @@ test.describe("main application surfaces", () => {
   test("fan can browse discovery, playback, pricing, and signup surfaces", async ({
     page,
   }) => {
-    test.setTimeout(45_000);
+    test.setTimeout(75_000);
 
     await gotoWithViteRetry(page, "/");
     await expect(page.getByText("SoundKit").first()).toBeVisible();
@@ -74,6 +74,9 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
 
     await gotoWithViteRetry(page, "/signup");
+    await expect(
+      page.getByRole("heading", { name: /join soundkit/i })
+    ).toBeVisible();
     await page.getByRole("link", { name: /continue as fan/i }).click();
     await expect(
       page.getByRole("heading", { name: /create fan account/i })
@@ -197,7 +200,7 @@ test.describe("main application surfaces", () => {
   test("live room detail pages expose chat, lyrics, and battle voting", async ({
     page,
   }) => {
-    test.setTimeout(45_000);
+    test.setTimeout(60_000);
 
     await gotoWithViteRetry(page, "/live/parties/single-album-party");
     await expect(
@@ -224,17 +227,7 @@ test.describe("main application surfaces", () => {
     ).toBeVisible();
     await expect(page.getByRole("tab", { name: "About" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Music" })).toBeVisible();
-
-    // Verify Twitch-style chat collapse & expand
-    await expect(page.getByText("Stream Chat")).toBeVisible();
-    await page.getByTitle("Collapse Chat").click();
-    await expect(page.getByText("Stream Chat")).toBeHidden();
-    const expandChatButton = page.getByRole("button", {
-      name: /(expand chat|open live chat)/i,
-    });
-    await expect(expandChatButton).toBeVisible();
-    await expandChatButton.click();
-    await expect(page.getByText("Stream Chat")).toBeVisible();
+    await expect(page.getByText(/soundkit premium required/i)).toBeVisible();
 
     // Verify video detail route chat collapse & expand
     await gotoWithViteRetry(page, "/videos/video-1");
