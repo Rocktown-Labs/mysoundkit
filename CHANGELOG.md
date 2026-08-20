@@ -23,6 +23,7 @@
 
 ### Changed
 
+- Updated repository `README.md` footer attribution to Rocktown Labs.
 - Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.
 - Closing the floating chat bar by expanding into the full messages page now resets its state, so navigating back returns to the collapsed bar instead of an open chat.
 - Reordered the dashboard mobile bottom nav to Home, Music, Create, Career, Live.
