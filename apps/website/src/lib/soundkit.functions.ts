@@ -148,12 +148,11 @@ export const getTrackDetail = createServerFn({ method: "GET" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
     const client = currentClient(),
-
-     track = await soundkitServerJson<TrackDetail>(
-      await client.v1.tracks[":trackId"].$get({
-        param: { trackId: data.id },
-      })
-    );
+      track = await soundkitServerJson<TrackDetail>(
+        await client.v1.tracks[":trackId"].$get({
+          param: { trackId: data.id },
+        })
+      );
 
     return {
       ...track,

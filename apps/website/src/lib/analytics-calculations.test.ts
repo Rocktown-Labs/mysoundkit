@@ -82,8 +82,8 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
 
     it("distinguishes qualified listening from funded earnings (comped subscribers)", () => {
       // A comped premium subscriber generates a Qualified Stream, but $0.00 funded pool contribution
-      const compedSubscriptionAllocationCents = 0;
-      const isStreamQualified = isQualifiedStream({
+      const compedSubscriptionAllocationCents = 0,
+       isStreamQualified = isQualifiedStream({
         isOwner: false,
         isPremium: true,
         playedSeconds: 150,
@@ -93,7 +93,9 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
       expect(isStreamQualified).toBe(true);
       expect(compedSubscriptionAllocationCents).toBe(0);
       // Comped account produces 0 funded creator earnings
-      const creatorEarningsCents = Math.round(compedSubscriptionAllocationCents * 1.0);
+      const creatorEarningsCents = Math.round(
+        compedSubscriptionAllocationCents * 1
+      );
       expect(creatorEarningsCents).toBe(0);
     });
   });
@@ -105,9 +107,9 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
         { date: "2026-08-19", trackId: "track_1" },
         { date: "2026-08-19", trackId: "track_2" },
         { date: "2026-08-19", trackId: "track_3" },
-      ];
-      const distinctDays = new Set(userSessions.map((s) => s.date)).size;
-      const distinctTracks = new Set(userSessions.map((s) => s.trackId)).size;
+      ],
+       distinctDays = new Set(userSessions.map((s) => s.date)).size,
+       distinctTracks = new Set(userSessions.map((s) => s.trackId)).size;
 
       expect(distinctDays).toBe(1);
       expect(distinctTracks).toBe(3);
@@ -121,8 +123,8 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
       const userSessions = [
         { date: "2026-08-17", trackId: "track_1" },
         { date: "2026-08-19", trackId: "track_1" },
-      ];
-      const distinctDays = new Set(userSessions.map((s) => s.date)).size;
+      ],
+       distinctDays = new Set(userSessions.map((s) => s.date)).size;
       expect(distinctDays).toBe(2);
 
       const isReturning = distinctDays > 1;
@@ -132,25 +134,28 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
 
   describe("4. Qualification Rate Denominator Semantics", () => {
     it("calculates qualification rate against eligible Premium sessions, not Free-tier Plays", () => {
-      const total30sPlays = 100; // 90 Free plays, 10 Premium plays
-      const eligiblePremiumSessions = 10;
-      const qualifiedStreams = 7;
+      const total30sPlays = 100, // 90 Free plays, 10 Premium plays
+       eligiblePremiumSessions = 10,
+       qualifiedStreams = 7,
 
       // Bad denominator: 7 / 100 = 7%
-      const badRate = Math.round((qualifiedStreams / total30sPlays) * 100);
+       badRate = Math.round((qualifiedStreams / total30sPlays) * 100);
       expect(badRate).toBe(7);
 
       // Correct denominator: 7 / 10 = 70%
-      const correctRate = Math.round((qualifiedStreams / eligiblePremiumSessions) * 100);
+      const correctRate = Math.round(
+        (qualifiedStreams / eligiblePremiumSessions) * 100
+      );
       expect(correctRate).toBe(70);
     });
 
     it("returns 0% when there are 0 eligible Premium sessions", () => {
-      const eligiblePremiumSessions = 0;
-      const qualifiedStreams = 0;
-      const rate = eligiblePremiumSessions > 0
-        ? Math.round((qualifiedStreams / eligiblePremiumSessions) * 100)
-        : 0;
+      const eligiblePremiumSessions = 0,
+       qualifiedStreams = 0,
+       rate =
+        eligiblePremiumSessions > 0
+          ? Math.round((qualifiedStreams / eligiblePremiumSessions) * 100)
+          : 0;
       expect(rate).toBe(0);
     });
   });
@@ -180,8 +185,8 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
       const raw = [
         { city: "Austin", countryCode: "US", listeners: 1, regionCode: "TX" },
         { city: "Dallas", countryCode: "US", listeners: 1, regionCode: "TX" },
-      ];
-      const result = filterSafeLocations(raw, MIN_LOCATION_LISTENERS);
+      ],
+       result = filterSafeLocations(raw, MIN_LOCATION_LISTENERS);
       expect(result.hasEnoughData).toBe(false);
       expect(result.locations).toHaveLength(0);
       expect(result.totalListeners).toBe(2);
@@ -189,18 +194,38 @@ describe("Artist Analytics & Creator Payments Domain Rules", () => {
 
     it("aggregates small cohorts (< 3) into 'Other Regions' when overall audience is sufficient", () => {
       const raw = [
-        { city: "New York", countryCode: "US", listeners: 10, regionCode: "NY" },
-        { city: "Los Angeles", countryCode: "US", listeners: 5, regionCode: "CA" },
-        { city: "Bentonville", countryCode: "US", listeners: 1, regionCode: "AR" },
-        { city: "Little Rock", countryCode: "US", listeners: 1, regionCode: "AR" },
-      ];
-      const result = filterSafeLocations(raw, MIN_LOCATION_LISTENERS);
+        {
+          city: "New York",
+          countryCode: "US",
+          listeners: 10,
+          regionCode: "NY",
+        },
+        {
+          city: "Los Angeles",
+          countryCode: "US",
+          listeners: 5,
+          regionCode: "CA",
+        },
+        {
+          city: "Bentonville",
+          countryCode: "US",
+          listeners: 1,
+          regionCode: "AR",
+        },
+        {
+          city: "Little Rock",
+          countryCode: "US",
+          listeners: 1,
+          regionCode: "AR",
+        },
+      ],
+       result = filterSafeLocations(raw, MIN_LOCATION_LISTENERS);
       expect(result.hasEnoughData).toBe(true);
       expect(result.totalListeners).toBe(17);
 
-      const ny = result.locations.find((l) => l.city === "New York");
-      const la = result.locations.find((l) => l.city === "Los Angeles");
-      const other = result.locations.find((l) => l.city === "Other Regions");
+      const ny = result.locations.find((l) => l.city === "New York"),
+       la = result.locations.find((l) => l.city === "Los Angeles"),
+       other = result.locations.find((l) => l.city === "Other Regions");
 
       expect(ny?.listeners).toBe(10);
       expect(la?.listeners).toBe(5);

@@ -32,7 +32,6 @@ import {
   onboardingArtistBodySchema,
   onboardingFanBodySchema,
   onboardingResponseSchema,
-  onboardingStateSchema,
   updateOnboardingStateBodySchema,
   openVerseQuerySchema,
   playbackProgressBodySchema,
@@ -51,7 +50,7 @@ import {
   updateNotificationSettingsBodySchema,
   updateProjectBodySchema,
   updateTrackBodySchema,
-  usernameAvailabilityQuerySchema
+  usernameAvailabilityQuerySchema,
 } from "./lib/schemas";
 import type {
   adminAccessSchema,
@@ -106,7 +105,8 @@ import type {
   messageResponseSchema,
   workspaceDetailSchema,
   workspaceSummarySchema,
-} from "./lib/schemas";
+
+  onboardingStateSchema} from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     validator("json", (value) => schema.parse(value) as z.infer<Schema>),
@@ -328,7 +328,9 @@ export const rpcContract = new Hono()
     c.json({} as z.infer<typeof onboardingResponseSchema>, 201)
   )
   .get("/v1/billing/plans", (c) => c.json([] as z.infer<typeof planSchema>[]))
-  .get("/v1/admin/genres", (c) => c.json([] as z.infer<typeof adminGenreSchema>[]))
+  .get("/v1/admin/genres", (c) =>
+    c.json([] as z.infer<typeof adminGenreSchema>[])
+  )
   .post("/v1/billing/checkout", jsonValidator(checkoutBodySchema), (c) =>
     c.json({} as z.infer<typeof checkoutResponseSchema>)
   )

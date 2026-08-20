@@ -338,7 +338,7 @@ app.openapi(
         dateMap.set(key, 0);
       }
     } else {
-      const numDays = range === "7d" ? 7 : range === "28d" ? 28 : 90;
+      const numDays = range === "7d" ? 7 : (range === "28d" ? 28 : 90);
       for (let i = numDays - 1; i >= 0; i -= 1) {
         const d = new Date(now);
         d.setUTCDate(d.getUTCDate() - i);

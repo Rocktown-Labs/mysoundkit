@@ -9,58 +9,58 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const STATE_CODES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY",
-} as const,
- VALID_STATE_CODES = new Set<string>(Object.values(STATE_CODES));
+    alabama: "AL",
+    alaska: "AK",
+    arizona: "AZ",
+    arkansas: "AR",
+    california: "CA",
+    colorado: "CO",
+    connecticut: "CT",
+    delaware: "DE",
+    florida: "FL",
+    georgia: "GA",
+    hawaii: "HI",
+    idaho: "ID",
+    illinois: "IL",
+    indiana: "IN",
+    iowa: "IA",
+    kansas: "KS",
+    kentucky: "KY",
+    louisiana: "LA",
+    maine: "ME",
+    maryland: "MD",
+    massachusetts: "MA",
+    michigan: "MI",
+    minnesota: "MN",
+    mississippi: "MS",
+    missouri: "MO",
+    montana: "MT",
+    nebraska: "NE",
+    nevada: "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    ohio: "OH",
+    oklahoma: "OK",
+    oregon: "OR",
+    pennsylvania: "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    tennessee: "TN",
+    texas: "TX",
+    utah: "UT",
+    vermont: "VT",
+    virginia: "VA",
+    washington: "WA",
+    "west virginia": "WV",
+    wisconsin: "WI",
+    wyoming: "WY",
+  } as const,
+  VALID_STATE_CODES = new Set<string>(Object.values(STATE_CODES));
 
 interface LocationSuggestion {
   city: string;
@@ -70,32 +70,30 @@ interface LocationSuggestion {
 }
 
 const manualLocation = (value: string) => {
-  const [city, state] = value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (!(city && state)) {
-    return null;
-  }
-  const normalizedState = state.toLowerCase(),
-    stateCode =
-      STATE_CODES[normalizedState as keyof typeof STATE_CODES] ??
-      state.toUpperCase();
-  return VALID_STATE_CODES.has(stateCode) ? { city, state: stateCode } : null;
-},
-
- addressCity = (address: RadarAutocompleteAddress) =>
-  address.city ?? address.placeLabel ?? address.addressLabel,
-
- addressState = (address: RadarAutocompleteAddress) => {
-  const stateCode = address.stateCode?.toUpperCase();
-  if (stateCode && VALID_STATE_CODES.has(stateCode)) {
-    return stateCode;
-  }
-  return address.state
-    ? STATE_CODES[address.state.toLowerCase() as keyof typeof STATE_CODES]
-    : undefined;
-};
+    const [city, state] = value
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (!(city && state)) {
+      return null;
+    }
+    const normalizedState = state.toLowerCase(),
+      stateCode =
+        STATE_CODES[normalizedState as keyof typeof STATE_CODES] ??
+        state.toUpperCase();
+    return VALID_STATE_CODES.has(stateCode) ? { city, state: stateCode } : null;
+  },
+  addressCity = (address: RadarAutocompleteAddress) =>
+    address.city ?? address.placeLabel ?? address.addressLabel,
+  addressState = (address: RadarAutocompleteAddress) => {
+    const stateCode = address.stateCode?.toUpperCase();
+    if (stateCode && VALID_STATE_CODES.has(stateCode)) {
+      return stateCode;
+    }
+    return address.state
+      ? STATE_CODES[address.state.toLowerCase() as keyof typeof STATE_CODES]
+      : undefined;
+  };
 
 export function LocationField({
   city,

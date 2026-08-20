@@ -34,8 +34,8 @@ export function PremiumWorkspaceInviteCard({
     return null;
   }
 
-  const {total} = workspace.data.seats,
-    {used} = workspace.data.seats,
+  const { total } = workspace.data.seats,
+    { used } = workspace.data.seats,
     canInvite = used + workspace.data.invitations.length < total;
 
   return (

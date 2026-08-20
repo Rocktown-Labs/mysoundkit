@@ -13,7 +13,7 @@ import {
 import { useMeEntitlementsQuery } from "@/lib/soundkit-api-hooks";
 
 const MAX_ACTIVATION_ATTEMPTS = 8,
- ACTIVATION_DELAYS_MS = [1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000];
+  ACTIVATION_DELAYS_MS = [1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000];
 
 export function PremiumActivationCard({
   accountType,

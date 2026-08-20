@@ -385,9 +385,9 @@ const badRequest = (message: string) => ({
         inputStatus === "failed_to_reconnect";
     let { status } = experience,
       { endsAt } = experience,
-      {ingestStatus} = experience,
-      {reconnectUntil} = experience,
-      {startedAt} = experience;
+      { ingestStatus } = experience,
+      { reconnectUntil } = experience,
+      { startedAt } = experience;
 
     if (connected) {
       const wasLive =
@@ -1995,9 +1995,14 @@ app.post("/experiences/:experienceId/join", async (c) => {
 
   if (isDatabaseConfigured()) {
     const experience = await loadLiveExperienceById(experienceId);
-    if (experience && !(await hasLiveRoomAccess(c, experience.status === "live"))) {
+    if (
+      experience &&
+      !(await hasLiveRoomAccess(c, experience.status === "live"))
+    ) {
       return c.json(
-        forbiddenMessage("A Premium subscription is required to join live rooms."),
+        forbiddenMessage(
+          "A Premium subscription is required to join live rooms."
+        ),
         HttpStatusCodes.FORBIDDEN
       );
     }
@@ -2201,18 +2206,18 @@ app.post("/rooms/:roomId/battle/kit", async (c) => {
   }
 
   const kitTracks = await db
-    .select({
-      mainSlot: battleKitTracks.mainSlot,
-      role: battleKitTracks.role,
-      trackId: battleKitTracks.trackId,
-    })
-    .from(battleKitTracks)
-    .where(eq(battleKitTracks.battleKitId, kit.id))
-    .orderBy(asc(battleKitTracks.mainSlot), asc(battleKitTracks.seedOrder)),
-   readiness = evaluateBattleKitReadiness({
-    format: kit.format,
-    tracks: kitTracks,
-  });
+      .select({
+        mainSlot: battleKitTracks.mainSlot,
+        role: battleKitTracks.role,
+        trackId: battleKitTracks.trackId,
+      })
+      .from(battleKitTracks)
+      .where(eq(battleKitTracks.battleKitId, kit.id))
+      .orderBy(asc(battleKitTracks.mainSlot), asc(battleKitTracks.seedOrder)),
+    readiness = evaluateBattleKitReadiness({
+      format: kit.format,
+      tracks: kitTracks,
+    });
   if (!readiness.isBattleReady) {
     return c.json(
       { message: readiness.reason ?? "Battle Kit is not ready." },
@@ -2574,13 +2579,13 @@ app.post("/rooms/:roomId/queue", async (c) => {
       userId: user.id,
     })
     .onConflictDoUpdate({
-      target: [battleQueueEntries.battleId, battleQueueEntries.userId],
       set: {
         conflictBattleId,
         leftAt: null,
         status: statusForEntry,
         updatedAt: new Date(),
       },
+      target: [battleQueueEntries.battleId, battleQueueEntries.userId],
     });
 
   const identity = await resolveLiveRoomIdentity(c, roomId),

@@ -42,9 +42,9 @@ export const Route = createFileRoute("/_explore/shop")({
   }),
 });
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 20,
 
-const formatTrackPrice = (track: TrackSummary) =>
+ formatTrackPrice = (track: TrackSummary) =>
   typeof track.priceCents === "number"
     ? `$${(track.priceCents / 100).toFixed(2)}`
     : "$1.99";

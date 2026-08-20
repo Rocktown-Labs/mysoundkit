@@ -339,10 +339,12 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user");
-    if (!isAuthenticatedUser(user))
-      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
-    if (!isDatabaseConfigured())
-      {return c.json({ followed: false, followerCount: 0 }, HttpStatusCodes.OK);}
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json({ followed: false, followerCount: 0 }, HttpStatusCodes.OK);
+    }
     const db = createDb(),
       [artist] = await db
         .select({
@@ -356,11 +358,12 @@ app.openapi(
         )
         .where(eq(userProfiles.username, c.req.valid("param").username))
         .limit(1);
-    if (!artist)
-      {return c.json(
+    if (!artist) {
+      return c.json(
         { message: "Artist not found." },
         HttpStatusCodes.NOT_FOUND
-      );}
+      );
+    }
     const [deleted] = await db
       .delete(artistFollows)
       .where(
@@ -370,13 +373,14 @@ app.openapi(
         )
       )
       .returning({ followerUserId: artistFollows.followerUserId });
-    if (deleted)
-      {await db
+    if (deleted) {
+      await db
         .update(artistProfiles)
         .set({
           followerCount: sql`greatest(${artistProfiles.followerCount} - 1, 0)`,
         })
-        .where(eq(artistProfiles.userId, artist.userId));}
+        .where(eq(artistProfiles.userId, artist.userId));
+    }
     const [updated] = await db
       .select({ followerCount: artistProfiles.followerCount })
       .from(artistProfiles)
@@ -409,21 +413,24 @@ app.openapi(
   }),
   async (c) => {
     const user = c.get("user");
-    if (!isAuthenticatedUser(user))
-      {return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);}
-    if (!isDatabaseConfigured())
-      {return c.json({ followed: false, followerCount: 0 }, HttpStatusCodes.OK);}
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json({ followed: false, followerCount: 0 }, HttpStatusCodes.OK);
+    }
     const db = createDb(),
       [target] = await db
         .select({ userId: userProfiles.userId })
         .from(userProfiles)
         .where(eq(userProfiles.username, c.req.valid("param").username))
         .limit(1);
-    if (!target || target.userId === user.id)
-      {return c.json(
+    if (!target || target.userId === user.id) {
+      return c.json(
         { message: "Profile not found." },
         HttpStatusCodes.NOT_FOUND
-      );}
+      );
+    }
     await db
       .delete(userFollows)
       .where(

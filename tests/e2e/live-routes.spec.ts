@@ -14,9 +14,9 @@ const fanPasswordKey = ["SOUNDKIT", "E2E", "FAN", "PASSWORD"].join("_"),
     routeIds.battle,
     routeIds.party,
     routeIds.stream,
-  ];
+  ],
 
-const missingEnv = requiredEnv.some((value) => !value),
+ missingEnv = requiredEnv.some((value) => !value),
   realE2eEnabled = process.env.SOUNDKIT_REAL_E2E === "true";
 
 test.describe("real live route smoke", () => {
@@ -30,10 +30,10 @@ test.describe("real live route smoke", () => {
     request,
   }) => {
     await page.goto("/login");
-    await page.getByLabel("Email").fill(process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "");
     await page
-      .getByLabel("Password")
-      .fill(process.env[fanPasswordKey] ?? "");
+      .getByLabel("Email")
+      .fill(process.env.SOUNDKIT_E2E_FAN_EMAIL ?? "");
+    await page.getByLabel("Password").fill(process.env[fanPasswordKey] ?? "");
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/dashboard/);
 
@@ -41,11 +41,15 @@ test.describe("real live route smoke", () => {
       const response = await request.get(`${apiBaseUrl}/v1/live/rooms/${id}`);
       expect(response.ok(), `${kind} room API should be available`).toBe(true);
 
-      await page.goto(`/live/${kind === "party" ? "parties" : `${kind}s`}/${id}`, {
-        waitUntil: "domcontentloaded",
-      });
-      await expect(page).not.toHaveText(/room offline|unable to load live room/i);
+      await page.goto(
+        `/live/${kind === "party" ? "parties" : `${kind}s`}/${id}`,
+        {
+          waitUntil: "domcontentloaded",
+        }
+      );
+      await expect(page).not.toHaveText(
+        /room offline|unable to load live room/i
+      );
     }
   });
 });
-

@@ -95,6 +95,7 @@ import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
+import { isAllowedUploadKeyForAssetKind } from "@/routes/uploads";
 
 const app = new OpenAPIHono<AppEnv>(),
   databaseUnavailableMessage = {
@@ -1581,6 +1582,10 @@ app.openapi(
       }),
     },
     responses: {
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Validation error"
+      ),
       [HttpStatusCodes.CREATED]: jsonContent(
         trackDashboardDetailSchema,
         "Track asset saved"
@@ -1667,9 +1672,51 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    if (
+      body.objectKey &&
+      !isAllowedUploadKeyForAssetKind({
+        assetKind: body.assetKind,
+        objectKey: body.objectKey,
+        userId: user.id,
+      })
+    ) {
+      return c.json(
+        {
+          message:
+            "Object key does not belong to the allowed upload route for this asset.",
+        },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const bucket = getMediaBucket(c.env as AppEnv["Bindings"]);
+    let verifiedSizeBytes = body.sizeBytes ?? null;
+
+    if (bucket && body.objectKey) {
+      const r2Object = await bucket.head(body.objectKey);
+      if (!r2Object) {
+        return c.json(
+          {
+            message:
+              "Storage object not found in bucket. Upload must complete before registering asset.",
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+      if (body.assetKind === "master" && r2Object.size === 0) {
+        return c.json(
+          {
+            message: "Uploaded master audio file is empty.",
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+      verifiedSizeBytes = r2Object.size;
+    }
+
     const [existingAsset] = await withRetry("find existing track asset", () =>
       db
-        .select({ id: trackAssets.id })
+        .select()
         .from(trackAssets)
         .where(
           and(
@@ -1681,6 +1728,19 @@ app.openapi(
     );
 
     if (existingAsset) {
+      await withRetry("update existing track asset", () =>
+        db
+          .update(trackAssets)
+          .set({
+            durationMs: body.durationMs ?? existingAsset.durationMs,
+            metadata: body.metadata ?? existingAsset.metadata,
+            mimeType: body.mimeType ?? existingAsset.mimeType,
+            sizeBytes: verifiedSizeBytes ?? existingAsset.sizeBytes,
+            status: body.status,
+            updatedAt: new Date(),
+          })
+          .where(eq(trackAssets.id, existingAsset.id))
+      );
       return c.json(await buildTrackDetail(track), HttpStatusCodes.CREATED);
     }
 
@@ -1708,7 +1768,7 @@ app.openapi(
         metadata: body.metadata,
         mimeType: body.mimeType ?? null,
         objectKey: body.objectKey,
-        sizeBytes: body.sizeBytes ?? null,
+        sizeBytes: verifiedSizeBytes,
         status: body.status,
         storageProvider: body.storageProvider,
         trackId,
@@ -1806,6 +1866,7 @@ app.openapi(
     if (!masterAsset) {
       return c.json(
         {
+          code: "MASTER_UPLOAD_PENDING",
           message:
             "Master audio must finish uploading before this track can be settled.",
         },

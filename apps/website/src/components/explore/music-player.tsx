@@ -1797,9 +1797,9 @@ export function MusicPlayer() {
                       <p>
                         {repeatMode === "one"
                           ? "Repeat: One"
-                          : repeatMode === "all"
+                          : (repeatMode === "all"
                             ? "Repeat: All"
-                            : "Repeat: Off"}
+                            : "Repeat: Off")}
                       </p>
                     </TooltipContent>
                   </Tooltip>

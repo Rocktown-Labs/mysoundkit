@@ -95,28 +95,30 @@ function PersonCard({
   person: NetworkPerson;
 }) {
   const { isUserOnline, registerPresenceUsers } = usePresence(),
-   friendRequestMutation = useCreateFriendRequestMutation(),
-   unfollowMutation = useUnfollowArtistMutation(person.username ?? ""),
-   isArtist = person.accountType === "artist",
-   sendFriendRequest = async () => {
-    if (!person.username) {return;}
-    try {
-      await friendRequestMutation.mutateAsync({ username: person.username });
-      toast({
-        description: `Friend request sent to @${person.username}.`,
-        title: "Friend request sent",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error
-            ? error.message
-            : "Unable to send friend request.",
-        title: "Request failed",
-        variant: "destructive",
-      });
-    }
-  };
+    friendRequestMutation = useCreateFriendRequestMutation(),
+    unfollowMutation = useUnfollowArtistMutation(person.username ?? ""),
+    isArtist = person.accountType === "artist",
+    sendFriendRequest = async () => {
+      if (!person.username) {
+        return;
+      }
+      try {
+        await friendRequestMutation.mutateAsync({ username: person.username });
+        toast({
+          description: `Friend request sent to @${person.username}.`,
+          title: "Friend request sent",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to send friend request.",
+          title: "Request failed",
+          variant: "destructive",
+        });
+      }
+    };
   useEffect(
     () => registerPresenceUsers([person.id]),
     [person.id, registerPresenceUsers]
@@ -207,28 +209,34 @@ function EmptyState({ label }: { label: string }) {
 
 function RequestList({ requests }: { requests: NetworkResponse["requests"] }) {
   const respondMutation = useRespondFriendRequestMutation(),
-   pending = requests.filter((request) => request.status === "pending"),
-   respond = async (
-    requestId: string,
-    action: "accept" | "cancel" | "decline"
-  ) => {
-    try {
-      await respondMutation.mutateAsync({ action, requestId });
-      toast({
-        description:
-          action === "accept" ? "Friend request accepted." : "Request updated.",
-        title: "Network updated",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Unable to update request.",
-        title: "Request failed",
-        variant: "destructive",
-      });
-    }
-  };
-  if (pending.length === 0) {return <EmptyState label="pending requests" />;}
+    pending = requests.filter((request) => request.status === "pending"),
+    respond = async (
+      requestId: string,
+      action: "accept" | "cancel" | "decline"
+    ) => {
+      try {
+        await respondMutation.mutateAsync({ action, requestId });
+        toast({
+          description:
+            action === "accept"
+              ? "Friend request accepted."
+              : "Request updated.",
+          title: "Network updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to update request.",
+          title: "Request failed",
+          variant: "destructive",
+        });
+      }
+    };
+  if (pending.length === 0) {
+    return <EmptyState label="pending requests" />;
+  }
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {pending.map((request) => (
@@ -289,49 +297,51 @@ function RequestList({ requests }: { requests: NetworkResponse["requests"] }) {
 
 function NetworkPage() {
   const search = Route.useSearch(),
-   navigate = Route.useNavigate(),
-   networkQuery = useNetworkQuery(),
-   [query, setQuery] = useState(""),
-   peopleQuery = useSearchQuery({ limit: "8", q: query, type: "artists" }),
-   requestMutation = useCreateFriendRequestMutation(),
-   [followerFilter, setFollowerFilter] = useState<
-    "all" | "fans" | "artists"
-  >("all"),
-   activeTab = search.tab as NetworkTab,
-   network = networkQuery.data,
-   filteredSearchResults = useMemo(() => {
-    const needle = query.trim().toLowerCase().replace(/^@/u, "");
-    if (!needle) {return [];}
-    return (peopleQuery.data?.artists ?? []).filter(
+    navigate = Route.useNavigate(),
+    networkQuery = useNetworkQuery(),
+    [query, setQuery] = useState(""),
+    peopleQuery = useSearchQuery({ limit: "8", q: query, type: "artists" }),
+    requestMutation = useCreateFriendRequestMutation(),
+    [followerFilter, setFollowerFilter] = useState<"all" | "fans" | "artists">(
+      "all"
+    ),
+    activeTab = search.tab as NetworkTab,
+    network = networkQuery.data,
+    filteredSearchResults = useMemo(() => {
+      const needle = query.trim().toLowerCase().replace(/^@/u, "");
+      if (!needle) {
+        return [];
+      }
+      return (peopleQuery.data?.artists ?? []).filter(
+        (person) =>
+          person.username.toLowerCase().includes(needle) ||
+          person.name.toLowerCase().includes(needle)
+      );
+    }, [peopleQuery.data?.artists, query]),
+    followers = (network?.followers ?? []).filter(
       (person) =>
-        person.username.toLowerCase().includes(needle) ||
-        person.name.toLowerCase().includes(needle)
-    );
-  }, [peopleQuery.data?.artists, query]),
-   followers = (network?.followers ?? []).filter(
-    (person) =>
-      followerFilter === "all" ||
-      (followerFilter === "fans"
-        ? person.accountType === "fan"
-        : person.accountType === "artist")
-  ),
-   setTab = (tab: NetworkTab) => void navigate({ search: { tab } }),
-   sendSearchRequest = async (username: string) => {
-    try {
-      await requestMutation.mutateAsync({ username });
-      toast({
-        description: `Friend request sent to @${username}.`,
-        title: "Friend request sent",
-      });
-    } catch (error) {
-      toast({
-        description:
-          error instanceof Error ? error.message : "Unable to send request.",
-        title: "Request failed",
-        variant: "destructive",
-      });
-    }
-  };
+        followerFilter === "all" ||
+        (followerFilter === "fans"
+          ? person.accountType === "fan"
+          : person.accountType === "artist")
+    ),
+    setTab = (tab: NetworkTab) => void navigate({ search: { tab } }),
+    sendSearchRequest = async (username: string) => {
+      try {
+        await requestMutation.mutateAsync({ username });
+        toast({
+          description: `Friend request sent to @${username}.`,
+          title: "Friend request sent",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Unable to send request.",
+          title: "Request failed",
+          variant: "destructive",
+        });
+      }
+    };
   return (
     <div className="space-y-6">
       <div>

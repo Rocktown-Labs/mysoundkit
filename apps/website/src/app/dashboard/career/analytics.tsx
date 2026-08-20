@@ -272,7 +272,7 @@ function AnalyticsPage() {
               <div className="flex h-full items-center justify-center text-xs text-destructive">
                 Unable to load listening analytics. Please try again.
               </div>
-            ) : timeseries && timeseries.points.length > 0 ? (
+            ) : (timeseries && timeseries.points.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={timeseries.points}
@@ -351,7 +351,7 @@ function AnalyticsPage() {
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
                 Not enough data yet for this time range.
               </div>
-            )}
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -379,7 +379,7 @@ function AnalyticsPage() {
             <div className="py-12 text-center text-xs text-destructive">
               Unable to load track analytics. Please try again.
             </div>
-          ) : tracks.length === 0 ? (
+          ) : (tracks.length === 0 ? (
             <div className="py-12 text-center text-xs text-muted-foreground">
               No tracks uploaded yet.{" "}
               <Link
@@ -479,7 +479,7 @@ function AnalyticsPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          ))}
         </CardContent>
       </Card>
 

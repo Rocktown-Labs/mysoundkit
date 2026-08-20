@@ -310,8 +310,15 @@ export function NewTrackForm({
     ),
     [step, setStep] = useState("details"),
     [isSubmitting, setIsSubmitting] = useState(false),
+    isSubmittingRef = useRef(false),
     [submitStage, setSubmitStage] = useState<
-      "idle" | "uploading" | "creating" | "processing" | "complete" | "settled"
+      | "idle"
+      | "preparing"
+      | "uploading"
+      | "finalizing_upload"
+      | "settling"
+      | "settled"
+      | "error"
     >("idle"),
     [submitProgress, setSubmitProgress] = useState(0),
     [createdTrackInfo, setCreatedTrackInfo] = useState<{
@@ -349,10 +356,6 @@ export function NewTrackForm({
     [restoredComponents, setRestoredComponents] = useState<
       Partial<Record<OptionalComponentKind, { name: string }>>
     >({}),
-    coverUploadResolverRef = useRef<((key: string) => void) | null>(null),
-    masterUploadResolverRef = useRef<
-      ((preview: UploadedTrackPreview | null) => void) | null
-    >(null),
     pendingMasterTrackRef = useRef<{
       id: string;
       title: string;
@@ -557,8 +560,6 @@ export function NewTrackForm({
       setCoverUpload(null);
       coverUploadRef.current = null;
       pendingMasterTrackRef.current = null;
-      masterUploadResolverRef.current = null;
-      coverUploadResolverRef.current = null;
       setUploadedTrack(null);
       try {
         window.localStorage.removeItem("soundkit:new-track-draft:meta");
@@ -574,307 +575,55 @@ export function NewTrackForm({
         title: "Draft reset",
       });
     },
-    attachMasterUploadToTrack = async ({
-      durationMs,
-      file,
-      objectKey,
-      remoteUrl,
-      previewUpload,
-      track,
-    }: {
-      previewUpload?: {
-        file: File;
-        objectKey: string;
-        remoteUrl: string;
-      };
-      durationMs: number | null;
-      file: File;
-      objectKey: string;
-      remoteUrl: string;
-      track: {
-        id: string;
-        title: string;
-      };
-    }) => {
-      const currentCoverUpload = coverUploadRef.current ?? coverUpload;
-
-      if (currentCoverUpload) {
-        await rpcJson(
-          await trackAssetPost({
-            json: {
-              assetKind: "cover_art",
-              metadata: {
-                originalFileName: currentCoverUpload.fileName,
-                url: currentCoverUpload.remoteUrl,
-              },
-              mimeType: "image/*",
-              objectKey: currentCoverUpload.objectKey,
-              status: "ready",
-              storageProvider: "r2",
-            },
-            param: { trackId: track.id },
-          })
-        );
-      }
-      const detail = await rpcJson(
-          await trackAssetPost({
-            json: {
-              assetKind: "master",
-              durationMs: durationMs ?? undefined,
-              metadata: {
-                durationMs,
-                originalFileName: file.name,
-                url: remoteUrl,
-              },
-              mimeType: file.type || "audio/mpeg",
-              objectKey,
-              sizeBytes: file.size,
-              status: "ready",
-              storageProvider: "r2",
-            },
-            param: { trackId: track.id },
-          })
-        ),
-        masterAsset = detail.assets.find(
-          (asset) =>
-            asset.assetKind === "master" && asset.objectKey === objectKey
-        );
-
-      if (previewUpload) {
-        await rpcJson(
-          await trackAssetPost({
-            json: {
-              assetKind: "variant_audio",
-              durationMs: Math.min(durationMs ?? 30_000, 30_000),
-              metadata: {
-                durationMs: Math.min(durationMs ?? 30_000, 30_000),
-                originalFileName: previewUpload.file.name,
-                previewDurationSeconds: 30,
-                url: previewUpload.remoteUrl,
-                variant: "preview_30s",
-              },
-              mimeType: previewUpload.file.type,
-              objectKey: previewUpload.objectKey,
-              sizeBytes: previewUpload.file.size,
-              status: "ready",
-              storageProvider: "r2",
-            },
-            param: { trackId: track.id },
-          })
-        );
-      }
-
-      await queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.tracksPrefix,
-      });
-      await queryClient.invalidateQueries({
-        queryKey: soundkitQueryKeys.track(track.id),
-      });
-
-      const preview = {
-        assetId: masterAsset?.id ?? "",
-        durationMs,
-        objectKey,
-        remoteUrl,
-        statusMessage:
-          "Uploaded to SoundKit storage. You can play the master now while platform assets process.",
-        title: track.title,
-        trackId: track.id,
-      };
-
-      posthog.capture("track_uploaded", {
-        title: track.title,
-        track_id: track.id,
-      });
-      setUploadedTrack(preview);
-      setStep("assets");
-
-      toast({
-        description:
-          "Your master is saved. Processing can be started later from the track dashboard.",
-        title: "Track uploaded",
-      });
-
-      if (masterUploadResolverRef.current) {
-        masterUploadResolverRef.current(preview);
-        masterUploadResolverRef.current = null;
-      }
-    },
     {
-      averageProgress,
-      isPending: isUploading,
-      upload,
+      averageProgress: masterAverageProgress,
+      isPending: isMasterUploading,
+      progresses: masterProgresses,
+      uploadAsync: uploadMasterAsync,
     } = useUploadFiles({
       api: TRACK_SOURCE_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
         posthog.captureException(uploadError);
-        toast({
-          description: uploadError.message,
-          title: "Upload failed",
-          variant: "destructive",
-        });
-        if (masterUploadResolverRef.current) {
-          masterUploadResolverRef.current(null);
-          masterUploadResolverRef.current = null;
-        }
-      },
-      onUploadComplete: ({ files }) => {
-        const [uploadedFile] = files;
-
-        if (!uploadedFile) {
-          if (masterUploadResolverRef.current) {
-            masterUploadResolverRef.current(null);
-            masterUploadResolverRef.current = null;
-          }
-          return;
-        }
-
-        const masterUpload =
-            files.find((entry) => !entry.raw.name.endsWith(".preview.wav")) ??
-            uploadedFile,
-          previewUpload = files.find((entry) =>
-            entry.raw.name.endsWith(".preview.wav")
-          ),
-          sourceFile = masterUpload.raw,
-          objectKey = masterUpload.objectInfo.key,
-          remoteUrl = `${MEDIA_BASE_URL}/${objectKey}`,
-          pendingTrack = pendingMasterTrackRef.current;
-
-        if (!pendingTrack) {
-          toast({
-            description:
-              "Upload finished, but SoundKit could not find the track draft to attach it to.",
-            title: "Track attach failed",
-            variant: "destructive",
-          });
-          masterUploadResolverRef.current?.(null);
-          masterUploadResolverRef.current = null;
-          return;
-        }
-
-        void readAudioDurationMs(sourceFile)
-          .then((durationMs) =>
-            attachMasterUploadToTrack({
-              durationMs: selectedMasterDurationMs ?? durationMs,
-              file: sourceFile,
-              objectKey,
-              previewUpload: previewUpload
-                ? {
-                    file: previewUpload.raw,
-                    objectKey: previewUpload.objectInfo.key,
-                    remoteUrl: `${MEDIA_BASE_URL}/${previewUpload.objectInfo.key}`,
-                  }
-                : undefined,
-              remoteUrl,
-              track: pendingTrack,
-            })
-          )
-          .catch((draftError: unknown) => {
-            posthog.captureException(draftError);
-            toast({
-              description:
-                draftError instanceof Error
-                  ? draftError.message
-                  : "Upload finished but the track could not be created.",
-              title: "Track attach failed",
-              variant: "destructive",
-            });
-            if (masterUploadResolverRef.current) {
-              masterUploadResolverRef.current(null);
-              masterUploadResolverRef.current = null;
-            }
-          });
-      },
-      onUploadFail: ({ failedFiles }) => {
-        const [failed] = failedFiles;
-        posthog.captureException(failed?.error);
-        toast({
-          description:
-            failed?.error?.message ?? "The master audio could not be stored.",
-          title: "Master upload failed",
-          variant: "destructive",
-        });
-        if (masterUploadResolverRef.current) {
-          masterUploadResolverRef.current(null);
-          masterUploadResolverRef.current = null;
-        }
       },
       route: "track-source",
     }),
-    { upload: uploadComponents } = useUploadFiles({
+    {
+      averageProgress: componentsProgress,
+      isPending: isComponentsUploading,
+      progresses: componentsProgresses,
+      uploadAsync: uploadComponentsAsync,
+    } = useUploadFiles({
       api: TRACK_SOURCE_UPLOAD_URL,
       credentials: "include",
+      onError: (uploadError) => {
+        posthog.captureException(uploadError);
+      },
       route: "track-source",
     }),
     {
       averageProgress: coverProgress,
       isPending: isCoverUploading,
-      upload: uploadCover,
+      progresses: coverProgresses,
+      uploadAsync: uploadCoverAsync,
     } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
       onError: (uploadError) => {
         posthog.captureException(uploadError);
-        toast({
-          description: uploadError.message,
-          title: "Cover upload failed",
-          variant: "destructive",
-        });
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current("");
-          coverUploadResolverRef.current = null;
-        }
-      },
-      onUploadComplete: ({ files }) => {
-        const [uploadedFile] = files;
-
-        if (!uploadedFile) {
-          if (coverUploadResolverRef.current) {
-            coverUploadResolverRef.current("");
-            coverUploadResolverRef.current = null;
-          }
-          return;
-        }
-
-        const objectKey = uploadedFile.objectInfo.key,
-          nextCover = {
-            fileName: uploadedFile.raw.name,
-            objectKey,
-            remoteUrl: `${MEDIA_BASE_URL}/${objectKey}`,
-          };
-
-        coverUploadRef.current = nextCover;
-        setCoverUpload(nextCover);
-        form.setValue("coverObjectKey", objectKey, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-        toast({
-          description: "Cover image selected.",
-          title: "Cover ready",
-        });
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current(objectKey);
-          coverUploadResolverRef.current = null;
-        }
-      },
-      onUploadFail: ({ failedFiles }) => {
-        const [failed] = failedFiles;
-        posthog.captureException(failed?.error);
-        toast({
-          description:
-            failed?.error?.message ?? "The cover art could not be stored.",
-          title: "Cover upload failed",
-          variant: "destructive",
-        });
-        if (coverUploadResolverRef.current) {
-          coverUploadResolverRef.current("");
-          coverUploadResolverRef.current = null;
-        }
       },
       route: "media",
     }),
+    masterProgressEntry = masterProgresses.find(
+      (entry) =>
+        (entry.raw && entry.raw === selectedMasterFile) ||
+        (!entry.name.endsWith(".preview.wav") &&
+          entry.name === selectedMasterFile?.name) ||
+        !entry.name.endsWith(".preview.wav")
+    ),
+    masterUploadPercent = masterProgressEntry
+      ? Math.round(masterProgressEntry.progress * 100)
+      : Math.round(masterAverageProgress * 100),
     handleCoverUpload = async (files: FileList) => {
       const [file] = [...files];
 
@@ -925,7 +674,7 @@ export function NewTrackForm({
       }
 
       setIsSubmitting(true);
-      setSubmitStage("creating");
+      setSubmitStage("preparing");
       setSubmitProgress(30);
 
       try {
@@ -998,60 +747,46 @@ export function NewTrackForm({
       });
     },
     onSubmit = async (values: TrackFormValues) => {
+      if (isSubmittingRef.current) {
+        return;
+      }
+      isSubmittingRef.current = true;
       setIsSubmitting(true);
-      setSubmitStage("uploading");
-      setSubmitProgress(20);
 
       // Edit Mode submission
       if (trackId && initialTrack) {
         try {
-          setSubmitStage("creating");
-          setSubmitProgress(60);
-          const release = mapStatusToRelease(values.status, values.releaseAt);
-
+          setSubmitStage("uploading");
+          let coverKey = values.coverObjectKey;
           if (selectedCoverFile) {
-            setSubmitStage("uploading");
-            const coverKeyPromise = new Promise<string>((resolve) => {
-              coverUploadResolverRef.current = resolve;
-            });
-            uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
-              posthog.captureException(uploadError);
-              coverUploadResolverRef.current?.("");
-              coverUploadResolverRef.current = null;
-            });
-            const uploadedCoverKey = await Promise.race([
-              coverKeyPromise,
-              new Promise<string>((res) => setTimeout(() => res(""), 60_000)),
-            ]);
-            if (uploadedCoverKey) {
+            const optimizedCover = await optimizeCoverImageFile(
+              selectedCoverFile
+            ).catch(() => selectedCoverFile);
+            const coverResult = await uploadCoverAsync([optimizedCover]);
+            const uploadedCover = coverResult.files[0];
+            if (uploadedCover) {
+              coverKey = uploadedCover.objectInfo.key;
               await rpcJson(
                 await trackAssetPost({
                   json: {
                     assetKind: "cover_art",
                     metadata: {
-                      originalFileName:
-                        coverUpload?.fileName ?? selectedCoverFile.name,
-                      url: `${MEDIA_BASE_URL}/${uploadedCoverKey}`,
+                      originalFileName: selectedCoverFile.name,
+                      url: `${MEDIA_BASE_URL}/${coverKey}`,
                     },
                     mimeType: "image/*",
-                    objectKey: uploadedCoverKey,
+                    objectKey: coverKey,
                     status: "ready",
                     storageProvider: "r2",
                   },
                   param: { trackId },
                 })
               );
-            } else {
-              coverUploadResolverRef.current = null;
-              toast({
-                description:
-                  "Cover upload did not finish in time. The track keeps its existing artwork.",
-                title: "Continuing without new cover",
-              });
             }
-            setSubmitStage("creating");
           }
 
+          setSubmitStage("settling");
+          const release = mapStatusToRelease(values.status, values.releaseAt);
           await updateTrackMutation.mutateAsync({
             description: values.description || undefined,
             downloadsAllowed: values.downloadsAllowed,
@@ -1080,7 +815,6 @@ export function NewTrackForm({
           });
 
           setSubmitStage("settled");
-          setSubmitProgress(100);
           toast({
             description: `"${values.name}" details updated successfully.`,
             title: "Track Updated",
@@ -1103,161 +837,156 @@ export function NewTrackForm({
           });
           setIsSubmitting(false);
           setSubmitStage("idle");
+        } finally {
+          isSubmittingRef.current = false;
         }
         return;
       }
 
+      if (!selectedMasterFile && !uploadedTrack) {
+        toast({
+          description: "Upload a master audio file before completing setup.",
+          title: "Master audio required",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        isSubmittingRef.current = false;
+        setSubmitStage("idle");
+        return;
+      }
+
       try {
-        let coverKey = values.coverObjectKey,
-          coverUrl = coverUpload?.remoteUrl ?? "";
+        setSubmitStage("preparing");
+
+        // 1. Create or reuse draft track
+        let trackIdToUse = pendingMasterTrackRef.current?.id;
+        let trackTitleToUse = values.name;
+
+        if (!trackIdToUse) {
+          const createdTrack = await createTrackMutation.mutateAsync({
+            assetIds: [],
+            catalogItemType: "single",
+            collaborators: values.credits.map((credit) => ({
+              inviteEmail: credit.inviteEmail,
+              name: credit.displayName,
+              role: credit.role,
+              userId: credit.userId,
+            })),
+            description: values.description || undefined,
+            downloadsAllowed: values.downloadsAllowed,
+            downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
+            downloadsRequirePurchase: values.downloadsRequirePurchase,
+            exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
+            genre: values.genre,
+            isForSale: values.isForSale,
+            isOpenVerse: false,
+            isPublic: false,
+            isrc: values.isrc || undefined,
+            listeningAccess: values.listeningAccess,
+            musicalKey: values.key || undefined,
+            price: values.isForSale ? SINGLE_PRICE_USD : undefined,
+            priceCents: values.isForSale
+              ? Math.round(SINGLE_PRICE_USD * 100)
+              : undefined,
+            productionStatus: "demo",
+            purchaseMode: "digital_download",
+            releaseStrategy: "private",
+            streamingLinks: {
+              appleMusic: values.streamingAppleMusic || undefined,
+              spotify: values.streamingSpotify || undefined,
+              youtube: values.streamingYoutube || undefined,
+            },
+            title: values.name,
+          });
+          trackIdToUse = createdTrack.id;
+          trackTitleToUse = createdTrack.title;
+          pendingMasterTrackRef.current = {
+            id: createdTrack.id,
+            title: createdTrack.title,
+          };
+        }
+
+        // 2. Prepare audio preview and duration
+        const previewFile = selectedMasterFile
+          ? await createAudioPreviewFile(selectedMasterFile).catch(() => null)
+          : null;
+        const masterDurationMs =
+          selectedMasterDurationMs ??
+          (selectedMasterFile
+            ? await readAudioDurationMs(selectedMasterFile).catch(() => null)
+            : null);
+
+        // 3. Upload Master & Preview (if not already uploaded)
+        let masterKey = uploadedTrack?.objectKey ?? "";
+        let masterUrl = uploadedTrack?.remoteUrl ?? "";
+        let previewKey: string | undefined;
+        let previewUrl: string | undefined;
+
+        if (!masterKey && selectedMasterFile) {
+          setSubmitStage("uploading");
+          const filesToUpload = previewFile
+            ? [selectedMasterFile, previewFile]
+            : [selectedMasterFile];
+          const masterResult = await uploadMasterAsync(filesToUpload);
+
+          const masterUpload = masterResult.files.find(
+            (entry) =>
+              (entry.raw && entry.raw === selectedMasterFile) ||
+              (!entry.name.endsWith(".preview.wav") &&
+                entry.name === selectedMasterFile?.name) ||
+              !entry.name.endsWith(".preview.wav")
+          );
+          const previewUpload = masterResult.files.find(
+            (entry) =>
+              (previewFile && entry.raw === previewFile) ||
+              entry.name.endsWith(".preview.wav")
+          );
+
+          if (!masterUpload) {
+            const masterFailed = masterResult.failedFiles.find(
+              (entry) =>
+                (entry.raw && entry.raw === selectedMasterFile) ||
+                (!entry.name.endsWith(".preview.wav") &&
+                  entry.name === selectedMasterFile?.name) ||
+                !entry.name.endsWith(".preview.wav")
+            );
+            throw new Error(
+              masterFailed?.error?.message ??
+                "The master audio file could not be uploaded."
+            );
+          }
+
+          masterKey = masterUpload.objectInfo.key;
+          masterUrl = `${MEDIA_BASE_URL}/${masterKey}`;
+          if (previewUpload) {
+            previewKey = previewUpload.objectInfo.key;
+            previewUrl = `${MEDIA_BASE_URL}/${previewKey}`;
+          }
+        }
+
+        // 4. Upload Cover Art (if selected and not already uploaded)
+        let coverKey = values.coverObjectKey || coverUpload?.objectKey || "";
+        let coverUrl = coverUpload?.remoteUrl ?? "";
 
         if (selectedCoverFile && !coverKey) {
-          try {
-            const keyPromise = new Promise<string>((resolve) => {
-              coverUploadResolverRef.current = resolve;
-            });
-            uploadCover([selectedCoverFile]).catch((uploadError: unknown) => {
-              posthog.captureException(uploadError);
-              coverUploadResolverRef.current?.("");
-              coverUploadResolverRef.current = null;
-            });
-            // Wait for the real upload instead of falling back to a blob: URL.
-            // A blob: URL dies with this tab and would leave the track with
-            // permanently broken cover art.
-            const uploadedKey = await Promise.race([
-              keyPromise,
-              new Promise<string>((res) => setTimeout(() => res(""), 60_000)),
-            ]);
-            if (uploadedKey) {
-              coverKey = uploadedKey;
-              coverUrl = `${MEDIA_BASE_URL}/${uploadedKey}`;
-            }
-          } catch {
-            // Cover is optional; continue without it.
-          }
-
-          if (!coverKey) {
-            coverUploadResolverRef.current = null;
-            toast({
-              description:
-                "Cover upload did not finish in time. The track will use a placeholder image.",
-              title: "Continuing without cover art",
+          setSubmitStage("uploading");
+          const optimizedCover = await optimizeCoverImageFile(
+            selectedCoverFile
+          ).catch(() => selectedCoverFile);
+          const coverResult = await uploadCoverAsync([optimizedCover]);
+          const coverUploaded = coverResult.files[0];
+          if (coverUploaded) {
+            coverKey = coverUploaded.objectInfo.key;
+            coverUrl = `${MEDIA_BASE_URL}/${coverKey}`;
+            setCoverUpload({
+              fileName: selectedCoverFile.name,
+              objectKey: coverKey,
+              remoteUrl: coverUrl,
             });
           }
         }
 
-        setSubmitStage("creating");
-        setSubmitProgress(50);
-
-        let trackPreview = uploadedTrack,
-          createdTrackForUpload: { id: string; title: string } | null = null;
-
-        if (!trackPreview && selectedMasterFile) {
-          try {
-            createdTrackForUpload = await createTrackMutation.mutateAsync({
-              assetIds: [],
-              catalogItemType: "single",
-              collaborators: values.credits.map((credit) => ({
-                inviteEmail: credit.inviteEmail,
-                name: credit.displayName,
-                role: credit.role,
-                userId: credit.userId,
-              })),
-              description: values.description || undefined,
-              downloadsAllowed: values.downloadsAllowed,
-              downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
-              downloadsRequirePurchase: values.downloadsRequirePurchase,
-              exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil),
-              genre: values.genre,
-              isForSale: values.isForSale,
-              isOpenVerse: false,
-              isPublic: false,
-              isrc: values.isrc || undefined,
-              listeningAccess: values.listeningAccess,
-              musicalKey: values.key || undefined,
-              price: values.isForSale ? SINGLE_PRICE_USD : undefined,
-              priceCents: values.isForSale
-                ? Math.round(SINGLE_PRICE_USD * 100)
-                : undefined,
-              productionStatus: "demo",
-              purchaseMode: "digital_download",
-              releaseStrategy: "private",
-              streamingLinks: {
-                appleMusic: values.streamingAppleMusic || undefined,
-                spotify: values.streamingSpotify || undefined,
-                youtube: values.streamingYoutube || undefined,
-              },
-              title: values.name,
-            });
-            pendingMasterTrackRef.current = {
-              id: createdTrackForUpload.id,
-              title: createdTrackForUpload.title,
-            };
-            setSubmitStage("uploading");
-            setSubmitProgress(55);
-            const previewPromise = new Promise<UploadedTrackPreview | null>(
-                (resolve) => {
-                  masterUploadResolverRef.current = resolve;
-                }
-              ),
-              previewFile = await createAudioPreviewFile(
-                selectedMasterFile
-              ).catch(() => null);
-            upload(
-              previewFile
-                ? [selectedMasterFile, previewFile]
-                : [selectedMasterFile]
-            ).catch((uploadError: unknown) => {
-              posthog.captureException(uploadError);
-              masterUploadResolverRef.current?.(null);
-              masterUploadResolverRef.current = null;
-            });
-            const resultPreview = await Promise.race([
-              previewPromise,
-              new Promise<UploadedTrackPreview | null>((res) =>
-                setTimeout(() => res(null), 120_000)
-              ),
-            ]);
-            if (resultPreview) {
-              trackPreview = resultPreview;
-            }
-          } catch {
-            // Upload failed
-          }
-
-          if (!trackPreview) {
-            coverUploadResolverRef.current = null;
-            masterUploadResolverRef.current = null;
-            pendingMasterTrackRef.current = null;
-            toast({
-              description: createdTrackForUpload
-                ? "Your track draft was saved, but the master audio upload did not finish. Open the draft from Tracks and retry the upload."
-                : "The master audio upload did not finish. Please retry so SoundKit can save a real storage file.",
-              title: "Upload incomplete",
-              variant: "destructive",
-            });
-            setSubmitStage("idle");
-            setIsSubmitting(false);
-            if (createdTrackForUpload) {
-              clearDraft();
-              allowNavigation();
-              router.navigate({ to: "/dashboard/tracks" });
-            }
-            return;
-          }
-        }
-
-        if (!trackPreview) {
-          toast({
-            description: "Upload a master audio file before completing setup.",
-            title: "Master audio required",
-            variant: "destructive",
-          });
-          setSubmitStage("idle");
-          setIsSubmitting(false);
-          return;
-        }
-
+        // 5. Upload optional component files (instrumental, stems)
         const optionalFiles = [
           instrumentalFile
             ? { file: instrumentalFile, kind: "instrumental" as const }
@@ -1274,43 +1003,143 @@ export function NewTrackForm({
             kind: OptionalComponentKind | "instrumental";
           } => entry !== null
         );
+
+        const uploadedComponents: {
+          file: File;
+          key: string;
+          kind: OptionalComponentKind | "instrumental";
+        }[] = [];
+
         if (optionalFiles.length > 0) {
           setSubmitStage("uploading");
-          const componentResult = await uploadComponents(
+          const componentResult = await uploadComponentsAsync(
             optionalFiles.map((entry) => entry.file)
           );
-          for (const uploadedComponent of componentResult.files) {
-            const component = optionalFiles.find(
-              (entry) => entry.file === uploadedComponent.raw
+          for (const uploaded of componentResult.files) {
+            const matched = optionalFiles.find(
+              (entry) =>
+                (uploaded.raw && entry.file === uploaded.raw) ||
+                entry.file.name === uploaded.name
             );
-            if (!component) {
-              continue;
+            if (matched) {
+              uploadedComponents.push({
+                file: matched.file,
+                key: uploaded.objectInfo.key,
+                kind: matched.kind,
+              });
             }
-            await rpcJson(
-              await trackAssetPost({
-                json: {
-                  assetKind: component.kind,
-                  metadata: {
-                    originalFileName: uploadedComponent.raw.name,
-                    url: `${MEDIA_BASE_URL}/${uploadedComponent.objectInfo.key}`,
-                  },
-                  mimeType:
-                    uploadedComponent.raw.type || "application/octet-stream",
-                  objectKey: uploadedComponent.objectInfo.key,
-                  sizeBytes: uploadedComponent.raw.size,
-                  status: "ready",
-                  storageProvider: "r2",
-                },
-                param: { trackId: trackPreview.trackId },
-              })
-            );
           }
         }
 
-        setSubmitStage("processing");
-        setSubmitProgress(80);
-        const release = mapStatusToRelease(values.status, values.releaseAt),
-          requireCoverArt = values.status !== "draft";
+        // 6. Finalize SoundKit Assets
+        setSubmitStage("finalizing_upload");
+
+        if (coverKey) {
+          await rpcJson(
+            await trackAssetPost({
+              json: {
+                assetKind: "cover_art",
+                metadata: {
+                  originalFileName:
+                    coverUpload?.fileName ??
+                    selectedCoverFile?.name ??
+                    "cover.jpg",
+                  url: coverUrl || `${MEDIA_BASE_URL}/${coverKey}`,
+                },
+                mimeType: "image/*",
+                objectKey: coverKey,
+                status: "ready",
+                storageProvider: "r2",
+              },
+              param: { trackId: trackIdToUse },
+            })
+          );
+        }
+
+        const masterAssetDetail = await rpcJson(
+          await trackAssetPost({
+            json: {
+              assetKind: "master",
+              durationMs: masterDurationMs ?? undefined,
+              metadata: {
+                durationMs: masterDurationMs,
+                originalFileName: selectedMasterFile?.name ?? "master.wav",
+                url: masterUrl,
+              },
+              mimeType: selectedMasterFile?.type || "audio/mpeg",
+              objectKey: masterKey,
+              sizeBytes: selectedMasterFile?.size,
+              status: "uploaded",
+              storageProvider: "r2",
+            },
+            param: { trackId: trackIdToUse },
+          })
+        );
+
+        if (previewKey && previewFile) {
+          await rpcJson(
+            await trackAssetPost({
+              json: {
+                assetKind: "variant_audio",
+                durationMs: Math.min(masterDurationMs ?? 30_000, 30_000),
+                metadata: {
+                  durationMs: Math.min(masterDurationMs ?? 30_000, 30_000),
+                  originalFileName: previewFile.name,
+                  previewDurationSeconds: 30,
+                  url: previewUrl,
+                  variant: "preview_30s",
+                },
+                mimeType: previewFile.type || "audio/wav",
+                objectKey: previewKey,
+                sizeBytes: previewFile.size,
+                status: "ready",
+                storageProvider: "r2",
+              },
+              param: { trackId: trackIdToUse },
+            })
+          );
+        }
+
+        for (const comp of uploadedComponents) {
+          await rpcJson(
+            await trackAssetPost({
+              json: {
+                assetKind: comp.kind,
+                metadata: {
+                  originalFileName: comp.file.name,
+                  url: `${MEDIA_BASE_URL}/${comp.key}`,
+                },
+                mimeType: comp.file.type || "application/octet-stream",
+                objectKey: comp.key,
+                sizeBytes: comp.file.size,
+                status: "ready",
+                storageProvider: "r2",
+              },
+              param: { trackId: trackIdToUse },
+            })
+          );
+        }
+
+        // Cache finalized preview so retries avoid re-uploading
+        const masterAsset = masterAssetDetail.assets.find(
+          (asset) =>
+            asset.assetKind === "master" && asset.objectKey === masterKey
+        );
+        const preview: UploadedTrackPreview = {
+          assetId: masterAsset?.id ?? "",
+          durationMs: masterDurationMs,
+          objectKey: masterKey,
+          remoteUrl: masterUrl,
+          statusMessage: "Uploaded to SoundKit storage.",
+          title: trackTitleToUse,
+          trackId: trackIdToUse,
+        };
+        setUploadedTrack(preview);
+
+        // 7. Settle track with defensive recovery
+        setSubmitStage("settling");
+        const release = mapStatusToRelease(values.status, values.releaseAt);
+        const requireCoverArt = values.status !== "draft";
 
         if (requireCoverArt && !coverKey) {
           toast({
@@ -1321,10 +1150,11 @@ export function NewTrackForm({
           });
           setSubmitStage("idle");
           setIsSubmitting(false);
+          isSubmittingRef.current = false;
           return;
         }
 
-        const settledTrack = await settleTrackMutation.mutateAsync({
+        const settlePayload = {
           body: {
             isPublic: release.isPublic,
             productionStatus: release.productionStatus,
@@ -1332,11 +1162,50 @@ export function NewTrackForm({
             releaseStrategy: release.releaseStrategy,
             requireCoverArt,
           },
-          trackId: trackPreview.trackId,
-        });
+          trackId: trackIdToUse,
+        };
 
+        let settledTrack;
+        try {
+          settledTrack = await settleTrackMutation.mutateAsync(settlePayload);
+        } catch (settleError) {
+          const isPendingMaster =
+            settleError instanceof Error &&
+            ((settleError as { code?: string }).code ===
+              "MASTER_UPLOAD_PENDING" ||
+              settleError.message.includes(
+                "Master audio must finish uploading"
+              ));
+
+          if (isPendingMaster) {
+            // Re-confirm master asset status before single retry
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: "master",
+                  durationMs: masterDurationMs ?? undefined,
+                  metadata: {
+                    durationMs: masterDurationMs,
+                    originalFileName: selectedMasterFile?.name ?? "master.wav",
+                    url: masterUrl,
+                  },
+                  mimeType: selectedMasterFile?.type || "audio/mpeg",
+                  objectKey: masterKey,
+                  sizeBytes: selectedMasterFile?.size,
+                  status: "uploaded",
+                  storageProvider: "r2",
+                },
+                param: { trackId: trackIdToUse },
+              })
+            );
+            settledTrack = await settleTrackMutation.mutateAsync(settlePayload);
+          } else {
+            throw settleError;
+          }
+        }
+
+        // 8. Track Ready & Succeeded
         setSubmitStage("settled");
-        setSubmitProgress(100);
         setCreatedTrackInfo({
           audioFileName: selectedMasterFile?.name || "master-audio.wav",
           audioFileSize: selectedMasterFile
@@ -1344,9 +1213,9 @@ export function NewTrackForm({
             : undefined,
           coverUrl: coverUrl || "/placeholder.svg",
           genre: values.genre,
-          id: trackPreview.trackId,
+          id: trackIdToUse,
           isPublic: Boolean(settledTrack.isPublic),
-          playbackUrl: trackPreview.remoteUrl,
+          playbackUrl: masterUrl,
           status: values.status,
           title: values.name,
         });
@@ -1370,7 +1239,7 @@ export function NewTrackForm({
           genre: values.genre,
           isPublic: values.status === "ready",
           status: values.status,
-          trackId: trackPreview.trackId,
+          trackId: trackIdToUse,
         });
       } catch (error) {
         posthog.captureException(error);
@@ -1384,6 +1253,8 @@ export function NewTrackForm({
         });
         setSubmitStage("idle");
         setIsSubmitting(false);
+      } finally {
+        isSubmittingRef.current = false;
       }
     },
     addCredit = (entry: {
@@ -1544,7 +1415,7 @@ export function NewTrackForm({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-md p-4">
           <Card className="w-full max-w-md border-primary/30 shadow-2xl p-6 space-y-6 text-center">
             <div className="mx-auto size-16 rounded-2xl bg-primary/10 border border-primary/30 flex items-center justify-center">
-              {submitStage === "complete" ? (
+              {submitStage === "settled" ? (
                 <CheckCircle2 className="size-8 text-primary animate-bounce" />
               ) : (
                 <LoaderCircle className="size-8 text-primary animate-spin" />
@@ -1553,28 +1424,87 @@ export function NewTrackForm({
 
             <div className="space-y-2">
               <h3 className="text-xl font-bold">
-                {submitStage === "uploading" && "Uploading Track Assets..."}
-                {submitStage === "creating" && "Creating Track Record..."}
-                {submitStage === "processing" && "Starting Audio Processing..."}
-                {submitStage === "complete" && "Track Setup Complete!"}
+                {submitStage === "preparing" && "Preparing track files..."}
+                {submitStage === "uploading" && "Uploading master audio..."}
+                {submitStage === "finalizing_upload" &&
+                  "Finalizing uploaded audio..."}
+                {submitStage === "settling" && "Finishing track setup..."}
+                {submitStage === "settled" && "Track ready"}
               </h3>
               <p className="text-xs text-muted-foreground">
+                {submitStage === "preparing" &&
+                  "Generating preview and staging media..."}
                 {submitStage === "uploading" &&
-                  "Transferring audio and artwork securely..."}
-                {submitStage === "creating" &&
-                  "Writing metadata, credits, and pricing..."}
-                {submitStage === "processing" &&
-                  "Extracting waveform, BPM, and stems..."}
-                {submitStage === "complete" && "Finalizing track..."}
+                  `Transferring audio directly to storage (${masterUploadPercent}%)...`}
+                {submitStage === "finalizing_upload" &&
+                  "Registering audio asset..."}
+                {submitStage === "settling" &&
+                  "Saving track record and configuration..."}
+                {submitStage === "settled" && "Track setup complete."}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Progress value={submitProgress} className="h-2" />
-              <p className="text-xs text-muted-foreground font-mono">
-                {submitProgress}%
-              </p>
+              <Progress
+                value={
+                  submitStage === "preparing"
+                    ? 20
+                    : submitStage === "uploading"
+                      ? Math.max(
+                          20,
+                          Math.min(
+                            85,
+                            20 + Math.round(masterUploadPercent * 0.65)
+                          )
+                        )
+                      : submitStage === "finalizing_upload"
+                        ? 90
+                        : submitStage === "settling"
+                          ? 95
+                          : 100
+                }
+                className="h-2"
+              />
+              <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
+                <span>
+                  {submitStage === "uploading"
+                    ? `${masterUploadPercent}% uploaded`
+                    : submitStage === "preparing"
+                      ? "Preparing"
+                      : submitStage === "finalizing_upload"
+                        ? "Registering"
+                        : submitStage === "settling"
+                          ? "Finalizing"
+                          : "Complete"}
+                </span>
+                {selectedMasterFile && (
+                  <span>
+                    {(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB
+                  </span>
+                )}
+              </div>
             </div>
+
+            {submitStage === "uploading" && masterProgresses.length > 0 && (
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-left space-y-2 max-h-36 overflow-y-auto">
+                {masterProgresses.map((item) => (
+                  <div key={item.name} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="truncate max-w-[200px] font-medium text-foreground/90">
+                        {item.name}
+                      </span>
+                      <span className="text-muted-foreground font-mono text-[10px]">
+                        {Math.round(item.progress * 100)}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={Math.round(item.progress * 100)}
+                      className="h-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       ) : null}
@@ -1973,7 +1903,7 @@ export function NewTrackForm({
                             ? [
                                 {
                                   name: selectedMasterFile.name,
-                                  status: isUploading
+                                  status: isMasterUploading
                                     ? "Uploading"
                                     : "Selected",
                                 },
@@ -1992,10 +1922,12 @@ export function NewTrackForm({
                           setSelectedMasterFile(null);
                           setUploadedTrack(null);
                         }}
-                        progress={isUploading ? averageProgress : undefined}
+                        progress={
+                          isMasterUploading ? masterUploadPercent : undefined
+                        }
                         status={
-                          isUploading
-                            ? `${Math.round(averageProgress)}% uploaded`
+                          isMasterUploading
+                            ? `${masterUploadPercent}% uploaded`
                             : undefined
                         }
                         variant="compact"
@@ -2044,9 +1976,9 @@ export function NewTrackForm({
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">
-                          {isUploading
-                            ? `${Math.round(averageProgress)}%`
-                            : "Processing"}
+                          {isMasterUploading
+                            ? `${masterUploadPercent}%`
+                            : "Ready"}
                         </Badge>
                         <Button
                           onClick={() =>

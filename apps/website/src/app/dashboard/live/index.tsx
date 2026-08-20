@@ -345,9 +345,9 @@ function BattleHubPage() {
                                 variant={
                                   req.status === "accepted"
                                     ? "default"
-                                    : req.status === "declined"
+                                    : (req.status === "declined"
                                       ? "destructive"
-                                      : "outline"
+                                      : "outline")
                                 }
                               >
                                 {req.status}
@@ -580,9 +580,9 @@ function BattleHubPage() {
                   >
                     {deleteExperience.isPending
                       ? "Processing..."
-                      : targetBattle?.status === "live"
+                      : (targetBattle?.status === "live"
                         ? "Confirm Forfeit"
-                        : "Confirm Cancellation"}
+                        : "Confirm Cancellation")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

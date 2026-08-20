@@ -69,10 +69,10 @@ const libraryCategories = [
     icon: Settings,
     title: "Account",
   },
-] as const satisfies ReadonlyArray<{
+] as const satisfies readonly {
   countKey: keyof LibraryOverview | null;
   [key: string]: unknown;
-}>;
+}[];
 
 export const Route = createFileRoute("/_explore/library/")({
   component: LibraryPage,

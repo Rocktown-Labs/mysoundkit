@@ -280,7 +280,7 @@ export class LiveRoomDurableObject extends DurableObject {
             ...coordination,
             queuedUserIds: [...queuedUserIds, identity.userId],
           }
-        : isAdmissionOpen
+        : (isAdmissionOpen
           ? {
               ...coordination,
               admittedUserIds: [...admittedUserIds, identity.userId],
@@ -288,7 +288,7 @@ export class LiveRoomDurableObject extends DurableObject {
           : {
               ...coordination,
               waitingUserIds: [...waitingUserIds, identity.userId],
-            },
+            }),
       nextRoom = {
         ...room,
         battle: { ...room.battle, coordination: nextCoordination },
@@ -297,9 +297,9 @@ export class LiveRoomDurableObject extends DurableObject {
     this.broadcast({
       type: isScheduled
         ? "battle.viewer_queued"
-        : isAdmissionOpen
+        : (isAdmissionOpen
           ? "battle.viewer_admitted"
-          : "battle.viewer_waiting",
+          : "battle.viewer_waiting"),
       userId: identity.userId,
     });
     return this.publicState(nextRoom, identity);
@@ -570,10 +570,10 @@ export class LiveRoomDurableObject extends DurableObject {
               phaseStartedAt: Date.now(),
             }
           : {}),
-        admittedUserIds: room.battle.coordination?.admittedUserIds ?? [],
         admissionBatchSize:
           room.battle.coordination?.admissionBatchSize ??
           this.battleAdmissionBatchSize(),
+        admittedUserIds: room.battle.coordination?.admittedUserIds ?? [],
         removedUserIds: room.battle.coordination?.removedUserIds ?? [],
         requiredVoterUserIds:
           room.battle.coordination?.requiredVoterUserIds ?? [],
@@ -690,7 +690,8 @@ export class LiveRoomDurableObject extends DurableObject {
         userIds: removedUserIds,
       });
       for (const socket of this.ctx.getWebSockets()) {
-        const attachment = socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
+        const attachment =
+          socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
         if (attachment && removedUserIds.includes(attachment.userId)) {
           socket.close(4003, "Voting is required to remain in this battle.");
         }
@@ -716,18 +717,12 @@ export class LiveRoomDurableObject extends DurableObject {
             ? "queued"
             : (coordination?.waitingUserIds ?? []).includes(identity.userId)
               ? "waiting"
-              : (coordination?.admittedUserIds ?? []).includes(
-                  identity.userId
-                )
+              : (coordination?.admittedUserIds ?? []).includes(identity.userId)
                 ? "admitted"
                 : null
           : null;
       publicRoom.battle = {
         ...room.battle,
-        queueSize,
-        queueUserIds: undefined,
-        viewerQueueStatus,
-        waitingRoomCount: coordination?.waitingUserIds?.length ?? 0,
         artistControlsByUserId: undefined,
         coordination: room.battle.coordination
           ? {
@@ -739,6 +734,10 @@ export class LiveRoomDurableObject extends DurableObject {
               waitingUserIds: undefined,
             }
           : undefined,
+        queueSize,
+        queueUserIds: undefined,
+        viewerQueueStatus,
+        waitingRoomCount: coordination?.waitingUserIds?.length ?? 0,
       };
     }
 
@@ -968,7 +967,8 @@ export class LiveRoomDurableObject extends DurableObject {
   private broadcastToUser(userId: string, payload: unknown) {
     const message = JSON.stringify(payload);
     for (const socket of this.ctx.getWebSockets()) {
-      const attachment = socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
+      const attachment =
+        socket.deserializeAttachment() as LiveRoomSocketAttachment | null;
       if (attachment?.userId !== userId) {
         continue;
       }

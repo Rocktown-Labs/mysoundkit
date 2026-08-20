@@ -14,6 +14,13 @@
 
 ### Fixed
 
+- Resolved track upload race condition and conflicting state transitions in `NewTrackForm` and track settlement pipeline:
+  - Made `@better-upload/client` and `@better-upload/server` the authoritative async upload layer using `uploadMasterAsync`, `uploadComponentsAsync`, and `uploadCoverAsync` with deterministic file matching instead of arbitrary index lookups.
+  - Eliminated parallel upload progress simulation, wiring the upload modal and `FileUploadZone` directly to Better Upload's `masterProgresses` and real percentage state.
+  - Centralized single-orchestrator completion in `handleSubmit`, removing premature track-level success toasts and navigation from upload callbacks.
+  - Enforced backend R2 asset verification with `bucket.head` for authoritative object existence and size validation before asset recording.
+  - Added user-scoped route namespace validation ensuring master audio keys conform to `tracks/${userId}/*` and cover keys conform to `uploads/${userId}/*`.
+  - Hardened track settlement with typed `MASTER_UPLOAD_PENDING` response code and defensive recovery for transient upload latency.
 - Stabilized Playwright E2E browser test suite (`pnpm run test:e2e`) across Chromium and Mobile Chrome runners:
   - Gracefully skipped preview smoke tests when remote API URL (`PLAYWRIGHT_API_URL` / `SOUNDKIT_E2E_API_URL`) is not configured.
   - Aligned live stream detail route assertions with the `LiveRoomAccessGuard` ("SoundKit Premium Required") overlay for unauthenticated visitors, while testing chat collapse/expand on public video detail routes (`/videos/video-1`).

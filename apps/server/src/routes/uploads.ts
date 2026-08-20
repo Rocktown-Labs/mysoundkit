@@ -87,8 +87,31 @@ const getEnvValue = (key: UploadConfigKey | "CLOUDFLARE_R2_JURISDICTION") => {
     const sanitizedName = fileName.replaceAll(/\s+/gu, "-");
 
     return `${prefix}/${userId}/${Date.now()}-${sanitizedName}`;
-  },
-  requireUploadUser = async (request: Request) => {
+  };
+
+export const isAllowedUploadKeyForAssetKind = ({
+  assetKind,
+  objectKey,
+  userId,
+}: {
+  assetKind: string;
+  objectKey: string;
+  userId: string;
+}): boolean => {
+  if (assetKind === "master" || assetKind === "variant_audio") {
+    return objectKey.startsWith(`tracks/${userId}/`);
+  }
+  if (assetKind === "cover_art" || assetKind === "artwork") {
+    return objectKey.startsWith(`uploads/${userId}/`);
+  }
+  return (
+    objectKey.startsWith(`tracks/${userId}/`) ||
+    objectKey.startsWith(`uploads/${userId}/`) ||
+    objectKey.startsWith(`projects/${userId}/`)
+  );
+};
+
+const requireUploadUser = async (request: Request) => {
     const session = await createAuth().api.getSession({
       headers: request.headers,
     });

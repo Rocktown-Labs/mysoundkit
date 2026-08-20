@@ -2,16 +2,12 @@ import { describe, expect, it } from "vitest";
 
 describe("Open Verse Workflow & Audio Slicing", () => {
   it("calculates correct start, end, and duration bounds for open verse slots", () => {
-    const totalDuration = 214,
-     requestedStart = 35,
-     requestedEnd = 80,
-
-     startSec = Math.max(0, Math.min(requestedStart, totalDuration - 5)),
-     endSec = Math.max(
-      startSec + 3,
-      Math.min(requestedEnd, totalDuration)
-    ),
-     selectionDuration = endSec - startSec;
+    const requestedEnd = 80,
+      requestedStart = 35,
+      totalDuration = 214,
+      startSec = Math.max(0, Math.min(requestedStart, totalDuration - 5)),
+      endSec = Math.max(startSec + 3, Math.min(requestedEnd, totalDuration)),
+      selectionDuration = endSec - startSec;
 
     expect(startSec).toBe(35);
     expect(endSec).toBe(80);
@@ -19,11 +15,10 @@ describe("Open Verse Workflow & Audio Slicing", () => {
   });
 
   it("enforces anti-leech 0-uploads rule: blocks users with 0 uploaded content", () => {
-    const userTracksCount = 0,
-     userProjectsCount = 0,
-
-     canSubmitOpenVerse = (tracks: number, projects: number) =>
-      tracks + projects > 0;
+    const userProjectsCount = 0,
+      userTracksCount = 0,
+      canSubmitOpenVerse = (tracks: number, projects: number) =>
+        tracks + projects > 0;
 
     expect(canSubmitOpenVerse(userTracksCount, userProjectsCount)).toBe(false);
     expect(canSubmitOpenVerse(1, 0)).toBe(true);
@@ -32,8 +27,8 @@ describe("Open Verse Workflow & Audio Slicing", () => {
 
   it("safely generates open verse snippet filenames", () => {
     const trackName = "Late Night Reverie (feat. CG Stewart)",
-     sanitized = trackName.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-"),
-     snippetFileName = `open-verse-stub-${sanitized}.wav`;
+      sanitized = trackName.toLowerCase().replaceAll(/[^a-z0-9]/gu, "-"),
+      snippetFileName = `open-verse-stub-${sanitized}.wav`;
 
     expect(snippetFileName).toBe(
       "open-verse-stub-late-night-reverie--feat--cg-stewart-.wav"

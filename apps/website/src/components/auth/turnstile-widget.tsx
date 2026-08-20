@@ -1,13 +1,13 @@
 import { env } from "@soundkit/env/web";
 import { useEffect, useRef } from "react";
 
-const TURNSTILE_SCRIPT_ID = "soundkit-cloudflare-turnstile";
-const TURNSTILE_SCRIPT_SRC =
+const TURNSTILE_SCRIPT_ID = "soundkit-cloudflare-turnstile",
+ TURNSTILE_SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js";
 
 type TurnstileWidgetId = string | number;
 
-type TurnstileApi = {
+interface TurnstileApi {
   render: (
     element: HTMLElement,
     options: {
@@ -19,7 +19,7 @@ type TurnstileApi = {
     }
   ) => TurnstileWidgetId;
   reset: (widgetId?: TurnstileWidgetId) => void;
-};
+}
 
 declare global {
   interface Window {
@@ -62,9 +62,9 @@ export function TurnstileWidget({
         "expired-callback": () => onTokenChange(""),
         sitekey: siteKey,
       });
-    };
+    },
 
-    const existingScript = document.getElementById(TURNSTILE_SCRIPT_ID);
+     existingScript = document.querySelector(`#${TURNSTILE_SCRIPT_ID}`);
     if (window.turnstile) {
       renderWidget();
     } else if (existingScript) {

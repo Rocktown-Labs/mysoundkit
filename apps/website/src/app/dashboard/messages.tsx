@@ -2,6 +2,14 @@
 /* eslint-disable one-var, sort-vars, complexity, require-unicode-regexp, no-nested-ternary, unicorn/no-nested-ternary */
 
 import { useUploadFiles } from "@better-upload/client";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -40,14 +48,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@soundkit/ui/components/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
 import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
@@ -638,239 +638,250 @@ function MessagesPageClient() {
                         </p>
                       </MessageScrollerItem>
                     )}
-              {(messagesQuery.data ?? []).map((message) => {
-                const isMine = message.senderId === meQuery.data?.user.id;
-                const hasCollabProposal = message.attachments?.some(
-                  (att) =>
-                    att.mimeType === "soundkit/collaboration-proposal" ||
-                    Boolean(att.sourceProjectId)
-                );
-                const collabAtt = message.attachments?.find(
-                  (att) =>
-                    att.mimeType === "soundkit/collaboration-proposal" ||
-                    Boolean(att.sourceProjectId)
-                );
+                    {(messagesQuery.data ?? []).map((message) => {
+                      const isMine = message.senderId === meQuery.data?.user.id;
+                      const hasCollabProposal = message.attachments?.some(
+                        (att) =>
+                          att.mimeType === "soundkit/collaboration-proposal" ||
+                          Boolean(att.sourceProjectId)
+                      );
+                      const collabAtt = message.attachments?.find(
+                        (att) =>
+                          att.mimeType === "soundkit/collaboration-proposal" ||
+                          Boolean(att.sourceProjectId)
+                      );
 
-                return (
-                  <MessageScrollerItem
-                    key={message.id}
-                    messageId={message.id}
-                    scrollAnchor={isMine}
-                  >
-                    <div
-                      className={cn(
-                        "flex",
-                        isMine ? "justify-end" : "justify-start"
-                      )}
-                    >
-                    {hasCollabProposal && collabAtt ? (
-                      <div className="w-full max-w-sm rounded-2xl border-2 border-primary/40 bg-card/95 p-4 shadow-xl space-y-3">
-                        <div className="flex items-center justify-between border-b pb-2">
-                          <div className="flex items-center gap-2 font-bold text-primary text-sm">
-                            <FolderKanban className="size-4.5" />
-                            <span>Shared Collaboration Proposal</span>
-                          </div>
-                          <Badge variant="outline" className="text-[10px]">
-                            Draft
-                          </Badge>
-                        </div>
-                        <div>
-                          <p className="font-bold text-base text-foreground">
-                            {collabAtt.displayName}
-                          </p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                            <Clock className="size-3.5 text-amber-400" />
-                            24-Hour Acceptance Window
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-2 pt-1">
-                          {isMine ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs text-muted-foreground hover:text-destructive w-full"
-                              onClick={() =>
-                                handleRespondCollaboration(
-                                  collabAtt.sourceProjectId ?? "",
-                                  "cancel"
-                                )
-                              }
-                            >
-                              Cancel Invitation
-                            </Button>
-                          ) : (
-                            <div className="grid grid-cols-2 gap-2">
-                              <Button
-                                size="sm"
-                                className="h-8 text-xs gap-1 bg-primary"
-                                onClick={() =>
-                                  handleRespondCollaboration(
-                                    collabAtt.sourceProjectId ?? "",
-                                    "accept"
-                                  )
-                                }
-                              >
-                                <Check className="size-3.5" />
-                                Accept Collaboration
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 text-xs"
-                                onClick={() =>
-                                  handleRespondCollaboration(
-                                    collabAtt.sourceProjectId ?? "",
-                                    "decline"
-                                  )
-                                }
-                              >
-                                Decline
-                              </Button>
-                            </div>
-                          )}
-                          {collabAtt.url && (
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="secondary"
-                              className="h-8 text-xs w-full gap-1.5"
-                            >
-                              <a
-                                href={collabAtt.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <ExternalLink className="size-3.5" />
-                                Open Project Workspace
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className={cn(
-                          "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm border",
-                          isMine
-                            ? "bg-primary text-primary-foreground border-primary/30 rounded-br-none"
-                            : "bg-muted/80 text-foreground border-border/20 rounded-bl-none"
-                        )}
-                      >
-                        {message.body ? (
-                          <p className="whitespace-pre-wrap">{message.body}</p>
-                        ) : null}
-
-                        {/* Attachments */}
-                        {message.attachments?.map((attachment, idx) => {
-                          const isAudio =
-                            attachment.mimeType?.startsWith("audio/") ||
-                            Boolean(attachment.sourceTrackId);
-
-                          return isAudio ? (
-                            <div
-                              key={attachment.id ?? idx}
-                              className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-background/20 p-2.5 text-xs"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <Button
-                                  size="icon"
-                                  variant="secondary"
-                                  className="size-7 rounded-full shrink-0"
-                                  onClick={() => {
-                                    const trackId =
-                                      attachment.sourceTrackId ??
-                                      attachment.id ??
-                                      `shared_${idx}`;
-                                    if (
-                                      isPlaying &&
-                                      currentTrack?.id === trackId
-                                    ) {
-                                      setIsPlaying(false);
-                                    } else if (currentTrack?.id === trackId) {
-                                      setIsPlaying(true);
-                                    } else {
-                                      const playerTrack: PlayerTrack = {
-                                        artist: "Shared Track",
-                                        cover: "/night-music-album-cover.png",
-                                        id: trackId,
-                                        src: attachment.url,
-                                        title: attachment.displayName,
-                                        trackHref: attachment.sourceTrackId
-                                          ? `/tracks/${attachment.sourceTrackId}`
-                                          : undefined,
-                                      };
-                                      setQueue([playerTrack]);
-                                      setCurrentTrack(playerTrack);
-                                      setIsPlaying(true);
-                                      setVisible(true);
-                                    }
-                                  }}
-                                >
-                                  {isPlaying &&
-                                  currentTrack?.id ===
-                                    (attachment.sourceTrackId ??
-                                      attachment.id ??
-                                      `shared_${idx}`) ? (
-                                    <Pause className="size-3.5 fill-current" />
-                                  ) : (
-                                    <Play className="size-3.5 fill-current ml-0.5" />
-                                  )}
-                                </Button>
-                                <div className="truncate">
-                                  <p className="font-bold truncate">
-                                    {attachment.displayName}
+                      return (
+                        <MessageScrollerItem
+                          key={message.id}
+                          messageId={message.id}
+                          scrollAnchor={isMine}
+                        >
+                          <div
+                            className={cn(
+                              "flex",
+                              isMine ? "justify-end" : "justify-start"
+                            )}
+                          >
+                            {hasCollabProposal && collabAtt ? (
+                              <div className="w-full max-w-sm rounded-2xl border-2 border-primary/40 bg-card/95 p-4 shadow-xl space-y-3">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                  <div className="flex items-center gap-2 font-bold text-primary text-sm">
+                                    <FolderKanban className="size-4.5" />
+                                    <span>Shared Collaboration Proposal</span>
+                                  </div>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px]"
+                                  >
+                                    Draft
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-base text-foreground">
+                                    {collabAtt.displayName}
                                   </p>
-                                  <p className="text-[10px] text-muted-foreground opacity-80">
-                                    SoundKit Audio Preview
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                                    <Clock className="size-3.5 text-amber-400" />
+                                    24-Hour Acceptance Window
                                   </p>
                                 </div>
+                                <div className="flex flex-col gap-2 pt-1">
+                                  {isMine ? (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-muted-foreground hover:text-destructive w-full"
+                                      onClick={() =>
+                                        handleRespondCollaboration(
+                                          collabAtt.sourceProjectId ?? "",
+                                          "cancel"
+                                        )
+                                      }
+                                    >
+                                      Cancel Invitation
+                                    </Button>
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="h-8 text-xs gap-1 bg-primary"
+                                        onClick={() =>
+                                          handleRespondCollaboration(
+                                            collabAtt.sourceProjectId ?? "",
+                                            "accept"
+                                          )
+                                        }
+                                      >
+                                        <Check className="size-3.5" />
+                                        Accept Collaboration
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 text-xs"
+                                        onClick={() =>
+                                          handleRespondCollaboration(
+                                            collabAtt.sourceProjectId ?? "",
+                                            "decline"
+                                          )
+                                        }
+                                      >
+                                        Decline
+                                      </Button>
+                                    </div>
+                                  )}
+                                  {collabAtt.url && (
+                                    <Button
+                                      asChild
+                                      size="sm"
+                                      variant="secondary"
+                                      className="h-8 text-xs w-full gap-1.5"
+                                    >
+                                      <a
+                                        href={collabAtt.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                      >
+                                        <ExternalLink className="size-3.5" />
+                                        Open Project Workspace
+                                      </a>
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ) : (
-                            <a
-                              className="mt-2 block rounded-lg border bg-background/60 p-2 text-xs hover:border-primary"
-                              href={attachment.url}
-                              key={attachment.id}
-                              rel="noopener noreferrer"
-                              target="_blank"
-                            >
-                              <Paperclip className="mr-1 inline size-3" />
-                              {attachment.displayName}
-                            </a>
-                          );
-                        })}
+                            ) : (
+                              <div
+                                className={cn(
+                                  "max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm border",
+                                  isMine
+                                    ? "bg-primary text-primary-foreground border-primary/30 rounded-br-none"
+                                    : "bg-muted/80 text-foreground border-border/20 rounded-bl-none"
+                                )}
+                              >
+                                {message.body ? (
+                                  <p className="whitespace-pre-wrap">
+                                    {message.body}
+                                  </p>
+                                ) : null}
 
-                        <p
-                          className={cn(
-                            "mt-2 font-mono text-[10px]",
-                            isMine
-                              ? "text-primary-foreground/70"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {new Date(message.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                    )}
-                    </div>
-                  </MessageScrollerItem>
-                );
-              })}
-              {!messagesQuery.isLoading &&
-                (messagesQuery.data ?? []).length === 0 && (
-                  <MessageScrollerItem messageId="empty-messages">
-                    <div className="py-12 text-center">
-                    <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
-                    <p className="font-medium">No messages yet</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Send the first message to start this chat.
-                    </p>
-                    </div>
-                  </MessageScrollerItem>
-                )}
+                                {/* Attachments */}
+                                {message.attachments?.map((attachment, idx) => {
+                                  const isAudio =
+                                    attachment.mimeType?.startsWith("audio/") ||
+                                    Boolean(attachment.sourceTrackId);
+
+                                  return isAudio ? (
+                                    <div
+                                      key={attachment.id ?? idx}
+                                      className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-background/20 p-2.5 text-xs"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <Button
+                                          size="icon"
+                                          variant="secondary"
+                                          className="size-7 rounded-full shrink-0"
+                                          onClick={() => {
+                                            const trackId =
+                                              attachment.sourceTrackId ??
+                                              attachment.id ??
+                                              `shared_${idx}`;
+                                            if (
+                                              isPlaying &&
+                                              currentTrack?.id === trackId
+                                            ) {
+                                              setIsPlaying(false);
+                                            } else if (
+                                              currentTrack?.id === trackId
+                                            ) {
+                                              setIsPlaying(true);
+                                            } else {
+                                              const playerTrack: PlayerTrack = {
+                                                artist: "Shared Track",
+                                                cover:
+                                                  "/night-music-album-cover.png",
+                                                id: trackId,
+                                                src: attachment.url,
+                                                title: attachment.displayName,
+                                                trackHref:
+                                                  attachment.sourceTrackId
+                                                    ? `/tracks/${attachment.sourceTrackId}`
+                                                    : undefined,
+                                              };
+                                              setQueue([playerTrack]);
+                                              setCurrentTrack(playerTrack);
+                                              setIsPlaying(true);
+                                              setVisible(true);
+                                            }
+                                          }}
+                                        >
+                                          {isPlaying &&
+                                          currentTrack?.id ===
+                                            (attachment.sourceTrackId ??
+                                              attachment.id ??
+                                              `shared_${idx}`) ? (
+                                            <Pause className="size-3.5 fill-current" />
+                                          ) : (
+                                            <Play className="size-3.5 fill-current ml-0.5" />
+                                          )}
+                                        </Button>
+                                        <div className="truncate">
+                                          <p className="font-bold truncate">
+                                            {attachment.displayName}
+                                          </p>
+                                          <p className="text-[10px] text-muted-foreground opacity-80">
+                                            SoundKit Audio Preview
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <a
+                                      className="mt-2 block rounded-lg border bg-background/60 p-2 text-xs hover:border-primary"
+                                      href={attachment.url}
+                                      key={attachment.id}
+                                      rel="noopener noreferrer"
+                                      target="_blank"
+                                    >
+                                      <Paperclip className="mr-1 inline size-3" />
+                                      {attachment.displayName}
+                                    </a>
+                                  );
+                                })}
+
+                                <p
+                                  className={cn(
+                                    "mt-2 font-mono text-[10px]",
+                                    isMine
+                                      ? "text-primary-foreground/70"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  {new Date(
+                                    message.createdAt
+                                  ).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </MessageScrollerItem>
+                      );
+                    })}
+                    {!messagesQuery.isLoading &&
+                      (messagesQuery.data ?? []).length === 0 && (
+                        <MessageScrollerItem messageId="empty-messages">
+                          <div className="py-12 text-center">
+                            <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
+                            <p className="font-medium">No messages yet</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Send the first message to start this chat.
+                            </p>
+                          </div>
+                        </MessageScrollerItem>
+                      )}
                   </MessageScrollerContent>
                 </MessageScrollerViewport>
                 <MessageScrollerButton />
