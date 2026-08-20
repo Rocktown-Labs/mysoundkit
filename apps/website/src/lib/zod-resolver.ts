@@ -1,6 +1,10 @@
 import { toNestErrors, validateFieldsNatively } from "@hookform/resolvers";
-import { appendErrors } from "react-hook-form";
-import type { FieldError, FieldErrors, Resolver } from "react-hook-form";
+import type {
+  FieldError,
+  FieldErrors,
+  FieldValues,
+  Resolver,
+} from "react-hook-form";
 import type { z } from "zod";
 
 interface ZodIssueLike {
@@ -37,20 +41,27 @@ const parseIssues = (
     }
 
     if (validateAllFieldCriteria) {
-      const { types } = errors[path],
-        messages = types && types[issue.code];
+      const currentError = errors[path],
+        existingMessages = currentError.types?.[issue.code],
+        previousMessages = Array.isArray(existingMessages)
+          ? existingMessages.filter(
+              (message): message is string => typeof message === "string"
+            )
+          : typeof existingMessages === "string"
+            ? [existingMessages]
+            : [],
+        message =
+          previousMessages.length > 0
+            ? [...previousMessages, issue.message]
+            : issue.message;
 
-      errors[path] = appendErrors(
-        path,
-        validateAllFieldCriteria,
-        errors,
-        issue.code,
-        messages
-          ? (Array.isArray(messages)
-            ? [...messages, issue.message]
-            : [messages, issue.message])
-          : issue.message
-      );
+      errors[path] = {
+        ...currentError,
+        types: {
+          ...currentError.types,
+          [issue.code]: message,
+        },
+      };
     }
   }
 
@@ -58,11 +69,11 @@ const parseIssues = (
 };
 
 export const zodResolver =
-  <T extends z.ZodType<unknown, unknown, unknown>>(
+  <T extends z.ZodType<FieldValues, FieldValues>>(
     schema: T,
     schemaOptions?: Parameters<T["parse"]>[1],
     resolverOptions: { mode?: "async" | "sync"; raw?: boolean } = {}
-  ): Resolver<z.infer<T>> =>
+  ): Resolver<z.output<T>> =>
   async (values, _context, options) => {
     try {
       const parsedValues = await schema.parseAsync(values, schemaOptions);
@@ -72,8 +83,8 @@ export const zodResolver =
       }
 
       return {
-        errors: {} as FieldErrors<z.infer<T>>,
-        values: (resolverOptions.raw ? values : parsedValues) as z.infer<T>,
+        errors: {},
+        values: (resolverOptions.raw ? values : parsedValues) as z.output<T>,
       };
     } catch (error: unknown) {
       const issues =
@@ -89,8 +100,8 @@ export const zodResolver =
                 options.criteriaMode === "all"
             ),
             options
-          ) as FieldErrors<z.infer<T>>,
-          values: {} as z.infer<T>,
+          ) as FieldErrors<z.output<T>>,
+          values: {} as Record<string, never>,
         };
       }
 

@@ -99,7 +99,7 @@ export function LiveRoomAccessGuard({
                 Already a member?{" "}
                 <Link
                   className="font-semibold text-primary underline underline-offset-4"
-                  search={{}}
+                  search={{ redirect: "/dashboard" }}
                   to="/login"
                 >
                   Sign In to Watch

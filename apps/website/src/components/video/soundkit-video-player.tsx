@@ -1,8 +1,15 @@
 "use client";
 
 import MuxPlayer from "@mux/mux-player-react";
-import { ExternalLink, ShieldCheck, VideoOff } from "lucide-react";
+import {
+  ExternalLink,
+  Maximize,
+  Minimize,
+  ShieldCheck,
+  VideoOff,
+} from "lucide-react";
 
+import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -36,13 +43,18 @@ export function SoundKitVideoPlayer({
   title: string;
   verifiedOnPlatform: boolean;
 }) {
-  const externalEmbedUrl = externalPlaybackUrl
-    ? getYouTubeEmbedUrl(externalPlaybackUrl)
-    : null;
+  const { containerRef, isFullscreen, toggleFullscreen } =
+      useBrowserFullscreen(),
+    externalEmbedUrl = externalPlaybackUrl
+      ? getYouTubeEmbedUrl(externalPlaybackUrl)
+      : null;
 
   if (muxPlaybackId) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-black">
+      <div
+        className="relative overflow-hidden rounded-2xl border border-border/50 bg-black"
+        ref={containerRef}
+      >
         <MuxPlayer
           accentColor="#A798FF"
           className="aspect-video w-full"
@@ -53,6 +65,20 @@ export function SoundKitVideoPlayer({
           poster={posterUrl}
           streamType="on-demand"
         />
+        <Button
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          className="absolute bottom-4 right-4 z-10 size-8 bg-black/70 text-white hover:bg-black/90"
+          onClick={toggleFullscreen}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          {isFullscreen ? (
+            <Minimize className="size-4" />
+          ) : (
+            <Maximize className="size-4" />
+          )}
+        </Button>
         {verifiedOnPlatform ? (
           <Badge className="absolute left-4 top-4 bg-black/80 text-white">
             <ShieldCheck className="mr-1 size-3.5 text-emerald-400" />

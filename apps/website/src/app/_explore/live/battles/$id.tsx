@@ -4,8 +4,11 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  CalendarClock,
   CheckCircle2,
   Heart,
+  ListPlus,
+  LogOut,
   Maximize,
   Mic,
   MicOff,
@@ -18,11 +21,14 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
+import { BattleArtistControlPanel } from "@/components/live/battle-artist-control-panel";
+import { BattleTimer } from "@/components/live/battle-timer";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
+import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { UserProfilePreviewModal } from "@/components/live/user-profile-preview-modal";
 import type { UserPreviewData } from "@/components/live/user-profile-preview-modal";
 import { AppImage } from "@/components/ui/app-image";
@@ -31,7 +37,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useBattleLeaveGuard } from "@/hooks/use-battle-leave-guard";
 import { toast } from "@/hooks/use-toast";
+import { API_V1_URL } from "@/lib/api";
 import type { LiveBattleRound, LiveRoomArtist } from "@/lib/live-room";
 import { useLiveRoom } from "@/lib/live-room";
 
@@ -140,46 +148,122 @@ function StageCard({
   );
 }
 
+function BattleStageVisual({
+  artists,
+  phaseLabel,
+}: {
+  artists: [LiveRoomArtist, LiveRoomArtist];
+  phaseLabel: string;
+}) {
+  const [artistA, artistB] = artists;
+  return (
+    <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-gradient-to-br from-primary/30 via-black to-secondary/30">
+      <AppImage
+        alt="Upcoming battle"
+        className="absolute inset-0 size-full object-cover opacity-25"
+        height={720}
+        src="/music-battle-live-performance-video.jpg"
+        width={1280}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/30" />
+      <div className="relative z-10 flex flex-col items-center gap-4 p-4 text-center">
+        <Badge className="gap-1.5 bg-black/60 text-white backdrop-blur-md" variant="outline">
+          <CalendarClock className="size-3.5" />
+          {phaseLabel}
+        </Badge>
+        <div className="flex items-center gap-6 sm:gap-10">
+          <div className="flex flex-col items-center gap-2">
+            <Avatar className="size-16 border-2 border-primary ring-4 ring-primary/20 shadow-xl sm:size-20">
+              <AvatarImage src={artistA.avatarUrl} />
+              <AvatarFallback className="text-lg font-bold">
+                {artistA.name.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
+              {artistA.name}
+            </p>
+          </div>
+          <div className="rounded-full bg-destructive/90 p-3 text-white shadow-lg">
+            <Swords className="size-6 sm:size-8" />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <Avatar className="size-16 border-2 border-secondary ring-4 ring-secondary/20 shadow-xl sm:size-20">
+              <AvatarImage src={artistB.avatarUrl} />
+              <AvatarFallback className="text-lg font-bold">
+                {artistB.name.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <p className="max-w-[120px] truncate text-sm font-bold text-white sm:text-base">
+              {artistB.name}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-white/70 sm:text-sm">
+          Watch the countdown, chat with the arena, and get admitted when the
+          battle opens.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function BattlePage() {
   const { id } = Route.useParams(),
     router = useRouter(),
-    { chat, query, vote } = useLiveRoom(id),
+    { battleTrack, chat, chatMessages, leave, query, queue, vote } =
+      useLiveRoom(id),
     [isChatOpen, setIsChatOpen] = useState(true),
-    [isFullscreen, setIsFullscreen] = useState(false),
     [isFollowingBattle, setIsFollowingBattle] = useState(false),
     [previewUser, setPreviewUser] = useState<UserPreviewData | null>(null),
-    videoContainerRef = useRef<HTMLDivElement | null>(null),
+    {
+      containerRef: videoContainerRef,
+      isFullscreen,
+      toggleFullscreen,
+    } = useBrowserFullscreen(),
     room = query.data,
     battle = room?.battle,
+    phase = battle?.coordination?.phase,
+    isScheduled =
+      room?.status === "upcoming" ||
+      phase === "scheduled" ||
+      phase === "waiting_room",
+    viewerQueueStatus = battle?.viewerQueueStatus ?? null,
+    isAdmitted = viewerQueueStatus === "admitted",
+    isQueued =
+      viewerQueueStatus === "queued" || viewerQueueStatus === "waiting",
     currentRound = battle?.rounds.find(
       (round) => round.id === battle.currentRoundId
     ),
     currentTrack = room?.tracklist.find(
       (track) => track.id === room.currentTrackId
-    );
+    ),
+    { dialog: battleLeaveDialog } = useBattleLeaveGuard({
+      isLeaving: leave.isPending,
+      onLeave: () => {
+        leave.mutate(undefined);
+      },
+      shouldBlock: isAdmitted && Boolean(currentRound),
+    });
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (videoContainerRef.current?.requestFullscreen) {
-          await videoContainerRef.current.requestFullscreen();
-        }
-      } else if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      setIsFullscreen((prev) => !prev);
+    if (!isAdmitted) {
+      return;
     }
+    const sendLeaveAttempt = () => {
+      navigator.sendBeacon(
+        `${API_V1_URL}/live/rooms/${id}/leave`,
+        new Blob([], { type: "application/json" })
+      );
+    };
+    window.addEventListener("pagehide", sendLeaveAttempt);
+    return () => window.removeEventListener("pagehide", sendLeaveAttempt);
+  }, [id, isAdmitted]);
+
+  const handleJoinQueue = () => {
+    if (!queue.mutate) {
+      return;
+    }
+    queue.mutate(undefined);
   };
 
   const handleShareBattle = () => {
@@ -228,8 +312,117 @@ function BattlePage() {
   const [artistA, artistB] = battle.artists;
 
   if (!currentRound) {
+    if (isScheduled) {
+      return (
+        <LiveRoomAccessGuard roomTitle={room.title}>
+          <LiveTwitchShell
+            chatPanel={
+              <LiveChatPanel
+                disabled={chat.isPending}
+                fillHeight
+                messages={chatMessages}
+                onCollapse={() => setIsChatOpen(false)}
+                onSend={(message) => chat.mutate({ message, userName: "You" })}
+                title="Waiting Room Chat"
+              />
+            }
+            isChatOpen={isChatOpen}
+            onChatOpenChange={setIsChatOpen}
+            videoNode={<BattleStageVisual artists={battle.artists} phaseLabel={phase === "scheduled" ? "Scheduled" : "Open"} />}
+          >
+            <div className="space-y-4 pt-4">
+              <Card className="border-primary/40 bg-card/90 shadow-xl overflow-hidden">
+                <CardHeader className="border-b border-border/60 bg-muted/40">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <CalendarClock className="size-4.5 text-primary" />
+                      <div>
+                        <CardTitle className="text-sm">
+                          {room.title}
+                        </CardTitle>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          {artistA.name} vs {artistB.name}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      className="gap-1.5 text-xs font-mono"
+                      variant="outline"
+                    >
+                      <Users className="size-3 text-muted-foreground" />
+                      {battle.queueSize?.toLocaleString() ?? 0} in queue
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/50 p-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Battle starts
+                      </p>
+                      <BattleTimer
+                        label="Starting in"
+                        phaseEndsAt={battle.coordination?.phaseEndsAt}
+                        serverNow={room.serverNow}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isQueued ? (
+                        <>
+                          <Badge variant="secondary" className="gap-1.5 text-xs">
+                            <ListPlus className="size-3.5" />
+                            You are in the queue
+                          </Badge>
+                          <Button
+                            className="gap-1.5 text-xs"
+                            disabled={leave.isPending}
+                            onClick={() => leave.mutate(undefined)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <LogOut className="size-3.5" />
+                            Leave
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          className="gap-1.5 text-xs"
+                          disabled={queue.isPending}
+                          onClick={handleJoinQueue}
+                          size="sm"
+                        >
+                          <ListPlus className="size-3.5" />
+                          Join Queue
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    You will be admitted automatically, in batches, when the
+                    battle opens and between rounds. Chat is open while you
+                    wait, and your place in the queue is saved even if you
+                    close SoundKit.
+                  </p>
+                  <Button
+                    className="px-0"
+                    onClick={() => router.history.back()}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <ArrowLeft className="mr-2 size-4" />
+                    Back
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </LiveTwitchShell>
+          {battleLeaveDialog}
+        </LiveRoomAccessGuard>
+      );
+    }
+
     return (
-      <LiveRoomAccessGuard allowPublic={true} roomTitle={room.title}>
+      <LiveRoomAccessGuard roomTitle={room.title}>
         <div className="space-y-6 pb-8">
           <Button
             className="px-0"
@@ -250,11 +443,22 @@ function BattlePage() {
                 published yet.
               </p>
               <Button asChild variant="outline">
-                <Link to="/live/battles">Back to Battles</Link>
+                <Link
+                  search={{
+                    genre: undefined,
+                    region: undefined,
+                    regionType: "north-america",
+                    sort: undefined,
+                  }}
+                  to="/live/battles"
+                >
+                  Back to Battles
+                </Link>
               </Button>
             </CardContent>
           </Card>
         </div>
+        {battleLeaveDialog}
       </LiveRoomAccessGuard>
     );
   }
@@ -268,7 +472,7 @@ function BattlePage() {
           </Badge>
         }
         fillHeight
-        messages={room.chat}
+        messages={chatMessages}
         onCollapse={() => setIsChatOpen(false)}
         onSend={(message) => chat.mutate({ message, userName: "You" })}
         title="Arena Chat"
@@ -310,6 +514,11 @@ function BattlePage() {
               <Users className="mr-1 size-3" />
               {room.viewerCount.toLocaleString()} watching
             </Badge>
+            <BattleTimer
+              phaseEndsAt={battle.coordination?.phaseEndsAt}
+              serverNow={room.serverNow}
+              label={battle.coordination?.phase ?? "Round"}
+            />
             <Button
               className="size-8 bg-black/60 text-white hover:bg-black/80 backdrop-blur-md"
               onClick={toggleFullscreen}
@@ -406,7 +615,7 @@ function BattlePage() {
     );
 
   return (
-    <LiveRoomAccessGuard allowPublic={true} roomTitle={room.title}>
+    <LiveRoomAccessGuard roomTitle={room.title}>
       <LiveTwitchShell
         chatPanel={chatPanel}
         defaultChatOpen={true}
@@ -482,6 +691,39 @@ function BattlePage() {
                 <Radio className="size-3 text-destructive animate-pulse" />
                 {room.viewerCount.toLocaleString()} Viewers
               </Badge>
+              {isQueued && (
+                <Badge
+                  variant="secondary"
+                  className="gap-1.5 py-1 px-2.5 text-xs"
+                >
+                  <ListPlus className="size-3.5" />
+                  In Queue
+                </Badge>
+              )}
+              {isAdmitted ? (
+                <Button
+                  className="gap-1.5 text-xs"
+                  disabled={leave.isPending}
+                  onClick={() => leave.mutate(undefined)}
+                  size="sm"
+                  variant="outline"
+                >
+                  <LogOut className="size-3.5" />
+                  Leave
+                </Button>
+              ) : (
+                !isQueued && (
+                  <Button
+                    className="gap-1.5 text-xs"
+                    disabled={queue.isPending}
+                    onClick={handleJoinQueue}
+                    size="sm"
+                  >
+                    <ListPlus className="size-3.5" />
+                    Join Queue
+                  </Button>
+                )
+              )}
               <Button
                 className="gap-1.5 text-xs"
                 onClick={handleToggleFollow}
@@ -652,7 +894,6 @@ function BattlePage() {
                           vote.mutate({
                             artistId: artist.id,
                             roundId: currentRound.id,
-                            voterId: "browser-viewer",
                           })
                         }
                         size="sm"
@@ -674,6 +915,15 @@ function BattlePage() {
               )}
             </CardContent>
           </Card>
+
+          {(room.role === "artist_a" || room.role === "artist_b") && (
+            <BattleArtistControlPanel
+              battle={battle}
+              onSelectTrack={(trackId) => battleTrack.mutate({ trackId })}
+              pending={battleTrack.isPending}
+              selectedTrackId={currentTrack?.id}
+            />
+          )}
         </div>
       </LiveTwitchShell>
 
@@ -682,6 +932,7 @@ function BattlePage() {
         open={Boolean(previewUser)}
         user={previewUser}
       />
+      {battleLeaveDialog}
     </LiveRoomAccessGuard>
   );
 }

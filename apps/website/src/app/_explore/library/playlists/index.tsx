@@ -156,7 +156,9 @@ function PlaylistsPage() {
             </DialogTrigger>
           ) : (
             <Button asChild>
-              <Link to="/login">Log In</Link>
+              <Link search={{ redirect: "/dashboard" }} to="/login">
+                Log In
+              </Link>
             </Button>
           )}
           <DialogContent className="sm:max-w-[425px]">

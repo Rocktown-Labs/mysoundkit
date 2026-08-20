@@ -92,6 +92,15 @@ type PendingAction =
   | { action: "revoke"; userId: string; userName: string }
   | null;
 
+interface StripeWebhookSetupResult {
+  connect: boolean;
+  id: string | null;
+  secret: string | null;
+  secretConfigured: boolean;
+  status: "created" | "enabled" | "missing" | "skipped";
+  url: string;
+}
+
 interface AdminPaymentPlan {
   annualPriceCents: number | null;
   audience: "artist" | "fan";
@@ -109,6 +118,7 @@ interface AdminPaymentPlan {
 
 interface AdminUserSummary {
   accountType: "artist" | "fan" | null;
+  creatorEligibility: "independent" | "major_label_affiliated" | null;
   banned: boolean | null;
   createdAt: string;
   email: string;
@@ -184,6 +194,7 @@ function AdminDashboard() {
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="ads">Ads</TabsTrigger>
           <TabsTrigger value="coupons">Coupons</TabsTrigger>
+          <TabsTrigger value="genres">Genres</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-6">
@@ -201,11 +212,172 @@ function AdminDashboard() {
         <TabsContent value="coupons" className="mt-6">
           <CouponsPanel />
         </TabsContent>
+        <TabsContent value="genres" className="mt-6">
+          <GenreCatalogPanel />
+        </TabsContent>
         <TabsContent value="settings" className="mt-6">
           <SettingsPanel />
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+interface AdminGenre {
+  description: string | null;
+  id: string;
+  name: string;
+  slug: string;
+  totalCount: number;
+  trackCount: number;
+  videoCount: number;
+}
+
+function GenreCatalogPanel() {
+  const queryClient = useQueryClient(),
+    genresQuery = useQuery<AdminGenre[]>({
+      queryFn: async () => {
+        const response = await fetch(`${API_V1_URL}/admin/genres`, {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          throw new Error("Unable to load genres.");
+        }
+        return (await response.json()) as AdminGenre[];
+      },
+      queryKey: ["admin", "genres"],
+    }),
+    createGenre = useMutation({
+      mutationFn: async ({
+        description,
+        name,
+      }: {
+        description: string;
+        name: string;
+      }) => {
+        const response = await fetch(`${API_V1_URL}/admin/genres`, {
+          body: JSON.stringify({ description: description || undefined, name }),
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | AdminGenre
+          | { message?: string }
+          | null;
+        if (!response.ok) {
+          throw new Error(
+            payload && "message" in payload
+              ? payload.message
+              : "Unable to create genre."
+          );
+        }
+        return payload as AdminGenre;
+      },
+      onSuccess: () =>
+        queryClient.invalidateQueries({ queryKey: ["admin", "genres"] }),
+    }),
+    [name, setName] = useState(""),
+    [description, setDescription] = useState("");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Genre Catalog</CardTitle>
+        <CardDescription>
+          Manage the canonical genres used by onboarding and discovery. Genres
+          are never deleted because catalog content references them.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form
+          className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_1fr_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            createGenre.mutate(
+              { description, name },
+              {
+                onError: (error) =>
+                  toast({
+                    description: error.message,
+                    title: "Genre not created",
+                    variant: "destructive",
+                  }),
+                onSuccess: () => {
+                  setName("");
+                  setDescription("");
+                },
+              }
+            );
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="new-genre-name">Name</Label>
+            <Input
+              id="new-genre-name"
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Alternative R&B"
+              value={name}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-genre-description">
+              Description (optional)
+            </Label>
+            <Input
+              id="new-genre-description"
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="A short catalog description"
+              value={description}
+            />
+          </div>
+          <Button
+            className="self-end"
+            disabled={!name.trim() || createGenre.isPending}
+            type="submit"
+          >
+            <Plus className="mr-2 size-4" />
+            {createGenre.isPending ? "Adding…" : "Add genre"}
+          </Button>
+        </form>
+        {genresQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading genres…</p>
+        ) : null}
+        {genresQuery.error ? (
+          <p className="text-sm text-destructive">
+            Unable to load the genre catalog.
+          </p>
+        ) : null}
+        {genresQuery.data ? (
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead>Tracks</TableHead>
+                  <TableHead>Videos</TableHead>
+                  <TableHead>Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {genresQuery.data.map((genre) => (
+                  <TableRow key={genre.id}>
+                    <TableCell className="font-medium">{genre.name}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {genre.slug}
+                    </TableCell>
+                    <TableCell>{genre.trackCount}</TableCell>
+                    <TableCell>{genre.videoCount}</TableCell>
+                    <TableCell>{genre.totalCount}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -307,6 +479,7 @@ function AdsPanel() {
           setCreativeUrl(`${MEDIA_BASE_URL}/${uploadedFile.objectInfo.key}`);
         }
       },
+      route: "media",
     }),
     createHouseAd = useMutation({
       mutationFn: async () => {
@@ -604,6 +777,23 @@ function OverviewPanel() {
     backfillStatus = useTrackDurationBackfillStatusQuery(backfillRunId);
 
   useEffect(() => {
+    const status = backfillStatus.data;
+    if (!status) {
+      return;
+    }
+
+    if (status.runId && status.runId !== backfillRunId) {
+      setBackfillRunId(status.runId);
+    }
+
+    const inFlight = status.processing + status.queued;
+    if (inFlight > 0 && !backfillActive) {
+      completionHandledRef.current = false;
+      setBackfillActive(true);
+    }
+  }, [backfillActive, backfillRunId, backfillStatus.data]);
+
+  useEffect(() => {
     if (
       !backfillActive ||
       completionHandledRef.current ||
@@ -814,7 +1004,10 @@ function OverviewPanel() {
             <Button
               disabled={
                 backfillDurations.isPending ||
-                (backfillActive && (backfillStatus.data?.queued ?? 0) > 0)
+                (backfillActive &&
+                  (backfillStatus.data?.queued ?? 0) +
+                    (backfillStatus.data?.processing ?? 0) >
+                    0)
               }
               onClick={handleBackfillDurations}
               size="sm"
@@ -978,6 +1171,7 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
               <TableHead>User</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Account</TableHead>
+              <TableHead>Eligibility</TableHead>
               <TableHead>Premium</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Joined</TableHead>
@@ -1012,6 +1206,15 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
                   <TableCell>
                     <Badge variant="outline">
                       {user.accountType ?? "Unspecified"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {user.creatorEligibility === "major_label_affiliated"
+                        ? "Major-label affiliated"
+                        : user.creatorEligibility === "independent"
+                          ? "Independent"
+                          : "Not declared"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -1161,7 +1364,8 @@ function UsersPanel({ currentUserId }: Readonly<{ currentUserId: string }>) {
 
 function PaymentsPanel() {
   const paymentsQuery = useAdminPaymentsQuery(),
-    syncMutation = useSyncStripePlansMutation();
+    syncMutation = useSyncStripePlansMutation(),
+    [webhookSetup, setWebhookSetup] = useState<StripeWebhookSetupResult[] | null>(null);
 
   if (paymentsQuery.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading payments...</p>;
@@ -1216,6 +1420,7 @@ function PaymentsPanel() {
             });
           },
           onSuccess: (result) => {
+            setWebhookSetup(result.webhookEndpoints);
             const createdCount = result.results.filter(
                 (r) => r.status === "created"
               ).length,
@@ -1290,7 +1495,7 @@ function PaymentsPanel() {
               />
               {syncMutation.isPending
                 ? "Syncing Stripe…"
-                : "Sync Products & Prices"}
+                : "Sync Stripe Catalog & Webhooks"}
             </Button>
           </div>
         </CardHeader>
@@ -1323,12 +1528,12 @@ function PaymentsPanel() {
             {missingCheckoutEnv.length} Plan Lacks a Checkout Price
           </AlertTitle>
           <AlertDescription className="text-xs text-muted-foreground">
-            Run Sync Products &amp; Prices to auto-create Stripe products and
-            prices and wire them into checkout, or enter matching price IDs
-            below.
+            Run Sync Stripe Catalog &amp; Webhooks to auto-create Stripe products, prices, and webhook endpoints and wire them into checkout, or enter matching price IDs below.
           </AlertDescription>
         </Alert>
       )}
+
+      {webhookSetup ? <StripeWebhookSetupCard endpoints={webhookSetup} /> : null}
 
       <PaymentPlanCatalog plans={data.plans} stripePrices={data.stripePrices} />
 
@@ -1344,6 +1549,58 @@ function PaymentsPanel() {
         <StripeCatalog prices={data.stripePrices} />
       </section>
     </div>
+  );
+}
+
+function StripeWebhookSetupCard({
+  endpoints,
+}: {
+  endpoints: StripeWebhookSetupResult[];
+}) {
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardHeader>
+        <CardTitle className="text-base">Stripe webhook setup</CardTitle>
+        <CardDescription>
+          Sync creates or reuses the platform subscription, platform commerce, and Connect event endpoints. New signing secrets are shown only in this response.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {endpoints.map((endpoint) => (
+          <div className="rounded-lg border bg-background/70 p-3" key={`${endpoint.url}:${endpoint.connect}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">
+                  {endpoint.connect ? "Connect events" : endpoint.url.includes("/auth/") ? "Better Auth subscriptions" : "Platform commerce"}
+                </p>
+                <p className="break-all font-mono text-xs text-muted-foreground">{endpoint.url}</p>
+              </div>
+              <Badge variant={endpoint.status === "missing" ? "destructive" : "secondary"}>{endpoint.status}</Badge>
+            </div>
+            {endpoint.secret ? (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <code className="min-w-0 flex-1 break-all rounded bg-muted px-2 py-1 text-xs">{endpoint.secret}</code>
+                <Button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(endpoint.secret ?? "");
+                    toast({ description: "Webhook secret copied. Save it in the matching GitHub environment secret.", title: "Secret copied" });
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Copy className="mr-2 size-3.5" /> Copy secret
+                </Button>
+              </div>
+            ) : endpoint.secretConfigured ? (
+              <p className="mt-2 text-xs text-emerald-400">Signing secret is configured for this endpoint.</p>
+            ) : (
+              <p className="mt-2 text-xs text-amber-400">Endpoint exists, but its signing secret is not configured in the matching environment secret.</p>
+            )}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -7,6 +7,8 @@
     "dev:all": "turbo run dev",
     "dev:infra": "turbo run dev --filter=@soundkit/infra",
     "build": "pnpm run check-types && turbo run build",
+    "verify": "pnpm run check-types && pnpm run check:react-hooks && pnpm run test && SOUNDKIT_CI_STATIC_CONFIG=true pnpm run build",
+    "verify:pr": "pnpm run verify && pnpm run test:e2e",
     "check-types": "turbo run check-types",
     "dev:native": "turbo run dev --filter=native",
     "dev:web": "turbo run dev --filter=web",
@@ -37,7 +39,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.9",
     "@cloudflare/workers-types": "catalog:",
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "1.61.1",
     "@soundkit/config": "workspace:*",
     "@types/node": "catalog:",
     "oxfmt": "latest",

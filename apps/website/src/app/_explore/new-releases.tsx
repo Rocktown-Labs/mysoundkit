@@ -1,26 +1,27 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Flame, MapPin } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Flame, MapPin } from "lucide-react";
 
 import { TrackCard } from "@/components/explore/track-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
+import { InfiniteScrollSentinel } from "@/components/ui/infinite-scroll-sentinel";
+import { useTracksInfiniteQuery } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/_explore/new-releases")({
   component: NewReleasesPage,
 });
 
 function NewReleasesPage() {
-  const router = useRouter(),
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+      useTracksInfiniteQuery({
+        limit: 24,
+        scope: "public",
+        sort: "date-desc",
+      }),
     searchParams = new URLSearchParams(
       typeof window === "undefined" ? "" : window.location.search
     ),
     location = searchParams.get("location") || "All Locations",
-    { data: tracks = [] } = useTracksQuery(undefined, {
-      limit: 24,
-      scope: "public",
-      sort: "title-desc",
-    });
+    tracks = data?.pages.flat() ?? [];
 
   return (
     <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
@@ -35,7 +36,7 @@ function NewReleasesPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
         {tracks.length > 0 ? (
           tracks.map((track, index) => (
             <div key={track.id} className="relative">
@@ -60,12 +61,22 @@ function NewReleasesPage() {
               />
             </div>
           ))
+        ) : (isLoading ? (
+          <div className="col-span-full py-12 text-center text-muted-foreground text-sm">
+            Loading releases...
+          </div>
         ) : (
           <div className="col-span-full rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
             No public releases are live yet.
           </div>
-        )}
+        ))}
       </div>
+
+      <InfiniteScrollSentinel
+        fetchNextPage={fetchNextPage}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+      />
     </div>
   );
 }

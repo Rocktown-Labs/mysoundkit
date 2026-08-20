@@ -1,191 +1,170 @@
-export interface DailyTrend {
-  day: string;
-  desktop: number;
-  mobile: number;
-  streams: number;
-}
+/**
+ * Real, non-synthetic analytics and monetization domain calculations.
+ *
+ * Rules:
+ * 1. Never fabricate or manufacture metrics when data is unavailable.
+ * 2. Normal "Play" counts after >= 30 seconds of playback (or >= 95% for tracks shorter than 30s).
+ * 3. Qualified Streams remain the stricter monetization event (70%+ threshold, Premium listener, non-owner).
+ * 4. Payout minimum is $25.00 (2500 cents).
+ * 5. Minimum location audience threshold is 3 to preserve listener privacy.
+ */
 
-export interface SourceDistribution {
-  algorithmic: number;
-  direct: number;
-  label: string;
-  playlists: number;
-}
+export const MIN_LOCATION_LISTENERS = 3;
+export const MIN_PAYOUT_THRESHOLD_CENTS = 2500; // $25.00 USD
 
-export interface ReleaseSpike {
-  hour: string;
-  streams: number;
-}
-
-export interface RegionalPlays {
-  plays: number;
-  region: string;
-}
-
-export interface RetentionMetrics {
-  full: number;
-  fullLabel: string;
-  milestone: number;
-  milestoneLabel: string;
-  skip: number;
-  skipLabel: string;
-}
-
-export const computeStreamTrends7d = (totalPlays: number): DailyTrend[] => {
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  if (totalPlays <= 0) {
-    return days.map((day) => ({ day, desktop: 0, mobile: 0, streams: 0 }));
+/**
+ * Determines whether a playback session qualifies as a verified 30-second Play.
+ */
+export const isVerifiedPlay = (
+  playedSeconds: number,
+  trackDurationSeconds?: number | null
+): boolean => {
+  if (playedSeconds <= 0) {
+    return false;
   }
-  const weights = [0.08, 0.1, 0.12, 0.14, 0.18, 0.22, 0.16];
-  return days.map((day, i) => {
-    const dayStreams = Math.round(totalPlays * weights[i]!),
-      mobile = Math.round(dayStreams * 0.68),
-      desktop = dayStreams - mobile;
-    return { day, desktop, mobile, streams: dayStreams };
-  });
+  // If track is shorter than 30s, require at least 95% playback
+  if (
+    trackDurationSeconds &&
+    trackDurationSeconds > 0 &&
+    trackDurationSeconds < 30
+  ) {
+    return playedSeconds >= trackDurationSeconds * 0.95;
+  }
+  return playedSeconds >= 30;
 };
 
-export const computeStreamTrends28d = (totalPlays: number): DailyTrend[] => {
-  const weeks = ["Week 1", "Week 2", "Week 3", "Week 4"];
-  if (totalPlays <= 0) {
-    return weeks.map((day) => ({ day, desktop: 0, mobile: 0, streams: 0 }));
+/**
+ * Determines whether a playback session qualifies as a monetization Qualified Stream.
+ */
+export const isQualifiedStream = ({
+  isOwner,
+  isPremium,
+  playedSeconds,
+  trackDurationSeconds,
+}: {
+  isOwner: boolean;
+  isPremium: boolean;
+  playedSeconds: number;
+  trackDurationSeconds: number;
+}): boolean => {
+  if (!isPremium || isOwner || trackDurationSeconds <= 0) {
+    return false;
   }
-  const weights = [0.15, 0.22, 0.28, 0.35];
-  return weeks.map((day, i) => {
-    const weekStreams = Math.round(totalPlays * weights[i]!),
-      mobile = Math.round(weekStreams * 0.68),
-      desktop = weekStreams - mobile;
-    return { day, desktop, mobile, streams: weekStreams };
-  });
+  const threshold = trackDurationSeconds * 0.7;
+  return playedSeconds >= threshold;
 };
 
-export const computeSourcesData = (
-  totalPlays: number
-): SourceDistribution[] => {
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  if (totalPlays <= 0) {
-    return days.map((label) => ({
-      algorithmic: 0,
-      direct: 0,
-      label,
-      playlists: 0,
-    }));
-  }
-  const weights = [0.08, 0.1, 0.12, 0.14, 0.18, 0.22, 0.16];
-  return days.map((label, i) => {
-    const dayTotal = Math.round(totalPlays * weights[i]!),
-      direct = Math.round(dayTotal * 0.46),
-      algorithmic = Math.round(dayTotal * 0.32),
-      playlists = Math.max(0, dayTotal - direct - algorithmic);
-    return { algorithmic, direct, label, playlists };
-  });
-};
-
-export const computeSpike48hData = (totalPlays: number): ReleaseSpike[] => {
-  const intervals = [
-    { hour: "Hour 0", mult: 0.02 },
-    { hour: "Hour 6", mult: 0.08 },
-    { hour: "Hour 12", mult: 0.2 },
-    { hour: "Hour 18", mult: 0.35 },
-    { hour: "Hour 24 (Day 1)", mult: 0.55 },
-    { hour: "Hour 30", mult: 0.68 },
-    { hour: "Hour 36", mult: 0.82 },
-    { hour: "Hour 48 (Day 2)", mult: 1 },
-  ];
-  if (totalPlays <= 0) {
-    return intervals.map(({ hour }) => ({ hour, streams: 0 }));
-  }
-  return intervals.map(({ hour, mult }) => ({
-    hour,
-    streams: Math.round(totalPlays * mult),
-  }));
-};
-
-export interface LoyaltySegments {
-  casualPct: number;
-  casualPlays: number;
-  hasData: boolean;
-  lapsedPct: number;
-  lapsedPlays: number;
-  superPct: number;
-  superPlays: number;
+export interface RawLocationCount {
+  city?: string | null;
+  countryCode?: string | null;
+  listeners: number;
+  regionCode?: string | null;
 }
 
-export const computeGeographicData = (
-  totalPlays: number,
-  primaryLocation?: string | null
-): RegionalPlays[] => {
-  if (totalPlays <= 0) {
-    return [];
-  }
-  const localLabel =
-      primaryLocation && primaryLocation.trim()
-        ? `${primaryLocation.trim()} (Local HQ)`
-        : "Arkansas (Local HQ)",
-    regions = [
-      { name: localLabel, weight: 0.42 },
-      { name: "Texas (South)", weight: 0.24 },
-      { name: "California (West)", weight: 0.18 },
-      { name: "New York (East)", weight: 0.11 },
-      { name: "International", weight: 0.05 },
-    ];
+export interface SafeLocationResult {
+  hasEnoughData: boolean;
+  locations: {
+    city: string | null;
+    countryCode: string | null;
+    listeners: number;
+    percentage: number;
+    regionCode: string | null;
+  }[];
+  totalListeners: number;
+}
 
-  return regions.map((r) => ({
-    plays: Math.round(totalPlays * r.weight),
-    region: r.name,
-  }));
-};
+/**
+ * Filters geographic locations to protect listener privacy.
+ * Cohorts with fewer than MIN_LOCATION_LISTENERS (3) are aggregated into "Other Regions".
+ * If total audience is below the threshold, location breakdown is marked unavailable.
+ */
+export const filterSafeLocations = (
+  rawLocations: RawLocationCount[],
+  minThreshold = MIN_LOCATION_LISTENERS
+): SafeLocationResult => {
+  const totalListeners = rawLocations.reduce(
+    (sum, loc) => sum + loc.listeners,
+    0
+  );
 
-export const computeRetentionMetrics = (
-  totalPlays: number
-): RetentionMetrics => {
-  if (totalPlays <= 0) {
+  if (totalListeners < minThreshold) {
     return {
-      full: 0,
-      fullLabel: "0%",
-      milestone: 0,
-      milestoneLabel: "0%",
-      skip: 0,
-      skipLabel: "0%",
-    };
-  }
-  return {
-    full: 72.1,
-    fullLabel: "72.1%",
-    milestone: 84.6,
-    milestoneLabel: "84.6%",
-    skip: 15.4,
-    skipLabel: "15.4%",
-  };
-};
-
-export const computeLoyaltySegments = (totalPlays: number): LoyaltySegments => {
-  if (totalPlays <= 0) {
-    return {
-      casualPct: 0,
-      casualPlays: 0,
-      hasData: false,
-      lapsedPct: 0,
-      lapsedPlays: 0,
-      superPct: 0,
-      superPlays: 0,
+      hasEnoughData: false,
+      locations: [],
+      totalListeners,
     };
   }
 
-  const superPlays = Math.round(totalPlays * 0.42),
-    casualPlays = Math.round(totalPlays * 0.45),
-    lapsedPlays = Math.max(0, totalPlays - superPlays - casualPlays),
-    superPct = Math.round((superPlays / totalPlays) * 100),
-    casualPct = Math.round((casualPlays / totalPlays) * 100),
-    lapsedPct = Math.round((lapsedPlays / totalPlays) * 100);
+  let otherListeners = 0;
+  const safeList: SafeLocationResult["locations"] = [];
+
+  for (const loc of rawLocations) {
+    if (loc.listeners >= minThreshold) {
+      safeList.push({
+        city: loc.city ?? null,
+        countryCode: loc.countryCode ?? null,
+        listeners: loc.listeners,
+        percentage:
+          totalListeners > 0
+            ? Math.round((loc.listeners / totalListeners) * 100)
+            : 0,
+        regionCode: loc.regionCode ?? null,
+      });
+    } else {
+      otherListeners += loc.listeners;
+    }
+  }
+
+  if (otherListeners > 0) {
+    safeList.push({
+      city: "Other Regions",
+      countryCode: null,
+      listeners: otherListeners,
+      percentage:
+        totalListeners > 0
+          ? Math.round((otherListeners / totalListeners) * 100)
+          : 0,
+      regionCode: null,
+    });
+  }
 
   return {
-    casualPct,
-    casualPlays,
-    hasData: true,
-    lapsedPct,
-    lapsedPlays,
-    superPct,
-    superPlays,
+    hasEnoughData: safeList.length > 0,
+    locations: safeList,
+    totalListeners,
   };
+};
+
+/**
+ * Evaluates creator payout eligibility against the $25.00 minimum threshold.
+ */
+export const computePayoutState = (
+  availableBalanceCents: number,
+  minThresholdCents = MIN_PAYOUT_THRESHOLD_CENTS
+) => {
+  const isEligible = availableBalanceCents >= minThresholdCents,
+    progressPercent = Math.min(
+      100,
+      Math.round((availableBalanceCents / minThresholdCents) * 100)
+    ),
+    remainingCents = Math.max(0, minThresholdCents - availableBalanceCents);
+
+  return {
+    isEligible,
+    progressPercent,
+    remainingCents,
+  };
+};
+
+/**
+ * Calculates returning listener retention rate.
+ */
+export const computeReturningRate = (
+  returningListeners: number,
+  totalListeners: number
+): number => {
+  if (totalListeners <= 0) {
+    return 0;
+  }
+  return Math.min(100, Math.round((returningListeners / totalListeners) * 100));
 };

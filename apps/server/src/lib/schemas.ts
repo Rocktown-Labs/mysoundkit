@@ -60,7 +60,7 @@ export const backfillTrackDurationsResponseSchema = z.object({
 });
 
 export const trackDurationBackfillStatusQuerySchema = z.object({
-  runId: z.string().min(1),
+  runId: z.string().min(1).optional(),
 });
 
 export const trackDurationBackfillStatusSchema = z.object({
@@ -77,7 +77,7 @@ export const trackDurationBackfillStatusSchema = z.object({
     .array(),
   processing: z.number().int().nonnegative(),
   queued: z.number().int().nonnegative(),
-  runId: z.string(),
+  runId: z.string().nullable(),
 });
 
 export const adminFinanceSummarySchema = z.object({
@@ -235,6 +235,7 @@ export const adminPaymentsOverviewSchema = z.object({
 
 export const adminSyncStripePlansBodySchema = z.object({
   planCodes: z.string().array().optional(),
+  syncWebhooks: z.boolean().optional(),
 });
 
 export const adminSyncStripePlansResponseSchema = z.object({
@@ -246,6 +247,16 @@ export const adminSyncStripePlansResponseSchema = z.object({
       monthlyPriceId: z.string().nullable(),
       productId: z.string().nullable(),
       status: z.enum(["created", "matched", "skipped"]),
+    })
+    .array(),
+  webhookEndpoints: z
+    .object({
+      connect: z.boolean(),
+      id: z.string().nullable(),
+      secret: z.string().nullable(),
+      secretConfigured: z.boolean(),
+      status: z.enum(["created", "enabled", "missing", "skipped"]),
+      url: z.string().url(),
     })
     .array(),
 });
@@ -458,11 +469,22 @@ export const trackSummarySchema = z.object({
   fileAvailability: z
     .object({
       adlibs: z.boolean(),
+      alternateMixes: z.number().int().optional(),
+      artworks: z.number().int().optional(),
+      booklets: z.number().int().optional(),
+      cleanVersions: z.number().int().optional(),
       coverArt: z.boolean(),
       instrumental: z.boolean(),
+      instrumentals: z.number().int().optional(),
+      licenses: z.number().int().optional(),
       master: z.boolean(),
+      masters: z.number().int().optional(),
+      midi: z.number().int().optional(),
       reference: z.boolean(),
       session: z.boolean(),
+      stems: z.number().int().optional(),
+      taggedMp3s: z.number().int().optional(),
+      untaggedWavs: z.number().int().optional(),
       vocals: z.number().int(),
     })
     .optional(),
@@ -971,9 +993,91 @@ export const friendSummarySchema = z.object({
   id: z.string(),
   lastInteractionAt: z.string().nullable(),
   name: z.string(),
-  relationship: z.enum(["friend", "collaborator", "fan", "following"]),
+  relationship: z.enum([
+    "friend",
+    "collaborator",
+    "fan",
+    "artist_follower",
+    "following",
+  ]),
   role: z.string().nullable(),
   username: z.string().nullable(),
+});
+
+export const networkPersonSchema = z.object({
+  accountType: z.enum(["artist", "fan"]),
+  avatarUrl: z.string().nullable(),
+  canMessage: z.boolean(),
+  email: z.string().nullable(),
+  followsYou: z.boolean(),
+  id: z.string(),
+  isFollowing: z.boolean(),
+  isFriend: z.boolean(),
+  name: z.string(),
+  username: z.string().nullable(),
+});
+
+export const networkResponseSchema = z.object({
+  counts: z.object({
+    artistFollowers: z.number().int().nonnegative(),
+    fanFollowers: z.number().int().nonnegative(),
+    followers: z.number().int().nonnegative(),
+    following: z.number().int().nonnegative(),
+    friends: z.number().int().nonnegative(),
+    pendingRequests: z.number().int().nonnegative(),
+  }),
+  followers: networkPersonSchema.array(),
+  following: networkPersonSchema.array(),
+  friends: networkPersonSchema.array(),
+  requests: z
+    .object({
+      avatarUrl: z.string().nullable(),
+      createdAt: z.string(),
+      direction: z.enum(["incoming", "outgoing"]),
+      displayName: z.string(),
+      id: z.string(),
+      message: z.string().nullable(),
+      status: z.enum(["accepted", "canceled", "declined", "pending"]),
+      userId: z.string(),
+      username: z.string().nullable(),
+    })
+    .array(),
+});
+
+export const workspaceMemberSchema = z.object({
+  avatarUrl: z.string().nullable(),
+  createdAt: z.string(),
+  email: z.string(),
+  id: z.string(),
+  isOwner: z.boolean(),
+  name: z.string(),
+  role: z.string(),
+  userId: z.string(),
+  username: z.string().nullable(),
+});
+
+export const workspaceInvitationSchema = z.object({
+  createdAt: z.string(),
+  email: z.string(),
+  expiresAt: z.string(),
+  id: z.string(),
+  role: z.string().nullable(),
+  status: z.string(),
+});
+
+export const workspaceDetailSchema = z.object({
+  activeWorkspace: workspaceSummarySchema.nullable(),
+  invitations: workspaceInvitationSchema.array(),
+  members: workspaceMemberSchema.array(),
+  seats: z.object({
+    total: z.number().int().positive(),
+    used: z.number().int().nonnegative(),
+  }),
+});
+
+export const createWorkspaceInvitationBodySchema = z.object({
+  email: z.string().email(),
+  role: z.enum(["admin", "member"]).default("member"),
 });
 export const friendRequestStatusSchema = z.enum([
   "pending",
@@ -1064,6 +1168,51 @@ export const battleChallengesResponseSchema = z.object({
   outgoing: battleChallengeSummarySchema.array(),
 });
 
+export const battleKitFormatSchema = z.enum([
+  "best_of_3",
+  "best_of_5",
+  "best_of_7",
+]);
+export const battleKitTrackRoleSchema = z.enum(["main", "tiebreaker"]);
+export const battleKitTrackSchema = z.object({
+  coverArtUrl: z.string().nullable(),
+  id: z.string(),
+  mainSlot: z.number().int().positive().nullable(),
+  role: battleKitTrackRoleSchema,
+  title: z.string(),
+  trackId: z.string(),
+});
+export const battleKitSchema = z.object({
+  createdAt: z.string(),
+  format: battleKitFormatSchema,
+  id: z.string(),
+  isBattleReady: z.boolean(),
+  mainTrackCount: z.number().int().nonnegative(),
+  name: z.string(),
+  reason: z.string().nullable(),
+  requiredMainTracks: z.number().int().positive(),
+  tiebreakerCount: z.number().int().nonnegative(),
+  totalRequiredTracks: z.number().int().positive(),
+  totalUniqueTracks: z.number().int().nonnegative(),
+  tracks: battleKitTrackSchema.array(),
+  updatedAt: z.string(),
+});
+export const createBattleKitTrackSchema = z.object({
+  mainSlot: z.number().int().positive().nullable(),
+  role: battleKitTrackRoleSchema,
+  trackId: z.string().min(1),
+});
+export const createBattleKitBodySchema = z.object({
+  format: battleKitFormatSchema,
+  name: z.string().trim().min(1).max(120),
+  tracks: createBattleKitTrackSchema.array().max(8).default([]),
+});
+export const updateBattleKitBodySchema = createBattleKitBodySchema.partial();
+export const battleKitQuerySchema = z.object({
+  format: battleKitFormatSchema.optional(),
+  ready: z.coerce.boolean().optional(),
+});
+
 export const libraryOverviewSchema = z.object({
   playlistCount: z.number(),
   purchaseCount: z.number(),
@@ -1140,10 +1289,128 @@ export const purchasedCatalogDetailSchema = z.object({
 });
 
 export const analyticsOverviewSchema = z.object({
-  totalDownloads: z.number(),
-  totalFollowers: z.number(),
-  totalPlays: z.number(),
-  totalRevenue: z.number(),
+  estimatedEarningsCents: z.number().int(),
+  premiumSupporters: z.number().int(),
+  totalFollowers: z.number().int(),
+  totalPlays: z.number().int(),
+  totalQualifiedStreams: z.number().int(),
+  uniqueListeners: z.number().int(),
+});
+
+export const analyticsTimeseriesQuerySchema = z.object({
+  metric: z
+    .enum(["plays", "qualified_streams", "unique_listeners"])
+    .default("plays"),
+  range: z.enum(["7d", "28d", "90d", "12m"]).default("7d"),
+});
+
+export const analyticsTimeseriesPointSchema = z.object({
+  date: z.string(),
+  label: z.string(),
+  value: z.number().int(),
+});
+
+export const analyticsTimeseriesSchema = z.object({
+  metric: z.string(),
+  points: analyticsTimeseriesPointSchema.array(),
+  range: z.string(),
+  total: z.number().int(),
+});
+
+export const analyticsTrackItemSchema = z.object({
+  averageListenPercent: z.number(),
+  completionRate: z.number(),
+  coverArtUrl: z.string().nullable(),
+  durationSeconds: z.number().int().nullable(),
+  estimatedEarningsCents: z.number().int(),
+  genre: z.string(),
+  plays: z.number().int(),
+  qualificationRate: z.number(),
+  qualifiedStreams: z.number().int(),
+  title: z.string(),
+  trackId: z.string(),
+  uniqueListeners: z.number().int(),
+});
+
+export const analyticsTracksResponseSchema = z.object({
+  tracks: analyticsTrackItemSchema.array(),
+});
+
+export const analyticsAudienceSchema = z.object({
+  catalogDepth: z.number(),
+  listenersWithMultiTrackPlays: z.number().int(),
+  newListeners: z.number().int(),
+  premiumSupporters: z.number().int(),
+  returningListenerRate: z.number(),
+  returningListeners: z.number().int(),
+  totalUniqueListeners: z.number().int(),
+});
+
+export const analyticsSourceCategorySchema = z.object({
+  count: z.number().int(),
+  label: z.string(),
+  percentage: z.number(),
+  sourceType: z.string(),
+});
+
+export const analyticsSourcesSchema = z.object({
+  sources: analyticsSourceCategorySchema.array(),
+  total: z.number().int(),
+});
+
+export const analyticsLocationItemSchema = z.object({
+  city: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  hasEnoughData: z.boolean(),
+  listeners: z.number().int(),
+  percentage: z.number(),
+  regionCode: z.string().nullable(),
+});
+
+export const analyticsLocationsSchema = z.object({
+  hasEnoughData: z.boolean(),
+  locations: analyticsLocationItemSchema.array(),
+  totalListeners: z.number().int(),
+});
+
+export const analyticsLiveImpactSchema = z.object({
+  battlesParticipated: z.number().int(),
+  hasLiveActivity: z.boolean(),
+  listenersReached: z.number().int(),
+  listeningPartiesHosted: z.number().int(),
+  liveQualifiedStreams: z.number().int(),
+  liveStreamsHosted: z.number().int(),
+  tracksPlayedInLive: z.number().int(),
+});
+
+export const artistEarningsCategorySchema = z.object({
+  amountCents: z.number().int(),
+  category: z.string(),
+  label: z.string(),
+});
+
+export const artistMonthlyStatementSchema = z.object({
+  creatorRewardsCents: z.number().int(),
+  monthLabel: z.string(),
+  musicSalesCents: z.number().int(),
+  periodEndsAt: z.string(),
+  periodStartsAt: z.string(),
+  plays: z.number().int(),
+  qualifiedStreams: z.number().int(),
+  tipsCents: z.number().int(),
+  totalEarningsCents: z.number().int(),
+});
+
+export const artistEarningsOverviewSchema = z.object({
+  availableBalanceCents: z.number().int(),
+  categories: artistEarningsCategorySchema.array(),
+  estimatedThisMonthCents: z.number().int(),
+  nextEstimatedPayoutDate: z.string(),
+  paidLifetimeCents: z.number().int(),
+  payoutMinimumCents: z.number().int(),
+  payoutProgressPercent: z.number(),
+  pendingReserveCents: z.number().int(),
+  statements: artistMonthlyStatementSchema.array(),
 });
 
 export const usernameAvailabilityQuerySchema = z.object({
@@ -1165,23 +1432,72 @@ export const commentSchema = z.object({
   username: z.string(),
 });
 
+export const onboardingStateSchema = z.object({
+  completedAt: z.string().nullable(),
+  creatorEligibility: z
+    .enum(["independent", "major_label_affiliated"])
+    .nullable(),
+  creatorEligibilityLocked: z.boolean(),
+  currentStep: z.number().int().min(1).max(8),
+  exitedAt: z.string().nullable(),
+  intendedAccountType: z.enum(["artist", "fan"]),
+  lastActivityAt: z.string(),
+  marketingOptIn: z.boolean(),
+  rightsAttested: z.boolean(),
+  selectedPlanCode: z.string().nullable(),
+  startedAt: z.string(),
+  userId: z.string(),
+});
+
+export const updateOnboardingStateBodySchema = z.object({
+  creatorEligibility: z
+    .enum(["independent", "major_label_affiliated"])
+    .optional(),
+  currentStep: z.number().int().min(1).max(8).optional(),
+  intendedAccountType: z.enum(["artist", "fan"]).optional(),
+  marketingOptIn: z.boolean().optional(),
+  marketingOptInSource: z.string().max(80).optional(),
+  marketingOptInVersion: z.string().max(40).optional(),
+  selectedPlanCode: z.string().optional(),
+});
+
+export const creatorEligibilityBodySchema = z.object({
+  eligibility: z.enum(["independent", "major_label_affiliated"]),
+});
+
+export const adminGenreSchema = z.object({
+  description: z.string().nullable(),
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  totalCount: z.number().int().nonnegative(),
+  trackCount: z.number().int().nonnegative(),
+  videoCount: z.number().int().nonnegative(),
+});
+
+export const createGenreBodySchema = z.object({
+  description: z.string().trim().max(500).optional(),
+  name: z.string().trim().min(1).max(80),
+});
+
 export const onboardingArtistBodySchema = z
   .object({
     appleMusicUrl: z.string().optional(),
     avatarObjectKey: z.string().min(1).optional(),
     avatarUrl: z.url().optional(),
     city: z.string().min(1),
+    creatorEligibility: z
+      .enum(["independent", "major_label_affiliated"])
+      .optional(),
     instagramHandle: z.string().optional(),
     mediaLayout: z.enum(["cards", "list"]).default("cards"),
     primaryGenre: z.string().min(1),
     proAffiliation: z.string().default("None"),
     proMemberId: z.string().optional(),
+    rightsAttestationVersion: z.string().max(40).optional(),
+    rightsAttested: z.boolean().default(false),
     roles: artistRoleSchema.array().min(1).default(["musician"]),
-    selectedPlanCode: z.enum([
-      "artist_free",
-      "soundkit_premium_artist",
-      "artist_team",
-    ]),
+    selectedPlanCode: z.enum(["artist_free", "soundkit_premium_artist"]),
     songwriterLegalName: z.string().optional(),
     spotifyUrl: z.string().optional(),
     state: z.string().min(1),
@@ -1212,7 +1528,7 @@ export const onboardingFanBodySchema = z.object({
   city: z.string().min(1),
   genrePreferences: z.array(z.string()).min(3),
   mediaLayout: z.enum(["cards", "list"]).default("cards"),
-  selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan", "fan_family"]),
+  selectedPlanCode: z.enum(["fan_free", "soundkit_premium_fan"]),
   state: z.string().min(1),
   username: usernameSchema,
 });
@@ -1316,6 +1632,7 @@ export const createTrackAssetBodySchema = z.object({
     "session_file",
     "reference_audio",
     "variant_audio",
+    "open_verse_clip",
   ]),
   bucketName: z.string().optional(),
   durationMs: z.number().int().optional(),
@@ -1345,6 +1662,7 @@ export const openVerseQuerySchema = z.object({
 });
 
 export const openVerseListingSchema = z.object({
+  accessMode: z.enum(["open", "approval_required"]),
   artistName: z.string(),
   artistUsername: z.string().nullable(),
   bpm: z.number().int().nullable(),
@@ -1358,6 +1676,7 @@ export const openVerseListingSchema = z.object({
   maxSubmissions: z.number().int(),
   musicalKey: z.string().nullable(),
   playbackUrl: z.string().nullable(),
+  previewAssetId: z.string().nullable(),
   slotEndsAtMs: z.number().int().nullable(),
   slotStartsAtMs: z.number().int().nullable(),
   status: z.enum(["open", "closed", "fulfilled", "archived"]),
@@ -1373,21 +1692,55 @@ export const openVersePageSchema = z.object({
 });
 
 export const createOpenVerseBodySchema = z.object({
+  accessMode: z.enum(["open", "approval_required"]).default("open"),
   closesAt: z.string().datetime().optional(),
   description: z.string().max(2000).optional(),
   maxSubmissions: z.number().int().positive().max(500).default(50),
+  previewAssetId: z.string().min(1).optional(),
   slotEndsAtMs: z.number().int().nonnegative().optional(),
   slotStartsAtMs: z.number().int().nonnegative().optional(),
-  title: z.string().min(1).max(140),
+  // The server derives the listing title from the underlying Track title.
+  title: z.string().min(1).max(140).optional(),
   trackId: z.string().min(1),
 });
 
-export const createOpenVerseSubmissionBodySchema = z.object({
-  assetId: z.string().min(1).optional(),
+export const createOpenVerseAccessRequestBodySchema = z.object({
   message: z.string().max(2000).optional(),
 });
 
+export const openVerseAccessRequestSchema = z.object({
+  createdAt: z.string(),
+  id: z.string(),
+  listingId: z.string(),
+  message: z.string().nullable(),
+  requesterUserId: z.string(),
+  reviewedAt: z.string().nullable(),
+  reviewedByUserId: z.string().nullable(),
+  status: z.enum(["pending", "approved", "declined", "canceled"]),
+  updatedAt: z.string(),
+});
+
+export const respondOpenVerseAccessRequestBodySchema = z.object({
+  action: z.enum(["approve", "decline", "cancel"]),
+});
+
+const openVerseSubmissionAssetSchema = z.object({
+  assetMimeType: z.string().max(120).optional(),
+  assetObjectKey: z.string().min(1),
+  assetOriginalFileName: z.string().max(255).optional(),
+  assetSizeBytes: z.number().int().nonnegative().optional(),
+  assetUrl: z.string().url().optional(),
+});
+
+export const createOpenVerseSubmissionBodySchema = z.object({
+  adlibs: openVerseSubmissionAssetSchema.optional(),
+  audition: openVerseSubmissionAssetSchema,
+  message: z.string().max(2000).optional(),
+  vocalStem: openVerseSubmissionAssetSchema,
+});
+
 export const openVerseSubmissionSchema = z.object({
+  adlibAssetId: z.string().nullable(),
   assetId: z.string().nullable(),
   createdAt: z.string(),
   id: z.string(),
@@ -1401,6 +1754,7 @@ export const openVerseSubmissionSchema = z.object({
     "withdrawn",
   ]),
   submitterUserId: z.string(),
+  vocalStemAssetId: z.string().nullable(),
 });
 
 export const trackProcessingStatusSchema = z.object({
@@ -1718,6 +2072,7 @@ export const createMessageBodySchema = z
       .max(8)
       .default([]),
     body: z.string().default(""),
+    clientMessageId: z.string().trim().min(1).max(120).optional(),
   })
   .refine((message) => message.body.trim() || message.attachments.length > 0, {
     message: "Add a message or attachment.",

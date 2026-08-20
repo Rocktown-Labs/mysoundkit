@@ -4,6 +4,7 @@
 import { useUploadFiles } from "@better-upload/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   Check,
   Clock,
   ExternalLink,
@@ -39,14 +40,25 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
+import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
+import {
+  useCreateMessageCollectionMutation,
+  useMessagingConversations,
+  useMessagingMessages,
+} from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
-  useConversationMessagesQuery,
-  useConversationsQuery,
-  useCreateMessageMutation,
   useFriendsQuery,
   useLibrarySavedQuery,
   useMeQuery,
@@ -108,10 +120,21 @@ const initials = (value: string) =>
   ];
 
 function MessagesPage() {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  return isHydrated ? <MessagesPageClient /> : null;
+}
+
+function MessagesPageClient() {
   const searchParams = Route.useSearch(),
-    { isUserOnline } = usePresence(),
+    isMobile = useMobile(),
+    { isUserOnline, registerPresenceUsers } = usePresence(),
     meQuery = useMeQuery(),
-    conversationsQuery = useConversationsQuery(),
+    conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
     uploadedTracksQuery = useTracksQuery(),
     savedTracksQuery = useLibrarySavedQuery(),
@@ -176,6 +199,17 @@ function MessagesPage() {
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
     [targetFriendId, setTargetFriendId] = useState<string | undefined>();
 
+  useEffect(
+    () =>
+      registerPresenceUsers([
+        ...messageableFriends.map((friend) => friend.id),
+        ...conversations.flatMap((conversation) =>
+          conversation.participantId ? [conversation.participantId] : []
+        ),
+      ]),
+    [conversations, messageableFriends, registerPresenceUsers]
+  );
+
   // Handle URL search params (friendId or conversationId)
   useEffect(() => {
     if (searchParams.conversationId) {
@@ -206,12 +240,13 @@ function MessagesPage() {
       return;
     }
 
-    if (!selectedId && conversations[0]) {
+    if (!selectedId && !isMobile && conversations[0]) {
       setSelectedId(conversations[0].id);
     }
   }, [
     conversations,
     friends,
+    isMobile,
     searchParams.conversationId,
     searchParams.friendId,
     selectedId,
@@ -220,8 +255,11 @@ function MessagesPage() {
   const selectedConversation = conversations.find(
       (conversation) => conversation.id === selectedId
     ),
-    messagesQuery = useConversationMessagesQuery(selectedId),
-    sendMessage = useCreateMessageMutation(selectedId),
+    messagesQuery = useMessagingMessages(selectedId),
+    sendMessage = useCreateMessageCollectionMutation(
+      selectedId,
+      meQuery.data?.user.id
+    ),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -237,6 +275,7 @@ function MessagesPage() {
           })),
         ]);
       },
+      route: "media",
     }),
     filteredConversations = conversations.filter((conversation) =>
       conversation.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -407,7 +446,12 @@ function MessagesPage() {
   return (
     <div className="flex h-[calc(100vh-8.5rem)] gap-4 p-4 md:p-6">
       {/* Sidebar - conversations & contacts */}
-      <Card className="flex w-full flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96">
+      <Card
+        className={cn(
+          "flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96",
+          selectedId ? "hidden md:flex" : "flex w-full"
+        )}
+      >
         <div className="border-b border-border/20 p-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -486,11 +530,25 @@ function MessagesPage() {
       </Card>
 
       {/* Chat area */}
-      <Card className="hidden flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:flex">
+      <Card
+        className={cn(
+          "flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl",
+          selectedId ? "flex" : "hidden md:flex"
+        )}
+      >
         {selectedConversation ? (
           <>
             <div className="flex items-center justify-between border-b border-border/20 bg-white/[0.02] p-4">
               <div className="flex items-center gap-3">
+                <Button
+                  className="size-9 shrink-0 rounded-full md:hidden"
+                  onClick={() => setSelectedId("")}
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Back to conversations"
+                >
+                  <ArrowLeft className="size-5" />
+                </Button>
                 <div className="relative">
                   <Avatar className="size-10 border-2 border-border/40">
                     <AvatarImage
@@ -565,12 +623,21 @@ function MessagesPage() {
               </div>
             </div>
 
-            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-6">
-              {messagesQuery.isLoading && (
-                <p className="text-sm text-muted-foreground">
-                  Loading messages...
-                </p>
-              )}
+            <MessageScrollerProvider
+              autoScroll
+              defaultScrollPosition="end"
+              scrollPreviousItemPeek={64}
+            >
+              <MessageScroller>
+                <MessageScrollerViewport>
+                  <MessageScrollerContent className="gap-4 p-6">
+                    {messagesQuery.isLoading && (
+                      <MessageScrollerItem messageId="loading-messages">
+                        <p className="text-sm text-muted-foreground">
+                          Loading messages...
+                        </p>
+                      </MessageScrollerItem>
+                    )}
               {(messagesQuery.data ?? []).map((message) => {
                 const isMine = message.senderId === meQuery.data?.user.id;
                 const hasCollabProposal = message.attachments?.some(
@@ -585,13 +652,17 @@ function MessagesPage() {
                 );
 
                 return (
-                  <div
-                    className={cn(
-                      "flex",
-                      isMine ? "justify-end" : "justify-start"
-                    )}
+                  <MessageScrollerItem
                     key={message.id}
+                    messageId={message.id}
+                    scrollAnchor={isMine}
                   >
+                    <div
+                      className={cn(
+                        "flex",
+                        isMine ? "justify-end" : "justify-start"
+                      )}
+                    >
                     {hasCollabProposal && collabAtt ? (
                       <div className="w-full max-w-sm rounded-2xl border-2 border-primary/40 bg-card/95 p-4 shadow-xl space-y-3">
                         <div className="flex items-center justify-between border-b pb-2">
@@ -769,7 +840,14 @@ function MessagesPage() {
                           );
                         })}
 
-                        <p className="mt-2 text-[10px] text-muted-foreground font-mono">
+                        <p
+                          className={cn(
+                            "mt-2 font-mono text-[10px]",
+                            isMine
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground"
+                          )}
+                        >
                           {new Date(message.createdAt).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -777,20 +855,27 @@ function MessagesPage() {
                         </p>
                       </div>
                     )}
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 );
               })}
               {!messagesQuery.isLoading &&
                 (messagesQuery.data ?? []).length === 0 && (
-                  <div className="py-12 text-center">
+                  <MessageScrollerItem messageId="empty-messages">
+                    <div className="py-12 text-center">
                     <MessageSquare className="mx-auto mb-3 size-8 text-muted-foreground/30" />
                     <p className="font-medium">No messages yet</p>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Send the first message to start this chat.
                     </p>
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 )}
-            </div>
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton />
+              </MessageScroller>
+            </MessageScrollerProvider>
 
             <form
               className="border-t border-border/20 bg-white/[0.01] p-4"
@@ -1030,8 +1115,12 @@ function MessagesPage() {
                                 displayName: track.title,
                                 sourceTrackId: track.id,
                                 url:
-                                  track.playbackUrl ||
-                                  track.downloadUrl ||
+                                  ("playbackUrl" in track
+                                    ? track.playbackUrl
+                                    : undefined) ||
+                                  ("downloadUrl" in track
+                                    ? track.downloadUrl
+                                    : undefined) ||
                                   `/tracks/${track.id}`,
                               },
                             ]);
@@ -1351,8 +1440,7 @@ function ShareMediaDialog({
                       onClick={() => {
                         onAttach({
                           id: t.id,
-                          streamUrl:
-                            t.playbackUrl || t.downloadUrl || `/tracks/${t.id}`,
+                          streamUrl: `/tracks/${t.id}`,
                           title: t.title,
                         });
                         onOpenChange(false);
@@ -1395,8 +1483,7 @@ function ShareMediaDialog({
                       onClick={() => {
                         onAttach({
                           id: t.id,
-                          streamUrl:
-                            t.playbackUrl || t.downloadUrl || `/tracks/${t.id}`,
+                          streamUrl: `/tracks/${t.id}`,
                           title: t.title,
                         });
                         onOpenChange(false);
@@ -1518,7 +1605,7 @@ function NewChatDialog({
               id: person.userId,
               lastInteractionAt: null,
               name: person.displayName,
-              relationship: "user" as const,
+              relationship: "friend" as const,
               role: person.stageName ? "Artist" : "User",
               username: person.username,
             });
@@ -1566,7 +1653,9 @@ function NewChatDialog({
               ? selectedFriends.map((friend) => friend.name).join(", ")
               : undefined,
           },
-          message: message.trim() ? { body: message.trim() } : undefined,
+          message: message.trim()
+            ? { attachments: [], body: message.trim() }
+            : undefined,
         },
         {
           onSuccess: (res) => {
@@ -1694,7 +1783,9 @@ function NewChatDialog({
 
           <div className="flex items-center justify-between gap-3">
             <Button asChild={true} type="button" variant="outline" size="sm">
-              <Link to="/dashboard/collaborators">Manage Friends</Link>
+              <Link search={{ tab: "friends" }} to="/dashboard/collaborators">
+                Open Network
+              </Link>
             </Button>
             <Button
               disabled={

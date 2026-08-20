@@ -2,6 +2,7 @@
 import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
+  onboardingProgress,
   sellerAccounts,
   userNotifications,
   userProfiles,
@@ -31,18 +32,21 @@ import {
 import {
   archiveStripePromotionCode,
   createStripeCoupon,
+  createStripeWebhookEndpoint,
   createStripeProduct,
   createStripePromotionCode,
   createStripeRecurringPrice,
   listStripePromotionCodes,
   listStripePrices,
   listStripeProducts,
+  listStripeWebhookEndpoints,
   retrieveStripePrice,
 } from "@/lib/stripe";
 import type {
   StripeListResponse,
   StripePriceSummary,
   StripeProductSummary,
+  StripeWebhookEndpointSummary,
 } from "@/lib/stripe";
 import type { AppEnv } from "@/lib/types";
 
@@ -73,7 +77,7 @@ interface DefaultPlanItem {
   code: string;
   entitlements: Record<string, boolean | number | string>;
   isActive: boolean;
-  maxSeats?: number;
+  maxSeats: number;
   monthlyPriceCents: number;
   name: string;
   stripeAnnualPriceId: string;
@@ -81,6 +85,18 @@ interface DefaultPlanItem {
 }
 
 const DEFAULT_PLANS: DefaultPlanItem[] = [
+    {
+      annualPriceCents: 0,
+      audience: "artist",
+      code: "artist_free",
+      entitlements: {},
+      isActive: true,
+      maxSeats: 1,
+      monthlyPriceCents: 0,
+      name: "SoundKit Free Artist",
+      stripeAnnualPriceId: "",
+      stripeMonthlyPriceId: "",
+    },
     {
       annualPriceCents: 22_899,
       audience: "artist",
@@ -90,8 +106,21 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
         canHostLiveStreams: true,
       },
       isActive: true,
+      maxSeats: 5,
       monthlyPriceCents: 2299,
       name: "SoundKit Premium Artist",
+      stripeAnnualPriceId: "",
+      stripeMonthlyPriceId: "",
+    },
+    {
+      annualPriceCents: 0,
+      audience: "fan",
+      code: "fan_free",
+      entitlements: {},
+      isActive: true,
+      maxSeats: 1,
+      monthlyPriceCents: 0,
+      name: "SoundKit Free Fan",
       stripeAnnualPriceId: "",
       stripeMonthlyPriceId: "",
     },
@@ -105,6 +134,7 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
         voteInBattleRounds: true,
       },
       isActive: true,
+      maxSeats: 5,
       monthlyPriceCents: 2299,
       name: "SoundKit Premium Fan",
       stripeAnnualPriceId: "",
@@ -128,6 +158,7 @@ const DEFAULT_PLANS: DefaultPlanItem[] = [
             annualPriceCents: plan.annualPriceCents,
             entitlements: plan.entitlements,
             isActive: true,
+            maxSeats: plan.maxSeats,
             monthlyPriceCents: plan.monthlyPriceCents,
             name: plan.name,
           },
@@ -365,6 +396,122 @@ const serializePlan = (plan: typeof planCatalog.$inferSelect) => {
       productId,
     };
   },
+  ensureStripeWebhookEndpoints = async ({ hasStripe }: { hasStripe: boolean }) => {
+    const apiUrl = getEnvValue("BETTER_AUTH_URL").replace(/\/$/u, ""),
+      desired = [
+        {
+          connect: false,
+          key: "better_auth",
+          secretConfigured: Boolean(
+            getEnvValue("STRIPE_BETTER_AUTH_WEBHOOK_SECRET")
+          ),
+          url: `${apiUrl}/auth/stripe/webhook`,
+          enabledEvents: [
+            "checkout.session.completed",
+            "customer.subscription.created",
+            "customer.subscription.updated",
+            "customer.subscription.deleted",
+          ],
+        },
+        {
+          connect: false,
+          key: "commerce",
+          secretConfigured: Boolean(
+            getEnvValue("STRIPE_COMMERCE_WEBHOOK_SECRET")
+          ),
+          url: `${apiUrl}/v1/webhooks/stripe-commerce`,
+          enabledEvents: [
+            "checkout.session.completed",
+            "checkout.session.async_payment_succeeded",
+            "checkout.session.async_payment_failed",
+            "invoice.payment_failed",
+            "customer.subscription.created",
+            "customer.subscription.updated",
+            "customer.subscription.deleted",
+            "charge.dispute.created",
+            "charge.refunded",
+          ],
+        },
+        {
+          connect: true,
+          key: "connect",
+          secretConfigured: Boolean(
+            getEnvValue("STRIPE_CONNECT_WEBHOOK_SECRET")
+          ),
+          url: `${apiUrl}/v1/webhooks/stripe-commerce`,
+          enabledEvents: [
+            "account.updated",
+            "account.application.authorized",
+            "account.application.deauthorized",
+            "capability.updated",
+          ],
+        },
+      ] as const;
+
+    if (!hasStripe) {
+      return desired.map((endpoint) => ({
+        connect: endpoint.connect,
+        id: null,
+        secret: null,
+        secretConfigured: endpoint.secretConfigured,
+        status: "skipped" as const,
+        url: endpoint.url,
+      }));
+    }
+
+    let existing: StripeWebhookEndpointSummary[] = [];
+    try {
+      existing = (await listStripeWebhookEndpoints())?.data ?? [];
+    } catch (error) {
+      console.error("Stripe webhook endpoint listing failed", error);
+    }
+    const results = [];
+    for (const endpoint of desired) {
+      const match = existing.find(
+        (candidate) =>
+          candidate.url === endpoint.url &&
+          Boolean(candidate.connect) === endpoint.connect
+      );
+      if (match) {
+        results.push({
+          connect: endpoint.connect,
+          id: match.id,
+          secret: null,
+          secretConfigured: endpoint.secretConfigured,
+          status: match.status === "enabled" ? ("enabled" as const) : ("missing" as const),
+          url: endpoint.url,
+        });
+        continue;
+      }
+
+      try {
+        const created = await createStripeWebhookEndpoint({
+          connect: endpoint.connect,
+          enabledEvents: [...endpoint.enabledEvents],
+          url: endpoint.url,
+        });
+        results.push({
+          connect: endpoint.connect,
+          id: created?.id ?? null,
+          secret: created?.secret ?? null,
+          secretConfigured: endpoint.secretConfigured,
+          status: created?.status === "enabled" ? ("created" as const) : ("missing" as const),
+          url: endpoint.url,
+        });
+      } catch (error) {
+        console.error(`Stripe ${endpoint.key} webhook setup failed`, error);
+        results.push({
+          connect: endpoint.connect,
+          id: null,
+          secret: null,
+          secretConfigured: endpoint.secretConfigured,
+          status: "missing" as const,
+          url: endpoint.url,
+        });
+      }
+    }
+    return results;
+  },
   loadPaymentOverview = async () => {
     await ensureDefaultPlansSeeded();
 
@@ -481,6 +628,7 @@ app.get("/payments/users", async (c) => {
         users: [
           {
             accountType: "artist",
+            creatorEligibility: null,
             banned: false,
             createdAt,
             email: "cg@rocktownlabs.com",
@@ -493,6 +641,7 @@ app.get("/payments/users", async (c) => {
           },
           {
             accountType: "artist",
+            creatorEligibility: null,
             banned: false,
             createdAt,
             email: "artist@example.com",
@@ -515,6 +664,7 @@ app.get("/payments/users", async (c) => {
     users = await db
       .select({
         accountType: userProfiles.accountType,
+        creatorEligibility: onboardingProgress.creatorEligibility,
         banned: user.banned,
         createdAt: user.createdAt,
         email: user.email,
@@ -525,6 +675,7 @@ app.get("/payments/users", async (c) => {
       })
       .from(user)
       .leftJoin(userProfiles, eq(userProfiles.userId, user.id))
+      .leftJoin(onboardingProgress, eq(onboardingProgress.userId, user.id))
       .where(
         query
           ? or(
@@ -696,6 +847,7 @@ app.openapi(
         {
           message: "Database is required to sync Stripe plans.",
           results: [],
+          webhookEndpoints: [],
         },
         HttpStatusCodes.OK
       );
@@ -703,6 +855,7 @@ app.openapi(
 
     const body = (await c.req.json().catch(() => ({}))) as {
         planCodes?: string[];
+        syncWebhooks?: boolean;
       },
       db = createDb(),
       hasStripe = Boolean(getEnvValue("STRIPE_SECRET_KEY")),
@@ -774,7 +927,11 @@ app.openapi(
       });
     }
 
-    const createdCount = results.filter((r) => r.status === "created").length,
+    const webhookEndpoints =
+        body.syncWebhooks === false
+          ? []
+          : await ensureStripeWebhookEndpoints({ hasStripe }),
+      createdCount = results.filter((r) => r.status === "created").length,
       matchedCount = results.filter((r) => r.status === "matched").length,
       message = stripeError
         ? `Stripe API note: ${stripeError}`
@@ -784,7 +941,7 @@ app.openapi(
             ? `Synced ${matchedCount} plan${matchedCount === 1 ? "" : "s"} with Stripe.`
             : "Stripe catalog sync completed.";
 
-    return c.json({ message, results }, HttpStatusCodes.OK);
+    return c.json({ message, results, webhookEndpoints }, HttpStatusCodes.OK);
   }
 );
 
@@ -877,9 +1034,9 @@ app.get("/payments/coupons", async (c) => {
       {
         coupons: [],
         message: "Unable to load Stripe coupons.",
-        stripeConfigured: true,
+        stripeConfigured: false,
       },
-      HttpStatusCodes.SERVICE_UNAVAILABLE
+      HttpStatusCodes.OK
     );
   }
 

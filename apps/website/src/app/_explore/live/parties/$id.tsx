@@ -16,24 +16,30 @@ import {
   Music2,
   Pause,
   Play,
+  Plus,
   Radio,
   RotateCcw,
   ShoppingBag,
   Sparkles,
   Volume2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { LiveRoomAccessGuard } from "@/components/explore/live-room-access-guard";
 import { LiveCreatorPanel } from "@/components/live/live-creator-panel";
 import { LiveChatPanel } from "@/components/live/live-room-panels";
 import { LiveTwitchShell } from "@/components/live/live-twitch-shell";
+import { useBrowserFullscreen } from "@/components/live/use-browser-fullscreen";
 import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { useLiveRoom } from "@/lib/live-room";
+import {
+  useMeQuery,
+  useToggleSaveTrackMutation,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_explore/live/parties/$id")({
@@ -81,21 +87,50 @@ const getLyricClass = (lineId: string, text: string) => {
 
 function ListeningPartyDetailPage() {
   const { id } = Route.useParams(),
-    { chat, query } = useLiveRoom(id),
+    { chat, chatMessages, partyPlayback, query } = useLiveRoom(id),
+    meQuery = useMeQuery(),
     [isChatOpen, setIsChatOpen] = useState(true),
-    [isFullscreen, setIsFullscreen] = useState(false),
-    [isPlaying, setIsPlaying] = useState(true),
+    {
+      containerRef: videoContainerRef,
+      isFullscreen,
+      toggleFullscreen,
+    } = useBrowserFullscreen(),
+    [localIsPlaying] = useState(true),
     [activeTrackId, setActiveTrackId] = useState<string | null>(null),
     [activeTab, setActiveTab] = useState<"tracklist" | "lyrics">("tracklist"),
     [likedTrackIds, setLikedTrackIds] = useState<Set<string>>(new Set()),
     [savedTrackIds, setSavedTrackIds] = useState<Set<string>>(new Set()),
     [isAlbumSaved, setIsAlbumSaved] = useState(false),
-    videoContainerRef = useRef<HTMLDivElement | null>(null),
+    saveTrackMutation = useToggleSaveTrackMutation(),
     room = query.data,
+    authoritativePlayback = room?.party?.playback,
+    isPlaying = authoritativePlayback
+      ? authoritativePlayback.playbackState === "playing"
+      : localIsPlaying,
     currentTrack =
       room?.tracklist.find(
-        (track) => track.id === (activeTrackId ?? room.currentTrackId)
+        (track) =>
+          track.id ===
+          (activeTrackId ??
+            authoritativePlayback?.trackId ??
+            room.currentTrackId)
       ) ?? room?.tracklist[0],
+    currentTrackIndex = room
+      ? Math.max(
+          0,
+          room.tracklist.findIndex((track) => track.id === currentTrack?.id)
+        )
+      : 0,
+    isHost = Boolean(
+      room?.role === "host" ||
+      Boolean(
+        room &&
+        meQuery.data?.user &&
+        [meQuery.data.user.displayName, meQuery.data.user.username].includes(
+          room.hostName
+        )
+      )
+    ),
     isCurrentLiked = currentTrack ? likedTrackIds.has(currentTrack.id) : false,
     handleToggleLike = (trackId: string, trackTitle: string) => {
       setLikedTrackIds((prev) => {
@@ -110,18 +145,31 @@ function ListeningPartyDetailPage() {
         return next;
       });
     },
-    handleToggleSaveTrack = (trackId: string, trackTitle: string) => {
+    handleToggleSaveTrack = async (trackId: string, trackTitle: string) => {
       setSavedTrackIds((prev) => {
         const next = new Set(prev);
         if (next.has(trackId)) {
           next.delete(trackId);
-          toast({ description: `Removed "${trackTitle}" from your Library.` });
         } else {
           next.add(trackId);
-          toast({ description: `Saved "${trackTitle}" to your Library!` });
         }
         return next;
       });
+
+      try {
+        const result = await saveTrackMutation.mutateAsync(trackId);
+        toast({
+          description: result.saved
+            ? `Saved "${trackTitle}" to your Library!`
+            : `Removed "${trackTitle}" from your Library.`,
+          title: result.saved ? "Track Saved" : "Track Removed",
+        });
+      } catch {
+        toast({
+          description: `Updated "${trackTitle}" in your Library.`,
+          title: "Library Updated",
+        });
+      }
     },
     handleSaveAlbum = () => {
       setIsAlbumSaved((prev) => !prev);
@@ -139,35 +187,20 @@ function ListeningPartyDetailPage() {
       });
     },
     handleReplayTrack = (trackTitle?: string) => {
+      const track =
+        room?.tracklist.find((entry) => entry.title === trackTitle) ??
+        currentTrack;
+      if (track) {
+        partyPlayback.mutate({ trackId: track.id, type: "replay" });
+      }
       toast({
         description: `Restarted "${trackTitle ?? currentTrack?.title ?? "current track"}" for the live room.`,
         title: "Synced Playback",
       });
+    },
+    handleTogglePlayback = () => {
+      partyPlayback.mutate({ type: isPlaying ? "pause" : "resume" });
     };
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (videoContainerRef.current?.requestFullscreen) {
-          await videoContainerRef.current.requestFullscreen();
-        }
-      } else if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      setIsFullscreen((prev) => !prev);
-    }
-  };
 
   if (query.isLoading) {
     return (
@@ -199,7 +232,7 @@ function ListeningPartyDetailPage() {
       <LiveChatPanel
         disabled={chat.isPending}
         fillHeight
-        messages={room.chat}
+        messages={chatMessages}
         onCollapse={() => setIsChatOpen(false)}
         onSend={(message) => chat.mutate({ message, userName: "You" })}
         title="Party Chat"
@@ -346,7 +379,7 @@ function ListeningPartyDetailPage() {
                   <div className="flex items-center gap-3 min-w-0">
                     <Button
                       className="size-9 rounded-full bg-primary text-primary-foreground hover:scale-105 transition shrink-0 shadow-md"
-                      onClick={() => setIsPlaying((p) => !p)}
+                      onClick={handleTogglePlayback}
                       size="icon"
                       variant="default"
                     >
@@ -367,15 +400,48 @@ function ListeningPartyDetailPage() {
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                      onClick={() => handleReplayTrack()}
-                      size="icon"
-                      title="Replay Current Track"
-                      variant="ghost"
-                    >
-                      <RotateCcw className="size-3.5" />
-                    </Button>
+                    {/* Host Action: Replay Track / Fan Action: Save Track (+) */}
+                    {isHost ? (
+                      <Button
+                        className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                        onClick={() => handleReplayTrack()}
+                        size="icon"
+                        title="Replay Current Track"
+                        variant="ghost"
+                      >
+                        <RotateCcw className="size-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        className={cn(
+                          "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
+                          currentTrack &&
+                            savedTrackIds.has(currentTrack.id) &&
+                            "text-primary"
+                        )}
+                        onClick={() => {
+                          if (currentTrack) {
+                            void handleToggleSaveTrack(
+                              currentTrack.id,
+                              currentTrack.title
+                            );
+                          }
+                        }}
+                        size="icon"
+                        title={
+                          currentTrack && savedTrackIds.has(currentTrack.id)
+                            ? "Saved to Library"
+                            : "Save Current Track (+)"
+                        }
+                        variant="ghost"
+                      >
+                        {currentTrack && savedTrackIds.has(currentTrack.id) ? (
+                          <BookmarkCheck className="size-3.5 text-primary" />
+                        ) : (
+                          <Plus className="size-3.5" />
+                        )}
+                      </Button>
+                    )}
                     <Button
                       className={cn(
                         "size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20",
@@ -410,7 +476,7 @@ function ListeningPartyDetailPage() {
                     <div
                       className="h-full bg-primary rounded-full transition-all duration-500"
                       style={{
-                        width: `${Math.min(100, Math.max(15, (room.currentTrackIndex + 1) * 20))}%`,
+                        width: `${Math.min(100, Math.max(15, (currentTrackIndex + 1) * 20))}%`,
                       }}
                     />
                   </div>
@@ -446,8 +512,7 @@ function ListeningPartyDetailPage() {
                     </TabsTrigger>
                   </TabsList>
                   <span className="text-[10px] text-white/50">
-                    Track {room.currentTrackIndex + 1} of{" "}
-                    {room.tracklist.length}
+                    Track {currentTrackIndex + 1} of {room.tracklist.length}
                   </span>
                 </div>
 
@@ -521,16 +586,19 @@ function ListeningPartyDetailPage() {
                               isTrackSaved && "text-primary"
                             )}
                             onClick={() =>
-                              handleToggleSaveTrack(track.id, track.title)
+                              void handleToggleSaveTrack(track.id, track.title)
                             }
-                            title="Save to Library"
+                            title={
+                              isTrackSaved
+                                ? "Saved to Library"
+                                : "Save Track (+)"
+                            }
                           >
-                            <Bookmark
-                              className={cn(
-                                "size-3.5",
-                                isTrackSaved && "fill-primary"
-                              )}
-                            />
+                            {isTrackSaved ? (
+                              <BookmarkCheck className="size-3.5 text-primary" />
+                            ) : (
+                              <Plus className="size-3.5" />
+                            )}
                           </Button>
 
                           {/* Fan Action: Buy Track ($1.29) */}
@@ -544,19 +612,28 @@ function ListeningPartyDetailPage() {
                             $1.29
                           </Button>
 
-                          {/* Host Action: Replay Track */}
-                          <Button
-                            className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
-                            onClick={() => {
-                              setActiveTrackId(track.id);
-                              handleReplayTrack(track.title);
-                            }}
-                            size="icon"
-                            title="Play this track for the party"
-                            variant="ghost"
-                          >
-                            <RotateCcw className="size-3" />
-                          </Button>
+                          {/* Host Action: Replay / Cue Track for Party */}
+                          {isHost && (
+                            <Button
+                              className="size-7 rounded-full text-white/70 hover:text-white hover:bg-white/20"
+                              onClick={() => {
+                                setActiveTrackId(track.id);
+                                partyPlayback.mutate({
+                                  trackId: track.id,
+                                  type: "track_changed",
+                                });
+                                toast({
+                                  description: `Changed the room to "${track.title}" for everyone.`,
+                                  title: "Track Changed",
+                                });
+                              }}
+                              size="icon"
+                              title="Play this track for the party"
+                              variant="ghost"
+                            >
+                              <RotateCcw className="size-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -590,7 +667,7 @@ function ListeningPartyDetailPage() {
     );
 
   return (
-    <LiveRoomAccessGuard allowPublic={true} roomTitle={room.title}>
+    <LiveRoomAccessGuard roomTitle={room.title}>
       <LiveTwitchShell
         chatPanel={chatPanel}
         defaultChatOpen={true}

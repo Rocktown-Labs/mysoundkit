@@ -17,9 +17,15 @@ import {
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { jsonError } from "@/lib/errors";
 import { publishDueLiveRecordings } from "@/lib/live-experience-events";
+import {
+  handleLiveNotificationQueue,
+  LIVE_NOTIFICATION_QUEUE_NAME,
+} from "@/lib/live-notifications";
+import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
+import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
 import type { AppEnv } from "@/lib/types";
@@ -34,6 +40,7 @@ import adminFinanceRoutes from "@/routes/admin-finance";
 import adsRoutes from "@/routes/ads";
 import analyticsRoutes from "@/routes/analytics";
 import artistsRoutes from "@/routes/artists";
+import authRoutes from "@/routes/auth";
 import battlesRoutes from "@/routes/battles";
 import billingRoutes from "@/routes/billing";
 import cartRoutes from "@/routes/cart";
@@ -45,6 +52,7 @@ import listeningPartiesRoutes from "@/routes/listening-parties";
 import liveRoutes from "@/routes/live";
 import meRoutes from "@/routes/me";
 import messagesRoutes from "@/routes/messages";
+import networkRoutes from "@/routes/network";
 import notificationsRoutes from "@/routes/notifications";
 import onboardingRoutes from "@/routes/onboarding";
 import openVersesRoutes from "@/routes/open-verses";
@@ -61,6 +69,7 @@ import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
 import stripeWebhookRoutes from "@/routes/webhooks-stripe";
 
+export { LiveRecordingWorkflow } from "@/workflows/live-recording";
 export { TrackProcessingWorkflow } from "@/workflows/track-processing";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 export { PresenceDurableObject } from "@/durable-objects/presence";
@@ -119,7 +128,7 @@ app.use(structuredLoggingMiddleware);
 app.use(
   "/*",
   cors({
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Turnstile-Token"],
     allowMethods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
     origin: (origin) =>
@@ -166,6 +175,7 @@ app.get("/health", async (c) =>
       databaseUrl: hasEnvValue("DATABASE_URL"),
       emailDeliveryQueue: hasEnvValue("EMAIL_DELIVERY_QUEUE"),
       hyperdrive: hasEnvValue("HYPERDRIVE"),
+      liveNotificationQueue: hasEnvValue("LIVE_NOTIFICATION_QUEUE"),
       liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
       trackDurationBackfillQueue: hasEnvValue("TRACK_DURATION_BACKFILL_QUEUE"),
@@ -185,6 +195,7 @@ app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
 app
   .route("/v1/me", meRoutes)
+  .route("/v1/auth", authRoutes)
   .route("/v1/onboarding", onboardingRoutes)
   .route("/v1/discover", discoverRoutes)
   .route("/v1/artists", artistsRoutes)
@@ -201,6 +212,7 @@ app
   .route("/v1/messages", messagesRoutes)
   .route("/v1/notifications", notificationsRoutes)
   .route("/v1/open-verses", openVersesRoutes)
+  .route("/v1/network", networkRoutes)
   .route("/v1/cart", cartRoutes)
   .route("/v1/payments", paymentsRoutes)
   .route("/v1/communities", communitiesRoutes)
@@ -227,6 +239,12 @@ export default {
   fetch: (request, workerEnv, executionContext) =>
     app.fetch(request, workerEnv, executionContext),
   queue: (batch) => {
+    if (batch.queue.includes(LIVE_NOTIFICATION_QUEUE_NAME)) {
+      return handleLiveNotificationQueue(
+        batch as unknown as MessageBatch<LiveNotificationQueueMessage>
+      );
+    }
+
     if (isTrackDurationBackfillQueueName(batch.queue)) {
       return handleTrackDurationBackfillQueue(
         batch as unknown as MessageBatch<DurationBackfillQueueMessage>
@@ -244,6 +262,7 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         publishDueLiveRecordings(),
+        sendDueOnboardingReminders(),
         retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
         publishDueTrackReleases({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,

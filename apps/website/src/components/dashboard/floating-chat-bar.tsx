@@ -32,7 +32,7 @@ import {
   X,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PlayerTrack } from "@/components/audio-player-provider";
 import { useAudioPlayer } from "@/components/audio-player-provider";
@@ -50,15 +50,25 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@soundkit/ui/components/message-scroller";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import { isImmersiveExploreRoute } from "@/lib/immersive-route";
+import {
+  useCreateMessageCollectionMutation,
+  useMessagingMessages,
+} from "@/lib/message-db";
 import { usePresence } from "@/lib/presence-context";
 import {
-  useConversationMessagesQuery,
   useConversationsQuery,
-  useCreateMessageMutation,
   useFriendsQuery,
   useLibrarySavedQuery,
   useMeQuery,
@@ -111,6 +121,16 @@ interface ChatAttachment {
 }
 
 export function FloatingChatBar() {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  return isHydrated ? <FloatingChatBarClient /> : null;
+}
+
+function FloatingChatBarClient() {
   const [view, setView] = useState<"list" | "chat">("list"),
     [isNewChatOpen, setIsNewChatOpen] = useState(false),
     [searchQuery, setSearchQuery] = useState(""),
@@ -153,7 +173,7 @@ export function FloatingChatBar() {
     uploadedTracksQuery = useTracksQuery(),
     savedTracksQuery = useLibrarySavedQuery(),
     startConversation = useStartConversationMutation(),
-    { isUserOnline } = usePresence(),
+    { isUserOnline, registerPresenceUsers } = usePresence(),
     conversations = useMemo(
       () =>
         Array.isArray(conversationsQuery.data) ? conversationsQuery.data : [],
@@ -168,8 +188,11 @@ export function FloatingChatBar() {
       conversations[0] ??
       null,
     conversationId = activeConversation?.id ?? "",
-    messagesQuery = useConversationMessagesQuery(conversationId),
-    createMessage = useCreateMessageMutation(conversationId),
+    messagesQuery = useMessagingMessages(conversationId),
+    createMessage = useCreateMessageCollectionMutation(
+      conversationId,
+      meQuery.data?.user.id
+    ),
     { isPending: isUploading, upload } = useUploadFiles({
       api: MEDIA_UPLOAD_URL,
       credentials: "include",
@@ -185,6 +208,7 @@ export function FloatingChatBar() {
           })),
         ]);
       },
+      route: "media",
     }),
     messages = messagesQuery.data ?? [],
     totalUnread = conversations.reduce(
@@ -265,6 +289,25 @@ export function FloatingChatBar() {
         }
       );
     };
+
+  useEffect(
+    () =>
+      registerPresenceUsers([
+        ...friends.map((friend) => friend.id),
+        ...conversations.flatMap((conversation) =>
+          conversation.participantId ? [conversation.participantId] : []
+        ),
+      ]),
+    [conversations, friends, registerPresenceUsers]
+  );
+
+  useEffect(() => {
+    if (pathname.startsWith("/dashboard/messages")) {
+      setIsOpen(false);
+      setView("list");
+      setActiveConversationId("");
+    }
+  }, [pathname]);
 
   if (
     !isArtist ||
@@ -731,12 +774,13 @@ export function FloatingChatBar() {
               </CardHeader>
 
               {/* Messages Feed */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 relative">
-                {messages.length > 0 ? (
+              <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+                <MessageScroller>
+                  <MessageScrollerViewport>
+                    <MessageScrollerContent className="gap-3 p-3">
+                      {messages.length > 0 ? (
                   messages.map((message) => {
-                    const isMine =
-                      ((message as Record<string, unknown>).senderId ??
-                        message.senderUserId) === meQuery.data?.user.id;
+                    const isMine = message.senderId === meQuery.data?.user.id;
                     const hasCollabProposal = message.attachments?.some(
                       (att) =>
                         att.mimeType === "soundkit/collaboration-proposal" ||
@@ -749,9 +793,13 @@ export function FloatingChatBar() {
                     );
 
                     return (
-                      <div
+                      <MessageScrollerItem
                         key={message.id}
-                        className={cn(
+                        messageId={message.id}
+                        scrollAnchor={isMine}
+                      >
+                        <div
+                          className={cn(
                           "flex flex-col max-w-[88%]",
                           isMine ? "ml-auto items-end" : "mr-auto items-start"
                         )}
@@ -948,17 +996,26 @@ export function FloatingChatBar() {
                               )}
                           </div>
                         )}
-                        <span className="text-[9px] text-muted-foreground px-1 mt-0.5">
+                        <span
+                          className={cn(
+                            "mt-0.5 px-1 text-[9px]",
+                            isMine
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground"
+                          )}
+                        >
                           {new Date(message.createdAt).toLocaleTimeString([], {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
                         </span>
-                      </div>
+                        </div>
+                      </MessageScrollerItem>
                     );
                   })
                 ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-xs text-muted-foreground space-y-1.5 py-12">
+                  <MessageScrollerItem messageId="empty-floating-messages">
+                    <div className="h-full flex flex-col items-center justify-center text-xs text-muted-foreground space-y-1.5 py-12">
                     <MessageCircle className="size-7 text-muted-foreground/40" />
                     <p className="font-medium">No messages yet</p>
                     <p className="text-[11px]">
@@ -967,9 +1024,14 @@ export function FloatingChatBar() {
                         /collab
                       </code>
                     </p>
-                  </div>
+                    </div>
+                  </MessageScrollerItem>
                 )}
-              </div>
+                    </MessageScrollerContent>
+                  </MessageScrollerViewport>
+                  <MessageScrollerButton />
+                </MessageScroller>
+              </MessageScrollerProvider>
 
               {/* Slash Command Helper Popup */}
               {isSlashActive && matchingCommands.length > 0 && (
@@ -1212,8 +1274,12 @@ export function FloatingChatBar() {
                                 displayName: track.title,
                                 sourceTrackId: track.id,
                                 url:
-                                  track.playbackUrl ||
-                                  track.downloadUrl ||
+                                  ("playbackUrl" in track
+                                    ? track.playbackUrl
+                                    : undefined) ||
+                                  ("downloadUrl" in track
+                                    ? track.downloadUrl
+                                    : undefined) ||
                                   `/tracks/${track.id}`,
                               },
                             ]);

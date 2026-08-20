@@ -4,6 +4,12 @@ import { useEffect } from "react";
 import { API_BASE_URL, API_V1_URL } from "./api";
 
 export type LiveRoomKind = "battle" | "party" | "stream";
+export type LiveRoomViewerRole =
+  | "admin"
+  | "artist_a"
+  | "artist_b"
+  | "fan"
+  | "host";
 
 export interface LiveRoomChatMessage {
   id: string;
@@ -51,10 +57,41 @@ export interface LiveBattleRound {
 
 export interface LiveRoomState {
   battle?: {
+    artistControls?: {
+      availableTrackIds: string[];
+      currentTrackId: string | null;
+      selectedNextTrackId: string | null;
+      usedTrackIds: string[];
+    };
     artists: [LiveRoomArtist, LiveRoomArtist];
+    coordination?: {
+      activeArtistUserId: string | null;
+      battleId: string;
+      format: "best_of_3" | "best_of_5" | "best_of_7";
+      phase: string;
+      phaseEndsAt: number | null;
+      phaseStartedAt: number;
+      roundNumber: number;
+      winnerUserId: string | null;
+    };
     currentRoundId: string;
+    phase?: string;
+    queueSize?: number;
+    viewerQueueStatus?: "admitted" | "queued" | "waiting" | null;
+    waitingRoomCount?: number;
     rounds: LiveBattleRound[];
     tiePolicy: string;
+  };
+  party?: {
+    playback: {
+      hostMode: "off_camera" | "on_camera";
+      hostUserId: string;
+      playbackState: "paused" | "playing";
+      positionMs: number;
+      stateChangedAt: number;
+      trackId: string | null;
+      trackIndex: number;
+    };
   };
   chat: LiveRoomChatMessage[];
   createdAt: string;
@@ -62,7 +99,22 @@ export interface LiveRoomState {
   hostName: string;
   id: string;
   kind: LiveRoomKind;
+  startsAt?: string | null;
+  role?: LiveRoomViewerRole;
+  serverNow?: number;
   status: "ended" | "live" | "upcoming";
+  stream?: {
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    ingestStatus:
+      | "connected"
+      | "disconnected"
+      | "error"
+      | "idle"
+      | "reconnecting";
+    reconnectUntil?: number | null;
+    replayStatus: "available" | "none" | "processing";
+  };
   summary: string;
   title: string;
   tracklist: LiveRoomTrack[];
@@ -70,6 +122,28 @@ export interface LiveRoomState {
 }
 
 const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
+  sortChatMessages = (messages: LiveRoomChatMessage[]) =>
+    [...messages].sort((left, right) => {
+      const leftTime = Date.parse(left.sentAt),
+        rightTime = Date.parse(right.sentAt);
+      return (
+        (Number.isNaN(leftTime) ? 0 : leftTime) -
+          (Number.isNaN(rightTime) ? 0 : rightTime) ||
+        left.id.localeCompare(right.id)
+      );
+    }),
+  appendChatMessage = (
+    room: LiveRoomState | undefined,
+    message: LiveRoomChatMessage
+  ) =>
+    room
+      ? {
+          ...room,
+          chat: room.chat.some((entry) => entry.id === message.id)
+            ? room.chat
+            : sortChatMessages([...room.chat, message]).slice(-80),
+        }
+      : room,
   fetchLiveRoom = async (roomId: string): Promise<LiveRoomState> => {
     const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}`, {
       credentials: "include",
@@ -83,9 +157,9 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
   },
   postLiveRoom = async (
     roomId: string,
-    path: "chat" | "vote",
+    path: "chat" | "vote" | "battle/track" | "party/playback" | "queue" | "leave",
     body: unknown
-  ): Promise<LiveRoomState> => {
+  ): Promise<LiveRoomChatResult | LiveRoomState> => {
     const response = await fetch(`${API_V1_URL}/live/rooms/${roomId}/${path}`, {
       body: JSON.stringify(body),
       credentials: "include",
@@ -102,13 +176,19 @@ const liveRoomKey = (roomId: string) => ["live-room", roomId] as const,
       );
     }
 
-    return response.json() as Promise<LiveRoomState>;
+    return response.json() as Promise<LiveRoomChatResult | LiveRoomState>;
   },
   wsUrlForRoom = (roomId: string) => {
     const url = new URL(`${API_BASE_URL}/v1/live/rooms/${roomId}/ws`);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     return url.toString();
   };
+
+interface LiveRoomChatResult {
+  message: LiveRoomChatMessage | null;
+  rateLimited?: boolean;
+  room: LiveRoomState;
+}
 
 export const useLiveRoom = (roomId: string) => {
   const queryClient = useQueryClient(),
@@ -129,12 +209,19 @@ export const useLiveRoom = (roomId: string) => {
 
     socket.addEventListener("message", (event) => {
       const payload = JSON.parse(String(event.data)) as {
+        message?: LiveRoomChatMessage;
         room?: LiveRoomState;
         type?: string;
       };
 
       if (payload.type === "state" && payload.room) {
         queryClient.setQueryData(liveRoomKey(roomId), payload.room);
+      } else if (payload.type === "chat" && payload.message) {
+        queryClient.setQueryData<LiveRoomState | undefined>(
+          liveRoomKey(roomId),
+          (room) =>
+            appendChatMessage(room, payload.message as LiveRoomChatMessage)
+        );
       }
     });
 
@@ -144,20 +231,80 @@ export const useLiveRoom = (roomId: string) => {
   const chatMutation = useMutation({
       mutationFn: (body: { message: string; userName?: string }) =>
         postLiveRoom(roomId, "chat", body),
-      onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
+      onSuccess: (result) => {
+        if ("message" in result && result.message) {
+          queryClient.setQueryData<LiveRoomState | undefined>(
+            liveRoomKey(roomId),
+            (room) =>
+              appendChatMessage(room, result.message as LiveRoomChatMessage)
+          );
+          return;
+        }
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        }
+      },
     }),
     voteMutation = useMutation({
+      mutationFn: (body: { artistId: string; roundId: string }) =>
+        postLiveRoom(roomId, "vote", body),
+      onSuccess: (result) => {
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        }
+      },
+    }),
+    battleTrackMutation = useMutation({
+      mutationFn: (body: { trackId: string }) =>
+        postLiveRoom(roomId, "battle/track", body),
+      onSuccess: (result) => {
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        } else {
+          queryClient.setQueryData(liveRoomKey(roomId), result);
+        }
+      },
+    }),
+    partyPlaybackMutation = useMutation({
       mutationFn: (body: {
-        artistId: string;
-        roundId: string;
-        voterId?: string;
-      }) => postLiveRoom(roomId, "vote", body),
-      onSuccess: (room) => queryClient.setQueryData(liveRoomKey(roomId), room),
+        trackId?: string;
+        type: "pause" | "resume" | "replay" | "track_changed";
+      }) => postLiveRoom(roomId, "party/playback", body),
+      onSuccess: (result) => {
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        } else {
+          queryClient.setQueryData(liveRoomKey(roomId), result);
+        }
+      },
+    }),
+    leaveMutation = useMutation({
+      mutationFn: () => postLiveRoom(roomId, "leave", {}),
+      onSuccess: (result) => {
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        } else {
+          queryClient.setQueryData(liveRoomKey(roomId), result);
+        }
+      },
+    }),
+    queueMutation = useMutation({
+      mutationFn: () => postLiveRoom(roomId, "queue", {}),
+      onSuccess: (result) => {
+        if ("room" in result) {
+          queryClient.setQueryData(liveRoomKey(roomId), result.room);
+        }
+      },
     });
 
   return {
+    battleTrack: battleTrackMutation,
     chat: chatMutation,
+    chatMessages: sortChatMessages(query.data?.chat ?? []),
+    leave: leaveMutation,
+    partyPlayback: partyPlaybackMutation,
     query,
+    queue: queueMutation,
     vote: voteMutation,
   };
 };

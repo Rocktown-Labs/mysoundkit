@@ -1,124 +1,168 @@
+/* eslint-disable one-var, sort-vars, typescript/explicit-member-accessibility */
+import { createDb, isDatabaseConfigured } from "@soundkit/db";
+import { userPresence } from "@soundkit/db/schema/app";
 import { DurableObject } from "cloudflare:workers";
+
+import { recordRealtimeMetric } from "@/lib/realtime-metrics";
+
+const ACTIVE_THRESHOLD_MS = 90_000,
+  FLUSH_DELAY_MS = 30_000,
+  OFFLINE_GRACE_MS = 15_000,
+  PRESENCE_STATE_KEY = "presence_state",
+  PRESENCE_USER_ID_KEY = "presence_user_id",
+  presenceStatuses = ["online", "away", "offline"] as const;
+
+type PresenceStatus = (typeof presenceStatuses)[number];
 
 export interface UserPresence {
   lastSeen: number;
-  status: "online" | "away" | "offline" | "typing";
+  status: PresenceStatus;
 }
 
-export class PresenceDurableObject extends DurableObject {
-  private users = new Map<string, UserPresence>();
-  private initialized = false;
+export interface PresenceSnapshot extends UserPresence {
+  isOnline: boolean;
+  userId: string;
+}
 
-  private async ensureInitialized() {
-    if (this.initialized) {
-      return;
+interface PresenceSocketMessage {
+  status?: PresenceStatus;
+  type?: "heartbeat";
+}
+
+interface PresenceSocketAttachment {
+  connectedAt: number;
+  tabId: string;
+  userId: string;
+}
+
+const isPresenceStatus = (value: unknown): value is PresenceStatus =>
+  typeof value === "string" &&
+  (presenceStatuses as readonly string[]).includes(value);
+
+export class PresenceDurableObject extends DurableObject {
+  private initialized = false;
+  private offlineGraceUntil: number | null = null;
+  private presence: UserPresence = {
+    lastSeen: 0,
+    status: "offline",
+  };
+  private userId: string | null = null;
+  private dirty = false;
+  private stateVersion = 0;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    ctx.blockConcurrencyWhile(async () => {
+      const [savedPresence, savedUserId] = await Promise.all([
+        ctx.storage.get<UserPresence>(PRESENCE_STATE_KEY),
+        ctx.storage.get<string>(PRESENCE_USER_ID_KEY),
+      ]);
+
+      if (savedPresence && isPresenceStatus(savedPresence.status)) {
+        this.presence = savedPresence;
+      }
+      this.userId = savedUserId ?? null;
+      this.initialized = true;
+    });
+  }
+
+  async heartbeat(
+    userId: string,
+    status: PresenceStatus = "online"
+  ): Promise<PresenceSnapshot> {
+    await this.ensureUser(userId);
+    this.offlineGraceUntil = null;
+    const changed = this.presence.status !== status;
+    this.presence = {
+      lastSeen: Date.now(),
+      status,
+    };
+    this.stateVersion += 1;
+    this.dirty = true;
+
+    if (changed) {
+      this.broadcastPresence();
+      recordRealtimeMetric({
+        dataset: this.env.DO_METRICS,
+        event: "presence_transition",
+        indexes: [status],
+      });
     }
-    const saved =
-      await this.ctx.storage.get<Record<string, UserPresence>>(
-        "presence_users"
-      );
-    if (saved) {
-      this.users = new Map(Object.entries(saved));
-    }
-    this.initialized = true;
+
+    await this.scheduleFlush();
+    return this.snapshot();
+  }
+
+  async getStatus(userId: string): Promise<PresenceSnapshot> {
+    await this.ensureUser(userId);
+    return this.snapshot();
   }
 
   async fetch(request: Request): Promise<Response> {
-    await this.ensureInitialized();
+    const requestedUserId = request.headers.get("x-soundkit-user-id");
+    if (!requestedUserId) {
+      return new Response("Missing authenticated user identity", {
+        status: 401,
+      });
+    }
+
+    await this.ensureUser(requestedUserId);
     const url = new URL(request.url);
 
-    // WebSocket connection for real-time presence synchronization
-    if (
-      url.pathname === "/ws" ||
-      request.headers.get("Upgrade") === "websocket"
-    ) {
-      const userId =
-        url.searchParams.get("userId") || request.headers.get("x-user-id");
-      if (!userId) {
-        return new Response("Missing userId parameter", { status: 400 });
+    if (url.pathname === "/ws") {
+      if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+        return Response.json(
+          { message: "Expected WebSocket upgrade." },
+          { status: 426 }
+        );
       }
 
       const pair = new WebSocketPair(),
-        [client, server] = [pair[0], pair[1]];
+        [client, server] = Object.values(pair) as [WebSocket, WebSocket],
+        tabId = request.headers.get("x-soundkit-tab-id") ?? crypto.randomUUID(),
+        attachment: PresenceSocketAttachment = {
+          connectedAt: Date.now(),
+          tabId,
+          userId: requestedUserId,
+        };
 
-      this.ctx.acceptWebSocket(server, [`user:${userId}`]);
+      this.ctx.acceptWebSocket(server, [
+        `user:${requestedUserId}`,
+        `tab:${tabId}`,
+      ]);
+      server.serializeAttachment(attachment);
+      this.offlineGraceUntil = null;
 
-      this.users.set(userId, {
+      const changed = this.presence.status !== "online";
+      this.presence = {
         lastSeen: Date.now(),
         status: "online",
-      });
-      await this.persist();
-      this.broadcastPresence();
-
-      const alarm = await this.ctx.storage.getAlarm();
-      if (!alarm) {
-        await this.ctx.storage.setAlarm(Date.now() + 30_000);
+      };
+      this.stateVersion += 1;
+      this.dirty = true;
+      if (changed) {
+        this.broadcastPresence();
+        recordRealtimeMetric({
+          dataset: this.env.DO_METRICS,
+          event: "presence_ws_connect",
+          indexes: [requestedUserId],
+        });
       }
+      await this.scheduleFlush();
 
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    // HTTP GET: list all online / active users
-    if (
-      request.method === "GET" &&
-      (url.pathname === "/presence" ||
-        url.pathname === "" ||
-        url.pathname === "/")
-    ) {
-      const now = Date.now(),
-        result: Record<string, UserPresence> = {};
-      for (const [id, user] of this.users) {
-        if (now - user.lastSeen < 60_000 && user.status !== "offline") {
-          result[id] = user;
-        }
-      }
-      return Response.json({
-        count: Object.keys(result).length,
-        users: result,
-      });
-    }
-
-    // HTTP POST: heartbeat
     if (request.method === "POST" && url.pathname === "/heartbeat") {
       const body = (await request.json().catch(() => ({}))) as {
-        status?: "away" | "offline" | "online" | "typing";
-        userId?: string;
-      };
-      if (body.userId) {
-        this.users.set(body.userId, {
-          lastSeen: Date.now(),
-          status: body.status || "online",
-        });
-        await this.persist();
-        this.broadcastPresence();
-        return Response.json({ success: true });
-      }
-      return Response.json({ error: "Missing userId" }, { status: 400 });
+          status?: unknown;
+        },
+        status = isPresenceStatus(body.status) ? body.status : "online";
+      return Response.json(await this.heartbeat(requestedUserId, status));
     }
 
-    // HTTP POST: query online status for a specific list of user IDs
-    if (request.method === "POST" && url.pathname === "/query") {
-      const body = (await request.json().catch(() => ({}))) as {
-          userIds?: string[];
-        },
-        now = Date.now(),
-        requestedIds = body.userIds ?? [],
-        result: Record<
-          string,
-          { isOnline: boolean; lastSeen: number; status: string }
-        > = {};
-      for (const id of requestedIds) {
-        const user = this.users.get(id),
-          isOnline = Boolean(
-            user && now - user.lastSeen < 60_000 && user.status !== "offline"
-          );
-        result[id] = {
-          isOnline,
-          lastSeen: user?.lastSeen ?? 0,
-          status: isOnline ? (user?.status ?? "online") : "offline",
-        };
-      }
-      return Response.json({ users: result });
+    if (request.method === "GET" && url.pathname === "/status") {
+      return Response.json(await this.getStatus(requestedUserId));
     }
 
     return new Response("Not found", { status: 404 });
@@ -128,119 +172,179 @@ export class PresenceDurableObject extends DurableObject {
     if (typeof message !== "string") {
       return;
     }
-    const userId = this.ctx
-      .getTags(ws)
-      .find((t) => t.startsWith("user:"))
-      ?.slice(5);
-    if (!userId) {
+
+    const attachment =
+      ws.deserializeAttachment() as PresenceSocketAttachment | null;
+    if (!attachment?.userId) {
       return;
     }
 
     try {
-      const data = JSON.parse(message) as {
-        status?: "away" | "online" | "typing";
-        type?: string;
-      };
-      if (data.type === "heartbeat") {
-        const existing = this.users.get(userId) ?? {
-          lastSeen: Date.now(),
-          status: "online",
-        };
-        existing.lastSeen = Date.now();
-        if (data.status) {
-          existing.status = data.status;
-        }
-        this.users.set(userId, existing);
-      } else if (data.type === "typing") {
-        const existing = this.users.get(userId) ?? {
-          lastSeen: Date.now(),
-          status: "online",
-        };
-        existing.lastSeen = Date.now();
-        existing.status = "typing";
-        this.users.set(userId, existing);
-        this.broadcastPresence();
+      const parsed = JSON.parse(message) as PresenceSocketMessage;
+      if (parsed.type !== "heartbeat") {
+        return;
       }
-    } catch {
-      // Ignore unparseable socket messages
+
+      const status = isPresenceStatus(parsed.status) ? parsed.status : "online";
+      await this.heartbeat(attachment.userId, status);
+    } catch (error) {
+      console.warn("Presence WebSocket message rejected", {
+        error: error instanceof Error ? error.message : String(error),
+        userId: attachment.userId,
+      });
     }
   }
 
   async webSocketClose(ws: WebSocket) {
-    const userId = this.ctx
-      .getTags(ws)
-      .find((t) => t.startsWith("user:"))
-      ?.slice(5);
+    const attachment =
+      ws.deserializeAttachment() as PresenceSocketAttachment | null;
+    if (!attachment || this.ctx.getWebSockets().length > 0) {
+      return;
+    }
+
+    this.offlineGraceUntil = Date.now() + OFFLINE_GRACE_MS;
+    recordRealtimeMetric({
+      dataset: this.env.DO_METRICS,
+      event: "presence_ws_close",
+      indexes: [attachment.userId],
+    });
+    await this.ctx.storage.setAlarm(this.offlineGraceUntil);
+  }
+
+  async alarm() {
+    const now = Date.now(),
+      hasSockets = this.ctx.getWebSockets().length > 0;
+
+    if (
+      !hasSockets &&
+      this.presence.status !== "offline" &&
+      ((this.offlineGraceUntil !== null && now >= this.offlineGraceUntil) ||
+        now - this.presence.lastSeen >= ACTIVE_THRESHOLD_MS)
+    ) {
+      this.presence = {
+        lastSeen: now,
+        status: "offline",
+      };
+      this.offlineGraceUntil = null;
+      this.stateVersion += 1;
+      this.dirty = true;
+      this.broadcastPresence();
+    }
+
+    if (this.dirty) {
+      await this.flush();
+    }
+
+    if (this.dirty || (!hasSockets && this.presence.status !== "offline")) {
+      await this.scheduleFlush();
+    }
+  }
+
+  private async ensureUser(userId: string) {
+    if (!this.initialized) {
+      await Promise.resolve();
+    }
+
+    if (this.userId && this.userId !== userId) {
+      throw new Error("Presence Durable Object identity mismatch");
+    }
+
+    if (!this.userId) {
+      this.userId = userId;
+      await this.ctx.storage.put(PRESENCE_USER_ID_KEY, userId);
+    }
+  }
+
+  private snapshot(): PresenceSnapshot {
+    const { userId } = this;
+    if (!userId) {
+      throw new Error("Presence Durable Object is not initialized");
+    }
+
+    return {
+      ...this.presence,
+      isOnline:
+        this.presence.status !== "offline" &&
+        Date.now() - this.presence.lastSeen < ACTIVE_THRESHOLD_MS,
+      userId,
+    };
+  }
+
+  private async scheduleFlush() {
+    await this.ctx.storage.setAlarm(Date.now() + FLUSH_DELAY_MS);
+  }
+
+  private async flush() {
+    const { userId } = this;
     if (!userId) {
       return;
     }
 
-    // Check if there are other active sockets for this user
-    const otherSockets = this.ctx.getWebSockets(`user:${userId}`);
-    if (otherSockets.length === 0) {
-      const user = this.users.get(userId);
-      if (user) {
-        user.status = "offline";
-        user.lastSeen = Date.now();
-        this.broadcastPresence();
+    const flushVersion = this.stateVersion,
+      snapshot = { ...this.presence },
+      updatedAt = new Date();
+
+    // Persist locally before attempting external I/O so hibernation/crashes do
+    // not lose the snapshot being flushed.
+    await this.ctx.storage.put(PRESENCE_STATE_KEY, snapshot);
+
+    if (!isDatabaseConfigured()) {
+      if (this.stateVersion === flushVersion) {
+        this.dirty = false;
       }
-    }
-  }
-
-  async alarm() {
-    const now = Date.now();
-    let changed = false;
-    for (const [, user] of this.users) {
-      if (now - user.lastSeen > 60_000 && user.status !== "offline") {
-        user.status = "offline";
-        changed = true;
-      }
-    }
-    if (changed) {
-      await this.persist();
-      this.broadcastPresence();
+      return;
     }
 
-    // Reschedule alarm if any users remain active
-    const hasActive = [...this.users.values()].some(
-      (u) => u.status !== "offline"
-    );
-    if (hasActive) {
-      await this.ctx.storage.setAlarm(Date.now() + 30_000);
-    }
-  }
-
-  private async persist() {
     try {
-      await this.ctx.storage.put(
-        "presence_users",
-        Object.fromEntries(this.users)
-      );
-    } catch {
-      // Storage failure should not crash DO
+      await createDb()
+        .insert(userPresence)
+        .values({
+          lastSeen: new Date(snapshot.lastSeen),
+          status: snapshot.status,
+          updatedAt,
+          userId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            lastSeen: new Date(snapshot.lastSeen),
+            status: snapshot.status,
+            updatedAt,
+          },
+          target: userPresence.userId,
+        });
+      if (this.stateVersion === flushVersion) {
+        this.dirty = false;
+      } else {
+        this.dirty = true;
+        await this.scheduleFlush();
+      }
+      recordRealtimeMetric({
+        dataset: this.env.DO_METRICS,
+        event: "presence_db_flush",
+        indexes: [userId],
+      });
+    } catch (error) {
+      console.error("Presence database flush failed", {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
     }
   }
 
   private broadcastPresence() {
-    const now = Date.now(),
-      activeUsers: Record<string, UserPresence> = {};
-    for (const [id, user] of this.users) {
-      if (now - user.lastSeen < 60_000 && user.status !== "offline") {
-        activeUsers[id] = user;
-      }
-    }
-
     const payload = JSON.stringify({
-      onlineUserIds: Object.keys(activeUsers),
+      ...this.snapshot(),
       type: "presence",
-      users: activeUsers,
     });
 
-    for (const ws of this.ctx.getWebSockets()) {
+    for (const socket of this.ctx.getWebSockets()) {
       try {
-        ws.send(payload);
-      } catch {
-        // Socket error on send
+        socket.send(payload);
+      } catch (error) {
+        console.warn("Presence WebSocket broadcast failed", {
+          error: error instanceof Error ? error.message : String(error),
+          userId: this.userId,
+        });
       }
     }
   }

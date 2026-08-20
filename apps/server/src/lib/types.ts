@@ -1,4 +1,7 @@
+import type { LiveRoomDurableObject } from "@/durable-objects/live-room";
+import type { PresenceDurableObject } from "@/durable-objects/presence";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 
 export interface AuthenticatedSession {
@@ -23,8 +26,12 @@ export interface AppVariables {
 
 export interface AppEnv {
   Bindings: {
-    LIVE_ROOMS?: DurableObjectNamespace;
-    PRESENCE?: DurableObjectNamespace;
+    BATTLE_ADMISSION_BATCH_SIZE?: string;
+    DO_METRICS?: AnalyticsEngineDataset;
+    LIVE_NOTIFICATION_QUEUE?: Queue<LiveNotificationQueueMessage>;
+    LIVE_RECORDING_WORKFLOW?: Workflow;
+    LIVE_ROOMS?: DurableObjectNamespace<LiveRoomDurableObject>;
+    PRESENCE?: DurableObjectNamespace<PresenceDurableObject>;
     MEDIA_BUCKET?: R2Bucket;
     RECORDINGS_ACCESS_KEY_ID?: string;
     RECORDINGS_BUCKET?: R2Bucket;
@@ -36,9 +43,12 @@ export interface AppEnv {
     CLOUDFLARE_REALTIMEKIT_APP_ID?: string;
     CLOUDFLARE_STREAM_API_TOKEN?: string;
     CLOUDFLARE_STREAM_CUSTOMER_CODE?: string;
+    CLOUDFLARE_STREAM_WEBHOOK_SECRET?: string;
     EMAIL_DELIVERY_QUEUE?: Queue<EmailDeliveryQueueMessage>;
     TRACK_DURATION_BACKFILL_QUEUE?: Queue<DurationBackfillQueueMessage>;
     REALTIMEKIT_WEBHOOK_PUBLIC_KEY_URL?: string;
+    TURNSTILE_HOSTNAMES?: string;
+    TURNSTILE_SECRET?: string;
     SOUNDKIT_ALLOW_MOCK_REALTIME?: string;
   };
   Variables: AppVariables;

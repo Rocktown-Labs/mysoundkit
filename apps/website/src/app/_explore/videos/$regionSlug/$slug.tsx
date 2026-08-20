@@ -13,7 +13,7 @@ import type { VideoSeoData } from "@/lib/seo-data";
 export const Route = createFileRoute("/_explore/videos/$regionSlug/$slug")({
   component: RegionSlugVideoPage,
   head: ({ loaderData, params }) => {
-    const video = loaderData as VideoSeoData | null,
+    const video = loaderData as unknown as VideoSeoData | null,
       canonicalPath =
         video?.regionSlug && video.slug
           ? `/videos/${video.regionSlug}/${video.slug}`

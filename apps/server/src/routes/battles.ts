@@ -4,6 +4,8 @@ import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   artistProfiles,
   battleChallenges,
+  battleKitTracks,
+  battleKits,
   battleRounds,
   battleStats,
   battles,
@@ -14,11 +16,25 @@ import {
   userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
-import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
+import {
+  evaluateBattleKitReadiness,
+  validateBattleKitTracks,
+} from "@/lib/battle-kits";
 import { notifyBattleChallengeEmail } from "@/lib/email-events";
 import {
   forbiddenMessage,
@@ -33,6 +49,10 @@ import {
   battleEligibilityBodySchema,
   battleEligibilitySchema,
   battleChallengesResponseSchema,
+  battleKitQuerySchema,
+  battleKitSchema,
+  createBattleKitBodySchema,
+  updateBattleKitBodySchema,
   battleSummarySchema,
   createChallengeBodySchema,
   messageResponseSchema,
@@ -934,6 +954,587 @@ app.openapi(
       { message: `Challenge created for ${opponentUsername}` },
       HttpStatusCodes.CREATED
     );
+  }
+);
+
+const battleKitOwnership = ({
+    organizationId,
+    userId,
+  }: {
+    organizationId: string | null;
+    userId: string;
+  }) =>
+    organizationId
+      ? or(
+          eq(battleKits.ownerUserId, userId),
+          and(
+            isNull(battleKits.ownerUserId),
+            eq(battleKits.organizationId, organizationId)
+          )
+        )
+      : eq(battleKits.ownerUserId, userId),
+  buildBattleKitSummary = ({
+    kit,
+    trackRows,
+  }: {
+    kit: typeof battleKits.$inferSelect;
+    trackRows: {
+      coverArtUrl: string | null;
+      id: string;
+      mainSlot: number | null;
+      role: "main" | "tiebreaker";
+      title: string;
+      trackId: string;
+    }[];
+  }) => {
+    const readiness = evaluateBattleKitReadiness({
+      format: kit.format,
+      tracks: trackRows,
+    });
+
+    return {
+      createdAt: kit.createdAt.toISOString(),
+      format: kit.format,
+      id: kit.id,
+      isBattleReady: readiness.isBattleReady,
+      mainTrackCount: readiness.mainTrackCount,
+      name: kit.title,
+      reason: readiness.reason,
+      requiredMainTracks: readiness.requiredMainTracks,
+      tiebreakerCount: readiness.tiebreakerCount,
+      totalRequiredTracks: readiness.totalRequiredTracks,
+      totalUniqueTracks: readiness.totalUniqueTracks,
+      tracks: trackRows,
+      updatedAt: kit.updatedAt.toISOString(),
+    };
+  },
+  loadBattleKitSummaries = async ({
+    kits,
+  }: {
+    kits: (typeof battleKits.$inferSelect)[];
+  }) => {
+    if (kits.length === 0) {
+      return [];
+    }
+
+    const db = createDb(),
+      kitIds = kits.map((kit) => kit.id),
+      trackRows = await db
+        .select({
+          coverMetadata: trackAssets.metadata,
+          id: battleKitTracks.id,
+          kitId: battleKitTracks.battleKitId,
+          mainSlot: battleKitTracks.mainSlot,
+          role: battleKitTracks.role,
+          title: tracks.title,
+          trackId: battleKitTracks.trackId,
+        })
+        .from(battleKitTracks)
+        .innerJoin(tracks, eq(tracks.id, battleKitTracks.trackId))
+        .leftJoin(
+          trackAssets,
+          and(
+            eq(trackAssets.trackId, tracks.id),
+            eq(trackAssets.assetKind, "cover_art")
+          )
+        )
+        .where(inArray(battleKitTracks.battleKitId, kitIds))
+        .orderBy(
+          asc(battleKitTracks.battleKitId),
+          asc(battleKitTracks.mainSlot)
+        );
+
+    return Promise.all(
+      kits.map((kit) =>
+        buildBattleKitSummary({
+          kit,
+          trackRows: trackRows
+            .filter((track) => track.kitId === kit.id)
+            .map((track) => ({
+              coverArtUrl: objectUrlFromMetadata(track.coverMetadata),
+              id: track.id,
+              mainSlot: track.mainSlot,
+              role: track.role,
+              title: track.title,
+              trackId: track.trackId,
+            })),
+        })
+      )
+    );
+  };
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/kits",
+    request: { query: battleKitQuerySchema },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(battleKitSchema.array(), "Battle Kits"),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json([], HttpStatusCodes.OK);
+    }
+
+    const query = c.req.valid("query"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      kits = await createDb()
+        .select()
+        .from(battleKits)
+        .where(
+          and(
+            battleKitOwnership({ organizationId, userId: user.id }),
+            query.format ? eq(battleKits.format, query.format) : undefined
+          )
+        )
+        .orderBy(desc(battleKits.updatedAt)),
+      summaries = await loadBattleKitSummaries({ kits });
+
+    return c.json(
+      query.ready === undefined
+        ? summaries
+        : summaries.filter((kit) => kit.isBattleReady === query.ready),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/kits/{kitId}",
+    request: { params: z.object({ kitId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(battleKitSchema, "Battle Kit"),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle Kit not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      [kit] = await createDb()
+        .select()
+        .from(battleKits)
+        .where(
+          and(
+            eq(battleKits.id, c.req.valid("param").kitId),
+            battleKitOwnership({ organizationId, userId: user.id })
+          )
+        )
+        .limit(1);
+
+    if (!kit) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const [summary] = await loadBattleKitSummaries({ kits: [kit] });
+    return c.json(summary, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/kits",
+    request: {
+      body: jsonContentRequired(
+        createBattleKitBodySchema,
+        "Battle Kit payload"
+      ),
+    },
+    responses: {
+      [HttpStatusCodes.CREATED]: jsonContent(
+        battleKitSchema,
+        "Battle Kit created"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid Battle Kit"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Track ownership required"
+      ),
+      [HttpStatusCodes.SERVICE_UNAVAILABLE]: jsonContent(
+        messageResponseSchema,
+        "Database unavailable"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is not configured." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const body = c.req.valid("json"),
+      validationMessage = validateBattleKitTracks({
+        format: body.format,
+        tracks: body.tracks,
+      });
+    if (validationMessage) {
+      return c.json(
+        { message: validationMessage },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      });
+    if (!organizationId) {
+      return c.json(
+        { message: "An artist workspace is required." },
+        HttpStatusCodes.SERVICE_UNAVAILABLE
+      );
+    }
+
+    const db = createDb(),
+      trackIds = body.tracks.map((track) => track.trackId),
+      ownedTracks =
+        trackIds.length > 0
+          ? await db
+              .select({ id: tracks.id })
+              .from(tracks)
+              .where(
+                and(
+                  inArray(tracks.id, trackIds),
+                  or(
+                    eq(tracks.ownerUserId, user.id),
+                    eq(tracks.organizationId, organizationId)
+                  ),
+                  eq(tracks.isPublic, true),
+                  inArray(tracks.releaseStrategy, [
+                    "publish_when_ready",
+                    "scheduled",
+                  ]),
+                  or(
+                    isNull(tracks.releaseAt),
+                    sql`${tracks.releaseAt} <= now()`
+                  )
+                )
+              )
+          : [];
+    if (ownedTracks.length !== trackIds.length) {
+      return c.json(
+        {
+          message:
+            "Battle Kits can only contain your released, playable tracks.",
+        },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    const now = new Date(),
+      kitId = crypto.randomUUID();
+    await db.transaction(async (tx) => {
+      await tx.insert(battleKits).values({
+        format: body.format,
+        id: kitId,
+        organizationId,
+        ownerUserId: user.id,
+        title: body.name,
+        updatedAt: now,
+      });
+      if (body.tracks.length > 0) {
+        await tx.insert(battleKitTracks).values(
+          body.tracks.map((track, index) => ({
+            battleKitId: kitId,
+            id: crypto.randomUUID(),
+            mainSlot: track.mainSlot,
+            role: track.role,
+            seedOrder: track.mainSlot ?? index,
+            trackId: track.trackId,
+          }))
+        );
+      }
+    });
+
+    const [kit] = await db
+        .select()
+        .from(battleKits)
+        .where(eq(battleKits.id, kitId))
+        .limit(1),
+      [summary] = await loadBattleKitSummaries({ kits: kit ? [kit] : [] });
+    return c.json(summary, HttpStatusCodes.CREATED);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "patch",
+    path: "/kits/{kitId}",
+    request: {
+      body: jsonContentRequired(
+        updateBattleKitBodySchema,
+        "Battle Kit update payload"
+      ),
+      params: z.object({ kitId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(battleKitSchema, "Battle Kit updated"),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Invalid Battle Kit"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Track ownership required"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle Kit not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const body = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      { kitId } = c.req.valid("param"),
+      [existingKit] = await db
+        .select()
+        .from(battleKits)
+        .where(
+          and(
+            eq(battleKits.id, kitId),
+            battleKitOwnership({ organizationId, userId: user.id })
+          )
+        )
+        .limit(1);
+    if (!existingKit) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const tracksForKit =
+        body.tracks ??
+        (await db
+          .select({
+            mainSlot: battleKitTracks.mainSlot,
+            role: battleKitTracks.role,
+            trackId: battleKitTracks.trackId,
+          })
+          .from(battleKitTracks)
+          .where(eq(battleKitTracks.battleKitId, kitId))),
+      format = body.format ?? existingKit.format,
+      validationMessage = validateBattleKitTracks({
+        format,
+        tracks: tracksForKit,
+      });
+    if (validationMessage) {
+      return c.json(
+        { message: validationMessage },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const trackIds = tracksForKit.map((track) => track.trackId),
+      ownedTracks =
+        trackIds.length > 0
+          ? await db
+              .select({ id: tracks.id })
+              .from(tracks)
+              .where(
+                and(
+                  inArray(tracks.id, trackIds),
+                  or(
+                    eq(tracks.ownerUserId, user.id),
+                    eq(tracks.organizationId, organizationId ?? "")
+                  ),
+                  eq(tracks.isPublic, true),
+                  inArray(tracks.releaseStrategy, [
+                    "publish_when_ready",
+                    "scheduled",
+                  ]),
+                  or(
+                    isNull(tracks.releaseAt),
+                    sql`${tracks.releaseAt} <= now()`
+                  )
+                )
+              )
+          : [];
+    if (ownedTracks.length !== trackIds.length) {
+      return c.json(
+        {
+          message:
+            "Battle Kits can only contain your released, playable tracks.",
+        },
+        HttpStatusCodes.FORBIDDEN
+      );
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(battleKits)
+        .set({
+          format,
+          title: body.name ?? existingKit.title,
+          updatedAt: new Date(),
+        })
+        .where(eq(battleKits.id, kitId));
+      if (body.tracks) {
+        await tx
+          .delete(battleKitTracks)
+          .where(eq(battleKitTracks.battleKitId, kitId));
+        if (body.tracks.length > 0) {
+          await tx.insert(battleKitTracks).values(
+            body.tracks.map((track, index) => ({
+              battleKitId: kitId,
+              id: crypto.randomUUID(),
+              mainSlot: track.mainSlot,
+              role: track.role,
+              seedOrder: track.mainSlot ?? index,
+              trackId: track.trackId,
+            }))
+          );
+        }
+      }
+    });
+
+    const [kit] = await db
+        .select()
+        .from(battleKits)
+        .where(eq(battleKits.id, kitId))
+        .limit(1),
+      [summary] = await loadBattleKitSummaries({ kits: kit ? [kit] : [] });
+    return c.json(summary, HttpStatusCodes.OK);
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "delete",
+    path: "/kits/{kitId}",
+    request: { params: z.object({ kitId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        messageResponseSchema,
+        "Battle Kit deleted"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Battle Kit not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Battles"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      { kitId } = c.req.valid("param"),
+      [kit] = await db
+        .select({ id: battleKits.id })
+        .from(battleKits)
+        .where(
+          and(
+            eq(battleKits.id, kitId),
+            battleKitOwnership({ organizationId, userId: user.id })
+          )
+        )
+        .limit(1);
+    if (!kit) {
+      return c.json(
+        { message: "Battle Kit not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    await db.delete(battleKits).where(eq(battleKits.id, kitId));
+    return c.json({ message: "Battle Kit deleted." }, HttpStatusCodes.OK);
   }
 );
 

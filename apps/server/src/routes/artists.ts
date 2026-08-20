@@ -36,20 +36,22 @@ export const capitalizeWords = (input?: string | null) => {
   if (!input || input.trim().length === 0) {
     return "";
   }
-  return input
-    .split(" ")
-    .map((word) =>
-      word.includes("-")
-        ? word
-            .split("-")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-            .join("-")
-        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    )
-    .join(" ");
+  return input.trim();
 };
 
-const artistMomentumRank = sql<number>`count(${tracks.id})::int`,
+const artistWeeklyPlays = sql<number>`coalesce((
+    select count(${playbackSessions.id})::int
+    from ${playbackSessions}
+    inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
+    where ${tracks.ownerUserId} = ${artistProfiles.userId}
+      and ${playbackSessions.startedAt} >= now() - interval '7 days'
+  ), 0)`,
+  artistTotalPlays = sql<number>`coalesce((
+    select count(${playbackSessions.id})::int
+    from ${playbackSessions}
+    inner join ${tracks} on ${tracks.id} = ${playbackSessions.trackId}
+    where ${tracks.ownerUserId} = ${artistProfiles.userId}
+  ), 0)`,
   artistOrderBy = (query: {
     category?: "rising" | "new" | "top";
     sort?: string;
@@ -63,20 +65,20 @@ const artistMomentumRank = sql<number>`count(${tracks.id})::int`,
     }
 
     if (query.category === "new") {
-      return query.sort === "rank-desc"
-        ? asc(userProfiles.createdAt)
-        : desc(userProfiles.createdAt);
+      return desc(authUser.createdAt);
     }
 
     if (query.category === "rising") {
       return query.sort === "rank-desc"
-        ? asc(artistMomentumRank)
-        : desc(artistMomentumRank);
+        ? asc(artistWeeklyPlays)
+        : desc(artistWeeklyPlays);
     }
 
     return query.sort === "rank-desc"
       ? asc(artistProfiles.followerCount)
-      : desc(artistProfiles.followerCount);
+      : desc(
+          sql`coalesce(${artistTotalPlays}, 0) * 10 + ${artistProfiles.followerCount} * 5 + coalesce(${artistWeeklyPlays}, 0) * 20`
+        );
   };
 
 app.openapi(
@@ -144,11 +146,14 @@ app.openapi(
           genre: genres.name,
           id: userProfiles.userId,
           isVerified: artistProfiles.isVerified,
+          joinedAt: authUser.createdAt,
           name: authUser.name,
           stageName: artistProfiles.stageName,
           state: userProfiles.state,
+          totalPlays: artistTotalPlays,
           trackCount: sql<number>`count(${tracks.id})::int`,
           username: userProfiles.username,
+          weeklyPlays: artistWeeklyPlays,
         })
         .from(artistProfiles)
         .innerJoin(userProfiles, eq(userProfiles.userId, artistProfiles.userId))
@@ -157,16 +162,19 @@ app.openapi(
         .leftJoin(tracks, eq(tracks.ownerUserId, artistProfiles.userId))
         .where(and(...publicArtistConditions))
         .groupBy(
-          userProfiles.userId,
-          userProfiles.city,
-          userProfiles.displayName,
-          userProfiles.state,
-          userProfiles.username,
           artistProfiles.followerCount,
           artistProfiles.isVerified,
           artistProfiles.stageName,
+          artistProfiles.userId,
+          authUser.createdAt,
+          authUser.name,
           genres.name,
-          authUser.name
+          userProfiles.city,
+          userProfiles.createdAt,
+          userProfiles.displayName,
+          userProfiles.state,
+          userProfiles.userId,
+          userProfiles.username
         )
         .orderBy(order)
         .limit(limit)
@@ -179,14 +187,18 @@ app.openapi(
           genre = canonicalGenreName(artist.genre ?? "Hip Hop"),
           hasActivity =
             Number(artist.trackCount) > 0 || Number(artist.followerCount) > 0,
-          rank = hasActivity ? index + offset + 1 : null;
+          rank = hasActivity ? index + offset + 1 : null,
+          weeklyPlays =
+            artist.weeklyPlays > 0
+              ? artist.weeklyPlays
+              : (artist.totalPlays ?? 0);
 
         return {
           avatarUrl: artist.avatarUrl,
           followers: artist.followerCount,
           genre,
           id: artist.id,
-          joinedAt: artist.createdAt.toISOString(),
+          joinedAt: (artist.joinedAt ?? artist.createdAt).toISOString(),
           location: locationLabel({ city: artist.city, state: artist.state }),
           name,
           rank,
@@ -194,7 +206,7 @@ app.openapi(
           state: artist.state,
           username: artist.username,
           verified: artist.isVerified,
-          weeklyPlays: 0,
+          weeklyPlays,
         };
       }),
       HttpStatusCodes.OK
@@ -297,11 +309,16 @@ app.openapi(
           [playsRow] = await db
             .select({
               totalPlays: sql<number>`count(${playbackSessions.id})::int`,
+              weeklyPlays: sql<number>`coalesce(count(case when ${playbackSessions.startedAt} >= now() - interval '7 days' then 1 end)::int, 0)`,
             })
             .from(playbackSessions)
             .innerJoin(tracks, eq(tracks.id, playbackSessions.trackId))
             .where(eq(tracks.ownerUserId, artist.id)),
-          totalPlays = playsRow?.totalPlays ?? 0;
+          totalPlays = playsRow?.totalPlays ?? 0,
+          weeklyPlays =
+            (playsRow?.weeklyPlays ?? 0) > 0
+              ? (playsRow?.weeklyPlays ?? 0)
+              : totalPlays;
 
         return c.json(
           {
@@ -323,7 +340,7 @@ app.openapi(
             trackCount: artist.trackCount,
             username: artist.username,
             verified: artist.isVerified,
-            weeklyPlays: totalPlays,
+            weeklyPlays,
           },
           HttpStatusCodes.OK
         );

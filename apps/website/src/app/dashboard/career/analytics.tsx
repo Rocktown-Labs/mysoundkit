@@ -1,30 +1,28 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { LucideIcon } from "lucide-react";
 import {
-  CalendarDays,
-  Eye,
-  FolderOpen,
-  Radio,
-  Trophy,
-  TrendingUp,
-  Heart,
-  DollarSign,
-  MapPin,
-  Flame,
-  BarChart3,
-  PieChart as PieIcon,
-  Layers,
   Activity,
+  Award,
+  CircleDollarSign,
+  Compass,
+  Crown,
+  Globe2,
+  Headphones,
+  Info,
+  MapPin,
+  Music,
+  PlayCircle,
+  Radio,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Area,
   AreaChart,
   Bar,
   BarChart,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -41,735 +39,612 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
-import type { ChartConfig } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { canonicalGenreName } from "@/lib/music-genres";
 import {
-  computeGeographicData,
-  computeLoyaltySegments,
-  computeRetentionMetrics,
-  computeSourcesData,
-  computeSpike48hData,
-  computeStreamTrends28d,
-  computeStreamTrends7d,
-} from "@/lib/analytics-calculations";
-import {
-  useBattlesQuery,
-  useListeningPartiesQuery,
-  useMeQuery,
-  useProjectsQuery,
-  useTracksQuery,
-  useVideosQuery,
+  useAnalyticsAudienceQuery,
+  useAnalyticsLiveImpactQuery,
+  useAnalyticsLocationsQuery,
+  useAnalyticsOverviewQuery,
+  useAnalyticsSourcesQuery,
+  useAnalyticsTimeseriesQuery,
+  useAnalyticsTracksQuery,
 } from "@/lib/soundkit-api-hooks";
-import type { TrackSummary } from "@/lib/soundkit-api-hooks";
 
 export const Route = createFileRoute("/dashboard/career/analytics")({
   component: AnalyticsPage,
 });
 
-const areaChartConfig: ChartConfig = {
-    desktop: { color: "hsl(var(--primary))", label: "Desktop Streams" },
-    mobile: {
-      color: "hsl(var(--chart-2, 220 70% 50%))",
-      label: "Mobile Streams",
-    },
-  },
-  sourcesChartConfig: ChartConfig = {
-    algorithmic: {
-      color: "hsl(var(--chart-2, 160 60% 45%))",
-      label: "Algorithmic Radio",
-    },
-    direct: { color: "hsl(var(--primary))", label: "Direct & Profile" },
-    playlists: {
-      color: "hsl(var(--chart-3, 30 80% 55%))",
-      label: "User Playlists",
-    },
-  };
-
 function AnalyticsPage() {
-  const [timeframe, setTimeframe] = useState<"7d" | "28d">("7d"),
-    meQuery = useMeQuery(),
-    tracksQuery = useTracksQuery(),
-    projectsQuery = useProjectsQuery(),
-    videosQuery = useVideosQuery(),
-    partiesQuery = useListeningPartiesQuery(),
-    battlesQuery = useBattlesQuery(),
-    tracks = tracksQuery.data ?? [],
-    projects = projectsQuery.data ?? [],
-    videos = videosQuery.data ?? [],
-    parties = partiesQuery.data ?? [],
-    battles = battlesQuery.data ?? [],
-    totalPlays = tracks.reduce((total, track) => total + (track.plays ?? 0), 0),
-    qualifiedPlays = Math.round(totalPlays * 0.72),
-    totalSaves =
-      Math.round(totalPlays * 0.18) +
-      (tracks.length > 0 && totalPlays > 0 ? tracks.length * 4 : 0),
-    publicTracks = tracks.filter((track) => track.isPublic).length,
-    scheduledProjects = projects.filter(
-      (project) => project.releaseDate && project.status !== "released"
+  const [timeseriesMetric, setTimeseriesMetric] = useState<
+      "plays" | "qualified_streams" | "unique_listeners"
+    >("plays"),
+    [timeseriesRange, setTimeseriesRange] = useState<
+      "7d" | "28d" | "90d" | "12m"
+    >("7d"),
+    overviewQuery = useAnalyticsOverviewQuery(),
+    timeseriesQuery = useAnalyticsTimeseriesQuery(
+      timeseriesMetric,
+      timeseriesRange
     ),
-    liveEvents = [
-      ...parties.filter((party) => party.status === "live"),
-      ...battles.filter((battle) => battle.status === "live"),
-    ],
-    // Dynamic trend data generated from actual plays
-    streamTrends7d = useMemo(
-      () => computeStreamTrends7d(totalPlays),
-      [totalPlays]
-    ),
-    streamTrends28d = useMemo(
-      () => computeStreamTrends28d(totalPlays),
-      [totalPlays]
-    ),
-    sourcesData = useMemo(() => computeSourcesData(totalPlays), [totalPlays]),
-    spike48hData = useMemo(() => computeSpike48hData(totalPlays), [totalPlays]),
-    geographicData = useMemo(
-      () => computeGeographicData(totalPlays, meQuery.data?.user.name),
-      [totalPlays, meQuery.data?.user.name]
-    ),
-    retention = useMemo(
-      () => computeRetentionMetrics(totalPlays),
-      [totalPlays]
-    ),
-    loyalty = useMemo(() => computeLoyaltySegments(totalPlays), [totalPlays]),
-    trendData = timeframe === "7d" ? streamTrends7d : streamTrends28d;
+    tracksQuery = useAnalyticsTracksQuery(),
+    audienceQuery = useAnalyticsAudienceQuery(),
+    sourcesQuery = useAnalyticsSourcesQuery(),
+    locationsQuery = useAnalyticsLocationsQuery(),
+    liveImpactQuery = useAnalyticsLiveImpactQuery(),
+    overview = overviewQuery.data,
+    timeseries = timeseriesQuery.data,
+    tracks = tracksQuery.data?.tracks ?? [],
+    audience = audienceQuery.data,
+    sources = sourcesQuery.data?.sources ?? [],
+    locations = locationsQuery.data?.locations ?? [],
+    liveImpact = liveImpactQuery.data,
+    hasLocationData = locationsQuery.data?.hasEnoughData ?? false;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold">
-            Catalog & Stream Analytics
+          <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
+            <Activity className="size-3.5" />
+            Verified Catalog Telemetry
+          </div>
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold mt-1">
+            Artist Analytics
           </h1>
-          <p className="text-muted-foreground">
-            Track qualified subscriber streams, listener discovery, regional
-            reach, and track engagement.
+          <p className="text-sm text-muted-foreground mt-1">
+            Persisted playback metrics, qualified Creator Reward streams, and
+            audience discovery data.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link to="/dashboard/tracks">Manage Tracks</Link>
+        <Button asChild variant="outline" size="sm" className="font-semibold">
+          <Link to="/dashboard/tracks">Manage Catalog</Link>
         </Button>
       </div>
 
-      {/* Top Metric Cards */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          description={`${qualifiedPlays.toLocaleString()} qualified subscriber plays`}
-          icon={Eye}
-          label="Total Streams"
-          value={totalPlays.toLocaleString()}
-        />
-        <MetricCard
-          description={`From ${publicTracks} active releases`}
-          icon={Heart}
-          label="Track Saves"
-          value={totalSaves.toLocaleString()}
-        />
-        <MetricCard
-          description={`${projects.length} total catalog projects`}
-          icon={FolderOpen}
-          label="Upcoming Releases"
-          value={scheduledProjects.length.toLocaleString()}
-        />
-        <MetricCard
-          description={`${parties.length + battles.length} total live sessions`}
-          icon={Radio}
-          label="Live Events"
-          value={liveEvents.length.toLocaleString()}
-        />
-      </div>
-
-      {/* Chart Row 1: Interactive Area Chart (Streams Trend) & Stacked Area Chart (Discovery Sources) */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* 1. Interactive Area Chart: Streams & Listeners */}
-        <Card className="flex flex-col justify-between">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Activity className="size-5 text-primary" />
-                Streams & Device Breakdown
-              </CardTitle>
-              <CardDescription>
-                Mobile vs Desktop listening volume over time.
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-1 rounded-lg border p-1 bg-muted/40">
-              <Button
-                size="xs"
-                variant={timeframe === "7d" ? "default" : "ghost"}
-                className="h-7 text-xs px-2.5"
-                onClick={() => setTimeframe("7d")}
-              >
-                7 Days
-              </Button>
-              <Button
-                size="xs"
-                variant={timeframe === "28d" ? "default" : "ghost"}
-                className="h-7 text-xs px-2.5"
-                onClick={() => setTimeframe("28d")}
-              >
-                28 Days
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={areaChartConfig}
-              className="h-[260px] w-full"
-            >
-              <AreaChart
-                data={trendData}
-                margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
-              >
-                <defs>
-                  <linearGradient id="fillMobile" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor="hsl(var(--primary))"
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="hsl(var(--primary))"
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
-                  <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" tickLine={false} axisLine={false} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `${v}`}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area
-                  type="monotone"
-                  dataKey="mobile"
-                  stackId="1"
-                  stroke="hsl(var(--primary))"
-                  fill="url(#fillMobile)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="desktop"
-                  stackId="1"
-                  stroke="#3b82f6"
-                  fill="url(#fillDesktop)"
-                />
-              </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        {/* 2. Stacked Area Chart: Discovery Sources */}
-        <Card className="flex flex-col justify-between">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Layers className="size-5 text-emerald-400" />
-              Stream Discovery Sources
+      {/* Top 4 Primary KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* 1. Plays */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              30s+ Plays
             </CardTitle>
-            <CardDescription>
-              How listeners find your music: Direct Search, Algorithmic Radio,
-              and Playlists.
-            </CardDescription>
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <Headphones className="size-4" />
+            </div>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={sourcesChartConfig}
-              className="h-[260px] w-full"
-            >
-              <AreaChart
-                data={sourcesData}
-                margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
+            <div className="text-3xl font-extrabold tracking-tight">
+              {(overview?.totalPlays ?? 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+              <span>≥ 30s verified playback sessions</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 2. Qualified Streams */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Qualified Streams
+            </CardTitle>
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+              <Crown className="size-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-extrabold tracking-tight text-amber-400">
+              {(overview?.totalQualifiedStreams ?? 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+              <span>Premium listens meeting reward qualification rules</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 3. Unique Listeners */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Unique Listeners
+            </CardTitle>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+              <Users className="size-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-extrabold tracking-tight text-emerald-400">
+              {(overview?.uniqueListeners ?? 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+              <span>Distinct listener accounts reached</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* 4. Estimated Earnings */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <div className="flex items-center gap-1.5">
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Month-to-Date
+              </CardTitle>
+              <Badge
+                variant="outline"
+                className="text-[10px] py-0 px-1 border-primary/30 text-primary"
               >
-                <defs>
-                  <linearGradient id="fillDirect" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor="hsl(var(--primary))"
-                      stopOpacity={0.8}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="hsl(var(--primary))"
-                      stopOpacity={0.1}
-                    />
-                  </linearGradient>
-                  <linearGradient id="fillAlgo" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient
-                    id="fillPlaylists"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area
-                  type="monotone"
-                  dataKey="direct"
-                  stackId="sources"
-                  stroke="hsl(var(--primary))"
-                  fill="url(#fillDirect)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="algorithmic"
-                  stackId="sources"
-                  stroke="#10b981"
-                  fill="url(#fillAlgo)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="playlists"
-                  stackId="sources"
-                  stroke="#f59e0b"
-                  fill="url(#fillPlaylists)"
-                />
-              </AreaChart>
-            </ChartContainer>
+                Estimated
+              </Badge>
+            </div>
+            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-500">
+              <CircleDollarSign className="size-4" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-extrabold tracking-tight text-purple-400">
+              ${((overview?.estimatedEarningsCents ?? 0) / 100).toFixed(2)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+              <Link
+                to="/dashboard/career/payments"
+                className="text-primary hover:underline flex items-center gap-0.5"
+              >
+                Creator Rewards & Sales →
+              </Link>
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Release Impact: First 24 to 48-Hour Spike Tracker */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* Primary Listening Over Time Chart */}
+      <Card className="border-border/40 bg-card/50">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-bold">
+              Listening Over Time
+            </CardTitle>
+            <CardDescription className="text-xs mt-0.5">
+              Exact event aggregation across all catalog tracks. Zero-filled for
+              inactive dates.
+            </CardDescription>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Metric Switcher */}
+            <Tabs
+              value={timeseriesMetric}
+              onValueChange={(val) =>
+                setTimeseriesMetric(
+                  val as "plays" | "qualified_streams" | "unique_listeners"
+                )
+              }
+            >
+              <TabsList className="bg-muted/60 h-8">
+                <TabsTrigger value="plays" className="text-xs px-2.5">
+                  Plays
+                </TabsTrigger>
+                <TabsTrigger
+                  value="qualified_streams"
+                  className="text-xs px-2.5"
+                >
+                  Qualified Streams
+                </TabsTrigger>
+                <TabsTrigger
+                  value="unique_listeners"
+                  className="text-xs px-2.5"
+                >
+                  Unique Listeners
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Range Switcher */}
+            <Tabs
+              value={timeseriesRange}
+              onValueChange={(val) =>
+                setTimeseriesRange(val as "7d" | "28d" | "90d" | "12m")
+              }
+            >
+              <TabsList className="bg-muted/60 h-8">
+                <TabsTrigger value="7d" className="text-xs px-2">
+                  7D
+                </TabsTrigger>
+                <TabsTrigger value="28d" className="text-xs px-2">
+                  28D
+                </TabsTrigger>
+                <TabsTrigger value="90d" className="text-xs px-2">
+                  90D
+                </TabsTrigger>
+                <TabsTrigger value="12m" className="text-xs px-2">
+                  12M
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px] w-full pt-4">
+            {timeseriesQuery.isError ? (
+              <div className="flex h-full items-center justify-center text-xs text-destructive">
+                Unable to load listening analytics. Please try again.
+              </div>
+            ) : timeseries && timeseries.points.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={timeseries.points}
+                  margin={{ bottom: 0, left: -20, right: 10, top: 10 }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="chartGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-1)"
+                        stopOpacity={0.4}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-1)"
+                        stopOpacity={0}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="label"
+                    stroke="#71717a"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#71717a"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) {
+                        return null;
+                      }
+                      const data = payload[0]?.payload as {
+                        date: string;
+                        label: string;
+                        value: number;
+                      };
+                      return (
+                        <div className="rounded-lg border border-border/50 bg-background/95 p-2 shadow-xl backdrop-blur-sm text-xs">
+                          <div className="font-semibold">{data.date}</div>
+                          <div className="text-primary mt-0.5">
+                            {data.value.toLocaleString()}{" "}
+                            {timeseriesMetric === "qualified_streams"
+                              ? "Qualified Streams"
+                              : timeseriesMetric === "unique_listeners"
+                                ? "Unique Listeners"
+                                : "Plays"}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--chart-1)"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#chartGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                Not enough data yet for this time range.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Track Performance Breakdown */}
+      <Card className="border-border/40 bg-card/50">
+        <CardHeader>
+          <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Flame className="size-5 text-amber-500" />
-                First 24 to 48-Hour Release Spike Tracker
+              <CardTitle className="text-lg font-bold">
+                Track Performance
               </CardTitle>
-              <CardDescription>
-                Real-time stream progression during initial release windows to
-                measure campaign momentum.
+              <CardDescription className="text-xs mt-0.5">
+                Per-track breakdown of verified plays, completion rates,
+                qualification ratios, and rewards.
               </CardDescription>
             </div>
-            <Badge
-              variant="outline"
-              className="w-fit border-amber-500/40 text-amber-400"
-            >
-              Live Release Window
+            <Badge variant="secondary" className="font-mono text-xs">
+              {tracks.length} {tracks.length === 1 ? "Track" : "Tracks"}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={{}} className="h-[200px] w-full">
-            <AreaChart
-              data={spike48hData}
-              margin={{ bottom: 0, left: 0, right: 0, top: 10 }}
-            >
-              <defs>
-                <linearGradient id="fillSpike" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="hour" tickLine={false} axisLine={false} />
-              <YAxis tickLine={false} axisLine={false} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Area
-                type="monotone"
-                dataKey="streams"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                fill="url(#fillSpike)"
-              />
-            </AreaChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
-      {/* Granular Song Metrics: Skip Rate & 70% Duration Qualification Rate */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Activity className="size-5 text-emerald-400" />
-            Granular Song Retention: 70% Duration Threshold vs. Full Completion
-          </CardTitle>
-          <CardDescription>
-            SoundKit stream qualification requires reaching at least 70% track
-            playback duration (deduplicated per 24-hour listener window).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-3">
-          <div className="space-y-2 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-emerald-400">
-                70% Duration Milestone
-              </span>
-              <span className="text-xl font-bold text-emerald-400">
-                {retention.milestoneLabel}
-              </span>
+          {tracksQuery.isError ? (
+            <div className="py-12 text-center text-xs text-destructive">
+              Unable to load track analytics. Please try again.
             </div>
-            <Progress
-              value={retention.milestone}
-              className="h-2 bg-emerald-950"
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Listeners reaching at least 70% of song duration, qualifying for
-              pool royalty payouts.
-            </p>
-          </div>
-
-          <div className="space-y-2 p-4 rounded-lg bg-sky-500/10 border border-sky-500/20">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-sky-400">
-                Full Completion Rate (100%)
-              </span>
-              <span className="text-xl font-bold text-sky-400">
-                {retention.fullLabel}
-              </span>
+          ) : tracks.length === 0 ? (
+            <div className="py-12 text-center text-xs text-muted-foreground">
+              No tracks uploaded yet.{" "}
+              <Link
+                to="/dashboard/tracks/new"
+                className="text-primary hover:underline"
+              >
+                Upload your first track →
+              </Link>
             </div>
-            <Progress value={retention.full} className="h-2 bg-sky-950" />
-            <p className="text-[11px] text-muted-foreground">
-              Percentage of listeners who stream your song completely from start
-              to finish.
-            </p>
-          </div>
-
-          <div className="space-y-2 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-bold text-rose-400">
-                Early Skip Rate (&lt;70%)
-              </span>
-              <span className="text-xl font-bold text-rose-400">
-                {retention.skipLabel}
-              </span>
-            </div>
-            <Progress value={retention.skip} className="h-2 bg-rose-950" />
-            <p className="text-[11px] text-muted-foreground">
-              Listens abandoned before 70% duration. Streams from artist team
-              seats are excluded.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Chart Row 2: Horizontal Bar Chart (Geographic Reach) & Donut Chart (Subscribers vs Free) */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* 3. Horizontal Bar Chart: Geographic Reach & Tour Cities */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <MapPin className="size-5 text-primary" />
-              Top Cities & Regional Reach (Tour Planning)
-            </CardTitle>
-            <CardDescription>
-              Real-time city-level listener data for targeted promos and tour
-              date planning.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {geographicData.length > 0 ? (
-              <ChartContainer config={{}} className="h-[220px] w-full">
-                <BarChart
-                  data={geographicData}
-                  layout="vertical"
-                  margin={{ bottom: 0, left: 20, right: 20, top: 0 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    dataKey="region"
-                    type="category"
-                    tickLine={false}
-                    axisLine={false}
-                    width={150}
-                    style={{ fontSize: "12px" }}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="plays"
-                    fill="hsl(var(--primary))"
-                    radius={[0, 4, 4, 0]}
-                  />
-                </BarChart>
-              </ChartContainer>
-            ) : (
-              <div className="flex h-[220px] flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center text-muted-foreground">
-                <MapPin className="mb-2 size-8 opacity-40" />
-                <p className="text-sm font-medium">
-                  No regional listener data tracked yet
-                </p>
-                <p className="mt-1 text-xs">
-                  City-level tour metrics update automatically as fans stream
-                  your tracks across different regions.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 4. Listener Loyalty Segments */}
-        <Card className="flex flex-col justify-between">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <PieIcon className="size-5 text-primary" />
-              Listener Loyalty Segments
-            </CardTitle>
-            <CardDescription>
-              Classified by listening behavior & catalog repeat play depth.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 py-2">
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-emerald-400">
-                  🔥 Super Listeners{" "}
-                  {loyalty.hasData ? `(${loyalty.superPct}%)` : ""}
-                </span>
-                <span>{loyalty.superPlays} plays</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Dedicated fans streaming catalog tracks regularly. High repeat
-                listening depth.
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-border/30">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-sky-400">
-                  🎧 Casual / Moderate{" "}
-                  {loyalty.hasData ? `(${loyalty.casualPct}%)` : ""}
-                </span>
-                <span>{loyalty.casualPlays} plays</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Streams primarily from ambient & algorithmic radio playlists.
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-border/30">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-muted-foreground">
-                  💤 Lapsed / Inactive{" "}
-                  {loyalty.hasData ? `(${loyalty.lapsedPct}%)` : ""}
-                </span>
-                <span>{loyalty.lapsedPlays} plays</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Former listeners who haven't played a track in 28+ days.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Tracks List with Real Artwork */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Flame className="size-5 text-primary" />
-              Top Tracks & Real Artwork
-            </CardTitle>
-            <CardDescription>
-              Performance metrics with real cover art and licensing status.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {tracks.length === 0 ? (
-              <EmptyAnalyticsCopy
-                actionHref="/dashboard/tracks/new"
-                actionLabel="Create Track"
-                text="Upload music to begin collecting play analytics."
-              />
-            ) : (
-              <div className="space-y-3">
-                {[...tracks]
-                  .toSorted(
-                    (left: TrackSummary, right: TrackSummary) =>
-                      right.plays - left.plays
-                  )
-                  .slice(0, 8)
-                  .map((track, index) => (
-                    <Link
-                      className="flex items-center justify-between gap-4 rounded-lg border border-border/50 p-3 transition-colors hover:border-primary/50 hover:bg-accent/30"
-                      key={track.id}
-                      params={
-                        track.regionSlug && track.slug
-                          ? { regionSlug: track.regionSlug, slug: track.slug }
-                          : { id: track.id }
-                      }
-                      to={
-                        track.regionSlug && track.slug
-                          ? "/tracks/$regionSlug/$slug"
-                          : "/tracks/$id"
-                      }
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border/40 text-muted-foreground pb-2">
+                    <th className="py-2.5 font-semibold">Track</th>
+                    <th className="py-2.5 font-semibold text-right">Plays</th>
+                    <th className="py-2.5 font-semibold text-right">
+                      Qualified Streams
+                    </th>
+                    <th className="py-2.5 font-semibold text-right">
+                      Unique Listeners
+                    </th>
+                    <th className="py-2.5 font-semibold text-right">
+                      Qualification Rate
+                    </th>
+                    <th className="py-2.5 font-semibold text-right">
+                      Avg Listen %
+                    </th>
+                    <th className="py-2.5 font-semibold text-right">
+                      Completion Rate
+                    </th>
+                    <th className="py-2.5 font-semibold text-right">
+                      Est. Rewards
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/20">
+                  {tracks.map((t) => (
+                    <tr
+                      key={t.trackId}
+                      className="hover:bg-muted/30 transition-colors"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="text-xs font-bold text-muted-foreground w-4 text-center">
-                          #{index + 1}
-                        </span>
-                        <div className="relative size-12 flex-shrink-0 overflow-hidden rounded-md bg-muted border border-border/40">
-                          <AppImage
-                            src={track.coverArtUrl ?? "/placeholder.svg"}
-                            alt={track.title}
-                            width={48}
-                            height={48}
-                            className="size-full object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-sm">
-                            {track.title}
-                          </p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge
-                              variant="secondary"
-                              className="text-[10px] px-1.5 py-0"
-                            >
-                              {track.genre ?? "Single"}
-                            </Badge>
-                            {track.isPurchasable && (
-                              <span className="text-[10px] text-emerald-400 font-medium flex items-center">
-                                <DollarSign className="size-3 mr-0.5" />
-                                {track.priceLabel ?? "For Sale"}
-                              </span>
+                      <td className="py-3 pr-4 font-medium">
+                        <div className="flex items-center gap-2.5 min-w-[200px]">
+                          <div className="size-8 rounded-lg bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                            {t.coverArtUrl ? (
+                              <AppImage
+                                src={t.coverArtUrl}
+                                alt={t.title}
+                                layout="constrained"
+                                width={32}
+                                height={32}
+                                className="size-full object-cover"
+                              />
+                            ) : (
+                              <Music className="size-4 text-muted-foreground" />
                             )}
                           </div>
+                          <div className="min-w-0">
+                            <div className="font-bold truncate text-foreground">
+                              {t.title}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {canonicalGenreName(t.genre)}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-semibold">
+                        {t.plays.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono font-semibold text-amber-400">
+                        {t.qualifiedStreams.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-muted-foreground">
+                        {t.uniqueListeners.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
                         <Badge
                           variant="outline"
-                          className="font-semibold text-xs"
+                          className="text-[10px] py-0 border-amber-500/30 text-amber-400"
                         >
-                          {track.plays.toLocaleString()} plays
+                          {t.qualificationRate}%
                         </Badge>
-                      </div>
-                    </Link>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {t.averageListenPercent}%
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono">
+                        {t.completionRate}%
+                      </td>
+                      <td className="py-3 pl-3 text-right font-mono font-bold text-purple-400">
+                        ${(t.estimatedEarningsCents / 100).toFixed(2)}
+                      </td>
+                    </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Audience, Discovery & Live Impact Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* 1. Audience Demographics & Retention */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Users className="size-4 text-primary" />
+              Audience & Loyalty
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Measured listener return rates and catalog discovery depth.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Returning Listener Rate
+                </span>
+                <span className="font-bold font-mono">
+                  {audience?.returningListenerRate ?? 0}%
+                </span>
               </div>
+              <Progress
+                value={audience?.returningListenerRate ?? 0}
+                className="h-1.5"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="p-3 rounded-xl border border-border/30 bg-muted/20 text-center">
+                <div className="text-xl font-bold font-mono text-emerald-400">
+                  {audience?.newListeners ?? 0}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  New Listeners
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-border/30 bg-muted/20 text-center">
+                <div className="text-xl font-bold font-mono text-primary">
+                  {audience?.returningListeners ?? 0}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Returning Listeners
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-border/20 space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Catalog Depth:</span>
+                <span className="font-semibold">
+                  {audience?.catalogDepth ?? 0} tracks / listener
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">
+                  Funded Supporters:
+                </span>
+                <span className="font-semibold text-amber-400">
+                  {audience?.premiumSupporters ?? 0} funded members
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 2. Discovery Sources */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Compass className="size-4 text-primary" />
+              Discovery Sources
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Where listeners discover and play your tracks.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {sources.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                No discovery source sessions recorded yet.
+              </div>
+            ) : (
+              sources.map((s) => (
+                <div key={s.sourceType} className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-foreground font-medium">
+                      {s.label}
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {s.count.toLocaleString()} ({s.percentage}%)
+                    </span>
+                  </div>
+                  <Progress value={s.percentage} className="h-1.5" />
+                </div>
+              ))
             )}
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarDays className="size-5 text-primary" />
-                Upcoming Releases
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {scheduledProjects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No scheduled project releases yet.
-                </p>
-              ) : (
-                scheduledProjects.slice(0, 5).map((project) => (
-                  <Link
-                    className="block rounded-lg border p-3 hover:border-primary/50"
-                    key={project.id}
-                    params={{ id: project.id }}
-                    to="/dashboard/projects/$id"
-                  >
-                    <p className="font-semibold text-sm">{project.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {project.releaseDate
-                        ? new Date(project.releaseDate).toLocaleDateString()
-                        : "Unscheduled"}
-                    </p>
-                  </Link>
-                ))
-              )}
-            </CardContent>
-          </Card>
+        {/* 3. Live Impact & Geography */}
+        <Card className="border-border/40 bg-card/50">
+          <CardHeader>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Zap className="size-4 text-amber-500" />
+              Live Impact
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Audience acquisition through Battles and Listening Parties.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl border border-border/30 bg-muted/20 text-center">
+                <div className="text-xl font-bold font-mono text-amber-400">
+                  {liveImpact?.listenersReached ?? 0}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Live Listeners Reached
+                </div>
+              </div>
+              <div className="p-3 rounded-xl border border-border/30 bg-muted/20 text-center">
+                <div className="text-xl font-bold font-mono text-primary">
+                  {liveImpact?.tracksPlayedInLive ?? 0}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Live Track Plays
+                </div>
+              </div>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="size-5 text-primary" />
-                Live Battles & Events
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {battles.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No live battles or listening parties scheduled right now.
-                </p>
+            <div className="pt-2 border-t border-border/20">
+              <h4 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                <Globe2 className="size-3.5 text-primary" />
+                Audience Geography
+              </h4>
+              {hasLocationData ? (
+                <div className="space-y-2">
+                  {locations.slice(0, 3).map((loc, i) => (
+                    <div key={i} className="flex justify-between text-xs">
+                      <span className="text-muted-foreground truncate max-w-[150px]">
+                        {loc.city ? `${loc.city}, ` : ""}
+                        {loc.regionCode || loc.countryCode}
+                      </span>
+                      <span className="font-mono">
+                        {loc.listeners} ({loc.percentage}%)
+                      </span>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                battles.slice(0, 4).map((battle) => (
-                  <Link
-                    className="block rounded-lg border p-3 hover:border-primary/50"
-                    key={battle.id}
-                    params={{ id: battle.id }}
-                    to="/live/battles/$id"
-                  >
-                    <p className="font-semibold text-sm">{battle.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {battle.genre} • {battle.viewerCount} live viewers
-                    </p>
-                  </Link>
-                ))
+                <div className="p-2.5 rounded-lg bg-muted/30 border border-border/30 text-[11px] text-muted-foreground leading-relaxed">
+                  <Info className="size-3.5 inline mr-1 text-primary" />
+                  Not enough location data yet. Minimum sample threshold
+                  required to protect listener privacy.
+                </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  description,
-  icon: Icon,
-  label,
-  value,
-}: {
-  description: string;
-  icon: LucideIcon;
-  label: string;
-  value: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="font-medium text-sm">{label}</CardTitle>
-        <Icon className="size-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        <p className="text-muted-foreground text-xs">{description}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function EmptyAnalyticsCopy({
-  actionHref,
-  actionLabel,
-  text,
-}: {
-  actionHref: string;
-  actionLabel: string;
-  text: string;
-}) {
-  return (
-    <div className="rounded-lg border border-dashed p-8 text-center">
-      <p className="text-muted-foreground text-sm">{text}</p>
-      <Button asChild className="mt-4">
-        <Link to={actionHref}>{actionLabel}</Link>
-      </Button>
     </div>
   );
 }

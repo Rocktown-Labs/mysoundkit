@@ -2,6 +2,7 @@
 import { createDb } from "@soundkit/db";
 import {
   genres,
+  playbackSessions,
   projectAssets,
   projectCollaborators,
   projectTracks,
@@ -13,72 +14,19 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { env } from "@soundkit/env/server";
 import type { InferSelectModel } from "drizzle-orm";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
+import {
+  formatDuration,
+  objectUrlFromMetadata,
+  publicAssetUrl,
+  publicProjectAssetUrl,
+} from "@/lib/asset-urls";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
 
-const formatDuration = (durationMs: number | null | undefined) => {
-    if (!durationMs) {
-      return "0:00";
-    }
-
-    const totalSeconds = Math.round(durationMs / 1000),
-      minutes = Math.floor(totalSeconds / 60),
-      seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  },
-  objectUrlFromMetadata = (metadata: unknown) => {
-    if (!(metadata && typeof metadata === "object" && "url" in metadata)) {
-      return null;
-    }
-
-    const { url } = metadata as { url?: unknown };
-    return typeof url === "string" ? url : null;
-  },
-  publicAssetUrl = (
-    asset: InferSelectModel<typeof trackAssets> | undefined
-  ) => {
-    if (!asset) {
-      return null;
-    }
-
-    const metadataUrl = objectUrlFromMetadata(asset.metadata);
-
-    if (metadataUrl) {
-      return metadataUrl;
-    }
-
-    const baseUrl = (
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .MEDIA_PUBLIC_URL ??
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .VITE_MEDIA_URL ??
-      ""
-    ).replace(/\/+$/u, "");
-
-    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-  },
-  publicProjectAssetUrl = (
-    asset: InferSelectModel<typeof projectAssets> | undefined
-  ) => {
-    if (!asset) {
-      return null;
-    }
-
-    const baseUrl = (
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .MEDIA_PUBLIC_URL ??
-      (env as unknown as { MEDIA_PUBLIC_URL?: string; VITE_MEDIA_URL?: string })
-        .VITE_MEDIA_URL ??
-      ""
-    ).replace(/\/+$/u, "");
-
-    return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
-  },
-  mapAssetForDashboard = (
+const mapAssetForDashboard = (
     asset:
       | InferSelectModel<typeof trackAssets>
       | InferSelectModel<typeof projectAssets>
@@ -101,12 +49,38 @@ const formatDuration = (durationMs: number | null | undefined) => {
   fileAvailabilityFromAssets = (
     assets: InferSelectModel<typeof trackAssets>[]
   ) => ({
-    adlibs: assets.some((asset) => asset.assetKind === "adlib"),
-    coverArt: assets.some((asset) => asset.assetKind === "cover_art"),
+    adlibs: false,
+    alternateMixes: assets.filter(
+      (asset) => asset.assetKind === "alternate_mix"
+    ).length,
+    artworks: assets.filter(
+      (asset) =>
+        asset.assetKind === "cover_art" || asset.assetKind === "artwork"
+    ).length,
+    booklets: assets.filter((asset) => asset.assetKind === "booklet").length,
+    cleanVersions: assets.filter((asset) => asset.assetKind === "clean").length,
+    coverArt: assets.some(
+      (asset) =>
+        asset.assetKind === "cover_art" || asset.assetKind === "artwork"
+    ),
     instrumental: assets.some((asset) => asset.assetKind === "instrumental"),
-    master: assets.some((asset) => asset.assetKind === "master"),
+    instrumentals: assets.filter((asset) => asset.assetKind === "instrumental")
+      .length,
+    licenses: assets.filter((asset) => asset.assetKind === "license_pdf")
+      .length,
+    master: assets.some(
+      (asset) =>
+        asset.assetKind === "master" || asset.assetKind === "untagged_wav"
+    ),
+    masters: assets.filter((asset) => asset.assetKind === "master").length,
+    midi: assets.filter((asset) => asset.assetKind === "midi").length,
     reference: assets.some((asset) => asset.assetKind === "reference_audio"),
     session: assets.some((asset) => asset.assetKind === "session_file"),
+    stems: assets.filter((asset) => asset.assetKind === "stems").length,
+    taggedMp3s: assets.filter((asset) => asset.assetKind === "tagged_mp3")
+      .length,
+    untaggedWavs: assets.filter((asset) => asset.assetKind === "untagged_wav")
+      .length,
     vocals: assets.filter(
       (asset) =>
         asset.assetKind === "vocal_stem" || asset.assetKind === "verse_vocal"
@@ -119,6 +93,7 @@ export const mapTrackSummary = ({
   assets,
   collaboratorCount,
   genre,
+  plays = 0,
   regionSlug = null,
   row,
 }: {
@@ -127,13 +102,27 @@ export const mapTrackSummary = ({
   assets: InferSelectModel<typeof trackAssets>[];
   collaboratorCount: number;
   genre: string | null;
+  plays?: number;
   regionSlug?: string | null;
   row: InferSelectModel<typeof tracks>;
 }) => {
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
     primaryAudioAsset =
       assets.find((asset) => asset.assetKind === "master") ??
-      assets.find((asset) => asset.durationMs),
+      assets.find(
+        (asset) => typeof asset.durationMs === "number" && asset.durationMs > 0
+      ) ??
+      assets.find(
+        (asset) =>
+          asset.assetKind === "untagged_wav" ||
+          asset.assetKind === "tagged_mp3" ||
+          asset.assetKind === "instrumental"
+      ),
+    resolvedDurationMs =
+      primaryAudioAsset?.durationMs ??
+      assets.find(
+        (asset) => typeof asset.durationMs === "number" && asset.durationMs > 0
+      )?.durationMs,
     previewAsset = assets.find(
       (asset) =>
         asset.assetKind === "variant_audio" &&
@@ -160,7 +149,7 @@ export const mapTrackSummary = ({
     downloadsAllowed: row.downloadsAllowed,
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
     downloadsRequirePurchase: row.downloadsRequirePurchase,
-    duration: formatDuration(primaryAudioAsset?.durationMs),
+    duration: formatDuration(resolvedDurationMs),
     exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
     fileAvailability: fileAvailabilityFromAssets(assets),
     genre: genre ? canonicalGenreName(genre) : "Uncategorized",
@@ -178,7 +167,7 @@ export const mapTrackSummary = ({
       (!row.exclusiveUntil || row.exclusiveUntil > new Date())
         ? null
         : publicAssetUrl(primaryAudioAsset),
-    plays: 0,
+    plays: plays ?? 0,
     previewUrl: publicAssetUrl(previewAsset),
     price: row.price ? Number(row.price) : null,
     priceCents: row.priceCents,
@@ -205,7 +194,8 @@ export const mapTrackSummary = ({
 };
 
 export const buildTrackSummary = async (
-  row: InferSelectModel<typeof tracks>
+  row: InferSelectModel<typeof tracks>,
+  playCountOverride?: number
 ) => {
   const db = createDb(),
     [profile] = await db
@@ -226,13 +216,23 @@ export const buildTrackSummary = async (
           .where(eq(genres.id, row.genreId))
           .limit(1)
       : [],
-    [assetRows, collaboratorRows] = await Promise.all([
+    [assetRows, collaboratorRows, playCountRow] = await Promise.all([
       db.select().from(trackAssets).where(eq(trackAssets.trackId, row.id)),
       db
         .select({ id: trackCollaborators.id })
         .from(trackCollaborators)
         .where(eq(trackCollaborators.trackId, row.id)),
-    ]);
+      playCountOverride === undefined
+        ? db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(playbackSessions)
+            .where(eq(playbackSessions.trackId, row.id))
+        : Promise.resolve([]),
+    ]),
+    actualPlays =
+      playCountOverride === undefined
+        ? (playCountRow[0]?.count ?? 0)
+        : playCountOverride;
 
   return mapTrackSummary({
     artistName: profile?.displayName ?? profile?.userName ?? "SoundKit Artist",
@@ -240,6 +240,7 @@ export const buildTrackSummary = async (
     assets: assetRows,
     collaboratorCount: collaboratorRows.length,
     genre: genreRow?.name ? canonicalGenreName(genreRow.name) : null,
+    plays: actualPlays,
     regionSlug: regionSlugFromUser(profile?.state) ?? null,
     row,
   });

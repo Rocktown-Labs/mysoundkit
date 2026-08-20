@@ -1,11 +1,16 @@
+/* eslint-disable complexity, no-nested-ternary, one-var, sort-vars, unicorn/prefer-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   Check,
   Disc3,
+  Edit3,
   Music2,
   Plus,
   Save,
   Search,
+  Swords,
+  Trash2,
   Trophy,
   X,
 } from "lucide-react";
@@ -21,8 +26,23 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useTracksQuery } from "@/lib/soundkit-api-hooks";
-import type { TrackSummary } from "@/lib/soundkit-api-hooks";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
+import { isReleasedTrack } from "@/lib/release-momentum";
+import type { BattleKit, TrackSummary } from "@/lib/soundkit-api-hooks";
+import {
+  useBattleKitsQuery,
+  useCreateBattleKitMutation,
+  useDeleteBattleKitMutation,
+  useTracksQuery,
+  useUpdateBattleKitMutation,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard/live/my-kit")({
@@ -30,437 +50,605 @@ export const Route = createFileRoute("/dashboard/live/my-kit")({
 });
 
 const battleFormats = [
-  {
-    description: "Three focused records for quick ranked matchups.",
-    id: "best-of-3",
-    label: "Best of 3",
-    slots: 3,
-  },
-  {
-    description: "A deeper rotation when the room wants range.",
-    id: "best-of-5",
-    label: "Best of 5",
-    slots: 5,
-  },
-  {
-    description: "Your full set list for longer live battles.",
-    id: "best-of-7",
-    label: "Best of 7",
-    slots: 7,
-  },
-  {
-    description: "One decisive track for sudden-death rounds.",
-    id: "tiebreaker",
-    label: "Tiebreaker",
-    slots: 1,
-  },
+  { id: "best_of_3", label: "Best of 3", mainTracks: 3 },
+  { id: "best_of_5", label: "Best of 5", mainTracks: 5 },
+  { id: "best_of_7", label: "Best of 7", mainTracks: 7 },
 ] as const;
 
-type BattleFormatId = (typeof battleFormats)[number]["id"];
-type SelectedKits = Record<BattleFormatId, string[]>;
+type BattleKitFormat = (typeof battleFormats)[number]["id"];
 
-const emptySelectedKits: SelectedKits = {
-    "best-of-3": [],
-    "best-of-5": [],
-    "best-of-7": [],
-    tiebreaker: [],
-  },
-  storageKey = "soundkit:battle-kit:v1";
+const formatLabel = (format: BattleKitFormat) =>
+  battleFormats.find((entry) => entry.id === format)?.label ?? format;
 
 function MyKitPage() {
-  const { data: tracks = [], error, isLoading } = useTracksQuery(),
-    [activeFormatId, setActiveFormatId] = useState<BattleFormatId>("best-of-3"),
-    [selectedKits, setSelectedKits] = useState<SelectedKits>(emptySelectedKits),
-    [searchQuery, setSearchQuery] = useState(""),
-    [savedAt, setSavedAt] = useState<string | null>(null);
+  const { toast } = useToast(),
+    kitsQuery = useBattleKitsQuery(),
+    tracksQuery = useTracksQuery(),
+    createKit = useCreateBattleKitMutation(),
+    updateKit = useUpdateBattleKitMutation(),
+    deleteKit = useDeleteBattleKitMutation(),
+    [editingKitId, setEditingKitId] = useState<string | null>(null),
+    editingKit = kitsQuery.data?.find((kit) => kit.id === editingKitId),
+    releasedTracks = useMemo(
+      () => (tracksQuery.data ?? []).filter(isReleasedTrack),
+      [tracksQuery.data]
+    );
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
+  if (editingKitId !== null) {
+    return (
+      <BattleKitEditor
+        initialKit={editingKit}
+        releasedTracks={releasedTracks}
+        isSaving={createKit.isPending || updateKit.isPending}
+        onBack={() => setEditingKitId(null)}
+        onSave={async (payload) => {
+          try {
+            if (editingKit) {
+              await updateKit.mutateAsync({ kitId: editingKit.id, ...payload });
+            } else {
+              await createKit.mutateAsync(payload);
+            }
+            toast({
+              description:
+                "Your Battle Kit is saved across your SoundKit devices.",
+              title: "Battle Kit saved",
+            });
+            setEditingKitId(null);
+          } catch (error) {
+            toast({
+              description:
+                error instanceof Error
+                  ? error.message
+                  : "Could not save this Battle Kit.",
+              title: "Battle Kit save failed",
+              variant: "destructive",
+            });
+          }
+        }}
+      />
+    );
+  }
 
-    const storedKit = window.localStorage.getItem(storageKey);
-
-    if (!storedKit) {
-      return;
-    }
-
-    try {
-      const parsedKit = JSON.parse(storedKit) as Partial<SelectedKits>;
-      setSelectedKits({
-        "best-of-3": parsedKit["best-of-3"] ?? [],
-        "best-of-5": parsedKit["best-of-5"] ?? [],
-        "best-of-7": parsedKit["best-of-7"] ?? [],
-        tiebreaker: parsedKit.tiebreaker ?? [],
-      });
-    } catch {
-      window.localStorage.removeItem(storageKey);
-    }
-  }, []);
-
-  const activeFormat = battleFormats.find(
-      (format) => format.id === activeFormatId
-    ),
-    activeSelectedIds = selectedKits[activeFormatId],
-    selectedTrackMap = useMemo(
-      () => new Map(tracks.map((track) => [track.id, track])),
-      [tracks]
-    ),
-    selectedTracks = activeSelectedIds
-      .map((trackId) => selectedTrackMap.get(trackId))
-      .filter((track): track is TrackSummary => Boolean(track)),
-    normalizedQuery = searchQuery.trim().toLowerCase(),
-    filteredTracks = tracks.filter((track) => {
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return [track.title, track.genre, track.productionStatus]
-        .filter((value): value is string => typeof value === "string")
-        .some((value) => value.toLowerCase().includes(normalizedQuery));
-    }),
-    updateSelectedTracks = (trackId: string) => {
-      const slotCount = activeFormat?.slots ?? 0;
-
-      setSelectedKits((currentKits) => {
-        const currentTracks = currentKits[activeFormatId];
-
-        if (currentTracks.includes(trackId)) {
-          return {
-            ...currentKits,
-            [activeFormatId]: currentTracks.filter((id) => id !== trackId),
-          };
-        }
-
-        if (currentTracks.length >= slotCount) {
-          return currentKits;
-        }
-
-        return {
-          ...currentKits,
-          [activeFormatId]: [...currentTracks, trackId],
-        };
-      });
-    },
-    removeSelectedTrack = (trackId: string) => {
-      setSelectedKits((currentKits) => ({
-        ...currentKits,
-        [activeFormatId]: currentKits[activeFormatId].filter(
-          (id) => id !== trackId
-        ),
-      }));
-    },
-    saveKit = () => {
-      if (typeof window === "undefined") {
-        return;
-      }
-
-      window.localStorage.setItem(storageKey, JSON.stringify(selectedKits));
-      setSavedAt(new Date().toLocaleTimeString([], { timeStyle: "short" }));
-    },
-    slotCount = activeFormat?.slots ?? 0,
-    isFormatFull = activeSelectedIds.length >= slotCount;
+  const kits = kitsQuery.data ?? [],
+    tracks = tracksQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold md:text-3xl">My Battle Kit</h1>
-          <p className="text-muted-foreground">
-            Preset your strongest tracks for each live battle format.
+          <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold tracking-tight">
+            My Battle Kits
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Preset reusable, battle-ready collections from your catalog.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
             <Link to="/dashboard/tracks">
-              <Music2 className="mr-2 size-4" />
+              <Music2 data-icon="inline-start" />
               Explore Music
             </Link>
           </Button>
           <Button asChild>
             <Link to="/dashboard/live">
-              <Trophy className="mr-2 size-4" />
+              <Trophy data-icon="inline-start" />
               Find Battles
             </Link>
+          </Button>
+          <Button
+            disabled={tracksQuery.data?.length === 0}
+            onClick={() => setEditingKitId("new")}
+          >
+            <Plus data-icon="inline-start" />
+            Create Kit
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        {battleFormats.map((format) => {
-          const selectedCount = selectedKits[format.id].length,
-            isActive = activeFormatId === format.id;
+      {kitsQuery.isLoading && (
+        <Card>
+          <CardContent className="p-8 text-center text-sm text-muted-foreground">
+            Loading your Battle Kits...
+          </CardContent>
+        </Card>
+      )}
 
-          return (
-            <button
-              type="button"
-              key={format.id}
-              onClick={() => setActiveFormatId(format.id)}
-              className={cn(
-                "rounded-lg border bg-card/50 p-4 text-left transition-colors hover:border-primary/60",
-                isActive && "border-primary bg-primary/10"
-              )}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-semibold">{format.label}</p>
-                <Badge variant={isActive ? "default" : "outline"}>
-                  {selectedCount}/{format.slots}
-                </Badge>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {format.description}
-              </p>
-            </button>
-          );
-        })}
-      </div>
+      {kitsQuery.error && (
+        <Card className="border-destructive/40">
+          <CardContent className="p-8 text-center text-sm text-destructive">
+            We could not load your Battle Kits. Refresh and try again.
+          </CardContent>
+        </Card>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="border-border/50 bg-card/50">
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle>Track Library</CardTitle>
-                <CardDescription>
-                  Select from your uploaded catalog for {activeFormat?.label}.
-                </CardDescription>
-              </div>
-              <Badge variant="secondary">{tracks.length} tracks</Badge>
-            </div>
-            <div className="relative">
-              <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="pl-9"
-                placeholder="Search by title, genre, or status"
-              />
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading && (
-              <div className="rounded-lg border border-dashed p-8 text-sm text-muted-foreground">
-                Loading your tracks...
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-8 text-sm text-destructive">
-                We could not load your tracks. Refresh and try again.
-              </div>
-            )}
-
-            {!isLoading && !error && tracks.length === 0 && (
-              <EmptyLibraryState />
-            )}
-
-            {!isLoading &&
-              !error &&
-              tracks.length > 0 &&
-              filteredTracks.length === 0 && (
-                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                  No tracks match that search.
-                </div>
-              )}
-
-            {!isLoading && !error && filteredTracks.length > 0 && (
-              <div className="space-y-3">
-                {filteredTracks.map((track) => {
-                  const isSelected = activeSelectedIds.includes(track.id),
-                    disableAdd = !isSelected && isFormatFull;
-
-                  return (
-                    <TrackLibraryRow
-                      key={track.id}
-                      track={track}
-                      disabled={disableAdd}
-                      isSelected={isSelected}
-                      onToggle={() => updateSelectedTracks(track.id)}
-                    />
-                  );
-                })}
-              </div>
+      {!kitsQuery.isLoading && !kitsQuery.error && kits.length === 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <Swords className="size-10 text-primary" />
+            <h2 className="text-xl font-semibold">
+              Build your first Battle Kit
+            </h2>
+            <p className="max-w-lg text-sm text-muted-foreground">
+              {tracks.length === 0
+                ? "Upload and release music before creating a Battle Kit."
+                : releasedTracks.length < 4
+                  ? `You currently have ${releasedTracks.length} eligible track${releasedTracks.length === 1 ? "" : "s"}. A BO3 kit requires 4 including the tiebreaker.`
+                  : "Give a named set of songs a home, then take it into your next battle."}
+            </p>
+            {releasedTracks.length > 0 && (
+              <Button onClick={() => setEditingKitId("new")}>
+                <Plus data-icon="inline-start" />
+                Create your first kit
+              </Button>
             )}
           </CardContent>
         </Card>
+      )}
 
-        <Card className="border-primary/20 bg-card/70">
-          <CardHeader>
-            <CardTitle>{activeFormat?.label} Set</CardTitle>
-            <CardDescription>
-              {activeSelectedIds.length} of {slotCount} battle slots ready.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-3">
-              {Array.from({ length: slotCount }).map((_, index) => {
-                const selectedTrack = selectedTracks[index];
-
-                if (!selectedTrack) {
-                  return (
-                    <div
-                      // biome-ignore lint/suspicious/noArrayIndexKey: Battle slots are fixed positions.
-                      key={index}
-                      className="flex min-h-16 items-center gap-3 rounded-lg border border-dashed p-3 text-sm text-muted-foreground"
-                    >
-                      <div className="flex size-8 items-center justify-center rounded-md bg-muted text-xs font-semibold">
-                        {index + 1}
-                      </div>
-                      Empty slot
-                    </div>
-                  );
+      {!kitsQuery.isLoading && !kitsQuery.error && kits.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {kits.map((kit) => (
+            <BattleKitCard
+              key={kit.id}
+              kit={kit}
+              isDeleting={deleteKit.isPending}
+              onDelete={async () => {
+                try {
+                  await deleteKit.mutateAsync(kit.id);
+                  toast({ title: "Battle Kit deleted" });
+                } catch (error) {
+                  toast({
+                    description:
+                      error instanceof Error ? error.message : "Delete failed.",
+                    title: "Could not delete Battle Kit",
+                    variant: "destructive",
+                  });
                 }
-
-                return (
-                  <div
-                    key={selectedTrack.id}
-                    className="flex min-h-16 items-center gap-3 rounded-lg border bg-background/60 p-3"
-                  >
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/15 text-xs font-semibold text-primary">
-                      {index + 1}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {selectedTrack.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatTrackMeta(selectedTrack)}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSelectedTrack(selectedTrack.id)}
-                      aria-label={`Remove ${selectedTrack.title}`}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
-              {isFormatFull
-                ? "This kit is full and ready to use."
-                : `Add ${slotCount - activeSelectedIds.length} more ${
-                    slotCount - activeSelectedIds.length === 1
-                      ? "track"
-                      : "tracks"
-                  } to complete this format.`}
-            </div>
-
-            <Button
-              type="button"
-              className="w-full"
-              onClick={saveKit}
-              disabled={activeSelectedIds.length === 0}
-            >
-              <Save className="mr-2 size-4" />
-              Save Kit
-            </Button>
-
-            {savedAt && (
-              <p className="text-center text-xs text-muted-foreground">
-                Saved locally at {savedAt}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              }}
+              onEdit={() => setEditingKitId(kit.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function TrackLibraryRow({
-  disabled,
-  isSelected,
-  onToggle,
+function BattleKitCard({
+  isDeleting,
+  kit,
+  onDelete,
+  onEdit,
+}: {
+  isDeleting: boolean;
+  kit: BattleKit;
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
+  const mainTracks = kit.tracks.filter((track) => track.role === "main"),
+    tiebreaker = kit.tracks.find((track) => track.role === "tiebreaker");
+
+  return (
+    <Card
+      className={cn("flex flex-col", kit.isBattleReady && "border-primary/50")}
+    >
+      <CardHeader className="gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>{kit.name}</CardTitle>
+            <CardDescription>{formatLabel(kit.format)}</CardDescription>
+          </div>
+          <Badge variant={kit.isBattleReady ? "default" : "secondary"}>
+            {kit.isBattleReady
+              ? "Battle Ready"
+              : `${kit.totalUniqueTracks}/${kit.totalRequiredTracks}`}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-4">
+        <div className="flex flex-wrap gap-2">
+          {[...mainTracks, ...(tiebreaker ? [tiebreaker] : [])].map((track) => (
+            <div
+              className="size-12 overflow-hidden rounded-md border bg-muted"
+              key={track.id}
+            >
+              {track.coverArtUrl ? (
+                <img
+                  alt={`${track.title} cover`}
+                  className="size-full object-cover"
+                  src={track.coverArtUrl}
+                />
+              ) : (
+                <Disc3 className="m-3 size-6 text-muted-foreground" />
+              )}
+            </div>
+          ))}
+          {kit.totalUniqueTracks < kit.totalRequiredTracks && (
+            <div className="flex size-12 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
+              +
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {kit.isBattleReady
+            ? `${kit.totalUniqueTracks} unique tracks ready to take into a battle.`
+            : (kit.reason ??
+              `Choose ${kit.totalRequiredTracks - kit.totalUniqueTracks} more track${kit.totalRequiredTracks - kit.totalUniqueTracks === 1 ? "" : "s"}.`)}
+        </p>
+        <div className="mt-auto flex gap-2">
+          <Button
+            asChild
+            className="flex-1"
+            disabled={!kit.isBattleReady}
+            variant={kit.isBattleReady ? "default" : "outline"}
+          >
+            <Link to="/dashboard/live">
+              <Swords data-icon="inline-start" />
+              Use Kit
+            </Link>
+          </Button>
+          <Button
+            aria-label={`Edit ${kit.name}`}
+            onClick={onEdit}
+            size="icon"
+            variant="outline"
+          >
+            <Edit3 />
+          </Button>
+          <Button
+            aria-label={`Delete ${kit.name}`}
+            disabled={isDeleting}
+            onClick={onDelete}
+            size="icon"
+            variant="ghost"
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BattleKitEditor({
+  initialKit,
+  isSaving,
+  onBack,
+  onSave,
+  releasedTracks,
+}: {
+  initialKit?: BattleKit;
+  isSaving: boolean;
+  onBack: () => void;
+  onSave: (payload: {
+    format: BattleKitFormat;
+    name: string;
+    tracks: {
+      mainSlot: number | null;
+      role: "main" | "tiebreaker";
+      trackId: string;
+    }[];
+  }) => Promise<void>;
+  releasedTracks: TrackSummary[];
+}) {
+  const [name, setName] = useState(initialKit?.name ?? ""),
+    [format, setFormat] = useState<BattleKitFormat>(
+      initialKit?.format ?? "best_of_3"
+    ),
+    [mainTrackIds, setMainTrackIds] = useState<string[]>(
+      initialKit?.tracks
+        .filter((track) => track.role === "main")
+        .toSorted(
+          (first, second) => (first.mainSlot ?? 0) - (second.mainSlot ?? 0)
+        )
+        .map((track) => track.trackId) ?? []
+    ),
+    [tiebreakerId, setTiebreakerId] = useState<string | null>(
+      initialKit?.tracks.find((track) => track.role === "tiebreaker")
+        ?.trackId ?? null
+    ),
+    [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    const requiredMainTracks =
+      battleFormats.find((entry) => entry.id === format)?.mainTracks ?? 3;
+    if (mainTrackIds.length > requiredMainTracks) {
+      setMainTrackIds((current) => current.slice(0, requiredMainTracks));
+    }
+  }, [format, mainTrackIds.length]);
+
+  const requiredMainTracks =
+      battleFormats.find((entry) => entry.id === format)?.mainTracks ?? 3,
+    selectedIds = new Set([
+      ...mainTrackIds,
+      ...(tiebreakerId ? [tiebreakerId] : []),
+    ]),
+    normalizedSearch = searchQuery.trim().toLowerCase(),
+    visibleTracks = releasedTracks.filter((track) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+      return [track.title, track.genre].some((value) =>
+        value?.toLowerCase().includes(normalizedSearch)
+      );
+    }),
+    toggleMainTrack = (trackId: string) => {
+      setMainTrackIds((current) => {
+        if (current.includes(trackId)) {
+          return current.filter((id) => id !== trackId);
+        }
+        if (current.length >= requiredMainTracks || trackId === tiebreakerId) {
+          return current;
+        }
+        return [...current, trackId];
+      });
+    },
+    toggleTiebreaker = (trackId: string) => {
+      setTiebreakerId((current) =>
+        current === trackId
+          ? null
+          : mainTrackIds.includes(trackId)
+            ? current
+            : trackId
+      );
+    },
+    submit = () => {
+      if (!name.trim()) {
+        return;
+      }
+      void onSave({
+        format,
+        name: name.trim(),
+        tracks: [
+          ...mainTrackIds.map((trackId, index) => ({
+            mainSlot: index + 1,
+            role: "main" as const,
+            trackId,
+          })),
+          ...(tiebreakerId
+            ? [
+                {
+                  mainSlot: null,
+                  role: "tiebreaker" as const,
+                  trackId: tiebreakerId,
+                },
+              ]
+            : []),
+        ],
+      });
+    };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Button onClick={onBack} size="sm" variant="ghost">
+            <ArrowLeft data-icon="inline-start" />
+            My Battle Kits
+          </Button>
+          <h1 className="mt-2 font-[family-name:var(--font-playfair)] text-3xl font-bold tracking-tight">
+            {initialKit ? "Edit Battle Kit" : "Create Battle Kit"}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Save an incomplete draft now, then finish it when your catalog is
+            ready.
+          </p>
+        </div>
+        <Button disabled={isSaving || !name.trim()} onClick={submit}>
+          <Save data-icon="inline-start" />
+          {isSaving ? "Saving..." : "Save Kit"}
+        </Button>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Kit details</CardTitle>
+            <CardDescription>
+              Name the loadout and choose its battle format.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Input
+              aria-label="Battle Kit name"
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Certified Hits"
+              value={name}
+            />
+            <Select
+              onValueChange={(value) => setFormat(value as BattleKitFormat)}
+              value={format}
+            >
+              <SelectTrigger aria-label="Battle Kit format">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {battleFormats.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle>{formatLabel(format)} Set</CardTitle>
+            <CardDescription>
+              {mainTrackIds.length + (tiebreakerId ? 1 : 0)} of{" "}
+              {requiredMainTracks + 1} tracks selected
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {Array.from({ length: requiredMainTracks }, (_, index) => {
+              const track = releasedTracks.find(
+                (entry) => entry.id === mainTrackIds[index]
+              );
+              return (
+                <KitSlot
+                  key={`main-${index + 1}`}
+                  label={`Main slot ${index + 1}`}
+                  track={track}
+                  onRemove={() => track && toggleMainTrack(track.id)}
+                />
+              );
+            })}
+            <KitSlot
+              label="Tiebreaker"
+              track={releasedTracks.find((entry) => entry.id === tiebreakerId)}
+              onRemove={() => tiebreakerId && setTiebreakerId(null)}
+            />
+            <div
+              className={cn(
+                "rounded-md border p-3 text-sm",
+                mainTrackIds.length === requiredMainTracks && tiebreakerId
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "text-muted-foreground"
+              )}
+            >
+              {mainTrackIds.length === requiredMainTracks && tiebreakerId
+                ? "Battle Ready"
+                : `Choose ${requiredMainTracks - mainTrackIds.length} main track${requiredMainTracks - mainTrackIds.length === 1 ? "" : "s"} and ${tiebreakerId ? "keep your tiebreaker" : "one tiebreaker"}.`}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader className="gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Released track library</CardTitle>
+              <CardDescription>
+                Only released tracks can be taken into a Battle Kit.
+              </CardDescription>
+            </div>
+            <Badge variant="secondary">{releasedTracks.length} eligible</Badge>
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search your released catalog"
+              value={searchQuery}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {releasedTracks.length === 0 && (
+            <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+              Release music before adding it to a Battle Kit.
+            </div>
+          )}
+          {visibleTracks.map((track) => {
+            const isMain = mainTrackIds.includes(track.id),
+              isTiebreaker = tiebreakerId === track.id,
+              isSelected = selectedIds.has(track.id);
+            return (
+              <div
+                className={cn(
+                  "flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between",
+                  isSelected && "border-primary bg-primary/5"
+                )}
+                key={track.id}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="size-12 shrink-0 overflow-hidden rounded-md border bg-muted">
+                    {track.coverArtUrl ? (
+                      <img
+                        alt={`${track.title} cover`}
+                        className="size-full object-cover"
+                        src={track.coverArtUrl}
+                      />
+                    ) : (
+                      <Disc3 className="m-3 size-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{track.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {track.genre} · {track.duration}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 sm:shrink-0">
+                  <Button
+                    disabled={
+                      isTiebreaker ||
+                      (!isMain && mainTrackIds.length >= requiredMainTracks)
+                    }
+                    onClick={() => toggleMainTrack(track.id)}
+                    size="sm"
+                    variant={isMain ? "default" : "outline"}
+                  >
+                    {isMain ? (
+                      <Check data-icon="inline-start" />
+                    ) : (
+                      <Plus data-icon="inline-start" />
+                    )}
+                    {isMain ? "Main" : "Add main"}
+                  </Button>
+                  <Button
+                    disabled={isMain}
+                    onClick={() => toggleTiebreaker(track.id)}
+                    size="sm"
+                    variant={isTiebreaker ? "default" : "outline"}
+                  >
+                    {isTiebreaker ? (
+                      <Check data-icon="inline-start" />
+                    ) : (
+                      <Swords data-icon="inline-start" />
+                    )}
+                    {isTiebreaker ? "Tiebreaker" : "TB"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function KitSlot({
+  label,
+  onRemove,
   track,
 }: {
-  disabled: boolean;
-  isSelected: boolean;
-  onToggle: () => void;
-  track: TrackSummary;
+  label: string;
+  onRemove: () => void;
+  track?: TrackSummary;
 }) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-lg border p-3 transition-colors sm:flex-row sm:items-center sm:justify-between",
-        isSelected ? "border-primary bg-primary/10" : "bg-background/40",
-        disabled && "opacity-60"
+        "flex min-h-16 items-center gap-3 rounded-md border p-3",
+        !track && "border-dashed text-muted-foreground"
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
-          {track.coverArtUrl ? (
-            <img
-              src={track.coverArtUrl}
-              alt={`${track.title} cover`}
-              className="size-full object-cover"
-            />
-          ) : (
-            <Disc3 className="size-5 text-muted-foreground" />
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate font-medium">{track.title}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>{formatTrackMeta(track)}</span>
-            {track.fileAvailability?.master && (
-              <Badge variant="outline">Master ready</Badge>
-            )}
-            {track.isForSale && <Badge variant="secondary">For sale</Badge>}
-          </div>
-        </div>
-      </div>
-
-      <Button
-        type="button"
-        size="sm"
-        variant={isSelected ? "default" : "outline"}
-        onClick={onToggle}
-        disabled={disabled}
-        className="w-full sm:w-auto"
-      >
-        {isSelected ? (
-          <>
-            <Check className="mr-2 size-4" />
-            Added
-          </>
-        ) : (
-          <>
-            <Plus className="mr-2 size-4" />
-            Add
-          </>
-        )}
-      </Button>
+      <Badge variant="outline">{label}</Badge>
+      {track ? (
+        <>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            {track.title}
+          </span>
+          <Button
+            aria-label={`Remove ${track.title}`}
+            onClick={onRemove}
+            size="icon"
+            variant="ghost"
+          >
+            <X />
+          </Button>
+        </>
+      ) : (
+        <span className="text-sm">Choose from the track library</span>
+      )}
     </div>
   );
-}
-
-function EmptyLibraryState() {
-  return (
-    <div className="rounded-lg border border-dashed p-8 text-center">
-      <Music2 className="mx-auto size-8 text-muted-foreground" />
-      <p className="mt-3 font-semibold">No tracks in your library yet</p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Upload a track first, then add it to a battle kit.
-      </p>
-      <Button asChild className="mt-4">
-        <Link to="/dashboard/tracks/new">Create Track</Link>
-      </Button>
-    </div>
-  );
-}
-
-function formatTrackMeta(track: TrackSummary) {
-  const parts = [
-    track.genre || "No genre",
-    track.duration || "No duration",
-    `${track.plays.toLocaleString()} plays`,
-  ];
-
-  return parts.join(" - ");
 }

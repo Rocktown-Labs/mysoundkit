@@ -8,8 +8,6 @@ describe("billing plan codes", () => {
     expect([...CONFIGURED_PAID_PLAN_CODES].toSorted()).toEqual(
       [
         "soundkit_premium_artist",
-        "artist_team",
-        "fan_family",
         "soundkit_premium_fan",
       ].toSorted()
     );
@@ -24,13 +22,13 @@ describe("billing plan codes", () => {
     ]);
   });
 
-  it("advertises three included seats for Premium fallback catalog data", () => {
+  it("advertises five included seats for Premium fallback catalog data", () => {
     expect(
       samplePlans.find((plan) => plan.code === "soundkit_premium_artist")
         ?.maxSeats
-    ).toBe(3);
+    ).toBe(5);
     expect(
       samplePlans.find((plan) => plan.code === "soundkit_premium_fan")?.maxSeats
-    ).toBe(3);
+    ).toBe(5);
   });
 });

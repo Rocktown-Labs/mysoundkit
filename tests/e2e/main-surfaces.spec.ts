@@ -2,6 +2,18 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+const cookieDomain = (() => {
+  const rawUrl =
+    process.env.PLAYWRIGHT_BASE_URL ??
+    process.env.SOUNDKIT_E2E_WEB_URL ??
+    "http://127.0.0.1:4311";
+  try {
+    return new URL(rawUrl).hostname;
+  } catch {
+    return "127.0.0.1";
+  }
+})();
+
 const gotoWithViteRetry = async (page: Page, path: string) => {
   try {
     const response = await page.goto(path, { waitUntil: "domcontentloaded" });
@@ -150,7 +162,7 @@ test.describe("main application surfaces", () => {
   }) => {
     await context.addCookies([
       {
-        domain: "127.0.0.1",
+        domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
         value: "complete",
@@ -291,7 +303,7 @@ test.describe("signup onboarding guards", () => {
   }) => {
     await context.addCookies([
       {
-        domain: "127.0.0.1",
+        domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
         value: "incomplete",
@@ -312,7 +324,7 @@ test.describe("signup onboarding guards", () => {
   }) => {
     await context.addCookies([
       {
-        domain: "127.0.0.1",
+        domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
         value: "complete",
@@ -330,7 +342,7 @@ test.describe("signup onboarding guards", () => {
   }) => {
     await context.addCookies([
       {
-        domain: "127.0.0.1",
+        domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
         value: "incomplete",
@@ -344,9 +356,9 @@ test.describe("signup onboarding guards", () => {
           locationQuery: "",
           primaryGenre: "",
           roles: ["musician"],
-          selectedPlanCode: "artist_premium",
+          selectedPlanCode: "soundkit_premium_artist",
           stateValue: "",
-          step: 2,
+          step: 3,
           username: "codex_resume",
         })
       );
@@ -365,7 +377,7 @@ test.describe("administration", () => {
   }) => {
     await context.addCookies([
       {
-        domain: "127.0.0.1",
+        domain: cookieDomain,
         name: "soundkit_test_session",
         path: "/",
         value: "admin",
