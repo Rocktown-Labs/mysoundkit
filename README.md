@@ -297,5 +297,5 @@ This repository is **private and closed-source**. All API credentials, webhook s
 ---
 
 <div align="center">
-  <sub>Built with ❤️ by the SoundKit Engineering Team.</sub>
+  <sub>Built with ❤️ by Rocktown Labs.</sub>
 </div>
