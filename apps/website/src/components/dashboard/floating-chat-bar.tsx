@@ -301,6 +301,14 @@ function FloatingChatBarClient() {
     [conversations, friends, registerPresenceUsers]
   );
 
+  useEffect(() => {
+    if (pathname.startsWith("/dashboard/messages")) {
+      setIsOpen(false);
+      setView("list");
+      setActiveConversationId("");
+    }
+  }, [pathname]);
+
   if (
     !isArtist ||
     pathname.startsWith("/dashboard/messages") ||

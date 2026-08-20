@@ -4,6 +4,7 @@
 import { useUploadFiles } from "@better-upload/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   Check,
   Clock,
   ExternalLink,
@@ -48,6 +49,7 @@ import {
   MessageScrollerViewport,
 } from "@soundkit/ui/components/message-scroller";
 import { Textarea } from "@/components/ui/textarea";
+import { useMobile } from "@/hooks/use-mobile";
 import { toast } from "@/hooks/use-toast";
 import { API_V1_URL, MEDIA_BASE_URL, MEDIA_UPLOAD_URL } from "@/lib/api";
 import {
@@ -129,6 +131,7 @@ function MessagesPage() {
 
 function MessagesPageClient() {
   const searchParams = Route.useSearch(),
+    isMobile = useMobile(),
     { isUserOnline, registerPresenceUsers } = usePresence(),
     meQuery = useMeQuery(),
     conversationsQuery = useMessagingConversations(),
@@ -237,12 +240,13 @@ function MessagesPageClient() {
       return;
     }
 
-    if (!selectedId && conversations[0]) {
+    if (!selectedId && !isMobile && conversations[0]) {
       setSelectedId(conversations[0].id);
     }
   }, [
     conversations,
     friends,
+    isMobile,
     searchParams.conversationId,
     searchParams.friendId,
     selectedId,
@@ -442,7 +446,12 @@ function MessagesPageClient() {
   return (
     <div className="flex h-[calc(100vh-8.5rem)] gap-4 p-4 md:p-6">
       {/* Sidebar - conversations & contacts */}
-      <Card className="flex w-full flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96">
+      <Card
+        className={cn(
+          "flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:w-80 lg:w-96",
+          selectedId ? "hidden md:flex" : "flex w-full"
+        )}
+      >
         <div className="border-b border-border/20 p-4">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -521,11 +530,25 @@ function MessagesPageClient() {
       </Card>
 
       {/* Chat area */}
-      <Card className="hidden flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl md:flex">
+      <Card
+        className={cn(
+          "flex-1 flex-col overflow-hidden border-border/40 bg-card/20 backdrop-blur-xl",
+          selectedId ? "flex" : "hidden md:flex"
+        )}
+      >
         {selectedConversation ? (
           <>
             <div className="flex items-center justify-between border-b border-border/20 bg-white/[0.02] p-4">
               <div className="flex items-center gap-3">
+                <Button
+                  className="size-9 shrink-0 rounded-full md:hidden"
+                  onClick={() => setSelectedId("")}
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Back to conversations"
+                >
+                  <ArrowLeft className="size-5" />
+                </Button>
                 <div className="relative">
                   <Avatar className="size-10 border-2 border-border/40">
                     <AvatarImage

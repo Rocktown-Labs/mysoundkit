@@ -11,6 +11,12 @@
 - Hardened Live around per-room Durable Object state, alarm-driven battle phases, authenticated role-scoped controls, synchronized party playback, Stream ingest lifecycle states, async live notification fanout, durable replay workflow scheduling, real-route premium enforcement, and shared preview/fullscreen UI contracts.
 - Added battle lineup snapshot persistence, live experience lifecycle fields, compressed battle state-machine tests, and gated real live-route browser smoke coverage.
 
+### Changed
+
+- Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.
+- Closing the floating chat bar by expanding into the full messages page now resets its state, so navigating back returns to the collapsed bar instead of an open chat.
+- Reordered the dashboard mobile bottom nav to Home, Music, Create, Career, Live.
+
 - Hardened realtime architecture with authenticated per-user presence Durable Objects, targeted presence reads, coalesced presence persistence, durable live-room chat rate limits, delta WebSocket chat events, Cloudflare observability metrics, and reactive message scrolling/TanStack DB collections.
 
 - Reframed Friends & Collaborators as Network with distinct friends, followers, following, and requests views; separated fan and artist follower classification from music collaborators and workspace membership; replaced simulated workspace members, seat counts, and invites with persisted organization data and active-workspace authorization.
