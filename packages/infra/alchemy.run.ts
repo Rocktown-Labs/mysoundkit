@@ -101,6 +101,12 @@ const SITE_HOST = isProduction
     return jurisdiction as "eu" | "fedramp";
   },
   r2Jurisdiction = getR2Jurisdiction(),
+  // Every stage (production and pr-<number> previews alike) shares the single
+  // production media bucket, mirroring how stages share one application
+  // database. Previews must never delete or empty it, so `delete` is only
+  // enabled for production and the CORS rule is a stable wildcard so stage
+  // deploys never fight over bucket configuration.
+  MEDIA_BUCKET_NAME = "soundkit-media",
   media = await R2Bucket("media", {
     adopt: shouldAdoptRemoteResources,
     cors: [
@@ -108,7 +114,12 @@ const SITE_HOST = isProduction
         allowed: {
           headers: ["*"],
           methods: ["GET", "HEAD", "PUT", "POST"],
-          origins: [SITE_URL, API_URL],
+          origins: [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://*.mysoundkit.com",
+            "https://mysoundkit.com",
+          ],
         },
         // @better-upload multipart uploads read the ETag response header from
         // the part PUT to build the CompleteMultipartUpload request, so it must
@@ -116,8 +127,9 @@ const SITE_HOST = isProduction
         exposeHeaders: ["ETag"],
       },
     ],
+    delete: isProduction,
     jurisdiction: r2Jurisdiction,
-    name: resourceName("soundkit-media"),
+    name: MEDIA_BUCKET_NAME,
   }),
   mediaUploadToken = await AccountApiToken("media-upload-token", {
     name: resourceName("soundkit-media-upload-token"),

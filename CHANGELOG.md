@@ -42,6 +42,7 @@
 
 ### Changed
 
+- Changed preview environments to share the single production `soundkit-media` R2 bucket instead of per-stage buckets, matching how stages share the application database: uploads from previews land in the same catalog storage, Destroy Preview removes the bucket binding from Alchemy state without deleting the bucket (`delete` is production-only), and bucket CORS uses a stable wildcard rule so stage deploys no longer rewrite each other's configuration.
 - Clarified broad email notification preferences with new Messages and Live controls, and hid nonfunctional web push settings until a real push delivery channel exists.
 - Updated repository `README.md` footer attribution to Rocktown Labs.
 - Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.
