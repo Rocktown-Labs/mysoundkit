@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- Fixed mobile signup smoke navigation by using reliable document navigation for artist and fan credential links, with explicit route assertions for both paths.
 - Fixed the notification badge/feed mismatch that could show unread activity while rendering an empty dropdown; unread totals now query all persisted notifications rather than only the first page.
 - Resolved track upload race condition and conflicting state transitions in `NewTrackForm` and track settlement pipeline:
   - Made `@better-upload/client` and `@better-upload/server` the authoritative async upload layer using `uploadMasterAsync`, `uploadComponentsAsync`, and `uploadCoverAsync` with deterministic file matching instead of arbitrary index lookups.

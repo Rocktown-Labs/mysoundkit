@@ -71,6 +71,7 @@ test.describe("main application surfaces", () => {
     });
     await artistLink.scrollIntoViewIfNeeded();
     await artistLink.click();
+    await expect(page).toHaveURL(/\/signup\/artist\/credentials$/);
     await expect(
       page.getByRole("heading", { name: /create artist account/i })
     ).toBeVisible();
@@ -85,6 +86,7 @@ test.describe("main application surfaces", () => {
     });
     await fanLink.scrollIntoViewIfNeeded();
     await fanLink.click();
+    await expect(page).toHaveURL(/\/signup\/fan\/credentials$/);
     await expect(
       page.getByRole("heading", { name: /create fan account/i })
     ).toBeVisible();
