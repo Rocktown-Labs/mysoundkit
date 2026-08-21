@@ -37,13 +37,25 @@ const derivativeRetryConfig = {
   timeout: "30 minutes" as const,
 };
 
-// A missing master object (e.g. destroyed preview bucket) or a stale source
-// asset can never succeed on retry, so fail fast instead of burning through
-// Cloudflare's default exponential step retries.
-const masterVerifyRetryConfig = {
+// Job-state updates go through Hyperdrive to Postgres; without an explicit
+// budget a stalled connection hangs the run until the runtime kills it as
+// "hung", which is invisible in step telemetry.
+const jobStateStepConfig = {
+  retries: {
+    delay: "10 seconds" as const,
+    limit: 2,
+  },
+  timeout: "2 minutes" as const,
+};
+
+// A master that is missing from R2 (e.g. uploaded to a destroyed preview
+// bucket) or a stale source asset can never succeed on retry. These are
+// handled in-step and returned to the engine as terminal results instead of
+// thrown, so the instance completes without burning engine-level retries.
+const masterVerifyStepConfig = {
   retries: {
     delay: "5 seconds" as const,
-    limit: 1,
+    limit: 0,
   },
   timeout: "2 minutes" as const,
 };
@@ -76,30 +88,35 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
       statuses: Partial<Record<GeneratedMediaPurpose, DerivativeState>> = {};
 
     try {
-      await step.do("record media processing started", async () => {
-        await updateMediaProcessingJob({
-          currentStage: "verifying_master",
-          errorCode: null,
-          errorMessage: null,
-          progressPercent: 5,
-          startedAt: new Date(),
-          status: "running",
-          workflowInstanceId: event.instanceId,
-          workflowType: "media_processing",
-        });
-        logInfo({
-          event: "media_processing_started",
-          pipelineVersion: payload.pipelineVersion,
-          sourceAssetId: payload.sourceAssetId,
-          trackId: payload.trackId,
-          workflowInstanceId: event.instanceId,
-        });
-      });
+      await step.do(
+        "record media processing started",
+        jobStateStepConfig,
+        async () => {
+          await updateMediaProcessingJob({
+            currentStage: "verifying_master",
+            errorCode: null,
+            errorMessage: null,
+            progressPercent: 5,
+            startedAt: new Date(),
+            status: "running",
+            workflowInstanceId: event.instanceId,
+            workflowType: "media_processing",
+          });
+          logInfo({
+            event: "media_processing_started",
+            pipelineVersion: payload.pipelineVersion,
+            sourceAssetId: payload.sourceAssetId,
+            trackId: payload.trackId,
+            workflowInstanceId: event.instanceId,
+          });
+        }
+      );
 
-      const master = await step.do(
-          "verify current master",
-          masterVerifyRetryConfig,
-          async () => {
+      const masterVerification = await step.do(
+        "verify current master",
+        masterVerifyStepConfig,
+        async () => {
+          try {
             const verified = await verifyCurrentMaster({
               bucket,
               objectKey: payload.objectKey,
@@ -107,18 +124,68 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
               trackId: payload.trackId,
             });
             return {
-              id: verified.asset.id,
+              assetId: verified.asset.id,
+              ok: true as const,
               uploaderUserId: verified.asset.uploaderUserId,
             };
+          } catch (error) {
+            return {
+              errorCode:
+                error instanceof MasterObjectMissingError
+                  ? "MASTER_OBJECT_MISSING"
+                  : "MEDIA_PROCESSING_FAILED",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Master verification failed.",
+              ok: false as const,
+            };
           }
-        ),
+        }
+      );
+
+      if (!masterVerification.ok) {
+        logError({
+          error: masterVerification.message,
+          errorCode: masterVerification.errorCode,
+          event: "media_processing_failed",
+          pipelineVersion: payload.pipelineVersion,
+          sourceAssetId: payload.sourceAssetId,
+          trackId: payload.trackId,
+          workflowInstanceId: event.instanceId,
+        });
+        await step.do(
+          "record terminal media failure",
+          jobStateStepConfig,
+          async () => {
+            await updateMediaProcessingJob({
+              completedAt: new Date(),
+              currentStage: "failed",
+              errorCode: masterVerification.errorCode,
+              errorMessage: masterVerification.message,
+              output: { statuses },
+              status: "failed",
+              workflowInstanceId: event.instanceId,
+              workflowType: "media_processing",
+            });
+          }
+        );
+        // Returning normally marks the instance complete so the Workflows
+        // engine does not retry a permanently missing/stale master.
+        return { mediaReady: false, statuses };
+      }
+
+      const master = {
+          id: masterVerification.assetId,
+          uploaderUserId: masterVerification.uploaderUserId,
+        },
         inspection = await step.do(
           "inspect source technically",
           derivativeRetryConfig,
           () => processor.inspectSource({ sourceObjectKey: payload.objectKey })
         );
 
-      await step.do("record source inspection", () =>
+      await step.do("record source inspection", jobStateStepConfig, () =>
         updateMediaProcessingJob({
           currentStage: "analyzing_loudness",
           output: { inspection },
@@ -134,23 +201,27 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         () => processor.analyzeLoudness({ sourceObjectKey: payload.objectKey })
       );
 
-      await step.do("register source analysis", async () => {
-        await saveSourceInspection({
-          analysis: sourceAnalysis,
-          assetId: master.id,
-          inspection,
-        });
-        await updateMediaProcessingJob({
-          currentStage:
-            payload.mode === "open_verse_base"
-              ? "generating_open_verse_snippet"
-              : "generating_streaming",
-          output: { inspection, sourceAnalysis },
-          progressPercent: 25,
-          workflowInstanceId: event.instanceId,
-          workflowType: "media_processing",
-        });
-      });
+      await step.do(
+        "register source analysis",
+        jobStateStepConfig,
+        async () => {
+          await saveSourceInspection({
+            analysis: sourceAnalysis,
+            assetId: master.id,
+            inspection,
+          });
+          await updateMediaProcessingJob({
+            currentStage:
+              payload.mode === "open_verse_base"
+                ? "generating_open_verse_snippet"
+                : "generating_streaming",
+            output: { inspection, sourceAnalysis },
+            progressPercent: 25,
+            workflowInstanceId: event.instanceId,
+            workflowType: "media_processing",
+          });
+        }
+      );
 
       const soundKitMetadata = await step.do(
           "load canonical SoundKit metadata",
@@ -259,24 +330,28 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
             trackId: payload.trackId,
           });
         });
-        await step.do("complete Open Verse base media", async () => {
-          await updateMediaProcessingJob({
-            completedAt: new Date(),
-            currentStage: "complete",
-            output: { inspection, sourceAnalysis, statuses },
-            progressPercent: 100,
-            status: "ready",
-            workflowInstanceId: event.instanceId,
-            workflowType: "media_processing",
-          });
-          logInfo({
-            event: "open_verse_snippet_completed",
-            pipelineVersion: payload.pipelineVersion,
-            sourceAssetId: payload.sourceAssetId,
-            trackId: payload.trackId,
-            workflowInstanceId: event.instanceId,
-          });
-        });
+        await step.do(
+          "complete Open Verse base media",
+          jobStateStepConfig,
+          async () => {
+            await updateMediaProcessingJob({
+              completedAt: new Date(),
+              currentStage: "complete",
+              output: { inspection, sourceAnalysis, statuses },
+              progressPercent: 100,
+              status: "ready",
+              workflowInstanceId: event.instanceId,
+              workflowType: "media_processing",
+            });
+            logInfo({
+              event: "open_verse_snippet_completed",
+              pipelineVersion: payload.pipelineVersion,
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+              workflowInstanceId: event.instanceId,
+            });
+          }
+        );
         return { mediaReady: true, statuses };
       }
 
@@ -284,7 +359,7 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         purpose: "streaming",
         required: true,
       });
-      await step.do("mark media ready", async () => {
+      await step.do("mark media ready", jobStateStepConfig, async () => {
         await updateMediaProcessingJob({
           currentStage: "media_ready",
           output: { inspection, mediaReady: true, sourceAnalysis, statuses },
@@ -317,31 +392,35 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         : "not_applicable";
 
       const hasPartialFailure = Object.values(statuses).includes("failed");
-      await step.do("finalize media processing", async () => {
-        await updateMediaProcessingJob({
-          completedAt: new Date(),
-          currentStage: "complete",
-          output: {
-            inspection,
-            mediaReady: true,
-            processingComplete: true,
-            sourceAnalysis,
-            statuses,
-          },
-          progressPercent: 100,
-          status: hasPartialFailure ? "partial" : "ready",
-          workflowInstanceId: event.instanceId,
-          workflowType: "media_processing",
-        });
-        logInfo({
-          event: "media_processing_completed",
-          pipelineVersion: payload.pipelineVersion,
-          sourceAssetId: payload.sourceAssetId,
-          status: hasPartialFailure ? "partial" : "ready",
-          trackId: payload.trackId,
-          workflowInstanceId: event.instanceId,
-        });
-      });
+      await step.do(
+        "finalize media processing",
+        jobStateStepConfig,
+        async () => {
+          await updateMediaProcessingJob({
+            completedAt: new Date(),
+            currentStage: "complete",
+            output: {
+              inspection,
+              mediaReady: true,
+              processingComplete: true,
+              sourceAnalysis,
+              statuses,
+            },
+            progressPercent: 100,
+            status: hasPartialFailure ? "partial" : "ready",
+            workflowInstanceId: event.instanceId,
+            workflowType: "media_processing",
+          });
+          logInfo({
+            event: "media_processing_completed",
+            pipelineVersion: payload.pipelineVersion,
+            sourceAssetId: payload.sourceAssetId,
+            status: hasPartialFailure ? "partial" : "ready",
+            trackId: payload.trackId,
+            workflowInstanceId: event.instanceId,
+          });
+        }
+      );
 
       return {
         mediaReady: true,

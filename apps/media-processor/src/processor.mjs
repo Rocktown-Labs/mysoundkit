@@ -12,6 +12,10 @@ const INTERNAL_R2_ORIGIN = "http://soundkit-r2.internal",
   MAX_COMMAND_OUTPUT_BYTES = 2 * 1024 * 1024,
   STREAMING_TARGET_LUFS = -12,
   BATTLE_TARGET_LUFS = -10,
+  // Two-pass loudnorm followed by AAC encoding reliably lands within ±1 LU
+  // of target; tighter gates reject healthy encodes (EBU/Apple-style
+  // delivery tolerances are ±0.5-1 LU).
+  LOUDNESS_TOLERANCE_LU = 1,
   NORMALIZED_TRUE_PEAK_DBTP = -1.5,
   AAC_BITRATE = "256k",
   MAX_DELIVERY_SAMPLE_RATE_HZ = 48_000,
@@ -344,7 +348,7 @@ export const assertVerifiedDerivative = ({
   verification,
 }) => {
   if (targetLufs !== null) {
-    if (Math.abs(verification.integratedLufs - targetLufs) > 0.6) {
+    if (Math.abs(verification.integratedLufs - targetLufs) > LOUDNESS_TOLERANCE_LU) {
       throw new Error(
         `Derivative loudness ${verification.integratedLufs} LUFS missed target ${targetLufs} LUFS.`
       );

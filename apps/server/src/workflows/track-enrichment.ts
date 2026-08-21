@@ -20,7 +20,10 @@ import {
   trackEnrichmentWorkflowPayloadSchema,
 } from "@/lib/media-pipeline";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
-import { verifyCurrentMaster } from "@/lib/media-processing";
+import {
+  MasterObjectMissingError,
+  verifyCurrentMaster,
+} from "@/lib/media-processing";
 import { updateMediaProcessingJob } from "@/lib/media-processing-jobs";
 import { logError, logInfo } from "@/middleware/structured-logging";
 
@@ -31,6 +34,23 @@ const MAX_STEMSPLIT_POLLS = 120,
       limit: 0,
     },
     timeout: "5 minutes" as const,
+  },
+  // A missing/stale master can never succeed on retry, and every retry burns
+  // paid third-party StemSplit/transcription calls once past this point, so
+  // verification failures are returned to the engine as terminal results.
+  masterVerifyStepConfig = {
+    retries: {
+      delay: "5 seconds" as const,
+      limit: 0,
+    },
+    timeout: "2 minutes" as const,
+  },
+  jobStateStepConfig = {
+    retries: {
+      delay: "10 seconds" as const,
+      limit: 2,
+    },
+    timeout: "2 minutes" as const,
   };
 
 export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
@@ -56,15 +76,67 @@ export class TrackEnrichmentWorkflow extends WorkflowEntrypoint<
     }
 
     try {
-      const eligibility = await step.do(
-        "verify current master and Premium eligibility",
+      const masterCheck = await step.do(
+        "verify current master",
+        masterVerifyStepConfig,
         async () => {
-          await verifyCurrentMaster({
-            bucket: this.env.MEDIA_BUCKET,
-            objectKey: payload.objectKey,
-            sourceAssetId: payload.sourceAssetId,
-            trackId: payload.trackId,
-          });
+          try {
+            await verifyCurrentMaster({
+              bucket: this.env.MEDIA_BUCKET,
+              objectKey: payload.objectKey,
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+            });
+            return { ok: true as const };
+          } catch (error) {
+            return {
+              errorCode:
+                error instanceof MasterObjectMissingError
+                  ? "MASTER_OBJECT_MISSING"
+                  : "TRACK_ENRICHMENT_FAILED",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Master verification failed.",
+              ok: false as const,
+            };
+          }
+        }
+      );
+
+      if (!masterCheck.ok) {
+        await step.do(
+          "record terminal enrichment failure",
+          jobStateStepConfig,
+          async () => {
+            await updateMediaProcessingJob({
+              completedAt: new Date(),
+              currentStage: "failed",
+              errorCode: masterCheck.errorCode,
+              errorMessage: masterCheck.message,
+              status: "failed",
+              workflowInstanceId: event.instanceId,
+              workflowType: "track_enrichment",
+            });
+            logError({
+              error: masterCheck.message,
+              errorCode: masterCheck.errorCode,
+              event: "track_enrichment_failed",
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+              workflowInstanceId: event.instanceId,
+            });
+          }
+        );
+        // Returning normally marks the instance complete so the Workflows
+        // engine does not retry a permanently missing/stale master.
+        return { reason: masterCheck.errorCode, status: "failed" };
+      }
+
+      const eligibility = await step.do(
+        "verify Premium eligibility",
+        jobStateStepConfig,
+        async () => {
           const db = createDb(),
             [track] = await db
               .select({ ownerUserId: tracks.ownerUserId })

@@ -6,6 +6,7 @@
 
 - Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
 - Added explicit deadlines to Media Processor Container RPC calls (inspect, loudness analysis, and render) so a container that fails to boot or a wedged FFmpeg job surfaces as a descriptive timeout error instead of hanging the workflow until the runtime cancels it.
+- Added in-step terminal handling for permanently missing/stale masters in `MediaProcessingWorkflow` and `TrackEnrichmentWorkflow`: both workflows record the job failure and complete normally instead of throwing into engine-level retries, and enrichment never reaches paid StemSplit/transcription API calls without a verified master.
 
 ### Fixed
 
@@ -43,6 +44,7 @@
 ### Changed
 
 - Changed preview environments to share the single production `soundkit-media` R2 bucket instead of per-stage buckets, matching how stages share the application database: uploads from previews land in the same catalog storage, Destroy Preview removes the bucket binding from Alchemy state without deleting the bucket (`delete` is production-only), and bucket CORS uses a stable wildcard rule so stage deploys no longer rewrite each other's configuration.
+- Relaxed derivative loudness verification tolerance from ±0.6 to ±1.0 LU (EBU/Apple-style delivery tolerance) so healthy two-pass loudnorm + AAC encodes are not rejected; True Peak must still be ≤ -1 dBTP.
 - Clarified broad email notification preferences with new Messages and Live controls, and hid nonfunctional web push settings until a real push delivery channel exists.
 - Updated repository `README.md` footer attribution to Rocktown Labs.
 - Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.

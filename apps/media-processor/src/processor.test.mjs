@@ -92,6 +92,22 @@ test("normalized derivatives enforce loudness and True Peak", () => {
       verification: { integratedLufs: -12.1, truePeakDbtp: -1.2 },
     })
   );
+  assert.doesNotThrow(() =>
+    assertVerifiedDerivative({
+      sourceLoudness: { integratedLufs: -7.8 },
+      targetLufs: -12,
+      verification: { integratedLufs: -12.73, truePeakDbtp: -1.4 },
+    })
+  );
+  assert.throws(
+    () =>
+      assertVerifiedDerivative({
+        sourceLoudness: { integratedLufs: -7.8 },
+        targetLufs: -12,
+        verification: { integratedLufs: -13.2, truePeakDbtp: -1.4 },
+      }),
+    /missed target/u
+  );
   assert.throws(
     () =>
       assertVerifiedDerivative({
