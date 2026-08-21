@@ -813,6 +813,8 @@ export const notificationSettings = pgTable("notification_settings", {
   emailCollaborations: boolean("email_collaborations").default(true).notNull(),
   emailComments: boolean("email_comments").default(true).notNull(),
   emailFollowers: boolean("email_followers").default(true).notNull(),
+  emailLive: boolean("email_live").default(true).notNull(),
+  emailMessages: boolean("email_messages").default(true).notNull(),
   emailSales: boolean("email_sales").default(true).notNull(),
   emailTrackProcessing: boolean("email_track_processing")
     .default(true)
@@ -1852,7 +1854,13 @@ export const conversationParticipants = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
-  (table) => [primaryKey({ columns: [table.conversationId, table.userId] })]
+  (table) => [
+    primaryKey({ columns: [table.conversationId, table.userId] }),
+    index("conversation_participants_user_conversation_idx").on(
+      table.userId,
+      table.conversationId
+    ),
+  ]
 );
 
 export const artistFriendRequests = pgTable(
@@ -1910,7 +1918,13 @@ export const messages = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("messages_conversation_id_idx").on(table.conversationId)]
+  (table) => [
+    index("messages_conversation_id_idx").on(table.conversationId),
+    index("messages_conversation_created_at_idx").on(
+      table.conversationId,
+      table.createdAt
+    ),
+  ]
 );
 
 export const messageAttachments = pgTable(
@@ -3291,15 +3305,57 @@ export const trackPreSaves = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.trackId] })]
 );
 
-export const userNotifications = pgTable("user_notifications", {
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  id: text("id").primaryKey(),
-  link: text("link"),
-  message: text("message").notNull(),
-  read: boolean("read").default(false).notNull(),
-  title: text("title").notNull(),
-  type: text("type").default("general").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-});
+export const userNotifications = pgTable(
+  "user_notifications",
+  {
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    aggregationKey: text("aggregation_key"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    entityId: text("entity_id"),
+    entityType: text("entity_type"),
+    id: text("id").primaryKey(),
+    link: text("link"),
+    message: text("message").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    read: boolean("read").default(false).notNull(),
+    title: text("title").notNull(),
+    type: text("type").default("general").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("user_notifications_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+      table.id
+    ),
+    index("user_notifications_user_read_created_idx").on(
+      table.userId,
+      table.read,
+      table.createdAt
+    ),
+    index("user_notifications_user_aggregation_idx").on(
+      table.userId,
+      table.aggregationKey,
+      table.createdAt
+    ),
+  ]
+);
+
+export const notificationEmailCooldowns = pgTable(
+  "notification_email_cooldowns",
+  {
+    lastSentAt: timestamp("last_sent_at").defaultNow().notNull(),
+    recipientUserId: text("recipient_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    scope: text("scope").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.recipientUserId, table.scope] }),
+    index("notification_email_cooldowns_last_sent_idx").on(table.lastSentAt),
+  ]
+);

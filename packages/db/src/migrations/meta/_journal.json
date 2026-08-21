@@ -260,6 +260,13 @@
       "when": 1787126930055,
       "tag": "0036_battle_queue_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787278990943,
+      "tag": "0037_notification_dispatcher",
+      "breakpoints": true
     }
   ]
 }

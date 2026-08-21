@@ -25,6 +25,11 @@ import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
+import {
+  handleNotificationQueue,
+  NOTIFICATION_QUEUE_NAME,
+} from "@/lib/notifications";
+import type { NotificationQueueMessage } from "@/lib/notifications";
 import { sendDueOnboardingReminders } from "@/lib/onboarding-reminders";
 import { publishDueTrackReleases } from "@/lib/release-notifications";
 import { withRetry } from "@/lib/retry";
@@ -178,6 +183,7 @@ app.get("/health", async (c) =>
       liveNotificationQueue: hasEnvValue("LIVE_NOTIFICATION_QUEUE"),
       liveRooms: hasEnvValue("LIVE_ROOMS"),
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
+      notificationQueue: hasEnvValue("NOTIFICATION_QUEUE"),
       trackDurationBackfillQueue: hasEnvValue("TRACK_DURATION_BACKFILL_QUEUE"),
       trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
       uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),
@@ -238,10 +244,18 @@ export type { AppType } from "./rpc-contract";
 export default {
   fetch: (request, workerEnv, executionContext) =>
     app.fetch(request, workerEnv, executionContext),
-  queue: (batch) => {
+  queue: (batch, workerEnv) => {
     if (batch.queue.includes(LIVE_NOTIFICATION_QUEUE_NAME)) {
       return handleLiveNotificationQueue(
-        batch as unknown as MessageBatch<LiveNotificationQueueMessage>
+        batch as unknown as MessageBatch<LiveNotificationQueueMessage>,
+        workerEnv.EMAIL_DELIVERY_QUEUE
+      );
+    }
+
+    if (batch.queue.includes(NOTIFICATION_QUEUE_NAME)) {
+      return handleNotificationQueue(
+        batch as unknown as MessageBatch<NotificationQueueMessage>,
+        workerEnv.EMAIL_DELIVERY_QUEUE
       );
     }
 

@@ -345,6 +345,8 @@ export const notificationSettingsSchema = z.object({
   emailCollaborations: z.boolean(),
   emailComments: z.boolean(),
   emailFollowers: z.boolean(),
+  emailLive: z.boolean(),
+  emailMessages: z.boolean(),
   emailSales: z.boolean(),
   emailTrackProcessing: z.boolean(),
   pushMentions: z.boolean(),

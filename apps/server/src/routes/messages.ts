@@ -17,17 +17,26 @@ import {
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import {
-  notifyCollaboratorAcceptedEmail,
-  notifyCollaboratorInviteEmail,
-  notifyFriendRequestEmail,
-} from "@/lib/email-events";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import { resolveConversationUnreadCount } from "@/lib/messages-domain";
+import { notify } from "@/lib/notifications";
 import { sampleConversations, sampleMessages } from "@/lib/sample-data";
 import {
   conversationSummarySchema,
@@ -457,21 +466,20 @@ app.openapi(
       );
     }
 
-    await db.insert(userNotifications).values({
-      id: crypto.randomUUID(),
-      link: "/dashboard/collaborators?tab=requests",
-      message: `${user.name ?? "An artist"} sent you a friend request.`,
-      title: "New Friend Request",
-      type: "artist_friend_request",
-      userId: recipient.userId,
-    });
-
-    await notifyFriendRequestEmail({
-      queue: c.env.EMAIL_DELIVERY_QUEUE,
-      recipientUserId: recipient.userId,
-      requestId: request.id,
-      requesterName: user.name ?? "An artist",
-    });
+    await notify(
+      {
+        actorUserId: user.id,
+        data: {
+          actorName: user.name ?? "An artist",
+          requestId: request.id,
+        },
+        entity: { id: request.id, type: "friend_request" },
+        eventId: request.id,
+        recipientUserId: recipient.userId,
+        type: "friend.requested",
+      },
+      { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+    );
 
     return c.json(
       toFriendRequestSummary({
@@ -624,14 +632,20 @@ app.openapi(
     }
 
     if (nextStatus === "accepted" && existingRequest.status === "pending") {
-      await db.insert(userNotifications).values({
-        id: crypto.randomUUID(),
-        link: `/dashboard/messages?friendId=${user.id}`,
-        message: `${user.name ?? "An artist"} accepted your friend request. You can start a chat now.`,
-        title: "Friend Request Accepted",
-        type: "artist_friend_accepted",
-        userId: updatedRequest.requesterUserId,
-      });
+      await notify(
+        {
+          actorUserId: user.id,
+          data: {
+            actorName: user.name ?? "An artist",
+            requestId: updatedRequest.id,
+          },
+          entity: { id: updatedRequest.id, type: "friend_request" },
+          eventId: updatedRequest.id,
+          recipientUserId: updatedRequest.requesterUserId,
+          type: "friend.accepted",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
     }
 
     const otherUserId =
@@ -921,6 +935,39 @@ app.openapi(
         .orderBy(desc(conversations.updatedAt))
         .limit(100),
       conversationIds = rows.map((row) => row.id),
+      unreadRows =
+        conversationIds.length > 0
+          ? await db
+              .select({
+                conversationId: messages.conversationId,
+                unreadCount: sql<number>`count(*)::int`,
+              })
+              .from(messages)
+              .innerJoin(
+                conversationParticipants,
+                and(
+                  eq(
+                    conversationParticipants.conversationId,
+                    messages.conversationId
+                  ),
+                  eq(conversationParticipants.userId, user.id)
+                )
+              )
+              .where(
+                and(
+                  inArray(messages.conversationId, conversationIds),
+                  ne(messages.senderUserId, user.id),
+                  or(
+                    isNull(conversationParticipants.lastReadAt),
+                    gt(messages.createdAt, conversationParticipants.lastReadAt)
+                  )
+                )
+              )
+              .groupBy(messages.conversationId)
+          : [],
+      unreadByConversationId = new Map(
+        unreadRows.map((row) => [row.conversationId, row.unreadCount])
+      ),
       otherParticipants =
         conversationIds.length > 0
           ? await db
@@ -962,7 +1009,14 @@ app.openapi(
           participant.conversationId,
           participant,
         ])
-      );
+      ),
+      unreadEntries = rows.map((row) => ({
+        conversationId: row.id,
+        conversationType: row.conversationType,
+        participantUserId:
+          participantByConversationId.get(row.id)?.userId ?? null,
+        unreadCount: unreadByConversationId.get(row.id) ?? 0,
+      }));
 
     const summaries: z.infer<typeof conversationSummarySchema>[] = [];
     const seenDirectParticipantIds = new Set<string>();
@@ -994,6 +1048,13 @@ app.openapi(
           ? row.title
           : (participantName ?? "Direct Message");
 
+      const unreadCount = resolveConversationUnreadCount({
+        conversationId: row.id,
+        conversationType: row.conversationType,
+        entries: unreadEntries,
+        participantUserId: participantId,
+      });
+
       summaries.push({
         conversationType: row.conversationType,
         id: row.id,
@@ -1002,7 +1063,7 @@ app.openapi(
         participantName,
         participantUsername: participant?.username ?? null,
         title: displayTitle,
-        unreadCount: 0,
+        unreadCount,
         updatedAt: toIso(row.updatedAt),
       });
     }
@@ -1325,6 +1386,158 @@ app.openapi(
 
 app.openapi(
   createRoute({
+    method: "post",
+    path: "/conversations/{conversationId}/read",
+    request: {
+      params: z.object({
+        conversationId: z.string(),
+      }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({ readAt: z.string(), success: z.boolean() }),
+        "Conversation marked read"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        z.object({ message: z.string() }),
+        "Authentication required"
+      ),
+    },
+    tags: ["Messages"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const { conversationId } = c.req.valid("param"),
+      readAt = new Date();
+
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { readAt: readAt.toISOString(), success: true },
+        HttpStatusCodes.OK
+      );
+    }
+
+    const db = createDb(),
+      [participant] = await db
+        .select({ userId: conversationParticipants.userId })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            eq(conversationParticipants.userId, user.id)
+          )
+        )
+        .limit(1);
+
+    if (!participant) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const [targetConversation] = await db
+      .select({ conversationType: conversations.conversationType })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+    let conversationIdsToMark = [conversationId];
+
+    if (targetConversation?.conversationType === "direct") {
+      const [otherParticipant] = await db
+        .select({ userId: conversationParticipants.userId })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            ne(conversationParticipants.userId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (otherParticipant?.userId) {
+        const userDirectConversations = await db
+          .select({ id: conversations.id })
+          .from(conversations)
+          .innerJoin(
+            conversationParticipants,
+            eq(conversationParticipants.conversationId, conversations.id)
+          )
+          .where(
+            and(
+              eq(conversations.conversationType, "direct"),
+              eq(conversationParticipants.userId, user.id)
+            )
+          );
+        if (userDirectConversations.length > 0) {
+          const candidateIds = userDirectConversations.map(({ id }) => id),
+            matchingConversations = await db
+              .select({
+                conversationId: conversationParticipants.conversationId,
+              })
+              .from(conversationParticipants)
+              .where(
+                and(
+                  inArray(
+                    conversationParticipants.conversationId,
+                    candidateIds
+                  ),
+                  eq(conversationParticipants.userId, otherParticipant.userId)
+                )
+              );
+          if (matchingConversations.length > 0) {
+            conversationIdsToMark = [
+              ...new Set(
+                matchingConversations.map(({ conversationId: id }) => id)
+              ),
+            ];
+          }
+        }
+      }
+    }
+
+    await Promise.all([
+      db
+        .update(conversationParticipants)
+        .set({ lastReadAt: readAt })
+        .where(
+          and(
+            inArray(
+              conversationParticipants.conversationId,
+              conversationIdsToMark
+            ),
+            eq(conversationParticipants.userId, user.id)
+          )
+        ),
+      db
+        .update(userNotifications)
+        .set({ read: true })
+        .where(
+          and(
+            eq(userNotifications.userId, user.id),
+            eq(userNotifications.type, "chat_message"),
+            inArray(
+              userNotifications.link,
+              conversationIdsToMark.map(
+                (id) =>
+                  `/dashboard/messages?conversationId=${encodeURIComponent(id)}`
+              )
+            )
+          )
+        ),
+    ]);
+
+    return c.json(
+      { readAt: readAt.toISOString(), success: true },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
     method: "get",
     path: "/conversations/{conversationId}/messages",
     request: {
@@ -1621,14 +1834,26 @@ app.openapi(
       );
 
     for (const participant of otherParticipants) {
-      await db.insert(userNotifications).values({
-        id: `chat_message:${messageId}:${participant.userId}`,
-        link: `/dashboard/messages?conversationId=${encodeURIComponent(conversationId)}`,
-        message: body.body || "Sent an attachment",
-        title: user.name ? `Message from ${user.name}` : "New message",
-        type: "chat_message",
-        userId: participant.userId,
-      });
+      await notify(
+        {
+          actorUserId: user.id,
+          aggregationKey: `message:${conversationId}:${participant.userId}`,
+          data: {
+            actorName: user.name ?? "Someone",
+            conversationId,
+            messageId,
+            preview: body.body || "Sent an attachment",
+          },
+          entity: { id: conversationId, type: "conversation" },
+          eventId: messageId,
+          recipientUserId: participant.userId,
+          type: "message.received",
+        },
+        {
+          emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+          notificationQueue: c.env.NOTIFICATION_QUEUE,
+        }
+      );
     }
 
     return c.json(
@@ -1816,40 +2041,22 @@ app.openapi(
     });
 
     for (const collaboratorId of collaboratorIds) {
-      if (collaboratorId !== user.id) {
-        const [recipientUser] = await db
-          .select({
-            email: authUser.email,
-            name: authUser.name,
-          })
-          .from(authUser)
-          .where(eq(authUser.id, collaboratorId))
-          .limit(1);
-
-        await db.insert(userNotifications).values({
-          id: `chat_collaboration:${workspaceId}:${collaboratorId}`,
-          link: href,
-          message: `${user.name ?? "An artist"} started a shared ${kind} "${body.title}" with you.`,
-          title: "New Collaboration Workspace",
-          type: "collaboration_started",
-          userId: collaboratorId,
-        });
-
-        if (
-          recipientUser?.email &&
-          recipientUser.email.toLowerCase() !== (user.email ?? "").toLowerCase()
-        ) {
-          await notifyCollaboratorInviteEmail({
+      await notify(
+        {
+          actorUserId: user.id,
+          data: {
             actionPath: href,
-            inviteEmail: recipientUser.email,
-            inviteId: workspaceId,
-            inviterName: user.name ?? "An artist",
-            queue: c.env.EMAIL_DELIVERY_QUEUE,
+            actorName: user.name ?? "An artist",
             workTitle: body.title,
             workType: kind,
-          });
-        }
-      }
+          },
+          entity: { id: workspaceId, type: kind },
+          eventId: workspaceId,
+          recipientUserId: collaboratorId,
+          type: "collaboration.invited",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
     }
 
     return c.json({ href, id: workspaceId, kind }, HttpStatusCodes.CREATED);
@@ -1898,7 +2105,6 @@ app.openapi(
     const { collaborationId, conversationId } = c.req.valid("param"),
       { action } = c.req.valid("json"),
       db = createDb(),
-      href = `/dashboard/projects/${collaborationId}`,
       [project] = await db
         .select({
           id: projects.id,
@@ -1920,7 +2126,12 @@ app.openapi(
             .where(eq(tracks.id, collaborationId))
             .limit(1),
       ownerUserId = project?.ownerUserId ?? track?.ownerUserId,
-      workTitle = project?.title ?? track?.title ?? "collaboration";
+      workTitle = project?.title ?? track?.title ?? "collaboration",
+      workType = project ? ("project" as const) : ("track" as const),
+      href =
+        workType === "project"
+          ? `/dashboard/projects/${collaborationId}`
+          : `/dashboard/tracks/${collaborationId}`;
 
     if (action === "accept") {
       await db
@@ -1948,24 +2159,23 @@ app.openapi(
         senderUserId: user.id,
       });
 
-      if (ownerUserId && ownerUserId !== user.id) {
-        await db.insert(userNotifications).values({
-          id: `collab_accepted:${collaborationId}:${user.id}`,
-          link: href,
-          message: `${user.name ?? "A collaborator"} accepted your collaboration proposal for "${workTitle}".`,
-          title: "Collaboration Accepted",
-          type: "collaborator_accepted",
-          userId: ownerUserId,
-        });
-
-        await notifyCollaboratorAcceptedEmail({
-          actionPath: href,
-          collaboratorName: user.name ?? "An artist",
-          ownerUserId,
-          queue: c.env.EMAIL_DELIVERY_QUEUE,
-          workTitle,
-          workType: project ? "project" : "track",
-        });
+      if (ownerUserId) {
+        await notify(
+          {
+            actorUserId: user.id,
+            data: {
+              actionPath: href,
+              actorName: user.name ?? "An artist",
+              workTitle,
+              workType,
+            },
+            entity: { id: collaborationId, type: workType },
+            eventId: collaborationId,
+            recipientUserId: ownerUserId,
+            type: "collaboration.accepted",
+          },
+          { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+        );
       }
     } else if (action === "decline" || action === "cancel") {
       const attachmentRows = await db
@@ -2008,15 +2218,23 @@ app.openapi(
         senderUserId: user.id,
       });
 
-      if (ownerUserId && ownerUserId !== user.id) {
-        await db.insert(userNotifications).values({
-          id: `collab_declined:${collaborationId}:${user.id}`,
-          link: "/dashboard/messages",
-          message: `${user.name ?? "A collaborator"} declined the collaboration proposal for "${workTitle}".`,
-          title: "Collaboration Declined",
-          type: "collaborator_declined",
-          userId: ownerUserId,
-        });
+      if (action === "decline" && ownerUserId) {
+        await notify(
+          {
+            actorUserId: user.id,
+            data: {
+              actionPath: "/dashboard/messages",
+              actorName: user.name ?? "An artist",
+              workTitle,
+              workType,
+            },
+            entity: { id: collaborationId, type: workType },
+            eventId: collaborationId,
+            recipientUserId: ownerUserId,
+            type: "collaboration.declined",
+          },
+          { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+        );
       }
     }
 

@@ -13,7 +13,6 @@ import {
   trackAssets,
   trackLyrics,
   tracks,
-  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import {
@@ -35,7 +34,6 @@ import {
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
 } from "@/lib/battle-kits";
-import { notifyBattleChallengeEmail } from "@/lib/email-events";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -44,6 +42,7 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { notify } from "@/lib/notifications";
 import { sampleBattles } from "@/lib/sample-data";
 import {
   battleEligibilityBodySchema,
@@ -726,14 +725,23 @@ app.openapi(
       .where(eq(battleChallenges.id, challengeId));
 
     if (status === "accepted" || status === "declined") {
-      await db.insert(userNotifications).values({
-        id: crypto.randomUUID(),
-        link: "/dashboard/live",
-        message: `Your battle challenge was ${status}.`,
-        title: `Battle Challenge ${status === "accepted" ? "Accepted" : "Declined"}`,
-        type: `battle_challenge_${status}`,
-        userId: challenge.challengerUserId,
-      });
+      await notify(
+        {
+          actorUserId: user.id,
+          data: {
+            actorName: user.name ?? "An artist",
+            challengeId,
+          },
+          entity: { id: challengeId, type: "battle_challenge" },
+          eventId: challengeId,
+          recipientUserId: challenge.challengerUserId,
+          type:
+            status === "accepted"
+              ? "battle.challenge.accepted"
+              : "battle.challenge.declined",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
     }
 
     if (
@@ -932,23 +940,22 @@ app.openapi(
         .limit(1),
       challengerUsername = challengerProfile?.username ?? user.name ?? "artist";
 
-    await db.insert(userNotifications).values({
-      id: crypto.randomUUID(),
-      link: "/dashboard/live/challenge",
-      message: `@${challengerUsername} challenged you to a ${body.format.replaceAll("_", " ")} ${canonicalGenreName(body.genre)} battle.`,
-      title: "New Battle Challenge",
-      type: "battle_challenge",
-      userId: opponentProfile.userId,
-    });
-
-    await notifyBattleChallengeEmail({
-      battleFormat: body.format,
-      challengeId,
-      challengerName: `@${challengerUsername}`,
-      genre: canonicalGenreName(body.genre),
-      opponentUserId: opponentProfile.userId,
-      queue: c.env.EMAIL_DELIVERY_QUEUE,
-    });
+    await notify(
+      {
+        actorUserId: user.id,
+        data: {
+          actorName: `@${challengerUsername}`,
+          challengeId,
+          format: body.format,
+          genre: canonicalGenreName(body.genre),
+        },
+        entity: { id: challengeId, type: "battle_challenge" },
+        eventId: challengeId,
+        recipientUserId: opponentProfile.userId,
+        type: "battle.challenge.created",
+      },
+      { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+    );
 
     return c.json(
       { message: `Challenge created for ${opponentUsername}` },

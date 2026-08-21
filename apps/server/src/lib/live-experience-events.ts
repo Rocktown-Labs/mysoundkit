@@ -10,12 +10,18 @@ import {
   videos,
   workflowJobs,
 } from "@soundkit/db/schema/app";
-import { member, subscription } from "@soundkit/db/schema/auth";
+import {
+  member,
+  subscription,
+  user as authUser,
+} from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import { and, asc, eq, inArray, lte, or } from "drizzle-orm";
 
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { LiveExperienceKind } from "@/lib/live-experience";
 import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
+import { notify } from "@/lib/notifications";
 import { logWarn } from "@/middleware/structured-logging";
 
 export const BATTLE_RECORD_THRESHOLD_VIEWERS = 10;
@@ -273,19 +279,60 @@ export const insertNotificationsForUsers = async ({
   return rows.length;
 };
 
+const mapInBatches = async <Input, Output>(
+  items: Input[],
+  handler: (item: Input) => Promise<Output>,
+  batchSize = 25
+): Promise<Output[]> => {
+  const results: Output[] = [];
+  let offset = 0;
+
+  while (offset < items.length) {
+    const batch = items.slice(offset, offset + batchSize),
+      batchResults = await Promise.all(batch.map(handler));
+    for (const result of batchResults) {
+      results.push(result);
+    }
+    offset += batchSize;
+  }
+
+  return results;
+};
+
 export const fanoutGoLiveNotifications = async ({
   creatorUserId,
+  emailQueue,
   experienceId,
   kind,
   title,
 }: {
   creatorUserId: string;
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   experienceId: string;
   kind: LiveExperienceKind;
   title: string;
 }) => {
-  const followerUserIds = await getFollowerUserIds(creatorUserId),
-    href = notificationHrefForKind(kind, experienceId);
+  if (!isDatabaseConfigured()) {
+    return {
+      creatorHref: notificationHrefForKind(kind, experienceId),
+      followerNotifications: 0,
+      kind,
+      noun: kind,
+      premiumNotifications: 0,
+      title,
+    };
+  }
+
+  const db = createDb(),
+    [creator] = await db
+      .select({ name: authUser.name })
+      .from(authUser)
+      .where(eq(authUser.id, creatorUserId))
+      .limit(1),
+    artistName = creator?.name ?? "An artist you follow",
+    followerUserIds = await getFollowerUserIds(creatorUserId),
+    href = notificationHrefForKind(kind, experienceId),
+    premiumUserIds = await getPremiumWatcherUserIds();
   let noun: string;
 
   if (kind === "battle") {
@@ -296,22 +343,49 @@ export const fanoutGoLiveNotifications = async ({
     noun = "stream";
   }
 
-  const followerNotifications = await insertNotificationsForUsers({
-      experienceId,
-      kind,
-      message: `${title} is live. Tap in to watch, chat, and react.`,
-      recipientUserIds: followerUserIds,
-      title: `${title} is live`,
-      type: `${notificationTypeForKind(kind)}_live`,
-    }),
-    premiumNotifications = await insertNotificationsForUsers({
-      experienceId,
-      kind,
-      message: `${title} is live. Premium watchers get the full Must Watch room.`,
-      recipientUserIds: await getPremiumWatcherUserIds(),
-      title: `Must Watch: ${title} is live`,
-      type: `${notificationTypeForKind(kind)}_must_watch`,
-    });
+  const followerResults = await mapInBatches(
+      followerUserIds,
+      (recipientUserId) =>
+        notify(
+          {
+            actorUserId: creatorUserId,
+            data: {
+              artistName,
+              experienceId,
+              experienceTitle: title,
+              href,
+              kind,
+            },
+            entity: { id: experienceId, type: "live_experience" },
+            eventId: experienceId,
+            recipientUserId,
+            type: "artist.live",
+          },
+          { emailQueue }
+        )
+    ),
+    premiumResults = await mapInBatches(premiumUserIds, (recipientUserId) =>
+      notify({
+        actorUserId: creatorUserId,
+        data: {
+          artistName,
+          experienceId,
+          experienceTitle: title,
+          href,
+          kind,
+        },
+        entity: { id: experienceId, type: "live_experience" },
+        eventId: experienceId,
+        recipientUserId,
+        type: "live.must_watch",
+      })
+    ),
+    followerNotifications = followerResults.filter(
+      ({ inApp }) => inApp === "created"
+    ).length,
+    premiumNotifications = premiumResults.filter(
+      ({ inApp }) => inApp === "created"
+    ).length;
 
   return {
     creatorHref: href,

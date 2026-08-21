@@ -108,6 +108,8 @@ const meGet = apiClient.v1.me.index.$get,
     apiClient.v1.messages.conversations[":conversationId"].messages.$get,
   conversationMessagesPost =
     apiClient.v1.messages.conversations[":conversationId"].messages.$post,
+  conversationReadPost =
+    apiClient.v1.messages.conversations[":conversationId"].read.$post,
   openVersesGet = apiClient.v1["open-verses"].index.$get,
   openVersesPost = apiClient.v1["open-verses"].index.$post,
   openVerseGet = apiClient.v1["open-verses"][":listingId"].$get,
@@ -120,6 +122,8 @@ const meGet = apiClient.v1.me.index.$get,
   videoCommentsPost = apiClient.v1.videos[":videoId"].comments.$post,
   videoDelete = apiClient.v1.videos[":videoId"].$delete,
   notificationsGet = apiClient.v1.notifications.index.$get,
+  notificationReadPost =
+    apiClient.v1.notifications[":notificationId"].read.$post,
   notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
@@ -180,6 +184,7 @@ export type VideoComment = InferResponseType<
   typeof videoCommentsGet,
   200
 >[number];
+export type NotificationPage = InferResponseType<typeof notificationsGet, 200>;
 export type ArtistSummary = InferResponseType<typeof artistsGet, 200>[number];
 type ArtistFollowResponse = InferResponseType<typeof artistFollowPost, 200>;
 type SellerStatus = InferResponseType<typeof sellerStatusGet, 200>;
@@ -774,6 +779,23 @@ export const useConversationMessagesQuery = (conversationId: string) =>
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   });
+
+export const useMarkConversationReadMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (conversationId: string) =>
+      rpcJson(await conversationReadPost({ param: { conversationId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.conversations,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      });
+    },
+  });
+};
 
 export const useCreateConversationMutation = () => {
   const queryClient = useQueryClient();
@@ -2038,10 +2060,31 @@ export const useTrackBattleHistoryQuery = (trackId: string) =>
   });
 
 export const useNotificationsQuery = () =>
-  useQuery({
-    queryFn: async () => rpcJson(await notificationsGet()),
+  useInfiniteQuery({
+    getNextPageParam: (lastPage: NotificationPage) =>
+      lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }): Promise<NotificationPage> =>
+      rpcJson(
+        await notificationsGet({
+          query: { cursor: pageParam, limit: 20 },
+        })
+      ),
     queryKey: soundkitQueryKeys.notifications,
   });
+
+export const useMarkNotificationReadMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (notificationId: string) =>
+      rpcJson(await notificationReadPost({ param: { notificationId } })),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      }),
+  });
+};
 
 export const useMarkNotificationsReadMutation = () => {
   const queryClient = useQueryClient();

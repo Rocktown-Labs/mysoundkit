@@ -3,6 +3,7 @@ import type { PresenceDurableObject } from "@/durable-objects/presence";
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
+import type { NotificationQueueMessage } from "@/lib/notifications";
 
 export interface AuthenticatedSession {
   activeOrganizationId?: string | null;
@@ -29,6 +30,7 @@ export interface AppEnv {
     BATTLE_ADMISSION_BATCH_SIZE?: string;
     DO_METRICS?: AnalyticsEngineDataset;
     LIVE_NOTIFICATION_QUEUE?: Queue<LiveNotificationQueueMessage>;
+    NOTIFICATION_QUEUE?: Queue<NotificationQueueMessage>;
     LIVE_RECORDING_WORKFLOW?: Workflow;
     LIVE_ROOMS?: DurableObjectNamespace<LiveRoomDurableObject>;
     PRESENCE?: DurableObjectNamespace<PresenceDurableObject>;

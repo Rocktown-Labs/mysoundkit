@@ -17,7 +17,6 @@ import {
   trackPreSaves,
   trackStemJobs,
   tracks,
-  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
@@ -57,6 +56,7 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { notify } from "@/lib/notifications";
 import {
   createTrackPlaybackSession,
   recordPlaybackProgress,
@@ -1244,45 +1244,31 @@ app.openapi(
         );
 
         for (const collaborator of collaboratorRows) {
-          if (
-            collaborator.collaboratorUserId &&
-            collaborator.collaboratorUserId !== user.id
-          ) {
-            await db
-              .insert(userNotifications)
-              .values({
-                id: `track_collaborator:${collaborator.id}`,
-                link: `/dashboard/tracks/${trackId}`,
-                message: `${user.name ?? "Someone"} added you as a collaborator on ${body.title}.`,
-                title: "New Collaboration",
-                type: "collaborator_invite",
-                userId: collaborator.collaboratorUserId,
-              })
-              .onConflictDoNothing();
-          }
-
-          let recipientEmail = collaborator.inviteEmail ?? null;
-          if (
-            !recipientEmail &&
-            collaborator.collaboratorUserId &&
-            collaborator.collaboratorUserId !== user.id
-          ) {
-            const [collaboratorUser] = await db
-              .select({ email: authUser.email })
-              .from(authUser)
-              .where(eq(authUser.id, collaborator.collaboratorUserId))
-              .limit(1);
-            recipientEmail = collaboratorUser?.email ?? null;
-          }
-
-          if (
-            recipientEmail &&
-            recipientEmail.toLowerCase() !== (user.email ?? "").toLowerCase() &&
-            collaborator.collaboratorUserId !== user.id
+          if (collaborator.collaboratorUserId) {
+            await notify(
+              {
+                actorUserId: user.id,
+                data: {
+                  actionPath: `/dashboard/tracks/${trackId}`,
+                  actorName: user.name ?? "Someone",
+                  workTitle: body.title,
+                  workType: "track",
+                },
+                entity: { id: trackId, type: "track" },
+                eventId: collaborator.id,
+                recipientUserId: collaborator.collaboratorUserId,
+                type: "collaboration.invited",
+              },
+              { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+            );
+          } else if (
+            collaborator.inviteEmail &&
+            collaborator.inviteEmail.toLowerCase() !==
+              (user.email ?? "").toLowerCase()
           ) {
             await notifyCollaboratorInviteEmail({
               actionPath: `/dashboard/tracks/${trackId}`,
-              inviteEmail: recipientEmail,
+              inviteEmail: collaborator.inviteEmail,
               inviteId: collaborator.id,
               inviterName: user.name ?? "Someone",
               queue: c.env.EMAIL_DELIVERY_QUEUE,

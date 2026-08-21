@@ -13,9 +13,7 @@ import {
   trackAssets,
   tracks,
   userFollows,
-  userNotifications,
 } from "@soundkit/db/schema/app";
-import { user as authUser } from "@soundkit/db/schema/auth";
 import { env } from "@soundkit/env/server";
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
@@ -28,10 +26,7 @@ import {
   buildProjectSummary,
   ownedProjectWhere,
 } from "@/lib/dashboard-mappers";
-import {
-  notifyCollaboratorInviteEmail,
-  notifyLiveEventScheduledEmail,
-} from "@/lib/email-events";
+import { notifyCollaboratorInviteEmail } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
@@ -39,6 +34,7 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { notify } from "@/lib/notifications";
 import {
   genreSlugFromExploreFilter,
   stateFromExploreRegion,
@@ -608,45 +604,31 @@ app.openapi(
         await db.insert(projectCollaborators).values(collaboratorRows);
 
         for (const collaborator of collaboratorRows) {
-          if (
-            collaborator.collaboratorUserId &&
-            collaborator.collaboratorUserId !== user.id
-          ) {
-            await db
-              .insert(userNotifications)
-              .values({
-                id: `project_collaborator:${collaborator.id}`,
-                link: `/dashboard/projects/${projectId}`,
-                message: `${user.name ?? "Someone"} added you as a collaborator on ${body.title}.`,
-                title: "New Project Collaboration",
-                type: "collaborator_invite",
-                userId: collaborator.collaboratorUserId,
-              })
-              .onConflictDoNothing();
-          }
-
-          let recipientEmail = collaborator.inviteEmail ?? null;
-          if (
-            !recipientEmail &&
-            collaborator.collaboratorUserId &&
-            collaborator.collaboratorUserId !== user.id
-          ) {
-            const [collaboratorUser] = await db
-              .select({ email: authUser.email })
-              .from(authUser)
-              .where(eq(authUser.id, collaborator.collaboratorUserId))
-              .limit(1);
-            recipientEmail = collaboratorUser?.email ?? null;
-          }
-
-          if (
-            recipientEmail &&
-            recipientEmail.toLowerCase() !== (user.email ?? "").toLowerCase() &&
-            collaborator.collaboratorUserId !== user.id
+          if (collaborator.collaboratorUserId) {
+            await notify(
+              {
+                actorUserId: user.id,
+                data: {
+                  actionPath: `/dashboard/projects/${projectId}`,
+                  actorName: user.name ?? "Someone",
+                  workTitle: body.title,
+                  workType: "project",
+                },
+                entity: { id: projectId, type: "project" },
+                eventId: collaborator.id,
+                recipientUserId: collaborator.collaboratorUserId,
+                type: "collaboration.invited",
+              },
+              { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+            );
+          } else if (
+            collaborator.inviteEmail &&
+            collaborator.inviteEmail.toLowerCase() !==
+              (user.email ?? "").toLowerCase()
           ) {
             await notifyCollaboratorInviteEmail({
               actionPath: `/dashboard/projects/${projectId}`,
-              inviteEmail: recipientEmail,
+              inviteEmail: collaborator.inviteEmail,
               inviteId: collaborator.id,
               inviterName: user.name ?? "Someone",
               queue: c.env.EMAIL_DELIVERY_QUEUE,
@@ -705,28 +687,24 @@ app.openapi(
                 ]),
               ];
             for (const followerId of followerIds) {
-              const [notification] = await db
-                .insert(userNotifications)
-                .values({
-                  id: `party_scheduled:${releaseParty.id}:${followerId}`,
-                  link: `/live/parties/${releaseParty.liveRoomId ?? releaseParty.id}`,
-                  message: `${user.name ?? "An artist you follow"} scheduled ${releaseParty.title}.`,
-                  title: "Release party scheduled",
-                  type: "party_scheduled",
-                  userId: followerId,
-                })
-                .onConflictDoNothing()
-                .returning({ id: userNotifications.id });
-              if (notification) {
-                await notifyLiveEventScheduledEmail({
-                  eventId: releaseParty.liveRoomId ?? releaseParty.id,
-                  eventTitle: releaseParty.title,
-                  eventType: "party",
-                  hostName: user.name ?? "An artist you follow",
-                  queue: c.env.EMAIL_DELIVERY_QUEUE,
+              const experienceId = releaseParty.liveRoomId ?? releaseParty.id;
+              await notify(
+                {
+                  actorUserId: user.id,
+                  data: {
+                    artistName: user.name ?? "An artist you follow",
+                    experienceId,
+                    experienceTitle: releaseParty.title,
+                    href: `/live/parties/${experienceId}`,
+                    kind: "party",
+                  },
+                  entity: { id: releaseParty.id, type: "listening_party" },
+                  eventId: releaseParty.id,
                   recipientUserId: followerId,
-                });
-              }
+                  type: "live.scheduled",
+                },
+                { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+              );
             }
           }
         }

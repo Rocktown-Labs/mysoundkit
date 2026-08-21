@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
+  useMarkNotificationReadMutation,
   useMarkNotificationsReadMutation,
   useNotificationsQuery,
   useSearchQuery,
@@ -36,9 +37,11 @@ export function DashboardHeader() {
   });
 
   const notificationsQuery = useNotificationsQuery(),
+    markNotificationReadMutation = useMarkNotificationReadMutation(),
     markReadMutation = useMarkNotificationsReadMutation(),
-    notifications = notificationsQuery.data?.notifications ?? [],
-    unreadCount = notificationsQuery.data?.unreadCount ?? 0,
+    notificationPages = notificationsQuery.data?.pages ?? [],
+    notifications = notificationPages.flatMap((page) => page.items),
+    unreadCount = notificationPages[0]?.unreadCount ?? 0,
     searchQuery = useSearchQuery({
       limit: "8",
       q: trimmedSearchValue,
@@ -171,87 +174,95 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex items-center gap-2">
-        <DropdownMenu
-          onOpenChange={(open) => {
-            if (open && unreadCount > 0) {
-              markReadMutation.mutate();
-            }
-          }}
-        >
+        <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
+            <Button className="relative" size="icon" variant="ghost">
               <Bell className="size-5" />
               {unreadCount > 0 ? (
-                <Badge className="absolute -top-1 -right-1 size-5 flex items-center justify-center p-0 text-xs bg-primary text-primary-foreground">
+                <Badge className="absolute -top-1 -right-1 flex size-5 items-center justify-center bg-primary p-0 text-primary-foreground text-xs">
                   {unreadCount}
                 </Badge>
               ) : null}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 p-2">
-            <div className="flex items-center justify-between px-2 py-1.5 border-b border-border/40 mb-1">
+            <div className="mb-1 flex items-center justify-between border-border/40 border-b px-2 py-1.5">
               <p className="font-semibold text-sm">Notifications</p>
-              <div className="flex items-center gap-2">
-                {unreadCount > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => markReadMutation.mutate()}
-                    className="text-[10px] text-primary hover:underline font-medium"
-                  >
-                    Mark all read
-                  </button>
-                ) : null}
-              </div>
+              {unreadCount > 0 ? (
+                <button
+                  className="font-medium text-[10px] text-primary hover:underline"
+                  onClick={() => markReadMutation.mutate()}
+                  type="button"
+                >
+                  Mark all read
+                </button>
+              ) : null}
             </div>
 
             {notifications.length === 0 ? (
-              <div className="p-4 text-center text-xs text-muted-foreground">
+              <div className="p-4 text-center text-muted-foreground text-xs">
                 No notifications yet.
               </div>
             ) : (
-              <div className="max-h-64 overflow-y-auto space-y-1">
+              <div className="max-h-64 space-y-1 overflow-y-auto">
                 {notifications.map((item) => {
-                  const link =
-                    typeof item.link === "string" ? item.link : undefined;
+                  const link = item.link ?? undefined,
+                    content = (
+                      <>
+                        <div className="flex w-full items-center justify-between">
+                          <p className="font-semibold text-xs">{item.title}</p>
+                          {item.read ? null : (
+                            <span className="size-1.5 rounded-full bg-primary" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {item.message}
+                        </p>
+                      </>
+                    );
 
                   return (
                     <DropdownMenuItem
-                      key={item.id}
-                      className="flex flex-col items-start gap-1 p-2 focus:bg-accent rounded-lg cursor-pointer"
                       asChild={Boolean(link)}
+                      className="flex cursor-pointer flex-col items-start gap-1 rounded-lg p-2 focus:bg-accent"
+                      key={item.id}
                     >
                       {link ? (
-                        <Link to={link}>
-                          <div className="flex items-center justify-between w-full">
-                            <p className="text-xs font-semibold">
-                              {item.title}
-                            </p>
-                            {!item.readAt && (
-                              <span className="size-1.5 rounded-full bg-primary" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-tight">
-                            {item.body}
-                          </p>
+                        <Link
+                          onClick={() =>
+                            markNotificationReadMutation.mutate(item.id)
+                          }
+                          to={link}
+                        >
+                          {content}
                         </Link>
                       ) : (
-                        <div className="w-full">
-                          <div className="flex items-center justify-between w-full">
-                            <p className="text-xs font-semibold">
-                              {item.title}
-                            </p>
-                            {!item.readAt && (
-                              <span className="size-1.5 rounded-full bg-primary" />
-                            )}
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-tight">
-                            {item.body}
-                          </p>
-                        </div>
+                        <button
+                          className="w-full text-left"
+                          onClick={() =>
+                            markNotificationReadMutation.mutate(item.id)
+                          }
+                          type="button"
+                        >
+                          {content}
+                        </button>
                       )}
                     </DropdownMenuItem>
                   );
                 })}
+                {notificationsQuery.hasNextPage ? (
+                  <Button
+                    className="w-full"
+                    disabled={notificationsQuery.isFetchingNextPage}
+                    onClick={() => notificationsQuery.fetchNextPage()}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    {notificationsQuery.isFetchingNextPage
+                      ? "Loading…"
+                      : "Load more"}
+                  </Button>
+                ) : null}
               </div>
             )}
           </DropdownMenuContent>

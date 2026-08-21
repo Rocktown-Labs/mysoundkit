@@ -5,7 +5,6 @@ import {
   artistFollows,
   artistProfiles,
   userFollows,
-  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { and, eq, sql } from "drizzle-orm";
@@ -13,8 +12,8 @@ import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
-import { notifyFollowerEmail } from "@/lib/email-events";
 import { isAuthenticatedUser, unauthorizedMessage } from "@/lib/entitlements";
+import { notifyFollowCreated } from "@/lib/follow-notifications";
 import { sampleComments } from "@/lib/sample-data";
 import {
   commentSchema,
@@ -161,31 +160,35 @@ app.openapi(
       );
     }
 
-    await db
-      .insert(userFollows)
-      .values({ followerUserId: user.id, targetUserId: target.userId })
-      .onConflictDoNothing();
-    const [followerProfile] = await db
-      .select({ accountType: userProfiles.accountType })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, user.id))
-      .limit(1);
-    const followerType = followerProfile?.accountType ?? "artist";
-    const [summary] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(userFollows)
-      .where(eq(userFollows.targetUserId, target.userId));
-    await db
-      .insert(userNotifications)
-      .values({
-        id: `user_follow:${user.id}:${target.userId}`,
-        link: `/people/${username}`,
-        message: `${user.name ?? "Someone"} followed your SoundKit profile.`,
-        title: followerType === "fan" ? "New Fan" : "New Artist Follower",
-        type: followerType === "fan" ? "fan_follower" : "artist_follower",
-        userId: target.userId,
-      })
-      .onConflictDoNothing();
+    const [createdFollow] = await db
+        .insert(userFollows)
+        .values({ followerUserId: user.id, targetUserId: target.userId })
+        .onConflictDoNothing()
+        .returning(),
+      [followerProfile] = await db
+        .select({
+          accountType: userProfiles.accountType,
+          displayName: userProfiles.displayName,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1),
+      [summary] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(userFollows)
+        .where(eq(userFollows.targetUserId, target.userId));
+
+    if (createdFollow) {
+      await notifyFollowCreated({
+        actorAccountType: followerProfile?.accountType ?? "artist",
+        actorName: followerProfile?.displayName ?? user.name ?? "Someone",
+        actorUserId: user.id,
+        actorUsername: followerProfile?.username,
+        emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+        recipientUserId: target.userId,
+      });
+    }
 
     return c.json(
       { followed: true, followerCount: summary?.count ?? 0 },
@@ -269,40 +272,23 @@ app.openapi(
         .where(eq(artistProfiles.userId, artist.userId));
 
       const [followerArtistProfile] = await db
-          .select({
-            accountType: userProfiles.accountType,
-            displayName: userProfiles.displayName,
-            userId: userProfiles.userId,
-            username: userProfiles.username,
-          })
-          .from(userProfiles)
-          .where(eq(userProfiles.userId, user.id))
-          .limit(1),
-        isFan = followerArtistProfile?.accountType === "fan",
-        title = isFan ? "New Fan" : "New Artist Follower",
-        message = isFan
-          ? `${user.name ?? "A fan"} started following your profile. You got a new fan!`
-          : `${user.name ?? "An artist"} followed your profile.`;
+        .select({
+          accountType: userProfiles.accountType,
+          displayName: userProfiles.displayName,
+          userId: userProfiles.userId,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1);
 
-      await db.insert(userNotifications).values({
-        id: crypto.randomUUID(),
-        link:
-          followerArtistProfile?.username && !isFan
-            ? `/artist/${followerArtistProfile.username}`
-            : "/dashboard/collaborators?tab=following",
-        message,
-        title,
-        type: isFan ? "fan_follower" : "artist_follower",
-        userId: artist.userId,
-      });
-
-      await notifyFollowerEmail({
-        artistUserId: artist.userId,
-        followerName:
-          followerArtistProfile?.displayName ?? user.name ?? "Someone",
-        followerType: isFan ? "fan" : "artist",
-        followerUsername: isFan ? null : followerArtistProfile?.username,
-        queue: c.env.EMAIL_DELIVERY_QUEUE,
+      await notifyFollowCreated({
+        actorAccountType: followerArtistProfile?.accountType ?? "artist",
+        actorName: followerArtistProfile?.displayName ?? user.name ?? "Someone",
+        actorUserId: user.id,
+        actorUsername: followerArtistProfile?.username,
+        emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+        recipientUserId: artist.userId,
       });
     }
 

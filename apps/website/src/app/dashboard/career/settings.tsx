@@ -47,6 +47,8 @@ const defaultNotificationSettings = {
   emailCollaborations: true,
   emailComments: true,
   emailFollowers: true,
+  emailLive: true,
+  emailMessages: true,
   emailSales: true,
   emailTrackProcessing: true,
   pushMentions: true,
@@ -62,51 +64,43 @@ const emailNotificationItems: {
     title: string;
   }[] = [
     {
-      description: "Get notified when someone follows you",
-      key: "emailFollowers",
-      title: "New Followers",
+      description:
+        "Get an email when a conversation remains unread while you are away",
+      key: "emailMessages",
+      title: "Messages",
     },
     {
       description:
-        "Get notified when your uploaded tracks are live or processed",
-      key: "emailTrackProcessing",
-      title: "Track Processing",
+        "Get notified about new followers, fans, and releases from artists you follow",
+      key: "emailFollowers",
+      title: "Followers & Releases",
     },
     {
-      description: "Get notified when someone comments on your tracks",
+      description: "Get notified when someone comments on your content",
       key: "emailComments",
       title: "Comments",
     },
     {
-      description: "Get notified about collaboration requests",
+      description:
+        "Get notified about collaborators, friend requests, battles, and Open Verse opportunities",
       key: "emailCollaborations",
-      title: "Collaborations",
+      title: "Collaborations & Opportunities",
+    },
+    {
+      description: "Get notified when an artist you follow goes live",
+      key: "emailLive",
+      title: "Live",
     },
     {
       description: "Get notified when someone purchases your music",
       key: "emailSales",
       title: "Sales",
     },
-  ],
-  pushNotificationItems: {
-    description: string;
-    key: NotificationSettingKey;
-    title: string;
-  }[] = [
     {
-      description: "Get notified about new messages",
-      key: "pushMessages",
-      title: "Messages",
-    },
-    {
-      description: "Get notified when someone mentions you",
-      key: "pushMentions",
-      title: "Mentions",
-    },
-    {
-      description: "Get notified about new releases from artists you follow",
-      key: "pushReleases",
-      title: "Releases",
+      description:
+        "Get notified when your uploaded tracks are live or processed",
+      key: "emailTrackProcessing",
+      title: "Track Processing",
     },
   ],
   privacyNotificationItems = [
@@ -612,40 +606,6 @@ function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {emailNotificationItems.map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between gap-4"
-                >
-                  <div className="space-y-0.5">
-                    <Label>{item.title}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {item.description}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notificationSettings[item.key]}
-                    disabled={
-                      notificationSettingsQuery.isLoading ||
-                      updateNotificationSettings.isPending
-                    }
-                    onCheckedChange={(checked) =>
-                      updateNotificationSetting(item.key, checked)
-                    }
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Push Notifications</CardTitle>
-              <CardDescription>
-                Manage push notifications on your devices
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {pushNotificationItems.map((item) => (
                 <div
                   key={item.key}
                   className="flex items-center justify-between gap-4"

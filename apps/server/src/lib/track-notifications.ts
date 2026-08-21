@@ -1,14 +1,16 @@
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   notificationSettings,
+  trackCollaborators,
   tracks,
   userNotifications,
 } from "@soundkit/db/schema/app";
 import { user as authUser } from "@soundkit/db/schema/auth";
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { enqueueTransactionalEmail } from "@/lib/email-delivery";
+import { notify } from "@/lib/notifications";
 
 const trackDashboardLink = (trackId: string) => `/dashboard/tracks/${trackId}`,
   loadTrackForNotification = async (trackId: string) => {
@@ -91,6 +93,41 @@ export const notifyTrackLive = async ({
       template: "track_ready",
       userId: track.ownerUserId,
     });
+  }
+
+  const collaborators = await createDb()
+    .select({ userId: trackCollaborators.collaboratorUserId })
+    .from(trackCollaborators)
+    .where(
+      and(
+        eq(trackCollaborators.trackId, track.id),
+        eq(trackCollaborators.invitationStatus, "accepted"),
+        isNotNull(trackCollaborators.collaboratorUserId),
+        ne(trackCollaborators.collaboratorUserId, track.ownerUserId)
+      )
+    );
+
+  for (const collaborator of collaborators) {
+    if (!collaborator.userId) {
+      continue;
+    }
+
+    await notify(
+      {
+        actorUserId: track.ownerUserId,
+        data: {
+          actionPath: `/tracks/${track.id}`,
+          actorName: track.name ?? "The track owner",
+          trackId: track.id,
+          trackTitle: track.title,
+        },
+        entity: { id: track.id, type: "track" },
+        eventId: track.id,
+        recipientUserId: collaborator.userId,
+        type: "track.collaborator.live",
+      },
+      { emailQueue }
+    );
   }
 
   return { notified: true, reason: "created_or_existing" as const };

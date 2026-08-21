@@ -61,12 +61,22 @@
         "binding": "LIVE_NOTIFICATION_QUEUE",
         "queue": "soundkit-live-notifications",
       },
+      {
+        "binding": "NOTIFICATION_QUEUE",
+        "queue": "soundkit-activity-notifications",
+      },
     ],
     "consumers": [
       {
         "queue": "soundkit-live-notifications",
         "max_batch_size": 50,
         "max_batch_timeout": 5,
+        "max_retries": 6,
+      },
+      {
+        "queue": "soundkit-activity-notifications",
+        "max_batch_size": 25,
+        "max_batch_timeout": 3,
         "max_retries": 6,
       },
     ],

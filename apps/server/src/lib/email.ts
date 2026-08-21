@@ -14,6 +14,7 @@ export type TransactionalEmailTemplate =
   | "collaborator_invite"
   | "follower"
   | "friend_request"
+  | "notification"
   | "open_verse_accepted"
   | "open_verse_submitted"
   | "org_invite"

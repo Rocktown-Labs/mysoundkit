@@ -194,6 +194,24 @@ const SITE_HOST = isProduction
       messageRetentionPeriod: 1_209_600,
     },
   }),
+  activityNotificationDeadLetterQueue = await Queue(
+    "activity-notifications-dlq",
+    {
+      adopt: shouldAdoptRemoteResources,
+      name: resourceName("soundkit-activity-notifications-dlq"),
+      settings: {
+        messageRetentionPeriod: 1_209_600,
+      },
+    }
+  ),
+  activityNotificationQueue = await Queue("activity-notifications", {
+    adopt: shouldAdoptRemoteResources,
+    dlq: activityNotificationDeadLetterQueue,
+    name: resourceName("soundkit-activity-notifications"),
+    settings: {
+      messageRetentionPeriod: 1_209_600,
+    },
+  }),
   liveRooms = DurableObjectNamespace("live-rooms", {
     className: "LiveRoomDurableObject",
     sqlite: true,
@@ -315,6 +333,7 @@ export const server = await Worker("server", {
     ),
     HYPERDRIVE: hyperdrive,
     LIVE_NOTIFICATION_QUEUE: liveNotificationQueue,
+    NOTIFICATION_QUEUE: activityNotificationQueue,
     LIVE_RECORDING_WORKFLOW: liveRecordingWorkflow,
     LIVE_ROOMS: liveRooms,
     PRESENCE: presence,
@@ -411,6 +430,17 @@ export const server = await Worker("server", {
         maxConcurrency: 10,
         maxRetries: 6,
         maxWaitTimeMs: 5000,
+        retryDelay: 30,
+      },
+    },
+    {
+      queue: activityNotificationQueue,
+      settings: {
+        batchSize: 25,
+        deadLetterQueue: activityNotificationDeadLetterQueue,
+        maxConcurrency: 10,
+        maxRetries: 6,
+        maxWaitTimeMs: 2500,
         retryDelay: 30,
       },
     },

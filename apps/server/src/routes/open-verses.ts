@@ -10,7 +10,6 @@ import {
   trackAssets,
   trackCollaborators,
   tracks,
-  userNotifications,
   userProfiles,
 } from "@soundkit/db/schema/app";
 import { and, desc, eq, ilike, lt, or, sql } from "drizzle-orm";
@@ -20,16 +19,13 @@ import jsonContentRequired from "stoker/openapi/helpers/json-content-required";
 
 import { publicAssetUrl } from "@/lib/asset-urls";
 import { buildTrackSummary } from "@/lib/dashboard-mappers";
-import {
-  getDisplayNameForUser,
-  notifyOpenVerseAcceptedEmail,
-  notifyOpenVerseSubmittedEmail,
-} from "@/lib/email-events";
+import { getDisplayNameForUser } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import { notify } from "@/lib/notifications";
 import { sampleTracks } from "@/lib/sample-data";
 import {
   createOpenVerseAccessRequestBodySchema,
@@ -350,17 +346,22 @@ app.openapi(
       );
 
     for (const follower of artistFollowers) {
-      await db
-        .insert(userNotifications)
-        .values({
-          id: `open_verse_published:${listing.id}:${follower.userId}`,
-          link: `/dashboard/open-verses/all/${listing.id}`,
-          message: `${user.name ?? "An artist"} posted a new Open Verse: ${track.title} - Open Verse`,
-          title: "New Open Verse",
-          type: "open_verse_published",
-          userId: follower.userId,
-        })
-        .onConflictDoNothing();
+      await notify(
+        {
+          actorUserId: user.id,
+          aggregationKey: `open_verse:${user.id}`,
+          data: {
+            actorName: user.name ?? "An artist",
+            listingId: listing.id,
+            listingTitle: `${track.title} - Open Verse`,
+          },
+          entity: { id: listing.id, type: "open_verse" },
+          eventId: listing.id,
+          recipientUserId: follower.userId,
+          type: "open_verse.published",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
     }
 
     const page = await listOpenVerses({ limit: 50 }),
@@ -484,6 +485,7 @@ app.openapi(
       .select({
         accessMode: openVerseListings.accessMode,
         ownerUserId: openVerseListings.ownerUserId,
+        title: openVerseListings.title,
       })
       .from(openVerseListings)
       .where(eq(openVerseListings.id, listingId))
@@ -526,17 +528,22 @@ app.openapi(
     if (!request) {
       throw new Error("Failed to save access request.");
     }
-    await db
-      .insert(userNotifications)
-      .values({
-        id: `open_verse_access_requested:${request.id}`,
-        link: `/dashboard/open-verses/all/${listingId}`,
-        message: `${user.name ?? "An artist"} requested access to your Open Verse.`,
-        title: "Open Verse access request",
-        type: "open_verse_access_requested",
-        userId: listing.ownerUserId,
-      })
-      .onConflictDoNothing();
+    await notify(
+      {
+        actorUserId: user.id,
+        data: {
+          actorName: user.name ?? "An artist",
+          listingId,
+          listingTitle: listing.title,
+          requestId: request.id,
+        },
+        entity: { id: listingId, type: "open_verse" },
+        eventId: request.id,
+        recipientUserId: listing.ownerUserId,
+        type: "open_verse.access.requested",
+      },
+      { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+    );
     return c.json(
       {
         ...request,
@@ -678,7 +685,10 @@ app.openapi(
       body = c.req.valid("json"),
       db = createDb(),
       [listing] = await db
-        .select({ ownerUserId: openVerseListings.ownerUserId })
+        .select({
+          ownerUserId: openVerseListings.ownerUserId,
+          title: openVerseListings.title,
+        })
         .from(openVerseListings)
         .where(eq(openVerseListings.id, listingId))
         .limit(1),
@@ -716,9 +726,9 @@ app.openapi(
     const status =
       body.action === "approve"
         ? "approved"
-        : (body.action === "decline"
+        : body.action === "decline"
           ? "declined"
-          : "canceled");
+          : "canceled";
     const [updated] = await db
       .update(openVerseAccessRequests)
       .set({
@@ -735,20 +745,27 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
-    await db
-      .insert(userNotifications)
-      .values({
-        id: `open_verse_access_${status}:${requestId}`,
-        link: `/dashboard/open-verses/all/${listingId}`,
-        message:
-          status === "approved"
-            ? "Your Open Verse access request was approved."
-            : `Your Open Verse access request was ${status}.`,
-        title: "Open Verse access updated",
-        type: `open_verse_access_${status}`,
-        userId: request.requesterUserId,
-      })
-      .onConflictDoNothing();
+    if (status === "approved" || status === "declined") {
+      await notify(
+        {
+          actorUserId: user.id,
+          data: {
+            actorName: user.name ?? "The listing owner",
+            listingId,
+            listingTitle: listing.title,
+            requestId,
+          },
+          entity: { id: listingId, type: "open_verse" },
+          eventId: requestId,
+          recipientUserId: request.requesterUserId,
+          type:
+            status === "approved"
+              ? "open_verse.access.approved"
+              : "open_verse.access.declined",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
+    }
     return c.json(
       {
         ...updated,
@@ -924,69 +941,65 @@ app.openapi(
         asset: body.adlibs,
         assetKind: "adlib",
       }),
-
-     [submission] = await db
-      .insert(openVerseSubmissions)
-      .values({
-        adlibAssetId,
-        assetId: auditionAssetId,
-        id: crypto.randomUUID(),
-        listingId,
-        message: body.message ?? null,
-        submitterUserId: user.id,
-        vocalStemAssetId,
-      })
-      .onConflictDoUpdate({
-        set: {
+      [submission] = await db
+        .insert(openVerseSubmissions)
+        .values({
           adlibAssetId,
           assetId: auditionAssetId,
+          id: crypto.randomUUID(),
+          listingId,
           message: body.message ?? null,
-          status: "submitted",
-          updatedAt: new Date(),
+          submitterUserId: user.id,
           vocalStemAssetId,
-        },
-        target: [
-          openVerseSubmissions.listingId,
-          openVerseSubmissions.submitterUserId,
-        ],
-      })
-      .returning();
+        })
+        .onConflictDoUpdate({
+          set: {
+            adlibAssetId,
+            assetId: auditionAssetId,
+            message: body.message ?? null,
+            status: "submitted",
+            updatedAt: new Date(),
+            vocalStemAssetId,
+          },
+          target: [
+            openVerseSubmissions.listingId,
+            openVerseSubmissions.submitterUserId,
+          ],
+        })
+        .returning();
 
     if (!submission) {
       throw new Error("Failed to submit open verse.");
     }
 
-    const submitterName = await getDisplayNameForUser(user.id);
-
-    await notifyOpenVerseSubmittedEmail({
-      listingId,
-      queue: c.env.EMAIL_DELIVERY_QUEUE,
-      submissionId: submission.id,
-      submitterName,
-    });
-
-    const [listingOwner] = await db
-      .select({
-        ownerUserId: openVerseListings.ownerUserId,
-        trackTitle: tracks.title,
-      })
-      .from(openVerseListings)
-      .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
-      .where(eq(openVerseListings.id, listingId))
-      .limit(1);
+    const submitterName = await getDisplayNameForUser(user.id),
+      [listingOwner] = await db
+        .select({
+          ownerUserId: openVerseListings.ownerUserId,
+          trackTitle: tracks.title,
+        })
+        .from(openVerseListings)
+        .innerJoin(tracks, eq(tracks.id, openVerseListings.trackId))
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1);
 
     if (listingOwner) {
-      await db
-        .insert(userNotifications)
-        .values({
-          id: `open_verse_submitted:${submission.id}`,
-          link: "/dashboard/open-verses",
-          message: `${submitterName} submitted a verse for ${listingOwner.trackTitle}.`,
-          title: "New Open Verse Submission",
-          type: "open_verse_submitted",
-          userId: listingOwner.ownerUserId,
-        })
-        .onConflictDoNothing();
+      await notify(
+        {
+          actorUserId: user.id,
+          data: {
+            actorName: submitterName,
+            listingId,
+            submissionId: submission.id,
+            trackTitle: listingOwner.trackTitle,
+          },
+          entity: { id: submission.id, type: "open_verse_submission" },
+          eventId: submission.id,
+          recipientUserId: listingOwner.ownerUserId,
+          type: "open_verse.submission.created",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
     }
 
     return c.json(
@@ -1198,24 +1211,28 @@ app.openapi(
       })
       .onConflictDoNothing();
 
-    await notifyOpenVerseAcceptedEmail({
-      listingId,
-      queue: c.env.EMAIL_DELIVERY_QUEUE,
-      submissionId,
-      submitterUserId: submission.submitterUserId,
-    });
+    const [track] = await db
+      .select({ title: tracks.title })
+      .from(tracks)
+      .where(eq(tracks.id, listing.trackId))
+      .limit(1);
 
-    await db
-      .insert(userNotifications)
-      .values({
-        id: `open_verse_accepted:${submissionId}`,
-        link: "/dashboard/open-verses",
-        message: "Your open verse submission was accepted.",
-        title: "Open Verse Accepted",
-        type: "open_verse_accepted",
-        userId: submission.submitterUserId,
-      })
-      .onConflictDoNothing();
+    await notify(
+      {
+        actorUserId: user.id,
+        data: {
+          actorName: user.name ?? "The listing owner",
+          listingId,
+          submissionId,
+          trackTitle: track?.title ?? "the Open Verse track",
+        },
+        entity: { id: submissionId, type: "open_verse_submission" },
+        eventId: submissionId,
+        recipientUserId: submission.submitterUserId,
+        type: "open_verse.submission.accepted",
+      },
+      { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+    );
 
     return c.json(
       {
