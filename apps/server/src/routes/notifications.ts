@@ -230,4 +230,30 @@ app.openapi(
   }
 );
 
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/clear",
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({ success: z.boolean() }),
+        "All notifications cleared"
+      ),
+    },
+    tags: ["Notifications"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json({ success: true }, HttpStatusCodes.OK);
+    }
+
+    await createDb()
+      .delete(userNotifications)
+      .where(eq(userNotifications.userId, user.id));
+
+    return c.json({ success: true }, HttpStatusCodes.OK);
+  }
+);
+
 export default app;

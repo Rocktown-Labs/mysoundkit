@@ -731,6 +731,7 @@ export const rpcContract = new Hono()
     c.json({ success: true })
   )
   .post("/v1/notifications/read-all", (c) => c.json({ success: true }))
+  .post("/v1/notifications/clear", (c) => c.json({ success: true }))
   .get(
     "/v1/open-verses/",
     validator("query", (value) => openVerseQuerySchema.parse(value)),
