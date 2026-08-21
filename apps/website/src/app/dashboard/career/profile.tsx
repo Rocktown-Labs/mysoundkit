@@ -59,7 +59,7 @@ function ProfilePage() {
         return;
       }
 
-      setQueue(playableTracks);
+      setQueue([playableTrack]);
       setCurrentTrack(playableTrack);
     },
     displayName = user?.displayName ?? "Artist",

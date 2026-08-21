@@ -776,12 +776,41 @@ export const catalogVisualContentSchema = z.object({
   views: z.string().nullable().optional(),
 });
 
+export const collaboratorRoleSchema = z.enum([
+  "artist",
+  "producer",
+  "vocalist",
+  "engineer",
+  "songwriter",
+  "manager",
+  "social_media_manager",
+  "marketing",
+  "family_member",
+]);
+
+export const trackCreditEntrySchema = z.object({
+  avatarUrl: z.string().nullable().optional(),
+  displayName: z.string().nullable().optional(),
+  id: z.string(),
+  legalName: z.string().nullable().optional(),
+  role: collaboratorRoleSchema,
+  splitBps: z.number().int().nullable().optional(),
+  username: z.string().nullable().optional(),
+});
+
+export const trackCatalogCreditsSchema = z.object({
+  artists: z.array(trackCreditEntrySchema).default([]),
+  producers: z.array(trackCreditEntrySchema).default([]),
+  writers: z.array(trackCreditEntrySchema).default([]),
+});
+
 export const trackCatalogDetailSchema = z.object({
   artist: catalogArtistSchema,
   assets: catalogAssetSchema.array(),
   bpm: z.number().int().nullable().optional(),
   catalogItemType: catalogItemTypeSchema,
   coverArtUrl: z.string(),
+  credits: trackCatalogCreditsSchema.optional(),
   currency: z.string().default("USD"),
   description: z.string().nullable().optional(),
   downloadsAllowed: z.boolean().default(true).optional(),
@@ -1543,6 +1572,7 @@ export const onboardingFanBodySchema = z.object({
 });
 
 export const trackCollaboratorInputSchema = z.object({
+  alsoCreditAsWriter: z.boolean().optional(),
   inviteEmail: z.string().optional(),
   name: z.string().min(1).optional(),
   role: z.enum([
@@ -1556,7 +1586,14 @@ export const trackCollaboratorInputSchema = z.object({
     "marketing",
     "family_member",
   ]),
+  splitBps: z.number().int().min(0).max(10_000).optional(),
   userId: z.string().min(1).optional(),
+});
+
+export const trackCreditsSchema = z.object({
+  artists: z.array(trackCreditEntrySchema),
+  producers: z.array(trackCreditEntrySchema),
+  writers: z.array(trackCreditEntrySchema),
 });
 
 /** Standard single download price (USD). */
@@ -1598,6 +1635,9 @@ export const createTrackBodySchema = z.object({
 });
 
 export const settleTrackBodySchema = z.object({
+  // Premium enrichment (StemSplit + transcription) is opt-out because it
+  // consumes paid third-party API quota.
+  enrichLyrics: z.boolean().default(true),
   isPublic: z.boolean(),
   productionStatus: z.enum(["demo", "mixed", "mastered", "complete"]),
   releaseAt: z.string().optional(),

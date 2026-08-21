@@ -392,7 +392,7 @@ function LyricsWorkspace({
             ) : (
               <Sparkles className="mr-2 size-4" />
             )}
-            {isTranscribing ? "Queueing..." : "AI Transcribe & Sync"}
+            {isTranscribing ? "Queueing..." : "Generate lyrics with AI"}
           </Button>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

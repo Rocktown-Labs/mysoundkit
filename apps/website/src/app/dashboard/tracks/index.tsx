@@ -302,23 +302,40 @@ function TracksPage() {
 
               <div className="mb-3 space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Status</span>
-                  <Badge
-                    className={
-                      track.assetStatus === "processing"
-                        ? "border-amber-500/20 bg-amber-500/10 text-amber-500"
-                        : undefined
+                  <span className="text-muted-foreground">Media</span>
+                  {(() => {
+                    const mediaStatus = track.mediaStatus ?? "not_started";
+                    if (mediaStatus === "running") {
+                      return (
+                        <Badge
+                          className="animate-pulse border-amber-500/20 bg-amber-500/10 text-amber-500"
+                          variant="outline"
+                        >
+                          Processing…
+                        </Badge>
+                      );
                     }
-                    variant={
-                      track.productionStatus === "complete"
-                        ? "default"
-                        : "secondary"
+                    if (mediaStatus === "failed") {
+                      return (
+                        <Badge variant="destructive">Processing failed</Badge>
+                      );
                     }
-                  >
-                    {track.assetStatus === "processing"
-                      ? "processing"
-                      : track.productionStatus}
-                  </Badge>
+                    if (mediaStatus === "partial") {
+                      return (
+                        <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-500">
+                          Partially ready
+                        </Badge>
+                      );
+                    }
+                    if (mediaStatus === "ready") {
+                      return <Badge>Ready</Badge>;
+                    }
+                    return (
+                      <Badge variant="secondary">
+                        {track.productionStatus}
+                      </Badge>
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">

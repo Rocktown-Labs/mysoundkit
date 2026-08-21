@@ -7,9 +7,16 @@
 - Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
 - Added explicit deadlines to Media Processor Container RPC calls (inspect, loudness analysis, and render) so a container that fails to boot or a wedged FFmpeg job surfaces as a descriptive timeout error instead of hanging the workflow until the runtime cancels it.
 - Added in-step terminal handling for permanently missing/stale masters in `MediaProcessingWorkflow` and `TrackEnrichmentWorkflow`: both workflows record the job failure and complete normally instead of throwing into engine-level retries, and enrichment never reaches paid StemSplit/transcription API calls without a verified master.
+- Added a Credits section to the public track page below "More From This Artist" with grouped **Artists** (stage names, linked profiles), **Writers** (legal names, with split % when set), and **Producers** rows; featured artists now appear in the title byline ("with …") and in the player's artist display.
+- Added artist credits and simple writer splits: `track_collaborators.credit_split_bps` migration, `artist`/`splitBps`/`alsoCreditAsWriter` support in collaborator inputs (a songwriter row is auto-created when a featured artist is also credited as a writer), an **Artist** role option with "also credit as writer" toggle and per-credit split inputs in the new track form.
+- Added a Premium opt-out "Generate lyrics & stems" switch under Monetize Track in the new track distribution step; settlement only starts paid enrichment when enabled. The dashboard track lyrics tab button is now labeled "Generate lyrics with AI".
+- Added media processing status badges (Ready / Processing… / Failed / Partially ready) to dashboard track cards using pipeline-aware `mediaStatus`.
+- Moved the project form rights confirmation ("I own or control the rights…") from the distribution step into the Credits & Collaboration step, matching the track flow.
+- Coupled purchase-gated downloads to monetization in the new track form: enabling "Require purchase" now turns on Monetize Track, and disabling Monetize clears the purchase requirement.
 
 ### Fixed
 
+- Fixed the artist profile page queueing every playable track when playing a single song; dashboard/private surfaces now always queue only the selected track.
 - Fixed preview-environment media URLs pointing at a nonexistent `media-pr-<n>` host: local and PR preview stages now build asset URLs from the API origin's guarded `/media` route, while production keeps serving through the dedicated media domain.
 
 - Added a centralized web notification dispatcher with deterministic in-app/email idempotency, preference policy, self-notification prevention, event metadata for future aggregation, and a delayed Cloudflare Queue for presence-aware missed-message email evaluation.
@@ -43,6 +50,7 @@
 
 ### Changed
 
+- Changed download filenames to derive from the track title instead of the raw uploaded file: masters keep their source extension (`blunt-22.wav`), generated derivatives use `.m4a`/`.flac`, and cover art downloads as `blunt-22-cover.jpg`.
 - Changed preview environments to share the single production `soundkit-media` R2 bucket instead of per-stage buckets, matching how stages share the application database: uploads from previews land in the same catalog storage, Destroy Preview removes the bucket binding from Alchemy state without deleting the bucket (`delete` is production-only), and bucket CORS uses a stable wildcard rule so stage deploys no longer rewrite each other's configuration.
 - Relaxed derivative loudness verification tolerance from ±0.6 to ±1.0 LU (EBU/Apple-style delivery tolerance) so healthy two-pass loudnorm + AAC encodes are not rejected; True Peak must still be ≤ -1 dBTP.
 - Clarified broad email notification preferences with new Messages and Live controls, and hid nonfunctional web push settings until a real push delivery channel exists.

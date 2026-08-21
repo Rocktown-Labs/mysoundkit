@@ -55,19 +55,19 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
-import { notify } from "@/lib/notifications";
 import {
   ENRICHMENT_PIPELINE_VERSION,
   MEDIA_PIPELINE_VERSION,
 } from "@/lib/media-pipeline";
 import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
-import { verifySignedMediaSource } from "@/lib/media-signing";
 import { getTrackMediaProcessingStatus } from "@/lib/media-processing";
 import {
   ensureMediaProcessingWorkflow,
   ensureMediaRetentionWorkflow,
   ensureTrackEnrichmentWorkflow,
 } from "@/lib/media-processing-jobs";
+import { verifySignedMediaSource } from "@/lib/media-signing";
+import { notify } from "@/lib/notifications";
 import {
   createTrackPlaybackSession,
   recordPlaybackProgress,
@@ -79,10 +79,6 @@ import {
 } from "@/lib/public-explore";
 import { withRetry } from "@/lib/retry";
 import { sampleTracks } from "@/lib/sample-data";
-import {
-  resolveTrackAsset,
-  resolveTrackAssetFromRows,
-} from "@/lib/track-asset-resolver";
 import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
@@ -107,6 +103,10 @@ import {
   updateTrackBodySchema,
 } from "@/lib/schemas";
 import { createSellerAccountLink, isSellerEnabled } from "@/lib/seller";
+import {
+  resolveTrackAsset,
+  resolveTrackAssetFromRows,
+} from "@/lib/track-asset-resolver";
 import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
@@ -184,25 +184,61 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
 
     return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
   },
-  trackAssetFileName = (asset: typeof trackAssets.$inferSelect | undefined) => {
-    if (!asset) {
-      return null;
+  // Downloads are named after the track, never the raw uploaded file:
+  // "blunt-22.wav", "blunt-22.m4a", "blunt-22-cover.jpg".
+  trackDownloadBaseName = (trackTitle: string) => {
+    const slug = uniqueSlug(trackTitle);
+
+    return slug.length > 0 ? slug : "track";
+  },
+  assetDownloadExtension = (asset: typeof trackAssets.$inferSelect) => {
+    if (asset.purpose === "lossless_download") {
+      return ".flac";
+    }
+    if (
+      asset.purpose === "streaming" ||
+      asset.purpose === "battle" ||
+      asset.purpose === "download" ||
+      asset.purpose === "open_verse_snippet"
+    ) {
+      return ".m4a";
     }
 
-    const metadata = asset.metadata as
-        | Record<string, unknown>
-        | null
-        | undefined,
-      metadataFileName = metadata?.originalFileName;
-    if (typeof metadataFileName === "string" && metadataFileName.trim()) {
-      return metadataFileName;
+    const objectKeyExtension = asset.objectKey?.includes(".")
+      ? (asset.objectKey.split(".").pop() ?? "").toLowerCase()
+      : "";
+    if (/^[a-z0-9]{2,5}$/u.test(objectKeyExtension)) {
+      return `.${objectKeyExtension}`;
     }
 
-    if (asset.objectKey) {
-      return asset.objectKey.split("/").pop() ?? null;
-    }
+    const mimeByExtension: Record<string, string> = {
+        "audio/mpeg": ".mp3",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "video/mp4": ".mp4",
+      },
+      mimeType = asset.mimeType ?? "";
 
-    return null;
+    return mimeByExtension[mimeType] ?? ".bin";
+  },
+  trackAssetDownloadFileName = ({
+    asset,
+    trackTitle,
+  }: {
+    asset: typeof trackAssets.$inferSelect;
+    trackTitle: string;
+  }) => {
+    const baseName = trackDownloadBaseName(trackTitle),
+      extension = assetDownloadExtension(asset),
+      isArtwork =
+        asset.assetKind === "cover_art" || asset.purpose === "artwork";
+
+    return isArtwork
+      ? `${baseName}-cover${extension}`
+      : `${baseName}${extension}`;
   },
   quotedDownloadFileName = (fileName: string) =>
     fileName.replaceAll(/[\\"]/gu, "_"),
@@ -1247,21 +1283,40 @@ app.openapi(
       }
 
       if (body.collaborators.length > 0) {
-        const collaboratorRows = body.collaborators.map((collaborator) => ({
-          canDelete: false,
-          canEdit: true,
-          canUpload: true,
-          collaboratorRole: collaborator.role,
-          collaboratorUserId: collaborator.userId ?? null,
-          createdAt: now,
-          id: crypto.randomUUID(),
-          invitationStatus: collaborator.userId
-            ? ("accepted" as const)
-            : ("pending" as const),
-          inviteEmail: collaborator.inviteEmail ?? null,
-          invitedByUserId: user.id,
-          trackId,
-        }));
+        const collaboratorRows = body.collaborators.flatMap((collaborator) => {
+          const baseRow = {
+              canDelete: false,
+              canEdit: true,
+              canUpload: true,
+              collaboratorRole: collaborator.role,
+              collaboratorUserId: collaborator.userId ?? null,
+              createdAt: now,
+              creditSplitBps: collaborator.splitBps ?? null,
+              id: crypto.randomUUID(),
+              invitationStatus: collaborator.userId
+                ? ("accepted" as const)
+                : ("pending" as const),
+              inviteEmail: collaborator.inviteEmail ?? null,
+              invitedByUserId: user.id,
+              trackId,
+            },
+            rows = [baseRow];
+
+          // Featured artists and producers commonly receive a writer credit
+          // too; persist it as its own songwriter row so credits group cleanly.
+          if (
+            collaborator.alsoCreditAsWriter &&
+            collaborator.role !== "songwriter"
+          ) {
+            rows.push({
+              ...baseRow,
+              collaboratorRole: "songwriter" as const,
+              id: crypto.randomUUID(),
+            });
+          }
+
+          return rows;
+        });
 
         await withRetry("insert track collaborators", () =>
           db.insert(trackCollaborators).values(collaboratorRows)
@@ -2046,7 +2101,7 @@ app.openapi(
       });
     }
 
-    if (entitlements.isPremium) {
+    if (entitlements.isPremium && body.enrichLyrics !== false) {
       await queueTrackAudioProcessing({
         masterAsset: { ...masterAsset, status: "ready" },
         trackId,
@@ -2824,9 +2879,7 @@ app.openapi(
     const [asset] = await createDb()
       .select()
       .from(trackAssets)
-      .where(
-        and(eq(trackAssets.id, assetId), eq(trackAssets.trackId, trackId))
-      )
+      .where(and(eq(trackAssets.id, assetId), eq(trackAssets.trackId, trackId)))
       .limit(1);
     if (
       !asset?.objectKey ||
@@ -3034,9 +3087,10 @@ app.openapi(
         );
     }
 
-    const fileName =
-        trackAssetFileName(row.asset) ??
-        `${uniqueSlug(row.track.title)}.download`,
+    const fileName = trackAssetDownloadFileName({
+        asset: row.asset,
+        trackTitle: row.track.title,
+      }),
       headers = new Headers(canonicalResponse?.headers);
     object?.writeHttpMetadata(headers);
     headers.set(
@@ -3186,7 +3240,7 @@ app.openapi(
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
 
-    const [roleRows, assetRows, licenseRows] = await Promise.all([
+    const [roleRows, assetRows, licenseRows, creditRows] = await Promise.all([
         db
           .select({ role: artistProfileRoles.role })
           .from(artistProfileRoles)
@@ -3196,6 +3250,31 @@ app.openapi(
           .select()
           .from(trackLicenseOptions)
           .where(eq(trackLicenseOptions.trackId, row.id)),
+        db
+          .select({
+            avatarUrl: userProfiles.avatarUrl,
+            displayName: userProfiles.displayName,
+            id: trackCollaborators.id,
+            legalName: authUser.name,
+            role: trackCollaborators.collaboratorRole,
+            splitBps: trackCollaborators.creditSplitBps,
+            username: userProfiles.username,
+          })
+          .from(trackCollaborators)
+          .leftJoin(
+            userProfiles,
+            eq(userProfiles.userId, trackCollaborators.collaboratorUserId)
+          )
+          .leftJoin(
+            authUser,
+            eq(authUser.id, trackCollaborators.collaboratorUserId)
+          )
+          .where(
+            and(
+              eq(trackCollaborators.trackId, row.id),
+              eq(trackCollaborators.invitationStatus, "accepted")
+            )
+          ),
       ]),
       isAuthenticated = isAuthenticatedUser(currentUser),
       entitlements = isAuthenticated
@@ -3249,12 +3328,20 @@ app.openapi(
         price: row.price,
         priceCents: row.priceCents,
       }),
+      credits = {
+        artists: creditRows.filter((entry) => entry.role === "artist"),
+        producers: creditRows.filter((entry) => entry.role === "producer"),
+        writers: creditRows.filter((entry) => entry.role === "songwriter"),
+      },
       assets = assetRows
         .filter((asset) => catalogAssetKinds.has(asset.assetKind))
         .map((asset) => ({
           downloadUrl: `/v1/tracks/${row.id}/assets/${asset.id}/download`,
           duration: formatDuration(asset.durationMs),
-          fileName: trackAssetFileName(asset),
+          fileName: trackAssetDownloadFileName({
+            asset,
+            trackTitle: row.title,
+          }),
           format: asset.mimeType,
           id: asset.id,
           included: asset.status === "ready",
@@ -3288,6 +3375,7 @@ app.openapi(
           "url" in coverAsset.metadata
             ? String(coverAsset.metadata.url)
             : "/placeholder.svg",
+        credits,
         currency: row.currency,
         description: row.description,
         downloadsAllowed: row.downloadsAllowed,

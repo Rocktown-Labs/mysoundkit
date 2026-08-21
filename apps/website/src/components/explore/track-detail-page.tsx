@@ -133,6 +133,7 @@ interface MockCatalogItem {
   purchaseMode: PurchaseMode;
   title: string;
   artist: MockArtist;
+  credits: TrackCredits;
   coverArtUrl: string;
   genre?: string;
   tags?: string[];
@@ -328,6 +329,7 @@ const formatDisplayPrice = (priceLabel: string) =>
       ...(rawData as unknown as MockCatalogItem),
       artist: normalizedArtist,
       coverArtUrl: rawCoverArtUrl,
+      credits: normalizeCredits(rawData.credits),
       playbackUrl: rawPlaybackUrl,
       previewUrl: rawPreviewUrl,
       priceLabel:
@@ -415,12 +417,16 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
   }
 
   const canPlayTrack = Boolean(item.playbackUrl ?? item.previewUrl),
+    featuredArtistNames = item.credits.artists
+      .map((credit) => creditDisplayName(credit))
+      .filter(Boolean),
+    playerArtistName = [item.artist.name, ...featuredArtistNames].join(", "),
     canonicalTrackHref =
       item.regionSlug && item.slug
         ? `/tracks/${item.regionSlug}/${item.slug}`
         : `/tracks/${item.id}`,
     playerTrack = {
-      artist: item.artist.name,
+      artist: playerArtistName,
       artistHref: `/artist/${item.artist.handle}`,
       cover: item.coverArtUrl,
       id: item.id,
@@ -691,6 +697,29 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                   </span>
                   <CheckCircle2 className="size-4 text-primary fill-primary/10" />
                 </Link>
+                {featuredArtistNames.length > 0 && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    <span className="text-[11px] font-black uppercase tracking-widest opacity-70">
+                      with{" "}
+                    </span>
+                    {item.credits.artists.map((credit, index) => (
+                      <span key={credit.id}>
+                        {credit.username ? (
+                          <Link
+                            className="hover:text-primary transition-colors"
+                            params={{ username: credit.username }}
+                            to="/artist/$username"
+                          >
+                            {creditDisplayName(credit)}
+                          </Link>
+                        ) : (
+                          creditDisplayName(credit)
+                        )}
+                        {index < item.credits.artists.length - 1 ? ", " : ""}
+                      </span>
+                    ))}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
@@ -915,6 +944,63 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
               )}
             </div>
           </section>
+
+          {/* Credits Section */}
+          {(item.credits.artists.length > 0 ||
+            item.credits.writers.length > 0 ||
+            item.credits.producers.length > 0) && (
+            <section className="space-y-4 px-2 pt-6 border-t border-border/20">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground opacity-60">
+                Credits
+              </h3>
+              <div className="grid gap-6 sm:grid-cols-3">
+                {(
+                  [
+                    {
+                      entries: item.credits.artists,
+                      label: "Artists",
+                      renderSplit: false,
+                    },
+                    {
+                      entries: item.credits.writers,
+                      label: "Writers",
+                      renderSplit: true,
+                    },
+                    {
+                      entries: item.credits.producers,
+                      label: "Producers",
+                      renderSplit: false,
+                    },
+                  ] as const
+                ).map((group) =>
+                  group.entries.length > 0 ? (
+                    <div key={group.label}>
+                      <h4 className="mb-2 text-[11px] font-black uppercase tracking-widest text-muted-foreground/80">
+                        {group.label}
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {group.entries.map((credit) => (
+                          <li
+                            className="flex items-center justify-between gap-2 text-sm"
+                            key={credit.id}
+                          >
+                            <span className="truncate">
+                              {creditDisplayName(credit)}
+                            </span>
+                            {group.renderSplit && credit.splitBps !== null ? (
+                              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                                {Math.round(credit.splitBps / 100)}%
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -922,6 +1008,67 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
 }
 
 // --- Dynamic Components ---
+
+export interface TrackCreditEntry {
+  avatarUrl: null | string;
+  displayName: null | string;
+  id: string;
+  legalName: null | string;
+  role: string;
+  splitBps: null | number;
+  username: null | string;
+}
+
+export interface TrackCredits {
+  artists: TrackCreditEntry[];
+  producers: TrackCreditEntry[];
+  writers: TrackCreditEntry[];
+}
+
+const emptyCredits: TrackCredits = { artists: [], producers: [], writers: [] };
+
+const normalizeCredits = (value: unknown): TrackCredits => {
+  if (!(value && typeof value === "object")) {
+    return emptyCredits;
+  }
+
+  const groups = value as Record<string, unknown>,
+    credits: TrackCredits = {
+      artists: [],
+      producers: [],
+      writers: [],
+    };
+
+  for (const group of ["artists", "producers", "writers"] as const) {
+    const entries = groups[group];
+    if (!Array.isArray(entries)) {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!(entry && typeof entry === "object" && "id" in entry)) {
+        continue;
+      }
+      const record = entry as Record<string, unknown>;
+      credits[group].push({
+        avatarUrl:
+          typeof record.avatarUrl === "string" ? record.avatarUrl : null,
+        displayName:
+          typeof record.displayName === "string" ? record.displayName : null,
+        id: String(record.id),
+        legalName:
+          typeof record.legalName === "string" ? record.legalName : null,
+        role: typeof record.role === "string" ? record.role : "",
+        splitBps: typeof record.splitBps === "number" ? record.splitBps : null,
+        username: typeof record.username === "string" ? record.username : null,
+      });
+    }
+  }
+
+  return credits;
+};
+
+const creditDisplayName = (credit: TrackCreditEntry) =>
+  credit.displayName ?? credit.username ?? credit.legalName ?? "Unknown";
 
 function isSameArtistTrack(track: TrackSummary, item: MockCatalogItem) {
   return (

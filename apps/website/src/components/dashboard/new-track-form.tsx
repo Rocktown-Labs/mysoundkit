@@ -85,6 +85,7 @@ import {
   soundkitQueryKeys,
   useCreateTrackMutation,
   useGenresQuery,
+  useMeEntitlementsQuery,
   usePeopleSearchQuery,
   useSettleTrackMutation,
   useUpdateTrackMutation,
@@ -190,11 +191,13 @@ const exclusiveUntilForApi = (
     const pad = (part: number) => part.toString().padStart(2, "0");
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   },
-  creditRoleSchema = z.enum(["songwriter", "producer"]),
+  creditRoleSchema = z.enum(["artist", "songwriter", "producer"]),
   creditEntrySchema = z.object({
+    alsoCreditAsWriter: z.boolean().optional(),
     displayName: z.string().min(1),
     inviteEmail: z.string().email().optional(),
     role: creditRoleSchema,
+    splitBps: z.number().int().min(0).max(10_000).optional(),
     userId: z.string().optional(),
   }),
   trackFormSchema = z.object({
@@ -204,6 +207,7 @@ const exclusiveUntilForApi = (
     downloadsAllowed: z.boolean().default(true),
     downloadsRequireFirstPlay: z.boolean().default(false),
     downloadsRequirePurchase: z.boolean().default(true),
+    enrichLyrics: z.boolean().default(true),
     exclusiveUntil: z.string().optional(),
     genre: z.string().min(1, "Genre is required"),
     isForSale: z.boolean().default(false),
@@ -270,6 +274,7 @@ const isGenreOption = (value: unknown): value is GenreOption =>
     downloadsAllowed: true,
     downloadsRequireFirstPlay: true,
     downloadsRequirePurchase: false,
+    enrichLyrics: true,
     exclusiveUntil: "",
     genre: "Hip-Hop/Rap",
     isForSale: false,
@@ -381,9 +386,10 @@ export function NewTrackForm({
       title: string;
     } | null>(null),
     [creditQuery, setCreditQuery] = useState(""),
-    [creditRole, setCreditRole] = useState<"songwriter" | "producer">(
-      "songwriter"
-    ),
+    [creditRole, setCreditRole] = useState<
+      "artist" | "producer" | "songwriter"
+    >("songwriter"),
+    [alsoCreditAsWriter, setAlsoCreditAsWriter] = useState(true),
     [coverUpload, setCoverUpload] = useState<UploadedAssetPreview | null>(null),
     coverUploadRef = useRef<UploadedAssetPreview | null>(null),
     [uploadedTrack, setUploadedTrack] = useState<UploadedTrackPreview | null>(
@@ -412,6 +418,8 @@ export function NewTrackForm({
     settleTrackMutation = useSettleTrackMutation(),
     updateTrackMutation = useUpdateTrackMutation(trackId ?? ""),
     { data: session } = authClient.useSession(),
+    entitlementsQuery = useMeEntitlementsQuery(),
+    isPremiumArtist = entitlementsQuery.data?.isPremium === true,
     peopleSearch = usePeopleSearchQuery(creditQuery),
     form = useForm<TrackFormValues>({
       defaultValues: defaultTrackFormValues,
@@ -730,9 +738,11 @@ export function NewTrackForm({
           assetIds: [],
           catalogItemType: "single",
           collaborators: values.credits.map((credit) => ({
+            alsoCreditAsWriter: credit.alsoCreditAsWriter,
             inviteEmail: credit.inviteEmail,
             name: credit.displayName,
             role: credit.role,
+            splitBps: credit.splitBps,
             userId: credit.userId,
           })),
           description: values.description || undefined,
@@ -915,9 +925,11 @@ export function NewTrackForm({
             assetIds: [],
             catalogItemType: "single",
             collaborators: values.credits.map((credit) => ({
+              alsoCreditAsWriter: credit.alsoCreditAsWriter,
               inviteEmail: credit.inviteEmail,
               name: credit.displayName,
               role: credit.role,
+              splitBps: credit.splitBps,
               userId: credit.userId,
             })),
             description: values.description || undefined,
@@ -1203,6 +1215,7 @@ export function NewTrackForm({
 
         const settlePayload = {
           body: {
+            enrichLyrics: values.enrichLyrics,
             isPublic: release.isPublic,
             productionStatus: release.productionStatus,
             releaseAt: values.releaseAt || undefined,
@@ -1326,9 +1339,11 @@ export function NewTrackForm({
       }
     },
     addCredit = (entry: {
+      alsoCreditAsWriter?: boolean;
       displayName: string;
       inviteEmail?: string;
-      role: "songwriter" | "producer";
+      role: "artist" | "producer" | "songwriter";
+      splitBps?: number;
       userId?: string;
     }) => {
       const current = form.getValues("credits"),
@@ -2352,13 +2367,53 @@ export function NewTrackForm({
                         <FormControl>
                           <Switch
                             checked={field.value}
-                            onCheckedChange={field.onChange}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked);
+                              if (!checked) {
+                                // Purchase-gated downloads can't exist
+                                // without monetization.
+                                form.setValue(
+                                  "downloadsRequirePurchase",
+                                  false,
+                                  { shouldDirty: true }
+                                );
+                              }
+                            }}
                           />
                         </FormControl>
                       </FormItem>
                     )}
                   />
                 </div>
+
+                {isPremiumArtist ? (
+                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-border/40 bg-muted/20 gap-4">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold">
+                        Generate lyrics &amp; stems
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Premium: splits vocals/instrumental and transcribes
+                        timed lyrics with third-party credits. Leave off to
+                        skip.
+                      </p>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="enrichLyrics"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ) : null}
 
                 {form.watch("isForSale") ? (
                   <div className="rounded-xl border border-border/40 bg-muted/20 p-4 text-sm space-y-4">
@@ -2487,6 +2542,11 @@ export function NewTrackForm({
                               onCheckedChange={(checked) => {
                                 field.onChange(checked);
                                 if (checked) {
+                                  // Purchase-gated downloads require the
+                                  // track to be monetized.
+                                  form.setValue("isForSale", true, {
+                                    shouldDirty: true,
+                                  });
                                   form.setValue(
                                     "downloadsRequireFirstPlay",
                                     false
@@ -2669,7 +2729,11 @@ export function NewTrackForm({
                     <Select
                       value={creditRole}
                       onValueChange={(value) => {
-                        if (value === "songwriter" || value === "producer") {
+                        if (
+                          value === "artist" ||
+                          value === "producer" ||
+                          value === "songwriter"
+                        ) {
                           setCreditRole(value);
                         }
                       }}
@@ -2678,6 +2742,7 @@ export function NewTrackForm({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="artist">Artist</SelectItem>
                         <SelectItem value="songwriter">Writer</SelectItem>
                         <SelectItem value="producer">Producer</SelectItem>
                       </SelectContent>
@@ -2689,6 +2754,18 @@ export function NewTrackForm({
                       className="bg-background/50"
                     />
                   </div>
+                  {creditRole === "artist" ? (
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        checked={alsoCreditAsWriter}
+                        onChange={(event) =>
+                          setAlsoCreditAsWriter(event.target.checked)
+                        }
+                        type="checkbox"
+                      />
+                      Also credit this artist as a writer
+                    </label>
+                  ) : null}
                   {creditQuery.trim().length >= 2 ? (
                     <div className="rounded-xl border border-border/40 bg-background/40 p-2 space-y-1">
                       {peopleSearch.isLoading ? (
@@ -2703,6 +2780,10 @@ export function NewTrackForm({
                           className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-accent"
                           onClick={() =>
                             addCredit({
+                              alsoCreditAsWriter:
+                                creditRole === "artist"
+                                  ? alsoCreditAsWriter
+                                  : undefined,
                               displayName:
                                 person.stageName ??
                                 person.displayName ??
@@ -2735,13 +2816,44 @@ export function NewTrackForm({
 
                   <div className="flex flex-wrap gap-2">
                     {form.watch("credits").map((credit, index) => (
-                      <Badge
+                      <div
                         key={`${credit.role}-${credit.userId ?? credit.displayName}-${index}`}
-                        variant="secondary"
-                        className="gap-1 py-1.5 pl-3 pr-1"
+                        className="flex items-center gap-1 rounded-full border bg-secondary/60 py-1 pl-3 pr-1 text-xs"
                       >
                         <span className="capitalize">{credit.role}:</span>{" "}
-                        {credit.displayName}
+                        <span className="max-w-[160px] truncate">
+                          {credit.displayName}
+                        </span>
+                        {credit.role === "songwriter" ||
+                        credit.role === "artist" ? (
+                          <label className="ml-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <input
+                              aria-label={`Split percentage for ${credit.displayName}`}
+                              className="w-10 rounded border border-border/40 bg-background px-1 py-0.5 text-right tabular-nums"
+                              max={100}
+                              min={0}
+                              onChange={(event) => {
+                                const percent = Number(event.target.value);
+                                form.setValue(
+                                  `credits.${index}.splitBps`,
+                                  Number.isFinite(percent) && percent >= 0
+                                    ? Math.round(percent * 100)
+                                    : undefined,
+                                  { shouldDirty: true }
+                                );
+                              }}
+                              placeholder="%"
+                              type="number"
+                              value={
+                                credit.splitBps === undefined ||
+                                credit.splitBps === null
+                                  ? ""
+                                  : Math.round(credit.splitBps / 100)
+                              }
+                            />
+                            %
+                          </label>
+                        ) : null}
                         <Button
                           type="button"
                           variant="ghost"
@@ -2751,7 +2863,7 @@ export function NewTrackForm({
                         >
                           <X className="size-3" />
                         </Button>
-                      </Badge>
+                      </div>
                     ))}
                     {form.watch("credits").length === 0 ? (
                       <p className="w-full text-xs text-center text-muted-foreground py-4 border-2 border-dashed border-border/20 rounded-xl">

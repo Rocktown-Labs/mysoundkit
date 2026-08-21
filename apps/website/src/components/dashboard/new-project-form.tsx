@@ -870,6 +870,7 @@ export function NewProjectForm({
           for (const projectTrack of newProjectTracks) {
             await settleTrackMutation.mutateAsync({
               body: {
+                enrichLyrics: true,
                 isPublic: true,
                 productionStatus: "complete",
                 releaseAt: releaseState.releaseDate,
@@ -2162,30 +2163,6 @@ export function NewProjectForm({
                   </div>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="rightsAccepted"
-                  render={({ field }) => (
-                    <FormItem className="rounded-xl border border-border/40 bg-muted/20 p-4">
-                      <div className="flex items-start gap-3">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1">
-                          <FormLabel className="text-sm">
-                            I own or control the rights to upload, distribute,
-                            and sell every song in this project on SoundKit.
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
                 <div className="flex justify-between pt-4">
                   <Button
                     type="button"
@@ -2370,6 +2347,30 @@ export function NewProjectForm({
                     )}
                   </div>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="rightsAccepted"
+                  render={({ field }) => (
+                    <FormItem className="rounded-xl border border-border/40 bg-muted/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel className="text-sm">
+                            I own or control the rights to upload, distribute,
+                            and sell every song in this project on SoundKit.
+                          </FormLabel>
+                          <FormMessage />
+                        </div>
+                      </div>
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex justify-between pt-4">
                   <Button

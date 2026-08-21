@@ -1157,6 +1157,7 @@ export const trackCollaborators = pgTable(
     collaboratorUserId: text("collaborator_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
+    creditSplitBps: integer("credit_split_bps"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     id: text("id").primaryKey(),
     invitationStatus: invitationStatusEnum("invitation_status")
