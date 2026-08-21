@@ -1,4 +1,5 @@
-/* eslint-disable one-var, sort-vars */
+/* eslint-disable one-var, sort-vars, complexity */
+/* oxlint-disable unicorn/max-nested-calls, unicorn/no-nested-ternary */
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
@@ -69,16 +70,16 @@ app.get("/*", async (c) => {
                 .from(openVerseListings)
                 .where(
                   and(
-                    eq(
-                      openVerseListings.previewAssetId,
-                      trackRow.asset.id
-                    ),
+                    eq(openVerseListings.previewAssetId, trackRow.asset.id),
                     eq(openVerseListings.status, "open")
                   )
                 )
                 .limit(1)
             : [];
-      authorized = isOwner || (!privateAsset && (publicArtwork || publicStreaming || Boolean(openVerse)));
+      authorized =
+        isOwner ||
+        (!privateAsset &&
+          (publicArtwork || publicStreaming || Boolean(openVerse)));
     }
 
     if (!authorized) {

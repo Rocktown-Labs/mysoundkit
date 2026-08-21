@@ -1,4 +1,5 @@
 /* eslint-disable one-var, sort-vars */
+/* oxlint-disable unicorn/max-nested-calls, unicorn/no-nested-ternary */
 import { createDb } from "@soundkit/db";
 import {
   genres,

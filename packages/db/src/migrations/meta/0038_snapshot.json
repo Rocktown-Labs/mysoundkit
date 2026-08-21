@@ -1,6 +1,6 @@
 {
   "id": "707c8e2d-da6f-4376-a31f-5a098ece7cf1",
-  "prevId": "8dbbfc61-5e12-45bb-9882-27383f8cc01b",
+  "prevId": "3f29b1af-d8ab-4f70-96bc-a5614376dbc1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5130,327 +5130,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.media_processing_jobs": {
-      "name": "media_processing_jobs",
-      "schema": "",
-      "columns": {
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "current_stage": {
-          "name": "current_stage",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error_code": {
-          "name": "error_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "export_version": {
-          "name": "export_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "input": {
-          "name": "input",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mode": {
-          "name": "mode",
-          "type": "media_processing_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "output": {
-          "name": "output",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pipeline_version": {
-          "name": "pipeline_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "progress_percent": {
-          "name": "progress_percent",
-          "type": "numeric(5, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source_asset_id": {
-          "name": "source_asset_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "media_processing_job_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'queued'"
-        },
-        "track_id": {
-          "name": "track_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "workflow_instance_id": {
-          "name": "workflow_instance_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "workflow_type": {
-          "name": "workflow_type",
-          "type": "media_workflow_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "media_processing_jobs_project_idx": {
-          "name": "media_processing_jobs_project_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "workflow_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "export_version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_processing_jobs_track_idx": {
-          "name": "media_processing_jobs_track_idx",
-          "columns": [
-            {
-              "expression": "track_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "workflow_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_processing_jobs_track_identity_idx": {
-          "name": "media_processing_jobs_track_identity_idx",
-          "columns": [
-            {
-              "expression": "workflow_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "track_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "source_asset_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "pipeline_version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "mode",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_processing_jobs_project_identity_idx": {
-          "name": "media_processing_jobs_project_identity_idx",
-          "columns": [
-            {
-              "expression": "workflow_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "export_version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "media_processing_jobs_workflow_instance_idx": {
-          "name": "media_processing_jobs_workflow_instance_idx",
-          "columns": [
-            {
-              "expression": "workflow_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "workflow_instance_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "media_processing_jobs_project_id_projects_id_fk": {
-          "name": "media_processing_jobs_project_id_projects_id_fk",
-          "tableFrom": "media_processing_jobs",
-          "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "media_processing_jobs_source_asset_id_track_assets_id_fk": {
-          "name": "media_processing_jobs_source_asset_id_track_assets_id_fk",
-          "tableFrom": "media_processing_jobs",
-          "tableTo": "track_assets",
-          "columnsFrom": [
-            "source_asset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "media_processing_jobs_track_id_tracks_id_fk": {
-          "name": "media_processing_jobs_track_id_tracks_id_fk",
-          "tableFrom": "media_processing_jobs",
-          "tableTo": "tracks",
-          "columnsFrom": [
-            "track_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.message_attachments": {
       "name": "message_attachments",
       "schema": "",
@@ -5957,6 +5636,76 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notification_email_cooldowns": {
+      "name": "notification_email_cooldowns",
+      "schema": "",
+      "columns": {
+        "last_sent_at": {
+          "name": "last_sent_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "recipient_user_id": {
+          "name": "recipient_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "notification_email_cooldowns_last_sent_idx": {
+          "name": "notification_email_cooldowns_last_sent_idx",
+          "columns": [
+            {
+              "expression": "last_sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notification_email_cooldowns_recipient_user_id_user_id_fk": {
+          "name": "notification_email_cooldowns_recipient_user_id_user_id_fk",
+          "tableFrom": "notification_email_cooldowns",
+          "tableTo": "user",
+          "columnsFrom": [
+            "recipient_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "notification_email_cooldowns_recipient_user_id_scope_pk": {
+          "name": "notification_email_cooldowns_recipient_user_id_scope_pk",
+          "columns": [
+            "recipient_user_id",
+            "scope"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -16785,6 +16534,327 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.media_processing_jobs": {
+      "name": "media_processing_jobs",
+      "schema": "",
+      "columns": {
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "current_stage": {
+          "name": "current_stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "export_version": {
+          "name": "export_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "input": {
+          "name": "input",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mode": {
+          "name": "mode",
+          "type": "media_processing_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output": {
+          "name": "output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pipeline_version": {
+          "name": "pipeline_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "progress_percent": {
+          "name": "progress_percent",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_asset_id": {
+          "name": "source_asset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "media_processing_job_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "track_id": {
+          "name": "track_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "workflow_instance_id": {
+          "name": "workflow_instance_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workflow_type": {
+          "name": "workflow_type",
+          "type": "media_workflow_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "media_processing_jobs_project_idx": {
+          "name": "media_processing_jobs_project_idx",
+          "columns": [
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workflow_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "export_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_processing_jobs_track_idx": {
+          "name": "media_processing_jobs_track_idx",
+          "columns": [
+            {
+              "expression": "track_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workflow_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_processing_jobs_track_identity_idx": {
+          "name": "media_processing_jobs_track_identity_idx",
+          "columns": [
+            {
+              "expression": "workflow_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "track_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_asset_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pipeline_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "mode",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_processing_jobs_project_identity_idx": {
+          "name": "media_processing_jobs_project_identity_idx",
+          "columns": [
+            {
+              "expression": "workflow_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "project_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "export_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_processing_jobs_workflow_instance_idx": {
+          "name": "media_processing_jobs_workflow_instance_idx",
+          "columns": [
+            {
+              "expression": "workflow_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "workflow_instance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "media_processing_jobs_project_id_projects_id_fk": {
+          "name": "media_processing_jobs_project_id_projects_id_fk",
+          "tableFrom": "media_processing_jobs",
+          "tableTo": "projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "media_processing_jobs_source_asset_id_track_assets_id_fk": {
+          "name": "media_processing_jobs_source_asset_id_track_assets_id_fk",
+          "tableFrom": "media_processing_jobs",
+          "tableTo": "track_assets",
+          "columnsFrom": [
+            "source_asset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "media_processing_jobs_track_id_tracks_id_fk": {
+          "name": "media_processing_jobs_track_id_tracks_id_fk",
+          "tableFrom": "media_processing_jobs",
+          "tableTo": "tracks",
+          "columnsFrom": [
+            "track_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
@@ -17223,52 +17293,6 @@
         "pending_review",
         "approved",
         "failed"
-      ]
-    },
-    "public.media_asset_purpose": {
-      "name": "media_asset_purpose",
-      "schema": "public",
-      "values": [
-        "master",
-        "streaming",
-        "battle",
-        "download",
-        "lossless_download",
-        "open_verse_snippet",
-        "preview",
-        "stem",
-        "artwork",
-        "other"
-      ]
-    },
-    "public.media_processing_job_status": {
-      "name": "media_processing_job_status",
-      "schema": "public",
-      "values": [
-        "queued",
-        "running",
-        "ready",
-        "partial",
-        "failed"
-      ]
-    },
-    "public.media_processing_mode": {
-      "name": "media_processing_mode",
-      "schema": "public",
-      "values": [
-        "final_track",
-        "open_verse_base",
-        "legacy_backfill"
-      ]
-    },
-    "public.media_workflow_type": {
-      "name": "media_workflow_type",
-      "schema": "public",
-      "values": [
-        "media_processing",
-        "track_enrichment",
-        "project_export",
-        "media_retention"
       ]
     },
     "public.message_status": {
@@ -17778,6 +17802,52 @@
         "tip",
         "community_subscription",
         "platform_subscription"
+      ]
+    },
+    "public.media_asset_purpose": {
+      "name": "media_asset_purpose",
+      "schema": "public",
+      "values": [
+        "master",
+        "streaming",
+        "battle",
+        "download",
+        "lossless_download",
+        "open_verse_snippet",
+        "preview",
+        "stem",
+        "artwork",
+        "other"
+      ]
+    },
+    "public.media_processing_job_status": {
+      "name": "media_processing_job_status",
+      "schema": "public",
+      "values": [
+        "queued",
+        "running",
+        "ready",
+        "partial",
+        "failed"
+      ]
+    },
+    "public.media_processing_mode": {
+      "name": "media_processing_mode",
+      "schema": "public",
+      "values": [
+        "final_track",
+        "open_verse_base",
+        "legacy_backfill"
+      ]
+    },
+    "public.media_workflow_type": {
+      "name": "media_workflow_type",
+      "schema": "public",
+      "values": [
+        "media_processing",
+        "track_enrichment",
+        "project_export",
+        "media_retention"
       ]
     }
   },

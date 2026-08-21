@@ -1,4 +1,5 @@
 /* eslint-disable one-var, sort-vars */
+/* oxlint-disable typescript/no-non-null-assertion, unicorn/max-nested-calls, unicorn/no-nested-ternary */
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
 import {
   mediaProcessingJobs,
@@ -9,6 +10,9 @@ import {
 } from "@soundkit/db/schema/app";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 
+import { logInfo } from "@/middleware/structured-logging";
+
+import { resolveEntitlements } from "./entitlements";
 import {
   ENRICHMENT_PIPELINE_VERSION,
   MEDIA_PIPELINE_VERSION,
@@ -21,8 +25,6 @@ import {
   ensureMediaProcessingWorkflowBatch,
   ensureTrackEnrichmentWorkflowBatch,
 } from "./media-processing-jobs";
-import { resolveEntitlements } from "./entitlements";
-import { logInfo } from "@/middleware/structured-logging";
 
 const MAX_BACKFILL_BATCH_SIZE = 100,
   boundedBatchSize = (value: number) =>
@@ -98,15 +100,13 @@ export const enqueueLegacyMediaBackfill = async ({
           !activeSources.has(master.sourceAssetId)
       )
       .slice(0, limit)
-      .map(
-        (master): MediaProcessingWorkflowPayload => ({
-          mode: "legacy_backfill",
-          objectKey: master.objectKey!,
-          pipelineVersion: MEDIA_PIPELINE_VERSION,
-          sourceAssetId: master.sourceAssetId,
-          trackId: master.trackId,
-        })
-      );
+      .map((master): MediaProcessingWorkflowPayload => ({
+        mode: "legacy_backfill",
+        objectKey: master.objectKey!,
+        pipelineVersion: MEDIA_PIPELINE_VERSION,
+        sourceAssetId: master.sourceAssetId,
+        trackId: master.trackId,
+      }));
   if (payloads.length === 0) {
     return { created: 0, requested: 0, scanned: masters.length };
   }
@@ -202,9 +202,7 @@ export const enqueuePremiumEnrichmentBackfill = async ({
         ])
       : [[], [], []],
     unfinishedTrackIds = new Set(unfinishedRows.map((row) => row.trackId)),
-    completedSourceIds = new Set(
-      completedRows.map((row) => row.sourceAssetId)
-    ),
+    completedSourceIds = new Set(completedRows.map((row) => row.sourceAssetId)),
     activeSourceIds = new Set(
       activeRows.map((row) => row.sourceAssetId).filter(Boolean)
     ),
@@ -230,14 +228,12 @@ export const enqueuePremiumEnrichmentBackfill = async ({
       })
       .onConflictDoNothing();
   }
-  const payloads = eligible.map(
-    (master): TrackEnrichmentWorkflowPayload => ({
-      objectKey: master.objectKey!,
-      pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
-      sourceAssetId: master.sourceAssetId,
-      trackId: master.trackId,
-    })
-  );
+  const payloads = eligible.map((master): TrackEnrichmentWorkflowPayload => ({
+    objectKey: master.objectKey!,
+    pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+    sourceAssetId: master.sourceAssetId,
+    trackId: master.trackId,
+  }));
   if (payloads.length === 0) {
     return { created: 0, requested: 0, scanned: masters.length };
   }

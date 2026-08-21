@@ -1,9 +1,9 @@
 /* eslint-disable one-var, sort-vars */
 import { createDb } from "@soundkit/db";
 import { purchases, trackAssets, tracks } from "@soundkit/db/schema/app";
-import { and, eq } from "drizzle-orm";
 import { WorkflowEntrypoint } from "cloudflare:workers";
 import type { WorkflowEvent, WorkflowStep } from "cloudflare:workers";
+import { and, eq } from "drizzle-orm";
 
 import {
   mediaRetentionWorkflowInstanceId,
@@ -30,11 +30,17 @@ export class MediaRetentionWorkflow extends WorkflowEntrypoint<
       throw new Error("MEDIA_BUCKET is required for media retention.");
     }
 
-    await step.sleepUntil("wait for recovery period", new Date(payload.purgeAfter));
+    await step.sleepUntil(
+      "wait for recovery period",
+      new Date(payload.purgeAfter)
+    );
     const retention = await step.do("recheck deletion retention", async () => {
       const db = createDb(),
         [track] = await db
-          .select({ deletedAt: tracks.deletedAt, purgeAfter: tracks.purgeAfter })
+          .select({
+            deletedAt: tracks.deletedAt,
+            purgeAfter: tracks.purgeAfter,
+          })
           .from(tracks)
           .where(eq(tracks.id, payload.trackId))
           .limit(1);

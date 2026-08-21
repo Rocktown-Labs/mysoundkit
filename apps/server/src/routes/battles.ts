@@ -34,7 +34,6 @@ import {
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
 } from "@/lib/battle-kits";
-import { notifyBattleChallengeEmail } from "@/lib/email-events";
 import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 import {
   forbiddenMessage,

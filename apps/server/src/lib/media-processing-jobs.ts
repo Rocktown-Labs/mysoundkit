@@ -335,7 +335,9 @@ export const ensureMediaProcessingWorkflowBatch = async ({
   workflow: null | Workflow<MediaProcessingWorkflowPayload> | undefined;
 }) => {
   if (payloads.length === 0 || payloads.length > 100) {
-    throw new Error("Media Workflow batches must contain between 1 and 100 jobs.");
+    throw new Error(
+      "Media Workflow batches must contain between 1 and 100 jobs."
+    );
   }
   const jobs = payloads.map((payload) => ({
     input: {
