@@ -125,6 +125,7 @@ const meGet = apiClient.v1.me.index.$get,
   notificationReadPost =
     apiClient.v1.notifications[":notificationId"].read.$post,
   notificationsReadAllPost = apiClient.v1.notifications["read-all"].$post,
+  notificationsClearPost = apiClient.v1.notifications.clear.$post,
   trackPreSavePost = apiClient.v1.tracks[":trackId"]["pre-save"].$post,
   artistFollowPost = apiClient.v1.social.artists[":username"].follow.$post,
   artistFollowDelete = apiClient.v1.social.artists[":username"].follow.$delete,
@@ -2091,6 +2092,18 @@ export const useMarkNotificationsReadMutation = () => {
 
   return useMutation({
     mutationFn: async () => rpcJson(await notificationsReadAllPost()),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.notifications,
+      }),
+  });
+};
+
+export const useClearNotificationsMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => rpcJson(await notificationsClearPost()),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.notifications,
