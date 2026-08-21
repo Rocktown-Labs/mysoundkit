@@ -1285,9 +1285,11 @@ app.openapi(
       if (body.collaborators.length > 0) {
         const collaboratorRows = body.collaborators.flatMap((collaborator) => {
           const baseRow = {
+              // Added collaborators get shared read-only access; owners can
+              // grant edit/upload from the track dashboard later.
               canDelete: false,
-              canEdit: true,
-              canUpload: true,
+              canEdit: false,
+              canUpload: false,
               collaboratorRole: collaborator.role,
               collaboratorUserId: collaborator.userId ?? null,
               createdAt: now,

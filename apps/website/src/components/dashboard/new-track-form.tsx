@@ -4,7 +4,7 @@
 import { useUploadFiles } from "@better-upload/client";
 import { usePostHog } from "@posthog/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
   Calendar,
   Check,
@@ -87,6 +87,7 @@ import {
   useGenresQuery,
   useMeEntitlementsQuery,
   usePeopleSearchQuery,
+  useSellerStatusQuery,
   useSettleTrackMutation,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
@@ -420,6 +421,8 @@ export function NewTrackForm({
     { data: session } = authClient.useSession(),
     entitlementsQuery = useMeEntitlementsQuery(),
     isPremiumArtist = entitlementsQuery.data?.isPremium === true,
+    sellerStatusQuery = useSellerStatusQuery(),
+    payoutsReady = (sellerStatusQuery.data?.chargesEnabled ?? false) === true,
     peopleSearch = usePeopleSearchQuery(creditQuery),
     form = useForm<TrackFormValues>({
       defaultValues: defaultTrackFormValues,
@@ -2355,9 +2358,22 @@ export function NewTrackForm({
                 <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl border border-border/40 bg-muted/20 gap-4">
                   <div className="space-y-0.5">
                     <Label className="text-sm font-bold">Monetize Track</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Allow fans to purchase this track directly.
-                    </p>
+                    {payoutsReady ? (
+                      <p className="text-xs text-muted-foreground">
+                        Allow fans to purchase this track directly.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Connect Stripe payouts in{" "}
+                        <Link
+                          className="text-primary underline"
+                          to="/dashboard/career/payments"
+                        >
+                          payout settings
+                        </Link>{" "}
+                        before you can sell this track.
+                      </p>
+                    )}
                   </div>
                   <FormField
                     control={form.control}
@@ -2367,6 +2383,7 @@ export function NewTrackForm({
                         <FormControl>
                           <Switch
                             checked={field.value}
+                            disabled={!payoutsReady}
                             onCheckedChange={(checked) => {
                               field.onChange(checked);
                               if (!checked) {

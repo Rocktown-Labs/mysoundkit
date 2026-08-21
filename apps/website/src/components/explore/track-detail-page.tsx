@@ -956,21 +956,9 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
               <div className="grid gap-6 sm:grid-cols-3">
                 {(
                   [
-                    {
-                      entries: item.credits.artists,
-                      label: "Artists",
-                      renderSplit: false,
-                    },
-                    {
-                      entries: item.credits.writers,
-                      label: "Writers",
-                      renderSplit: true,
-                    },
-                    {
-                      entries: item.credits.producers,
-                      label: "Producers",
-                      renderSplit: false,
-                    },
+                    { entries: item.credits.artists, label: "Artists" },
+                    { entries: item.credits.writers, label: "Writers" },
+                    { entries: item.credits.producers, label: "Producers" },
                   ] as const
                 ).map((group) =>
                   group.entries.length > 0 ? (
@@ -980,18 +968,8 @@ export function TrackDetailPage({ lookupId }: { lookupId: string }) {
                       </h4>
                       <ul className="space-y-1.5">
                         {group.entries.map((credit) => (
-                          <li
-                            className="flex items-center justify-between gap-2 text-sm"
-                            key={credit.id}
-                          >
-                            <span className="truncate">
-                              {creditDisplayName(credit)}
-                            </span>
-                            {group.renderSplit && credit.splitBps !== null ? (
-                              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                                {Math.round(credit.splitBps / 100)}%
-                              </span>
-                            ) : null}
+                          <li className="truncate text-sm" key={credit.id}>
+                            {creditDisplayName(credit)}
                           </li>
                         ))}
                       </ul>
