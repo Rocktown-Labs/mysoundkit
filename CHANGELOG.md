@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added a manual `Seed Preview Media` workflow that copies media objects referenced by `track_assets`/`project_assets` from the production R2 bucket into a PR preview bucket, so shared-database previews can play back the existing catalog.
+
+### Added
+
 - Added a centralized web notification dispatcher with deterministic in-app/email idempotency, preference policy, self-notification prevention, event metadata for future aggregation, and a delayed Cloudflare Queue for presence-aware missed-message email evaluation.
 - Added real conversation read state and unread counts, notification-feed cursor pagination, mark-one-read support, follower live emails, video comment alerts, collaborator track-live alerts, and missing friend/collaboration/battle/Open Verse response emails.
 - Comprehensively updated repository `README.md` with full technical architecture diagram, deep-dive breakdowns of all applications (`apps/server`, `apps/website`, `apps/native`, `apps/docs`) and shared packages (`@soundkit/*`), client-side MediaBunny audio engine details, Durable Object / Workflow background workers, local development guide, database operations, and quality verification gates.

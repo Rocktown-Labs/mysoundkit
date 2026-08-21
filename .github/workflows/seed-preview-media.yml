@@ -1,0 +1,43 @@
+name: Seed Preview Media
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number whose preview bucket should be seeded"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seed-preview-media-${{ github.event.inputs.pr_number }}
+
+jobs:
+  seed:
+    name: Seed preview R2 bucket
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Copy referenced media objects into the preview bucket
+        env:
+          SEED_PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./scripts/seed-preview-media.sh
