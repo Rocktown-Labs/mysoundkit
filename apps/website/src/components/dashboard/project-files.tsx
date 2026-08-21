@@ -31,6 +31,18 @@ interface ProjectFilesProps {
   projectId: string;
 }
 
+interface ProjectExportState {
+  assets: {
+    downloadUrl: string;
+    fileName: string;
+    id: string;
+    status: string;
+  }[];
+  exportVersion: number;
+  status: string;
+  workflowInstanceId: string | null;
+}
+
 const formatBytes = (sizeBytes: number | null | undefined) => {
     if (!sizeBytes || sizeBytes <= 0) {
       return "—";
@@ -54,6 +66,8 @@ const formatBytes = (sizeBytes: number | null | undefined) => {
 export function ProjectFiles({ projectId }: ProjectFilesProps) {
   const projectQuery = useProjectQuery(projectId),
     [isReordering, setIsReordering] = useState(false),
+    [isExporting, setIsExporting] = useState(false),
+    [exportState, setExportState] = useState<ProjectExportState | null>(null),
     fileInputRef = useRef<HTMLInputElement>(null),
     {
       averageProgress,
@@ -115,6 +129,58 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
     project = projectQuery.data,
     tracks = project?.tracks ?? [],
     assets = project?.assets ?? [],
+    loadExportState = async () => {
+      const response = await fetch(
+        `${API_V1_URL}/projects/${encodeURIComponent(projectId)}/export`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        return null;
+      }
+      const state = (await response.json()) as ProjectExportState;
+      setExportState(state);
+      return state;
+    },
+    startProjectExport = async () => {
+      setIsExporting(true);
+      try {
+        const response = await fetch(
+          `${API_V1_URL}/projects/${encodeURIComponent(projectId)}/export`,
+          { credentials: "include", method: "POST" }
+        );
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as {
+            message?: string;
+          } | null;
+          throw new Error(body?.message ?? "Project export could not start.");
+        }
+        for (let poll = 0; poll < 150; poll += 1) {
+          const state = await loadExportState();
+          if (
+            state?.status === "ready" ||
+            state?.status === "failed" ||
+            state?.status === "partial"
+          ) {
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+        toast({
+          description:
+            "Release-context files are available below when processing completes.",
+          title: "Project export updated",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error ? error.message : "Project export failed.",
+          title: "Export failed",
+          variant: "destructive",
+        });
+      } finally {
+        setIsExporting(false);
+      }
+    },
     handlePlayTrack = (track: (typeof tracks)[number]) => {
       if (!track.playbackUrl) {
         return;
@@ -224,17 +290,55 @@ export function ProjectFiles({ projectId }: ProjectFilesProps) {
               Tracks and assets associated with this project
             </CardDescription>
           </div>
-          <Button
-            className="bg-primary hover:bg-primary/90"
-            disabled={playableTracks.length === 0}
-            onClick={handlePlayAll}
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Play All
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              disabled={tracks.length === 0 || isExporting}
+              onClick={() => void startProjectExport()}
+              variant="outline"
+            >
+              {isExporting ? (
+                <LoaderCircle className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 size-4" />
+              )}
+              Prepare release files
+            </Button>
+            <Button
+              className="bg-primary hover:bg-primary/90"
+              disabled={playableTracks.length === 0}
+              onClick={handlePlayAll}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Play All
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {exportState && (
+          <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">
+                Release export v{exportState.exportVersion}
+              </span>
+              <Badge variant="outline">{exportState.status}</Badge>
+            </div>
+            {exportState.assets.map((asset) => (
+              <Button
+                asChild
+                className="w-full justify-start"
+                disabled={asset.status !== "ready"}
+                key={asset.id}
+                variant="ghost"
+              >
+                <a href={`${API_V1_URL}${asset.downloadUrl}`}>
+                  <Download className="mr-2 size-4" />
+                  {asset.fileName}
+                </a>
+              </Button>
+            ))}
+          </div>
+        )}
         {tracks.length === 0 && assets.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/40 p-8 text-center text-sm text-muted-foreground">
             No files attached to this project yet.

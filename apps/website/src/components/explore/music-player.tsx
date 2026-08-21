@@ -725,6 +725,7 @@ export function MusicPlayer() {
     }
 
     const preloadAudio = new Audio();
+    preloadAudio.crossOrigin = "use-credentials";
     preloadAudio.preload = "metadata";
     preloadAudio.src = nextTrack.src;
     preloadedAudioRef.current = preloadAudio;
@@ -1908,6 +1909,7 @@ export function MusicPlayer() {
     <TooltipProvider delayDuration={250}>
       <audio
         ref={audioRef}
+        crossOrigin="use-credentials"
         preload="metadata"
         // eslint-disable-next-line react/no-unknown-property
         x-webkit-airplay="allow"

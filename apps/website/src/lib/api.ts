@@ -24,31 +24,41 @@ export const apiClient = hc<AppType>(API_BASE_URL, {
 });
 
 export class SoundKitApiError extends Error {
+  code?: string;
   status: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "SoundKitApiError";
+    this.code = code;
     this.status = status;
   }
 }
 
-export const rpcJson = async <T>(
+export function rpcJson<T>(
   response: ClientResponse<T, number, "json">
-): Promise<T> => {
+): Promise<T>;
+export function rpcJson(
+  response: Pick<Response, "json" | "ok" | "status">
+): Promise<unknown>;
+export async function rpcJson<T>(
+  response: Pick<Response, "json" | "ok" | "status">
+): Promise<T> {
   if (response.ok) {
     return response.json();
   }
 
   const payload = (await response.json().catch(() => null)) as {
+    code?: string;
     message?: string;
   } | null;
 
   throw new SoundKitApiError(
     payload?.message ?? `SoundKit API request failed: ${response.status}`,
-    response.status
+    response.status,
+    payload?.code
   );
-};
+}
 
 const fileNameFromContentDisposition = (value: string | null) => {
   if (!value) {

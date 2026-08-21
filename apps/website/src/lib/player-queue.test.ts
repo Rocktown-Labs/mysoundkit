@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { PlayerTrack } from "../components/audio-player-provider";
-import { completeQueuedTrack, shouldRestartCurrentTrack } from "./player-queue";
+import {
+  completeQueuedTrack,
+  privatePreviewQueue,
+  shouldRestartCurrentTrack,
+} from "./player-queue";
 
 const track = (id: string): PlayerTrack => ({
   artist: `Artist ${id}`,
@@ -11,6 +15,12 @@ const track = (id: string): PlayerTrack => ({
 });
 
 describe("player queue", () => {
+  it("isolates private dashboard previews to the selected track", () => {
+    const selected = track("selected");
+
+    expect(privatePreviewQueue(selected)).toEqual([selected]);
+  });
+
   it("removes the only completed track from the active queue", () => {
     const currentTrack = track("one");
 

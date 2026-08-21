@@ -9,6 +9,7 @@ import {
   projects,
   trackAssets,
   trackCollaborators,
+  trackStemJobs,
   tracks,
   userProfiles,
 } from "@soundkit/db/schema/app";
@@ -23,8 +24,17 @@ import { getDisplayNameForUser } from "@/lib/email-events";
 import {
   isAuthenticatedSession,
   isAuthenticatedUser,
+  resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
+import {
+  ENRICHMENT_PIPELINE_VERSION,
+  MEDIA_PIPELINE_VERSION,
+} from "@/lib/media-pipeline";
+import {
+  ensureMediaProcessingWorkflow,
+  ensureTrackEnrichmentWorkflow,
+} from "@/lib/media-processing-jobs";
 import { notify } from "@/lib/notifications";
 import { sampleTracks } from "@/lib/sample-data";
 import {
@@ -41,6 +51,7 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId } from "@/lib/workspace";
+import { logError } from "@/middleware/structured-logging";
 
 const app = new OpenAPIHono<AppEnv>(),
   slugify = (value: string) =>
@@ -85,6 +96,7 @@ const app = new OpenAPIHono<AppEnv>(),
           id: `open_${track.id}`,
           maxSubmissions: 50,
           musicalKey: track.musicalKey ?? null,
+          ownerUserId: track.id,
           playbackUrl: track.playbackUrl ?? "/open-verse-placeholder.svg",
           previewAssetId: null,
           slotEndsAtMs: null,
@@ -207,10 +219,8 @@ const app = new OpenAPIHono<AppEnv>(),
         id: row.id,
         maxSubmissions: row.maxSubmissions,
         musicalKey: row.musicalKey ?? trackSummary.musicalKey ?? null,
-        playbackUrl:
-          publicAssetUrl(clipAsset) ??
-          trackSummary.playbackUrl ??
-          "/open-verse-placeholder.svg",
+        ownerUserId: row.ownerUserId,
+        playbackUrl: publicAssetUrl(clipAsset),
         previewAssetId: row.previewAssetId,
         slotEndsAtMs: row.slotEndsAtMs,
         slotStartsAtMs: row.slotStartsAtMs,
@@ -258,6 +268,10 @@ app.openapi(
         openVerseListingSchema,
         "Open verse listing"
       ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Open Verse media is incomplete"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Track not found"
@@ -296,6 +310,34 @@ app.openapi(
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
     }
+    if (
+      body.slotStartsAtMs === undefined ||
+      body.slotEndsAtMs === undefined ||
+      body.slotEndsAtMs <= body.slotStartsAtMs
+    ) {
+      return c.json(
+        { message: "Select a valid Open Verse start and end time." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const [masterAsset] = await db
+      .select()
+      .from(trackAssets)
+      .where(
+        and(
+          eq(trackAssets.trackId, track.id),
+          eq(trackAssets.assetKind, "master"),
+          eq(trackAssets.isCurrent, true)
+        )
+      )
+      .limit(1);
+    if (!masterAsset?.objectKey) {
+      return c.json(
+        { message: "Upload and register the Open Verse base master first." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
 
     const session = c.get("session"),
       organizationId = await resolveActiveOrganizationId({
@@ -308,6 +350,7 @@ app.openapi(
         .insert(openVerseListings)
         .values({
           accessMode: body.accessMode,
+          baseMasterAssetId: masterAsset.id,
           bpm: track.bpm,
           closesAt: body.closesAt ? new Date(body.closesAt) : null,
           createdAt: now,
@@ -318,7 +361,7 @@ app.openapi(
           musicalKey: track.musicalKey,
           organizationId,
           ownerUserId: user.id,
-          previewAssetId: body.previewAssetId ?? null,
+          previewAssetId: null,
           slotEndsAtMs: body.slotEndsAtMs ?? null,
           slotStartsAtMs: body.slotStartsAtMs ?? null,
           title: `${track.title} - Open Verse`,
@@ -329,6 +372,49 @@ app.openapi(
 
     if (!listing) {
       throw new Error("Failed to create open verse listing.");
+    }
+
+    await db.transaction(async (transaction) => {
+      await transaction
+        .update(trackAssets)
+        .set({ status: "ready", updatedAt: now })
+        .where(eq(trackAssets.id, masterAsset.id));
+      await transaction
+        .update(tracks)
+        .set({
+          isPublic: true,
+          productionStatus: "demo",
+          publishedAt: track.publishedAt ?? now,
+          releaseStrategy: "publish_when_ready",
+          updatedAt: now,
+        })
+        .where(eq(tracks.id, track.id));
+    });
+
+    try {
+      await ensureMediaProcessingWorkflow({
+        payload: {
+          mode: "open_verse_base",
+          objectKey: masterAsset.objectKey,
+          openVerse: {
+            listingId: listing.id,
+            slotEndsAtMs: body.slotEndsAtMs,
+            slotStartsAtMs: body.slotStartsAtMs,
+          },
+          pipelineVersion: MEDIA_PIPELINE_VERSION,
+          sourceAssetId: masterAsset.id,
+          trackId: track.id,
+        },
+        workflow: c.env.MEDIA_PROCESSING_WORKFLOW,
+      });
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        event: "open_verse_snippet_workflow_launch_failed",
+        listingId: listing.id,
+        sourceAssetId: masterAsset.id,
+        trackId: track.id,
+      });
     }
 
     const artistFollowers = await db
@@ -1111,6 +1197,190 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/{listingId}/final-master",
+    request: {
+      body: jsonContentRequired(
+        z.object({ sourceAssetId: z.string().min(1) }),
+        "Authoritative Open Verse final master"
+      ),
+      params: z.object({ listingId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.ACCEPTED]: jsonContent(
+        z.object({ message: z.string(), status: z.string() }),
+        "Final master processing started"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Final master is invalid"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Open Verse or final master not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Open Verses"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is not configured." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { listingId } = c.req.valid("param"),
+      { sourceAssetId } = c.req.valid("json"),
+      db = createDb(),
+      [listing] = await db
+        .select()
+        .from(openVerseListings)
+        .where(eq(openVerseListings.id, listingId))
+        .limit(1);
+    if (!listing) {
+      return c.json(
+        { message: "Open Verse listing not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    if (listing.ownerUserId !== user.id) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (listing.status !== "awaiting_final_master") {
+      return c.json(
+        { message: "Accept a submission before uploading the final master." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const [finalMaster] = await db
+      .select()
+      .from(trackAssets)
+      .where(
+        and(
+          eq(trackAssets.id, sourceAssetId),
+          eq(trackAssets.trackId, listing.trackId),
+          eq(trackAssets.assetKind, "master"),
+          eq(trackAssets.purpose, "master"),
+          eq(trackAssets.isCurrent, true)
+        )
+      )
+      .limit(1);
+    if (!finalMaster?.objectKey) {
+      return c.json(
+        { message: "Register a new final master before finalizing." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    if (finalMaster.id === listing.baseMasterAssetId) {
+      return c.json(
+        { message: "The final master must be a newly completed recording." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    await db.transaction(async (transaction) => {
+      await transaction
+        .update(trackAssets)
+        .set({ status: "ready", updatedAt: new Date() })
+        .where(eq(trackAssets.id, finalMaster.id));
+      await transaction
+        .update(openVerseListings)
+        .set({ status: "fulfilled", updatedAt: new Date() })
+        .where(eq(openVerseListings.id, listing.id));
+      await transaction
+        .update(tracks)
+        .set({ productionStatus: "mastered", updatedAt: new Date() })
+        .where(eq(tracks.id, listing.trackId));
+    });
+
+    try {
+      await ensureMediaProcessingWorkflow({
+        payload: {
+          mode: "final_track",
+          objectKey: finalMaster.objectKey,
+          pipelineVersion: MEDIA_PIPELINE_VERSION,
+          sourceAssetId: finalMaster.id,
+          trackId: listing.trackId,
+        },
+        workflow: c.env.MEDIA_PROCESSING_WORKFLOW,
+      });
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        event: "open_verse_final_media_workflow_launch_failed",
+        listingId,
+        sourceAssetId: finalMaster.id,
+        trackId: listing.trackId,
+      });
+    }
+
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(c.get("session"))
+        ? c.get("session")
+        : null,
+      user,
+    });
+    if (entitlements.isPremium) {
+      const stemJobId = `stem:${finalMaster.id}:v${ENRICHMENT_PIPELINE_VERSION}`;
+      await db
+        .insert(trackStemJobs)
+        .values({
+          id: stemJobId,
+          inputAssetId: finalMaster.id,
+          outputFormat: "MP3",
+          outputType: "BOTH",
+          status: "queued",
+          trackId: listing.trackId,
+        })
+        .onConflictDoNothing();
+      try {
+        const enrichment = await ensureTrackEnrichmentWorkflow({
+          payload: {
+            objectKey: finalMaster.objectKey,
+            pipelineVersion: ENRICHMENT_PIPELINE_VERSION,
+            sourceAssetId: finalMaster.id,
+            trackId: listing.trackId,
+          },
+          workflow: c.env.TRACK_ENRICHMENT_WORKFLOW,
+        });
+        await db
+          .update(trackStemJobs)
+          .set({ workflowInstanceId: enrichment.workflowInstanceId })
+          .where(eq(trackStemJobs.inputAssetId, finalMaster.id));
+      } catch (error) {
+        logError({
+          error: error instanceof Error ? error.message : String(error),
+          event: "open_verse_final_enrichment_workflow_launch_failed",
+          listingId,
+          sourceAssetId: finalMaster.id,
+          trackId: listing.trackId,
+        });
+      }
+    }
+
+    return c.json(
+      {
+        message:
+          "Final master registered. SoundKit media processing has started.",
+        status: "processing",
+      },
+      HttpStatusCodes.ACCEPTED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/{listingId}/submissions/{submissionId}/accept",
     request: {
       params: z.object({
@@ -1170,6 +1440,9 @@ app.openapi(
         HttpStatusCodes.NOT_FOUND
       );
     }
+    if (listing.ownerUserId !== user.id) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
 
     const [submission] = await db
       .select()
@@ -1189,13 +1462,19 @@ app.openapi(
       );
     }
 
-    // Update submission status
-    await db
-      .update(openVerseSubmissions)
-      .set({ status: "accepted", updatedAt: new Date() })
-      .where(eq(openVerseSubmissions.id, submissionId));
+    await db.transaction(async (transaction) => {
+      await transaction
+        .update(openVerseSubmissions)
+        .set({ status: "accepted", updatedAt: new Date() })
+        .where(eq(openVerseSubmissions.id, submissionId));
+      await transaction
+        .update(openVerseListings)
+        .set({ status: "awaiting_final_master", updatedAt: new Date() })
+        .where(eq(openVerseListings.id, listingId));
+    });
 
-    // Register artist as track collaborator in song credits
+    // Preserve the accepted artist relationship while the owner finishes the
+    // mix/master outside SoundKit.
     await db
       .insert(trackCollaborators)
       .values({
@@ -1237,8 +1516,8 @@ app.openapi(
     return c.json(
       {
         message:
-          "Vocal submission accepted! Artist added to song credits & splits.",
-        status: "accepted",
+          "Submission accepted. Collaborator files are preserved while this track awaits a new final master.",
+        status: "awaiting_final_master",
       },
       HttpStatusCodes.OK
     );

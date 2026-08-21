@@ -24,6 +24,7 @@ import {
 import type { LiveNotificationQueueMessage } from "@/lib/live-notifications";
 import { handleTrackDurationBackfillQueue } from "@/lib/media-metadata";
 import type { DurationBackfillQueueMessage } from "@/lib/media-metadata";
+import { enqueueLegacyMediaBackfill } from "@/lib/media-backfill";
 import { isTrackDurationBackfillQueueName } from "@/lib/media-queue";
 import {
   handleNotificationQueue,
@@ -55,6 +56,7 @@ import discoverRoutes from "@/routes/discover";
 import libraryRoutes from "@/routes/library";
 import listeningPartiesRoutes from "@/routes/listening-parties";
 import liveRoutes from "@/routes/live";
+import mediaRoutes from "@/routes/media";
 import meRoutes from "@/routes/me";
 import messagesRoutes from "@/routes/messages";
 import networkRoutes from "@/routes/network";
@@ -74,8 +76,13 @@ import videosRoutes from "@/routes/videos";
 import webhookRoutes from "@/routes/webhooks";
 import stripeWebhookRoutes from "@/routes/webhooks-stripe";
 
+export { ContainerProxy } from "@cloudflare/containers";
+export { MediaProcessorContainer } from "@/containers/media-processor";
 export { LiveRecordingWorkflow } from "@/workflows/live-recording";
-export { TrackProcessingWorkflow } from "@/workflows/track-processing";
+export { MediaProcessingWorkflow } from "@/workflows/media-processing";
+export { MediaRetentionWorkflow } from "@/workflows/media-retention";
+export { ProjectExportWorkflow } from "@/workflows/project-export";
+export { TrackEnrichmentWorkflow } from "@/workflows/track-enrichment";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
 export { PresenceDurableObject } from "@/durable-objects/presence";
 
@@ -142,6 +149,7 @@ app.use(
 );
 app.use("/v1/*", jsonBodyMiddleware);
 app.use("/v1/*", sessionMiddleware);
+app.use("/media/*", sessionMiddleware);
 
 app.doc("/api/openapi.json", {
   info: {
@@ -185,7 +193,7 @@ app.get("/health", async (c) =>
       mediaPublicUrl: hasEnvValue("MEDIA_PUBLIC_URL"),
       notificationQueue: hasEnvValue("NOTIFICATION_QUEUE"),
       trackDurationBackfillQueue: hasEnvValue("TRACK_DURATION_BACKFILL_QUEUE"),
-      trackProcessingWorkflow: hasEnvValue("TRACK_PROCESSING_WORKFLOW"),
+      trackEnrichmentWorkflow: hasEnvValue("TRACK_ENRICHMENT_WORKFLOW"),
       uploadBucket: hasEnvValue("UPLOAD_BUCKET_NAME"),
     },
     database: await checkDatabaseHealth(),
@@ -200,6 +208,7 @@ app.get("/health", async (c) =>
 app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
 app
+  .route("/media", mediaRoutes)
   .route("/v1/me", meRoutes)
   .route("/v1/auth", authRoutes)
   .route("/v1/onboarding", onboardingRoutes)
@@ -276,6 +285,10 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         publishDueLiveRecordings(),
+        enqueueLegacyMediaBackfill({
+          batchSize: 25,
+          workflow: workerEnv.MEDIA_PROCESSING_WORKFLOW,
+        }),
         sendDueOnboardingReminders(),
         retryDueEmailDeliveries({ queue: workerEnv.EMAIL_DELIVERY_QUEUE }),
         publishDueTrackReleases({

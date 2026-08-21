@@ -10,6 +10,8 @@ import {
   projectPreSaves,
   projectTracks,
   projects,
+  purchases,
+  mediaProcessingJobs,
   trackAssets,
   tracks,
   userFollows,
@@ -35,6 +37,14 @@ import {
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
 import { notify } from "@/lib/notifications";
+import {
+  MEDIA_PIPELINE_VERSION,
+  PROJECT_EXPORT_PIPELINE_VERSION,
+} from "@/lib/media-pipeline";
+import {
+  ensureMediaProcessingWorkflow,
+  ensureProjectExportWorkflow,
+} from "@/lib/media-processing-jobs";
 import {
   genreSlugFromExploreFilter,
   stateFromExploreRegion,
@@ -414,6 +424,7 @@ app.openapi(
           coverArtUrl: null,
           description: body.description ?? null,
           exclusiveUntil: body.exclusiveUntil ?? null,
+          exportVersion: 1,
           id: "project_new",
           isForSale: body.isForSale,
           isPublic: body.isPublic,
@@ -851,6 +862,7 @@ app.openapi(
         .update(projects)
         .set({
           description: body.description,
+          exportVersion: sql`${projects.exportVersion} + 1`,
           isPublic: body.isPublic,
           projectType: body.projectType,
           ...monetizationPatch,
@@ -892,6 +904,26 @@ app.openapi(
         storageProvider: "r2",
         uploaderUserId: user.id,
       });
+    }
+
+    if (project.status === "released") {
+      try {
+        await ensureProjectExportWorkflow({
+          payload: {
+            exportVersion: project.exportVersion,
+            pipelineVersion: PROJECT_EXPORT_PIPELINE_VERSION,
+            projectId: project.id,
+          },
+          workflow: c.env.PROJECT_EXPORT_WORKFLOW,
+        });
+      } catch (error) {
+        logError({
+          error: error instanceof Error ? error.message : String(error),
+          event: "project_export_workflow_launch_failed",
+          exportVersion: project.exportVersion,
+          projectId: project.id,
+        });
+      }
     }
 
     return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
@@ -1011,7 +1043,282 @@ app.openapi(
         );
     }
 
-    return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
+    const [updatedProject] = await db
+      .update(projects)
+      .set({
+        exportVersion: sql`${projects.exportVersion} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, projectId))
+      .returning();
+
+    return c.json(
+      await buildProjectDetail(updatedProject ?? project),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/{projectId}/export",
+    request: { params: z.object({ projectId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.ACCEPTED]: jsonContent(
+        z.object({
+          exportVersion: z.number().int(),
+          status: z.string(),
+          workflowInstanceId: z.string(),
+        }),
+        "Project export accepted"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    const { projectId } = c.req.valid("param"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      [project] = await createDb()
+        .select()
+        .from(projects)
+        .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+        .limit(1);
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const result = await ensureProjectExportWorkflow({
+      payload: {
+        exportVersion: project.exportVersion,
+        pipelineVersion: PROJECT_EXPORT_PIPELINE_VERSION,
+        projectId: project.id,
+      },
+      workflow: c.env.PROJECT_EXPORT_WORKFLOW,
+    });
+    return c.json(
+      {
+        exportVersion: project.exportVersion,
+        status: result.job?.status ?? "queued",
+        workflowInstanceId: result.workflowInstanceId,
+      },
+      HttpStatusCodes.ACCEPTED
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{projectId}/export",
+    request: { params: z.object({ projectId: z.string() }) },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        z.object({
+          assets: z
+            .object({
+              downloadUrl: z.string(),
+              fileName: z.string(),
+              id: z.string(),
+              status: z.string(),
+            })
+            .array(),
+          exportVersion: z.number().int(),
+          status: z.string(),
+          workflowInstanceId: z.string().nullable(),
+        }),
+        "Project export state"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    const { projectId } = c.req.valid("param"),
+      db = createDb(),
+      [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+    if (!project) {
+      return c.json(
+        { message: "Project not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const [purchase] = await db
+        .select({ id: purchases.id })
+        .from(purchases)
+        .where(
+          and(
+            eq(purchases.projectId, projectId),
+            eq(purchases.buyerUserId, user.id)
+          )
+        )
+        .limit(1),
+      canAccess = project.ownerUserId === user.id || Boolean(purchase);
+    if (!canAccess) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+
+    const [job, assets] = await Promise.all([
+      db
+        .select()
+        .from(mediaProcessingJobs)
+        .where(
+          and(
+            eq(mediaProcessingJobs.projectId, projectId),
+            eq(mediaProcessingJobs.workflowType, "project_export"),
+            eq(mediaProcessingJobs.exportVersion, project.exportVersion)
+          )
+        )
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+      db
+        .select()
+        .from(projectAssets)
+        .where(
+          and(
+            eq(projectAssets.projectId, projectId),
+            eq(projectAssets.assetKind, "release_export"),
+            eq(projectAssets.exportVersion, project.exportVersion)
+          )
+        )
+        .orderBy(asc(projectAssets.objectKey)),
+    ]);
+    return c.json(
+      {
+        assets: assets.map((asset) => ({
+          downloadUrl: `/v1/projects/${projectId}/assets/${asset.id}/download`,
+          fileName: asset.objectKey?.split("/").pop() ?? `${asset.id}.m4a`,
+          id: asset.id,
+          status: asset.status,
+        })),
+        exportVersion: project.exportVersion,
+        status: job?.status ?? "not_started",
+        workflowInstanceId: job?.workflowInstanceId ?? null,
+      },
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "get",
+    path: "/{projectId}/assets/{assetId}/download",
+    request: {
+      params: z.object({ assetId: z.string(), projectId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: {
+        content: {
+          "application/octet-stream": {
+            schema: z.string().openapi({ format: "binary" }),
+          },
+        },
+        description: "Authorized project export download",
+      },
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Project export not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Projects"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    const { assetId, projectId } = c.req.valid("param"),
+      db = createDb(),
+      [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1),
+      [asset] = await db
+        .select()
+        .from(projectAssets)
+        .where(
+          and(
+            eq(projectAssets.id, assetId),
+            eq(projectAssets.projectId, projectId),
+            eq(projectAssets.assetKind, "release_export"),
+            eq(projectAssets.status, "ready")
+          )
+        )
+        .limit(1);
+    if (!(project && asset?.objectKey)) {
+      return c.json(
+        { message: "Project export not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const [purchase] = await db
+      .select({ id: purchases.id })
+      .from(purchases)
+      .where(
+        and(
+          eq(purchases.projectId, projectId),
+          eq(purchases.buyerUserId, user.id)
+        )
+      )
+      .limit(1);
+    if (!(project.ownerUserId === user.id || purchase)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    const object = await c.env.MEDIA_BUCKET?.get(asset.objectKey);
+    if (!object) {
+      return c.json(
+        { message: "Project export not found." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const fileName = asset.objectKey.split("/").pop() ?? `${asset.id}.m4a`,
+      headers = new Headers({
+        "Cache-Control": "private, no-store",
+        "Content-Disposition": `attachment; filename="${fileName.replaceAll('"', "_")}"`,
+        "Content-Length": String(object.size),
+        "Content-Type": asset.mimeType ?? "audio/mp4",
+      });
+    return new Response(object.body, { headers });
   }
 );
 
@@ -1278,13 +1585,25 @@ app.openapi(
       title: body.title,
     });
 
+    const uploadedObject = await c.env.MEDIA_BUCKET?.head(body.sourceObjectKey);
+    if (!uploadedObject) {
+      return c.json(
+        { message: "Uploaded project track was not found in storage." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+    const masterAssetId = crypto.randomUUID();
     await db.insert(trackAssets).values({
       assetKind: "master",
       bucketName: getUploadBucketName(),
-      id: crypto.randomUUID(),
+      id: masterAssetId,
+      isCurrent: true,
       mimeType: "audio/*",
       objectKey: body.sourceObjectKey,
-      status: "uploaded",
+      processingVersion: MEDIA_PIPELINE_VERSION,
+      purpose: "master",
+      sizeBytes: uploadedObject.size,
+      status: "ready",
       storageProvider: "r2",
       trackId,
       uploaderUserId: user.id,
@@ -1305,12 +1624,40 @@ app.openapi(
       trackId,
     });
 
-    await db
+    const [updatedProject] = await db
       .update(projects)
-      .set({ updatedAt: now })
-      .where(eq(projects.id, projectId));
+      .set({
+        exportVersion: sql`${projects.exportVersion} + 1`,
+        updatedAt: now,
+      })
+      .where(eq(projects.id, projectId))
+      .returning();
 
-    return c.json(await buildProjectDetail(project), HttpStatusCodes.CREATED);
+    try {
+      await ensureMediaProcessingWorkflow({
+        payload: {
+          mode: "final_track",
+          objectKey: body.sourceObjectKey,
+          pipelineVersion: MEDIA_PIPELINE_VERSION,
+          sourceAssetId: masterAssetId,
+          trackId,
+        },
+        workflow: c.env.MEDIA_PROCESSING_WORKFLOW,
+      });
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        event: "project_track_media_workflow_launch_failed",
+        projectId,
+        sourceAssetId: masterAssetId,
+        trackId,
+      });
+    }
+
+    return c.json(
+      await buildProjectDetail(updatedProject ?? project),
+      HttpStatusCodes.CREATED
+    );
   }
 );
 

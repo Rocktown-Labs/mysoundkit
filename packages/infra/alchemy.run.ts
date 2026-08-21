@@ -3,6 +3,7 @@ import {
   AccountId,
   AccountApiToken,
   AnalyticsEngineDataset,
+  Container,
   DurableObjectNamespace,
   Hyperdrive,
   Queue,
@@ -49,7 +50,7 @@ const SITE_HOST = isProduction
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
   API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
-  MEDIA_URL = app.local ? API_URL : `https://${MEDIA_HOST}`,
+  MEDIA_URL = app.local ? `${API_URL}/media` : `https://${MEDIA_HOST}`,
   SENTRY_WEB_DSN =
     process.env.VITE_SENTRY_DSN ||
     "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
@@ -112,9 +113,6 @@ const SITE_HOST = isProduction
         exposeHeaders: ["ETag"],
       },
     ],
-    domains: app.local
-      ? undefined
-      : [{ adopt: shouldAdoptRemoteResources, domain: MEDIA_HOST }],
     jurisdiction: r2Jurisdiction,
     name: resourceName("soundkit-media"),
   }),
@@ -160,9 +158,36 @@ const SITE_HOST = isProduction
     className: "LiveRecordingWorkflow",
     workflowName: resourceName("soundkit-live-recording"),
   }),
-  trackProcessingWorkflow = Workflow("track-processing", {
-    className: "TrackProcessingWorkflow",
-    workflowName: resourceName("soundkit-track-processing"),
+  trackEnrichmentWorkflow = Workflow("track-enrichment", {
+    className: "TrackEnrichmentWorkflow",
+    workflowName: resourceName("soundkit-track-enrichment"),
+  }),
+  mediaProcessingWorkflow = Workflow("media-processing", {
+    className: "MediaProcessingWorkflow",
+    workflowName: resourceName("soundkit-media-processing"),
+  }),
+  projectExportWorkflow = Workflow("project-export", {
+    className: "ProjectExportWorkflow",
+    workflowName: resourceName("soundkit-project-export"),
+  }),
+  mediaRetentionWorkflow = Workflow("media-retention", {
+    className: "MediaRetentionWorkflow",
+    workflowName: resourceName("soundkit-media-retention"),
+  }),
+  mediaProcessor = await Container("media-processor", {
+    adopt: shouldAdoptRemoteResources,
+    build: {
+      context: "../../apps/media-processor",
+      dockerfile: "Dockerfile",
+      platform: "linux/amd64",
+    },
+    className: "MediaProcessorContainer",
+    instanceType: isProduction ? "standard-1" : "basic",
+    maxInstances: isProduction ? 25 : 5,
+    name: resourceName("soundkit-media-processor"),
+    observability: {
+      logs: { enabled: true },
+    },
   }),
   emailDeliveryDeadLetterQueue = await Queue("email-delivery-dlq", {
     adopt: shouldAdoptRemoteResources,
@@ -337,8 +362,12 @@ export const server = await Worker("server", {
     LIVE_RECORDING_WORKFLOW: liveRecordingWorkflow,
     LIVE_ROOMS: liveRooms,
     PRESENCE: presence,
+    PROJECT_EXPORT_WORKFLOW: projectExportWorkflow,
     MEDIA_BUCKET: media,
-    MEDIA_CANONICAL_URL: "https://media.mysoundkit.com",
+    MEDIA_CANONICAL_URL: MEDIA_URL,
+    MEDIA_PROCESSING_WORKFLOW: mediaProcessingWorkflow,
+    MEDIA_PROCESSOR: mediaProcessor,
+    MEDIA_RETENTION_WORKFLOW: mediaRetentionWorkflow,
     MEDIA_PUBLIC_URL: MEDIA_URL,
     RECORDINGS_ACCESS_KEY_ID: recordingsUploadToken.accessKeyId,
     RECORDINGS_BUCKET: recordings,
@@ -387,7 +416,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_BETTER_AUTH_WEBHOOK_SECRET"),
     ...optionalEnvBinding("STRIPE_COMMERCE_WEBHOOK_SECRET"),
     ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
-    TRACK_PROCESSING_WORKFLOW: trackProcessingWorkflow,
+    TRACK_ENRICHMENT_WORKFLOW: trackEnrichmentWorkflow,
     TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
     UPLOAD_BUCKET_NAME: media.name,
     ...optionalEnvBinding("ADMIN_EMAILS"),
@@ -408,7 +437,10 @@ export const server = await Worker("server", {
   },
   domains: app.local
     ? undefined
-    : [{ adopt: isProduction, domainName: API_HOST }],
+    : [
+        { adopt: isProduction, domainName: API_HOST },
+        { adopt: isProduction, domainName: MEDIA_HOST },
+      ],
   entrypoint: "src/index.ts",
   eventSources: [
     {

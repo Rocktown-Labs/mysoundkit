@@ -11,7 +11,7 @@ import {
   trackAssets,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -92,13 +92,7 @@ const app = new OpenAPIHono<AppEnv>(),
     saved: z.boolean(),
     trackId: z.string(),
   }),
-  downloadableAssetKinds = [
-    "master",
-    "tagged_mp3",
-    "untagged_wav",
-    "variant_audio",
-    "instrumental",
-  ] as const,
+  legacyDownloadableAssetKinds = ["tagged_mp3"] as const,
   getPurchasedCatalogRow = ({
     purchaseId,
     userId,
@@ -146,7 +140,12 @@ const app = new OpenAPIHono<AppEnv>(),
       .where(
         and(
           eq(trackAssets.trackId, trackId),
-          inArray(trackAssets.assetKind, downloadableAssetKinds)
+          eq(trackAssets.isCurrent, true),
+          eq(trackAssets.status, "ready"),
+          or(
+            inArray(trackAssets.purpose, ["download", "lossless_download"]),
+            inArray(trackAssets.assetKind, legacyDownloadableAssetKinds)
+          )
         )
       )
       .orderBy(desc(trackAssets.durationMs));

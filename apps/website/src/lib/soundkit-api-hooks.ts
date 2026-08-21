@@ -42,6 +42,9 @@ const meGet = apiClient.v1.me.index.$get,
   trackDelete = apiClient.v1.tracks[":trackId"].$delete,
   trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
   trackSettlePost = apiClient.v1.tracks[":trackId"].settle.$post,
+  trackMediaProcessingGet = apiClient.v1.tracks[":trackId"].processing.$get,
+  trackMediaProcessingRetryPost =
+    apiClient.v1.tracks[":trackId"].processing.retry.$post,
   trackProcessPost = apiClient.v1.tracks[":trackId"].process.$post,
   trackLyricsPost = apiClient.v1.tracks[":trackId"].lyrics.$post,
   trackLyricsReviewPatch =
@@ -148,6 +151,10 @@ type CreateTrackBody = InferRequestType<typeof tracksPost>["json"];
 type UpdateTrackBody = InferRequestType<typeof trackPatch>["json"];
 type CreateTrackAssetBody = InferRequestType<typeof trackAssetPost>["json"];
 type SettleTrackBody = InferRequestType<typeof trackSettlePost>["json"];
+export type MediaProcessingStatus = InferResponseType<
+  typeof trackMediaProcessingGet,
+  200
+>;
 type TrackProcessingStatus = InferResponseType<typeof trackProcessPost, 200>;
 type CreateLyricsRevisionBody = InferRequestType<
   typeof trackLyricsPost
@@ -411,6 +418,8 @@ export const soundkitQueryKeys = {
   track: (id: string) => ["tracks", id] as const,
   trackBattleHistory: (trackId: string) =>
     ["battles", "track-history", trackId] as const,
+  trackMediaProcessing: (id: string) =>
+    ["tracks", id, "media-processing"] as const,
   tracks: (query?: PublicExploreQuery) =>
     [...soundkitQueryKeys.tracksPrefix, query ?? {}] as const,
   tracksPrefix: ["tracks"] as const,
@@ -1087,6 +1096,40 @@ export const useSettleTrackMutation = () => {
     onSuccess: (_, { trackId }) => {
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.tracksPrefix,
+      });
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.track(trackId),
+      });
+    },
+  });
+};
+
+export const useTrackMediaProcessingQuery = (
+  trackId: string,
+  options: { enabled?: boolean } = {}
+) =>
+  useQuery({
+    enabled: Boolean(trackId) && (options.enabled ?? true),
+    queryFn: async () =>
+      rpcJson(await trackMediaProcessingGet({ param: { trackId } })),
+    queryKey: soundkitQueryKeys.trackMediaProcessing(trackId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "ready" || status === "partial" || status === "failed"
+        ? false
+        : 2000;
+    },
+  });
+
+export const useRetryTrackMediaProcessingMutation = (trackId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () =>
+      rpcJson(await trackMediaProcessingRetryPost({ param: { trackId } })),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: soundkitQueryKeys.trackMediaProcessing(trackId),
       });
       queryClient.invalidateQueries({
         queryKey: soundkitQueryKeys.track(trackId),

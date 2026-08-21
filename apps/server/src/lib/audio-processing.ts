@@ -18,6 +18,9 @@ import { embed } from "ai";
 import { and, asc, count, eq, ne, sql } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
+import type { TrackEnrichmentWorkflowPayload } from "@/lib/media-pipeline";
+import { ENRICHMENT_PIPELINE_VERSION } from "@/lib/media-pipeline";
+import { createSignedMediaSourceUrl } from "@/lib/media-signing";
 import { notifyTrackProcessingComplete } from "@/lib/track-notifications";
 
 const DEFAULT_EMBEDDING_DIMENSIONS = 1536,
@@ -36,7 +39,7 @@ interface StemSplitOutput {
   url?: string;
 }
 
-interface StemSplitJobResponse {
+export interface StemSplitJobResponse {
   audioMetadata?: {
     bpm?: number;
     key?: string;
@@ -50,12 +53,6 @@ interface StemSplitJobResponse {
   };
   progress?: number;
   status: StemSplitJobStatus;
-}
-
-export interface TrackProcessingWorkflowPayload {
-  assetId: string;
-  objectKey: string;
-  trackId: string;
 }
 
 interface OpenAiTranscriptionWord {
@@ -81,17 +78,6 @@ const getEnvValue = (key: string) =>
     (env as unknown as Record<string, string | undefined>)[key]?.trim() ?? "",
   getMediaBucket = () =>
     (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ?? null,
-  getMediaPublicUrl = () =>
-    getEnvValue("MEDIA_PUBLIC_URL") || getEnvValue("VITE_MEDIA_URL"),
-  getObjectPublicUrl = (objectKey: string) => {
-    const mediaPublicUrl = getMediaPublicUrl();
-
-    if (!mediaPublicUrl) {
-      return null;
-    }
-
-    return `${mediaPublicUrl.replace(/\/+$/u, "")}/${objectKey}`;
-  },
   sha256 = async (value: string) => {
     const data = new TextEncoder().encode(value),
       digest = await crypto.subtle.digest("SHA-256", data);
@@ -141,7 +127,7 @@ export const submitStemSplitJob = ({ sourceUrl }: { sourceUrl: string }) =>
   stemsplitFetch<StemSplitJobResponse>("/jobs", {
     body: JSON.stringify({
       outputFormat: "MP3",
-      outputType: "VOCALS",
+      outputType: "BOTH",
       quality: "BEST",
       sourceUrl,
     }),
@@ -216,45 +202,71 @@ const copyStemOutputToR2 = async ({
         .select({ uploaderUserId: trackAssets.uploaderUserId })
         .from(trackAssets)
         .where(eq(trackAssets.id, sourceAssetId))
-        .limit(1),
-      [asset] = await db
-        .insert(trackAssets)
-        .values({
+        .limit(1);
+
+    await db
+      .update(trackAssets)
+      .set({ isCurrent: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(trackAssets.trackId, trackId),
+          eq(trackAssets.assetKind, assetKind),
+          eq(trackAssets.purpose, "stem"),
+          eq(trackAssets.isCurrent, true),
+          ne(trackAssets.sourceAssetId, sourceAssetId)
+        )
+      );
+
+    const [asset] = await db
+      .insert(trackAssets)
+      .values({
+        assetKind,
+        bucketName: copied.bucketName,
+        id: `enrichment:${sourceAssetId}:${assetKind}:v${ENRICHMENT_PIPELINE_VERSION}`,
+        isCurrent: true,
+        metadata: {
+          expiresAt: sourceOutput.expiresAt ?? null,
+          generatedBy: "soundkit",
+          processingVersion: ENRICHMENT_PIPELINE_VERSION,
+          sourceAssetId,
+          stemsplitJobId,
+        },
+        mimeType: copied.mimeType,
+        objectKey: copied.objectKey,
+        processingVersion: ENRICHMENT_PIPELINE_VERSION,
+        purpose: "stem",
+        sizeBytes: copied.sizeBytes,
+        sourceAssetId,
+        status: "ready",
+        storageProvider: "r2",
+        trackId,
+        uploaderUserId: sourceAsset?.uploaderUserId ?? null,
+      })
+      .onConflictDoUpdate({
+        set: {
           assetKind,
           bucketName: copied.bucketName,
-          id: crypto.randomUUID(),
+          isCurrent: true,
           metadata: {
             expiresAt: sourceOutput.expiresAt ?? null,
+            generatedBy: "soundkit",
+            processingVersion: ENRICHMENT_PIPELINE_VERSION,
             sourceAssetId,
             stemsplitJobId,
           },
           mimeType: copied.mimeType,
-          objectKey: copied.objectKey,
+          processingVersion: ENRICHMENT_PIPELINE_VERSION,
+          purpose: "stem",
           sizeBytes: copied.sizeBytes,
+          sourceAssetId,
           status: "ready",
-          storageProvider: "r2",
           trackId,
+          updatedAt: new Date(),
           uploaderUserId: sourceAsset?.uploaderUserId ?? null,
-        })
-        .onConflictDoUpdate({
-          set: {
-            assetKind,
-            bucketName: copied.bucketName,
-            metadata: {
-              expiresAt: sourceOutput.expiresAt ?? null,
-              sourceAssetId,
-              stemsplitJobId,
-            },
-            mimeType: copied.mimeType,
-            sizeBytes: copied.sizeBytes,
-            status: "ready",
-            trackId,
-            updatedAt: new Date(),
-            uploaderUserId: sourceAsset?.uploaderUserId ?? null,
-          },
-          target: [trackAssets.storageProvider, trackAssets.objectKey],
-        })
-        .returning();
+        },
+        target: [trackAssets.storageProvider, trackAssets.objectKey],
+      })
+      .returning();
 
     return asset ?? null;
   },
@@ -382,20 +394,31 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
     return response.json() as Promise<OpenAiVerboseTranscriptionResponse>;
   },
   transcribeVocals = async ({
-    objectKey,
+    assetId,
     trackId,
   }: {
-    objectKey: string;
+    assetId: string;
     trackId: string;
   }) => {
     try {
-      const sourceUrl = getObjectPublicUrl(objectKey);
-
-      if (!sourceUrl) {
-        return null;
+      const db = createDb(),
+        [existingLyrics] = await db
+          .select()
+          .from(trackLyrics)
+          .where(
+            and(
+              eq(trackLyrics.trackId, trackId),
+              eq(trackLyrics.sourceAssetId, assetId),
+              eq(trackLyrics.sourceType, "machine_transcription")
+            )
+          )
+          .limit(1);
+      if (existingLyrics) {
+        return existingLyrics;
       }
 
-      const result = await transcribeAudioWithOpenAi(sourceUrl),
+      const sourceUrl = await createSignedMediaSourceUrl({ assetId, trackId }),
+        result = await transcribeAudioWithOpenAi(sourceUrl),
         text = result?.text?.trim() ?? "";
 
       if (!text) {
@@ -403,7 +426,6 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
       }
 
       const timedLines = buildTimedLyricLinesFromWords(result?.words ?? []),
-        db = createDb(),
         [lyrics] = await db
           .insert(trackLyrics)
           .values({
@@ -416,6 +438,7 @@ const fetchAudioFileForOpenAi = async (sourceUrl: string) => {
               provider: "openai",
               timestampGranularity: "word",
             },
+            sourceAssetId: assetId,
             sourceType: "machine_transcription",
             status: "pending_review",
             text,
@@ -639,101 +662,74 @@ const saveEmbedding = async ({
     });
 };
 
-export const processCompletedStemSplitJob = async ({
+export const saveStemSplitOutput = async ({
   assetId,
-  emailQueue,
   job,
+  output,
   trackId,
 }: {
   assetId: string;
+  job: StemSplitJobResponse;
+  output: "instrumental" | "vocals";
+  trackId: string;
+}) => {
+  const sourceOutput = job.outputs?.[output];
+  if (!sourceOutput) {
+    return null;
+  }
+  return saveStemAsset({
+    assetKind: output === "vocals" ? "vocal_stem" : "instrumental",
+    sourceAssetId: assetId,
+    sourceOutput,
+    stemsplitJobId: job.id,
+    targetKey: `processed/tracks/${trackId}/${job.id}/${output}.mp3`,
+    trackId,
+  });
+};
+
+export const transcribeStemSplitVocals = async ({
+  trackId,
+  vocalsAssetId,
+}: {
+  trackId: string;
+  vocalsAssetId: string | null;
+}) => {
+  if (!vocalsAssetId) {
+    return null;
+  }
+  return transcribeVocals({ assetId: vocalsAssetId, trackId });
+};
+
+export const finalizeTrackEnrichment = async ({
+  emailQueue,
+  job,
+  lyrics,
+  trackId,
+}: {
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   job: StemSplitJobResponse;
+  lyrics: null | { id: string; text: string };
   trackId: string;
 }) => {
   const db = createDb(),
-    now = new Date(),
-    targetPrefix = `processed/tracks/${trackId}/${job.id}`,
-    vocalsAsset = job.outputs?.vocals
-      ? await saveStemAsset({
-          assetKind: "vocal_stem",
-          sourceAssetId: assetId,
-          sourceOutput: job.outputs.vocals,
-          stemsplitJobId: job.id,
-          targetKey: `${targetPrefix}/vocals.mp3`,
-          trackId,
-        })
-      : null;
-
-  const [existingTrack] = await db
-      .select({
-        isPublic: tracks.isPublic,
-        productionStatus: tracks.productionStatus,
-        publishedAt: tracks.publishedAt,
-        releaseStrategy: tracks.releaseStrategy,
-      })
-      .from(tracks)
-      .where(eq(tracks.id, trackId))
-      .limit(1),
-    shouldPublish =
-      existingTrack?.releaseStrategy === "publish_when_ready" ||
-      Boolean(existingTrack?.isPublic);
-
+    now = new Date();
   await db
     .update(tracks)
     .set({
-      bpm: job.audioMetadata?.bpm
-        ? Math.round(job.audioMetadata.bpm)
-        : undefined,
-      isPublic: shouldPublish ? true : existingTrack?.isPublic,
-      musicalKey: job.audioMetadata?.key,
-      productionStatus: shouldPublish
-        ? "complete"
-        : (existingTrack?.productionStatus ?? "complete"),
-      publishedAt:
-        shouldPublish && !existingTrack?.publishedAt
-          ? now
-          : existingTrack?.publishedAt,
+      lyricsStatus: lyrics ? "pending_review" : "failed",
       updatedAt: now,
     })
-    .where(eq(tracks.id, trackId));
+    .where(
+      lyrics
+        ? and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved"))
+        : and(eq(tracks.id, trackId), eq(tracks.lyricsStatus, "generating"))
+    );
 
-  await db
-    .update(trackAssets)
-    .set({
-      status: "ready",
-      updatedAt: now,
-    })
-    .where(eq(trackAssets.id, assetId));
-
-  let lyrics = null;
-
-  if (vocalsAsset?.objectKey) {
-    try {
-      lyrics = await transcribeVocals({
-        objectKey: vocalsAsset.objectKey,
-        trackId,
-      });
-    } catch (error) {
-      console.error("OpenAI lyric transcription failed", {
-        error: error instanceof Error ? error.message : String(error),
-        trackId,
-      });
-    }
-  }
-
-  await db
-    .update(tracks)
-    .set({
-      lyricsStatus: lyrics ? "pending_review" : "missing",
-      updatedAt: now,
-    })
-    .where(and(eq(tracks.id, trackId), ne(tracks.lyricsStatus, "approved")));
   const [track] = await db
     .select()
     .from(tracks)
     .where(eq(tracks.id, trackId))
     .limit(1);
-
   if (track) {
     const trackSearchText = [
       track.title,
@@ -743,14 +739,12 @@ export const processCompletedStemSplitJob = async ({
     ]
       .filter(Boolean)
       .join("\n");
-
     await saveEmbedding({
       entityId: track.id,
       entityType: "track",
       organizationId: track.organizationId,
       text: trackSearchText,
     });
-
     if (lyrics) {
       await saveEmbedding({
         entityId: lyrics.id,
@@ -776,27 +770,66 @@ export const processCompletedStemSplitJob = async ({
         eq(trackStemJobs.stemsplitJobId, job.id)
       )
     );
-
   await notifyTrackProcessingComplete({ emailQueue, trackId });
 };
 
-export const processTrackAudio = async ({
+export const processCompletedStemSplitJob = async ({
   assetId,
-  objectKey,
+  emailQueue,
+  job,
   trackId,
-}: TrackProcessingWorkflowPayload) => {
+}: {
+  assetId: string;
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  job: StemSplitJobResponse;
+  trackId: string;
+}) => {
+  const vocalsAsset = await saveStemSplitOutput({
+    assetId,
+    job,
+    output: "vocals",
+    trackId,
+  });
+  await saveStemSplitOutput({
+    assetId,
+    job,
+    output: "instrumental",
+    trackId,
+  });
+  const lyrics = await transcribeStemSplitVocals({
+    trackId,
+    vocalsAssetId: vocalsAsset?.id ?? null,
+  });
+  await finalizeTrackEnrichment({ emailQueue, job, lyrics, trackId });
+};
+
+export const processTrackAudio = async ({
+  sourceAssetId,
+  trackId,
+}: TrackEnrichmentWorkflowPayload) => {
+  const assetId = sourceAssetId;
   if (!isDatabaseConfigured()) {
     throw new Error("DATABASE_URL is required for track processing.");
   }
 
   const db = createDb(),
-    sourceUrl = getObjectPublicUrl(objectKey);
-
-  if (!sourceUrl) {
-    throw new Error("MEDIA_PUBLIC_URL is required for StemSplit source URLs.");
+    [storedJob] = await db
+      .select({ stemsplitJobId: trackStemJobs.stemsplitJobId })
+      .from(trackStemJobs)
+      .where(eq(trackStemJobs.inputAssetId, assetId))
+      .limit(1);
+  if (storedJob?.stemsplitJobId) {
+    const existingJob = await getStemSplitJob(storedJob.stemsplitJobId);
+    if (existingJob) {
+      return existingJob;
+    }
   }
 
-  const submittedJob = await submitStemSplitJob({ sourceUrl });
+  const sourceUrl = await createSignedMediaSourceUrl({
+      assetId,
+      trackId,
+    }),
+    submittedJob = await submitStemSplitJob({ sourceUrl });
 
   if (!submittedJob) {
     throw new Error("STEMSPLIT_API_KEY is required for track processing.");
@@ -821,14 +854,10 @@ export const processTrackAudio = async ({
   return submittedJob;
 };
 
-export const pollAndFinalizeStemSplitJob = async ({
-  assetId,
-  emailQueue,
+export const pollStemSplitJob = async ({
   stemsplitJobId,
   trackId,
 }: {
-  assetId: string;
-  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   stemsplitJobId: string;
   trackId: string;
 }) => {
@@ -854,15 +883,6 @@ export const pollAndFinalizeStemSplitJob = async ({
         eq(trackStemJobs.stemsplitJobId, stemsplitJobId)
       )
     );
-
-  if (job.status === "COMPLETED") {
-    await processCompletedStemSplitJob({
-      assetId,
-      emailQueue,
-      job,
-      trackId,
-    });
-  }
 
   return job;
 };

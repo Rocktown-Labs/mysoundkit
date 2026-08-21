@@ -89,6 +89,7 @@ import {
   useSettleTrackMutation,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
+import type { MediaProcessingStatus } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@/lib/zod-resolver";
 
@@ -143,7 +144,26 @@ const OPTIONAL_COMPONENTS = [
     "Spoken Word",
   ] as const,
   trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
-  SINGLE_PRICE_USD = 1.29;
+  trackMediaProcessingGet = apiClient.v1.tracks[":trackId"].processing.$get,
+  trackGet = apiClient.v1.tracks[":trackId"].$get,
+  SINGLE_PRICE_USD = 1.29,
+  PROCESSING_POLL_INTERVAL_MS = 2000,
+  PROCESSING_BLOCKING_TIMEOUT_MS = 15 * 60 * 1000,
+  PROCESSING_STAGE_LABELS: Record<string, string> = {
+    analyzing_loudness: "Analyzing audio",
+    generating_battle: "Preparing battle audio",
+    generating_download: "Preparing download",
+    generating_lossless: "Preparing lossless audio",
+    generating_open_verse_snippet: "Preparing Open Verse audio",
+    generating_streaming: "Preparing SoundKit stream",
+    media_ready: "SoundKit stream ready",
+    queued: "Waiting for media processor",
+    registering_battle: "Finalizing battle audio",
+    registering_download: "Finalizing download",
+    registering_lossless: "Finalizing lossless audio",
+    registering_streaming: "Finalizing SoundKit stream",
+    verifying_master: "Verifying original master",
+  };
 
 type OptionalComponentKind = (typeof OPTIONAL_COMPONENTS)[number]["kind"];
 
@@ -286,6 +306,31 @@ interface NewTrackFormProps {
   trackId?: string;
 }
 
+const waitForTrackMedia = async ({
+  onStatus,
+  trackId,
+}: {
+  onStatus: (status: MediaProcessingStatus) => void;
+  trackId: string;
+}): Promise<{ status: MediaProcessingStatus; timedOut: boolean }> => {
+  const startedAt = Date.now();
+  while (true) {
+    const status = await rpcJson(
+      await trackMediaProcessingGet({ param: { trackId } })
+    );
+    onStatus(status);
+    if (status.mediaReady || status.status === "failed") {
+      return { status, timedOut: false };
+    }
+    if (Date.now() - startedAt >= PROCESSING_BLOCKING_TIMEOUT_MS) {
+      return { status, timedOut: true };
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, PROCESSING_POLL_INTERVAL_MS)
+    );
+  }
+};
+
 export function NewTrackForm({
   initialTrack,
   trackId,
@@ -317,10 +362,13 @@ export function NewTrackForm({
       | "uploading"
       | "finalizing_upload"
       | "settling"
+      | "processing"
       | "settled"
       | "error"
     >("idle"),
     [submitProgress, setSubmitProgress] = useState(0),
+    [processingStatus, setProcessingStatus] =
+      useState<MediaProcessingStatus | null>(null),
     [createdTrackInfo, setCreatedTrackInfo] = useState<{
       audioFileName?: string;
       audioFileSize?: string;
@@ -1064,7 +1112,6 @@ export function NewTrackForm({
               metadata: {
                 durationMs: masterDurationMs,
                 originalFileName: selectedMasterFile?.name ?? "master.wav",
-                url: masterUrl,
               },
               mimeType: selectedMasterFile?.type || "audio/mpeg",
               objectKey: masterKey,
@@ -1187,7 +1234,6 @@ export function NewTrackForm({
                   metadata: {
                     durationMs: masterDurationMs,
                     originalFileName: selectedMasterFile?.name ?? "master.wav",
-                    url: masterUrl,
                   },
                   mimeType: selectedMasterFile?.type || "audio/mpeg",
                   objectKey: masterKey,
@@ -1204,9 +1250,8 @@ export function NewTrackForm({
           }
         }
 
-        // 8. Track Ready & Succeeded
-        setSubmitStage("settled");
-        setCreatedTrackInfo({
+        // 8. Hand off from browser transfer to durable media processing
+        const createdInfo = {
           audioFileName: selectedMasterFile?.name || "master-audio.wav",
           audioFileSize: selectedMasterFile
             ? `${(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB`
@@ -1215,20 +1260,43 @@ export function NewTrackForm({
           genre: values.genre,
           id: trackIdToUse,
           isPublic: Boolean(settledTrack.isPublic),
-          playbackUrl: masterUrl,
           status: values.status,
           title: values.name,
+        };
+        setCreatedTrackInfo(createdInfo);
+        setSubmitStage("processing");
+        const processingResult = await waitForTrackMedia({
+            onStatus: setProcessingStatus,
+            trackId: trackIdToUse,
+          }),
+          processingFailed = processingResult.status.status === "failed";
+        let streamingPlaybackUrl: string | undefined;
+        if (processingResult.status.mediaReady) {
+          const processedTrack = await rpcJson(
+            await trackGet({ param: { trackId: trackIdToUse } })
+          );
+          streamingPlaybackUrl = processedTrack.playbackUrl ?? undefined;
+        }
+        setCreatedTrackInfo({
+          ...createdInfo,
+          playbackUrl: streamingPlaybackUrl,
         });
+        setSubmitStage("settled");
 
         toast({
-          description:
-            values.status === "ready"
-              ? `${values.name} is ready and live.`
-              : `${values.name} is saved as a private draft.`,
-          title:
-            values.status === "ready"
-              ? "Track is live"
-              : "Track setup complete",
+          description: processingFailed
+            ? `${values.name} is saved. Media processing needs a retry from the track dashboard.`
+            : processingResult.timedOut
+              ? `${values.name} is saved and continues processing in the background.`
+              : values.status === "ready"
+                ? `${values.name} is processed and live.`
+                : `${values.name} is processed and saved as a private draft.`,
+          title: processingFailed
+            ? "Track saved — processing retry needed"
+            : processingResult.timedOut
+              ? "Track processing in background"
+              : "Track media ready",
+          variant: processingFailed ? "destructive" : "default",
         });
 
         resetDraft();
@@ -1312,10 +1380,15 @@ export function NewTrackForm({
                 <CheckCircle2 className="size-6 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-xl font-bold">Track Uploaded & Ready</h3>
+                <h3 className="text-xl font-bold">
+                  {processingStatus?.mediaReady
+                    ? "Track Media Ready"
+                    : "Track Safely Saved"}
+                </h3>
                 <p className="text-xs text-muted-foreground">
-                  Your audio master asset was processed and recorded
-                  successfully.
+                  {processingStatus?.mediaReady
+                    ? "Previewing the SoundKit streaming derivative your listeners will hear."
+                    : "Your original master is registered. Processing can be retried or monitored from the track dashboard."}
                 </p>
               </div>
             </div>
@@ -1357,6 +1430,7 @@ export function NewTrackForm({
               <Button
                 type="button"
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold gap-2 h-11"
+                disabled={!createdTrackInfo.playbackUrl}
                 onClick={() => {
                   if (createdTrackInfo.playbackUrl) {
                     const playerTrack = {
@@ -1374,7 +1448,9 @@ export function NewTrackForm({
                 }}
               >
                 <Play className="size-4 fill-current" />
-                Play Track Now
+                {createdTrackInfo.playbackUrl
+                  ? "Play SoundKit Stream"
+                  : "Stream Not Ready"}
               </Button>
 
               <div className="grid grid-cols-2 gap-2">
@@ -1429,6 +1505,11 @@ export function NewTrackForm({
                 {submitStage === "finalizing_upload" &&
                   "Finalizing uploaded audio..."}
                 {submitStage === "settling" && "Finishing track setup..."}
+                {submitStage === "processing" &&
+                  (PROCESSING_STAGE_LABELS[
+                    processingStatus?.currentStage ?? "queued"
+                  ] ??
+                    "Processing SoundKit media")}
                 {submitStage === "settled" && "Track ready"}
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -1440,50 +1521,54 @@ export function NewTrackForm({
                   "Registering audio asset..."}
                 {submitStage === "settling" &&
                   "Saving track record and configuration..."}
+                {submitStage === "processing" &&
+                  "The original master is safe. Durable processing will continue if you leave this page."}
                 {submitStage === "settled" && "Track setup complete."}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Progress
-                value={
-                  submitStage === "preparing"
-                    ? 20
-                    : submitStage === "uploading"
-                      ? Math.max(
-                          20,
-                          Math.min(
-                            85,
-                            20 + Math.round(masterUploadPercent * 0.65)
-                          )
-                        )
-                      : submitStage === "finalizing_upload"
-                        ? 90
-                        : submitStage === "settling"
-                          ? 95
-                          : 100
-                }
-                className="h-2"
-              />
-              <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
-                <span>
-                  {submitStage === "uploading"
-                    ? `${masterUploadPercent}% uploaded`
-                    : submitStage === "preparing"
-                      ? "Preparing"
-                      : submitStage === "finalizing_upload"
-                        ? "Registering"
-                        : submitStage === "settling"
-                          ? "Finalizing"
-                          : "Complete"}
-                </span>
-                {selectedMasterFile && (
-                  <span>
-                    {(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB
-                  </span>
-                )}
+            {submitStage === "uploading" ? (
+              <div className="space-y-2">
+                <Progress value={masterUploadPercent} className="h-2" />
+                <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
+                  <span>{masterUploadPercent}% uploaded</span>
+                  {selectedMasterFile && (
+                    <span>
+                      {(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <output className="block rounded-lg border border-border/50 bg-muted/20 p-3 text-xs text-muted-foreground">
+                {submitStage === "processing"
+                  ? (PROCESSING_STAGE_LABELS[
+                      processingStatus?.currentStage ?? "queued"
+                    ] ?? "Processing SoundKit media")
+                  : "Working on the current stage…"}
+              </output>
+            )}
+
+            {submitStage === "processing" && createdTrackInfo && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  resetDraft();
+                  allowNavigation();
+                  pendingMasterTrackRef.current = null;
+                  toast({
+                    description:
+                      "Your master is safe and SoundKit media processing will continue.",
+                    title: "Continuing in background",
+                  });
+                  void router.navigate({ to: "/dashboard/tracks" });
+                }}
+              >
+                Continue in background
+              </Button>
+            )}
 
             {submitStage === "uploading" && masterProgresses.length > 0 && (
               <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-left space-y-2 max-h-36 overflow-y-auto">

@@ -82,6 +82,7 @@ import type {
   lyricsRevisionSchema,
   meResponseSchema,
   messageSchema,
+  mediaProcessingStatusSchema,
   notificationSettingsSchema,
   openVerseListingSchema,
   openVersePageSchema,
@@ -442,6 +443,12 @@ export const rpcContract = new Hono()
     "/v1/tracks/:trackId/settle",
     jsonValidator(settleTrackBodySchema),
     (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
+  )
+  .get("/v1/tracks/:trackId/processing", (c) =>
+    c.json({} as z.infer<typeof mediaProcessingStatusSchema>)
+  )
+  .post("/v1/tracks/:trackId/processing/retry", (c) =>
+    c.json({} as z.infer<typeof mediaProcessingStatusSchema>, 202)
   )
   .post("/v1/tracks/:trackId/process", (c) =>
     c.json({} as z.infer<typeof trackProcessingStatusSchema>)

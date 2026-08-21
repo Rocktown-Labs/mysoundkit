@@ -19,12 +19,14 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   formatDuration,
+  guardedTrackPlaybackUrl,
   objectUrlFromMetadata,
   publicAssetUrl,
   publicProjectAssetUrl,
 } from "@/lib/asset-urls";
 import { canonicalGenreName } from "@/lib/genre-catalog";
 import { regionSlugFromUser } from "@/lib/public-explore";
+import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 
 const mapAssetForDashboard = (
     asset:
@@ -85,7 +87,25 @@ const mapAssetForDashboard = (
       (asset) =>
         asset.assetKind === "vocal_stem" || asset.assetKind === "verse_vocal"
     ).length,
-  });
+  }),
+  mediaStatusFromAssets = ({
+    assets,
+    mediaReady,
+  }: {
+    assets: InferSelectModel<typeof trackAssets>[];
+    mediaReady: boolean;
+  }): "failed" | "not_started" | "ready" | "running" => {
+    if (mediaReady) {
+      return "ready";
+    }
+    if (assets.some((asset) => asset.status === "failed")) {
+      return "failed";
+    }
+    if (assets.some((asset) => asset.status === "processing")) {
+      return "running";
+    }
+    return "not_started";
+  };
 
 export const mapTrackSummary = ({
   artistName,
@@ -107,17 +127,23 @@ export const mapTrackSummary = ({
   row: InferSelectModel<typeof tracks>;
 }) => {
   const coverAsset = assets.find((asset) => asset.assetKind === "cover_art"),
-    primaryAudioAsset =
-      assets.find((asset) => asset.assetKind === "master") ??
-      assets.find(
-        (asset) => typeof asset.durationMs === "number" && asset.durationMs > 0
-      ) ??
-      assets.find(
-        (asset) =>
-          asset.assetKind === "untagged_wav" ||
-          asset.assetKind === "tagged_mp3" ||
-          asset.assetKind === "instrumental"
-      ),
+    masterAsset = resolveTrackAssetFromRows({
+      assets,
+      purpose: "master",
+      trackId: row.id,
+    }),
+    primaryAudioAsset = resolveTrackAssetFromRows({
+      allowLegacyFallback: true,
+      assets,
+      purpose: "streaming",
+      trackId: row.id,
+    }),
+    downloadAsset = resolveTrackAssetFromRows({
+      allowLegacyFallback: true,
+      assets,
+      purpose: "consumer_download",
+      trackId: row.id,
+    }),
     resolvedDurationMs =
       primaryAudioAsset?.durationMs ??
       assets.find(
@@ -143,8 +169,8 @@ export const mapTrackSummary = ({
     catalogItemType: row.catalogItemType,
     collaboratorCount,
     coverArtUrl: objectUrlFromMetadata(coverAsset?.metadata) ?? null,
-    downloadUrl: primaryAudioAsset
-      ? `/v1/tracks/${row.id}/assets/${primaryAudioAsset.id}/download`
+    downloadUrl: downloadAsset
+      ? `/v1/tracks/${row.id}/assets/${downloadAsset.id}/download`
       : null,
     downloadsAllowed: row.downloadsAllowed,
     downloadsRequireFirstPlay: row.downloadsRequireFirstPlay,
@@ -159,6 +185,14 @@ export const mapTrackSummary = ({
     isrc: row.isrc,
     listeningAccess: row.listeningAccess,
     lyricsStatus: row.lyricsStatus,
+    masterDownloadUrl: masterAsset
+      ? `/v1/tracks/${row.id}/assets/${masterAsset.id}/download`
+      : null,
+    mediaReady: Boolean(primaryAudioAsset),
+    mediaStatus: mediaStatusFromAssets({
+      assets,
+      mediaReady: Boolean(primaryAudioAsset),
+    }),
     musicalKey: row.musicalKey,
     organizationId: row.organizationId,
     playbackUrl:
@@ -166,7 +200,9 @@ export const mapTrackSummary = ({
       row.listeningAccess === "premium_or_purchased" &&
       (!row.exclusiveUntil || row.exclusiveUntil > new Date())
         ? null
-        : publicAssetUrl(primaryAudioAsset),
+        : primaryAudioAsset
+          ? guardedTrackPlaybackUrl(row.id)
+          : null,
     plays: plays ?? 0,
     previewUrl: publicAssetUrl(previewAsset),
     price: row.price ? Number(row.price) : null,
@@ -400,6 +436,7 @@ export const buildProjectSummary = async (
     duration: durationMs > 0 ? formatDuration(durationMs) : "0:00",
     durationMs,
     exclusiveUntil: row.exclusiveUntil?.toISOString() ?? null,
+    exportVersion: row.exportVersion,
     genre: primaryGenre ? canonicalGenreName(primaryGenre) : null,
     id: row.id,
     isForSale: row.isForSale,

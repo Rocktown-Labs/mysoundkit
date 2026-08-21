@@ -34,6 +34,8 @@ import {
   evaluateBattleKitReadiness,
   validateBattleKitTracks,
 } from "@/lib/battle-kits";
+import { notifyBattleChallengeEmail } from "@/lib/email-events";
+import { resolveTrackAssetFromRows } from "@/lib/track-asset-resolver";
 import {
   forbiddenMessage,
   isAuthenticatedSession,
@@ -368,7 +370,7 @@ app.openapi(
       );
     }
 
-    const [ownedTracks, approvedLyricsRows] = await Promise.all([
+    const [ownedTracks, approvedLyricsRows, mediaAssetRows] = await Promise.all([
         db
           .select({ id: tracks.id })
           .from(tracks)
@@ -391,6 +393,15 @@ app.openapi(
             and(
               inArray(trackLyrics.trackId, trackIds),
               eq(trackLyrics.status, "approved")
+            )
+          ),
+        db
+          .select()
+          .from(trackAssets)
+          .where(
+            and(
+              inArray(trackAssets.trackId, trackIds),
+              eq(trackAssets.isCurrent, true)
             )
           ),
       ]),
@@ -420,14 +431,23 @@ app.openapi(
       }
 
       const approvedLyrics = approvedLyricsByTrackId.get(trackId),
-        hasSynchronizedLyrics = (approvedLyrics?.timedLines?.length ?? 0) > 0;
+        hasSynchronizedLyrics = (approvedLyrics?.timedLines?.length ?? 0) > 0,
+        battleAsset = resolveTrackAssetFromRows({
+          allowLegacyFallback: true,
+          assets: mediaAssetRows.filter((asset) => asset.trackId === trackId),
+          purpose: "battle",
+          trackId,
+        }),
+        ready = hasSynchronizedLyrics && Boolean(battleAsset);
 
       return {
         lyricsRevisionId: approvedLyrics?.id ?? null,
-        ready: hasSynchronizedLyrics,
-        reason: hasSynchronizedLyrics
-          ? null
-          : "Approved synchronized lyrics are required for battle tracks.",
+        ready,
+        reason: !hasSynchronizedLyrics
+          ? "Approved synchronized lyrics are required for battle tracks."
+          : !battleAsset
+            ? "SoundKit battle audio is still processing."
+            : null,
         trackId,
       };
     });

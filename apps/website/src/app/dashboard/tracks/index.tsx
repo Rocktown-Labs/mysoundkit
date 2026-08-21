@@ -39,6 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { downloadFileFromApi } from "@/lib/api";
+import { privatePreviewQueue } from "@/lib/player-queue";
 import {
   useDeleteTrackMutation,
   useMeQuery,
@@ -128,11 +129,11 @@ function TracksPage() {
         return;
       }
 
-      setQueue(playableTracks);
+      setQueue(privatePreviewQueue(track));
       setCurrentTrack(track);
     },
     downloadTrackMaster = async (track: (typeof tracks)[number]) => {
-      if (!track.downloadUrl) {
+      if (!track.masterDownloadUrl) {
         toast({
           description:
             "No guarded master download is available for this track.",
@@ -145,7 +146,7 @@ function TracksPage() {
       try {
         await downloadFileFromApi({
           fallbackFileName: `${track.title}.download`,
-          url: track.downloadUrl,
+          url: track.masterDownloadUrl,
         });
         toast({
           description: `Downloading ${track.title}...`,

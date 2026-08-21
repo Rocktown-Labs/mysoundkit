@@ -499,6 +499,11 @@ export const trackSummarySchema = z.object({
   lyricsStatus: z
     .enum(["missing", "generating", "pending_review", "approved", "failed"])
     .default("missing"),
+  masterDownloadUrl: z.string().nullable().optional(),
+  mediaReady: z.boolean().optional(),
+  mediaStatus: z
+    .enum(["not_started", "queued", "running", "ready", "partial", "failed"])
+    .optional(),
   musicalKey: z.string().nullable().optional(),
   organizationId: z.string().nullable().optional(),
   playbackUrl: z.string().nullable().optional(),
@@ -824,6 +829,7 @@ export const projectSummarySchema = z.object({
   duration: z.string().optional(),
   durationMs: z.number().int().nonnegative().optional(),
   exclusiveUntil: z.string().nullable().optional(),
+  exportVersion: z.number().int().positive().default(1),
   genre: z.string().nullable().optional(),
   id: z.string(),
   isForSale: z.boolean().default(false),
@@ -1678,11 +1684,18 @@ export const openVerseListingSchema = z.object({
   id: z.string(),
   maxSubmissions: z.number().int(),
   musicalKey: z.string().nullable(),
+  ownerUserId: z.string(),
   playbackUrl: z.string().nullable(),
   previewAssetId: z.string().nullable(),
   slotEndsAtMs: z.number().int().nullable(),
   slotStartsAtMs: z.number().int().nullable(),
-  status: z.enum(["open", "closed", "fulfilled", "archived"]),
+  status: z.enum([
+    "open",
+    "closed",
+    "fulfilled",
+    "awaiting_final_master",
+    "archived",
+  ]),
   submissionCount: z.number().int(),
   title: z.string(),
   trackId: z.string(),
@@ -1758,6 +1771,38 @@ export const openVerseSubmissionSchema = z.object({
   ]),
   submitterUserId: z.string(),
   vocalStemAssetId: z.string().nullable(),
+});
+
+const mediaPurposeStatusSchema = z.enum([
+  "waiting",
+  "processing",
+  "ready",
+  "failed",
+  "not_applicable",
+]);
+
+export const mediaProcessingStatusSchema = z.object({
+  assets: z.object({
+    battle: mediaPurposeStatusSchema,
+    download: mediaPurposeStatusSchema,
+    lossless: mediaPurposeStatusSchema,
+    master: mediaPurposeStatusSchema,
+    streaming: mediaPurposeStatusSchema,
+  }),
+  currentStage: z.string().nullable(),
+  jobId: z.string().nullable(),
+  mediaReady: z.boolean(),
+  processingComplete: z.boolean(),
+  retryable: z.boolean(),
+  status: z.enum([
+    "not_started",
+    "queued",
+    "running",
+    "ready",
+    "partial",
+    "failed",
+  ]),
+  workflowInstanceId: z.string().nullable(),
 });
 
 export const trackProcessingStatusSchema = z.object({
