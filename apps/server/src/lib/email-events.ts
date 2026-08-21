@@ -753,7 +753,6 @@ export const notifyPayoutFailedEmail = async ({
     footerNote: accountFooter,
     heading: "Payout action required",
     idempotencyKey: `payout-failed/${recipientUserId}/${Date.now()}`,
-    preference: "sales",
     previewText: "Your SoundKit payout requires attention.",
     queue,
     recipient,

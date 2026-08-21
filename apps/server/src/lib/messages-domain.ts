@@ -1,3 +1,4 @@
+/* eslint-disable one-var, require-unicode-regexp, typescript/no-non-null-assertion */
 export interface CandidateUser {
   displayName: string;
   email?: string | null;
@@ -46,6 +47,43 @@ export const resolveConversationTitle = ({
     return participantNames[0]!;
   }
   return participantNames.join(", ");
+};
+
+export interface ConversationUnreadEntry {
+  conversationId: string;
+  conversationType: "battle_live" | "direct" | "group";
+  participantUserId: string | null;
+  unreadCount: number;
+}
+
+export const resolveConversationUnreadCount = ({
+  conversationId,
+  conversationType,
+  entries,
+  participantUserId,
+}: {
+  conversationId: string;
+  conversationType: ConversationUnreadEntry["conversationType"];
+  entries: ConversationUnreadEntry[];
+  participantUserId: string | null;
+}): number => {
+  if (conversationType !== "direct" || !participantUserId) {
+    return (
+      entries.find((entry) => entry.conversationId === conversationId)
+        ?.unreadCount ?? 0
+    );
+  }
+
+  let unreadCount = 0;
+  for (const entry of entries) {
+    if (
+      entry.conversationType === "direct" &&
+      entry.participantUserId === participantUserId
+    ) {
+      unreadCount += entry.unreadCount;
+    }
+  }
+  return unreadCount;
 };
 
 export const normalizeParticipantIds = ({

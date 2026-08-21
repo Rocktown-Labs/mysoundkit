@@ -61,6 +61,7 @@ import { usePresence } from "@/lib/presence-context";
 import {
   useFriendsQuery,
   useLibrarySavedQuery,
+  useMarkConversationReadMutation,
   useMeQuery,
   usePeopleSearchQuery,
   useStartConversationMutation,
@@ -136,6 +137,7 @@ function MessagesPageClient() {
     meQuery = useMeQuery(),
     conversationsQuery = useMessagingConversations(),
     friendsQuery = useFriendsQuery(),
+    { mutate: markConversationRead } = useMarkConversationReadMutation(),
     uploadedTracksQuery = useTracksQuery(),
     savedTracksQuery = useLibrarySavedQuery(),
     {
@@ -438,6 +440,12 @@ function MessagesPageClient() {
       setTargetFriendId(friend.id);
       setIsNewChatOpen(true);
     };
+
+  useEffect(() => {
+    if (selectedId) {
+      markConversationRead(selectedId);
+    }
+  }, [markConversationRead, messagesQuery.data.length, selectedId]);
 
   const isSelectedConvoOnline = selectedConversation?.participantId
     ? isUserOnline(selectedConversation.participantId)

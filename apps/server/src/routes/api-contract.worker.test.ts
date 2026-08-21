@@ -100,6 +100,10 @@ const API_ORIGIN = "http://soundkit.test",
     ["post", "/v1/messages/conversations"],
     ["get", "/v1/messages/conversations/{conversationId}/messages"],
     ["post", "/v1/messages/conversations/{conversationId}/messages"],
+    ["post", "/v1/messages/conversations/{conversationId}/read"],
+    ["get", "/v1/notifications"],
+    ["post", "/v1/notifications/{notificationId}/read"],
+    ["post", "/v1/notifications/read-all"],
     ["post", "/v1/onboarding/artist"],
     ["post", "/v1/onboarding/fan"],
     ["get", "/v1/onboarding/username-availability"],
@@ -193,6 +197,21 @@ describe("SoundKit API HTTP contracts", () => {
         `${method.toUpperCase()} ${path}`
       ).toBeGreaterThan(0);
     }
+  });
+
+  it("returns an honest empty notification feed without authentication", async () => {
+    const { body, response } = await fetchJson<{
+      items: unknown[];
+      nextCursor: string | null;
+      unreadCount: number;
+    }>("/v1/notifications?limit=20");
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      items: [],
+      nextCursor: null,
+      unreadCount: 0,
+    });
   });
 
   it("keeps observability request IDs on success and error responses", async () => {

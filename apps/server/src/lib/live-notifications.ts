@@ -1,3 +1,4 @@
+import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import type { LiveExperienceKind } from "@/lib/live-experience";
 import { fanoutGoLiveNotifications } from "@/lib/live-experience-events";
 
@@ -35,7 +36,8 @@ export const enqueueLiveStartedNotification = async ({
 };
 
 export const handleLiveNotificationQueue = async (
-  batch: MessageBatch<LiveNotificationQueueMessage>
+  batch: MessageBatch<LiveNotificationQueueMessage>,
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null
 ) => {
   for (const message of batch.messages) {
     if (message.body.eventType !== "live_started") {
@@ -44,7 +46,10 @@ export const handleLiveNotificationQueue = async (
     }
 
     try {
-      await fanoutGoLiveNotifications(message.body);
+      await fanoutGoLiveNotifications({
+        ...message.body,
+        emailQueue,
+      });
       message.ack();
     } catch (error) {
       console.error("Live notification queue delivery failed", {

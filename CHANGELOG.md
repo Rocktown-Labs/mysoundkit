@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added a centralized web notification dispatcher with deterministic in-app/email idempotency, preference policy, self-notification prevention, event metadata for future aggregation, and a delayed Cloudflare Queue for presence-aware missed-message email evaluation.
+- Added real conversation read state and unread counts, notification-feed cursor pagination, mark-one-read support, follower live emails, video comment alerts, collaborator track-live alerts, and missing friend/collaboration/battle/Open Verse response emails.
 - Comprehensively updated repository `README.md` with full technical architecture diagram, deep-dive breakdowns of all applications (`apps/server`, `apps/website`, `apps/native`, `apps/docs`) and shared packages (`@soundkit/*`), client-side MediaBunny audio engine details, Durable Object / Workflow background workers, local development guide, database operations, and quality verification gates.
 - Added go-live CTA for queued battle viewers: queued users now receive an in-app notification and global toast when their battle opens, with a chooser dialog that navigates straight into the arena (auto-transition is used when watching a single queued battle from its own page).
 - Raised battle admission capacity so thousands of fans can queue per live activity: the admission batch size is now configurable via the `BATTLE_ADMISSION_BATCH_SIZE` env var (default 1000) instead of a hardcoded 50.
@@ -14,6 +16,8 @@
 
 ### Fixed
 
+- Fixed mobile signup smoke navigation by using reliable document navigation for artist and fan credential links, with explicit route assertions for both paths.
+- Fixed the notification badge/feed mismatch that could show unread activity while rendering an empty dropdown; unread totals now query all persisted notifications rather than only the first page.
 - Resolved track upload race condition and conflicting state transitions in `NewTrackForm` and track settlement pipeline:
   - Made `@better-upload/client` and `@better-upload/server` the authoritative async upload layer using `uploadMasterAsync`, `uploadComponentsAsync`, and `uploadCoverAsync` with deterministic file matching instead of arbitrary index lookups.
   - Eliminated parallel upload progress simulation, wiring the upload modal and `FileUploadZone` directly to Better Upload's `masterProgresses` and real percentage state.
@@ -31,6 +35,7 @@
 
 ### Changed
 
+- Clarified broad email notification preferences with new Messages and Live controls, and hid nonfunctional web push settings until a real push delivery channel exists.
 - Updated repository `README.md` footer attribution to Rocktown Labs.
 - Reworked `/dashboard/messages` into a mobile-app-style experience: on mobile the conversation list is the landing view, tapping a conversation opens that chat full-screen with a back button, and the list returns after back instead of forcing the first conversation open.
 - Closing the floating chat bar by expanding into the full messages page now resets its state, so navigating back returns to the collapsed bar instead of an open chat.

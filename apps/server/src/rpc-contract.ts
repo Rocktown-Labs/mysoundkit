@@ -105,8 +105,8 @@ import type {
   messageResponseSchema,
   workspaceDetailSchema,
   workspaceSummarySchema,
-
-  onboardingStateSchema} from "./lib/schemas";
+  onboardingStateSchema,
+} from "./lib/schemas";
 
 const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     validator("json", (value) => schema.parse(value) as z.infer<Schema>),
@@ -146,18 +146,22 @@ const jsonValidator = <Schema extends z.ZodType>(schema: Schema) =>
     name: z.string(),
     slug: z.string(),
   }),
-  notificationSummarySchema = z
-    .object({
-      body: z.string(),
-      createdAt: z.string(),
-      id: z.string(),
-      readAt: z.string().nullable(),
-      title: z.string(),
-      type: z.string(),
-    })
-    .passthrough(),
+  notificationSummarySchema = z.object({
+    createdAt: z.string(),
+    id: z.string(),
+    link: z.string().nullable(),
+    message: z.string(),
+    read: z.boolean(),
+    title: z.string(),
+    type: z.string(),
+  }),
+  notificationsQuerySchema = z.object({
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+  }),
   notificationsResponseSchema = z.object({
-    notifications: z.array(notificationSummarySchema),
+    items: z.array(notificationSummarySchema),
+    nextCursor: z.string().nullable(),
     unreadCount: z.number().int().nonnegative(),
   }),
   followResponseSchema = z.object({
@@ -362,6 +366,9 @@ export const rpcContract = new Hono()
   )
   .get("/v1/messages/conversations/:conversationId/messages", (c) =>
     c.json([] as z.infer<typeof messageSchema>[])
+  )
+  .post("/v1/messages/conversations/:conversationId/read", (c) =>
+    c.json({ readAt: "", success: true })
   )
   .post(
     "/v1/messages/conversations/:conversationId/messages",
@@ -715,12 +722,16 @@ export const rpcContract = new Hono()
       }
     )
   )
-  .get("/v1/notifications/", (c) =>
-    c.json({} as z.infer<typeof notificationsResponseSchema>)
+  .get(
+    "/v1/notifications/",
+    validator("query", (value) => notificationsQuerySchema.parse(value)),
+    (c) => c.json({} as z.infer<typeof notificationsResponseSchema>)
   )
-  .post("/v1/notifications/read-all", (c) =>
-    c.json({} as z.infer<typeof messageResponseSchema>)
+  .post("/v1/notifications/:notificationId/read", (c) =>
+    c.json({ success: true })
   )
+  .post("/v1/notifications/read-all", (c) => c.json({ success: true }))
+  .post("/v1/notifications/clear", (c) => c.json({ success: true }))
   .get(
     "/v1/open-verses/",
     validator("query", (value) => openVerseQuerySchema.parse(value)),

@@ -71,6 +71,7 @@ import {
   useConversationsQuery,
   useFriendsQuery,
   useLibrarySavedQuery,
+  useMarkConversationReadMutation,
   useMeQuery,
   useStartConversationMutation,
   useTracksQuery,
@@ -165,6 +166,7 @@ function FloatingChatBarClient() {
       select: (state) => state.location.pathname,
     }),
     meQuery = useMeQuery(),
+    { mutate: markConversationRead } = useMarkConversationReadMutation(),
     isArtist =
       meQuery.data?.user.accountType === "artist" ||
       meQuery.data?.user.role === "admin",
@@ -308,6 +310,12 @@ function FloatingChatBarClient() {
       setActiveConversationId("");
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (isOpen && view === "chat" && conversationId) {
+      markConversationRead(conversationId);
+    }
+  }, [conversationId, isOpen, markConversationRead, messages.length, view]);
 
   if (
     !isArtist ||

@@ -77,6 +77,7 @@ function SignupPage() {
                 account_type: "artist",
               })
             }
+            reloadDocument
             to="/signup/artist/credentials"
             className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
@@ -126,6 +127,7 @@ function SignupPage() {
             onClick={() =>
               posthog.capture("signup_type_selected", { account_type: "fan" })
             }
+            reloadDocument
             to="/signup/fan/credentials"
             className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >

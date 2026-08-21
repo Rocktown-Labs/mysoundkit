@@ -4,6 +4,7 @@ import {
   filterSearchCandidates,
   normalizeParticipantIds,
   resolveConversationTitle,
+  resolveConversationUnreadCount,
 } from "./messages-domain";
 
 describe("Messages Domain & User Search", () => {
@@ -79,6 +80,51 @@ describe("Messages Domain & User Search", () => {
       });
 
       expect(ids).toEqual(["user_luna", "user_marcus"]);
+    });
+  });
+
+  describe("resolveConversationUnreadCount", () => {
+    const entries = [
+      {
+        conversationId: "direct_new",
+        conversationType: "direct" as const,
+        participantUserId: "user_luna",
+        unreadCount: 2,
+      },
+      {
+        conversationId: "direct_legacy",
+        conversationType: "direct" as const,
+        participantUserId: "user_luna",
+        unreadCount: 3,
+      },
+      {
+        conversationId: "group_1",
+        conversationType: "group" as const,
+        participantUserId: "user_luna",
+        unreadCount: 4,
+      },
+    ];
+
+    it("combines unread messages from deduplicated direct threads", () => {
+      expect(
+        resolveConversationUnreadCount({
+          conversationId: "direct_new",
+          conversationType: "direct",
+          entries,
+          participantUserId: "user_luna",
+        })
+      ).toBe(5);
+    });
+
+    it("keeps group unread counts scoped to their conversation", () => {
+      expect(
+        resolveConversationUnreadCount({
+          conversationId: "group_1",
+          conversationType: "group",
+          entries,
+          participantUserId: "user_luna",
+        })
+      ).toBe(4);
     });
   });
 

@@ -7,7 +7,6 @@ import {
   trackPreSaves,
   tracks,
   userFollows,
-  userNotifications,
   userProfiles,
   videoPreSaves,
   videos,
@@ -15,7 +14,8 @@ import {
 import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
-import { notifyArtistReleaseEmail } from "@/lib/email-events";
+import { notify } from "@/lib/notifications";
+import { notifyTrackLive } from "@/lib/track-notifications";
 
 const loadReleaseAudience = async ({
   ownerUserId,
@@ -87,6 +87,7 @@ export const publishDueTrackReleases = async ({
       .update(tracks)
       .set({ isPublic: true, releaseStrategy: "publish_when_ready" })
       .where(eq(tracks.id, track.id));
+    await notifyTrackLive({ emailQueue, trackId: track.id });
 
     const preSavers = await db
         .select({ userId: trackPreSaves.userId })
@@ -98,28 +99,25 @@ export const publishDueTrackReleases = async ({
       });
 
     for (const subscriberId of subscriberIds) {
-      const [notification] = await db
-        .insert(userNotifications)
-        .values({
-          id: `track_release:${track.id}:${subscriberId}`,
-          link: `/tracks/${track.id}`,
-          message: `"${track.title}" is now available to listen.`,
-          title: "New release available",
-          type: "track_release",
-          userId: subscriberId,
-        })
-        .onConflictDoNothing()
-        .returning({ id: userNotifications.id });
-      if (notification) {
-        notified += 1;
-        await notifyArtistReleaseEmail({
-          artistName: track.artistName ?? "An artist you follow",
-          contentId: track.id,
-          contentTitle: track.title,
-          contentType: "track",
-          queue: emailQueue,
+      const result = await notify(
+        {
+          actorUserId: track.ownerUserId,
+          aggregationKey: `releases:${track.ownerUserId}`,
+          data: {
+            artistName: track.artistName ?? "An artist you follow",
+            contentId: track.id,
+            contentTitle: track.title,
+            contentType: "track",
+          },
+          entity: { id: track.id, type: "track" },
+          eventId: track.id,
           recipientUserId: subscriberId,
-        });
+          type: "artist.release",
+        },
+        { emailQueue }
+      );
+      if (result.inApp === "created") {
+        notified += 1;
       }
     }
   }
@@ -154,28 +152,25 @@ export const publishDueTrackReleases = async ({
         preSavedUserIds: preSavers.map((entry) => entry.userId),
       });
     for (const subscriberId of subscriberIds) {
-      const [notification] = await db
-        .insert(userNotifications)
-        .values({
-          id: `project_release:${project.id}:${subscriberId}`,
-          link: `/projects/${project.id}`,
-          message: `"${project.title}" is now available.`,
-          title: "New project available",
-          type: "project_release",
-          userId: subscriberId,
-        })
-        .onConflictDoNothing()
-        .returning({ id: userNotifications.id });
-      if (notification) {
-        notified += 1;
-        await notifyArtistReleaseEmail({
-          artistName: project.artistName ?? "An artist you follow",
-          contentId: project.id,
-          contentTitle: project.title,
-          contentType: "project",
-          queue: emailQueue,
+      const result = await notify(
+        {
+          actorUserId: project.ownerUserId,
+          aggregationKey: `releases:${project.ownerUserId}`,
+          data: {
+            artistName: project.artistName ?? "An artist you follow",
+            contentId: project.id,
+            contentTitle: project.title,
+            contentType: "project",
+          },
+          entity: { id: project.id, type: "project" },
+          eventId: project.id,
           recipientUserId: subscriberId,
-        });
+          type: "artist.release",
+        },
+        { emailQueue }
+      );
+      if (result.inApp === "created") {
+        notified += 1;
       }
     }
   }
@@ -210,28 +205,25 @@ export const publishDueTrackReleases = async ({
         preSavedUserIds: preSavers.map((entry) => entry.userId),
       });
     for (const subscriberId of subscriberIds) {
-      const [notification] = await db
-        .insert(userNotifications)
-        .values({
-          id: `video_release:${video.id}:${subscriberId}`,
-          link: `/videos/${video.id}`,
-          message: `"${video.title}" is now available.`,
-          title: "New video available",
-          type: "video_release",
-          userId: subscriberId,
-        })
-        .onConflictDoNothing()
-        .returning({ id: userNotifications.id });
-      if (notification) {
-        notified += 1;
-        await notifyArtistReleaseEmail({
-          artistName: video.artistName ?? "An artist you follow",
-          contentId: video.id,
-          contentTitle: video.title,
-          contentType: "video",
-          queue: emailQueue,
+      const result = await notify(
+        {
+          actorUserId: video.ownerUserId,
+          aggregationKey: `releases:${video.ownerUserId}`,
+          data: {
+            artistName: video.artistName ?? "An artist you follow",
+            contentId: video.id,
+            contentTitle: video.title,
+            contentType: "video",
+          },
+          entity: { id: video.id, type: "video" },
+          eventId: video.id,
           recipientUserId: subscriberId,
-        });
+          type: "artist.release",
+        },
+        { emailQueue }
+      );
+      if (result.inApp === "created") {
+        notified += 1;
       }
     }
   }

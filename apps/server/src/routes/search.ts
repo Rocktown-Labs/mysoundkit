@@ -146,6 +146,7 @@ app.openapi(
         searchArtists
           ? db
               .select({
+                avatarUrl: userProfiles.avatarUrl,
                 city: userProfiles.city,
                 displayName: userProfiles.displayName,
                 followerCount: artistProfiles.followerCount,
@@ -259,6 +260,8 @@ app.openapi(
 
     const response = publicSearchResultSchema.parse({
       artists: artistRows.map((artist) => ({
+        avatarUrl:
+          (artist as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
         followers: artist.followerCount,
         genre: artist.genre
           ? canonicalGenreName(artist.genre)

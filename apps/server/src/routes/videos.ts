@@ -30,6 +30,7 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
+import { notify } from "@/lib/notifications";
 import { createTrackPlaybackSession } from "@/lib/playback-qualification";
 import {
   genreSlugFromExploreFilter,
@@ -774,15 +775,50 @@ app.openapi(
       videoId,
     });
 
-    const [author] = await db
-      .select({
-        avatarUrl: userProfiles.avatarUrl,
-        displayName: userProfiles.displayName,
-        username: userProfiles.username,
-      })
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, currentUser.id))
-      .limit(1);
+    const [[author], [video]] = await Promise.all([
+      db
+        .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
+          username: userProfiles.username,
+        })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, currentUser.id))
+        .limit(1),
+      db
+        .select({
+          ownerUserId: videos.ownerUserId,
+          title: videos.title,
+        })
+        .from(videos)
+        .where(eq(videos.id, videoId))
+        .limit(1),
+    ]);
+
+    if (video) {
+      await notify(
+        {
+          actorUserId: currentUser.id,
+          aggregationKey: `video_comments:${videoId}`,
+          data: {
+            actorName:
+              author?.displayName ??
+              author?.username ??
+              currentUser.name ??
+              "Someone",
+            commentId,
+            commentPreview: body,
+            videoId,
+            videoTitle: video.title,
+          },
+          entity: { id: videoId, type: "video" },
+          eventId: commentId,
+          recipientUserId: video.ownerUserId,
+          type: "video.comment.created",
+        },
+        { emailQueue: c.env.EMAIL_DELIVERY_QUEUE }
+      );
+    }
 
     return c.json(
       {
