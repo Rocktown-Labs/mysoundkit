@@ -46,6 +46,38 @@ export interface MediaClip {
   startMs: number;
 }
 
+// The Media Processor Container boots on demand; without an explicit deadline
+// a failed boot or wedged FFmpeg job hangs the caller until the Workers
+// runtime kills it as "hung". These bounds turn silent hangs into loud,
+// retryable failures.
+const CONTAINER_BOOT_TIMEOUT_MS = 60_000,
+  INSPECT_TIMEOUT_MS = 120_000,
+  LOUDNESS_ANALYSIS_TIMEOUT_MS = 600_000,
+  RENDER_TIMEOUT_MS = 1_200_000;
+
+const describeTimeout = (timeoutMs: number) =>
+  `${Math.round(timeoutMs / 1000)}s`;
+
+const fetchFromContainer = async (
+  container: DurableObjectStub<MediaProcessorContainer>,
+  request: Request,
+  timeoutMs: number
+): Promise<Response> => {
+  try {
+    return await container.fetch(request, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new Error(
+        `Media processor did not respond within ${describeTimeout(timeoutMs)}.`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
+};
+
 export interface CreateDerivativeInput {
   clip?: MediaClip;
   metadata?: Record<string, string>;
@@ -105,12 +137,14 @@ export class ContainerMediaProcessor implements MediaProcessor {
       sourceObjectKey,
       targetObjectKeys: [],
     });
-    const response = await this.container.fetch(
+    const response = await fetchFromContainer(
+      this.container,
       new Request("http://media-processor/v1/inspect", {
         body: JSON.stringify({ sourceObjectKey }),
         headers: { "content-type": "application/json" },
         method: "POST",
-      })
+      }),
+      CONTAINER_BOOT_TIMEOUT_MS + INSPECT_TIMEOUT_MS
     );
     return readProcessorResponse(response, sourceInspectionSchema);
   }
@@ -126,12 +160,14 @@ export class ContainerMediaProcessor implements MediaProcessor {
       sourceObjectKey,
       targetObjectKeys: [],
     });
-    const response = await this.container.fetch(
+    const response = await fetchFromContainer(
+      this.container,
       new Request("http://media-processor/v1/analyze", {
         body: JSON.stringify({ clip, sourceObjectKey }),
         headers: { "content-type": "application/json" },
         method: "POST",
-      })
+      }),
+      CONTAINER_BOOT_TIMEOUT_MS + LOUDNESS_ANALYSIS_TIMEOUT_MS
     );
     return readProcessorResponse(response, loudnessAnalysisSchema);
   }
@@ -147,7 +183,8 @@ export class ContainerMediaProcessor implements MediaProcessor {
       sourceObjectKey,
       targetObjectKeys: [targetObjectKey],
     });
-    const response = await this.container.fetch(
+    const response = await fetchFromContainer(
+      this.container,
       new Request("http://media-processor/v1/render", {
         body: JSON.stringify({
           clip,
@@ -158,7 +195,8 @@ export class ContainerMediaProcessor implements MediaProcessor {
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
-      })
+      }),
+      CONTAINER_BOOT_TIMEOUT_MS + RENDER_TIMEOUT_MS
     );
     const generated = await readProcessorResponse(
       response,

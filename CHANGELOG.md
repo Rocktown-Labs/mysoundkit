@@ -4,6 +4,13 @@
 
 ### Added
 
+- Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
+- Added explicit deadlines to Media Processor Container RPC calls (inspect, loudness analysis, and render) so a container that fails to boot or a wedged FFmpeg job surfaces as a descriptive timeout error instead of hanging the workflow until the runtime cancels it.
+
+### Fixed
+
+- Fixed preview-environment media URLs pointing at a nonexistent `media-pr-<n>` host: local and PR preview stages now build asset URLs from the API origin's guarded `/media` route, while production keeps serving through the dedicated media domain.
+
 - Added a centralized web notification dispatcher with deterministic in-app/email idempotency, preference policy, self-notification prevention, event metadata for future aggregation, and a delayed Cloudflare Queue for presence-aware missed-message email evaluation.
 - Added real conversation read state and unread counts, notification-feed cursor pagination, mark-one-read support, follower live emails, video comment alerts, collaborator track-live alerts, and missing friend/collaboration/battle/Open Verse response emails.
 - Comprehensively updated repository `README.md` with full technical architecture diagram, deep-dive breakdowns of all applications (`apps/server`, `apps/website`, `apps/native`, `apps/docs`) and shared packages (`@soundkit/*`), client-side MediaBunny audio engine details, Durable Object / Workflow background workers, local development guide, database operations, and quality verification gates.

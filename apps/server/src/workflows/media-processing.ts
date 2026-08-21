@@ -18,6 +18,7 @@ import {
   markDerivativeFailed,
   markDerivativeProcessing,
   markOpenVerseSnippetReady,
+  MasterObjectMissingError,
   registerGeneratedDerivative,
   saveSourceInspection,
   verifyCurrentMaster,
@@ -34,6 +35,17 @@ const derivativeRetryConfig = {
     limit: 3,
   },
   timeout: "30 minutes" as const,
+};
+
+// A missing master object (e.g. destroyed preview bucket) or a stale source
+// asset can never succeed on retry, so fail fast instead of burning through
+// Cloudflare's default exponential step retries.
+const masterVerifyRetryConfig = {
+  retries: {
+    delay: "5 seconds" as const,
+    limit: 1,
+  },
+  timeout: "2 minutes" as const,
 };
 
 type DerivativeState = "failed" | "not_applicable" | "ready";
@@ -84,18 +96,22 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      const master = await step.do("verify current master", async () => {
-          const verified = await verifyCurrentMaster({
-            bucket,
-            objectKey: payload.objectKey,
-            sourceAssetId: payload.sourceAssetId,
-            trackId: payload.trackId,
-          });
-          return {
-            id: verified.asset.id,
-            uploaderUserId: verified.asset.uploaderUserId,
-          };
-        }),
+      const master = await step.do(
+          "verify current master",
+          masterVerifyRetryConfig,
+          async () => {
+            const verified = await verifyCurrentMaster({
+              bucket,
+              objectKey: payload.objectKey,
+              sourceAssetId: payload.sourceAssetId,
+              trackId: payload.trackId,
+            });
+            return {
+              id: verified.asset.id,
+              uploaderUserId: verified.asset.uploaderUserId,
+            };
+          }
+        ),
         inspection = await step.do(
           "inspect source technically",
           derivativeRetryConfig,
@@ -334,10 +350,13 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
       };
     } catch (error) {
       await step.do("record terminal media failure", async () => {
+        const isMissingMaster = error instanceof MasterObjectMissingError;
         await updateMediaProcessingJob({
           completedAt: new Date(),
           currentStage: "failed",
-          errorCode: "MEDIA_PROCESSING_FAILED",
+          errorCode: isMissingMaster
+            ? "MASTER_OBJECT_MISSING"
+            : "MEDIA_PROCESSING_FAILED",
           errorMessage:
             error instanceof Error ? error.message : "Media processing failed.",
           output: { statuses },
@@ -348,6 +367,9 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         logError({
           error:
             error instanceof Error ? error.message : "Media processing failed.",
+          errorCode: isMissingMaster
+            ? "MASTER_OBJECT_MISSING"
+            : "MEDIA_PROCESSING_FAILED",
           event: "media_processing_failed",
           pipelineVersion: payload.pipelineVersion,
           sourceAssetId: payload.sourceAssetId,

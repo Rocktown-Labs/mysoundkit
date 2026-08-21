@@ -52,6 +52,18 @@ export interface VerifiedMaster {
   r2Object: R2Object;
 }
 
+/**
+ * Thrown when the registered master asset no longer has its backing object in
+ * R2 (for example after a preview bucket was destroyed). Retrying cannot
+ * resurrect a missing object, so callers should treat this as terminal.
+ */
+export class MasterObjectMissingError extends Error {
+  public constructor(objectKey: string) {
+    super(`Current master object is missing from R2: ${objectKey}`);
+    this.name = "MasterObjectMissingError";
+  }
+}
+
 export const verifyCurrentMaster = async ({
   bucket,
   objectKey,
@@ -93,7 +105,7 @@ export const verifyCurrentMaster = async ({
 
   const r2Object = await bucket.head(objectKey);
   if (!r2Object || r2Object.size <= 0) {
-    throw new Error("Current master object is missing from R2.");
+    throw new MasterObjectMissingError(objectKey);
   }
 
   return { asset, r2Object };

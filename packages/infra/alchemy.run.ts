@@ -39,6 +39,9 @@ if (!(app.local || isProduction || isPullRequestPreview)) {
   );
 }
 
+// Production serves media through the dedicated media host attached to the
+// server Worker. Local and pr-<number> preview stages have no adopted media
+// domain, so they route through the guarded /media API route instead.
 const SITE_HOST = isProduction
     ? "mysoundkit.com"
     : `web-${app.stage}.mysoundkit.com`,
@@ -50,7 +53,7 @@ const SITE_HOST = isProduction
     : `media-${app.stage}.mysoundkit.com`,
   SITE_URL = app.local ? "http://localhost:3001" : `https://${SITE_HOST}`,
   API_URL = app.local ? "http://localhost:3000" : `https://${API_HOST}`,
-  MEDIA_URL = app.local ? `${API_URL}/media` : `https://${MEDIA_HOST}`,
+  MEDIA_URL = isProduction ? `https://${MEDIA_HOST}` : `${API_URL}/media`,
   SENTRY_WEB_DSN =
     process.env.VITE_SENTRY_DSN ||
     "https://87f5517c906a37ab831c171fc686145d@o4510278858309632.ingest.us.sentry.io/4511447930568704",
