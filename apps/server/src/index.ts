@@ -87,6 +87,7 @@ export { MediaProcessorContainer } from "@/containers/media-processor";
 export { LiveRecordingWorkflow } from "@/workflows/live-recording";
 export { MediaProcessingWorkflow } from "@/workflows/media-processing";
 export { MediaRetentionWorkflow } from "@/workflows/media-retention";
+export { PayoutRunWorkflow } from "@/workflows/payout-run";
 export { PurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
 export { ProjectExportWorkflow } from "@/workflows/project-export";
 export { TrackEnrichmentWorkflow } from "@/workflows/track-enrichment";
