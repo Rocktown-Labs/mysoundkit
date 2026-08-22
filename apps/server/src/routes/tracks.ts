@@ -109,6 +109,7 @@ import {
   resolveTrackAsset,
   resolveTrackAssetFromRows,
 } from "@/lib/track-asset-resolver";
+import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
@@ -1475,6 +1476,10 @@ app.openapi(
         messageResponseSchema,
         "Stripe Connect onboarding required to sell"
       ),
+      [HttpStatusCodes.CONFLICT]: jsonContent(
+        messageResponseSchema,
+        "Track media is not ready for release"
+      ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
         "Track not found"
@@ -1571,6 +1576,23 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    if (body.isPublic === true && !existingTrack.isPublic) {
+      const streamingAsset = await resolveTrackAsset({
+        purpose: "streaming",
+        trackId,
+      });
+      if (!streamingAsset) {
+        return c.json(
+          {
+            code: "MEDIA_NOT_READY",
+            message:
+              "SoundKit is still preparing the streaming version. Retry processing before releasing this track.",
+          },
+          HttpStatusCodes.CONFLICT
+        );
+      }
+    }
+
     if (body.isForSale === true) {
       const sellerEnabled = await isSellerEnabled({
         organizationId,
@@ -1607,9 +1629,18 @@ app.openapi(
         price: body.price?.toFixed(2),
         priceCents: body.priceCents,
         productionStatus: body.productionStatus,
+        publishedAt:
+          body.isPublic === true
+            ? (existingTrack.publishedAt ?? new Date())
+            : body.isPublic === false
+              ? null
+              : undefined,
         purchaseMode: body.purchaseMode,
         releaseAt: body.releaseAt ? new Date(body.releaseAt) : undefined,
-        releaseStrategy: body.releaseStrategy,
+        releaseStrategy:
+          body.isPublic === true && existingTrack.releaseStrategy === "private"
+            ? "publish_when_ready"
+            : body.releaseStrategy,
         title: body.title,
         updatedAt: new Date(),
       })
@@ -1671,6 +1702,13 @@ app.openapi(
           }
         })
       );
+    }
+
+    if (body.isPublic === true && !existingTrack.isPublic) {
+      await notifyTrackLive({
+        emailQueue: c.env.EMAIL_DELIVERY_QUEUE,
+        trackId,
+      });
     }
 
     if (body.isOpenVerse !== undefined) {

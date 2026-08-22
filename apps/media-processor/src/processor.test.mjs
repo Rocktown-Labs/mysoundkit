@@ -9,6 +9,7 @@ import {
   isLosslessCodec,
   parseFfprobeOutput,
   parseLoudnormOutput,
+  requireDerivativeVerification,
 } from "./processor.mjs";
 
 test("technical inspection ignores descriptive tags", () => {
@@ -105,6 +106,13 @@ test("linear gain chain trims quiet sources and limits hot ones", () => {
   assert.match(boosted, /^volume=3\.17 dB,/u);
   assert.match(boosted, /alimiter=limit=0\.841/u);
   assert.match(boosted, /level=false/u);
+});
+
+test("missing derivative verification fails with a typed error", () => {
+  assert.throws(
+    () => requireDerivativeVerification(null),
+    DerivativeValidationError
+  );
 });
 
 test("normalized derivatives enforce loudness and True Peak", () => {

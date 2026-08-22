@@ -45,6 +45,9 @@ const mapAssetForDashboard = (
     metadata: "metadata" in asset ? asset.metadata : null,
     mimeType: asset.mimeType,
     objectKey: asset.objectKey,
+    processingVersion:
+      "processingVersion" in asset ? asset.processingVersion : null,
+    purpose: "purpose" in asset ? asset.purpose : null,
     sizeBytes: asset.sizeBytes,
     status: asset.status,
     storageProvider: asset.storageProvider,
@@ -158,7 +161,15 @@ export const mapTrackSummary = ({
         "variant" in asset.metadata &&
         asset.metadata.variant === "preview_30s"
     ),
-    assetStatus = assets.some((asset) => asset.status === "processing")
+    currentLineageAssets = assets.filter(
+      (asset) =>
+        asset.isCurrent &&
+        (asset.id === masterAsset?.id ||
+          asset.sourceAssetId === masterAsset?.id)
+    ),
+    assetStatus = currentLineageAssets.some(
+      (asset) => asset.status === "processing"
+    )
       ? "processing"
       : (primaryAudioAsset?.status ?? null);
 
@@ -191,7 +202,7 @@ export const mapTrackSummary = ({
       : null,
     mediaReady: Boolean(primaryAudioAsset),
     mediaStatus: mediaStatusFromAssets({
-      assets,
+      assets: currentLineageAssets,
       mediaReady: Boolean(primaryAudioAsset),
     }),
     musicalKey: row.musicalKey,
@@ -336,7 +347,9 @@ export const buildTrackDetail = async (
 
   return {
     ...summary,
-    assets: assetRows.map(mapAssetForDashboard),
+    assets: assetRows
+      .filter((asset) => asset.isCurrent)
+      .map(mapAssetForDashboard),
     collaborators: collaboratorRows,
     createdAt: row.createdAt.toISOString(),
     description: row.description,

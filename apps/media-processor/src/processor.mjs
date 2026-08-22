@@ -366,6 +366,15 @@ const inspectFile = async (filePath) => {
     ]);
   };
 
+export const requireDerivativeVerification = (verification) => {
+  if (!verification) {
+    throw new DerivativeValidationError(
+      "Derivative loudness verification did not complete."
+    );
+  }
+  return verification;
+};
+
 export const assertVerifiedDerivative = ({
   sourceLoudness,
   targetLufs,
@@ -433,10 +442,11 @@ const renderDerivative = async ({
         outputPath,
         targetLufs: null,
       });
+      verification = await analyzeFile(outputPath);
       assertVerifiedDerivative({
         sourceLoudness,
         targetLufs,
-        verification: await analyzeFile(outputPath),
+        verification,
       });
     } else {
       // Loudnorm's true-peak control can overshoot on dense material (and
@@ -482,6 +492,8 @@ const renderDerivative = async ({
         verification,
       });
     }
+
+    verification = requireDerivativeVerification(verification);
 
     const outputInspection = await inspectFile(outputPath);
     if (purpose === "lossless_download" && !outputInspection.isLossless) {

@@ -1,6 +1,8 @@
 /* eslint-disable unicorn/max-nested-calls, one-var, require-unicode-regexp, no-empty-function, sort-vars */
 import { z } from "@hono/zod-openapi";
 
+import { mediaAssetPurposeSchema } from "./media-pipeline";
+
 export const healthResponseSchema = z.object({
   databaseConfigured: z.boolean(),
   ok: z.boolean(),
@@ -629,6 +631,8 @@ export const dashboardAssetSchema = z.object({
   metadata: z.unknown().nullable().optional(),
   mimeType: z.string().nullable(),
   objectKey: z.string().nullable(),
+  processingVersion: z.number().int().nullable().optional(),
+  purpose: mediaAssetPurposeSchema.nullable().optional(),
   sizeBytes: z.number().int().nullable(),
   status: z.string(),
   storageProvider: z.enum(["r2", "mux", "external"]),

@@ -181,12 +181,15 @@ const jobId = (workflowType: MediaWorkflowType, workflowInstanceId: string) =>
           createdInstance ?? (await workflow.get(jobInput.workflowInstanceId)),
         instanceStatus = createdInstance
           ? { status: "queued" as const }
-          : await instance.status();
+          : await instance.status(),
+        shouldRestart =
+          !createdInstance &&
+          (instanceStatus.status === "errored" ||
+            instanceStatus.status === "terminated" ||
+            job?.status === "failed" ||
+            job?.status === "partial");
 
-      if (
-        instanceStatus.status === "errored" ||
-        instanceStatus.status === "terminated"
-      ) {
+      if (shouldRestart) {
         await instance.restart();
       }
 
@@ -214,11 +217,7 @@ const jobId = (workflowType: MediaWorkflowType, workflowInstanceId: string) =>
       return {
         job: await findJob(jobInput),
         workflowInstanceId: jobInput.workflowInstanceId,
-        workflowStatus:
-          instanceStatus.status === "errored" ||
-          instanceStatus.status === "terminated"
-            ? "queued"
-            : instanceStatus.status,
+        workflowStatus: shouldRestart ? "queued" : instanceStatus.status,
       };
     } catch (error) {
       await markLaunchFailed({

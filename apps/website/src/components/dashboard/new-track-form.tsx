@@ -1131,7 +1131,9 @@ export function NewTrackForm({
             genre: values.genre,
             id: trackIdToUse,
             isPublic: Boolean(settledTrack.isPublic),
-            playbackUrl: settledTrack.playbackUrl ?? undefined,
+            playbackUrl:
+              settledTrack.playbackUrl ??
+              `${API_V1_URL}/tracks/${encodeURIComponent(trackIdToUse)}/playback?context=ordinary`,
             status: values.status,
             title: values.name,
           };
@@ -1358,10 +1360,10 @@ export function NewTrackForm({
                 <CheckCircle2 className="size-6 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-xl font-bold">Track Safely Saved</h3>
+                <h3 className="text-xl font-bold">Upload complete</h3>
                 <p className="text-xs text-muted-foreground">
-                  Your original master is registered. SoundKit playback media
-                  continues processing in the background.
+                  Your original master is saved and ready for you to hear.
+                  SoundKit is preparing the streaming version in the background.
                 </p>
               </div>
             </div>
@@ -1388,7 +1390,9 @@ export function NewTrackForm({
                   >
                     {createdTrackInfo.isPublic
                       ? "Live / Public"
-                      : "Private Draft"}
+                      : createdTrackInfo.status === "ready"
+                        ? "Preparing release"
+                        : "Private draft"}
                   </Badge>
                   {createdTrackInfo.audioFileSize && (
                     <Badge variant="outline" className="text-[10px] font-mono">
@@ -1422,8 +1426,8 @@ export function NewTrackForm({
               >
                 <Play className="size-4 fill-current" />
                 {createdTrackInfo.playbackUrl
-                  ? "Play SoundKit Stream"
-                  : "Stream Not Ready"}
+                  ? "Play uploaded master"
+                  : "Playback is being prepared"}
               </Button>
 
               <div className="grid grid-cols-2 gap-2">

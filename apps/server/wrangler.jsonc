@@ -23,7 +23,7 @@
     {
       "class_name": "MediaProcessorContainer",
       "image": "../media-processor/Dockerfile",
-      "max_instances": 5,
+      "max_instances": 20,
       "instance_type": "basic",
     },
   ],

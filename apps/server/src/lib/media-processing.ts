@@ -625,8 +625,10 @@ export const getTrackMediaProcessingStatus = async (
         .map((asset) => [asset.purpose, asset])
     ),
     masterMetadata = metadataRecord(master.metadata),
+    streamingStatus = purposeStatus(byPurpose.get("streaming")),
     assetStates = {
-      battle: purposeStatus(byPurpose.get("battle")),
+      // Battle playback intentionally resolves the canonical stream.
+      battle: streamingStatus,
       download: purposeStatus(byPurpose.get("download")),
       lossless: losslessPurposeStatus(
         masterMetadata.isLossless,
@@ -636,7 +638,7 @@ export const getTrackMediaProcessingStatus = async (
         master.status === "ready" || master.status === "uploaded"
           ? ("ready" as const)
           : purposeStatus(master),
-      streaming: purposeStatus(byPurpose.get("streaming")),
+      streaming: streamingStatus,
     },
     mediaReady = assetStates.streaming === "ready",
     processingComplete = Object.values(assetStates).every(

@@ -1,4 +1,5 @@
 "use client";
+/* oxlint-disable complexity, no-nested-ternary, no-void, one-var, react/exhaustive-effect-dependencies, react/purity, react/set-state-in-effect, react/todo, sort-vars, unicorn/no-nested-ternary */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -11,6 +12,7 @@ import {
   LoaderCircle,
   CheckCircle2,
   Calendar,
+  AlertTriangle,
   Sparkles,
   Save,
   Plus,
@@ -56,10 +58,15 @@ import {
   useCreateTrackLyricsMutation,
   useProcessTrackMutation,
   useReviewTrackLyricsMutation,
+  useRetryTrackMediaProcessingMutation,
   useTrackQuery,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
 import type { TrackDetail } from "@/lib/soundkit-api-hooks";
+import {
+  trackAssetDescription,
+  trackAssetLabel,
+} from "@/lib/track-asset-labels";
 
 export const Route = createFileRoute("/dashboard/tracks/$id/")({
   component: TrackDetailPage,
@@ -106,6 +113,17 @@ const formatBytes = (sizeBytes: number | null | undefined) => {
   },
   getCoverArtUrl = (coverArtUrl: null | string | undefined) =>
     coverArtUrl && coverArtUrl.length > 0 ? coverArtUrl : "/placeholder.svg",
+  originalAssetFileName = (asset: TrackAsset) => {
+    if (
+      asset.metadata &&
+      typeof asset.metadata === "object" &&
+      "originalFileName" in asset.metadata &&
+      typeof asset.metadata.originalFileName === "string"
+    ) {
+      return asset.metadata.originalFileName;
+    }
+    return asset.objectKey?.split("/").pop() ?? "Master";
+  },
   SECTION_HEADER_PATTERN =
     /^\s*(?:\[(?:hook|chorus|verse(?:\s+\d+)?|bridge|pre-chorus|intro|outro|refrain|post-chorus)\]|(?:hook|chorus|verse(?:\s+\d+)?|bridge|pre-chorus|intro|outro|refrain|post-chorus):)\s*$/iu;
 
@@ -182,16 +200,21 @@ const SECTION_SNIPPETS = [
   renderReleaseStatusBanner = (
     releaseAt: string | null | undefined,
     isScheduledInFuture: boolean,
-    isLive: boolean
+    isLive: boolean,
+    mediaReady: boolean,
+    mediaStatus: null | string | undefined
   ) => {
     if (isScheduledInFuture && releaseAt) {
       return (
         <div className="flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4">
           <Calendar className="mt-0.5 size-5 text-indigo-400" />
           <div>
-            <p className="font-semibold text-indigo-200">Scheduled Release</p>
+            <p className="font-semibold text-indigo-200">Release scheduled</p>
             <p className="text-sm text-indigo-300/80">
-              Scheduled to go live on{" "}
+              {mediaReady
+                ? "Your release audio is ready. "
+                : "We’re still preparing your release audio. "}
+              This track will go live on{" "}
               {new Date(releaseAt).toLocaleDateString(undefined, {
                 dateStyle: "full",
               })}
@@ -207,10 +230,44 @@ const SECTION_SNIPPETS = [
         <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
           <CheckCircle2 className="mt-0.5 size-5 text-primary" />
           <div>
-            <p className="font-semibold">Track is live</p>
+            <p className="font-semibold">Your track is live</p>
             <p className="text-sm text-muted-foreground">
-              Your master is available for playback. Background processing will
-              fill in BPM, duration, stems, and lyrics when ready.
+              Listeners can stream it now. Optional lyrics and stems may
+              continue processing in the background.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!mediaReady && mediaStatus === "running") {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
+          <LoaderCircle className="mt-0.5 size-5 animate-spin text-primary" />
+          <div>
+            <p className="font-semibold">Preparing your release</p>
+            <p className="text-sm text-muted-foreground">
+              Your original master is saved and playable. We’re creating the
+              streaming version required for release.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!mediaReady) {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <AlertTriangle className="mt-0.5 size-5 text-amber-400" />
+          <div>
+            <p className="font-semibold text-amber-200">
+              {mediaStatus === "failed"
+                ? "Processing needs attention"
+                : "Release audio isn’t ready"}
+            </p>
+            <p className="text-sm text-amber-200/80">
+              Your original master is safe. Retry processing before releasing
+              this track.
             </p>
           </div>
         </div>
@@ -218,12 +275,12 @@ const SECTION_SNIPPETS = [
     }
 
     return (
-      <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-muted/30 p-4">
-        <LoaderCircle className="mt-0.5 size-5 animate-spin text-muted-foreground" />
+      <div className="flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+        <CheckCircle2 className="mt-0.5 size-5 text-emerald-400" />
         <div>
-          <p className="font-semibold">Draft saved</p>
-          <p className="text-sm text-muted-foreground">
-            This track is not public yet. Open it when you are ready to go live.
+          <p className="font-semibold text-emerald-200">Ready to release</p>
+          <p className="text-sm text-emerald-200/80">
+            Your streaming audio is ready. Release it whenever you’re ready.
           </p>
         </div>
       </div>
@@ -610,7 +667,7 @@ function TrackFilesPanel({
                 <FileAudio className="size-5 text-muted-foreground" />
                 <div>
                   <p className="font-medium">
-                    {masterAsset.objectKey?.split("/").pop() ?? "Master"}
+                    {originalAssetFileName(masterAsset)}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {formatBytes(masterAsset.sizeBytes)} · {masterAsset.status}
@@ -653,11 +710,19 @@ function TrackFilesPanel({
           <Card key={asset.id}>
             <CardHeader>
               <CardTitle className="text-base capitalize">
-                {asset.assetKind.replaceAll("_", " ")}
+                {trackAssetLabel(asset)}
               </CardTitle>
+              {trackAssetDescription(asset) ? (
+                <CardDescription>
+                  {trackAssetDescription(asset)}
+                </CardDescription>
+              ) : null}
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               {formatBytes(asset.sizeBytes)} · {asset.status}
+              {asset.processingVersion
+                ? ` · pipeline v${asset.processingVersion}`
+                : ""}
             </CardContent>
           </Card>
         ))}
@@ -731,6 +796,7 @@ function TrackDetailPage() {
     { id } = Route.useParams(),
     [isTranscribing, setIsTranscribing] = useState(false),
     processTrackMutation = useProcessTrackMutation(id),
+    retryMediaMutation = useRetryTrackMediaProcessingMutation(id),
     { setCurrentTrack, setQueue } = useAudioPlayer(),
     trackQuery = useTrackQuery(id),
     trackQueryData = trackQuery.data,
@@ -773,6 +839,8 @@ function TrackDetailPage() {
         : [],
     masterAsset = assets.find((asset) => asset.assetKind === "master"),
     isLive = Boolean(trackQueryData.isPublic),
+    mediaReady = trackQueryData.mediaReady === true,
+    { mediaStatus } = trackQueryData,
     statusLabel = formatTrackStatusLabel(
       isLive,
       trackQueryData.productionStatus
@@ -811,6 +879,9 @@ function TrackDetailPage() {
       });
     },
     handleReleaseNow = async () => {
+      if (!mediaReady) {
+        return;
+      }
       try {
         await updateTrackMutation.mutateAsync({ isPublic: true });
         toast({
@@ -824,6 +895,26 @@ function TrackDetailPage() {
               ? error.message
               : "Could not release trackQueryData.",
           title: "Release failed",
+          variant: "destructive",
+        });
+      }
+    },
+    handleRetryMedia = async () => {
+      try {
+        await retryMediaMutation.mutateAsync();
+        await trackQuery.refetch();
+        toast({
+          description:
+            "Your master is safe. We’ll retry the streaming version in the background.",
+          title: "Processing restarted",
+        });
+      } catch (error) {
+        toast({
+          description:
+            error instanceof Error
+              ? error.message
+              : "Could not restart media processing.",
+          title: "Retry failed",
           variant: "destructive",
         });
       }
@@ -883,7 +974,9 @@ function TrackDetailPage() {
       {renderReleaseStatusBanner(
         trackQueryData.releaseAt,
         isScheduledInFuture,
-        isLive
+        isLive,
+        mediaReady,
+        mediaStatus
       )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -900,7 +993,7 @@ function TrackDetailPage() {
               <p className="text-muted-foreground">{trackQueryData.genre}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {isLive ? null : (
+              {isLive ? null : mediaReady ? (
                 <Button
                   disabled={updateTrackMutation.isPending}
                   onClick={handleReleaseNow}
@@ -908,6 +1001,23 @@ function TrackDetailPage() {
                 >
                   <Rocket className="mr-2 size-4" />
                   Release now
+                </Button>
+              ) : mediaStatus === "running" ? (
+                <Button disabled={true} type="button">
+                  <LoaderCircle className="mr-2 size-4 animate-spin" />
+                  Preparing release…
+                </Button>
+              ) : (
+                <Button
+                  disabled={retryMediaMutation.isPending}
+                  onClick={() => void handleRetryMedia()}
+                  type="button"
+                  variant="outline"
+                >
+                  <Repeat className="mr-2 size-4" />
+                  {retryMediaMutation.isPending
+                    ? "Restarting…"
+                    : "Retry processing"}
                 </Button>
               )}
               {trackQueryData.playbackUrl ? (
@@ -963,10 +1073,16 @@ function TrackDetailPage() {
             {trackQueryData.isPublic ? (
               <Badge variant="outline">Public</Badge>
             ) : null}
-            {trackQueryData.assetStatus ? (
+            {trackQueryData.assetStatus === "processing" ? (
               <Badge variant="outline">
-                Assets: {trackQueryData.assetStatus}
+                {mediaReady
+                  ? "Extras: processing"
+                  : "Release audio: processing"}
               </Badge>
+            ) : trackQueryData.mediaStatus === "failed" ? (
+              <Badge variant="destructive">Processing failed</Badge>
+            ) : mediaReady ? (
+              <Badge variant="outline">Playback ready</Badge>
             ) : null}
             {trackQueryData.isForSale &&
             trackQueryData.price !== null &&

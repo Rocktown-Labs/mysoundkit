@@ -118,6 +118,12 @@ const PORT = Number(process.env.PORT ?? 8080),
   },
   server = createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
+      const message =
+          error instanceof Error ? error.message : "Media processing failed.",
+        stack = error instanceof Error ? error.stack : null;
+      process.stderr.write(
+        `${JSON.stringify({ event: "media_processor_request_failed", message, stack })}\n`
+      );
       jsonResponse(
         response,
         error instanceof DerivativeValidationError ? 422 : 500,
@@ -126,8 +132,7 @@ const PORT = Number(process.env.PORT ?? 8080),
             error instanceof DerivativeValidationError
               ? "DERIVATIVE_VALIDATION_FAILED"
               : "MEDIA_PROCESSING_FAILED",
-          message:
-            error instanceof Error ? error.message : "Media processing failed.",
+          message,
         }
       );
     });

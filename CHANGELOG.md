@@ -26,6 +26,10 @@
 
 ### Fixed
 
+- Fixed media pipeline V2 consumer downloads returning a null loudness result after successful encoding, which caused four repeated renders and `Cannot read properties of null (reading 'integratedLufs')`; pipeline V3 now assigns and validates the measurement before registration.
+- Raised preview media-container concurrency from 5 to 20, shortened idle sleep, preserved non-JSON Container diagnostics, and added processor stack logging so concurrent test uploads no longer surface opaque random 500s.
+- Replaced vague upload/detail copy and “Variant Audio” cards with truthful upload/processing states and purpose-specific names, and blocked release actions in both UI and API until streaming media is playable.
+
 - Replaced the browser-owned register/settle upload chain with one idempotent server finalization boundary that verifies R2 objects, records assets, saves release intent, and starts durable processing without waiting up to 15 minutes in the upload form.
 - Fixed project track uploads using the project-asset namespace and detached callback timeouts; project audio now uses awaited Better Upload transfers through authenticated per-track source keys and the same atomic finalization path as individual tracks.
 - Fixed premature publication and “track ready” emails: owners receive the ready notification only after playable streaming media is registered, while immediate and scheduled public releases are gated on media readiness.

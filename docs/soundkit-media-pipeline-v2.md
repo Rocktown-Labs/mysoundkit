@@ -71,9 +71,9 @@ Better Upload completes direct browser → R2 transfer
 
 - The browser never waits for DSP completion. Owner and accepted-collaborator playback may fall back to the guarded current master until the streaming asset is ready.
 - New source keys are scoped as `tracks/{userId}/{trackId}/source/{assetId}-{filename}`. Derivative identity remains immutable and versioned under `tracks/{trackId}/derived/v{pipelineVersion}/{sourceAssetId}/...`.
-- Pipeline version 2 generates one canonical AAC streaming derivative targeting `-13 LUFS`, accepts `-14` through `-12 LUFS`, and requires True Peak `<= -1 dBTP`.
+- Pipeline version 3 generates one canonical AAC streaming derivative targeting `-13 LUFS`, accepts `-14` through `-12 LUFS`, and requires True Peak `<= -1 dBTP`. Version 3 also fixes consumer-download verification and supersedes failed/partial V2 runs.
 - Ordinary and battle playback resolve that same streaming derivative. No separate battle render is generated.
-- Publication is release intent plus media readiness: immediate releases publish when streaming is ready; scheduled releases require both media readiness and a due date; projects require every included track to have streaming media.
+- Publication is release intent plus media readiness: immediate releases publish when streaming is ready; scheduled releases require both media readiness and a due date; projects require every included track to have streaming media. Dashboard and API release actions remain blocked until streaming is ready.
 - The owner `track_ready` email is emitted only from the media-ready Workflow step, never from upload settlement. Enrichment completion remains a separate event.
 - Browser-generated 30-second WAV previews are not part of the V2 final-track path.
 

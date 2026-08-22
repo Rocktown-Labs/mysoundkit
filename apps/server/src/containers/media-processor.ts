@@ -31,7 +31,7 @@ const validObjectKey = (value: string) =>
 
 export class MediaProcessorContainer extends Container<Env> {
   defaultPort = 8080;
-  sleepAfter = "10m";
+  sleepAfter = "2m";
   enableInternet = false;
   allowedHosts = [INTERNAL_R2_HOST];
 

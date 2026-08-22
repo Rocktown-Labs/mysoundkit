@@ -1,3 +1,4 @@
+/* oxlint-disable node/no-top-level-await, one-var, sort-keys, sort-vars */
 import alchemy from "alchemy";
 import {
   AccountId,
@@ -206,7 +207,7 @@ const SITE_HOST = isProduction
     },
     className: "MediaProcessorContainer",
     instanceType: isProduction ? "standard-1" : "basic",
-    maxInstances: isProduction ? 25 : 5,
+    maxInstances: isProduction ? 25 : 20,
     name: resourceName("soundkit-media-processor"),
     observability: {
       logs: { enabled: true },
@@ -443,7 +444,8 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
     TRACK_ENRICHMENT_WORKFLOW: trackEnrichmentWorkflow,
     TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
-    UPLOAD_BUCKET_NAME: media.name,    ...optionalEnvBinding("ADMIN_EMAILS"),
+    UPLOAD_BUCKET_NAME: media.name,
+    ...optionalEnvBinding("ADMIN_EMAILS"),
     ...optionalEnvBinding("BATTLE_ADMISSION_BATCH_SIZE"),
     ...optionalEnvBinding("GOOGLE_CLIENT_ID"),
     ...optionalEnvBinding("GOOGLE_CLIENT_SECRET"),

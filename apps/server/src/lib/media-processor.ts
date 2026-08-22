@@ -102,15 +102,22 @@ const readProcessorResponse = async <Output>(
   response: Response,
   schema: z.ZodType<Output>
 ): Promise<Output> => {
-  const payload = await response.json().catch(() => null);
+  const rawPayload = await response.text();
+  let payload: unknown = null;
+  try {
+    payload = JSON.parse(rawPayload);
+  } catch {
+    payload = null;
+  }
   if (!response.ok) {
-    const message =
-      payload &&
-      typeof payload === "object" &&
-      "message" in payload &&
-      typeof payload.message === "string"
-        ? payload.message
-        : `Media processor failed with status ${response.status}.`;
+    const fallbackDetail = rawPayload.trim().slice(0, 500),
+      message =
+        payload &&
+        typeof payload === "object" &&
+        "message" in payload &&
+        typeof payload.message === "string"
+          ? payload.message
+          : `Media processor failed with status ${response.status}${fallbackDetail ? `: ${fallbackDetail}` : ""}.`;
     if (
       response.status === 422 &&
       payload &&
