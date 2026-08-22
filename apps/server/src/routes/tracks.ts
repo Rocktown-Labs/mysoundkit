@@ -83,6 +83,7 @@ import { sampleTracks } from "@/lib/sample-data";
 import {
   createTrackAssetBodySchema,
   createTrackBodySchema,
+  finalizeTrackUploadBodySchema,
   createLyricsRevisionBodySchema,
   createPlaybackSessionBodySchema,
   lyricsRevisionSchema,
@@ -108,7 +109,6 @@ import {
   resolveTrackAsset,
   resolveTrackAssetFromRows,
 } from "@/lib/track-asset-resolver";
-import { notifyTrackLive } from "@/lib/track-notifications";
 import type { AppEnv } from "@/lib/types";
 import { resolveActiveOrganizationId, uniqueSlug } from "@/lib/workspace";
 import { logError } from "@/middleware/structured-logging";
@@ -447,18 +447,6 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
         TRACK_ENRICHMENT_WORKFLOW?: Workflow<TrackEnrichmentWorkflowPayload>;
       }
     ).TRACK_ENRICHMENT_WORKFLOW ?? null,
-  isLiveRelease = ({
-    isPublic,
-    releaseAt,
-    releaseStrategy,
-  }: {
-    isPublic: boolean;
-    releaseAt: Date | null;
-    releaseStrategy: "private" | "publish_when_ready" | "scheduled";
-  }) =>
-    isPublic &&
-    releaseStrategy !== "private" &&
-    (!releaseAt || releaseAt.getTime() <= Date.now()),
   queueTrackAudioProcessing = async ({
     masterAsset,
     trackId,
@@ -2093,6 +2081,298 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "post",
+    path: "/{trackId}/finalize-upload",
+    request: {
+      body: jsonContentRequired(
+        finalizeTrackUploadBodySchema,
+        "Uploaded track finalization payload"
+      ),
+      params: z.object({ trackId: z.string() }),
+    },
+    responses: {
+      [HttpStatusCodes.OK]: jsonContent(
+        trackDashboardDetailSchema,
+        "Uploaded track finalized"
+      ),
+      [HttpStatusCodes.BAD_REQUEST]: jsonContent(
+        messageResponseSchema,
+        "Uploaded assets could not be verified"
+      ),
+      [HttpStatusCodes.NOT_FOUND]: jsonContent(
+        messageResponseSchema,
+        "Track not found"
+      ),
+      [HttpStatusCodes.UNAUTHORIZED]: jsonContent(
+        messageResponseSchema,
+        "Authentication required"
+      ),
+    },
+    tags: ["Tracks"],
+  }),
+  async (c) => {
+    const user = c.get("user");
+    if (!isAuthenticatedUser(user)) {
+      return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
+    }
+    if (!isDatabaseConfigured()) {
+      return c.json(
+        { message: "Database is required before finalizing track media." },
+        HttpStatusCodes.NOT_FOUND
+      );
+    }
+
+    const { trackId } = c.req.valid("param"),
+      { assets, settlement } = c.req.valid("json"),
+      session = c.get("session"),
+      organizationId = await resolveActiveOrganizationId({
+        session: isAuthenticatedSession(session) ? session : null,
+        user,
+      }),
+      db = createDb(),
+      [track] = await db
+        .select()
+        .from(tracks)
+        .where(ownedTrackWhere({ organizationId, trackId, userId: user.id }))
+        .limit(1);
+
+    if (!track) {
+      return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    const masterUploads = assets.filter(
+        (asset) => asset.assetKind === "master"
+      ),
+      coverUpload = assets.find((asset) => asset.assetKind === "cover_art");
+    if (masterUploads.length !== 1) {
+      return c.json(
+        { message: "Select exactly one master audio file before continuing." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+    if (settlement.requireCoverArt && !coverUpload) {
+      return c.json(
+        { message: "Cover art is required before this track can be released." },
+        HttpStatusCodes.BAD_REQUEST
+      );
+    }
+
+    const bucket = getMediaBucket(c.env as AppEnv["Bindings"]);
+    if (!bucket) {
+      throw new Error("Media bucket binding is unavailable.");
+    }
+
+    const verifiedAssets: {
+      asset: (typeof assets)[number];
+      existingId: string | null;
+      sizeBytes: number;
+    }[] = [];
+    for (const asset of assets) {
+      if (
+        asset.storageProvider !== "r2" ||
+        !isAllowedUploadKeyForAssetKind({
+          assetKind: asset.assetKind,
+          objectKey: asset.objectKey,
+          userId: user.id,
+        })
+      ) {
+        return c.json(
+          { message: "An uploaded file is not authorized for this track." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+
+      const storedObject = await bucket.head(asset.objectKey);
+      if (
+        !storedObject ||
+        (asset.assetKind === "master" && storedObject.size === 0)
+      ) {
+        return c.json(
+          {
+            message:
+              "An uploaded file could not be verified. Retry finalization without uploading it again.",
+          },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+      if (
+        asset.sizeBytes !== undefined &&
+        storedObject.size !== asset.sizeBytes
+      ) {
+        return c.json(
+          { message: "An uploaded file did not match its expected size." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+
+      const [objectOwner] = await db
+        .select({ id: trackAssets.id, trackId: trackAssets.trackId })
+        .from(trackAssets)
+        .where(
+          and(
+            eq(trackAssets.storageProvider, "r2"),
+            eq(trackAssets.objectKey, asset.objectKey)
+          )
+        )
+        .limit(1);
+      if (objectOwner && objectOwner.trackId !== trackId) {
+        return c.json(
+          { message: "An uploaded file is already attached to another track." },
+          HttpStatusCodes.BAD_REQUEST
+        );
+      }
+      verifiedAssets.push({
+        asset,
+        existingId: objectOwner?.id ?? null,
+        sizeBytes: storedObject.size,
+      });
+    }
+
+    const [currentMaster] = await db
+        .select({ objectKey: trackAssets.objectKey })
+        .from(trackAssets)
+        .where(
+          and(
+            eq(trackAssets.trackId, trackId),
+            eq(trackAssets.assetKind, "master"),
+            eq(trackAssets.isCurrent, true)
+          )
+        )
+        .limit(1),
+      releaseAt = settlement.releaseAt ? new Date(settlement.releaseAt) : null,
+      finalized = await withRetry("finalize uploaded track", () =>
+        db.transaction(async (transaction) => {
+          let masterAssetId = "";
+          for (const verified of verifiedAssets) {
+            const { asset } = verified,
+              purpose = assetPurposeForKind(asset.assetKind),
+              assetId = verified.existingId ?? crypto.randomUUID();
+
+            await transaction
+              .update(trackAssets)
+              .set({ isCurrent: false, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(trackAssets.trackId, trackId),
+                  eq(trackAssets.assetKind, asset.assetKind),
+                  eq(trackAssets.isCurrent, true),
+                  ne(trackAssets.objectKey, asset.objectKey)
+                )
+              );
+            await transaction
+              .insert(trackAssets)
+              .values({
+                assetKind: asset.assetKind,
+                bucketName: asset.bucketName ?? null,
+                durationMs: asset.durationMs ?? null,
+                id: assetId,
+                isCurrent: true,
+                metadata: asset.metadata,
+                mimeType: asset.mimeType ?? null,
+                objectKey: asset.objectKey,
+                processingVersion:
+                  asset.assetKind === "master" ? MEDIA_PIPELINE_VERSION : null,
+                purpose,
+                sizeBytes: verified.sizeBytes,
+                status: asset.assetKind === "master" ? "ready" : asset.status,
+                storageProvider: "r2",
+                trackId,
+                uploaderUserId: user.id,
+              })
+              .onConflictDoUpdate({
+                set: {
+                  bucketName: asset.bucketName ?? null,
+                  durationMs: asset.durationMs ?? null,
+                  isCurrent: true,
+                  metadata: asset.metadata,
+                  mimeType: asset.mimeType ?? null,
+                  processingVersion:
+                    asset.assetKind === "master"
+                      ? MEDIA_PIPELINE_VERSION
+                      : null,
+                  purpose,
+                  sizeBytes: verified.sizeBytes,
+                  status: asset.assetKind === "master" ? "ready" : asset.status,
+                  updatedAt: new Date(),
+                  uploaderUserId: user.id,
+                },
+                target: [trackAssets.storageProvider, trackAssets.objectKey],
+              });
+
+            if (asset.assetKind === "master") {
+              masterAssetId = assetId;
+            }
+          }
+
+          const masterObjectKey = masterUploads[0]?.objectKey ?? "",
+            preservePublishedState =
+              track.isPublic && currentMaster?.objectKey === masterObjectKey,
+            [settledTrack] = await transaction
+              .update(tracks)
+              .set({
+                isPublic: preservePublishedState,
+                productionStatus: settlement.productionStatus,
+                publishedAt: preservePublishedState ? track.publishedAt : null,
+                releaseAt,
+                releaseStrategy: settlement.releaseStrategy,
+                updatedAt: new Date(),
+              })
+              .where(
+                ownedTrackWhere({ organizationId, trackId, userId: user.id })
+              )
+              .returning();
+
+          if (!(settledTrack && masterAssetId && masterObjectKey)) {
+            throw new Error("Uploaded track could not be finalized.");
+          }
+          return { masterAssetId, masterObjectKey, settledTrack };
+        })
+      );
+
+    try {
+      await ensureMediaProcessingWorkflow({
+        payload: {
+          mode: "final_track",
+          objectKey: finalized.masterObjectKey,
+          pipelineVersion: MEDIA_PIPELINE_VERSION,
+          sourceAssetId: finalized.masterAssetId,
+          trackId,
+        },
+        workflow: c.env.MEDIA_PROCESSING_WORKFLOW,
+      });
+    } catch (error) {
+      logError({
+        error: error instanceof Error ? error.message : String(error),
+        event: "media_workflow_launch_failed",
+        sourceAssetId: finalized.masterAssetId,
+        trackId,
+      });
+    }
+
+    const entitlements = await resolveEntitlements({
+      session: isAuthenticatedSession(session) ? session : null,
+      user,
+    });
+    if (entitlements.isPremium && settlement.enrichLyrics) {
+      const [masterAsset] = await db
+        .select()
+        .from(trackAssets)
+        .where(eq(trackAssets.id, finalized.masterAssetId))
+        .limit(1);
+      if (masterAsset) {
+        await queueTrackAudioProcessing({ masterAsset, trackId });
+      }
+    }
+
+    return c.json(
+      await buildTrackDetail(finalized.settledTrack),
+      HttpStatusCodes.OK
+    );
+  }
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
     path: "/{trackId}/settle",
     request: {
       body: jsonContentRequired(
@@ -2175,6 +2455,13 @@ app.openapi(
           asset.assetKind === "cover_art" &&
           asset.isCurrent &&
           Boolean(asset.objectKey)
+      ),
+      streamingAsset = assetRows.find(
+        (asset) =>
+          asset.purpose === "streaming" &&
+          asset.isCurrent &&
+          asset.status === "ready" &&
+          Boolean(asset.objectKey)
       );
 
     if (!masterAsset?.objectKey) {
@@ -2206,7 +2493,7 @@ app.openapi(
     );
 
     const releaseAt = body.releaseAt ? new Date(body.releaseAt) : null,
-      shouldPublish = body.isPublic,
+      shouldPublish = body.isPublic && Boolean(streamingAsset),
       [settledTrack] = await withRetry("settle track", () =>
         db
           .update(tracks)
@@ -2226,20 +2513,6 @@ app.openapi(
 
     if (!settledTrack) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
-    }
-
-    if (
-      isLiveRelease({
-        isPublic: shouldPublish,
-        releaseAt,
-        releaseStrategy: body.releaseStrategy,
-      })
-    ) {
-      const bindings = c.env as AppEnv["Bindings"];
-      await notifyTrackLive({
-        emailQueue: bindings.EMAIL_DELIVERY_QUEUE,
-        trackId,
-      });
     }
 
     try {
@@ -2883,6 +3156,20 @@ app.openapi(
 
     const isAuthenticated = isAuthenticatedUser(currentUser),
       isOwner = isAuthenticated && track.ownerUserId === currentUser.id,
+      [collaboratorAccess] = isAuthenticated
+        ? await db
+            .select({ id: trackCollaborators.id })
+            .from(trackCollaborators)
+            .where(
+              and(
+                eq(trackCollaborators.trackId, trackId),
+                eq(trackCollaborators.collaboratorUserId, currentUser.id),
+                eq(trackCollaborators.invitationStatus, "accepted")
+              )
+            )
+            .limit(1)
+        : [],
+      canManageTrack = isOwner || Boolean(collaboratorAccess),
       hasPurchase = isAuthenticated
         ? await hasPurchasedTrack({ db, trackId, userId: currentUser.id })
         : false,
@@ -2899,18 +3186,21 @@ app.openapi(
         isPremium: entitlements?.isPremium ?? false,
         policy: track,
       });
-    if (!(isOwner || (track.isPublic && access.canListen))) {
+    if (!(canManageTrack || (track.isPublic && access.canListen))) {
       return c.json(
         { message: "Playback access is not available for this track." },
         HttpStatusCodes.FORBIDDEN
       );
     }
 
-    const asset = await resolveTrackAsset({
+    let asset = await resolveTrackAsset({
       allowLegacyFallback: true,
       purpose: context === "battle" ? "battle" : "streaming",
       trackId,
     });
+    if (!asset && canManageTrack && context === "ordinary") {
+      asset = await resolveTrackAsset({ purpose: "master", trackId });
+    }
     if (!asset?.objectKey) {
       return c.json(
         { message: "SoundKit playback media is still processing." },

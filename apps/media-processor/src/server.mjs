@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import {
   analyzeSourceObject,
   createDerivativeObject,
+  DerivativeValidationError,
   inspectSourceObject,
 } from "./processor.mjs";
 
@@ -117,10 +118,18 @@ const PORT = Number(process.env.PORT ?? 8080),
   },
   server = createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
-      jsonResponse(response, 500, {
-        message:
-          error instanceof Error ? error.message : "Media processing failed.",
-      });
+      jsonResponse(
+        response,
+        error instanceof DerivativeValidationError ? 422 : 500,
+        {
+          code:
+            error instanceof DerivativeValidationError
+              ? "DERIVATIVE_VALIDATION_FAILED"
+              : "MEDIA_PROCESSING_FAILED",
+          message:
+            error instanceof Error ? error.message : "Media processing failed.",
+        }
+      );
     });
   });
 

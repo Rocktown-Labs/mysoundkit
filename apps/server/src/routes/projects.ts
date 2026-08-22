@@ -36,7 +36,6 @@ import {
   unauthorizedMessage,
 } from "@/lib/entitlements";
 import { canonicalGenreName, canonicalGenreSlug } from "@/lib/genre-catalog";
-import { notify } from "@/lib/notifications";
 import {
   MEDIA_PIPELINE_VERSION,
   PROJECT_EXPORT_PIPELINE_VERSION,
@@ -45,10 +44,12 @@ import {
   ensureMediaProcessingWorkflow,
   ensureProjectExportWorkflow,
 } from "@/lib/media-processing-jobs";
+import { notify } from "@/lib/notifications";
 import {
   genreSlugFromExploreFilter,
   stateFromExploreRegion,
 } from "@/lib/public-explore";
+import { publishProjectIfMediaReady } from "@/lib/release-notifications";
 import { sampleProjects } from "@/lib/sample-data";
 import {
   createProjectBodySchema,
@@ -141,12 +142,6 @@ const projectOrderBy = (sort?: string) => {
   getUploadBucketName = () =>
     (env as unknown as { UPLOAD_BUCKET_NAME?: string }).UPLOAD_BUCKET_NAME ??
     null,
-  getUploadPublicBaseUrl = () =>
-    (
-      (env as unknown as { MEDIA_PUBLIC_URL?: string }).MEDIA_PUBLIC_URL ??
-      (env as unknown as { VITE_MEDIA_URL?: string }).VITE_MEDIA_URL ??
-      ""
-    ).replace(/\/+$/u, ""),
   ensureGenreId = async (genreName: string) => {
     const db = createDb(),
       genreSlug = canonicalGenreSlug(genreName),
@@ -458,7 +453,12 @@ app.openapi(
             ? await ensureGenreId(body.newTracks[0].genre)
             : null;
       const projectStatus =
-          body.status ?? (body.releaseDate ? "scheduled" : "draft"),
+          body.status ??
+          (body.releaseDate
+            ? "scheduled"
+            : body.isPublic
+              ? "released"
+              : "draft"),
         [project] = await db
           .insert(projects)
           .values({
@@ -470,7 +470,7 @@ app.openapi(
             genreId: projectGenreId,
             id: projectId,
             isForSale: body.isForSale,
-            isPublic: body.isPublic && !hasNewTracks,
+            isPublic: false,
             listeningAccess: body.listeningAccess,
             organizationId,
             ownerUserId: user.id,
@@ -541,29 +541,6 @@ app.openapi(
         }
 
         newTrackIds.push(trackId);
-      }
-
-      const projectCoverKey = body.assetIds[0] ?? null;
-
-      if (projectCoverKey) {
-        await db.insert(trackAssets).values(
-          newTrackIds.map((trackId) => ({
-            assetKind: "cover_art" as const,
-            bucketName: getUploadBucketName(),
-            id: crypto.randomUUID(),
-            metadata: {
-              originalFileName: body.title,
-              url: `${getUploadPublicBaseUrl()}/${projectCoverKey}`,
-            },
-            mimeType: "image/*",
-            objectKey: projectCoverKey,
-            sizeBytes: null,
-            status: "uploaded" as const,
-            storageProvider: "r2" as const,
-            trackId,
-            uploaderUserId: user.id,
-          }))
-        );
       }
 
       const projectTrackRows = [...existingTrackIds, ...newTrackIds].map(
@@ -721,8 +698,16 @@ app.openapi(
         }
       }
 
+      if (body.isPublic && !hasNewTracks) {
+        await publishProjectIfMediaReady({ projectId: project.id });
+      }
+      const [currentProject] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, project.id))
+        .limit(1);
       return c.json(
-        await buildProjectSummary(project),
+        await buildProjectSummary(currentProject ?? project),
         HttpStatusCodes.CREATED
       );
     } catch (error: unknown) {
@@ -863,7 +848,7 @@ app.openapi(
         .set({
           description: body.description,
           exportVersion: sql`${projects.exportVersion} + 1`,
-          isPublic: body.isPublic,
+          isPublic: body.isPublic === false ? false : existingProject.isPublic,
           projectType: body.projectType,
           ...monetizationPatch,
           ...releaseDatePatch,
@@ -906,27 +891,19 @@ app.openapi(
       });
     }
 
-    if (project.status === "released") {
-      try {
-        await ensureProjectExportWorkflow({
-          payload: {
-            exportVersion: project.exportVersion,
-            pipelineVersion: PROJECT_EXPORT_PIPELINE_VERSION,
-            projectId: project.id,
-          },
-          workflow: c.env.PROJECT_EXPORT_WORKFLOW,
-        });
-      } catch (error) {
-        logError({
-          error: error instanceof Error ? error.message : String(error),
-          event: "project_export_workflow_launch_failed",
-          exportVersion: project.exportVersion,
-          projectId: project.id,
-        });
-      }
+    if (body.isPublic) {
+      await publishProjectIfMediaReady({ projectId: project.id });
     }
 
-    return c.json(await buildProjectDetail(project), HttpStatusCodes.OK);
+    const [currentProject] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, project.id))
+      .limit(1);
+    return c.json(
+      await buildProjectDetail(currentProject ?? project),
+      HttpStatusCodes.OK
+    );
   }
 );
 
@@ -1098,7 +1075,9 @@ app.openapi(
       [project] = await createDb()
         .select()
         .from(projects)
-        .where(ownedProjectWhere({ organizationId, projectId, userId: user.id }))
+        .where(
+          ownedProjectWhere({ organizationId, projectId, userId: user.id })
+        )
         .limit(1);
     if (!project) {
       return c.json(

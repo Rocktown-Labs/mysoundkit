@@ -26,6 +26,8 @@ import {
 import { updateMediaProcessingJob } from "@/lib/media-processing-jobs";
 import { ContainerMediaProcessor } from "@/lib/media-processor";
 import type { MediaClip } from "@/lib/media-processor";
+import { MediaProcessorValidationError } from "@/lib/media-processor-errors";
+import { handleTrackMediaReady } from "@/lib/release-notifications";
 import { logError, logInfo } from "@/middleware/structured-logging";
 
 const derivativeRetryConfig = {
@@ -273,22 +275,41 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
           });
 
           try {
-            const generated = await step.do(
+            const generation = await step.do(
               `generate ${purpose} derivative`,
               derivativeRetryConfig,
-              () =>
-                processor.createDerivative({
-                  clip,
-                  metadata: soundKitMetadata,
-                  purpose,
-                  sourceObjectKey: payload.objectKey,
-                  targetObjectKey,
-                })
+              async () => {
+                try {
+                  return {
+                    generated: await processor.createDerivative({
+                      clip,
+                      metadata: soundKitMetadata,
+                      purpose,
+                      sourceObjectKey: payload.objectKey,
+                      targetObjectKey,
+                    }),
+                    ok: true as const,
+                  };
+                } catch (error) {
+                  if (error instanceof MediaProcessorValidationError) {
+                    // Cache deterministic validation failures as successful
+                    // step output so Workflow retries never rerender them.
+                    return {
+                      message: error.message,
+                      ok: false as const,
+                    };
+                  }
+                  throw error;
+                }
+              }
             );
+            if (!generation.ok) {
+              throw new MediaProcessorValidationError(generation.message);
+            }
             await step.do(`register ${purpose} derivative`, async () => {
               await registerGeneratedDerivative({
                 bucket,
-                generated,
+                generated: generation.generated,
                 pipelineVersion: payload.pipelineVersion,
                 purpose,
                 sourceAssetId: payload.sourceAssetId,
@@ -359,6 +380,8 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         purpose: "streaming",
         required: true,
       });
+      // Battle playback resolves the same normalized streaming derivative.
+      statuses.battle = "ready";
       await step.do("mark media ready", jobStateStepConfig, async () => {
         await updateMediaProcessingJob({
           currentStage: "media_ready",
@@ -366,6 +389,10 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
           progressPercent: 50,
           workflowInstanceId: event.instanceId,
           workflowType: "media_processing",
+        });
+        await handleTrackMediaReady({
+          emailQueue: this.env.EMAIL_DELIVERY_QUEUE,
+          trackId: payload.trackId,
         });
         logInfo({
           event: "media_ready",
@@ -376,10 +403,6 @@ export class MediaProcessingWorkflow extends WorkflowEntrypoint<
         });
       });
 
-      statuses.battle = await processDerivative({
-        purpose: "battle",
-        required: false,
-      });
       statuses.download = await processDerivative({
         purpose: "download",
         required: false,

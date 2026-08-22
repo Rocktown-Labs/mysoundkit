@@ -26,6 +26,11 @@
 
 ### Fixed
 
+- Replaced the browser-owned register/settle upload chain with one idempotent server finalization boundary that verifies R2 objects, records assets, saves release intent, and starts durable processing without waiting up to 15 minutes in the upload form.
+- Fixed project track uploads using the project-asset namespace and detached callback timeouts; project audio now uses awaited Better Upload transfers through authenticated per-track source keys and the same atomic finalization path as individual tracks.
+- Fixed premature publication and “track ready” emails: owners receive the ready notification only after playable streaming media is registered, while immediate and scheduled public releases are gated on media readiness.
+- Fixed deterministic loudness failures repeatedly rendering the same derivative by preserving validation failures as Workflow step output, and disabled FFmpeg limiter auto-leveling.
+
 - Fixed the artist profile page queueing every playable track when playing a single song; dashboard/private surfaces now always queue only the selected track.
 - Fixed preview-environment media URLs pointing at a nonexistent `media-pr-<n>` host: local and PR preview stages now build asset URLs from the API origin's guarded `/media` route, while production keeps serving through the dedicated media domain.
 
@@ -60,6 +65,8 @@
 
 ### Changed
 
+- Unified ordinary and battle playback on one `-13 LUFS` streaming derivative, accepted from `-14` through `-12 LUFS` with True Peak at or below `-1 dBTP`; pipeline V2 also caches each source inside the processor container and removes redundant browser-generated WAV previews.
+- Organized new source uploads under immutable per-user/per-track R2 keys (`tracks/{userId}/{trackId}/source/{assetId}-{filename}`).
 - Changed download filenames to derive from the track title instead of the raw uploaded file: masters keep their source extension (`blunt-22.wav`), generated derivatives use `.m4a`/`.flac`, and cover art downloads as `blunt-22-cover.jpg`.
 - Changed preview environments to share the single production `soundkit-media` R2 bucket instead of per-stage buckets, matching how stages share the application database: uploads from previews land in the same catalog storage, Destroy Preview removes the bucket binding from Alchemy state without deleting the bucket (`delete` is production-only), and bucket CORS uses a stable wildcard rule so stage deploys no longer rewrite each other's configuration.
 - Relaxed derivative loudness verification tolerance from ±0.6 to ±1.0 LU (EBU/Apple-style delivery tolerance) so healthy two-pass loudnorm + AAC encodes are not rejected; True Peak must still be ≤ -1 dBTP.

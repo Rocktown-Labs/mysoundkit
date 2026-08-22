@@ -17,8 +17,13 @@ export type TrackAssetResolutionPurpose =
 
 const semanticPurpose = (
     purpose: TrackAssetResolutionPurpose
-  ): MediaAssetPurpose =>
-    purpose === "consumer_download" ? "download" : purpose,
+  ): MediaAssetPurpose => {
+    if (purpose === "consumer_download") {
+      return "download";
+    }
+    // Battle playback intentionally reuses the canonical streaming asset.
+    return purpose === "battle" ? "streaming" : purpose;
+  },
   isReadyCurrentAsset = (asset: typeof trackAssets.$inferSelect) =>
     asset.isCurrent && asset.status === "ready" && Boolean(asset.objectKey),
   legacyAssetKinds = (purpose: TrackAssetResolutionPurpose): string[] => {

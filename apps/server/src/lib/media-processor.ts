@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import type { MediaProcessorContainer } from "@/containers/media-processor";
 import type { GeneratedMediaPurpose } from "@/lib/media-pipeline";
+import { MediaProcessorValidationError } from "@/lib/media-processor-errors";
 
 export type MediaProcessorPurpose = GeneratedMediaPurpose | "project_export";
 
@@ -110,6 +111,15 @@ const readProcessorResponse = async <Output>(
       typeof payload.message === "string"
         ? payload.message
         : `Media processor failed with status ${response.status}.`;
+    if (
+      response.status === 422 &&
+      payload &&
+      typeof payload === "object" &&
+      "code" in payload &&
+      payload.code === "DERIVATIVE_VALIDATION_FAILED"
+    ) {
+      throw new MediaProcessorValidationError(message);
+    }
     throw new Error(message);
   }
   return schema.parse(payload);

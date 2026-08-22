@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertVerifiedDerivative,
+  DerivativeValidationError,
   linearGainChain,
   buildMetadataArguments,
   isLosslessCodec,
@@ -90,52 +91,53 @@ test("linear gain chain trims quiet sources and limits hot ones", () => {
   assert.equal(
     linearGainChain({
       analysis: { inputI: -7.83, inputTp: -0.12 },
-      targetLufs: -12,
+      targetLufs: -13,
     }),
-    "volume=-4.17 dB"
+    "volume=-5.17 dB"
   );
 
   // Quiet source needing gain that would push true peak past the ceiling:
   // gain plus limiter.
   const boosted = linearGainChain({
     analysis: { inputI: -16.17, inputTp: -3 },
-    targetLufs: -12,
+    targetLufs: -13,
   });
-  assert.match(boosted, /^volume=4\.17 dB,/u);
+  assert.match(boosted, /^volume=3\.17 dB,/u);
   assert.match(boosted, /alimiter=limit=0\.841/u);
+  assert.match(boosted, /level=false/u);
 });
 
 test("normalized derivatives enforce loudness and True Peak", () => {
   assert.doesNotThrow(() =>
     assertVerifiedDerivative({
       sourceLoudness: { integratedLufs: -7.8 },
-      targetLufs: -12,
-      verification: { integratedLufs: -12.1, truePeakDbtp: -1.2 },
+      targetLufs: -13,
+      verification: { integratedLufs: -12, truePeakDbtp: -1.2 },
     })
   );
   assert.doesNotThrow(() =>
     assertVerifiedDerivative({
       sourceLoudness: { integratedLufs: -7.8 },
-      targetLufs: -12,
-      verification: { integratedLufs: -12.73, truePeakDbtp: -1.4 },
+      targetLufs: -13,
+      verification: { integratedLufs: -14, truePeakDbtp: -1.4 },
     })
   );
   assert.throws(
     () =>
       assertVerifiedDerivative({
         sourceLoudness: { integratedLufs: -7.8 },
-        targetLufs: -12,
-        verification: { integratedLufs: -13.2, truePeakDbtp: -1.4 },
+        targetLufs: -13,
+        verification: { integratedLufs: -14.01, truePeakDbtp: -1.4 },
       }),
-    /missed target/u
+    DerivativeValidationError
   );
   assert.throws(
     () =>
       assertVerifiedDerivative({
         sourceLoudness: { integratedLufs: -7.8 },
-        targetLufs: -12,
-        verification: { integratedLufs: -12, truePeakDbtp: -0.7 },
+        targetLufs: -13,
+        verification: { integratedLufs: -13, truePeakDbtp: -0.7 },
       }),
-    /True Peak/u
+    DerivativeValidationError
   );
 });

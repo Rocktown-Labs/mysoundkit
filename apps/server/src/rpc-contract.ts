@@ -1,3 +1,4 @@
+/* oxlint-disable one-var, sort-vars, unicorn/max-nested-calls */
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { z } from "zod";
@@ -26,6 +27,7 @@ import {
   createVideoBodySchema,
   createVideoCommentBodySchema,
   directVideoUploadBodySchema,
+  finalizeTrackUploadBodySchema,
   battleBotActionBodySchema,
   joinLiveExperienceBodySchema,
   liveSessionLockCheckBodySchema,
@@ -442,6 +444,11 @@ export const rpcContract = new Hono()
   .post(
     "/v1/tracks/:trackId/settle",
     jsonValidator(settleTrackBodySchema),
+    (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
+  )
+  .post(
+    "/v1/tracks/:trackId/finalize-upload",
+    jsonValidator(finalizeTrackUploadBodySchema),
     (c) => c.json({} as z.infer<typeof trackDashboardDetailSchema>)
   )
   .get("/v1/tracks/:trackId/processing", (c) =>

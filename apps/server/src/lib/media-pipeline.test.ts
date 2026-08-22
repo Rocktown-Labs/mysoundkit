@@ -14,6 +14,10 @@ const sourceAssetId = "efb2f77d-33ab-47bc-b492-211d3672c6b9",
   trackId = "0fd8f8d9-97e0-43b8-ae30-9d248698441f";
 
 describe("media pipeline contracts", () => {
+  it("uses the remediated media pipeline version", () => {
+    expect(MEDIA_PIPELINE_VERSION).toBe(2);
+  });
+
   it("builds deterministic workflow IDs within Cloudflare limits", () => {
     const payload = {
         objectKey: `tracks/user/${sourceAssetId}.wav`,

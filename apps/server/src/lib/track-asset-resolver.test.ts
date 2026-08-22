@@ -91,6 +91,32 @@ describe("central track asset resolver", () => {
     ).toBe("streaming-current");
   });
 
+  it("reuses the canonical streaming derivative for battle playback", () => {
+    const master = asset({
+        assetKind: "master",
+        id: "master-current",
+        processingVersion: 2,
+        purpose: "master",
+      }),
+      streaming = asset({
+        assetKind: "variant_audio",
+        id: "streaming-current",
+        mimeType: "audio/mp4",
+        normalizationTargetLufs: "-13.00",
+        processingVersion: 2,
+        purpose: "streaming",
+        sourceAssetId: master.id,
+      });
+
+    expect(
+      resolveTrackAssetFromRows({
+        assets: [master, streaming],
+        purpose: "battle",
+        trackId: "track-1",
+      })?.id
+    ).toBe("streaming-current");
+  });
+
   it("uses an observable master fallback only for legacy sources", () => {
     const legacyMaster = asset({ assetKind: "master", id: "legacy-master" });
 

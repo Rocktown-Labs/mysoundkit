@@ -1,5 +1,6 @@
 "use client";
 /* eslint-disable complexity, no-nested-ternary, no-promise-executor-return, no-unused-vars, no-use-before-define, react-hooks/exhaustive-deps, react-perf/jsx-no-new-function-as-prop, react/jsx-handler-names, react/no-array-index-key, no-empty-function, promise/avoid-new, promise/param-names, promise/prefer-await-to-then, require-await, require-unicode-regexp, sort-vars, one-var, unicorn/consistent-function-scoping, prefer-destructuring, func-names */
+/* oxlint-disable react/incompatible-library */
 
 import { useUploadFiles } from "@better-upload/client";
 import { usePostHog } from "@posthog/react";
@@ -77,7 +78,6 @@ import {
   rpcJson,
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
-import { createAudioPreviewFile } from "@/lib/audio-preview";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
@@ -86,13 +86,9 @@ import {
   useGenresQuery,
   useMeEntitlementsQuery,
   useSellerStatusQuery,
-  useSettleTrackMutation,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
-import type {
-  MediaProcessingStatus,
-  UpdateTrackBody,
-} from "@/lib/soundkit-api-hooks";
+import type { UpdateTrackBody } from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@/lib/zod-resolver";
 
@@ -147,26 +143,9 @@ const OPTIONAL_COMPONENTS = [
     "Spoken Word",
   ] as const,
   trackAssetPost = apiClient.v1.tracks[":trackId"].assets.$post,
-  trackMediaProcessingGet = apiClient.v1.tracks[":trackId"].processing.$get,
-  trackGet = apiClient.v1.tracks[":trackId"].$get,
-  SINGLE_PRICE_USD = 1.29,
-  PROCESSING_POLL_INTERVAL_MS = 2000,
-  PROCESSING_BLOCKING_TIMEOUT_MS = 15 * 60 * 1000,
-  PROCESSING_STAGE_LABELS: Record<string, string> = {
-    analyzing_loudness: "Analyzing audio",
-    generating_battle: "Preparing battle audio",
-    generating_download: "Preparing download",
-    generating_lossless: "Preparing lossless audio",
-    generating_open_verse_snippet: "Preparing Open Verse audio",
-    generating_streaming: "Preparing SoundKit stream",
-    media_ready: "SoundKit stream ready",
-    queued: "Waiting for media processor",
-    registering_battle: "Finalizing battle audio",
-    registering_download: "Finalizing download",
-    registering_lossless: "Finalizing lossless audio",
-    registering_streaming: "Finalizing SoundKit stream",
-    verifying_master: "Verifying original master",
-  };
+  trackFinalizeUploadPost =
+    apiClient.v1.tracks[":trackId"]["finalize-upload"].$post,
+  SINGLE_PRICE_USD = 1.29;
 
 type OptionalComponentKind = (typeof OPTIONAL_COMPONENTS)[number]["kind"];
 
@@ -319,31 +298,6 @@ interface NewTrackFormProps {
   trackId?: string;
 }
 
-const waitForTrackMedia = async ({
-  onStatus,
-  trackId,
-}: {
-  onStatus: (status: MediaProcessingStatus) => void;
-  trackId: string;
-}): Promise<{ status: MediaProcessingStatus; timedOut: boolean }> => {
-  const startedAt = Date.now();
-  while (true) {
-    const status = await rpcJson(
-      await trackMediaProcessingGet({ param: { trackId } })
-    );
-    onStatus(status);
-    if (status.mediaReady || status.status === "failed") {
-      return { status, timedOut: false };
-    }
-    if (Date.now() - startedAt >= PROCESSING_BLOCKING_TIMEOUT_MS) {
-      return { status, timedOut: true };
-    }
-    await new Promise((resolve) =>
-      setTimeout(resolve, PROCESSING_POLL_INTERVAL_MS)
-    );
-  }
-};
-
 export function NewTrackForm({
   initialTrack,
   trackId,
@@ -380,8 +334,6 @@ export function NewTrackForm({
       | "error"
     >("idle"),
     [submitProgress, setSubmitProgress] = useState(0),
-    [processingStatus, setProcessingStatus] =
-      useState<MediaProcessingStatus | null>(null),
     [createdTrackInfo, setCreatedTrackInfo] = useState<{
       audioFileName?: string;
       audioFileSize?: string;
@@ -420,7 +372,6 @@ export function NewTrackForm({
       title: string;
     } | null>(null),
     createTrackMutation = useCreateTrackMutation(),
-    settleTrackMutation = useSettleTrackMutation(),
     updateTrackMutation = useUpdateTrackMutation(trackId ?? ""),
     entitlementsQuery = useMeEntitlementsQuery(),
     isPremiumArtist = entitlementsQuery.data?.isPremium === true,
@@ -981,62 +932,33 @@ export function NewTrackForm({
           };
         }
 
-        // 2. Prepare audio preview and duration
-        const previewFile = selectedMasterFile
-          ? await createAudioPreviewFile(selectedMasterFile).catch(() => null)
-          : null;
+        // 2. Read the source duration and upload only the original master.
+        // Streaming playback is generated once by the durable media pipeline.
         const masterDurationMs =
           selectedMasterDurationMs ??
           (selectedMasterFile
             ? await readAudioDurationMs(selectedMasterFile).catch(() => null)
             : null);
 
-        // 3. Upload Master & Preview (if not already uploaded)
         let masterKey = uploadedTrack?.objectKey ?? "";
         let masterUrl = uploadedTrack?.remoteUrl ?? "";
-        let previewKey: string | undefined;
-        let previewUrl: string | undefined;
 
         if (!masterKey && selectedMasterFile) {
           setSubmitStage("uploading");
-          const filesToUpload = previewFile
-            ? [selectedMasterFile, previewFile]
-            : [selectedMasterFile];
-          const masterResult = await uploadMasterAsync(filesToUpload);
-
-          const masterUpload = masterResult.files.find(
-            (entry) =>
-              (entry.raw && entry.raw === selectedMasterFile) ||
-              (!entry.name.endsWith(".preview.wav") &&
-                entry.name === selectedMasterFile?.name) ||
-              !entry.name.endsWith(".preview.wav")
-          );
-          const previewUpload = masterResult.files.find(
-            (entry) =>
-              (previewFile && entry.raw === previewFile) ||
-              entry.name.endsWith(".preview.wav")
-          );
+          const masterResult = await uploadMasterAsync([selectedMasterFile], {
+              metadata: { trackId: trackIdToUse },
+            }),
+            masterUpload = masterResult.files[0];
 
           if (!masterUpload) {
-            const masterFailed = masterResult.failedFiles.find(
-              (entry) =>
-                (entry.raw && entry.raw === selectedMasterFile) ||
-                (!entry.name.endsWith(".preview.wav") &&
-                  entry.name === selectedMasterFile?.name) ||
-                !entry.name.endsWith(".preview.wav")
-            );
             throw new Error(
-              masterFailed?.error?.message ??
+              masterResult.failedFiles[0]?.error?.message ??
                 "The master audio file could not be uploaded."
             );
           }
 
           masterKey = masterUpload.objectInfo.key;
           masterUrl = `${MEDIA_BASE_URL}/${masterKey}`;
-          if (previewUpload) {
-            previewKey = previewUpload.objectInfo.key;
-            previewUrl = `${MEDIA_BASE_URL}/${previewKey}`;
-          }
         }
 
         // 4. Upload Cover Art (if selected and not already uploaded)
@@ -1088,7 +1010,8 @@ export function NewTrackForm({
         if (optionalFiles.length > 0) {
           setSubmitStage("uploading");
           const componentResult = await uploadComponentsAsync(
-            optionalFiles.map((entry) => entry.file)
+            optionalFiles.map((entry) => entry.file),
+            { metadata: { trackId: trackIdToUse } }
           );
           for (const uploaded of componentResult.files) {
             const matched = optionalFiles.find(
@@ -1106,114 +1029,11 @@ export function NewTrackForm({
           }
         }
 
-        // 6. Finalize SoundKit Assets
+        // 6. Verify every uploaded object and settle the track through one
+        // idempotent server boundary. DSP starts only after this commits.
         setSubmitStage("finalizing_upload");
-
-        if (coverKey) {
-          await rpcJson(
-            await trackAssetPost({
-              json: {
-                assetKind: "cover_art",
-                metadata: {
-                  originalFileName:
-                    coverUpload?.fileName ??
-                    selectedCoverFile?.name ??
-                    "cover.jpg",
-                  url: coverUrl || `${MEDIA_BASE_URL}/${coverKey}`,
-                },
-                mimeType: "image/*",
-                objectKey: coverKey,
-                status: "ready",
-                storageProvider: "r2",
-              },
-              param: { trackId: trackIdToUse },
-            })
-          );
-        }
-
-        const masterAssetDetail = await rpcJson(
-          await trackAssetPost({
-            json: {
-              assetKind: "master",
-              durationMs: masterDurationMs ?? undefined,
-              metadata: {
-                durationMs: masterDurationMs,
-                originalFileName: selectedMasterFile?.name ?? "master.wav",
-              },
-              mimeType: selectedMasterFile?.type || "audio/mpeg",
-              objectKey: masterKey,
-              sizeBytes: selectedMasterFile?.size,
-              status: "uploaded",
-              storageProvider: "r2",
-            },
-            param: { trackId: trackIdToUse },
-          })
-        );
-
-        if (previewKey && previewFile) {
-          await rpcJson(
-            await trackAssetPost({
-              json: {
-                assetKind: "variant_audio",
-                durationMs: Math.min(masterDurationMs ?? 30_000, 30_000),
-                metadata: {
-                  durationMs: Math.min(masterDurationMs ?? 30_000, 30_000),
-                  originalFileName: previewFile.name,
-                  previewDurationSeconds: 30,
-                  url: previewUrl,
-                  variant: "preview_30s",
-                },
-                mimeType: previewFile.type || "audio/wav",
-                objectKey: previewKey,
-                sizeBytes: previewFile.size,
-                status: "ready",
-                storageProvider: "r2",
-              },
-              param: { trackId: trackIdToUse },
-            })
-          );
-        }
-
-        for (const comp of uploadedComponents) {
-          await rpcJson(
-            await trackAssetPost({
-              json: {
-                assetKind: comp.kind,
-                metadata: {
-                  originalFileName: comp.file.name,
-                  url: `${MEDIA_BASE_URL}/${comp.key}`,
-                },
-                mimeType: comp.file.type || "application/octet-stream",
-                objectKey: comp.key,
-                sizeBytes: comp.file.size,
-                status: "ready",
-                storageProvider: "r2",
-              },
-              param: { trackId: trackIdToUse },
-            })
-          );
-        }
-
-        // Cache finalized preview so retries avoid re-uploading
-        const masterAsset = masterAssetDetail.assets.find(
-          (asset) =>
-            asset.assetKind === "master" && asset.objectKey === masterKey
-        );
-        const preview: UploadedTrackPreview = {
-          assetId: masterAsset?.id ?? "",
-          durationMs: masterDurationMs,
-          objectKey: masterKey,
-          remoteUrl: masterUrl,
-          statusMessage: "Uploaded to SoundKit storage.",
-          title: trackTitleToUse,
-          trackId: trackIdToUse,
-        };
-        setUploadedTrack(preview);
-
-        // 7. Settle track with defensive recovery
-        setSubmitStage("settling");
-        const release = mapStatusToRelease(values.status, values.releaseAt);
-        const requireCoverArt = values.status !== "draft";
+        const release = mapStatusToRelease(values.status, values.releaseAt),
+          requireCoverArt = values.status !== "draft";
 
         if (requireCoverArt && !coverKey) {
           toast({
@@ -1228,103 +1048,100 @@ export function NewTrackForm({
           return;
         }
 
-        const settlePayload = {
-          body: {
-            enrichLyrics: values.enrichLyrics,
-            isPublic: release.isPublic,
-            productionStatus: release.productionStatus,
-            releaseAt: values.releaseAt || undefined,
-            releaseStrategy: release.releaseStrategy,
-            requireCoverArt,
-          },
-          trackId: trackIdToUse,
-        };
-
-        let settledTrack;
-        try {
-          settledTrack = await settleTrackMutation.mutateAsync(settlePayload);
-        } catch (settleError) {
-          const isPendingMaster =
-            settleError instanceof Error &&
-            ((settleError as { code?: string }).code ===
-              "MASTER_UPLOAD_PENDING" ||
-              settleError.message.includes(
-                "Master audio must finish uploading"
-              ));
-
-          if (isPendingMaster) {
-            // Re-confirm master asset status before single retry
-            await rpcJson(
-              await trackAssetPost({
-                json: {
-                  assetKind: "master",
-                  durationMs: masterDurationMs ?? undefined,
-                  metadata: {
-                    durationMs: masterDurationMs,
-                    originalFileName: selectedMasterFile?.name ?? "master.wav",
+        const settledTrack = await rpcJson(
+            await trackFinalizeUploadPost({
+              json: {
+                assets: [
+                  ...(coverKey
+                    ? [
+                        {
+                          assetKind: "cover_art" as const,
+                          metadata: {
+                            originalFileName:
+                              coverUpload?.fileName ??
+                              selectedCoverFile?.name ??
+                              "cover.jpg",
+                            url: coverUrl || `${MEDIA_BASE_URL}/${coverKey}`,
+                          },
+                          mimeType: "image/*",
+                          objectKey: coverKey,
+                          status: "ready" as const,
+                          storageProvider: "r2" as const,
+                        },
+                      ]
+                    : []),
+                  {
+                    assetKind: "master" as const,
+                    durationMs: masterDurationMs ?? undefined,
+                    metadata: {
+                      durationMs: masterDurationMs,
+                      originalFileName:
+                        selectedMasterFile?.name ?? "master.wav",
+                    },
+                    mimeType: selectedMasterFile?.type || "audio/mpeg",
+                    objectKey: masterKey,
+                    sizeBytes: selectedMasterFile?.size,
+                    status: "uploaded" as const,
+                    storageProvider: "r2" as const,
                   },
-                  mimeType: selectedMasterFile?.type || "audio/mpeg",
-                  objectKey: masterKey,
-                  sizeBytes: selectedMasterFile?.size,
-                  status: "uploaded",
-                  storageProvider: "r2",
+                  ...uploadedComponents.map((component) => ({
+                    assetKind: component.kind,
+                    metadata: {
+                      originalFileName: component.file.name,
+                      url: `${MEDIA_BASE_URL}/${component.key}`,
+                    },
+                    mimeType: component.file.type || "application/octet-stream",
+                    objectKey: component.key,
+                    sizeBytes: component.file.size,
+                    status: "ready" as const,
+                    storageProvider: "r2" as const,
+                  })),
+                ],
+                settlement: {
+                  enrichLyrics: values.enrichLyrics,
+                  isPublic: release.isPublic,
+                  productionStatus: release.productionStatus,
+                  releaseAt: values.releaseAt || undefined,
+                  releaseStrategy: release.releaseStrategy,
+                  requireCoverArt,
                 },
-                param: { trackId: trackIdToUse },
-              })
-            );
-            settledTrack = await settleTrackMutation.mutateAsync(settlePayload);
-          } else {
-            throw settleError;
-          }
-        }
-
-        // 8. Hand off from browser transfer to durable media processing
-        const createdInfo = {
-          audioFileName: selectedMasterFile?.name || "master-audio.wav",
-          audioFileSize: selectedMasterFile
-            ? `${(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB`
-            : undefined,
-          coverUrl: coverUrl || "/placeholder.svg",
-          genre: values.genre,
-          id: trackIdToUse,
-          isPublic: Boolean(settledTrack.isPublic),
-          status: values.status,
-          title: values.name,
-        };
-        setCreatedTrackInfo(createdInfo);
-        setSubmitStage("processing");
-        const processingResult = await waitForTrackMedia({
-            onStatus: setProcessingStatus,
+              },
+              param: { trackId: trackIdToUse },
+            })
+          ),
+          masterAsset = settledTrack.assets.find(
+            (asset) =>
+              asset.assetKind === "master" && asset.objectKey === masterKey
+          ),
+          preview: UploadedTrackPreview = {
+            assetId: masterAsset?.id ?? "",
+            durationMs: masterDurationMs,
+            objectKey: masterKey,
+            remoteUrl: masterUrl,
+            statusMessage: "Master safely saved. Playback media is processing.",
+            title: trackTitleToUse,
             trackId: trackIdToUse,
-          }),
-          processingFailed = processingResult.status.status === "failed";
-        let streamingPlaybackUrl: string | undefined;
-        if (processingResult.status.mediaReady) {
-          const processedTrack = await rpcJson(
-            await trackGet({ param: { trackId: trackIdToUse } })
-          );
-          streamingPlaybackUrl = processedTrack.playbackUrl ?? undefined;
-        }
-        setCreatedTrackInfo({
-          ...createdInfo,
-          playbackUrl: streamingPlaybackUrl,
-        });
-        setSubmitStage("settled");
+          },
+          createdInfo = {
+            audioFileName: selectedMasterFile?.name || "master-audio.wav",
+            audioFileSize: selectedMasterFile
+              ? `${(selectedMasterFile.size / (1024 * 1024)).toFixed(1)} MB`
+              : undefined,
+            coverUrl: coverUrl || "/placeholder.svg",
+            genre: values.genre,
+            id: trackIdToUse,
+            isPublic: Boolean(settledTrack.isPublic),
+            playbackUrl: settledTrack.playbackUrl ?? undefined,
+            status: values.status,
+            title: values.name,
+          };
 
+        setUploadedTrack(preview);
+        setCreatedTrackInfo(createdInfo);
+        setSubmitStage("settled");
         toast({
-          description: processingFailed
-            ? `${values.name} is saved. Media processing needs a retry from the track dashboard.`
-            : processingResult.timedOut
-              ? `${values.name} is saved and continues processing in the background.`
-              : values.status === "ready"
-                ? `${values.name} is processed and live.`
-                : `${values.name} is processed and saved as a private draft.`,
-          title: processingFailed
-            ? "Track saved — processing retry needed"
-            : processingResult.timedOut
-              ? "Track processing in background"
-              : "Track media ready",
-          variant: processingFailed ? "destructive" : "default",
+          description: `${values.name} is safely saved. SoundKit playback media is processing in the background.`,
+          title: "Track saved",
         });
 
         resetDraft();
@@ -1541,15 +1358,10 @@ export function NewTrackForm({
                 <CheckCircle2 className="size-6 text-emerald-400" />
               </div>
               <div>
-                <h3 className="text-xl font-bold">
-                  {processingStatus?.mediaReady
-                    ? "Track Media Ready"
-                    : "Track Safely Saved"}
-                </h3>
+                <h3 className="text-xl font-bold">Track Safely Saved</h3>
                 <p className="text-xs text-muted-foreground">
-                  {processingStatus?.mediaReady
-                    ? "Previewing the SoundKit streaming derivative your listeners will hear."
-                    : "Your original master is registered. Processing can be retried or monitored from the track dashboard."}
+                  Your original master is registered. SoundKit playback media
+                  continues processing in the background.
                 </p>
               </div>
             </div>
@@ -1667,10 +1479,7 @@ export function NewTrackForm({
                   "Finalizing uploaded audio..."}
                 {submitStage === "settling" && "Finishing track setup..."}
                 {submitStage === "processing" &&
-                  (PROCESSING_STAGE_LABELS[
-                    processingStatus?.currentStage ?? "queued"
-                  ] ??
-                    "Processing SoundKit media")}
+                  "Queueing SoundKit media processing..."}
                 {submitStage === "settled" && "Track ready"}
               </h3>
               <p className="text-xs text-muted-foreground">
@@ -1703,9 +1512,7 @@ export function NewTrackForm({
             ) : (
               <output className="block rounded-lg border border-border/50 bg-muted/20 p-3 text-xs text-muted-foreground">
                 {submitStage === "processing"
-                  ? (PROCESSING_STAGE_LABELS[
-                      processingStatus?.currentStage ?? "queued"
-                    ] ?? "Processing SoundKit media")
+                  ? "Queueing SoundKit media processing"
                   : "Working on the current stage…"}
               </output>
             )}

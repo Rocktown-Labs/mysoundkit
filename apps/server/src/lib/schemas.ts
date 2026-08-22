@@ -1705,6 +1705,11 @@ export const createTrackAssetBodySchema = z.object({
   storageProvider: z.enum(["r2", "mux", "external"]).default("r2"),
 });
 
+export const finalizeTrackUploadBodySchema = z.object({
+  assets: z.array(createTrackAssetBodySchema).min(1),
+  settlement: settleTrackBodySchema,
+});
+
 export const openVerseQuerySchema = z.object({
   cursor: z.string().datetime().optional(),
   genre: z.string().trim().max(80).optional(),

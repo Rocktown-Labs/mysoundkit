@@ -1,12 +1,13 @@
+/* oxlint-disable one-var, sort-vars */
 import { RejectUpload, handleRequest, route } from "@better-upload/server";
 import type { Router } from "@better-upload/server";
 import { cloudflare } from "@better-upload/server/clients";
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { createAuth } from "@soundkit/auth";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
-import { userProfiles } from "@soundkit/db/schema/app";
+import { tracks, userProfiles } from "@soundkit/db/schema/app";
 import { env } from "@soundkit/env/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as HttpStatusCodes from "stoker/http-status-codes";
 import jsonContent from "stoker/openapi/helpers/json-content";
 
@@ -76,17 +77,20 @@ const getEnvValue = (key: UploadConfigKey | "CLOUDFLARE_R2_JURISDICTION") => {
       ", "
     )}.`,
   createObjectKey = ({
+    entityId,
     fileName,
     prefix,
     userId,
   }: {
+    entityId?: string;
     fileName: string;
     prefix: string;
     userId: string;
   }) => {
-    const sanitizedName = fileName.replaceAll(/\s+/gu, "-");
+    const sanitizedName = fileName.replaceAll(/\s+/gu, "-"),
+      entityPath = entityId ? `${entityId}/source/` : "";
 
-    return `${prefix}/${userId}/${Date.now()}-${sanitizedName}`;
+    return `${prefix}/${userId}/${entityPath}${crypto.randomUUID()}-${sanitizedName}`;
   };
 
 export const isAllowedUploadKeyForAssetKind = ({
@@ -240,29 +244,45 @@ const requireUploadUser = async (request: Request) => {
           },
         }),
         "track-source": route({
+          clientMetadataSchema: z.object({ trackId: z.string().min(1) }),
           fileTypes: ["audio/*", "application/octet-stream"],
           maxFileSize: 1024 * 1024 * 1024 * 2,
           multipart: true,
           multipleFiles: true,
-          onBeforeUpload: async ({ files, req }) => {
+          onBeforeUpload: async ({ clientMetadata, files, req }) => {
             if (files.length === 0) {
               throw new RejectUpload("At least one track file is required.");
             }
 
-            const userId = await requireArtistUploadUser(req);
+            const userId = await requireArtistUploadUser(req),
+              [track] = await createDb()
+                .select({ id: tracks.id })
+                .from(tracks)
+                .where(
+                  and(
+                    eq(tracks.id, clientMetadata.trackId),
+                    eq(tracks.ownerUserId, userId)
+                  )
+                )
+                .limit(1);
+            if (!track) {
+              throw new RejectUpload("Track upload authorization failed.");
+            }
 
             logInfo({
               event: "upload_presigned_url_requested",
               fileCount: files.length,
-              fileNames: files.map((f) => f.name),
-              fileSizes: files.map((f) => f.size),
+              fileNames: files.map((file) => file.name),
+              fileSizes: files.map((file) => file.size),
               route: "track-source",
+              trackId: track.id,
               userId,
             });
 
             return {
               generateObjectInfo: ({ file }) => ({
                 key: createObjectKey({
+                  entityId: track.id,
                   fileName: file.name,
                   prefix: "tracks",
                   userId,

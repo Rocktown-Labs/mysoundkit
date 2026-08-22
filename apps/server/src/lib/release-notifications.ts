@@ -4,6 +4,8 @@ import {
   artistFollows,
   projectPreSaves,
   projects,
+  projectTracks,
+  trackAssets,
   trackPreSaves,
   tracks,
   userFollows,
@@ -15,7 +17,10 @@ import { and, eq, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { EmailDeliveryQueueMessage } from "@/lib/email-delivery";
 import { notify } from "@/lib/notifications";
-import { notifyTrackLive } from "@/lib/track-notifications";
+import {
+  notifyTrackLive,
+  notifyTrackMediaReady,
+} from "@/lib/track-notifications";
 
 const loadReleaseAudience = async ({
   ownerUserId,
@@ -42,6 +47,133 @@ const loadReleaseAudience = async ({
       ...profileFollowers.map((entry) => entry.userId),
     ]),
   ].filter((userId) => userId !== ownerUserId);
+};
+
+export const publishProjectIfMediaReady = async ({
+  projectId,
+}: {
+  projectId: string;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return false;
+  }
+
+  const db = createDb(),
+    [project] = await db
+      .select({
+        id: projects.id,
+        isPublic: projects.isPublic,
+        releaseDate: projects.releaseDate,
+        status: projects.status,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
+  if (!project) {
+    return false;
+  }
+  if (project.isPublic) {
+    return true;
+  }
+
+  const releaseIsDue =
+    !project.releaseDate || project.releaseDate.getTime() <= Date.now();
+  if (
+    (project.status !== "released" && project.status !== "scheduled") ||
+    !releaseIsDue
+  ) {
+    return false;
+  }
+
+  const trackRows = await db
+    .select({
+      streamingAssetId: trackAssets.id,
+      trackId: projectTracks.trackId,
+    })
+    .from(projectTracks)
+    .leftJoin(
+      trackAssets,
+      and(
+        eq(trackAssets.trackId, projectTracks.trackId),
+        eq(trackAssets.purpose, "streaming"),
+        eq(trackAssets.isCurrent, true),
+        eq(trackAssets.status, "ready")
+      )
+    )
+    .where(eq(projectTracks.projectId, projectId));
+  if (
+    trackRows.length === 0 ||
+    trackRows.some((trackRow) => !trackRow.streamingAssetId)
+  ) {
+    return false;
+  }
+
+  await db
+    .update(projects)
+    .set({ isPublic: true, status: "released", updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+  return true;
+};
+
+const publishReadyProjectsContainingTrack = async (trackId: string) => {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+  const projectRows = await createDb()
+    .select({ projectId: projectTracks.projectId })
+    .from(projectTracks)
+    .where(eq(projectTracks.trackId, trackId));
+  for (const projectRow of projectRows) {
+    await publishProjectIfMediaReady({ projectId: projectRow.projectId });
+  }
+};
+
+export const handleTrackMediaReady = async ({
+  emailQueue,
+  trackId,
+}: {
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  trackId: string;
+}) => {
+  if (!isDatabaseConfigured()) {
+    return { mediaReady: false, published: false };
+  }
+
+  const db = createDb(),
+    [track] = await db
+      .select({
+        id: tracks.id,
+        isPublic: tracks.isPublic,
+        releaseAt: tracks.releaseAt,
+        releaseStrategy: tracks.releaseStrategy,
+      })
+      .from(tracks)
+      .where(eq(tracks.id, trackId))
+      .limit(1);
+  if (!track) {
+    return { mediaReady: false, published: false };
+  }
+
+  await notifyTrackMediaReady({ emailQueue, trackId });
+
+  const releaseIsDue =
+      !track.releaseAt || track.releaseAt.getTime() <= Date.now(),
+    shouldPublish =
+      track.releaseStrategy !== "private" && releaseIsDue && !track.isPublic;
+  if (shouldPublish) {
+    await db
+      .update(tracks)
+      .set({
+        isPublic: true,
+        publishedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(tracks.id, trackId));
+    await notifyTrackLive({ emailQueue, trackId });
+  }
+  await publishReadyProjectsContainingTrack(trackId);
+
+  return { mediaReady: true, published: track.isPublic || shouldPublish };
 };
 
 export const publishDueTrackReleases = async ({
@@ -71,6 +203,15 @@ export const publishDueTrackReleases = async ({
       title: tracks.title,
     })
     .from(tracks)
+    .innerJoin(
+      trackAssets,
+      and(
+        eq(trackAssets.trackId, tracks.id),
+        eq(trackAssets.purpose, "streaming"),
+        eq(trackAssets.isCurrent, true),
+        eq(trackAssets.status, "ready")
+      )
+    )
     .leftJoin(userProfiles, eq(userProfiles.userId, tracks.ownerUserId))
     .where(
       and(
@@ -138,11 +279,15 @@ export const publishDueTrackReleases = async ({
         lte(projects.releaseDate, new Date())
       )
     );
+  let publishedProjects = 0;
   for (const project of dueProjects) {
-    await db
-      .update(projects)
-      .set({ isPublic: true, status: "released" })
-      .where(eq(projects.id, project.id));
+    const published = await publishProjectIfMediaReady({
+      projectId: project.id,
+    });
+    if (!published) {
+      continue;
+    }
+    publishedProjects += 1;
     const preSavers = await db
         .select({ userId: projectPreSaves.userId })
         .from(projectPreSaves)
@@ -230,6 +375,6 @@ export const publishDueTrackReleases = async ({
 
   return {
     notified,
-    published: dueTracks.length + dueProjects.length + dueVideos.length,
+    published: dueTracks.length + publishedProjects + dueVideos.length,
   };
 };

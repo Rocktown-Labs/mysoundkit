@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+/* oxlint-disable complexity, one-var, sort-vars */
 import { createDb } from "@soundkit/db";
 import {
   genres,
@@ -326,7 +327,12 @@ export const buildTrackDetail = async (
           sql`${trackLyrics.createdAt} desc`
         )
         .limit(1),
-    ]);
+    ]),
+    ownerMaster = resolveTrackAssetFromRows({
+      assets: assetRows,
+      purpose: "master",
+      trackId: row.id,
+    });
 
   return {
     ...summary,
@@ -345,6 +351,9 @@ export const buildTrackDetail = async (
           timedLines: lyricsRows[0].timedLines ?? null,
         }
       : null,
+    playbackUrl:
+      summary.playbackUrl ??
+      (ownerMaster ? guardedTrackPlaybackUrl(row.id) : null),
   };
 };
 

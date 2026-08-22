@@ -1,18 +1,28 @@
 import { spawn } from "node:child_process";
 /* eslint-disable one-var, sort-vars, no-nested-ternary, promise/avoid-new, promise/prefer-await-to-callbacks, unicorn/import-style, unicorn/no-await-expression-member */
-import { createHash } from "node:crypto";
+/* oxlint-disable unicorn/max-nested-calls */
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 
+export class DerivativeValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "DerivativeValidationError";
+  }
+}
+
 const INTERNAL_R2_ORIGIN = "http://soundkit-r2.internal",
   COMMAND_TIMEOUT_MS = 30 * 60 * 1000,
+  SOURCE_CACHE_DIR = join(tmpdir(), "soundkit-media-source-cache"),
   MAX_COMMAND_OUTPUT_BYTES = 2 * 1024 * 1024,
-  STREAMING_TARGET_LUFS = -12,
-  BATTLE_TARGET_LUFS = -10,
-  // Two-pass loudnorm followed by AAC encoding reliably lands within ±1 LU
+  STREAMING_TARGET_LUFS = -13,
+  // The canonical streaming/battle profile accepts -14 through -12 LUFS.
+  // AAC encoding and peak limiting can shift integrated loudness slightly.
+  // Two-pass normalization followed by AAC encoding reliably lands within ±1 LU
   // of target; tighter gates reject healthy encodes (EBU/Apple-style
   // delivery tolerances are ±0.5-1 LU).
   LOUDNESS_TOLERANCE_LU = 1,
@@ -262,7 +272,7 @@ const inspectFile = async (filePath) => {
       // margin under the -1 dBTP verification gate for encoder lift.
       const limitLinear = 10 ** (NORMALIZED_TRUE_PEAK_DBTP / 20);
       filters.push(
-        `alimiter=limit=${limitLinear.toFixed(3)}:attack=5:release=80`
+        `alimiter=limit=${limitLinear.toFixed(3)}:attack=5:release=80:level=false`
       );
     }
 
@@ -365,12 +375,12 @@ export const assertVerifiedDerivative = ({
     if (
       Math.abs(verification.integratedLufs - targetLufs) > LOUDNESS_TOLERANCE_LU
     ) {
-      throw new Error(
+      throw new DerivativeValidationError(
         `Derivative loudness ${verification.integratedLufs} LUFS missed target ${targetLufs} LUFS.`
       );
     }
     if (verification.truePeakDbtp > -1) {
-      throw new Error(
+      throw new DerivativeValidationError(
         `Derivative True Peak ${verification.truePeakDbtp} dBTP exceeds -1 dBTP.`
       );
     }
@@ -381,7 +391,9 @@ export const assertVerifiedDerivative = ({
     sourceLoudness &&
     Math.abs(verification.integratedLufs - sourceLoudness.integratedLufs) > 1
   ) {
-    throw new Error("Consumer download did not preserve source loudness.");
+    throw new DerivativeValidationError(
+      "Consumer download did not preserve source loudness."
+    );
   }
 };
 
@@ -395,11 +407,11 @@ const renderDerivative = async ({
     sourceLoudness,
   }) => {
     const targetLufs =
-      purpose === "battle"
-        ? BATTLE_TARGET_LUFS
-        : purpose === "streaming" || purpose === "open_verse_snippet"
-          ? STREAMING_TARGET_LUFS
-          : null;
+      purpose === "battle" ||
+      purpose === "streaming" ||
+      purpose === "open_verse_snippet"
+        ? STREAMING_TARGET_LUFS
+        : null;
 
     let verification = null;
 
@@ -477,11 +489,46 @@ const renderDerivative = async ({
     }
     return { outputInspection, targetLufs, verification };
   },
-  withSourceFile = async (sourceObjectKey, callback) => {
-    const workspace = await mkdtemp(join(tmpdir(), "soundkit-media-")),
-      sourcePath = join(workspace, `source-${basename(sourceObjectKey)}`);
+  sourceFilePromises = new Map(),
+  cachedSourceFile = async (sourceObjectKey) => {
+    const existing = sourceFilePromises.get(sourceObjectKey);
+    if (existing) {
+      return existing;
+    }
+
+    const sourcePromise = (async () => {
+      await mkdir(SOURCE_CACHE_DIR, { recursive: true });
+      const cacheKey = createHash("sha256")
+          .update(sourceObjectKey)
+          .digest("hex"),
+        sourcePath = join(
+          SOURCE_CACHE_DIR,
+          `${cacheKey}-${basename(sourceObjectKey)}`
+        );
+      try {
+        await stat(sourcePath);
+        return sourcePath;
+      } catch {
+        const temporaryPath = `${sourcePath}.${randomUUID()}.tmp`;
+        await downloadObject(sourceObjectKey, temporaryPath);
+        await rename(temporaryPath, sourcePath);
+        return sourcePath;
+      }
+    })();
+    sourceFilePromises.set(sourceObjectKey, sourcePromise);
     try {
-      await downloadObject(sourceObjectKey, sourcePath);
+      return await sourcePromise;
+    } catch (error) {
+      sourceFilePromises.delete(sourceObjectKey);
+      throw error;
+    }
+  },
+  withSourceFile = async (sourceObjectKey, callback) => {
+    const [workspace, sourcePath] = await Promise.all([
+      mkdtemp(join(tmpdir(), "soundkit-media-")),
+      cachedSourceFile(sourceObjectKey),
+    ]);
+    try {
       return await callback({ sourcePath, workspace });
     } finally {
       await rm(workspace, { force: true, recursive: true });
