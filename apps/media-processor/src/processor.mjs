@@ -17,6 +17,7 @@ const INTERNAL_R2_ORIGIN = "http://soundkit-r2.internal",
   // delivery tolerances are ±0.5-1 LU).
   LOUDNESS_TOLERANCE_LU = 1,
   NORMALIZED_TRUE_PEAK_DBTP = -1.5,
+  TRUE_PEAK_LIMIT_DBTP = -1,
   AAC_BITRATE = "256k",
   MAX_DELIVERY_SAMPLE_RATE_HZ = 48_000,
   LOSSLESS_CODECS = new Set([
@@ -267,6 +268,7 @@ const inspectFile = async (filePath) => {
     inspection,
     metadata,
     outputPath,
+    preVolumeDb,
     targetLufs,
   }) => {
     const analysis = targetLufs ? await analyzeFile(inputPath, clip) : null,
@@ -287,7 +289,15 @@ const inspectFile = async (filePath) => {
         "-vn",
         ...buildMetadataArguments(metadata),
         ...(analysis
-          ? ["-af", normalizedFilter({ analysis, targetLufs })]
+          ? [
+              "-af",
+              [
+                ...(preVolumeDb
+                  ? [`volume=${preVolumeDb.toFixed(2)} dB`]
+                  : []),
+                normalizedFilter({ analysis, targetLufs }),
+              ].join(","),
+            ]
           : []),
         "-c:a",
         "aac",
@@ -385,13 +395,50 @@ const renderDerivative = async ({
           ? STREAMING_TARGET_LUFS
           : null;
 
+    let verification = null;
+
     if (purpose === "lossless_download") {
       if (!inspection.isLossless) {
         throw new Error("Lossy sources are not eligible for lossless output.");
       }
       await renderLossless({ inputPath, metadata, outputPath });
+      verification = await analyzeFile(outputPath);
     } else if (purpose === "project_export") {
       await renderProjectExport({ inputPath, metadata, outputPath });
+      verification = await analyzeFile(outputPath);
+    } else if (targetLufs !== null) {
+      // Loudnorm's true-peak control can overshoot on dense material (and
+      // AAC encoding adds peaks); when post-encode verification measures a
+      // TP violation, attenuate by the overshoot plus margin and render one
+      // corrective pass.
+      let preVolumeDb = 0;
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await renderAac({
+          clip,
+          inputPath,
+          inspection,
+          metadata,
+          outputPath,
+          preVolumeDb: attempt === 0 ? 0 : preVolumeDb,
+          targetLufs,
+        });
+        verification = await analyzeFile(outputPath);
+
+        if (verification.truePeakDbtp <= TRUE_PEAK_LIMIT_DBTP) {
+          break;
+        }
+
+        preVolumeDb =
+          preVolumeDb -
+          (verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP + 0.5);
+      }
+
+      assertVerifiedDerivative({
+        sourceLoudness,
+        targetLufs,
+        verification,
+      });
     } else {
       await renderAac({
         clip,
@@ -399,17 +446,16 @@ const renderDerivative = async ({
         inspection,
         metadata,
         outputPath,
+        targetLufs: null,
+      });
+      assertVerifiedDerivative({
+        sourceLoudness,
         targetLufs,
+        verification: await analyzeFile(outputPath),
       });
     }
 
-    const outputInspection = await inspectFile(outputPath),
-      verification = await analyzeFile(outputPath);
-    assertVerifiedDerivative({
-      sourceLoudness,
-      targetLufs,
-      verification,
-    });
+    const outputInspection = await inspectFile(outputPath);
     if (purpose === "lossless_download" && !outputInspection.isLossless) {
       throw new Error("Lossless derivative verification failed.");
     }
