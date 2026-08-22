@@ -2929,12 +2929,10 @@ app.openapi(
     object.writeHttpMetadata(headers);
     headers.set("Accept-Ranges", "bytes");
     headers.set("ETag", object.httpEtag);
-    headers.set(
-      "Cache-Control",
-      track.listeningAccess === "public"
-        ? "public, max-age=3600"
-        : "private, no-store"
-    );
+    // Guarded, auth-scoped playback must never sit in the public CDN edge
+    // cache: cached 206 responses poison range requests across users and
+    // deploys (stale Content-Range breaks audio decoding).
+    headers.set("Cache-Control", "private, no-store");
 
     if (object.range) {
       const rangeOffset =

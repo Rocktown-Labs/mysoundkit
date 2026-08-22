@@ -109,7 +109,8 @@ app.get("/*", async (c) => {
     return c.json({ message: "Media not found." }, 404);
   }
   const headers = new Headers({
-    "Cache-Control": "public, max-age=3600",
+    // Auth-scoped guarded media: keep out of the shared CDN edge cache.
+    "Cache-Control": "private, max-age=0",
     "Content-Length": String(object.size),
   });
   object.writeHttpMetadata(headers);
