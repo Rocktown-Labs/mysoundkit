@@ -2915,8 +2915,9 @@ app.openapi(
       );
     }
     const requestedRange = c.req.header("range"),
+      r2Range = buildR2Range(requestedRange, head.size),
       object = await bucket.get(asset.objectKey, {
-        range: buildR2Range(requestedRange, head.size),
+        range: r2Range,
       });
     if (!object) {
       return c.json(
@@ -2934,31 +2935,40 @@ app.openapi(
     // deploys (stale Content-Range breaks audio decoding).
     headers.set("Cache-Control", "private, no-store");
 
-    if (object.range) {
-      const rangeOffset =
-          "suffix" in object.range
-            ? Math.max(0, head.size - object.range.suffix)
-            : (object.range.offset ?? 0),
-        rangeLength =
-          "suffix" in object.range
-            ? Math.min(object.range.suffix, head.size)
-            : (object.range.length ?? head.size - rangeOffset),
-        rangeEnd = Math.min(head.size - 1, rangeOffset + rangeLength - 1);
-      headers.set(
-        "Content-Range",
-        `bytes ${rangeOffset}-${rangeEnd}/${head.size}`
-      );
-      headers.set("Content-Length", String(rangeEnd - rangeOffset + 1));
+    // Derive response range headers from what WE requested — the runtime's
+    // object.range metadata is unreliable across R2 runtime versions.
+    if (!r2Range) {
+      headers.set("Content-Length", String(head.size));
       return new Response(object.body, {
         headers,
-        status: HttpStatusCodes.PARTIAL_CONTENT,
+        status: HttpStatusCodes.OK,
       });
     }
 
-    headers.set("Content-Length", String(head.size));
+    let rangeOffset: number;
+    let rangeEnd: number;
+
+    if ("suffix" in r2Range && typeof r2Range.suffix === "number") {
+      rangeOffset = Math.max(0, head.size - r2Range.suffix);
+      rangeEnd = head.size - 1;
+    } else {
+      const range = r2Range as { length?: number; offset?: number },
+        length =
+          typeof range.length === "number"
+            ? range.length
+            : head.size - (range.offset ?? 0);
+      rangeOffset = typeof range.offset === "number" ? range.offset : 0;
+      rangeEnd = Math.min(head.size - 1, rangeOffset + length - 1);
+    }
+
+    headers.set(
+      "Content-Range",
+      `bytes ${rangeOffset}-${rangeEnd}/${head.size}`
+    );
+    headers.set("Content-Length", String(rangeEnd - rangeOffset + 1));
     return new Response(object.body, {
       headers,
-      status: HttpStatusCodes.OK,
+      status: HttpStatusCodes.PARTIAL_CONTENT,
     });
   }
 );
