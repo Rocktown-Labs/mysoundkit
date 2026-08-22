@@ -8,7 +8,7 @@ import {
   trackStemJobs,
   tracks,
 } from "@soundkit/db/schema/app";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { logInfo } from "@/middleware/structured-logging";
 
@@ -32,9 +32,11 @@ const MAX_BACKFILL_BATCH_SIZE = 100,
 
 export const enqueueLegacyMediaBackfill = async ({
   batchSize = 50,
+  bucket,
   workflow,
 }: {
   batchSize?: number;
+  bucket?: R2Bucket | null;
   workflow: null | Workflow<MediaProcessingWorkflowPayload> | undefined;
 }) => {
   if (!isDatabaseConfigured()) {
@@ -50,12 +52,15 @@ export const enqueueLegacyMediaBackfill = async ({
         trackId: trackAssets.trackId,
       })
       .from(trackAssets)
+      .innerJoin(tracks, eq(tracks.id, trackAssets.trackId))
       .where(
         and(
           eq(trackAssets.assetKind, "master"),
           eq(trackAssets.isCurrent, true),
           isNotNull(trackAssets.objectKey),
-          inArray(trackAssets.status, ["uploaded", "ready"])
+          inArray(trackAssets.status, ["uploaded", "ready"]),
+          // Soft-deleted tracks must not consume backfill batches.
+          isNull(tracks.deletedAt)
         )
       )
       .limit(limit * 3),
@@ -82,7 +87,15 @@ export const enqueueLegacyMediaBackfill = async ({
                 inArray(mediaProcessingJobs.sourceAssetId, sourceAssetIds),
                 eq(mediaProcessingJobs.workflowType, "media_processing"),
                 eq(mediaProcessingJobs.pipelineVersion, MEDIA_PIPELINE_VERSION),
-                inArray(mediaProcessingJobs.status, ["queued", "running"])
+                // Failed jobs are excluded on purpose: relaunching
+                // deterministic failures (e.g. MASTER_OBJECT_MISSING) from the
+                // cron loop runs them forever. Deliberate retries go through
+                // POST /tracks/{id}/processing/retry.
+                inArray(mediaProcessingJobs.status, [
+                  "queued",
+                  "running",
+                  "failed",
+                ])
               )
             ),
         ])
@@ -110,8 +123,32 @@ export const enqueueLegacyMediaBackfill = async ({
   if (payloads.length === 0) {
     return { created: 0, requested: 0, scanned: masters.length };
   }
+  // Pre-flight: never launch workflows for objects that no longer exist in R2
+  // (e.g. masters lost with destroyed preview buckets) — those failures are
+  // permanent and would otherwise relaunch every sweep.
+  const launchablePayloads: MediaProcessingWorkflowPayload[] = [];
+  for (const payload of payloads) {
+    if (!bucket) {
+      launchablePayloads.push(payload);
+      continue;
+    }
+    const head = await bucket.head(payload.objectKey);
+    if (head && head.size > 0) {
+      launchablePayloads.push(payload);
+    } else {
+      logInfo({
+        event: "media_backfill_skipped_missing_object",
+        objectKey: payload.objectKey,
+        sourceAssetId: payload.sourceAssetId,
+        trackId: payload.trackId,
+      });
+    }
+  }
+  if (launchablePayloads.length === 0) {
+    return { created: 0, requested: 0, scanned: masters.length };
+  }
   const result = await ensureMediaProcessingWorkflowBatch({
-    payloads,
+    payloads: launchablePayloads,
     workflow,
   });
   logInfo({
@@ -196,7 +233,13 @@ export const enqueuePremiumEnrichmentBackfill = async ({
               and(
                 inArray(mediaProcessingJobs.sourceAssetId, sourceAssetIds),
                 eq(mediaProcessingJobs.workflowType, "track_enrichment"),
-                inArray(mediaProcessingJobs.status, ["queued", "running"])
+                // Failed enrichment stays failed: it costs third-party spend
+                // and is only ever launched by explicit user action now.
+                inArray(mediaProcessingJobs.status, [
+                  "queued",
+                  "running",
+                  "failed",
+                ])
               )
             ),
         ])

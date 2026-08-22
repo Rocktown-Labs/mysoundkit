@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertVerifiedDerivative,
+  linearGainChain,
   buildMetadataArguments,
   isLosslessCodec,
   parseFfprobeOutput,
@@ -82,6 +83,26 @@ test("SoundKit metadata is allowlisted and source tags are removed", () => {
   assert.equal(args.includes("artist=SoundKit Artist"), true);
   assert.equal(args.includes("title=SoundKit Title"), true);
   assert.equal(args.includes("comment=not copied"), false);
+});
+
+test("linear gain chain trims quiet sources and limits hot ones", () => {
+  // Loud source brought DOWN to target: peaks fall with it, volume only.
+  assert.equal(
+    linearGainChain({
+      analysis: { inputI: -7.83, inputTp: -0.12 },
+      targetLufs: -12,
+    }),
+    "volume=-4.17 dB"
+  );
+
+  // Quiet source needing gain that would push true peak past the ceiling:
+  // gain plus limiter.
+  const boosted = linearGainChain({
+    analysis: { inputI: -16.17, inputTp: -3 },
+    targetLufs: -12,
+  });
+  assert.match(boosted, /^volume=4\.17 dB,/u);
+  assert.match(boosted, /alimiter=limit=0\.841/u);
 });
 
 test("normalized derivatives enforce loudness and True Peak", () => {

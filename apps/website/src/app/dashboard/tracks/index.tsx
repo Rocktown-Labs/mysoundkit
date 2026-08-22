@@ -16,7 +16,10 @@ import { useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
-import { TrackCardQuickMenuItems } from "@/components/dashboard/track-quick-actions";
+import {
+  TrackCardQuickActionDialogs,
+  TrackCardQuickMenuItems,
+} from "@/components/dashboard/track-quick-actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,6 +84,10 @@ function TracksPage() {
       title: string;
     } | null>(null),
     [deleteConfirmation, setDeleteConfirmation] = useState(""),
+    [quickAction, setQuickAction] = useState<{
+      action: "cover" | "credits" | "swap";
+      trackId: string;
+    } | null>(null),
     completedCount = tracks.filter(
       (track) => track.productionStatus === "complete"
     ).length,
@@ -283,6 +290,9 @@ function TracksPage() {
                       </Link>
                     </DropdownMenuItem>
                     <TrackCardQuickMenuItems
+                      onOpenAction={(action) =>
+                        setQuickAction({ action, trackId: track.id })
+                      }
                       track={{ id: track.id, isForSale: track.isForSale }}
                     />
                     <DropdownMenuSeparator />
@@ -368,6 +378,14 @@ function TracksPage() {
           </Card>
         ))}
       </div>
+
+      {quickAction ? (
+        <TrackCardQuickActionDialogs
+          action={quickAction.action}
+          onClose={() => setQuickAction(null)}
+          trackId={quickAction.trackId}
+        />
+      ) : null}
 
       <AlertDialog
         onOpenChange={(open) => {

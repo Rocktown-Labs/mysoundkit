@@ -248,20 +248,26 @@ const inspectFile = async (filePath) => {
       ...analysis,
     };
   },
-  normalizedFilter = ({ analysis, targetLufs }) =>
-    [
-      `loudnorm=I=${targetLufs}`,
-      `TP=${NORMALIZED_TRUE_PEAK_DBTP}`,
-      "LRA=11",
-      `measured_I=${analysis.inputI}`,
-      `measured_LRA=${analysis.inputLra}`,
-      `measured_TP=${analysis.inputTp}`,
-      `measured_thresh=${analysis.inputThreshold}`,
-      `offset=${analysis.targetOffset}`,
-      "linear=true",
-      "dual_mono=true",
-      "print_format=json",
-    ].join(":"),
+  // Deterministic pass-2: pure linear gain to the loudness target, with a
+  // true-peak limiter only when the predicted peaks would breach the ceiling.
+  // (loudnorm's dynamic fallback mode misses integrated targets by 1-3 LU on
+  // dense material and overshoots true peaks — both observed in production.)
+  linearGainChain = ({ analysis, targetLufs }) => {
+    const gainDb = targetLufs - analysis.inputI,
+      predictedTruePeakDbtp = analysis.inputTp + gainDb,
+      filters = [`volume=${gainDb.toFixed(2)} dB`];
+
+    if (predictedTruePeakDbtp > NORMALIZED_TRUE_PEAK_DBTP) {
+      // alimiter's limit is linear amplitude; -1.5 dBFS sample peak leaves
+      // margin under the -1 dBTP verification gate for encoder lift.
+      const limitLinear = 10 ** (NORMALIZED_TRUE_PEAK_DBTP / 20);
+      filters.push(
+        `alimiter=limit=${limitLinear.toFixed(3)}:attack=5:release=80`
+      );
+    }
+
+    return filters.join(",");
+  },
   renderAac = async ({
     clip,
     inputPath,
@@ -292,10 +298,8 @@ const inspectFile = async (filePath) => {
           ? [
               "-af",
               [
-                ...(preVolumeDb
-                  ? [`volume=${preVolumeDb.toFixed(2)} dB`]
-                  : []),
-                normalizedFilter({ analysis, targetLufs }),
+                ...(preVolumeDb ? [`volume=${preVolumeDb.toFixed(2)} dB`] : []),
+                linearGainChain({ analysis, targetLufs }),
               ].join(","),
             ]
           : []),
@@ -358,7 +362,9 @@ export const assertVerifiedDerivative = ({
   verification,
 }) => {
   if (targetLufs !== null) {
-    if (Math.abs(verification.integratedLufs - targetLufs) > LOUDNESS_TOLERANCE_LU) {
+    if (
+      Math.abs(verification.integratedLufs - targetLufs) > LOUDNESS_TOLERANCE_LU
+    ) {
       throw new Error(
         `Derivative loudness ${verification.integratedLufs} LUFS missed target ${targetLufs} LUFS.`
       );
@@ -406,7 +412,21 @@ const renderDerivative = async ({
     } else if (purpose === "project_export") {
       await renderProjectExport({ inputPath, metadata, outputPath });
       verification = await analyzeFile(outputPath);
-    } else if (targetLufs !== null) {
+    } else if (targetLufs === null) {
+      await renderAac({
+        clip,
+        inputPath,
+        inspection,
+        metadata,
+        outputPath,
+        targetLufs: null,
+      });
+      assertVerifiedDerivative({
+        sourceLoudness,
+        targetLufs,
+        verification: await analyzeFile(outputPath),
+      });
+    } else {
       // Loudnorm's true-peak control can overshoot on dense material (and
       // AAC encoding adds peaks); when post-encode verification measures a
       // TP violation, attenuate by the overshoot plus margin and render one
@@ -425,33 +445,29 @@ const renderDerivative = async ({
         });
         verification = await analyzeFile(outputPath);
 
-        if (verification.truePeakDbtp <= TRUE_PEAK_LIMIT_DBTP) {
+        const loudnessMissed =
+            Math.abs(verification.integratedLufs - targetLufs) >
+            LOUDNESS_TOLERANCE_LU,
+          tpExceeded = verification.truePeakDbtp > TRUE_PEAK_LIMIT_DBTP;
+
+        if (!loudnessMissed && !tpExceeded) {
           break;
         }
 
-        preVolumeDb =
-          preVolumeDb -
-          (verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP + 0.5);
+        // Pure-gain corrections: residual loudness trims toward target and
+        // attenuation for any remaining peak overshoot.
+        if (loudnessMissed) {
+          preVolumeDb -= verification.integratedLufs - targetLufs;
+        }
+        if (tpExceeded) {
+          preVolumeDb -= verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP + 0.5;
+        }
       }
 
       assertVerifiedDerivative({
         sourceLoudness,
         targetLufs,
         verification,
-      });
-    } else {
-      await renderAac({
-        clip,
-        inputPath,
-        inspection,
-        metadata,
-        outputPath,
-        targetLufs: null,
-      });
-      assertVerifiedDerivative({
-        sourceLoudness,
-        targetLufs,
-        verification: await analyzeFile(outputPath),
       });
     }
 
@@ -522,3 +538,5 @@ export const createDerivativeObject = ({
       truePeakDbtp: result.verification.truePeakDbtp,
     };
   });
+
+export { linearGainChain };

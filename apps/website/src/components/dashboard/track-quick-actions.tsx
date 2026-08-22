@@ -750,6 +750,7 @@ export function MonetizeToggleSwitch({
 }
 
 interface TrackCardQuickMenuItemsProps {
+  onOpenAction: (action: "cover" | "credits" | "swap") => void;
   track: {
     id: string;
     isForSale?: boolean | null;
@@ -757,24 +758,17 @@ interface TrackCardQuickMenuItemsProps {
 }
 
 /**
- * Quick-action entries for the track card dropdown menu on the tracks list.
- * Renders inside the existing DropdownMenuContent and owns the action dialogs
- * so the user never leaves the page.
+ * Quick-action entries for the track card dropdown menu. Menu items only
+ * report the requested action — dialogs render OUTSIDE the dropdown (Radix
+ * unmounts menu content on close, which would kill any dialog mounted here).
  */
 export function TrackCardQuickMenuItems({
+  onOpenAction,
   track,
 }: TrackCardQuickMenuItemsProps) {
-  const [activeDialog, setActiveDialog] = useState<
-      null | "cover" | "credits" | "swap"
-    >(null),
-    sellerStatusQuery = useSellerStatusQuery(),
+  const sellerStatusQuery = useSellerStatusQuery(),
     payoutsReady = (sellerStatusQuery.data?.chargesEnabled ?? false) === true,
     updateTrackMutation = useUpdateTrackMutation(track.id),
-    trackQuery = useTrackQuery(track.id),
-    dialogCollaborators =
-      trackQuery.data && "collaborators" in trackQuery.data
-        ? (trackQuery.data.collaborators as TrackCollaboratorRow[])
-        : [],
     handleMonetizeToggle = async () => {
       try {
         await updateTrackMutation.mutateAsync({
@@ -796,21 +790,20 @@ export function TrackCardQuickMenuItems({
           variant: "destructive",
         });
       }
-    },
-    closeDialog = () => setActiveDialog(null);
+    };
 
   return (
     <>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => setActiveDialog("cover")}>
+      <DropdownMenuItem onSelect={() => onOpenAction("cover")}>
         <ImagePlus className="mr-2 size-4" />
         Change cover art
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => setActiveDialog("swap")}>
+      <DropdownMenuItem onSelect={() => onOpenAction("swap")}>
         <Repeat className="mr-2 size-4" />
         Swap main file
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => setActiveDialog("credits")}>
+      <DropdownMenuItem onSelect={() => onOpenAction("credits")}>
         <Users className="mr-2 size-4" />
         Edit credits
       </DropdownMenuItem>
@@ -833,38 +826,36 @@ export function TrackCardQuickMenuItems({
           </TooltipContent>
         )}
       </Tooltip>
-
-      <ChangeCoverArtDialog
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog();
-          }
-        }}
-        onSaved={() => trackQuery.refetch()}
-        open={activeDialog === "cover"}
-        trackId={track.id}
-      />
-      <SwapMainFileDialog
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog();
-          }
-        }}
-        onSaved={() => trackQuery.refetch()}
-        open={activeDialog === "swap"}
-        trackId={track.id}
-      />
-      <EditCreditsDialog
-        collaborators={dialogCollaborators}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDialog();
-          }
-        }}
-        onSaved={() => trackQuery.refetch()}
-        open={activeDialog === "credits"}
-        trackId={track.id}
-      />
     </>
+  );
+}
+
+/**
+ * Card-level quick action dialogs. Mounts only while an action is active so
+ * the per-track detail query runs just for the open dialog.
+ */
+export function TrackCardQuickActionDialogs({
+  action,
+  onClose,
+  trackId,
+}: {
+  action: "cover" | "credits" | "swap";
+  onClose: () => void;
+  trackId: string;
+}) {
+  const trackQuery = useTrackQuery(trackId),
+    dialogCollaborators =
+      trackQuery.data && "collaborators" in trackQuery.data
+        ? (trackQuery.data.collaborators as TrackCollaboratorRow[])
+        : [];
+
+  return (
+    <TrackQuickActionDialogs
+      activeDialog={action}
+      collaborators={dialogCollaborators}
+      onClose={onClose}
+      onSaved={() => void trackQuery.refetch()}
+      trackId={trackId}
+    />
   );
 }

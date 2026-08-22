@@ -870,7 +870,9 @@ export function NewProjectForm({
           for (const projectTrack of newProjectTracks) {
             await settleTrackMutation.mutateAsync({
               body: {
-                enrichLyrics: true,
+                // Enrichment is opt-in only; project settlement has no
+                // enrichment toggle so it stays off.
+                enrichLyrics: false,
                 isPublic: true,
                 productionStatus: "complete",
                 releaseAt: releaseState.releaseDate,

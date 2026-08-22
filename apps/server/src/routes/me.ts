@@ -27,7 +27,6 @@ import {
   resolveEntitlements,
   unauthorizedMessage,
 } from "@/lib/entitlements";
-import { enqueuePremiumEnrichmentBackfill } from "@/lib/media-backfill";
 import { maxIncludedSeatsForPlan } from "@/lib/plan-seats";
 import { normalizeProfileLinks } from "@/lib/profile-links";
 import {
@@ -1050,15 +1049,9 @@ app.openapi(
         user,
       });
 
-    if (entitlements.isPremium) {
-      c.executionCtx.waitUntil(
-        enqueuePremiumEnrichmentBackfill({
-          batchSize: 25,
-          ownerUserId: user.id,
-          workflow: c.env.TRACK_ENRICHMENT_WORKFLOW,
-        })
-      );
-    }
+    // Track enrichment is a paid, opt-in feature: it is never launched
+    // automatically (no backfills). It runs only when a new upload enables
+    // the lyrics toggle or the artist triggers "Generate lyrics" manually.
 
     return c.json(entitlements, HttpStatusCodes.OK);
   }

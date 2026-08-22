@@ -29,6 +29,7 @@ import {
   gt,
   ilike,
   inArray,
+  isNull,
   ne,
   or,
   sql,
@@ -562,7 +563,12 @@ app.openapi(
       const db = createDb(),
         genreSlug = genreSlugFromExploreFilter(query.genre),
         state = stateFromExploreRegion(query),
-        publicTrackConditions = [eq(tracks.isPublic, true)];
+        publicTrackConditions = [
+          eq(tracks.isPublic, true),
+          // Soft-deleted tracks stay in the shared database for their recovery
+          // window but must vanish from every listing immediately.
+          isNull(tracks.deletedAt),
+        ];
 
       if (query.forSale) {
         publicTrackConditions.push(eq(tracks.isForSale, true));
@@ -628,12 +634,17 @@ app.openapi(
           })
           .from(tracks)
           .where(
-            organizationId
-              ? or(
-                  eq(tracks.organizationId, organizationId),
-                  eq(tracks.ownerUserId, user.id)
-                )
-              : eq(tracks.ownerUserId, user.id)
+            and(
+              // Soft-deleted tracks disappear from the dashboard immediately;
+              // they remain recoverable server-side until purge.
+              isNull(tracks.deletedAt),
+              organizationId
+                ? or(
+                    eq(tracks.organizationId, organizationId),
+                    eq(tracks.ownerUserId, user.id)
+                  )
+                : eq(tracks.ownerUserId, user.id)
+            )
           )
           .orderBy(desc(tracks.updatedAt))
           .limit(100)
