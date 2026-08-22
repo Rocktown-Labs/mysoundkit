@@ -1763,6 +1763,7 @@ export const orders = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     currency: text("currency").default("USD").notNull(),
     id: text("id").primaryKey(),
+    idempotencyKey: text("idempotency_key"),
     sellerUserId: text("seller_user_id").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -1783,6 +1784,7 @@ export const orders = pgTable(
   (table) => [
     index("orders_buyer_user_id_idx").on(table.buyerUserId),
     uniqueIndex("orders_transaction_id_idx").on(table.transactionId),
+    uniqueIndex("orders_idempotency_key_idx").on(table.idempotencyKey),
   ]
 );
 

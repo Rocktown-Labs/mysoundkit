@@ -4,6 +4,16 @@
 
 ### Added
 
+- Added Open Verse closing automation: a cron sweep closes listings at their `closesAt` deadline, notifies owners and submitters, and sends a 24-hour closing-soon reminder to the owner.
+- Added durable `PurchaseFulfillmentWorkflow`: Stripe webhook marks orders paid, then purchases grants, delivery emails, and in-app notifications run as idempotent retry-safe workflow steps.
+- Added idempotent checkout: stable client idempotency keys (persisted per checkout intent) resolve retries to the original order and live Stripe session; Stripe session creation carries an `Idempotency-Key`.
+- Added direct download links to buyer receipt emails: 72-hour HMAC-signed asset URLs (configurable TTL on the media signer) so buyers can grab files without logging in.
+- Added creator rewards settlement engine: active premium subscriptions are allocated into `subscription_reward_allocations`, the pool is distributed across artists by qualified reward units into `creatorEarnings`, with first-earning and halfway-to-payout milestone emails (including a Stripe Connect reminder when payouts aren't ready).
+- Added `PayoutRunWorkflow`: reserved earnings age past the 30-day window into payable, sellers above the $25 minimum receive Stripe transfers, failures email the artist and retry on the next run.
+- Added artist weekly digest emails: plays, unique listeners, battles fought, and sales.
+- Added track editing UX overhaul: released-track edits save without touching locked fields via a persistent "Save changes" button, an inline credits editor lives in the Collaborators tab (also used by the upload form), quick actions (cover art swap, main file swap, credits editing, monetize toggle) run from cards and detail page without opening the full editor, and new tracks default to self-credited artist + songwriter rows.
+- Added orphaned-upload cleanup to the cron scheduler: uploaded R2 objects never registered as assets are deleted after a 7-day grace period, plus stale abandoned checkouts reconcile after 24 hours.
+
 - Added fast-fail handling for media processing when the source master is missing from R2: master verification now uses a tight retry/timeout budget, terminal failures record a distinct `MASTER_OBJECT_MISSING` error code on the processing job instead of retrying a permanently missing object through Cloudflare's default exponential backoff.
 - Added explicit deadlines to Media Processor Container RPC calls (inspect, loudness analysis, and render) so a container that fails to boot or a wedged FFmpeg job surfaces as a descriptive timeout error instead of hanging the workflow until the runtime cancels it.
 - Added in-step terminal handling for permanently missing/stale masters in `MediaProcessingWorkflow` and `TrackEnrichmentWorkflow`: both workflows record the job failure and complete normally instead of throwing into engine-level retries, and enrichment never reaches paid StemSplit/transcription API calls without a verified master.

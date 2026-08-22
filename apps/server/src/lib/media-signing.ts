@@ -2,6 +2,8 @@
 import { env } from "@soundkit/env/server";
 
 const SIGNED_MEDIA_TTL_SECONDS = 30 * 60,
+  // Email delivery links need a longer window than in-app playback URLs.
+  SIGNED_MEDIA_MAX_TTL_SECONDS = 72 * 60 * 60,
   encoder = new TextEncoder(),
   signingSecret = () => {
     const secret = env.BETTER_AUTH_SECRET;
@@ -43,12 +45,18 @@ const SIGNED_MEDIA_TTL_SECONDS = 30 * 60,
 
 export const createSignedMediaSourceUrl = async ({
   assetId,
+  ttlSeconds = SIGNED_MEDIA_TTL_SECONDS,
   trackId,
 }: {
   assetId: string;
+  ttlSeconds?: number;
   trackId: string;
 }) => {
-  const expires = Math.floor(Date.now() / 1000) + SIGNED_MEDIA_TTL_SECONDS,
+  const boundedTtl = Math.min(
+      Math.max(ttlSeconds, 60),
+      SIGNED_MEDIA_MAX_TTL_SECONDS
+    ),
+    expires = Math.floor(Date.now() / 1000) + boundedTtl,
     signature = await signPayload(
       signaturePayload({ assetId, expires, trackId })
     ),
@@ -71,7 +79,7 @@ export const verifySignedMediaSource = async ({
   if (
     !Number.isInteger(expires) ||
     expires < now ||
-    expires > now + SIGNED_MEDIA_TTL_SECONDS
+    expires > now + SIGNED_MEDIA_MAX_TTL_SECONDS
   ) {
     return false;
   }

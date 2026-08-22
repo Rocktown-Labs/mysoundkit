@@ -42,6 +42,8 @@ export interface AppEnv {
     LIVE_ROOMS?: DurableObjectNamespace<LiveRoomDurableObject>;
     PRESENCE?: DurableObjectNamespace<PresenceDurableObject>;
     PROJECT_EXPORT_WORKFLOW?: Workflow<ProjectExportWorkflowPayload>;
+    PAYOUT_RUN_WORKFLOW?: Workflow<{ periodId: string }>;
+    PURCHASE_FULFILLMENT_WORKFLOW?: Workflow<{ orderId: string }>;
     MEDIA_BUCKET?: R2Bucket;
     MEDIA_PROCESSING_WORKFLOW?: Workflow<MediaProcessingWorkflowPayload>;
     MEDIA_RETENTION_WORKFLOW?: Workflow<MediaRetentionWorkflowPayload>;

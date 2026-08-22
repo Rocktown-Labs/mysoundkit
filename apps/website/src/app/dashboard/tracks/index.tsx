@@ -16,6 +16,7 @@ import { useState } from "react";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
 import { StatsGrid } from "@/components/dashboard/stats-grid";
+import { TrackCardQuickMenuItems } from "@/components/dashboard/track-quick-actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -281,6 +282,9 @@ function TracksPage() {
                         Edit Track
                       </Link>
                     </DropdownMenuItem>
+                    <TrackCardQuickMenuItems
+                      track={{ id: track.id, isForSale: track.isForSale }}
+                    />
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"

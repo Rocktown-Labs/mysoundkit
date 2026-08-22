@@ -189,6 +189,14 @@ const SITE_HOST = isProduction
     className: "MediaRetentionWorkflow",
     workflowName: resourceName("soundkit-media-retention"),
   }),
+  purchaseFulfillmentWorkflow = Workflow("purchase-fulfillment", {
+    className: "PurchaseFulfillmentWorkflow",
+    workflowName: resourceName("soundkit-purchase-fulfillment"),
+  }),
+  payoutRunWorkflow = Workflow("payout-run", {
+    className: "PayoutRunWorkflow",
+    workflowName: resourceName("soundkit-payout-run"),
+  }),
   mediaProcessor = await Container("media-processor", {
     adopt: shouldAdoptRemoteResources,
     build: {
@@ -383,6 +391,8 @@ export const server = await Worker("server", {
     MEDIA_PROCESSING_WORKFLOW: mediaProcessingWorkflow,
     MEDIA_PROCESSOR: mediaProcessor,
     MEDIA_RETENTION_WORKFLOW: mediaRetentionWorkflow,
+    PURCHASE_FULFILLMENT_WORKFLOW: purchaseFulfillmentWorkflow,
+    PAYOUT_RUN_WORKFLOW: payoutRunWorkflow,
     MEDIA_PUBLIC_URL: MEDIA_URL,
     RECORDINGS_ACCESS_KEY_ID: recordingsUploadToken.accessKeyId,
     RECORDINGS_BUCKET: recordings,
@@ -433,8 +443,7 @@ export const server = await Worker("server", {
     ...optionalEnvBinding("STRIPE_CONNECT_WEBHOOK_SECRET"),
     TRACK_ENRICHMENT_WORKFLOW: trackEnrichmentWorkflow,
     TRACK_DURATION_BACKFILL_QUEUE: trackDurationBackfillQueue,
-    UPLOAD_BUCKET_NAME: media.name,
-    ...optionalEnvBinding("ADMIN_EMAILS"),
+    UPLOAD_BUCKET_NAME: media.name,    ...optionalEnvBinding("ADMIN_EMAILS"),
     ...optionalEnvBinding("BATTLE_ADMISSION_BATCH_SIZE"),
     ...optionalEnvBinding("GOOGLE_CLIENT_ID"),
     ...optionalEnvBinding("GOOGLE_CLIENT_SECRET"),

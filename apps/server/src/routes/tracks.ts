@@ -114,6 +114,7 @@ import { logError } from "@/middleware/structured-logging";
 import { isAllowedUploadKeyForAssetKind } from "@/routes/uploads";
 
 const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
+  DEFAULT_SELF_CREDIT_SPLIT_BPS = 5000,
   app = new OpenAPIHono<AppEnv>(),
   databaseUnavailableMessage = {
     message: "Database is not configured.",
@@ -1323,7 +1324,6 @@ app.openapi(
         await withRetry("insert track collaborators", () =>
           db.insert(trackCollaborators).values(collaboratorRows)
         );
-
         for (const collaborator of collaboratorRows) {
           if (collaborator.collaboratorUserId) {
             await notify(
@@ -1358,6 +1358,30 @@ app.openapi(
             });
           }
         }
+      } else {
+        // No explicit collaborators: credit the uploader as the track's
+        // artist and songwriter with an even 50/50 split. These rows are
+        // internal defaults, so no invitations or notifications are sent.
+        const defaultCollaboratorRows = (["artist", "songwriter"] as const).map(
+          (role) => ({
+            canDelete: false,
+            canEdit: false,
+            canUpload: false,
+            collaboratorRole: role,
+            collaboratorUserId: user.id,
+            createdAt: now,
+            creditSplitBps: DEFAULT_SELF_CREDIT_SPLIT_BPS,
+            id: crypto.randomUUID(),
+            invitationStatus: "accepted" as const,
+            inviteEmail: null,
+            invitedByUserId: user.id,
+            trackId,
+          })
+        );
+
+        await withRetry("insert default track collaborators", () =>
+          db.insert(trackCollaborators).values(defaultCollaboratorRows)
+        );
       }
 
       if (!track) {
@@ -1398,6 +1422,10 @@ app.openapi(
       [HttpStatusCodes.OK]: jsonContent(
         trackDashboardDetailSchema,
         "Track updated"
+      ),
+      [HttpStatusCodes.FORBIDDEN]: jsonContent(
+        messageResponseSchema,
+        "Stripe Connect onboarding required to sell"
       ),
       [HttpStatusCodes.NOT_FOUND]: jsonContent(
         messageResponseSchema,
@@ -1495,6 +1523,28 @@ app.openapi(
       return c.json(unauthorizedMessage, HttpStatusCodes.UNAUTHORIZED);
     }
 
+    if (body.isForSale === true) {
+      const organizationId = await resolveActiveOrganizationId({
+          session: isAuthenticatedSession(session) ? session : null,
+          user,
+        }),
+        sellerEnabled = await isSellerEnabled({
+          organizationId,
+          userId: user.id,
+        });
+
+      if (!sellerEnabled) {
+        return c.json(
+          {
+            code: "setup_required" as const,
+            message:
+              "Stripe Connect onboarding is required before selling this track.",
+          },
+          HttpStatusCodes.FORBIDDEN
+        );
+      }
+    }
+
     const [track] = await db
       .update(tracks)
       .set({
@@ -1524,6 +1574,59 @@ app.openapi(
 
     if (!track) {
       return c.json({ message: "Track not found." }, HttpStatusCodes.NOT_FOUND);
+    }
+
+    // Replace the collaborator credits when the payload carries an explicit
+    // collaborators array (including an empty one, which clears credits).
+    if (body.collaborators !== undefined) {
+      const replacedAt = new Date(),
+        collaboratorRows = body.collaborators.flatMap((collaborator) => {
+          const baseRow = {
+              canDelete: false,
+              canEdit: false,
+              canUpload: false,
+              collaboratorRole: collaborator.role,
+              collaboratorUserId: collaborator.userId ?? null,
+              createdAt: replacedAt,
+              creditSplitBps: collaborator.splitBps ?? null,
+              id: crypto.randomUUID(),
+              invitationStatus: collaborator.userId
+                ? ("accepted" as const)
+                : ("pending" as const),
+              inviteEmail: collaborator.inviteEmail ?? null,
+              invitedByUserId: user.id,
+              trackId,
+            },
+            rows = [baseRow];
+
+          // Featured artists and producers commonly receive a writer credit
+          // too; persist it as its own songwriter row so credits group cleanly.
+          if (
+            collaborator.alsoCreditAsWriter &&
+            collaborator.role !== "songwriter"
+          ) {
+            rows.push({
+              ...baseRow,
+              collaboratorRole: "songwriter" as const,
+              id: crypto.randomUUID(),
+            });
+          }
+
+          return rows;
+        });
+
+      await withRetry("replace track collaborators", () =>
+        db.transaction(async (transaction) => {
+          await transaction
+            .delete(trackCollaborators)
+            .where(eq(trackCollaborators.trackId, trackId));
+          if (collaboratorRows.length > 0) {
+            await transaction
+              .insert(trackCollaborators)
+              .values(collaboratorRows);
+          }
+        })
+      );
     }
 
     if (body.isOpenVerse !== undefined) {

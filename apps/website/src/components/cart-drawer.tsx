@@ -25,9 +25,19 @@ export function CartDrawer() {
       setIsCheckingOut(true);
 
       try {
+        // Stable across retries so double-clicks/network failures resolve to
+        // the same order and Stripe session instead of creating duplicates.
+        let idempotencyKey: null | string =
+          sessionStorage.getItem("soundkit_checkout_intent");
+        if (!idempotencyKey) {
+          idempotencyKey = crypto.randomUUID();
+          sessionStorage.setItem("soundkit_checkout_intent", idempotencyKey);
+        }
+
         const response = await fetch(`${API_V1_URL}/payments/checkout`, {
             body: JSON.stringify({
               cancelUrl: window.location.href,
+              idempotencyKey,
               successUrl: `${window.location.origin}/library/purchased`,
             }),
             credentials: "include",
@@ -40,6 +50,7 @@ export function CartDrawer() {
           };
 
         if (!response.ok || !payload.checkoutUrl) {
+          sessionStorage.removeItem("soundkit_checkout_intent");
           setCheckoutError(
             payload.message ?? "Checkout is not available for this cart yet."
           );

@@ -20,7 +20,6 @@ import {
   Plus,
   RotateCcw,
   Users,
-  X,
   Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -29,6 +28,7 @@ import type { FieldErrors } from "react-hook-form";
 import * as z from "zod";
 
 import { useAudioPlayer } from "@/components/audio-player-provider";
+import { CreditsEditor } from "@/components/dashboard/credits-editor";
 import { FileUploadZone } from "@/components/dashboard/file-upload-zone";
 import {
   Accordion,
@@ -78,7 +78,6 @@ import {
   TRACK_SOURCE_UPLOAD_URL,
 } from "@/lib/api";
 import { createAudioPreviewFile } from "@/lib/audio-preview";
-import { authClient } from "@/lib/auth-client";
 import { optimizeCoverImageFile } from "@/lib/image-processing";
 import { readAudioDurationMs } from "@/lib/media-duration";
 import {
@@ -86,12 +85,14 @@ import {
   useCreateTrackMutation,
   useGenresQuery,
   useMeEntitlementsQuery,
-  usePeopleSearchQuery,
   useSellerStatusQuery,
   useSettleTrackMutation,
   useUpdateTrackMutation,
 } from "@/lib/soundkit-api-hooks";
-import type { MediaProcessingStatus } from "@/lib/soundkit-api-hooks";
+import type {
+  MediaProcessingStatus,
+  UpdateTrackBody,
+} from "@/lib/soundkit-api-hooks";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@/lib/zod-resolver";
 
@@ -233,6 +234,12 @@ const exclusiveUntilForApi = (
   });
 
 type TrackFormValues = z.infer<typeof trackFormSchema>;
+
+// Released tracks lock genre/status in the UI, so their edit-time validation
+// must not require those fields to pass before other changes can be saved.
+const releasedTrackFormSchema = trackFormSchema.extend({
+  genre: z.string(),
+});
 interface GenreOption {
   name: string;
 }
@@ -386,11 +393,8 @@ export function NewTrackForm({
       status: string;
       title: string;
     } | null>(null),
-    [creditQuery, setCreditQuery] = useState(""),
-    [creditRole, setCreditRole] = useState<
-      "artist" | "producer" | "songwriter"
-    >("songwriter"),
-    [alsoCreditAsWriter, setAlsoCreditAsWriter] = useState(true),
+    [isSavingChanges, setIsSavingChanges] = useState(false),
+    initialValuesRef = useRef<TrackFormValues | null>(null),
     [coverUpload, setCoverUpload] = useState<UploadedAssetPreview | null>(null),
     coverUploadRef = useRef<UploadedAssetPreview | null>(null),
     [uploadedTrack, setUploadedTrack] = useState<UploadedTrackPreview | null>(
@@ -418,15 +422,15 @@ export function NewTrackForm({
     createTrackMutation = useCreateTrackMutation(),
     settleTrackMutation = useSettleTrackMutation(),
     updateTrackMutation = useUpdateTrackMutation(trackId ?? ""),
-    { data: session } = authClient.useSession(),
     entitlementsQuery = useMeEntitlementsQuery(),
     isPremiumArtist = entitlementsQuery.data?.isPremium === true,
     sellerStatusQuery = useSellerStatusQuery(),
     payoutsReady = (sellerStatusQuery.data?.chargesEnabled ?? false) === true,
-    peopleSearch = usePeopleSearchQuery(creditQuery),
     form = useForm<TrackFormValues>({
       defaultValues: defaultTrackFormValues,
-      resolver: zodResolver(trackFormSchema),
+      resolver: zodResolver(
+        isReleasedTrack ? releasedTrackFormSchema : trackFormSchema
+      ),
     });
 
   // Prefill when editing an existing track
@@ -485,6 +489,8 @@ export function NewTrackForm({
         ((initialTrack.streamingLinks as Record<string, string>)
           ?.youtube as string) ?? "",
     });
+    // Snapshot for dirty-only "Save changes" payloads in edit mode.
+    initialValuesRef.current = form.getValues();
 
     if (initialTrack.coverArtUrl) {
       const restoredCover = {
@@ -854,9 +860,18 @@ export function NewTrackForm({
             downloadsRequireFirstPlay: values.downloadsRequireFirstPlay,
             downloadsRequirePurchase: values.downloadsRequirePurchase,
             exclusiveUntil: exclusiveUntilForApi(values.exclusiveUntil, true),
-            genre: values.genre,
+            // Genre and status-derived release metadata are locked once a
+            // track is released; omit them so the PATCH never touches them.
+            ...(isReleasedTrack
+              ? {}
+              : {
+                  genre: values.genre,
+                  isPublic: release.isPublic,
+                  productionStatus: release.productionStatus,
+                  releaseAt: values.releaseAt || undefined,
+                  releaseStrategy: release.releaseStrategy,
+                }),
             isForSale: values.isForSale,
-            isPublic: release.isPublic,
             isrc: values.isrc || undefined,
             listeningAccess: values.listeningAccess,
             musicalKey: values.key || undefined,
@@ -864,9 +879,6 @@ export function NewTrackForm({
             priceCents: values.isForSale
               ? Math.round(SINGLE_PRICE_USD * 100)
               : undefined,
-            productionStatus: release.productionStatus,
-            releaseAt: values.releaseAt || undefined,
-            releaseStrategy: release.releaseStrategy,
             streamingLinks: {
               appleMusic: values.streamingAppleMusic || undefined,
               spotify: values.streamingSpotify || undefined,
@@ -1341,49 +1353,180 @@ export function NewTrackForm({
         isSubmittingRef.current = false;
       }
     },
-    addCredit = (entry: {
-      alsoCreditAsWriter?: boolean;
-      displayName: string;
-      inviteEmail?: string;
-      role: "artist" | "producer" | "songwriter";
-      splitBps?: number;
-      userId?: string;
-    }) => {
-      const current = form.getValues("credits"),
-        alreadyAdded = current.some(
-          (credit) =>
-            credit.role === entry.role &&
-            ((entry.userId && credit.userId === entry.userId) ||
-              credit.displayName.toLowerCase() ===
-                entry.displayName.toLowerCase())
+    handleSaveChanges = async () => {
+      if (!(trackId && initialTrack) || isSubmittingRef.current) {
+        return;
+      }
+      const values = form.getValues(),
+        parsed = releasedTrackFormSchema.safeParse(values);
+      if (!parsed.success) {
+        toast({
+          description: "Review the highlighted fields before saving.",
+          title: "Track setup incomplete",
+          variant: "destructive",
+        });
+        return;
+      }
+      const initial = initialValuesRef.current;
+      if (!initial) {
+        return;
+      }
+      const trackedKeys = [
+          "coverObjectKey",
+          "credits",
+          "description",
+          "downloadsAllowed",
+          "downloadsRequireFirstPlay",
+          "downloadsRequirePurchase",
+          "exclusiveUntil",
+          "genre",
+          "isForSale",
+          "isrc",
+          "key",
+          "listeningAccess",
+          "name",
+          "releaseAt",
+          "streamingAppleMusic",
+          "streamingSpotify",
+          "streamingYoutube",
+        ] as const,
+        changedKeys = new Set(
+          trackedKeys.filter(
+            (key) =>
+              JSON.stringify(values[key]) !== JSON.stringify(initial[key])
+          )
         );
-      if (alreadyAdded) {
+
+      if (!selectedCoverFile && changedKeys.size === 0) {
+        toast({
+          description: "Nothing has changed yet.",
+          title: "No changes to save",
+        });
         return;
       }
-      form.setValue("credits", [...current, entry], {
-        shouldDirty: true,
-      });
-      setCreditQuery("");
-    },
-    addSelfAsWriter = () => {
-      const user = session?.user;
-      if (!user) {
-        return;
+
+      isSubmittingRef.current = true;
+      setIsSavingChanges(true);
+
+      try {
+        const payload: UpdateTrackBody = {};
+
+        // Upload and register a replacement cover when one is staged.
+        let coverKey = values.coverObjectKey;
+        if (selectedCoverFile) {
+          const optimizedCover = await optimizeCoverImageFile(
+            selectedCoverFile
+          ).catch(() => selectedCoverFile);
+          const coverResult = await uploadCoverAsync([optimizedCover]);
+          const uploadedCover = coverResult.files[0];
+          if (uploadedCover) {
+            coverKey = uploadedCover.objectInfo.key;
+            await rpcJson(
+              await trackAssetPost({
+                json: {
+                  assetKind: "cover_art",
+                  metadata: {
+                    originalFileName: selectedCoverFile.name,
+                    url: `${MEDIA_BASE_URL}/${coverKey}`,
+                  },
+                  mimeType: "image/*",
+                  objectKey: coverKey,
+                  status: "ready",
+                  storageProvider: "r2",
+                },
+                param: { trackId },
+              })
+            );
+            setSelectedCoverFile(null);
+          }
+        }
+
+        if (changedKeys.has("name")) {
+          payload.title = values.name;
+        }
+        if (changedKeys.has("description")) {
+          payload.description = values.description || undefined;
+        }
+        // Locked fields are never sent for released tracks.
+        if (changedKeys.has("genre") && !isReleasedTrack) {
+          payload.genre = values.genre;
+        }
+        if (changedKeys.has("listeningAccess")) {
+          payload.listeningAccess = values.listeningAccess;
+        }
+        if (changedKeys.has("key")) {
+          payload.musicalKey = values.key || undefined;
+        }
+        if (changedKeys.has("isrc")) {
+          payload.isrc = values.isrc || undefined;
+        }
+        if (changedKeys.has("downloadsAllowed")) {
+          payload.downloadsAllowed = values.downloadsAllowed;
+        }
+        if (changedKeys.has("downloadsRequireFirstPlay")) {
+          payload.downloadsRequireFirstPlay = values.downloadsRequireFirstPlay;
+        }
+        if (changedKeys.has("downloadsRequirePurchase")) {
+          payload.downloadsRequirePurchase = values.downloadsRequirePurchase;
+        }
+        if (changedKeys.has("isForSale")) {
+          payload.isForSale = values.isForSale;
+          if (values.isForSale) {
+            payload.price = SINGLE_PRICE_USD;
+            payload.priceCents = Math.round(SINGLE_PRICE_USD * 100);
+          }
+        }
+        if (changedKeys.has("exclusiveUntil")) {
+          payload.exclusiveUntil = exclusiveUntilForApi(
+            values.exclusiveUntil,
+            true
+          );
+        }
+        if (!isReleasedTrack && changedKeys.has("releaseAt")) {
+          payload.releaseAt = values.releaseAt || undefined;
+        }
+        if (
+          changedKeys.has("streamingAppleMusic") ||
+          changedKeys.has("streamingSpotify") ||
+          changedKeys.has("streamingYoutube")
+        ) {
+          payload.streamingLinks = {
+            appleMusic: values.streamingAppleMusic || undefined,
+            spotify: values.streamingSpotify || undefined,
+            youtube: values.streamingYoutube || undefined,
+          };
+        }
+        if (changedKeys.has("credits")) {
+          payload.collaborators = values.credits.map((credit) => ({
+            alsoCreditAsWriter: credit.alsoCreditAsWriter,
+            inviteEmail: credit.inviteEmail,
+            name: credit.displayName,
+            role: credit.role,
+            splitBps: credit.splitBps,
+            userId: credit.userId,
+          }));
+        }
+
+        await updateTrackMutation.mutateAsync(payload);
+
+        toast({
+          description: `"${values.name}" changes were saved.`,
+          title: "Changes Saved",
+        });
+        form.reset(values);
+        initialValuesRef.current = values;
+      } catch (error) {
+        posthog.captureException(error);
+        toast({
+          description:
+            error instanceof Error ? error.message : "Failed to save changes.",
+          title: "Save Failed",
+          variant: "destructive",
+        });
+      } finally {
+        isSubmittingRef.current = false;
+        setIsSavingChanges(false);
       }
-      addCredit({
-        displayName: user.name || user.email || "Me",
-        inviteEmail: user.email,
-        role: "songwriter",
-        userId: user.id,
-      });
-    },
-    removeCredit = (index: number) => {
-      const current = form.getValues("credits");
-      form.setValue(
-        "credits",
-        current.filter((_, creditIndex) => creditIndex !== index),
-        { shouldDirty: true }
-      );
     };
 
   return (
@@ -2731,164 +2874,12 @@ export function NewTrackForm({
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-2 pb-6 space-y-6">
-                <div className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addSelfAsWriter}
-                    >
-                      Add me as writer
-                    </Button>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Select
-                      value={creditRole}
-                      onValueChange={(value) => {
-                        if (
-                          value === "artist" ||
-                          value === "producer" ||
-                          value === "songwriter"
-                        ) {
-                          setCreditRole(value);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full sm:w-[160px] bg-background/50">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="artist">Artist</SelectItem>
-                        <SelectItem value="songwriter">Writer</SelectItem>
-                        <SelectItem value="producer">Producer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder="Search by name, stage name, or username"
-                      value={creditQuery}
-                      onChange={(event) => setCreditQuery(event.target.value)}
-                      className="bg-background/50"
-                    />
-                  </div>
-                  {creditRole === "artist" ? (
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <input
-                        checked={alsoCreditAsWriter}
-                        onChange={(event) =>
-                          setAlsoCreditAsWriter(event.target.checked)
-                        }
-                        type="checkbox"
-                      />
-                      Also credit this artist as a writer
-                    </label>
-                  ) : null}
-                  {creditQuery.trim().length >= 2 ? (
-                    <div className="rounded-xl border border-border/40 bg-background/40 p-2 space-y-1">
-                      {peopleSearch.isLoading ? (
-                        <p className="px-2 py-1 text-xs text-muted-foreground">
-                          Searching…
-                        </p>
-                      ) : null}
-                      {(peopleSearch.data ?? []).map((person) => (
-                        <button
-                          type="button"
-                          key={person.userId}
-                          className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm hover:bg-accent"
-                          onClick={() =>
-                            addCredit({
-                              alsoCreditAsWriter:
-                                creditRole === "artist"
-                                  ? alsoCreditAsWriter
-                                  : undefined,
-                              displayName:
-                                person.stageName ??
-                                person.displayName ??
-                                person.username,
-                              inviteEmail: person.email ?? undefined,
-                              role: creditRole,
-                              userId: person.userId,
-                            })
-                          }
-                        >
-                          <span>
-                            {person.stageName ?? person.displayName}
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              @{person.username}
-                            </span>
-                          </span>
-                          <Badge variant="outline" className="capitalize">
-                            {creditRole}
-                          </Badge>
-                        </button>
-                      ))}
-                      {!peopleSearch.isLoading &&
-                      (peopleSearch.data ?? []).length === 0 ? (
-                        <p className="px-2 py-1 text-xs text-muted-foreground">
-                          No matching people. Try another name.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap gap-2">
-                    {form.watch("credits").map((credit, index) => (
-                      <div
-                        key={`${credit.role}-${credit.userId ?? credit.displayName}-${index}`}
-                        className="flex items-center gap-1 rounded-full border bg-secondary/60 py-1 pl-3 pr-1 text-xs"
-                      >
-                        <span className="capitalize">{credit.role}:</span>{" "}
-                        <span className="max-w-[160px] truncate">
-                          {credit.displayName}
-                        </span>
-                        {credit.role === "songwriter" ||
-                        credit.role === "artist" ? (
-                          <label className="ml-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-                            <input
-                              aria-label={`Split percentage for ${credit.displayName}`}
-                              className="w-10 rounded border border-border/40 bg-background px-1 py-0.5 text-right tabular-nums"
-                              max={100}
-                              min={0}
-                              onChange={(event) => {
-                                const percent = Number(event.target.value);
-                                form.setValue(
-                                  `credits.${index}.splitBps`,
-                                  Number.isFinite(percent) && percent >= 0
-                                    ? Math.round(percent * 100)
-                                    : undefined,
-                                  { shouldDirty: true }
-                                );
-                              }}
-                              placeholder="%"
-                              type="number"
-                              value={
-                                credit.splitBps === undefined ||
-                                credit.splitBps === null
-                                  ? ""
-                                  : Math.round(credit.splitBps / 100)
-                              }
-                            />
-                            %
-                          </label>
-                        ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 rounded-full"
-                          onClick={() => removeCredit(index)}
-                        >
-                          <X className="size-3" />
-                        </Button>
-                      </div>
-                    ))}
-                    {form.watch("credits").length === 0 ? (
-                      <p className="w-full text-xs text-center text-muted-foreground py-4 border-2 border-dashed border-border/20 rounded-xl">
-                        No writers or producers added yet.
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
+                <CreditsEditor
+                  onChange={(credits) =>
+                    form.setValue("credits", credits, { shouldDirty: true })
+                  }
+                  value={form.watch("credits")}
+                />
 
                 <FormField
                   control={form.control}
@@ -2923,14 +2914,16 @@ export function NewTrackForm({
                     Back
                   </Button>
                   <div className="flex gap-2">
-                    <Button
-                      disabled={isSubmitting}
-                      onClick={handleSaveTrackDraft}
-                      type="button"
-                      variant="outline"
-                    >
-                      Save Draft
-                    </Button>
+                    {trackId && initialTrack ? null : (
+                      <Button
+                        disabled={isSubmitting}
+                        onClick={handleSaveTrackDraft}
+                        type="button"
+                        variant="outline"
+                      >
+                        Save Draft
+                      </Button>
+                    )}
                     <Button
                       type="submit"
                       disabled={isSubmitting}
@@ -2955,6 +2948,30 @@ export function NewTrackForm({
           </Accordion>
         </form>
       </Form>
+
+      {trackId && initialTrack ? (
+        <div className="fixed bottom-6 right-6 z-40">
+          <Button
+            className="shadow-lg shadow-primary/30"
+            disabled={isSavingChanges || isSubmitting}
+            onClick={handleSaveChanges}
+            size="lg"
+            type="button"
+          >
+            {isSavingChanges ? (
+              <>
+                <LoaderCircle className="mr-2 size-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Check className="mr-2 size-4" />
+                Save changes
+              </>
+            )}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

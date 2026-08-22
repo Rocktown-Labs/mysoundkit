@@ -9,7 +9,13 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
+import { runArtistDigest } from "@/lib/artist-digest";
+import { runCheckoutReconciliation } from "@/lib/checkout-reconciliation";
 import { runBattleServiceSweep } from "@/lib/battle-service";
+import { runCreatorRewardsSettlement } from "@/lib/creator-rewards-settlement";
+import { runOrphanedUploadSweep } from "@/lib/orphan-sweep";
+import { runOpenVerseSweep } from "@/lib/open-verse-sweep";
+import { scheduleDuePayoutRuns } from "@/workflows/payout-run";
 import {
   handleEmailDeliveryQueue,
   retryDueEmailDeliveries,
@@ -81,6 +87,7 @@ export { MediaProcessorContainer } from "@/containers/media-processor";
 export { LiveRecordingWorkflow } from "@/workflows/live-recording";
 export { MediaProcessingWorkflow } from "@/workflows/media-processing";
 export { MediaRetentionWorkflow } from "@/workflows/media-retention";
+export { PurchaseFulfillmentWorkflow } from "@/workflows/purchase-fulfillment";
 export { ProjectExportWorkflow } from "@/workflows/project-export";
 export { TrackEnrichmentWorkflow } from "@/workflows/track-enrichment";
 export { LiveRoomDurableObject } from "@/durable-objects/live-room";
@@ -283,6 +290,18 @@ export default {
       Promise.allSettled([
         runBattleServiceSweep({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        runOpenVerseSweep({
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        runCreatorRewardsSettlement({
+          emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+        }),
+        runArtistDigest({ emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE }),
+        runCheckoutReconciliation(),
+        runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
+        scheduleDuePayoutRuns({
+          workflow: workerEnv.PAYOUT_RUN_WORKFLOW,
         }),
         publishDueLiveRecordings(),
         enqueueLegacyMediaBackfill({

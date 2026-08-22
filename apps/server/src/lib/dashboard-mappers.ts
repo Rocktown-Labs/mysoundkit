@@ -299,7 +299,9 @@ export const buildTrackDetail = async (
           id: trackCollaborators.id,
           name: userProfiles.displayName,
           role: trackCollaborators.collaboratorRole,
+          splitBps: trackCollaborators.creditSplitBps,
           status: trackCollaborators.invitationStatus,
+          userId: trackCollaborators.collaboratorUserId,
         })
         .from(trackCollaborators)
         .leftJoin(

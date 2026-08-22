@@ -643,7 +643,9 @@ export const dashboardCollaboratorSchema = z.object({
   id: z.string(),
   name: z.string().nullable().optional(),
   role: z.string(),
+  splitBps: z.number().int().nullable().optional(),
   status: z.string(),
+  userId: z.string().nullable().optional(),
 });
 
 export const trackDashboardDetailSchema = trackSummarySchema.extend({

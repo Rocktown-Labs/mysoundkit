@@ -87,6 +87,16 @@
       "class_name": "MediaRetentionWorkflow",
     },
     {
+      "name": "soundkit-purchase-fulfillment",
+      "binding": "PURCHASE_FULFILLMENT_WORKFLOW",
+      "class_name": "PurchaseFulfillmentWorkflow",
+    },
+    {
+      "name": "soundkit-payout-run",
+      "binding": "PAYOUT_RUN_WORKFLOW",
+      "class_name": "PayoutRunWorkflow",
+    },
+    {
       "name": "soundkit-live-recording",
       "binding": "LIVE_RECORDING_WORKFLOW",
       "class_name": "LiveRecordingWorkflow",

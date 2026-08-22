@@ -21,11 +21,13 @@ const getEnvValue = (key: string) =>
 
 export const stripeRequest = async <T>({
   connectedAccountId,
+  idempotencyKey,
   method = "POST",
   params,
   path,
 }: {
   connectedAccountId?: string;
+  idempotencyKey?: string;
   method?: "GET" | "POST" | "DELETE";
   params?: URLSearchParams;
   path: string;
@@ -40,6 +42,10 @@ export const stripeRequest = async <T>({
     Authorization: `Bearer ${secretKey}`,
     "Content-Type": "application/x-www-form-urlencoded",
   });
+
+  if (idempotencyKey && method === "POST") {
+    headers.set("Idempotency-Key", idempotencyKey);
+  }
 
   if (connectedAccountId) {
     headers.set("Stripe-Account", connectedAccountId);
@@ -450,9 +456,45 @@ export const createDestinationCheckout = ({
   }
 
   return stripeRequest<{ id: string; url: string | null }>({
+    idempotencyKey: metadata.transactionId
+      ? `checkout:${metadata.transactionId}`
+      : undefined,
     params,
     path: "/checkout/sessions",
   });
+};
+
+export const retrieveCheckoutSession = async (
+  sessionId: string
+): Promise<{ id: string; status?: string; url: string | null } | null> =>
+  stripeRequest({
+    method: "GET",
+    path: `/checkout/sessions/${sessionId}`,
+  });
+
+export const executeSellerTransfer = async ({
+  amountCents,
+  destinationAccountId,
+}: {
+  amountCents: number;
+  destinationAccountId: string;
+}): Promise<string | null> => {
+  if (amountCents <= 0) {
+    return null;
+  }
+
+  const params = new URLSearchParams();
+  params.set("amount", String(amountCents));
+  params.set("currency", "usd");
+  params.set("destination", destinationAccountId);
+
+  const transfer = await stripeRequest<{ id: string }>({
+    idempotencyKey: `payout:${destinationAccountId}:${amountCents}:${new Date().toISOString().slice(0, 10)}`,
+    params,
+    path: "/transfers",
+  });
+
+  return transfer?.id ?? null;
 };
 
 export const createConnectedSubscriptionCheckout = ({
