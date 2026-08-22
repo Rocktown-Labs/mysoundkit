@@ -1,7 +1,7 @@
 /* eslint-disable one-var, sort-vars */
 import { z } from "zod";
 
-export const MEDIA_PIPELINE_VERSION = 3;
+export const MEDIA_PIPELINE_VERSION = 4;
 export const ENRICHMENT_PIPELINE_VERSION = 1;
 export const PROJECT_EXPORT_PIPELINE_VERSION = 1;
 export const WORKFLOW_INSTANCE_ID_MAX_LENGTH = 100;

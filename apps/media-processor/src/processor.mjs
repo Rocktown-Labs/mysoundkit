@@ -28,6 +28,9 @@ const INTERNAL_R2_ORIGIN = "http://soundkit-r2.internal",
   LOUDNESS_TOLERANCE_LU = 1,
   NORMALIZED_TRUE_PEAK_DBTP = -1.5,
   TRUE_PEAK_LIMIT_DBTP = -1,
+  PEAK_CORRECTION_MARGIN_DB = 0.25,
+  MIN_LIMITER_CEILING_DBTP = -18,
+  NORMALIZATION_MAX_ATTEMPTS = 3,
   AAC_BITRATE = "256k",
   MAX_DELIVERY_SAMPLE_RATE_HZ = 48_000,
   LOSSLESS_CODECS = new Set([
@@ -258,37 +261,62 @@ const inspectFile = async (filePath) => {
       ...analysis,
     };
   },
-  // Deterministic pass-2: pure linear gain to the loudness target, with a
-  // true-peak limiter only when the predicted peaks would breach the ceiling.
-  // (loudnorm's dynamic fallback mode misses integrated targets by 1-3 LU on
-  // dense material and overshoots true peaks — both observed in production.)
-  linearGainChain = ({ analysis, targetLufs }) => {
-    const gainDb = targetLufs - analysis.inputI,
-      predictedTruePeakDbtp = analysis.inputTp + gainDb,
-      filters = [`volume=${gainDb.toFixed(2)} dB`];
-
-    if (predictedTruePeakDbtp > NORMALIZED_TRUE_PEAK_DBTP) {
-      // alimiter's limit is linear amplitude; -1.5 dBFS sample peak leaves
-      // margin under the -1 dBTP verification gate for encoder lift.
-      const limitLinear = 10 ** (NORMALIZED_TRUE_PEAK_DBTP / 20);
-      filters.push(
-        `alimiter=limit=${limitLinear.toFixed(3)}:attack=5:release=80:level=false`
-      );
-    }
-
-    return filters.join(",");
-  },
-  renderAac = async ({
-    clip,
-    inputPath,
-    inspection,
-    metadata,
-    outputPath,
-    preVolumeDb,
+  // AAC can introduce substantial transient overshoot even when a linear gain
+  // prediction looks safe. Always keep a limiter in the render chain; adaptive
+  // verification lowers its ceiling without attenuating the whole mix.
+  linearGainChain = ({
+    analysis,
+    gainAdjustmentDb = 0,
+    limiterDbtp = NORMALIZED_TRUE_PEAK_DBTP,
     targetLufs,
   }) => {
-    const analysis = targetLufs ? await analyzeFile(inputPath, clip) : null,
-      channels = Math.min(inspection.channels, 2),
+    const gainDb = targetLufs - analysis.inputI + gainAdjustmentDb,
+      limitLinear = 10 ** (limiterDbtp / 20);
+
+    return [
+      `volume=${gainDb.toFixed(2)} dB`,
+      `alimiter=limit=${limitLinear.toFixed(4)}:attack=5:release=80:level=false`,
+    ].join(",");
+  },
+  nextNormalizationSettings = ({
+    gainAdjustmentDb,
+    limiterDbtp,
+    targetLufs,
+    verification,
+  }) => {
+    const loudnessDelta = targetLufs - verification.integratedLufs,
+      peakOvershoot = verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP;
+
+    return {
+      gainAdjustmentDb:
+        Math.abs(loudnessDelta) > LOUDNESS_TOLERANCE_LU
+          ? gainAdjustmentDb + loudnessDelta
+          : gainAdjustmentDb,
+      limiterDbtp:
+        peakOvershoot > 0
+          ? Math.max(
+              MIN_LIMITER_CEILING_DBTP,
+              limiterDbtp - peakOvershoot - PEAK_CORRECTION_MARGIN_DB
+            )
+          : limiterDbtp,
+    };
+  },
+  renderAac = async ({
+    analysis,
+    clip,
+    gainAdjustmentDb,
+    inputPath,
+    inspection,
+    limiterDbtp,
+    metadata,
+    outputPath,
+    targetLufs,
+  }) => {
+    if (targetLufs !== null && !analysis) {
+      throw new Error("Normalized AAC rendering requires source analysis.");
+    }
+
+    const channels = Math.min(inspection.channels, 2),
       sampleRateHz = Math.min(
         inspection.sampleRateHz,
         MAX_DELIVERY_SAMPLE_RATE_HZ
@@ -307,10 +335,12 @@ const inspectFile = async (filePath) => {
         ...(analysis
           ? [
               "-af",
-              [
-                ...(preVolumeDb ? [`volume=${preVolumeDb.toFixed(2)} dB`] : []),
-                linearGainChain({ analysis, targetLufs }),
-              ].join(","),
+              linearGainChain({
+                analysis,
+                gainAdjustmentDb,
+                limiterDbtp,
+                targetLufs,
+              }),
             ]
           : []),
         "-c:a",
@@ -449,20 +479,26 @@ const renderDerivative = async ({
         verification,
       });
     } else {
-      // Loudnorm's true-peak control can overshoot on dense material (and
-      // AAC encoding adds peaks); when post-encode verification measures a
-      // TP violation, attenuate by the overshoot plus margin and render one
-      // corrective pass.
-      let preVolumeDb = 0;
+      const normalizationAnalysis = clip
+        ? await analyzeFile(inputPath, clip)
+        : sourceLoudness;
+      let gainAdjustmentDb = 0,
+        limiterDbtp = NORMALIZED_TRUE_PEAK_DBTP;
 
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (
+        let attempt = 0;
+        attempt < NORMALIZATION_MAX_ATTEMPTS;
+        attempt += 1
+      ) {
         await renderAac({
+          analysis: normalizationAnalysis,
           clip,
+          gainAdjustmentDb,
           inputPath,
           inspection,
+          limiterDbtp,
           metadata,
           outputPath,
-          preVolumeDb: attempt === 0 ? 0 : preVolumeDb,
           targetLufs,
         });
         verification = await analyzeFile(outputPath);
@@ -476,14 +512,12 @@ const renderDerivative = async ({
           break;
         }
 
-        // Pure-gain corrections: residual loudness trims toward target and
-        // attenuation for any remaining peak overshoot.
-        if (loudnessMissed) {
-          preVolumeDb -= verification.integratedLufs - targetLufs;
-        }
-        if (tpExceeded) {
-          preVolumeDb -= verification.truePeakDbtp - TRUE_PEAK_LIMIT_DBTP + 0.5;
-        }
+        ({ gainAdjustmentDb, limiterDbtp } = nextNormalizationSettings({
+          gainAdjustmentDb,
+          limiterDbtp,
+          targetLufs,
+          verification,
+        }));
       }
 
       assertVerifiedDerivative({
@@ -598,4 +632,4 @@ export const createDerivativeObject = ({
     };
   });
 
-export { linearGainChain };
+export { linearGainChain, nextNormalizationSettings };

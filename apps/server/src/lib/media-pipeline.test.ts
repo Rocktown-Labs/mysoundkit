@@ -15,7 +15,7 @@ const sourceAssetId = "efb2f77d-33ab-47bc-b492-211d3672c6b9",
 
 describe("media pipeline contracts", () => {
   it("uses the remediated media pipeline version", () => {
-    expect(MEDIA_PIPELINE_VERSION).toBe(3);
+    expect(MEDIA_PIPELINE_VERSION).toBe(4);
   });
 
   it("builds deterministic workflow IDs within Cloudflare limits", () => {

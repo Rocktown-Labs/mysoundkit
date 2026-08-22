@@ -26,6 +26,7 @@
 
 ### Fixed
 
+- Fixed V3 True Peak correction attenuating the entire mix and pushing valid streaming derivatives below the accepted loudness range; pipeline V4 always guards AAC transient overshoot and adaptively lowers the limiter ceiling independently from loudness gain.
 - Fixed media pipeline V2 consumer downloads returning a null loudness result after successful encoding, which caused four repeated renders and `Cannot read properties of null (reading 'integratedLufs')`; pipeline V3 now assigns and validates the measurement before registration.
 - Raised preview media-container concurrency from 5 to 20, shortened idle sleep, preserved non-JSON Container diagnostics, and added processor stack logging so concurrent test uploads no longer surface opaque random 500s.
 - Replaced vague upload/detail copy and “Variant Audio” cards with truthful upload/processing states and purpose-specific names, and blocked release actions in both UI and API until streaming media is playable.

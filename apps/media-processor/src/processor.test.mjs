@@ -5,6 +5,7 @@ import {
   assertVerifiedDerivative,
   DerivativeValidationError,
   linearGainChain,
+  nextNormalizationSettings,
   buildMetadataArguments,
   isLosslessCodec,
   parseFfprobeOutput,
@@ -87,25 +88,43 @@ test("SoundKit metadata is allowlisted and source tags are removed", () => {
   assert.equal(args.includes("comment=not copied"), false);
 });
 
-test("linear gain chain trims quiet sources and limits hot ones", () => {
-  // Loud source brought DOWN to target: peaks fall with it, volume only.
-  assert.equal(
-    linearGainChain({
-      analysis: { inputI: -7.83, inputTp: -0.12 },
+test("linear gain chain always guards AAC transient overshoot", () => {
+  const boosted = linearGainChain({
+      analysis: { inputI: -16.17, inputTp: -3 },
       targetLufs: -13,
     }),
-    "volume=-5.17 dB"
+    trimmed = linearGainChain({
+      analysis: { inputI: -7.83, inputTp: -0.12 },
+      targetLufs: -13,
+    });
+  assert.match(trimmed, /^volume=-5\.17 dB,/u);
+  assert.match(trimmed, /alimiter=limit=0\.8414/u);
+  assert.match(trimmed, /level=false/u);
+
+  assert.match(boosted, /^volume=3\.17 dB,/u);
+  assert.match(boosted, /alimiter=limit=0\.8414/u);
+});
+
+test("normalization correction lowers the limiter without attenuating the mix", () => {
+  assert.deepEqual(
+    nextNormalizationSettings({
+      gainAdjustmentDb: 0,
+      limiterDbtp: -1.5,
+      targetLufs: -13,
+      verification: { integratedLufs: -13.03, truePeakDbtp: 2.62 },
+    }),
+    { gainAdjustmentDb: 0, limiterDbtp: -5.37 }
   );
 
-  // Quiet source needing gain that would push true peak past the ceiling:
-  // gain plus limiter.
-  const boosted = linearGainChain({
-    analysis: { inputI: -16.17, inputTp: -3 },
-    targetLufs: -13,
-  });
-  assert.match(boosted, /^volume=3\.17 dB,/u);
-  assert.match(boosted, /alimiter=limit=0\.841/u);
-  assert.match(boosted, /level=false/u);
+  assert.deepEqual(
+    nextNormalizationSettings({
+      gainAdjustmentDb: 0,
+      limiterDbtp: -1.5,
+      targetLufs: -13,
+      verification: { integratedLufs: -15.28, truePeakDbtp: -2 },
+    }),
+    { gainAdjustmentDb: 2.2799999999999994, limiterDbtp: -1.5 }
+  );
 });
 
 test("missing derivative verification fails with a typed error", () => {
