@@ -243,6 +243,55 @@ const TRACK_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000,
   },
   quotedDownloadFileName = (fileName: string) =>
     fileName.replaceAll(/[\\"]/gu, "_"),
+  // R2's get() requires a structured R2Range; passing raw request headers
+  // produces unusable range metadata (Content-Range: bytes NaN-NaN/...).
+  buildR2Range = (
+    rangeHeader: string | undefined,
+    objectSize: number
+  ): R2Range | undefined => {
+    if (!rangeHeader || !(objectSize > 0)) {
+      return undefined;
+    }
+
+    const match = /^bytes=(?<start>\d*)-(?<end>\d*)$/u.exec(rangeHeader.trim());
+    if (!match) {
+      return undefined;
+    }
+
+    const startText = match.groups?.start ?? "",
+      endText = match.groups?.end ?? "";
+    if (startText === "" && endText === "") {
+      return undefined;
+    }
+
+    // Suffix form: "bytes=-N" returns the final N bytes.
+    if (startText === "") {
+      const suffix = Number(endText);
+
+      return Number.isInteger(suffix) && suffix > 0
+        ? { suffix: Math.min(suffix, objectSize) }
+        : undefined;
+    }
+
+    const offset = Number(startText);
+    if (!Number.isInteger(offset) || offset < 0 || offset >= objectSize) {
+      return undefined;
+    }
+
+    if (endText === "") {
+      return { offset };
+    }
+
+    const end = Number(endText);
+    if (!Number.isInteger(end) || end < offset) {
+      return undefined;
+    }
+
+    return {
+      length: Math.min(end - offset + 1, objectSize - offset),
+      offset,
+    };
+  },
   getMediaBucket = (bindings: AppEnv["Bindings"]) =>
     bindings.MEDIA_BUCKET ??
     (env as unknown as { MEDIA_BUCKET?: R2Bucket }).MEDIA_BUCKET ??
@@ -1524,14 +1573,10 @@ app.openapi(
     }
 
     if (body.isForSale === true) {
-      const organizationId = await resolveActiveOrganizationId({
-          session: isAuthenticatedSession(session) ? session : null,
-          user,
-        }),
-        sellerEnabled = await isSellerEnabled({
-          organizationId,
-          userId: user.id,
-        });
+      const sellerEnabled = await isSellerEnabled({
+        organizationId,
+        userId: user.id,
+      });
 
       if (!sellerEnabled) {
         return c.json(
@@ -2871,7 +2916,7 @@ app.openapi(
     }
     const requestedRange = c.req.header("range"),
       object = await bucket.get(asset.objectKey, {
-        range: requestedRange ? c.req.raw.headers : undefined,
+        range: buildR2Range(requestedRange, head.size),
       });
     if (!object) {
       return c.json(
