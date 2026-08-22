@@ -137,7 +137,9 @@ const accountFooter =
     recipient: Recipient;
     subject: string;
     template:
+      | "artist_monthly_digest"
       | "artist_weekly_digest"
+      | "fan_digest"
       | "battle_challenge"
       | "battle_reminder"
       | "battle_results"

@@ -7,7 +7,9 @@ type EmailSendResult =
   | { reason: string; sent: false };
 
 export type TransactionalEmailTemplate =
+  | "artist_monthly_digest"
   | "artist_weekly_digest"
+  | "fan_digest"
   | "battle_challenge"
   | "battle_reminder"
   | "battle_results"

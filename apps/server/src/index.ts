@@ -9,7 +9,7 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
-import { runArtistDigest } from "@/lib/artist-digest";
+import { runArtistDigest, runFanDigest } from "@/lib/artist-digest";
 import { runCheckoutReconciliation } from "@/lib/checkout-reconciliation";
 import { runBattleServiceSweep } from "@/lib/battle-service";
 import { runCreatorRewardsSettlement } from "@/lib/creator-rewards-settlement";
@@ -287,6 +287,8 @@ export default {
     );
   },
   scheduled: (_controller, workerEnv, executionContext) => {
+    const now = () => new Date();
+
     executionContext.waitUntil(
       Promise.allSettled([
         runBattleServiceSweep({
@@ -299,7 +301,23 @@ export default {
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
         runArtistDigest({ emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE }),
+        // Monthly digests self-deduplicate via period-scoped idempotency keys;
+        // gate execution to the first three days of the month to skip wasted
+        // queries on the 5-minute schedule.
+        ...(now().getUTCDate() <= 3
+          ? [
+              runArtistDigest({
+                cadence: "monthly",
+                emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+              }),
+              runFanDigest({
+                cadence: "monthly",
+                emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+              }),
+            ]
+          : []),
         runCheckoutReconciliation(),
+        runFanDigest({ emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE }),
         runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
         scheduleDuePayoutRuns({
           workflow: workerEnv.PAYOUT_RUN_WORKFLOW,

@@ -153,7 +153,7 @@ export const runOpenVerseSweep = async ({
 
     const outcome = await enqueueForRecipient({
       actionPath: "/dashboard/open-verses",
-      body: `${listing.trackTitle} stops accepting submissions at ${listing.closesAt?.toISOString() ?? "its deadline"}. Share it one more time or close it early.`,
+      body: `${listing.trackTitle} stops accepting submissions on ${listing.closesAt?.toUTCString().slice(0, 16) ?? "its deadline"} UTC. Give it one last share or close it early.`,
       ctaLabel: "Open listing",
       eyebrow: "Open verse",
       footerNote: collaborationFooter,

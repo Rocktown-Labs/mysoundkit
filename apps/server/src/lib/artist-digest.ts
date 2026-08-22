@@ -15,14 +15,22 @@ import { logInfo } from "@/middleware/structured-logging";
 
 const BATCH_LIMIT = 100;
 
+const cadenceWindow = (cadence: "monthly" | "weekly", now: Date) =>
+  cadence === "monthly"
+    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
 /**
- * Weekly artist digest: plays, unique listeners, battles won, sales — one
- * email per opted-in artist. Idempotent per artist per period start.
+ * Artist digest (weekly or monthly): plays, unique listeners, battles
+ * fought, and sales — one email per opted-in artist. Idempotent per artist
+ * per period.
  */
 export const runArtistDigest = async ({
+  cadence = "weekly",
   emailQueue,
   now = new Date(),
 }: {
+  cadence?: "monthly" | "weekly";
   emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
   now?: Date;
 } = {}): Promise<{ emailsSent: number; skipped: boolean }> => {
@@ -31,7 +39,8 @@ export const runArtistDigest = async ({
   }
 
   const db = createDb(),
-    weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+    weekStart = cadenceWindow(cadence, now),
+    periodLabel = cadence === "monthly" ? "month" : "week",
     artistRows = await db
       .select({
         artistUserId: tracks.ownerUserId,
@@ -94,21 +103,21 @@ export const runArtistDigest = async ({
 
     const outcome = await enqueueForRecipient({
       actionPath: "/dashboard",
-      body: `Last week: ${plays} play${plays === 1 ? "" : "s"} from ${
+      body: `Last ${periodLabel}: ${plays} play${plays === 1 ? "" : "s"} from ${
         Number(row.uniqueListeners ?? 0) || "your"
       } listener${Number(row.uniqueListeners) === 1 ? "" : "s"}, ${battlesFought} battle${battlesFought === 1 ? "" : "s"}, and $${(moneyCents / 100).toFixed(2)} in sales.`,
       ctaLabel: "Open dashboard",
-      eyebrow: "Weekly digest",
+      eyebrow: cadence === "monthly" ? "Monthly digest" : "Weekly digest",
       footerNote:
-        "Weekly digests are on by default; manage them in notification settings.",
-      heading: "Your week on SoundKit",
-      idempotencyKey: `artist-digest/${row.artistUserId}/${weekStart.toISOString().slice(0, 10)}`,
+        "Digests are on by default; manage them in notification settings.",
+      heading: `Your ${periodLabel} on SoundKit`,
+      idempotencyKey: `artist-digest-${cadence}/${row.artistUserId}/${weekStart.toISOString().slice(0, 10)}`,
       preference: "sales",
-      previewText: `${plays} plays and more from last week.`,
+      previewText: `${plays} plays and more from your last ${periodLabel}.`,
       queue: emailQueue,
       recipient,
-      subject: `Your week on SoundKit: ${plays} plays`,
-      template: "artist_weekly_digest",
+      subject: `Your ${periodLabel} on SoundKit: ${plays} play${plays === 1 ? "" : "s"}`,
+      template: cadence === "monthly" ? "artist_monthly_digest" : "artist_weekly_digest",
     });
 
     if (outcome.enqueued) {
@@ -117,6 +126,94 @@ export const runArtistDigest = async ({
   }
 
   logInfo({ emailsSent, event: "artist_digest_sent" });
+
+  return { emailsSent, skipped: false };
+};
+
+/**
+ * Fan digest: listening recap — tracks played, artists discovered, minutes
+ * and purchases in the window. Skips quiet fans.
+ */
+export const runFanDigest = async ({
+  cadence = "weekly",
+  emailQueue,
+  now = new Date(),
+}: {
+  cadence?: "monthly" | "weekly";
+  emailQueue?: Queue<EmailDeliveryQueueMessage> | null;
+  now?: Date;
+} = {}): Promise<{ emailsSent: number; skipped: boolean }> => {
+  if (!isDatabaseConfigured()) {
+    return { emailsSent: 0, skipped: true };
+  }
+
+  const db = createDb(),
+    periodStart = cadenceWindow(cadence, now),
+    fanRows = await db
+      .select({
+        listeners: countDistinct(playbackSessions.userId),
+        plays: sql<number>`count(*)::int`,
+        userId: playbackSessions.userId,
+      })
+      .from(playbackSessions)
+      .where(gte(playbackSessions.createdAt, periodStart))
+      .groupBy(playbackSessions.userId)
+      .limit(BATCH_LIMIT);
+
+  let emailsSent = 0;
+
+  for (const row of fanRows) {
+    if (!row.userId) {
+      continue;
+    }
+
+    const recipient = await getUserRecipient(row.userId);
+    if (!recipient) {
+      continue;
+    }
+
+    const [purchaseRow] = await db
+      .select({
+        moneyCents:
+          sql<number>`coalesce(sum(${orderItems.priceSnapshot} * ${orderItems.quantity} * 100), 0)::int`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orders.id, orderItems.orderId))
+      .where(
+        and(eq(orders.buyerUserId, row.userId), gte(orders.createdAt, periodStart))
+      );
+
+    const purchasesCents = Number(purchaseRow?.moneyCents ?? 0),
+      plays = Number(row.plays ?? 0);
+    if (plays === 0 && purchasesCents === 0) {
+      continue;
+    }
+
+    const outcome = await enqueueForRecipient({
+      actionPath: "/library",
+      body: `You played ${plays} track${plays === 1 ? "" : "s"} this ${cadence === "monthly" ? "month" : "week"}${
+        purchasesCents > 0
+          ? ` and picked up $${(purchasesCents / 100).toFixed(2)} of music to keep forever`
+          : ""
+      }. Your library is ready when you are.`,
+      ctaLabel: "Open your library",
+      eyebrow: cadence === "monthly" ? "Monthly recap" : "Weekly recap",
+      footerNote:
+        "Recaps are on by default; manage them in notification settings.",
+      heading: "Your SoundKit listening recap",
+      idempotencyKey: `fan-digest-${cadence}/${row.userId}/${periodStart.toISOString().slice(0, 10)}`,
+      preference: "sales",
+      previewText: `${plays} play${plays === 1 ? "" : "s"} and more from your ${cadence} on SoundKit.`,
+      queue: emailQueue,
+      recipient,
+      subject: `Your ${cadence} listening recap: ${plays} play${plays === 1 ? "" : "s"}`,
+      template: "fan_digest",
+    });
+
+    if (outcome.enqueued) {
+      emailsSent += 1;
+    }
+  }
 
   return { emailsSent, skipped: false };
 };
