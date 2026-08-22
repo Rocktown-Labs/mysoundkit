@@ -9,7 +9,11 @@ import { cors } from "hono/cors";
 import notFound from "stoker/middlewares/not-found";
 import defaultHook from "stoker/openapi/default-hook";
 
-import { runArtistDigest, runFanDigest } from "@/lib/artist-digest";
+import {
+  isDigestSendDay,
+  runArtistDigest,
+  runFanDigest,
+} from "@/lib/artist-digest";
 import { runCheckoutReconciliation } from "@/lib/checkout-reconciliation";
 import { runBattleServiceSweep } from "@/lib/battle-service";
 import { runCreatorRewardsSettlement } from "@/lib/creator-rewards-settlement";
@@ -300,10 +304,17 @@ export default {
         runCreatorRewardsSettlement({
           emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
         }),
-        runArtistDigest({ emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE }),
-        // Monthly digests self-deduplicate via period-scoped idempotency keys;
-        // gate execution to the first three days of the month to skip wasted
-        // queries on the 5-minute schedule.
+        // Digests send on their send-day only (weekly = Monday UTC, monthly =
+        // first three days of the month); period-anchored idempotency keys
+        // keep the 5-minute schedule from double-sending within the day.
+        ...(isDigestSendDay("weekly", now())
+          ? [
+              runArtistDigest({
+                cadence: "weekly",
+                emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+              }),
+            ]
+          : []),
         ...(now().getUTCDate() <= 3
           ? [
               runArtistDigest({
@@ -317,7 +328,14 @@ export default {
             ]
           : []),
         runCheckoutReconciliation(),
-        runFanDigest({ emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE }),
+        ...(isDigestSendDay("weekly", now())
+          ? [
+              runFanDigest({
+                cadence: "weekly",
+                emailQueue: workerEnv.EMAIL_DELIVERY_QUEUE,
+              }),
+            ]
+          : []),
         runOrphanedUploadSweep({ bucket: workerEnv.MEDIA_BUCKET }),
         scheduleDuePayoutRuns({
           workflow: workerEnv.PAYOUT_RUN_WORKFLOW,

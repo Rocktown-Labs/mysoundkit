@@ -15,10 +15,33 @@ import { logInfo } from "@/middleware/structured-logging";
 
 const BATCH_LIMIT = 100;
 
-const cadenceWindow = (cadence: "monthly" | "weekly", now: Date) =>
+const cadenceWindow = (cadence: "monthly" | "weekly", now: Date) => {
+    if (cadence === "monthly") {
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    }
+
+    // Weekly periods are Monday-anchored (Mon..Sun, Sunday = day 7): on a
+    // Monday send, the window opens at the PREVIOUS Monday so the email
+    // covers the completed week.
+    const day = now.getUTCDay(),
+      daysSinceMonday = (day + 6) % 7,
+      monday = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() - daysSinceMonday
+        )
+      );
+
+    return daysSinceMonday === 0
+      ? new Date(monday.getTime() - 7 * 24 * 60 * 60 * 1000)
+      : monday;
+  };
+
+export const isDigestSendDay = (cadence: "monthly" | "weekly", now: Date) =>
   cadence === "monthly"
-    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-    : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    ? now.getUTCDate() <= 3
+    : now.getUTCDay() === 1;
 
 /**
  * Artist digest (weekly or monthly): plays, unique listeners, battles
@@ -153,6 +176,7 @@ export const runFanDigest = async ({
       .select({
         listeners: countDistinct(playbackSessions.userId),
         plays: sql<number>`count(*)::int`,
+        trackCount: sql<number>`count(distinct ${playbackSessions.trackId})::int`,
         userId: playbackSessions.userId,
       })
       .from(playbackSessions)
@@ -184,14 +208,15 @@ export const runFanDigest = async ({
       );
 
     const purchasesCents = Number(purchaseRow?.moneyCents ?? 0),
-      plays = Number(row.plays ?? 0);
+      plays = Number(row.plays ?? 0),
+      trackCount = Number(row.trackCount ?? 0);
     if (plays === 0 && purchasesCents === 0) {
       continue;
     }
 
     const outcome = await enqueueForRecipient({
       actionPath: "/library",
-      body: `You played ${plays} track${plays === 1 ? "" : "s"} this ${cadence === "monthly" ? "month" : "week"}${
+      body: `You streamed ${plays} play${plays === 1 ? "" : "s"} across ${trackCount} track${trackCount === 1 ? "" : "s"} this ${cadence === "monthly" ? "month" : "week"}${
         purchasesCents > 0
           ? ` and picked up $${(purchasesCents / 100).toFixed(2)} of music to keep forever`
           : ""
@@ -203,10 +228,10 @@ export const runFanDigest = async ({
       heading: "Your SoundKit listening recap",
       idempotencyKey: `fan-digest-${cadence}/${row.userId}/${periodStart.toISOString().slice(0, 10)}`,
       preference: "sales",
-      previewText: `${plays} play${plays === 1 ? "" : "s"} and more from your ${cadence} on SoundKit.`,
+      previewText: `${plays} play${plays === 1 ? "" : "s"} of ${trackCount} track${trackCount === 1 ? "" : "s"} this ${cadence}.`,
       queue: emailQueue,
       recipient,
-      subject: `Your ${cadence} listening recap: ${plays} play${plays === 1 ? "" : "s"}`,
+      subject: `Your ${cadence} listening recap: ${plays} play${plays === 1 ? "" : "s"}, ${trackCount} track${trackCount === 1 ? "" : "s"}`,
       template: "fan_digest",
     });
 
