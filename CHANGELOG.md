@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- Fixed autonomous battle timelines after tied rounds: completed scheduled rounds now enter sudden death or resolve the leading artist instead of advancing past the configured format, tied tiebreakers match persisted winner rules, and battle results now progress to the ended phase.
 - Fixed explore search results rendering behind homepage map controls and replaced generic result icons with artist avatars, track covers, and project artwork.
 - Added automatic thumbnails for linked YouTube videos and redesigned video, live-stream, and battle discovery cards around consistent horizontal 16:9 media layouts.
 - Fixed mobile signup smoke navigation by using reliable document navigation for artist and fan credential links, with explicit route assertions for both paths.
