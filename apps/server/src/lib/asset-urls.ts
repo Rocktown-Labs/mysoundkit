@@ -49,21 +49,21 @@ export const objectUrlFromMetadata = (metadata: unknown) => {
   return typeof url === "string" ? url : null;
 };
 
-export const publicAssetUrl = (asset: TrackAssetLike | undefined) => {
-  if (!asset) {
-    return null;
-  }
-
-  const metadataUrl = objectUrlFromMetadata(asset.metadata);
-
-  if (metadataUrl) {
-    return metadataUrl;
-  }
-
+export const publicAssetUrlFromParts = ({
+  metadata,
+  objectKey,
+}: TrackAssetLike) => {
   const baseUrl = mediaBaseUrl();
 
-  return baseUrl && asset.objectKey ? `${baseUrl}/${asset.objectKey}` : null;
+  if (baseUrl && objectKey) {
+    return `${baseUrl}/${objectKey}`;
+  }
+
+  return objectUrlFromMetadata(metadata);
 };
+
+export const publicAssetUrl = (asset: TrackAssetLike | undefined) =>
+  asset ? publicAssetUrlFromParts(asset) : null;
 
 export const publicProjectAssetUrl = (
   asset: InferSelectModel<typeof projectAssets> | undefined

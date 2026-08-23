@@ -511,9 +511,10 @@ describe.skipIf(!dbConnected)("analytics routes against local Postgres", () => {
 
      byId = new Map(body.tracks.map((t) => [t.trackId, t]));
 
-    // cover_art preferred over artwork; metadata.url honored.
+    // cover_art is preferred over artwork, and its durable object key is
+    // resolved against the active media host instead of stale metadata URLs.
     expect(byId.get(TRACK_LONG)?.coverArtUrl).toBe(
-      "https://cdn.example.test/long-cover.png"
+      "https://media.example.test/long-cover.png"
     );
     expect(byId.get(TRACK_LONG)?.durationSeconds).toBe(180);
     expect(byId.get(TRACK_SHORT)?.coverArtUrl).toBeNull();
