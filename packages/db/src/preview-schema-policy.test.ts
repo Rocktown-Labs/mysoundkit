@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const deployWorkflowPath = fileURLToPath(
+const alchemyConfigPath = fileURLToPath(
+    new URL("../../infra/alchemy.run.ts", import.meta.url)
+  ),
+  deployWorkflowPath = fileURLToPath(
     new URL("../../../.github/workflows/deploy.yml", import.meta.url)
   ),
   workflowJob = (workflow: string, name: string, nextName: string) => {
@@ -20,7 +23,7 @@ const deployWorkflowPath = fileURLToPath(
     return workflow.slice(start, end);
   };
 
-describe("preview database schema policy", () => {
+describe("deployment safety policy", () => {
   it("keeps schema synchronization out of pull-request previews", async () => {
     const workflow = await readFile(deployWorkflowPath, "utf-8"),
       previewJob = workflowJob(workflow, "preview", "preview-browser");
@@ -38,5 +41,13 @@ describe("preview database schema policy", () => {
 
     expect(schemaStep).toBeGreaterThan(-1);
     expect(deployStep).toBeGreaterThan(schemaStep);
+  });
+
+  it("keeps canonical production assets on the guarded media route", async () => {
+    const alchemyConfig = await readFile(alchemyConfigPath, "utf-8");
+
+    expect(alchemyConfig).toMatch(
+      /MEDIA_URL = isProduction[\s\S]*?MEDIA_HOST\}\/media[\s\S]*?API_URL\}\/media/u
+    );
   });
 });

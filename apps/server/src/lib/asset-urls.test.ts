@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe("public asset URLs", () => {
   it("uses the current media host for durable object keys", () => {
-    process.env.MEDIA_PUBLIC_URL = "https://media.mysoundkit.com/";
+    process.env.MEDIA_PUBLIC_URL = "https://media.mysoundkit.com/media/";
 
     expect(
       publicAssetUrlFromParts({
@@ -29,7 +29,7 @@ describe("public asset URLs", () => {
         },
         objectKey: "uploads/user/cover.jpg",
       })
-    ).toBe("https://media.mysoundkit.com/uploads/user/cover.jpg");
+    ).toBe("https://media.mysoundkit.com/media/uploads/user/cover.jpg");
   });
 
   it("keeps metadata URLs as a legacy fallback", () => {
