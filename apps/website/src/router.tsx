@@ -17,6 +17,7 @@ export function getRouter() {
     Sentry.init({
       dsn: env.VITE_SENTRY_DSN,
       enableLogs: true,
+      environment: env.VITE_SENTRY_ENVIRONMENT,
       integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
       sendDefaultPii: true,
       tracesSampleRate: 1,

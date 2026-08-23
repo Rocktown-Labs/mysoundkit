@@ -226,33 +226,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply preview database schema
-        working-directory: packages/db
+      # PR Workers share the production application database. Never synchronize
+      # a branch-local Drizzle schema here: a stale branch can otherwise remove
+      # columns introduced by another PR. Production applies the reviewed schema
+      # before deploying the matching Worker version.
+      - name: Confirm shared database safety policy
         run: |
-          node --input-type=module --eval '
-          import { Pool } from "pg";
-
-          const databaseUrl = process.env.DATABASE_URL?.replace(
-            "sslmode=verify-full",
-            "sslmode=require"
-          );
-
-          if (!databaseUrl) {
-            throw new Error("DATABASE_URL is required to apply the preview database schema.");
-          }
-
-          const pool = new Pool({ connectionString: databaseUrl, max: 1 });
-
-          try {
-            await pool.query("create extension if not exists vector");
-          } finally {
-            await pool.end();
-          }
-          '
-          export DATABASE_URL="${DATABASE_URL/sslmode=verify-full/sslmode=require}"
-          pnpm exec drizzle-kit push --config drizzle.config.ts --force
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          echo "Preview deploys use the existing shared schema without mutating it."
+          echo "Schema-changing PRs must follow docs/preview-environments.md."
 
       - name: Deploy preview through Alchemy
         working-directory: packages/infra
