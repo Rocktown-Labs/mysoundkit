@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, complexity, unicorn/max-nested-calls */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { Mux } from "@mux/mux-node";
 import { createDb, isDatabaseConfigured } from "@soundkit/db";
@@ -52,6 +53,7 @@ import {
 } from "@/lib/schemas";
 import type { AppEnv } from "@/lib/types";
 import { videoPlaybackSourceType } from "@/lib/video-playback";
+import { resolveVideoThumbnailUrl } from "@/lib/video-thumbnails";
 import { uniqueSlug } from "@/lib/workspace";
 
 const app = new OpenAPIHono<AppEnv>();
@@ -194,6 +196,7 @@ const hasPurchasedTrack = async ({
   };
 
 interface VideoMapInput {
+  creatorAvatarUrl?: string | null;
   creatorName?: string;
   creatorUsername?: string | null;
   description?: string | null;
@@ -224,6 +227,7 @@ interface VideoMapInput {
 }
 
 const mapVideo = (video: VideoMapInput) => ({
+  creatorAvatarUrl: video.creatorAvatarUrl ?? null,
   creatorName: video.creatorName,
   creatorUsername: video.creatorUsername ?? null,
   description: video.description ?? null,
@@ -239,7 +243,11 @@ const mapVideo = (video: VideoMapInput) => ({
   sourceProvider: video.sourceProvider ?? "mux",
   sourceTrackId: video.sourceTrackId ?? null,
   status: video.status ?? "ready",
-  thumbnailUrl: video.thumbnailUrl ?? "/placeholder.svg",
+  thumbnailUrl: resolveVideoThumbnailUrl({
+    externalPlaybackUrl: video.externalPlaybackUrl,
+    muxPlaybackId: video.muxPlaybackId,
+    thumbnailUrl: video.thumbnailUrl,
+  }),
   title: video.title,
   verifiedOnPlatform: video.verifiedOnPlatform ?? false,
   videoKind: video.videoKind ?? "music_video",
@@ -300,6 +308,7 @@ app.openapi(
       order = publicVideoOrderBy(query.sort),
       rows = await db
         .select({
+          avatarUrl: userProfiles.avatarUrl,
           displayName: userProfiles.displayName,
           name: authUser.name,
           state: userProfiles.state,
@@ -317,6 +326,7 @@ app.openapi(
     return c.json(
       rows.map((row) => ({
         ...mapVideo(row.video),
+        creatorAvatarUrl: row.avatarUrl ?? null,
         creatorName: row.displayName ?? row.name ?? "SoundKit Artist",
         creatorUsername: row.username ?? null,
         regionSlug: regionSlugFromUser(row.state) ?? null,
@@ -419,6 +429,12 @@ app.openapi(
           sourceProvider: body.sourceProvider,
           sourceTrackId: body.sourceTrackId ?? null,
           status: body.sourceProvider === "external" ? "ready" : "pending",
+          thumbnailUrl:
+            body.sourceProvider === "external"
+              ? resolveVideoThumbnailUrl({
+                  externalPlaybackUrl: body.externalPlaybackUrl,
+                })
+              : null,
           title: body.title,
           verifiedOnPlatform: body.sourceProvider === "mux",
           videoKind: body.videoKind,
@@ -628,12 +644,17 @@ app.openapi(
     const db = createDb(),
       [video] = await db
         .select({
+          avatarUrl: userProfiles.avatarUrl,
+          displayName: userProfiles.displayName,
           genreName: genres.name,
+          name: authUser.name,
           state: userProfiles.state,
+          username: userProfiles.username,
           video: videos,
         })
         .from(videos)
         .leftJoin(userProfiles, eq(userProfiles.userId, videos.ownerUserId))
+        .leftJoin(authUser, eq(authUser.id, videos.ownerUserId))
         .leftJoin(genres, eq(genres.id, videos.genreId))
         .where(or(eq(videos.id, videoId), eq(videos.slug, videoId)))
         .limit(1);
@@ -651,6 +672,9 @@ app.openapi(
     return c.json(
       {
         ...mapVideo(video.video),
+        creatorAvatarUrl: video.avatarUrl ?? null,
+        creatorName: video.displayName ?? video.name ?? "SoundKit Artist",
+        creatorUsername: video.username ?? null,
         genre: video.genreName ? canonicalGenreName(video.genreName) : null,
         regionSlug: regionSlugFromUser(video.state) ?? null,
       },

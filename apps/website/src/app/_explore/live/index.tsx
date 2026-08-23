@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, require-unicode-regexp, no-nested-ternary, unicorn/no-nested-ternary */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarClock, Zap } from "lucide-react";
 
@@ -70,9 +71,9 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
     posterImage =
       item.kind === "battle"
         ? "/music-battle-video-thumbnail.jpg"
-        : (item.kind === "party"
+        : item.kind === "party"
           ? "/summer-music-album-cover.png"
-          : "/night-music-album-cover.png"),
+          : "/night-music-album-cover.png",
     categoryLabel = kindLabel(item.kind),
     tags = [
       item.genre,
@@ -116,12 +117,12 @@ function LiveHubCard({ item }: { item: LiveHubItem }) {
               <div className="rounded-[4px] bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white backdrop-blur">
                 {formatLiveHubViewers(item.viewerCount)} viewers
               </div>
-            ) : (item.startsAt ? (
+            ) : item.startsAt ? (
               <div className="flex items-center gap-1 rounded-[4px] bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur">
                 <CalendarClock className="size-3 text-primary" />
                 {new Date(item.startsAt).toLocaleDateString()}
               </div>
-            ) : null)}
+            ) : null}
           </div>
         </div>
 
@@ -237,6 +238,7 @@ function LiveHubPage() {
           empty="No live experiences match these filters."
           isLoading={isLoading}
           items={filteredItems}
+          layout="landscape"
           title="Live Experiences"
         >
           {(item) => <LiveHubCard item={item} />}
@@ -247,6 +249,7 @@ function LiveHubPage() {
             empty="No featured live experiences yet."
             isLoading={isLoading}
             items={allItems.slice(0, 8)}
+            layout="landscape"
             onViewAll={() => openCollection({})}
             title="Featured"
           >
@@ -255,6 +258,7 @@ function LiveHubPage() {
           <ExploreCollectionSection
             empty="Nothing is live right now."
             items={allItems.filter((item) => item.status === "live")}
+            layout="landscape"
             onViewAll={() => openCollection({ status: "live" })}
             title="Live Now"
           >
@@ -263,6 +267,7 @@ function LiveHubPage() {
           <ExploreCollectionSection
             empty="No upcoming live experiences are scheduled."
             items={allItems.filter((item) => item.status === "scheduled")}
+            layout="landscape"
             onViewAll={() => openCollection({ status: "scheduled" })}
             title="Upcoming"
           >
@@ -285,6 +290,7 @@ function LiveHubPage() {
                   );
                 })}
                 key={sectionGenre.value}
+                layout="landscape"
                 onViewAll={() => openCollection({ genre: sectionGenre.value })}
                 title={sectionGenre.label}
               >

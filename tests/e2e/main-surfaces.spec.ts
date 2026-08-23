@@ -48,6 +48,7 @@ test.describe("main application surfaces", () => {
     await expect(
       page.getByText(/showing app-wide totals/i).first()
     ).toBeVisible();
+    await expect(page.getByTestId("explore-header")).toHaveCSS("z-index", "40");
 
     await gotoWithViteRetry(page, "/tracks");
     await expect(

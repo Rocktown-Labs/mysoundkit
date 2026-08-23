@@ -1,3 +1,4 @@
+/* eslint-disable one-var, sort-vars, no-nested-ternary, unicorn/no-nested-ternary */
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
@@ -6,14 +7,16 @@ import {
   Music,
   Search,
   ShoppingCart,
-  User,
   UserRound,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState, Suspense } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { CartDrawer } from "@/components/cart-drawer";
 import { useCart } from "@/components/cart-provider";
+import { AppImage } from "@/components/ui/app-image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -21,7 +24,7 @@ import { useMeQuery, useSearchQuery } from "@/lib/soundkit-api-hooks";
 
 const SEARCH_DEBOUNCE_MS = 250,
   resultLinkClassName =
-    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent cursor-pointer",
+    "flex items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   canOpenDashboardForUser = (user?: {
     accountType: string;
     onboardingCompletedAt?: string | null;
@@ -29,6 +32,34 @@ const SEARCH_DEBOUNCE_MS = 250,
   }) =>
     Boolean(user?.onboardingCompletedAt) &&
     (user?.accountType === "artist" || user?.role === "admin");
+
+function SearchResultArtwork({
+  alt,
+  fallback,
+  src,
+}: {
+  alt: string;
+  fallback: ReactNode;
+  src?: null | string;
+}) {
+  return (
+    <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
+      {src ? (
+        <AppImage
+          alt={alt}
+          className="size-full object-cover"
+          height={40}
+          layout="fixed"
+          loading="lazy"
+          src={src}
+          width={40}
+        />
+      ) : (
+        fallback
+      )}
+    </span>
+  );
+}
 
 // The search, cart, and account controls intentionally share one responsive header.
 // eslint-disable-next-line complexity
@@ -90,40 +121,50 @@ export function ExploreHeader() {
     },
     getSearchPlaceholder = () => {
       if (pathname.startsWith("/artist")) {
-        return "Search artists...";
+        return "Search artists…";
       } else if (pathname.startsWith("/live")) {
-        return "Search battles...";
+        return "Search battles…";
       } else if (pathname.startsWith("/tracks")) {
-        return "Search songs...";
+        return "Search songs…";
       } else if (pathname.startsWith("/genres")) {
-        return "Search genres...";
+        return "Search genres…";
       }
-      return "Search artists, tracks, battles...";
+      return "Search artists, tracks, battles…";
     };
 
   return (
-    <header className="sticky top-0 z-10 flex h-14 md:h-16 items-center gap-2 md:gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
+    <header
+      className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:h-16 md:gap-4"
+      data-testid="explore-header"
+    >
       <SidebarTrigger className="shrink-0" />
 
       <div className="flex-1 flex items-center justify-center max-w-3xl mx-auto">
         <div className="relative w-full max-w-md md:max-w-lg">
           <Suspense fallback={<div>Loading...</div>}>
-            <Search className="absolute left-2 md:left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Search
+              aria-hidden="true"
+              className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground md:left-3"
+            />
             <Input
+              aria-label="Search SoundKit"
+              autoComplete="off"
+              className="h-9 w-full pr-8 pl-8 text-sm md:h-10 md:pl-10"
+              name="soundkit-search"
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder={getSearchPlaceholder()}
               ref={searchInputRef}
               type="search"
-              placeholder={getSearchPlaceholder()}
-              className="pl-8 md:pl-10 pr-8 w-full h-9 md:h-10 text-sm"
               value={searchValue}
-              onChange={(event) => setSearchValue(event.target.value)}
             />
             {searchValue.length > 0 && (
               <button
-                type="button"
+                aria-label="Clear search"
+                className="absolute top-1/2 right-2.5 -translate-y-1/2 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setSearchValue("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                type="button"
               >
-                <X className="size-4" />
+                <X aria-hidden="true" className="size-4" />
               </button>
             )}
           </Suspense>
@@ -132,7 +173,7 @@ export function ExploreHeader() {
             <div className="absolute top-11 right-0 left-0 z-50 rounded-lg border bg-popover p-2 text-popover-foreground shadow-2xl">
               {searchQuery.isLoading && (
                 <p className="px-3 py-2 text-xs text-muted-foreground">
-                  Searching SoundKit...
+                  Searching SoundKit…
                 </p>
               )}
               {searchQuery.error && (
@@ -148,7 +189,7 @@ export function ExploreHeader() {
                   </p>
                 )}
               {!searchQuery.isLoading && !searchQuery.error && results && (
-                <div className="max-h-96 overflow-y-auto space-y-1">
+                <div className="flex max-h-96 flex-col gap-1 overflow-y-auto">
                   {results.artists.length > 0 && (
                     <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                       Artists
@@ -162,7 +203,15 @@ export function ExploreHeader() {
                       params={{ username: artist.username }}
                       to="/artist/$username"
                     >
-                      <User className="size-4 text-primary shrink-0" />
+                      <Avatar className="size-10 shrink-0 rounded-md">
+                        <AvatarImage
+                          alt={`${artist.name} profile photo`}
+                          src={artist.avatarUrl ?? undefined}
+                        />
+                        <AvatarFallback className="rounded-md text-xs">
+                          {artist.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium text-xs">
                           {artist.name}
@@ -195,7 +244,16 @@ export function ExploreHeader() {
                           : "/tracks/$id"
                       }
                     >
-                      <Music className="size-4 text-primary shrink-0" />
+                      <SearchResultArtwork
+                        alt={`${track.title} cover artwork`}
+                        fallback={
+                          <Music
+                            aria-hidden="true"
+                            className="size-4 text-primary"
+                          />
+                        }
+                        src={track.coverArtUrl}
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium text-xs">
                           {track.title}
@@ -220,7 +278,16 @@ export function ExploreHeader() {
                       params={{ id: project.id }}
                       to="/projects/$id"
                     >
-                      <FolderOpen className="size-4 text-primary shrink-0" />
+                      <SearchResultArtwork
+                        alt={`${project.title} cover artwork`}
+                        fallback={
+                          <FolderOpen
+                            aria-hidden="true"
+                            className="size-4 text-primary"
+                          />
+                        }
+                        src={project.coverArtUrl}
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium text-xs">
                           {project.title}
@@ -239,9 +306,9 @@ export function ExploreHeader() {
                       to={
                         searchScope === "projects"
                           ? "/projects"
-                          : (searchScope === "tracks"
+                          : searchScope === "tracks"
                             ? "/tracks"
-                            : "/artist")
+                            : "/artist"
                       }
                     >
                       View all {searchScope}

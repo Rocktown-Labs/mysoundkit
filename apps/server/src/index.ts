@@ -145,6 +145,7 @@ app.use(
   sentry(app, (workerEnv) => ({
     dsn: workerEnv.SENTRY_DSN,
     enableLogs: true,
+    environment: workerEnv.SENTRY_ENVIRONMENT ?? "development",
     sendDefaultPii: true,
     tracesSampleRate: 1,
   }))

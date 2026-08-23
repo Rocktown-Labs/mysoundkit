@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export interface ExploreCollectionSearch {
   genre?: string;
@@ -11,14 +12,17 @@ export interface ExploreCollectionSearch {
   view?: "all" | "sections";
 }
 
+type ExploreCollectionLayout = "default" | "landscape";
+
 interface ExploreCollectionSectionProps<T> {
   children: (item: T) => ReactNode;
+  description?: string;
   empty: ReactNode;
   isLoading?: boolean;
   items: T[];
-  title: string;
-  description?: string;
+  layout?: ExploreCollectionLayout;
   onViewAll?: () => void;
+  title: string;
 }
 
 export function ExploreCollectionSection<T>({
@@ -27,6 +31,7 @@ export function ExploreCollectionSection<T>({
   empty,
   isLoading = false,
   items,
+  layout = "default",
   onViewAll,
   title,
 }: ExploreCollectionSectionProps<T>) {
@@ -46,8 +51,8 @@ export function ExploreCollectionSection<T>({
         ) : null}
       </div>
       {isLoading || items.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {items.slice(0, 6).map((item, index) => (
+        <div className={collectionGridClassName(layout)}>
+          {items.slice(0, layout === "landscape" ? 8 : 6).map((item, index) => (
             <div className="min-w-0" key={getItemKey(item, index)}>
               {children(item)}
             </div>
@@ -66,6 +71,7 @@ interface ExploreCollectionGridProps<T> {
   footer?: ReactNode;
   isLoading?: boolean;
   items: T[];
+  layout?: ExploreCollectionLayout;
   title: string;
 }
 
@@ -75,6 +81,7 @@ export function ExploreCollectionGrid<T>({
   footer,
   isLoading = false,
   items,
+  layout = "default",
   title,
 }: ExploreCollectionGridProps<T>) {
   return (
@@ -82,7 +89,7 @@ export function ExploreCollectionGrid<T>({
       <h2 className="mb-3 font-semibold text-xl">{title}</h2>
       {isLoading || items.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <div className={collectionGridClassName(layout)}>
             {items.map((item, index) => (
               <div className="min-w-0" key={getItemKey(item, index)}>
                 {children(item)}
@@ -106,13 +113,20 @@ export function ExploreCollectionEmpty({ children }: { children: ReactNode }) {
   );
 }
 
-const getItemKey = <T,>(item: T, index: number) => {
-  if (typeof item === "object" && item !== null && "id" in item) {
-    const { id } = item;
-    if (typeof id === "string" || typeof id === "number") {
-      return id;
+const collectionGridClassName = (layout: ExploreCollectionLayout) =>
+    cn(
+      "grid gap-3 md:gap-4",
+      layout === "landscape"
+        ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+        : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+    ),
+  getItemKey = <T,>(item: T, index: number) => {
+    if (typeof item === "object" && item !== null && "id" in item) {
+      const { id } = item;
+      if (typeof id === "string" || typeof id === "number") {
+        return id;
+      }
     }
-  }
 
-  return index;
-};
+    return index;
+  };

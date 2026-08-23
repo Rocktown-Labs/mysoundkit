@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react/iframe-missing-sandbox */
 import MuxPlayer from "@mux/mux-player-react";
 import {
   ExternalLink,
@@ -14,16 +15,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 const YOUTUBE_PATTERNS = [
-    /youtu\.be\/([A-Za-z0-9_-]{6,})/,
-    /youtube\.com\/watch\?v=([A-Za-z0-9_-]{6,})/,
-    /youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/,
+    /youtu\.be\/(?<videoId>[A-Za-z0-9_-]{6,})/u,
+    /youtube\.com\/watch\?v=(?<videoId>[A-Za-z0-9_-]{6,})/u,
+    /youtube(?:-nocookie)?\.com\/(?:embed|live|shorts)\/(?<videoId>[A-Za-z0-9_-]{6,})/u,
   ] as const,
   getYouTubeEmbedUrl = (url: string) => {
     for (const pattern of YOUTUBE_PATTERNS) {
       const match = url.match(pattern);
 
-      if (match?.[1]) {
-        return `https://www.youtube.com/embed/${match[1]}`;
+      if (match?.groups?.videoId) {
+        return `https://www.youtube.com/embed/${match.groups.videoId}`;
       }
     }
 
@@ -115,7 +116,9 @@ export function SoundKitVideoPlayer({
         <img
           alt={`${title} poster`}
           className="h-full w-full object-cover opacity-40"
+          height={720}
           src={posterUrl}
+          width={1280}
         />
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-gradient-to-t from-black/80 via-black/50 to-black/20 px-6 text-center text-white">
