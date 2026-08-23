@@ -99,6 +99,36 @@ test.describe("main application surfaces", () => {
     await expect(page.getByText("I'm an Artist")).toBeHidden();
   });
 
+  test("artist profiles show owned media, features, and credits", async ({
+    page,
+  }) => {
+    await gotoWithViteRetry(page, "/artist/luna-eclipse");
+
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Luna Eclipse" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Videos" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Also Featured On" })
+    ).toBeVisible();
+    await expect(page.getByText("City Lights").first()).toBeVisible();
+
+    await page.getByRole("tab", { name: "Credits" }).click();
+    await expect(page).toHaveURL(/#credits$/);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Credits" })
+    ).toBeVisible();
+    await expect(page.getByText("Songwriter")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Tracks" }).click();
+    await expect(page).toHaveURL(/#tracks$/);
+    await expect(
+      page.getByRole("heading", { exact: true, name: "Also Featured On" })
+    ).toBeVisible();
+  });
+
   test("live surfaces render while realtime implementation is pending", async ({
     page,
   }) => {

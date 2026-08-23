@@ -243,7 +243,7 @@ export function ChangeCoverArtDialog({
                 originalFileName: selectedFile.name,
                 url: `${MEDIA_BASE_URL}/${coverKey}`,
               },
-              mimeType: "image/*",
+              mimeType: selectedFile.type || "image/jpeg",
               objectKey: coverKey,
               status: "ready",
               storageProvider: "r2",
@@ -386,7 +386,11 @@ export function SwapMainFileDialog({
 
       setIsSaving(true);
       try {
-        const masterResult = await uploadAsync([selectedFile]),
+        // The track-source route requires per-track client metadata; without
+        // it the upload rejects with "Invalid metadata."
+        const masterResult = await uploadAsync([selectedFile], {
+            metadata: { trackId },
+          }),
           uploadedMaster = masterResult.files.find(
             (entry) =>
               (entry.raw && entry.raw === selectedFile) ||
